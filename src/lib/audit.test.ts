@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { deriveSessionId, logActivity } from "./audit"
+import { readFileSync } from "node:fs"
+import { AUDIT_SURFACES, deriveSessionId, isAuditSurface, logActivity } from "./audit"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
 
 // VERIDIAN Review Framework: Audit & Governance / Complete Audit Stamp
@@ -94,5 +95,83 @@ describe("logActivity actor columns", () => {
     const isKeyOnly = (row: Record<string, unknown>) => (row.apiKeyId !== null || row.actorRole === "api_key") && row.userId === null
     expect(isKeyOnly(both)).toBe(false)
     expect(isKeyOnly(keyOnly)).toBe(true)
+  })
+})
+
+// PROJEXA-BUILD-001 U-32 part A (register rows BR-415, BR-410): logActivity() takes an optional `surface`, stored in
+// compliance.audit_logs.surface (drizzle/0619_build001_audit_surface.sql). Same recording stand-in as above: the values
+// handed to the insert are the row that would be stored. The same function against real Postgres, with the column and
+// its CHECK, is in src/lib/services/audit-surface-migration.pglite.test.ts.
+describe("logActivity surface", () => {
+  const person = { id: "user_1", name: "Site Manager", role: "manager" } as never
+  const key = { id: "key_1", name: "PROJEXA (provisioned)" }
+  // The values object logActivity() built before U-32, key for key.
+  const PRE_U32_KEYS = [
+    "action", "entityType", "entityId", "userId", "actorName", "actorRole", "apiKeyId", "orgId", "clientId", "details",
+    "ipAddress", "userAgent", "supportSessionId", "actingOnBehalfOfUserId", "sessionId", "officeId",
+  ]
+
+  async function run(params: Record<string, unknown>) {
+    const inserted: Record<string, unknown>[] = []
+    const tx = {
+      insert: () => ({
+        values: async (v: Record<string, unknown>) => {
+          inserted.push(v)
+        },
+      }),
+    } as unknown as TenantDb
+    await logActivity({ tx, action: "boq_line.approved", entityType: "construction_boq_line_item", entityId: "line_1", orgId: "org_1", ...params } as never)
+    return inserted
+  }
+
+  test("each of the four keys is stored in the surface column", async () => {
+    for (const surface of AUDIT_SURFACES) {
+      const [row] = await run({ dbUser: person, surface })
+      expect(row.surface).toBe(surface)
+      expect(Object.keys(row).sort()).toEqual([...PRE_U32_KEYS, "surface"].sort())
+    }
+  })
+
+  test("the surface sits next to the key-and-person actor unchanged (BR-410's row: surface s1 and a non-null user_id)", async () => {
+    const [row] = await run({ dbUser: person, apiKey: key, actingViaApiKey: true, surface: "s1_one_page_ai_prepared" })
+    expect(row.surface).toBe("s1_one_page_ai_prepared")
+    expect(row.userId).toBe("user_1")
+    expect(row.apiKeyId).toBe("key_1")
+  })
+
+  test("absent, or null, the values are exactly the pre-U-32 ones: no surface key, so the column is written as NULL", async () => {
+    for (const params of [{ dbUser: person }, { apiKey: key }, { dbUser: person, surface: undefined }, { dbUser: person, surface: null }]) {
+      const [row] = await run(params)
+      expect(Object.keys(row)).toEqual(PRE_U32_KEYS)
+      expect("surface" in row).toBe(false)
+    }
+    // Identical values with and without the field (sessionId is null here: no request).
+    const [plain] = await run({ dbUser: person, details: "d", clientId: "c_1", officeId: "b_1" })
+    const [withNull] = await run({ dbUser: person, details: "d", clientId: "c_1", officeId: "b_1", surface: null })
+    expect(withNull).toEqual(plain)
+  })
+
+  test("a value that is not one of the four keys is refused before any write", async () => {
+    for (const bad of ["s5_sms", "", "S1_ONE_PAGE_AI_PREPARED", "s1_one_page_ai_prepared ", "s3_ai_link", 1, true, {}]) {
+      let inserted: Record<string, unknown>[] | null = null
+      let message = ""
+      try {
+        inserted = await run({ dbUser: person, surface: bad })
+      } catch (err) {
+        message = (err as Error).message
+      }
+      expect({ bad, inserted, refused: message.includes("unknown audit surface") }).toEqual({ bad, inserted: null, refused: true })
+    }
+  })
+
+  test("AUDIT_SURFACES is exactly the key list of the CHECK in drizzle/0619", () => {
+    const migration = readFileSync(new URL("../../drizzle/0619_build001_audit_surface.sql", import.meta.url), "utf8")
+    const check = /ADD CONSTRAINT audit_logs_surface_check\s+CHECK \(([\s\S]*?)\);/.exec(migration)
+    expect(check).not.toBeNull()
+    const keys = [...check![1].matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1])
+    expect(keys).toEqual([...AUDIT_SURFACES])
+    expect(AUDIT_SURFACES.every((k) => isAuditSurface(k))).toBe(true)
+    expect(isAuditSurface("s5_sms")).toBe(false)
+    expect(isAuditSurface(null)).toBe(false)
   })
 })

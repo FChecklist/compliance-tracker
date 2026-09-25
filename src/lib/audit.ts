@@ -45,6 +45,28 @@ type CommonLogActivityParams = {
   // adoption is still nascent in this codebase; no auto-lookup is done
   // here to avoid an extra DB read on every single audit write).
   officeId?: string | null
+  // PROJEXA-BUILD-001 U-32 (BR-410, BR-415): which of the four surfaces the
+  // write came from (ai-os/projexa-build-001/FOUR_SURFACE_CONTRACT.md rule 4),
+  // stored in audit_logs.surface. Optional: absent or null writes nothing new,
+  // so every existing call site stores exactly the row it stored before (the
+  // column reads NULL). Any value that is not one of AUDIT_SURFACES is refused
+  // before the insert.
+  surface?: AuditSurface | null
+}
+
+// The four surface keys, the same list as the CHECK audit_logs_surface_check
+// of drizzle/0619_build001_audit_surface.sql.
+export const AUDIT_SURFACES = [
+  "s1_one_page_ai_prepared",
+  "s2_erp_screen_prefilled",
+  "s3_ai_link_chat",
+  "s4_email_inbox",
+] as const
+
+export type AuditSurface = (typeof AUDIT_SURFACES)[number]
+
+export function isAuditSurface(value: unknown): value is AuditSurface {
+  return typeof value === "string" && (AUDIT_SURFACES as readonly string[]).includes(value)
 }
 
 // Wave 9: a write can now be driven by a real logged-in user OR an external
@@ -134,7 +156,15 @@ export function deriveSessionId(request?: Request): string | null {
 }
 
 export async function logActivity(params: LogActivityParams): Promise<void> {
-  const { tx, action, entityType, entityId, details, orgId, clientId, request, supportSession, officeId } = params
+  const { tx, action, entityType, entityId, details, orgId, clientId, request, supportSession, officeId, surface } = params
+
+  // U-32: refused here, before anything is written, so a caller's typo fails
+  // in this process with a readable message instead of as a CHECK violation
+  // (SQLSTATE 23514) that aborts the caller's transaction.
+  const hasSurface = surface !== undefined && surface !== null
+  if (hasSurface && !isAuditSurface(surface)) {
+    throw new Error(`logActivity: unknown audit surface '${String(surface)}'; expected one of ${AUDIT_SURFACES.join(", ")}`)
+  }
 
   // Denormalized snapshot, not a live join -- if this user is later renamed
   // or deactivated, this row must keep showing who they were AT THE TIME of
@@ -166,5 +196,8 @@ export async function logActivity(params: LogActivityParams): Promise<void> {
     actingOnBehalfOfUserId: supportSession?.actingOnBehalfOfUserId ?? null,
     sessionId: params.sessionId !== undefined ? params.sessionId : deriveSessionId(request),
     officeId: officeId ?? null,
+    // Only when given: without a surface the values are exactly the pre-U-32
+    // ones, and Drizzle writes DEFAULT (NULL) into the column.
+    ...(hasSurface ? { surface } : {}),
   })
 }

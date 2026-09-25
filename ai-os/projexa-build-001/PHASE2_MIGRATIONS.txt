@@ -22,3 +22,5 @@
 0616_build001_requirement_evidence
 # U-25, the PROJEXA identity gateway (Edge Function projexa-read: switch table + projexa_read_* wrappers).
 0618_build001_projexa_gateway
+# U-32 part A, the surface column of compliance.audit_logs (nullable, four-key check).
+0619_build001_audit_surface
