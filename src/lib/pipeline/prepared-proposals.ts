@@ -14,15 +14,31 @@
 // parameters it stored. It writes nothing and asks no model: the verdict of proposeSubmission() was recorded on
 // the row when the row was written, and a page view must not spend a model call.
 //
-// The three writing steps of the unit (confirm, audit, paste-back) are added below by the commits that need them.
+// THE APPROVAL. confirmPreparedProposal() does not call confirmSubmission(). That function re-derives the
+// proposal from the words stored with the row, and on the live database phrase_map holds no phrase for create_boq,
+// so an email proposal would not resolve without a model (PMD-38). This one reads the parameters from
+// selected_chain, merges what the person adds, checks the result with the registry's validate() and the BOQ
+// service's own line-item rules, and runs runDirectTask() on the proposal's own row, the same call
+// confirmSubmission() ends with. The person is passed as userId and as actorUserId (PMD-35), so the BOQ is
+// recorded under the person and never under an API key. No model is asked.
+//
+// THE AUDIT. recordApprovalAudit() writes one compliance.audit_logs row per line item created, through
+// logActivity() with its surface argument set to s1_one_page_ai_prepared and the acting person as the user (a key
+// that carried the call is kept beside the person, never instead of the person).
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { projects, submissions } from "@/lib/db/schema";
 import { assertKeyProjectScope, type KeyProjectFacts } from "@/lib/supabase/api-key-auth";
 import { redactProjectSideFields } from "@/lib/services/cost-visibility-service";
-import type { AuditSurface } from "@/lib/audit";
+import { ServiceError } from "@/lib/services/compliance-service";
+import { validateBoqBodyShape, validateLineItemInputs, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
+import { logActivity, type AuditSurface } from "@/lib/audit";
+import type { ActingActor } from "@/lib/supabase/auth-guard";
 import { missingParamsFor, type DryRunMissing } from "./dry-run";
+import { pipelineFailure, type PipelineFailure } from "./error-codes";
 import { functionLabel } from "./function-registry";
+import { buildValidationContext, runDirectTask, type RunSubmissionResult } from "./run-submission";
+import { validate } from "./validate";
 
 /** The audit surface every approval on the approval list is recorded under (FOUR_SURFACE_CONTRACT.md rule 4). */
 export const S1_SURFACE = "s1_one_page_ai_prepared" as const satisfies AuditSurface;
@@ -173,4 +189,201 @@ export async function listPreparedProposals(ctx: { orgId: string }, projectId: s
   }
   proposals.sort((a, b) => (a.preparedAt < b.preparedAt ? 1 : a.preparedAt > b.preparedAt ? -1 : 0));
   return proposals.slice(0, MAX_LISTED_PROPOSALS);
+}
+
+/** What a list of line items is checked against before a create_boq proposal is stored or written. */
+export type LineItemsCheck = { ok: true } | { ok: false; failure: PipelineFailure; detail: string };
+
+/**
+ * create_boq's line-item rules, run before anything is written: the same two validators createBoq() and the create_boq
+ * executor call (validateBoqBodyShape, validateLineItemInputs), so a proposal that could never be written is refused
+ * here instead of failing after the person pressed Approve. Absent lineItems is legal (a BOQ may be created with a
+ * title and no lines).
+ */
+export function checkBoqLineItems(params: Record<string, unknown>): LineItemsCheck {
+  const raw = params.lineItems;
+  if (raw === undefined || raw === null) return { ok: true };
+  if (!Array.isArray(raw) || raw.some((item) => typeof item !== "object" || item === null || Array.isArray(item))) {
+    return {
+      ok: false,
+      failure: pipelineFailure("REQUEST_REJECTED", [], { status: 400, reason: "line_items_not_a_list" }),
+      detail: "lineItems must be a list of objects",
+    };
+  }
+  try {
+    validateBoqBodyShape(params);
+    validateLineItemInputs(raw as BoqLineItemInput[]);
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof ServiceError) {
+      return {
+        ok: false,
+        failure: pipelineFailure("REQUEST_REJECTED", [], { status: error.status, reason: "line_items_rejected" }),
+        detail: error.message,
+      };
+    }
+    throw error;
+  }
+}
+
+export type ConfirmPreparedInput = {
+  orgId: string;
+  /** the project of the URL; the proposal must belong to it */
+  projectId: string;
+  submissionId: string;
+  /** the signed-in person, or the person an API key names (requireActingPerson): compliance.users id and role */
+  person: { id: string; role: string | null };
+  /** what the person adds or changes, merged over the stored params */
+  params?: Record<string, unknown>;
+};
+
+export type ConfirmPreparedOutcome =
+  | { ok: true; result: RunSubmissionResult; chain: PreparedChain; params: Record<string, unknown> }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "already_decided"; status: string }
+  | { ok: false; reason: "needs_input"; missing: DryRunMissing[] }
+  | { ok: false; reason: "invalid"; failure: PipelineFailure; detail?: string }
+  | { ok: false; reason: "failed"; result: RunSubmissionResult };
+
+/**
+ * Approve one prepared proposal. Nothing is written until every check has passed, and a check that fails leaves the
+ * proposal pending so the person can correct it:
+ *   1. the submission is of this organisation AND this project, else not_found (another project's proposal, another
+ *      organisation's, a typed message, a proposal naming a function this list does not approve);
+ *   2. it is still pending, else already_decided (a second Approve does not write a second BOQ);
+ *   3. the stored params plus the person's are complete (needs_input names what is missing);
+ *   4. the registry's validate() accepts them on this project only, and the line items pass the BOQ service's rules.
+ * Then runDirectTask() runs create_boq on the proposal's own row. A failure inside it (the project vanished, the
+ * service refused) marks the submission failed, exactly as confirmSubmission() would, and comes back as `failed`.
+ *
+ * A concurrent second Approve of the same proposal, made before the first has finished, is not blocked here: no
+ * status between pending and done exists in submission_status. It is the same window confirmSubmission() has.
+ */
+export async function confirmPreparedProposal(input: ConfirmPreparedInput): Promise<ConfirmPreparedOutcome> {
+  const row = await withTenantContext({ orgId: input.orgId }, async (db) => {
+    const [found] = await db
+      .select({
+        id: submissions.id,
+        projectId: submissions.projectId,
+        mode: submissions.mode,
+        rawInput: submissions.rawInput,
+        status: submissions.status,
+        selectedChain: submissions.selectedChain,
+      })
+      .from(submissions)
+      .where(and(eq(submissions.id, input.submissionId), eq(submissions.orgId, input.orgId)))
+      .limit(1);
+    return found ?? null;
+  });
+  if (!row || row.projectId !== input.projectId) return { ok: false, reason: "not_found" };
+  if (!(PENDING_SUBMISSION_STATUSES as readonly string[]).includes(row.status)) {
+    return { ok: false, reason: "already_decided", status: row.status };
+  }
+  const chain = readPreparedChain(row.selectedChain);
+  if (!chain) return { ok: false, reason: "not_found" };
+
+  // PMD-38: the stored parameters, with what the person adds over them. The stored words (row.rawInput) are not read.
+  const merged: Record<string, unknown> = { ...chain.params, ...(input.params ?? {}) };
+  const missing = missingParamsFor(chain.functionId, merged, input.projectId);
+  if (missing.length > 0) return { ok: false, reason: "needs_input", missing };
+
+  // The project of the URL is the only project this approval may act on: projectScope makes it the only reachable one.
+  const checked = validate(
+    { functionId: chain.functionId, params: merged },
+    {
+      ...buildValidationContext({ projectId: input.projectId, projectLabel: null, boq: null, params: merged, projectScope: input.projectId }),
+      candidateFunctionIds: S1_APPROVABLE_FUNCTION_IDS,
+      userPermittedFunctionIds: new Set(S1_APPROVABLE_FUNCTION_IDS),
+    }
+  );
+  if (!checked.valid) {
+    const { valid: _valid, ...failure } = checked;
+    return { ok: false, reason: "invalid", failure };
+  }
+  const lines = checkBoqLineItems(checked.params);
+  if (!lines.ok) return { ok: false, reason: "invalid", failure: lines.failure, detail: lines.detail };
+
+  const result = await runDirectTask({
+    orgId: input.orgId,
+    userId: input.person.id,
+    mode: row.mode,
+    projectId: input.projectId,
+    functionId: chain.functionId,
+    params: checked.params,
+    note: row.rawInput,
+    role: input.person.role,
+    // PMD-35: the person is the actor of the write, never the key that carried the call.
+    actorUserId: input.person.id,
+    existingSubmissionId: row.id,
+    projectScope: input.projectId,
+  });
+  if (result.status !== "done") return { ok: false, reason: "failed", result };
+  return { ok: true, result, chain, params: checked.params };
+}
+
+function createdRecordOf(result: RunSubmissionResult): { boqId: string | null; lineItemIds: string[] } {
+  const out = result.tasks[0]?.result;
+  if (!isPlainObject(out)) return { boqId: null, lineItemIds: [] };
+  const record = out.record;
+  const items = isPlainObject(record) && Array.isArray(record.lineItems) ? record.lineItems : [];
+  return {
+    boqId: typeof out.id === "string" ? out.id : null,
+    lineItemIds: items.flatMap((item) => (isPlainObject(item) && typeof item.id === "string" ? [item.id] : [])),
+  };
+}
+
+/** The audit action of an approval on the approval list. */
+export const S1_APPROVAL_ACTION = "boq_line_item.approved_from_proposal";
+
+/**
+ * One compliance.audit_logs row per line item the approval created (entity construction_boq_line_item), or one row
+ * for the BOQ header (entity construction_boq) when the proposal had no lines. Each row carries surface
+ * s1_one_page_ai_prepared, the acting person as user_id, and, when an API key carried the call, that key as
+ * api_key_id beside the person. Written in its own transaction after the BOQ was written: createBoq() opens and
+ * closes its own, so the two cannot share one. Throws when the row cannot be written; the caller reports that the
+ * record was saved and the audit row was not.
+ */
+export async function recordApprovalAudit(args: {
+  orgId: string;
+  actor: ActingActor;
+  request?: Request;
+  submissionId: string;
+  chain: PreparedChain;
+  result: RunSubmissionResult;
+}): Promise<{ entityType: string; entityIds: string[] }> {
+  const created = createdRecordOf(args.result);
+  if (!created.boqId) throw new Error("The approval wrote a record but its id could not be read from the task result");
+  const lineItemIds = created.lineItemIds;
+  const entityType = lineItemIds.length > 0 ? "construction_boq_line_item" : "construction_boq";
+  const entityIds = lineItemIds.length > 0 ? lineItemIds : [created.boqId];
+
+  await withTenantContext({ orgId: args.orgId, userId: args.actor.dbUser.id }, async (db) => {
+    for (const entityId of entityIds) {
+      await logActivity({
+        tx: db,
+        orgId: args.orgId,
+        ...args.actor,
+        action: S1_APPROVAL_ACTION,
+        entityType,
+        entityId,
+        details: JSON.stringify({
+          surface: S1_SURFACE,
+          source: args.chain.source,
+          functionId: args.chain.functionId,
+          submissionId: args.submissionId,
+          boqId: created.boqId,
+        }),
+        request: args.request,
+        surface: S1_SURFACE,
+      });
+    }
+  });
+  return { entityType, entityIds };
+}
+
+/** The BOQ an approval created, for the response: its id, its route, and the line item ids. */
+export function approvedRecordOf(result: RunSubmissionResult): { boqId: string | null; route: string | null; lineItemIds: string[] } {
+  const created = createdRecordOf(result);
+  const out = result.tasks[0]?.result;
+  return { ...created, route: isPlainObject(out) && typeof out.route === "string" ? out.route : null };
 }
