@@ -702,6 +702,7 @@ export function createEdgeExtractCaller(config: { baseUrl?: string | null; secre
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
         body: bodyJson,
+        cache: "no-store",
         signal: AbortSignal.timeout(config.timeoutMs ?? 110_000),
       })
       let body: unknown = null

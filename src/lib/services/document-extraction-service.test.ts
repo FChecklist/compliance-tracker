@@ -541,6 +541,7 @@ describe("createEdgeExtractCaller -- the fetch to the Edge Function, wired from 
     expect(res).toEqual({ status: 200, body: { ok: true, output: { a: 1 } } })
     expect(seen[0].url).toBe("https://ref.supabase.co/functions/v1/projexa-document-extract")
     expect(seen[0].init.method).toBe("POST")
+    expect(seen[0].init.cache).toBe("no-store")
     expect((seen[0].init.headers as Record<string, string>).Authorization).toBe(`Bearer ${secret}`)
     expect(seen[0].init.body).toBe('{"x":1}')
   })

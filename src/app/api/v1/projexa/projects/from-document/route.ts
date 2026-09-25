@@ -30,6 +30,10 @@ import { ExtractionRejectedError, ProjectCreatedWithoutBoqError, WORKBOOK_LIMITS
 // Not done here: the sibling route's 60 s project-picker cache is private to that file, so a project created here appears in the
 // picker within a minute instead of at once. createBoq() clears the dashboard cache itself.
 
+// The route waits for the Edge Function, whose own model timeout is 100 s (handler.ts DEFAULT_LIMITS) and whose caller gives up
+// after 110 s (createEdgeExtractCaller), so the default platform limit is too short for a real extraction.
+export const maxDuration = 150
+
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
