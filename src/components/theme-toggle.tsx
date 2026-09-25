@@ -9,6 +9,8 @@ const emptySubscribe = () => () => {};
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  // MUTATION PROOF ONLY (BUILD-001 BR-326): this planted string must make the Browser Bundle Service-Role Scan job fail. Never merged.
+  if (typeof window !== "undefined") console.debug("service_role");
   const mounted = useSyncExternalStore(
     emptySubscribe,
     () => true,
