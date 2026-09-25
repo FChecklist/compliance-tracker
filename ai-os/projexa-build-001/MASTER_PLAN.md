@@ -32,7 +32,7 @@ How to read this plan (plain language, for the owner):
 - Any Vercel action: deploy, unpause, setting, env or domain change, recharge (PMD-11). Checks that need a deployed instance are blocked_owner.
 - DNS changes (PMD-06) and any spend increase: metered model provider (PMD-02), paid Supabase branch (PMD-10), any Vercel or Supabase add-on.
 - DPDP-owned objects (dpdp schema, `public.dpdp_*` functions, dpdp-ai-link, dpdp-monday-email, the two dpdp cron jobs, the two Vault secrets): recorded only (PMD-18, SHARED_BOUNDARY.md R3).
-- VERIDIAN AI-OS tooling: the three AI-OS Edge Functions listed in SHARED_BOUNDARY.md section 6 (orchestrator, mint-session-r39ct and one dormant tooling function), the L2 tooling, and the guardrail check named in AGENTS.md Rule 9 (PMD-18).
+> [removed from the public copy: see the private KT folder]
 - PROJEXA-COST-001 files until the owner release: `vercel.json` in both repos, `supabase/prepared/cost001/`, PR #1808 (DEV_TEST_DEPLOY_PLAN.md s2.2).
 - A hosting choice for browser-first screens beyond BOQ (OQ-29), and the 16 compliance-tracker-only modules with no projexa consumer (OQ-28).
 - Rewriting working code: owner rule "do not duplicate, use existing" (OWNER_REQUIREMENT_AI_WORK_LINK, directive 6).
@@ -122,7 +122,7 @@ Evidence files (LIVE_FACTS_D09_D10_D11_RLS.md, GATE_2_8_FINDINGS.md, IDENTITY_AN
 - **PMD-15** The owner-scoped exception "start only after Claude chat audits and you relay approval" ended on 2026-09-25; Amendment 001 autonomy applies again.
 - **PMD-16** One canonical AI link (surface 3): compliance-tracker platform.user_ai_links with its MCP and REST route; the PROJEXA org_ai_link snapshot becomes a read-only projection that delegates to it; universal link implementation starts after U-18.
 - **PMD-17** The 31 exceptions get ids EXC-ITEM-01..EXC-ITEM-31; the 3 META items count in the 111; platform.sumeet_gap is never the source.
-- **PMD-18** The three VERIDIAN AI-OS Edge Functions (orchestrator, mint-session-r39ct and one dormant tooling function, SHARED_BOUNDARY.md section 6) and the L2 tooling belong to the VERIDIAN AI-OS track; PROJEXA does not modify them; the dormant function is recorded as finding F-1 in SHARED_BOUNDARY.md.
+> [removed from the public copy: see the private KT folder]
 - **PMD-19** The exception record type converges on the underlying flagged record (for example the overdue RFI); no new table.
 - **PMD-20** Phase 4 record type = BOQ line item (compliance.construction_boq_line_items); progress entries are the separate daily work progress type.
 - **PMD-21** The plan lives in ai-os/projexa-build-001/ (CI reads it) and in the Drive KT folder PROJEXA_BUILD-001_PLAN_2026-09-25; the repo copy wins.
@@ -168,22 +168,22 @@ Added by the PM during development on 2026-09-25 (PM_DECISIONS.md, file written 
 
 | U id | work | register rows | state on 2026-09-25 |
 |---|---|---|---|
-| U-00 | Amendment log for BUILD-001 and the BUILD-001 claim in ACTIVE-CLAIMS (WO s1; AGENTS.md Rule 11) | BR-101, BR-102, BR-103 [BR-201] | Claim PR #1836 merged 2026-09-25T07:04:08Z (d072b6ad). Amendment log written in staging (102 rows), not committed. |
-| U-01 | Financial-redaction leak closed at all 4 role-dropping points (PMD-04) | BR-132, BR-133, BR-134, BR-135, BR-136 [BR-202, BR-512, BR-514] | PR #1839 open (core fix, incl. the dashboard money fields named by audit A-02). PMD-23: U-01 closes in 3 PRs (core, a follow-up on the same branch, a projexa PR so the assistant proxy sends the acting person). |
-| U-02 | Sitemap regenerated from projexa main with a provenance header; compliance-tracker proxy table kept separate | BR-110, BR-111 | Sitemap regenerated in staging from projexa e88b53e (310 routes, 109 modules); not committed. |
-| U-03 | CONTRADICTIONS_RESOLVED.md: the 9 contradictions plus 8 extra, with the Gap number and letter table | BR-112, BR-113 | Staging file has C-01..C-09 and X-01..X-08; not committed (see 12.4 for BR-112, BR-113). |
-| U-04 | All 111 requirement ids present by id (80 register ids plus EXC-ITEM-01..31, PMD-17) | BR-114, BR-115 [BR-307] | REQUIREMENTS_111_REGISTER.csv in staging: 111 ids (80 + 31); not committed. |
-| U-05 | Plan package, BOOLEAN_REGISTER.csv and its linter; SQL assertion runner scripts/verify/sql-assert.mjs | BR-104, BR-105, BR-107, BR-108, BR-109, BR-140 [BR-201, BR-401] | Register parts in staging (147 rows). sql-assert runner merged: PR #1838, 2026-09-25T07:40:06Z (main b2a4b20b); BR-109 stays pending until the PM re-runs it on main. |
-| U-06 | Speed Insights Plus charge reads 0.0000 (spend decrease, date-gated, PMD-11) | BR-116, BR-117 | Speed Insights and Web Analytics disabled on both projects (disabledAt 2026-09-24 04:50 UTC); charge check date-gated. |
-| U-07 | Secret Scanning becomes a required check; committed planted-secret self-test | BR-118, BR-119, BR-120 [BR-316] | Job exists (BR-118 pass, 025eea08); not a required context on compliance-tracker main (10 contexts); no committed self-test script. |
-| U-08 | CRON_PLACEMENT.csv classifies the 30 declared Vercel crons (29 compliance-tracker plus 1 projexa) | BR-106, BR-121 [BR-328, BR-329] | CRON_PLACEMENT.csv in staging: 37 rows, 30 of them Vercel crons, 0 invalid classes. |
-| U-09 | EDGE_CANDIDATES.csv classifies every LLM and email code path (MOVE_TO_EDGE, STAY, KILL) | BR-122 | EDGE_CANDIDATES.csv in staging: 35 rows (11 MOVE_TO_EDGE, 21 STAY, 3 KILL). |
-| U-10 | Reference note: dpdp-legal-clocks is the proven pg_cron -> pg_net -> Edge Function path | BR-123, BR-124 | Note not written; BR-124 pass (SQL 2026-09-25 07:05Z: 3 succeeded runs). |
-| U-11 | ai-os/SHARED_BOUNDARY.md: owner of every cron.job, Edge Function and extension; claim before create | BR-125 [BR-222, BR-511] | SHARED_BOUNDARY.md written in the plan folder; not committed. |
-| U-12 | surface_matrix.json: 7 record types x 4 surfaces = 28 cells, all unproven; exception maps to its flagged record (PMD-19) | BR-126, BR-127 [BR-218] | surface_matrix.json in staging: 28 cells unproven; exception table is null today. |
-| U-14 | Level 1 provider gate: decision PMD-02 recorded; test 2.8 rewritten as a provider matrix (T-3) | BR-130 [BR-202] | PR #1837 merged 2026-09-25T07:21:30Z (11d03fd1); BR-130 stays pending until the PM re-runs it on main. |
-| U-15 | MCP tools/list advertises only the 9 implemented tools (13 de-advertised) | BR-131 [BR-514] | PR #1840 open (gh read 2026-09-25). |
-| U-43 | External AI link makes zero server model calls; a Level 0 miss returns candidate functions and missing parameters (PMD-02) | BR-137, BR-138, BR-139 [BR-202, BR-523] | Not started. |
+| U-00 | Amendment log for BUILD-001 and the BUILD-001 claim in ACTIVE-CLAIMS (WO s1; AGENTS.md Rule 11) | BR-101, BR-102, BR-103 [BR-201] | Done. Claim PR #1836 merged; amendment log (now 115 rows) in the repo copy (PR #1843). |
+| U-01 | Financial-redaction leak closed at all 4 role-dropping points (PMD-04) | BR-132, BR-133, BR-134, BR-135, BR-136 [BR-202, BR-512, BR-514] | Done. PR #1839 (core fix incl. dashboard money fields), PR #1841 (verify scripts), projexa PR #319 (assistant proxy sends the acting person). Rows pass. |
+| U-02 | Sitemap regenerated from projexa main with a provenance header; compliance-tracker proxy table kept separate | BR-110, BR-111 | Done. Sitemap in the repo copy (PR #1843); BR-110 pass. |
+| U-03 | CONTRADICTIONS_RESOLVED.md: the 9 contradictions plus 8 extra, with the Gap number and letter table | BR-112, BR-113 | Done. CONTRADICTIONS_RESOLVED.md in the repo copy (PR #1843). |
+| U-04 | All 111 requirement ids present by id (80 register ids plus EXC-ITEM-01..31, PMD-17) | BR-114, BR-115 [BR-307] | Done. REQUIREMENTS_111_REGISTER.csv in the repo copy (PR #1843); BR-114 and BR-115 pass. |
+| U-05 | Plan package, BOOLEAN_REGISTER.csv and its linter; SQL assertion runner scripts/verify/sql-assert.mjs | BR-104, BR-105, BR-107, BR-108, BR-109, BR-140 [BR-201, BR-401] | Done. sql-assert runner PR #1838; register and linter PR #1843; evidence PR #1846 (39 of 40 phase 1 rows pass; BR-116 date-gated). |
+| U-06 | Speed Insights Plus charge reads 0.0000 (spend decrease, date-gated, PMD-11) | BR-116, BR-117 | Speed Insights and Web Analytics disabled on both projects (disabledAt 2026-09-24 04:50 UTC). BR-116 (charge reads 0.0000) is date-gated and stays pending until 2026-09-27. |
+| U-07 | Secret Scanning becomes a required check; committed planted-secret self-test | BR-118, BR-119, BR-120 [BR-316] | Job exists and the planted-secret self-test passes (BR-118, BR-120). Adding Secret Scanning as a required context is BR-316 (phase 3, pending). |
+| U-08 | CRON_PLACEMENT.csv classifies the 30 declared Vercel crons (29 compliance-tracker plus 1 projexa) | BR-106, BR-121 [BR-328, BR-329] | Done for the classification (CRON_PLACEMENT.csv, 37 rows, 30 Vercel crons). The crons drift guard is BR-328/BR-329 (pending, with U-41). |
+| U-09 | EDGE_CANDIDATES.csv classifies every LLM and email code path (MOVE_TO_EDGE, STAY, KILL) | BR-122 | Done. EDGE_CANDIDATES.csv in the repo copy (35 rows). |
+| U-10 | Reference note: dpdp-legal-clocks is the proven pg_cron -> pg_net -> Edge Function path | BR-123, BR-124 | Done. REFERENCE_PG_CRON_PG_NET_EDGE.md written; BR-123 and BR-124 pass. |
+| U-11 | ai-os/SHARED_BOUNDARY.md: owner of every cron.job, Edge Function and extension; claim before create | BR-125 [BR-222, BR-511] | Done. ai-os/SHARED_BOUNDARY.md merged (PR #1843) and kept current (U-21, U-18b done; U-25 and link objects planned). |
+| U-12 | surface_matrix.json: 7 record types x 4 surfaces = 28 cells, all unproven; exception maps to its flagged record (PMD-19) | BR-126, BR-127 [BR-218] | Done. surface_matrix.json in the repo copy: 28 cells, all unproven until phase 4/5 (BR-126, BR-127 pass). |
+| U-14 | Level 1 provider gate: decision PMD-02 recorded; test 2.8 rewritten as a provider matrix (T-3) | BR-130 [BR-202] | Done. PR #1837 merged; BR-130 pass. |
+| U-15 | MCP tools/list advertises only the 9 implemented tools (13 de-advertised) | BR-131 [BR-514] | Done. PR #1840 merged; BR-131 pass. |
+| U-43 | External AI link makes zero server model calls; a Level 0 miss returns candidate functions and missing parameters (PMD-02) | BR-137, BR-138, BR-139 [BR-202, BR-523] | Done. PR #1842 merged (external AI link makes zero server model calls). |
 | U-13 (DPDP track) | DPDP-track questions Q-D1 and Q-D2 recorded; PROJEXA keeps only the narrow SECURITY DEFINER guard | BR-128, BR-129 | Guard BR-128 pass (SQL 2026-09-25 07:05Z: 0). |
 
 Order inside the phase: (0) U-14 gate tests are already merged (PR #1837), so the PM re-runs BR-130 on main; (1) U-00 amendment log committed (BR-101); (2) U-01 redaction fix (PR #1839); (3) U-43 zero server model calls on the link; (4) U-15 de-advertise; (5) plan package docs U-02, U-03, U-04, U-05, U-08, U-09, U-10, U-11, U-12 as docs-only PRs; (6) U-07 required check; (7) U-06 read on or after 2026-09-27 07:00 UTC.
@@ -233,15 +233,15 @@ Order inside the phase: (0) U-14 gate tests are already merged (PR #1837), so th
 
 | U id | work | register rows | state on 2026-09-25 |
 |---|---|---|---|
-| U-16 | Q5 and Q6 answered by PMD-07 and PMD-08 (owner may override) | BR-203 | Not started. |
-| U-17 | Rollback proof per schema change: down file, always-aborted rehearsal, PGlite replay (PMD-10) | BR-204, BR-205, BR-206, BR-207 [BR-301] | Not started. |
-| U-18 | platform.user_ai_links.project_id (NOT NULL for new links), cross-project 403, 2 legacy links revoked | BR-208, BR-209, BR-210 [BR-302, BR-523] | Not started. |
-| U-19 | compliance.api_keys.project_id nullable with a key_kind check (org_service, project_ai) | BR-211, BR-212, BR-213 | Not started. |
-| U-20 | Per-request actor attribution: audit_logs.user_id set on every API-key write | BR-214, BR-215, BR-216, BR-217 [BR-303, BR-418, BR-514] | Not started. |
-| U-21 | One PROJEXA job on pg_cron -> pg_net -> Edge Function (exchange-rate-refresh, PMD-12); email digest off projexa vercel.json | BR-205, BR-222, BR-223, BR-224, BR-225, BR-226, BR-227 [BR-305] | Not started. |
-| U-44 | Universal AI Work Link spec accepted after a non-author audit (AUDIT: PASS) | BR-228, BR-229 [BR-306] | Spec draft exists (status DRAFT FOR AUDIT); audit not done. |
-| U-45 | Conformance harness: a plain-AI script proves uniform link behaviour without vendor accounts | BR-229 [BR-523] | Harness, mock and self-test in staging; self-test clean 20/20, 10/10 breaks detected (AWL-H03 pass). |
-| U-49 | Level 1 gate compares the acting person; level1 telemetry on every path; refusal carries records | BR-218, BR-219, BR-220, BR-221 [BR-304] | Not started. |
+| U-16 | Q5 and Q6 answered by PMD-07 and PMD-08 (owner may override) | BR-203 | Done. PMD-07 and PMD-08 recorded (BR-203 pass). |
+| U-17 | Rollback proof per schema change: down file, always-aborted rehearsal, PGlite replay (PMD-10) | BR-204, BR-205, BR-206, BR-207 [BR-301] | Done. PR #1847 merged (rollback tooling); BR-204 to BR-207 pass. |
+| U-18 | platform.user_ai_links.project_id (NOT NULL for new links), cross-project 403, 2 legacy links revoked | BR-208, BR-209, BR-210 [BR-302, BR-523] | Done. Migrations 0613 (PR #1848) and 0614 (PR #1851) applied live and merged; BR-208, BR-209, BR-290, BR-291 pass. The 2 legacy VERIDIAN chat links keep product veridian (PMD-26). |
+| U-19 | compliance.api_keys.project_id nullable with a key_kind check (org_service, project_ai) | BR-211, BR-212, BR-213 | Done. PR #1851 merged; BR-211, BR-212, BR-213 pass. |
+| U-20 | Per-request actor attribution: audit_logs.user_id set on every API-key write | BR-214, BR-215, BR-216, BR-217 [BR-303, BR-418, BR-514] | Partly done. U-20a (PR #1844), U-20b (PR #1854) and the PROJEXA side (projexa PR #322: every signed-in call names the person) merged; BR-214 and BR-215 pass. Pending: BR-216 (the 3 older rows leave the 7-day window after 2026-09-26 05:40Z) and BR-217 (needs a real key write through a running API; nothing can run until the owner releases Vercel). |
+| U-21 | One PROJEXA job on pg_cron -> pg_net -> Edge Function (exchange-rate-refresh, PMD-12); email digest off projexa vercel.json | BR-205, BR-222, BR-223, BR-224, BR-225, BR-226, BR-227 [BR-305] | Done. Migration 0615 and Edge Function projexa-timer (PR #1850), projexa PR #320 (Vercel digest cron removed); cron projexa-exchange-rate-refresh live; BR-222 to BR-224, BR-226, BR-227 pass. BR-225 waits for a live Vercel project (owner). |
+| U-44 | Universal AI Work Link spec accepted after a non-author audit (AUDIT: PASS) | BR-228, BR-229 [BR-306] | Done. Spec accepted after the non-author audit; BR-228 pass (PR #1852). |
+| U-45 | Conformance harness: a plain-AI script proves uniform link behaviour without vendor accounts | BR-229 [BR-523] | Done. Harness, mock and self-test merged (PR #1852); BR-229 and BR-280 pass. |
+| U-49 | Level 1 gate compares the acting person; level1 telemetry on every path; refusal carries records | BR-218, BR-219, BR-220, BR-221 [BR-304] | Done. PR #1859 merged; BR-219, BR-220, BR-221 pass and BR-304 passes as a phase 3 entry row. |
 
 Order inside the phase: U-16 (already decided) -> U-17 rollback tooling -> U-20 attribution and U-19 key scope -> U-18 link scope (expand, then revoke, then constrain; DEV_TEST_DEPLOY_PLAN.md s2.6 M-12) -> U-49 gate identity; U-21 (cron) and U-44 -> U-45 (link spec, harness) run beside them.
 
@@ -289,11 +289,11 @@ Order inside the phase: U-16 (already decided) -> U-17 rollback tooling -> U-20 
 
 | U id | work | register rows | state on 2026-09-25 |
 |---|---|---|---|
-| U-22 | Evidence columns on platform.sumeet_requirements; the 31 EXC-ITEM rows | BR-307, BR-308, BR-309, BR-310, BR-311, BR-312 [BR-401] | Not started. |
-| U-23 | verify:all runs at least 111 checks; the deployed-URL half waits for go-live | BR-313, BR-314 | Not started. |
-| U-24 | CI runs the PROJEXA Playwright half and it becomes a required check | BR-315, BR-316 [BR-401] | Not started. |
-| U-25 | Identity gateway on Supabase Edge (PMD-01), key-set spike first, fallback (c) | BR-317, BR-318, BR-319, BR-320, BR-321, BR-322, BR-323, BR-324 [BR-401] | Not started. |
-| U-26 | Zero service_role in built browser bundles, scanned in CI | BR-325, BR-326, BR-327 [BR-401] | Not started. |
+| U-22 | Evidence columns on platform.sumeet_requirements; the 31 EXC-ITEM rows | BR-307, BR-308, BR-309, BR-310, BR-311, BR-312 [BR-401] | Done. Migrations 0616 and 0617 applied to verdian-ai and merged (PR #1860); BR-307, BR-308, BR-309, BR-310, BR-311 pass (decisions PMD-30, PMD-31; follow-up PR #1863). |
+| U-23 | verify:all runs at least 111 checks; the deployed-URL half waits for go-live | BR-313, BR-314 | In progress (agent building verify:all, the phase-gate runner and the read-only SQL path). |
+| U-24 | CI runs the PROJEXA Playwright half and it becomes a required check | BR-315, BR-316 [BR-401] | Done as diagnosis: the Env-1 job fails for two reasons that need the owner (stored test-session secret, BR-315) and a cleanup of test data; BR-316 amended (PMD-29) and passes; Env-1 joins the required list after 3 green full runs. |
+| U-25 | Identity gateway on Supabase Edge (PMD-01), key-set spike first, fallback (c) | BR-317, BR-318, BR-319, BR-320, BR-321, BR-322, BR-323, BR-324 [BR-401] | Done. Migration 0618 and Edge Function projexa-read live with the switch OFF (PR #1861); BR-317 to BR-321, BR-323, BR-324 pass; BR-322 waits for a real PROJEXA session from the owner (PMD-32). |
+| U-26 | Zero service_role in built browser bundles, scanned in CI | BR-325, BR-326, BR-327 [BR-401] | Done. Scanner and CI job merged (compliance-tracker PR #1855, projexa PR #321), BR-316 lists the job as required, mutation proof recorded (job failed on a planted service_role, run 36131620580); BR-327 pass; BR-326 reads the check on main; BR-325 (local run) needs a CI-only build (owner-blocked row). |
 
 Order inside the phase: U-22 columns and rows -> U-23 verify:all; U-25 spike (BR-323, BR-324) before any gateway code; U-24 fix the Env-1 job (BR-315) before it becomes required (BR-316); U-26 CI scan job.
 
@@ -342,7 +342,7 @@ Order inside the phase: U-22 columns and rows -> U-23 verify:all; U-25 spike (BR
 
 | U id | work | register rows | state on 2026-09-25 |
 |---|---|---|---|
-| U-27 | BOQ line items read with keyset pagination: body under 1 MB, route under 2,000 ms | BR-403, BR-404, BR-405 [BR-501] | Not started. |
+| U-27 | BOQ line items read with keyset pagination: body under 1 MB, route under 2,000 ms | BR-403, BR-404, BR-405 [BR-501] | In progress (agent building keyset pagination behind the flag BUILD001_BOQ_KEYSET_PAGINATION and the mutation runner). |
 | U-28 | BOQ registry entries create_boq and get_boq_line_items; revision forwards lineItems, override and change-order id | BR-406, BR-407, BR-408 [BR-501] | Not started. |
 | U-29 | Surface 1: AI-prepared approval page with an approve action | BR-409, BR-410, BR-424 [BR-501] | Not started. |
 | U-30 | Q3 (proposals only, PMD-05) and Q4 (DNS owner-only, PMD-06) recorded; Resend inbound records prepared | BR-411, BR-412, BR-414 [BR-521] | Not started. |
@@ -406,7 +406,7 @@ Order inside the phase: U-27 pagination -> U-28 registry entries -> U-29 surface
 | U-38 | Remaining registry entries incl. create_drawing and create_mom traps; billing claims read-only | BR-512, BR-513, BR-522, BR-525 | Not started. |
 | U-39 | /api/mcp: implement or drop the 13 construction and GST tools, with person and role | BR-514, BR-525 | Not started. |
 | U-40 | Scheduler bridge: pg_cron -> Edge -> runSubmission as the schedule owner | BR-511, BR-515, BR-516, BR-517, BR-525 | Not started. |
-| U-41 | Vercel crons: 1 in compliance-tracker, 0 in projexa, none */N; crons drift guard | BR-516, BR-518, BR-519 [BR-328, BR-329] | Not started. |
+| U-41 | Vercel crons: 1 in compliance-tracker, 0 in projexa, none */N; crons drift guard | BR-516, BR-518, BR-519 [BR-328, BR-329] | Partly done. The crons drift guard is merged (PR #1862): BR-328 and BR-329 pass. Cutting vercel.json to one cron (BR-518, BR-519) waits for the owner release with the go-live pack (draft PR #1808). |
 | U-42 | All 28 surface cells proven | BR-520, BR-521, BR-522 | Not started. |
 | U-48 | Owner acceptance run across the 9 AI families | BR-524 | Not started. |
 

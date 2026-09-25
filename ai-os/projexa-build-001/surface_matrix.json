@@ -16,7 +16,7 @@
   "boq_progress": "compliance.construction_boq_line_items",
   "exception": "underlying flagged record (for example the overdue RFI in compliance.construction_rfis); no new table (PMD-19)"
  },
- "verify_command_contract": "bash; needs jq, psql and DATABASE_URL in env; exit 0 = cell proven (record_id set in this file AND >=1 compliance.audit_logs row for that id tagged details->>'surface'=<surface> with a non-null user_id and null api_key_id); today every cell exits non-zero at jq -e because record_id is null. Prerequisite not met today: no writer stamps a surface key into compliance.audit_logs.details (a TEXT column, not jsonb) and audit_logs has no surface column. SQL body validated live 2026-09-25 on pcrjmlpuqsbocqfwoxod with a literal id (returned count 0, no error).",
+ "verify_command_contract": "bash; needs jq, psql and DATABASE_URL in env; exit 0 = cell proven (record_id set in this file AND >=1 compliance.audit_logs row for that id tagged details->>'surface'=<surface> with a non-null user_id and null api_key_id); today every cell exits non-zero at jq -e because record_id is null. Prerequisite not met today: no writer stamps a surface key into compliance.audit_logs.details (a TEXT column, not jsonb) and audit_logs has no surface column. SQL body validated live 2026-09-25 on pcrjmlpuqsbocqfwoxod with a literal id (returned count 0, no error). (2026-09-25, U-20a/U-20b: an audit row written on an API key carries BOTH the key and the acting person, so a cell no longer requires api_key_id to be null; it requires user_id to be set.)",
  "record_types": [
   "daily_work_progress",
   "rfi",
@@ -48,7 +48,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/workspace/[id]/page.tsx + src/components/ProjectWorkspaceClient.tsx section 'progress' (WorkProgressReportClient, line 108) (one-project single-page view, commit 926194dc; renders stored records, no AI-prepared draft or approve-all step)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"daily_work_progress\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_work_progress_entries t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"daily_work_progress\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_work_progress_entries t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "daily_work_progress",
@@ -56,7 +56,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/work-progress/page.tsx, src/app/(app)/work-progress/[id]/page.tsx, src/app/(app)/site-diary/*; backend FChecklist/compliance-tracker@025eea08:src/app/api/v1/projexa/work-progress/route.ts",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"daily_work_progress\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_work_progress_entries t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"daily_work_progress\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_work_progress_entries t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "daily_work_progress",
@@ -64,7 +64,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/compliance-tracker@025eea08:src/app/api/mcp/[token]/route.ts:58 -> src/lib/pipeline/run-submission.ts -> src/lib/pipeline/executor.ts:672 EXECUTORS record_work_progress -> executeRecordWorkProgress (executor.ts:135); PROJEXA-minted link FChecklist/projexa@e88b53e:src/app/api/ai/[token]/route.ts:115-119 is a read-only dashboard snapshot",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"daily_work_progress\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_work_progress_entries t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"daily_work_progress\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_work_progress_entries t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "daily_work_progress",
@@ -72,7 +72,7 @@
    "status": "unproven",
    "existing_code": "none (FChecklist/projexa@e88b53e:src/lib/email/digest.ts:21 entityType union = todo|rfi|submittal|punch_list|billing_milestone; src/lib/services/digest-item-dispatcher.ts:28 has no case for this record type)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"daily_work_progress\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_work_progress_entries t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"daily_work_progress\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_work_progress_entries t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "rfi",
@@ -80,7 +80,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/workspace/[id]/page.tsx + src/components/ProjectWorkspaceClient.tsx section 'rfis' (RfisClient, line 164) (one-project single-page view, commit 926194dc; renders stored records, no AI-prepared draft or approve-all step)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"rfi\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_rfis t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"rfi\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_rfis t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "rfi",
@@ -88,7 +88,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/rfis/page.tsx, rfis/new/page.tsx, rfis/[id]/page.tsx; backend FChecklist/compliance-tracker@025eea08:src/app/api/v1/projexa/rfis/route.ts, rfis/[id]/route.ts",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"rfi\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_rfis t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"rfi\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_rfis t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "rfi",
@@ -96,7 +96,7 @@
    "status": "unproven",
    "existing_code": "none (FChecklist/projexa@e88b53e:src/app/api/ai/apply/route.ts:15-36 writes only compliance.pipeline_tasks; FChecklist/compliance-tracker@025eea08:src/lib/pipeline/executor.ts:672 EXECUTORS has no executor for this record type)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"rfi\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_rfis t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"rfi\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_rfis t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "rfi",
@@ -104,7 +104,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/api/email/inbound/route.ts:122 -> src/lib/services/digest-item-dispatcher.ts:28 applyRfiVerb (reply-only; one-click src/app/api/email/[token]/route.ts:85 is todo-only)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"rfi\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_rfis t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"rfi\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_rfis t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "punch_list",
@@ -112,7 +112,7 @@
    "status": "unproven",
    "existing_code": "none (punch list absent from FChecklist/projexa@e88b53e:src/lib/workspace-visibility.ts:35-46 WORKSPACE_SECTIONS)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"punch_list\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_punch_list_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"punch_list\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_punch_list_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "punch_list",
@@ -120,7 +120,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/punch-list/page.tsx, punch-list/new/page.tsx, punch-list/[id]/page.tsx; backend FChecklist/compliance-tracker@025eea08:src/app/api/v1/projexa/punch-list/route.ts, punch-list/[id]/route.ts",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"punch_list\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_punch_list_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"punch_list\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_punch_list_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "punch_list",
@@ -128,7 +128,7 @@
    "status": "unproven",
    "existing_code": "none (FChecklist/projexa@e88b53e:src/app/api/ai/apply/route.ts:15-36 writes only compliance.pipeline_tasks; FChecklist/compliance-tracker@025eea08:src/lib/pipeline/executor.ts:672 EXECUTORS has no executor for this record type)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"punch_list\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_punch_list_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"punch_list\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_punch_list_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "punch_list",
@@ -136,7 +136,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/api/email/inbound/route.ts:122 -> src/lib/services/digest-item-dispatcher.ts:28 applyPunchListVerb (reply-only; one-click src/app/api/email/[token]/route.ts:85 is todo-only)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"punch_list\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_punch_list_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"punch_list\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_punch_list_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "change_order",
@@ -144,7 +144,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/workspace/[id]/page.tsx + src/components/ProjectWorkspaceClient.tsx section 'scope-change-orders' (ChangeOrdersClient, line 155) (one-project single-page view, commit 926194dc; renders stored records, no AI-prepared draft or approve-all step)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"change_order\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_change_orders t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"change_order\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_change_orders t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "change_order",
@@ -152,7 +152,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/change-orders/page.tsx, change-orders/new/page.tsx, change-orders/[id]/page.tsx; backend FChecklist/compliance-tracker@025eea08:src/app/api/v1/projexa/change-orders/route.ts, change-orders/[id]/route.ts",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"change_order\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_change_orders t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"change_order\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_change_orders t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "change_order",
@@ -160,7 +160,7 @@
    "status": "unproven",
    "existing_code": "none (FChecklist/projexa@e88b53e:src/app/api/ai/apply/route.ts:15-36 writes only compliance.pipeline_tasks; FChecklist/compliance-tracker@025eea08:src/lib/pipeline/executor.ts:672 EXECUTORS has no executor for this record type)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"change_order\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_change_orders t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"change_order\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_change_orders t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "change_order",
@@ -168,7 +168,7 @@
    "status": "unproven",
    "existing_code": "none (FChecklist/projexa@e88b53e:src/lib/email/digest.ts:21 entityType union = todo|rfi|submittal|punch_list|billing_milestone; src/lib/services/digest-item-dispatcher.ts:28 has no case for this record type)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"change_order\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_change_orders t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"change_order\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_change_orders t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "billing_claim",
@@ -176,7 +176,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/workspace/[id]/page.tsx + src/components/ProjectWorkspaceClient.tsx section 'billing-milestones' (BillingMilestonesClient, line 173) (one-project single-page view, commit 926194dc; renders stored records, no AI-prepared draft or approve-all step)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"billing_claim\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_progress_claims t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"billing_claim\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_progress_claims t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "billing_claim",
@@ -184,7 +184,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/billing-milestones/page.tsx + src/components/BillingMilestonesClient.tsx:127,157,176 (/api/billing-claims); backend FChecklist/compliance-tracker@025eea08:src/app/api/v1/projexa/billing-claims/route.ts, billing-claims/[id]/route.ts",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"billing_claim\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_progress_claims t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"billing_claim\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_progress_claims t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "billing_claim",
@@ -192,7 +192,7 @@
    "status": "unproven",
    "existing_code": "none (FChecklist/projexa@e88b53e:src/app/api/ai/apply/route.ts:15-36 writes only compliance.pipeline_tasks; FChecklist/compliance-tracker@025eea08:src/lib/pipeline/executor.ts:672 EXECUTORS has no executor for this record type)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"billing_claim\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_progress_claims t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"billing_claim\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_progress_claims t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "billing_claim",
@@ -200,7 +200,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/api/email/inbound/route.ts:122 -> src/lib/services/digest-item-dispatcher.ts:28 applyBillingMilestoneVerb (entityType billing_milestone -> /billing-claims) (reply-only; one-click src/app/api/email/[token]/route.ts:85 is todo-only)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"billing_claim\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_progress_claims t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"billing_claim\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_progress_claims t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "boq_progress",
@@ -208,7 +208,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/workspace/[id]/page.tsx + src/components/ProjectWorkspaceClient.tsx section 'boq' (WorkspaceBoqCard, line 126) (one-project single-page view, commit 926194dc; renders stored records, no AI-prepared draft or approve-all step)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"boq_progress\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_boq_line_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"boq_progress\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_boq_line_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "boq_progress",
@@ -216,7 +216,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/scope/page.tsx, scope/[id]/page.tsx, scope/import/page.tsx, scope/[id]/revise/page.tsx; backend FChecklist/compliance-tracker@025eea08:src/app/api/v1/projexa/scope/** (12 route files incl. scope/line-items/[id]/route.ts, scope/import/route.ts)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"boq_progress\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_boq_line_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"boq_progress\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_boq_line_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "boq_progress",
@@ -224,7 +224,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/compliance-tracker@025eea08:src/app/api/mcp/[token]/route.ts:58 -> src/lib/pipeline/run-submission.ts -> src/lib/pipeline/executor.ts:672 EXECUTORS record_work_progress (writes against boqLineItemId, executor.ts:141) + create_boq_revision -> executeCreateBoqRevision (executor.ts:485)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"boq_progress\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_boq_line_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"boq_progress\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_boq_line_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "boq_progress",
@@ -232,7 +232,7 @@
    "status": "unproven",
    "existing_code": "none (FChecklist/projexa@e88b53e:src/lib/email/digest.ts:21 entityType union = todo|rfi|submittal|punch_list|billing_milestone; src/lib/services/digest-item-dispatcher.ts:28 has no case for this record type)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"boq_progress\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_boq_line_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"boq_progress\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a join compliance.construction_boq_line_items t on t.id::text=a.entity_id::text where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "exception",
@@ -240,7 +240,7 @@
    "status": "unproven",
    "existing_code": "FChecklist/projexa@e88b53e:src/app/(app)/analysis/exceptions/page.tsx (commit b604d0dd, #286) + src/components/workspace/WorkspaceInsightsCard.tsx:14-23 (GET-only report, no approve step)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"exception\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"exception\" and .surface==\"s1_one_page_ai_prepared\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "exception",
@@ -248,7 +248,7 @@
    "status": "unproven",
    "existing_code": "none (only consumers of /api/exceptions in projexa src: src/app/api/exceptions/route.ts, WorkspaceInsightsCard.tsx, ExceptionsClient.tsx; no badge on any ERP record screen)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"exception\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"exception\" and .surface==\"s2_erp_screen_prefilled\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s2_erp_screen_prefilled' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "exception",
@@ -256,7 +256,7 @@
    "status": "unproven",
    "existing_code": "none (FChecklist/projexa@e88b53e:src/app/api/ai/apply/route.ts:15-36 writes only compliance.pipeline_tasks; FChecklist/compliance-tracker@025eea08:src/lib/pipeline/executor.ts:672 EXECUTORS has no executor for this record type)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"exception\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"exception\" and .surface==\"s3_ai_link_chat\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s3_ai_link_chat' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   },
   {
    "record_type": "exception",
@@ -264,7 +264,7 @@
    "status": "unproven",
    "existing_code": "none (FChecklist/projexa@e88b53e:src/lib/email/digest.ts:21 entityType union = todo|rfi|submittal|punch_list|billing_milestone; src/lib/services/digest-item-dispatcher.ts:28 has no case for this record type)",
    "record_id": null,
-   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"exception\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null and a.api_key_id is null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
+   "verify_command": "RID=$(jq -er '.cells[]|select(.record_type==\"exception\" and .surface==\"s4_email_inbox\")|.record_id' surface_matrix.json) && N=$(echo \"select count(*) from compliance.audit_logs a where a.entity_id::text=:'rid' and (case when pg_input_is_valid(a.details,'jsonb') then (a.details::jsonb)->>'surface' end)='s4_email_inbox' and a.user_id is not null\" | psql \"$DATABASE_URL\" -tA -v ON_ERROR_STOP=1 -v rid=\"$RID\") && test \"$N\" -ge 1"
   }
  ]
 }
