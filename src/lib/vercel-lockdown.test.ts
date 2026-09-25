@@ -83,68 +83,115 @@ describe("Vercel deploy lockdown -- guard the guard", () => {
   })
 })
 
-// BUILD-001 U-41 (register rows BR-328, BR-329), 2026-09-25. PROJEXA-COST-001 caps the Vercel bill at USD 20 a month and every
-// Vercel cron is a metered function invocation, so the set of crons in vercel.json may only shrink. This is the list as committed
-// on 2026-09-25 (29 crons, one of them every 15 minutes). U-41 will cut it to one cron when the owner releases the go-live pack
-// (draft PR #1808); at that point this list shrinks in the same PR. Adding a cron, or changing a schedule, fails this test until
-// this list is edited too, and editing this list to allow MORE needs the owner's instruction (CLAUDE.md, R76 lockdown section).
-const FROZEN_CRONS: ReadonlyArray<readonly [schedule: string, path: string]> = [
-  ["0 2 * * *", "/api/internal/fm-ppm/generate-occurrences/run"],
-  ["0 3 * * *", "/api/internal/loops/run"],
-  ["0 4 * * *", "/api/internal/instruction-audit/run"],
-  ["0 5 * * *", "/api/internal/metric-alerts/run"],
-  ["0 6 * * *", "/api/internal/the-firm/deadline-digest/run"],
-  ["0 7 * * *", "/api/internal/secrets-audit/run"],
-  ["30 7 * * *", "/api/internal/the-firm/recur-engagements/run"],
-  ["15 8 * * *", "/api/internal/audit-cadence/run"],
-  ["0 1 * * *", "/api/internal/ai-performance-report/run"],
-  ["0 8 * * *", "/api/internal/task-nudge-digest/run"],
-  ["15 1 * * *", "/api/internal/escalations-report/run"],
-  ["30 1 * * *", "/api/internal/recommendations-report/run"],
-  ["45 1 * * *", "/api/internal/risk-trends-report/run"],
-  ["30 8 * * *", "/api/internal/dispatch-completion-monitor/run"],
-  ["45 8 * * *", "/api/internal/report-schedules/run"],
-  ["0 9 * * *", "/api/internal/capability-audit/run"],
-  ["30 9 * * *", "/api/internal/exchange-rate-refresh/run"],
-  ["45 9 * * *", "/api/internal/orchestra-log-purge/run"],
-  ["0 1 * * 1", "/api/internal/routing-accuracy-report/run"],
-  ["0 2 1 * *", "/api/internal/ai-reduction-snapshot/run"],
-  ["15 9 * * *", "/api/internal/cost-anomalies/run"],
-  ["0 10 1 1,4,7,10 *", "/api/internal/idle-ai-capacity/run"],
-  ["50 9 * * *", "/api/internal/pipeline-stuck-deal-digest/run"],
-  ["30 10 * * *", "/api/internal/l2-phrase-promotion/run"],
-  ["45 10 * * *", "/api/internal/role-quality-regression/run"],
-  ["0 11 * * *", "/api/internal/crm-lead-scoring/run"],
-  ["15 11 * * *", "/api/internal/crm-lead-followup-alerts/run"],
-  ["30 11 * * 1", "/api/internal/crm-data-integrity/run"],
-  ["*/15 * * * *", "/api/internal/crr-catchup-worker/run"],
-]
+// BUILD-001 U-41 (register rows BR-328, BR-329, BR-518), 2026-09-26. PROJEXA-COST-001 caps the Vercel bill at USD 20 a month and every
+// Vercel cron is a metered function invocation, so the set of crons in vercel.json may only shrink. U-41 part A cut the list from 29
+// crons (one of them every 15 minutes) to the one cron that has to run inside the Vercel runtime: secrets-audit checks the env vars
+// of the running Vercel process, so no other scheduler can evaluate it. The other 28 went to pg_cron, GitHub Actions or were removed
+// (ai-os/projexa-build-001/CRON_PLACEMENT.csv). Adding a cron, or changing a schedule, fails this test until this list is edited too,
+// and editing this list to allow MORE needs the owner's instruction (CLAUDE.md, R76 lockdown section).
+const FROZEN_CRONS: ReadonlyArray<readonly [schedule: string, path: string]> = [["0 7 * * *", "/api/internal/secrets-audit/run"]]
+
+// The most crons the list may ever hold. Raising it is the same owner decision as adding an entry to FROZEN_CRONS.
+const MAX_FROZEN_CRONS = 1
 
 const EVERY_N_SCHEDULE = /^\*\/[0-9]+ /
 
+type DeclaredCron = { schedule: string; path: string }
+
+function cronKey(cron: { schedule: string; path: string }): string {
+  return `${cron.schedule} ${cron.path}`
+}
+
+// The three rules of the guard, as plain functions so that the "planted defect" tests below can run the very same code on a
+// vercel.json that has been changed on purpose.
+function findUnfrozenCrons(declared: DeclaredCron[], frozen: ReadonlyArray<readonly [string, string]>): string[] {
+  const allowed = new Set(frozen.map(([schedule, path]) => cronKey({ schedule, path })))
+  return declared.map(cronKey).filter((key) => !allowed.has(key))
+}
+
+function findEveryNCrons(declared: DeclaredCron[]): string[] {
+  return declared.filter((c) => EVERY_N_SCHEDULE.test(c.schedule)).map(cronKey)
+}
+
+function exceedsFrozenCount(declared: DeclaredCron[], frozen: ReadonlyArray<readonly [string, string]>): boolean {
+  return declared.length > frozen.length
+}
+
+function declaredCrons(): DeclaredCron[] {
+  return readVercelJson().crons ?? []
+}
+
 describe("crons drift guard", () => {
   test("the frozen list itself has no duplicate entry", () => {
-    const keys = FROZEN_CRONS.map(([schedule, path]) => `${schedule} ${path}`)
+    const keys = FROZEN_CRONS.map(([schedule, path]) => cronKey({ schedule, path }))
     expect(new Set(keys).size).toBe(keys.length)
   })
 
+  test("the frozen list holds at most MAX_FROZEN_CRONS entries and none of them is an every-N-minutes schedule", () => {
+    expect(FROZEN_CRONS.length).toBeLessThanOrEqual(MAX_FROZEN_CRONS)
+    expect(MAX_FROZEN_CRONS).toBeLessThanOrEqual(1)
+    expect(FROZEN_CRONS.filter(([schedule]) => EVERY_N_SCHEDULE.test(schedule))).toEqual([])
+  })
+
   test("vercel.json declares no cron (schedule and path) that is not in the frozen list", () => {
-    const declared: Array<{ schedule: string; path: string }> = readVercelJson().crons ?? []
-    const allowed = new Set(FROZEN_CRONS.map(([schedule, path]) => `${schedule} ${path}`))
-    const extra = declared.map((c) => `${c.schedule} ${c.path}`).filter((key) => !allowed.has(key))
+    const extra = findUnfrozenCrons(declaredCrons(), FROZEN_CRONS)
     expect(extra, `vercel.json has crons that are not in FROZEN_CRONS (added or re-scheduled): ${extra.join(" | ")}`).toEqual([])
   })
 
   test("vercel.json declares no more crons than the frozen list", () => {
-    const declared: unknown[] = readVercelJson().crons ?? []
-    expect(declared.length).toBeLessThanOrEqual(FROZEN_CRONS.length)
+    expect(exceedsFrozenCount(declaredCrons(), FROZEN_CRONS)).toBe(false)
   })
 
-  test("the only every-N-minutes cron is the one frozen entry, so no new frequent schedule can appear", () => {
-    const declared: Array<{ schedule: string; path: string }> = readVercelJson().crons ?? []
-    const frequentDeclared = declared.filter((c) => EVERY_N_SCHEDULE.test(c.schedule)).map((c) => c.path)
-    const frequentFrozen = FROZEN_CRONS.filter(([schedule]) => EVERY_N_SCHEDULE.test(schedule)).map(([, path]) => path)
-    expect(frequentFrozen).toEqual(["/api/internal/crr-catchup-worker/run"])
-    expect(frequentDeclared.sort()).toEqual(frequentFrozen.sort())
+  test("vercel.json declares no every-N-minutes cron, so no frequent schedule can appear", () => {
+    const frequent = findEveryNCrons(declaredCrons())
+    expect(frequent, `vercel.json has every-N-minutes crons: ${frequent.join(" | ")}`).toEqual([])
+  })
+})
+
+// The guard above only means something if it is known to reject a bad vercel.json. These run the guard's own functions on a copy of
+// the committed crons that has one defect planted in it.
+describe("drift guard rejects planted crons", () => {
+  const committed = (): DeclaredCron[] => declaredCrons().map((c) => ({ ...c }))
+
+  test("the committed crons pass every rule (the control for the cases below)", () => {
+    expect(findUnfrozenCrons(committed(), FROZEN_CRONS)).toEqual([])
+    expect(findEveryNCrons(committed())).toEqual([])
+    expect(exceedsFrozenCount(committed(), FROZEN_CRONS)).toBe(false)
+  })
+
+  test("an added cron is rejected: by the unfrozen rule and by the count rule", () => {
+    const planted = [...committed(), { schedule: "0 3 * * *", path: "/api/internal/loops/run" }]
+    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toEqual(["0 3 * * * /api/internal/loops/run"])
+    expect(exceedsFrozenCount(planted, FROZEN_CRONS)).toBe(true)
+  })
+
+  test("an added every-5-minutes cron is rejected by all three rules", () => {
+    const planted = [...committed(), { schedule: "*/5 * * * *", path: "/api/internal/crr-catchup-worker/run" }]
+    expect(findEveryNCrons(planted)).toEqual(["*/5 * * * * /api/internal/crr-catchup-worker/run"])
+    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toEqual(["*/5 * * * * /api/internal/crr-catchup-worker/run"])
+    expect(exceedsFrozenCount(planted, FROZEN_CRONS)).toBe(true)
+  })
+
+  test("an every-15-minutes schedule on the frozen path is rejected: it is re-scheduled and it is every-N", () => {
+    const planted = committed().map((c) => ({ ...c, schedule: "*/15 * * * *" }))
+    expect(findEveryNCrons(planted)).toHaveLength(planted.length)
+    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toHaveLength(planted.length)
+    expect(exceedsFrozenCount(planted, FROZEN_CRONS)).toBe(false)
+  })
+
+  test("a changed schedule on the frozen path is rejected even when it is not every-N", () => {
+    const planted = committed().map((c) => ({ ...c, schedule: "0 * * * *" }))
+    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toHaveLength(planted.length)
+    expect(findEveryNCrons(planted)).toEqual([])
+  })
+
+  test("a different path with the frozen schedule is rejected", () => {
+    const planted = committed().map((c) => ({ ...c, path: "/api/internal/loops/run" }))
+    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toHaveLength(planted.length)
+  })
+
+  test("a cron removed from vercel.json is not a violation: the list may only shrink", () => {
+    expect(findUnfrozenCrons([], FROZEN_CRONS)).toEqual([])
+    expect(exceedsFrozenCount([], FROZEN_CRONS)).toBe(false)
   })
 })

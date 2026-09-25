@@ -9,6 +9,10 @@
 # are public, so Actions minutes are free):
 #   loops, instruction-audit, dispatch-completion-monitor, capability-audit,
 #   exchange-rate-refresh, l2-phrase-promotion, crm-lead-scoring
+# An eighth, crr-catchup-worker, was added by PROJEXA-BUILD-001 U-41 (finding
+# F-A07-5): it re-drives stuck source_object ingestion (Storage download,
+# extract, chunk, embed), needs Node-only packages, and ran every 15 minutes
+# on Vercel Cron until U-41 cut that entry from vercel.json.
 # Each is a route at src/app/api/internal/<path>/run/route.ts exporting GET
 # (POST aliases it) that authenticates with `Authorization: Bearer
 # $CRON_SECRET` and fails closed (401) when the secret is unset or wrong.
@@ -48,6 +52,7 @@ on:
           - exchange-rate-refresh
           - l2-phrase-promotion
           - crm-lead-scoring
+          - crr-catchup-worker
       dry_run:
         description: "true (default): run ONLY the database-role preflight and invoke nothing. false: preflight, then actually invoke the selected cron route."
         required: true
@@ -60,20 +65,23 @@ on:
   #       plan table, owner's own decision), and
   #   (b) CRON_SECRET exists as a repository secret (owner-only, via the
   #       GitHub UI -- never via a shell in an agent session).
-  # The seven entries below are the CURRENT Vercel times from vercel.json
-  # (UTC), reproduced so the cut-over changes only WHERE each cron runs, not
-  # WHEN. When it is time, uncomment the block, nothing else: the "Resolve
+  # The eight entries below are the Vercel times these crons had in
+  # vercel.json (UTC), reproduced so the cut-over changes only WHERE each cron
+  # runs, not WHEN. When it is time, uncomment the block, nothing else: the "Resolve
   # which cron" step already maps github.event.schedule -> cron path, the
   # concurrency group already keys on the schedule expression, and the run
   # step already fires on schedule events without a dry_run input.
   #
   # KNOWN BEHAVIOUR: this org's scheduled workflows have been observed to
   # fire HOURS late (GitHub queues `schedule` events on a best-effort basis,
-  # worse at busy top-of-hour minutes). That is acceptable for these seven --
-  # all are once-daily audits/refreshes with no minute-level SLA -- but it
+  # worse at busy top-of-hour minutes). That is acceptable for the seven
+  # once-daily ones -- audits/refreshes with no minute-level SLA -- but it
   # means "did it run at 03:00" is the wrong check; "did it run today" is.
   # Do not move the minute fields to :00 to "fix" lateness; if anything,
-  # off-peak minutes fire closer to time.
+  # off-peak minutes fire closer to time. crr-catchup-worker is the exception:
+  # it runs every 15 minutes against a one-hour ingestion target (CRR-090), so
+  # a queue delay of hours matters for it; ai-os/projexa-build-001/CRON_PLACEMENT.csv
+  # records that its cadence may be widened to every 30 minutes.
   #
   # schedule:
   #   - cron: "0 3 * * *"    # loops                        (vercel.json: 0 3 * * *)
@@ -83,11 +91,12 @@ on:
   #   - cron: "30 9 * * *"   # exchange-rate-refresh        (vercel.json: 30 9 * * *)
   #   - cron: "30 10 * * *"  # l2-phrase-promotion          (vercel.json: 30 10 * * *)
   #   - cron: "0 11 * * *"   # crm-lead-scoring             (vercel.json: 0 11 * * *)
+  #   - cron: "*/15 * * * *" # crr-catchup-worker           (vercel.json: */15 * * * *, cut by U-41)
   # -------------------------------------------------------------------------
 
 # Two runs of the SAME cron never overlap. The group is keyed on the cron:
 # the dispatch input by hand, or the schedule expression once scheduling is
-# on (each of the seven expressions above is unique, so it identifies the
+# on (each of the eight expressions above is unique, so it identifies the
 # cron). cancel-in-progress is false on purpose -- a second trigger QUEUES
 # behind the first instead of killing a half-finished audit/refresh, which
 # for a cron that writes rows (loops, dispatch-completion-monitor,
@@ -118,7 +127,7 @@ jobs:
 
       - name: Resolve which cron this run targets
         id: which
-        # Dispatch: the choice input (already constrained to the 7 values).
+        # Dispatch: the choice input (already constrained to the 8 values).
         # Schedule: mapped from the expression that fired; an unmapped
         # expression fails here rather than guessing.
         run: |
@@ -134,6 +143,7 @@ jobs:
               "30 9 * * *")  cron=exchange-rate-refresh ;;
               "30 10 * * *") cron=l2-phrase-promotion ;;
               "0 11 * * *")  cron=crm-lead-scoring ;;
+              "*/15 * * * *") cron=crr-catchup-worker ;;
               *)
                 echo "::error::no cron is mapped for schedule expression '${SCHEDULE_EXPR:-}' (event=${GITHUB_EVENT_NAME}) -- refusing to guess"
                 exit 1 ;;
