@@ -158,7 +158,7 @@ export type RunSubmissionInput = {
   projectId?: string | null;
   selectedChain?: unknown;
   rawInput: string;
-  /** R48 gap-closure (2026-08-30, F089) -- see executor.ts's ExecutableTask.role comment. Optional: callers with no role available (e.g. the MCP AI-link route) simply don't get the redaction. */
+  /** R48 gap-closure (2026-08-30, F089) -- see executor.ts's ExecutableTask.role comment. Optional, but U-01 (2026-09-25): a caller that passes no role gets the construction figures REDACTED, not shown. */
   role?: string | null;
   /**
    * R67 C-03 (decision D-05, the identity bridge) -- see executor.ts's

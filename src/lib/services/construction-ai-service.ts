@@ -35,7 +35,7 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { ServiceError } from "./compliance-service"
-import { getProjectDashboard, getProjectDashboardsWithDb } from "./construction-dashboard-service"
+import { getProjectDashboard, getProjectDashboardsWithDb, type ProjectDashboard } from "./construction-dashboard-service"
 import { budgetVsActual, budgetVsActualWithDb } from "./construction-reports-service"
 export { ServiceError }
 
@@ -101,8 +101,13 @@ export type ProgressSummary = { summary: string; highlights: string[]; concerns:
  * The 404-on-missing-project rule is getProjectDashboard singular's, restated
  * because the threaded path goes through the plural WithDb form, which returns
  * an empty array rather than throwing.
+ *
+ * PROJEXA-BUILD-001 U-01b: `redactDashboard` is set by
+ * task-execution/construction-tools.ts for a caller below manager rank. The
+ * model reads the dashboard only after it, so the summary can repeat no money
+ * figure that caller may not see. Every other caller passes nothing.
  */
-export async function generateProgressSummary(ctx: { orgId: string; userId: string }, projectId: string, existingDb?: TenantDb): Promise<ProgressSummary> {
+export async function generateProgressSummary(ctx: { orgId: string; userId: string }, projectId: string, existingDb?: TenantDb, redactDashboard?: (dashboard: ProjectDashboard) => object): Promise<ProgressSummary> {
   const startedAt = Date.now()
   const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
@@ -115,7 +120,9 @@ export async function generateProgressSummary(ctx: { orgId: string; userId: stri
       })()
     : await getProjectDashboard({ orgId: ctx.orgId }, projectId)
   const systemPrompt = await resolvePromptTemplate("construction.generate_progress_summary")
-  const userMessage = `Project: ${dashboard.projectName}\nReal aggregated data (JSON): ${JSON.stringify(dashboard)}`
+  const userMessage = redactDashboard
+    ? `Project: ${dashboard.projectName}\nReal aggregated data (JSON): ${JSON.stringify(redactDashboard(dashboard))}\nBudget, cost and value fields are withheld from this reader (null above); do not comment on them.`
+    : `Project: ${dashboard.projectName}\nReal aggregated data (JSON): ${JSON.stringify(dashboard)}`
 
   const { data, usage } = await callLLMJson<ProgressSummary>(
     modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
@@ -211,9 +218,18 @@ function templateBudgetScheduleRisk(factors: BudgetScheduleRiskFactors, riskLeve
   }
 }
 
-/** ROOT CAUSE B -- see generateProgressSummary above for why. */
-export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: string }, projectId: string, existingDb?: TenantDb): Promise<BudgetScheduleRisk> {
+/**
+ * ROOT CAUSE B -- see generateProgressSummary above for why.
+ *
+ * PROJEXA-BUILD-001 U-01b: `withholdBudget` is set by
+ * task-execution/construction-tools.ts for a caller below manager rank. The
+ * budget read is skipped, so budget/actual/variance reach neither the
+ * classifier nor the model: riskLevel rests on the schedule alone, and the
+ * model is shown the task counts only. Every other caller passes nothing.
+ */
+export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: string }, projectId: string, existingDb?: TenantDb, options?: { withholdBudget?: boolean }): Promise<BudgetScheduleRisk> {
   const startedAt = Date.now()
+  const withholdBudget = options?.withholdBudget === true
 
   const [dashboard, budgetActual] = existingDb
     ? await Promise.all([
@@ -221,11 +237,11 @@ export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: str
           if (!rows[0]) throw new ServiceError("Project not found", 404)
           return rows[0]
         }),
-        budgetVsActualWithDb(existingDb, { orgId: ctx.orgId }, projectId),
+        withholdBudget ? null : budgetVsActualWithDb(existingDb, { orgId: ctx.orgId }, projectId),
       ])
     : await Promise.all([
         getProjectDashboard({ orgId: ctx.orgId }, projectId),
-        budgetVsActual({ orgId: ctx.orgId }, projectId),
+        withholdBudget ? null : budgetVsActual({ orgId: ctx.orgId }, projectId),
       ])
   // R67 E-06 (R-108): budgetVsActual's budget/variance are null when the
   // project has no BOQ to derive a budget from. 0 is the right input for the
@@ -233,18 +249,23 @@ export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: str
   // treats budget 0 as "no overspend signal available" and falls back to the
   // delay ratio alone (see its overspendRatio guard) -- so this coalesce
   // preserves the previous behaviour for a project with no budget, rather
-  // than inventing one.
-  const factors: BudgetScheduleRiskFactors = {
-    budget: budgetActual.budget ?? 0, actual: budgetActual.actual, variance: budgetActual.variance ?? 0,
-    delayedTaskCount: dashboard.delayedTaskCount, totalTaskCount: dashboard.taskCount,
-  }
+  // than inventing one. U-01b: a withheld budget is null, which both pure
+  // functions above already read as "not assessable"; actual is then unread.
+  const factors: BudgetScheduleRiskFactors = budgetActual
+    ? {
+        budget: budgetActual.budget ?? 0, actual: budgetActual.actual, variance: budgetActual.variance ?? 0,
+        delayedTaskCount: dashboard.delayedTaskCount, totalTaskCount: dashboard.taskCount,
+      }
+    : { budget: null, actual: 0, variance: null, delayedTaskCount: dashboard.delayedTaskCount, totalTaskCount: dashboard.taskCount }
   const riskLevel = classifyBudgetScheduleRisk(factors)
 
   const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
   if (!modelConfig) return templateBudgetScheduleRisk(factors, riskLevel)
 
   const systemPrompt = await resolvePromptTemplate("construction.detect_budget_schedule_risk")
-  const userMessage = `Real aggregated data (JSON): ${JSON.stringify(factors)}`
+  const userMessage = withholdBudget
+    ? `Real aggregated data (JSON): ${JSON.stringify({ delayedTaskCount: factors.delayedTaskCount, totalTaskCount: factors.totalTaskCount })}\nBudget figures are withheld from this reader; assess the schedule only.`
+    : `Real aggregated data (JSON): ${JSON.stringify(factors)}`
 
   const { data, usage } = await callLLMJson<BudgetScheduleRisk>(
     modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
