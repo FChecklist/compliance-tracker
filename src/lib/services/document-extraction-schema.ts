@@ -18,14 +18,34 @@ export const EXTRACTION_SCHEMA_NAME = "boq_project_v1" as const
 /** Most BOQ lines one extraction may carry. The largest real BOQ seen so far has 153 lines. */
 export const MAX_LINE_ITEMS = 2000
 
-export type WorkbookLimits = { maxBytes: number; maxSheets: number; maxRowsPerSheet: number; maxCellChars: number }
+export type WorkbookLimits = {
+  maxBytes: number
+  maxSheets: number
+  maxRowsPerSheet: number
+  maxCellChars: number
+  maxColumns: number
+  maxCells: number
+  maxUncompressedBytes: number
+}
 
-/** Input ceilings (COST_BUDGET.csv X-01 and X-02): what an upload may hold before any model call is made. */
+/**
+ * Input ceilings (COST_BUDGET.csv X-01 and X-02): what an upload may hold before any model call is made.
+ * maxColumns, maxCells and maxUncompressedBytes bound the work the read itself does, which the size of the file alone does not:
+ *   * maxColumns and maxCells: a sheet's declared range is filled cell by cell when the sheet is turned into rows, so a file of a
+ *     few hundred bytes that declares A1:XFD5000 would build 82 million cells. maxCells is the sum over all sheets of columns x
+ *     rows of the declared ranges (the 200 x 5000 that one sheet may declare is 1 million, so this is half of that).
+ *   * maxUncompressedBytes: the parts of an xlsx file are deflate streams. Measured with a 300 000 cell sheet (9.5 MB unpacked, 2 MB
+ *     in the file), reading held about 600 bytes per populated cell (peak 225 MB of memory), so 16 MB unpacked bounds a read near
+ *     350 MB. A workbook with more text than the request ceiling (EDGE_REQUEST_MAX_CHARS) is refused later anyway.
+ */
 export const WORKBOOK_LIMITS: WorkbookLimits = {
   maxBytes: 5 * 1024 * 1024,
   maxSheets: 64,
   maxRowsPerSheet: 5000,
   maxCellChars: 400,
+  maxColumns: 200,
+  maxCells: 500_000,
+  maxUncompressedBytes: 16 * 1024 * 1024,
 }
 
 /**

@@ -1,4 +1,6 @@
 // PROJEXA-BUILD-001 U-36 / U-37 (BR-506, BR-507, BR-508): the shared fixtures of the extraction tests.
+//   * craftZip(): a zip archive written by hand, for the archives a workbook writer never produces (declared sizes that lie,
+//     entries that share one stream); buildWorkbook() can also declare a sheet range that holds no cells.
 //   * buildFixtureWorkbook(): a 22-sheet synthetic BOQ workbook generated with SheetJS (one sheet per trade, a title row, a blank
 //     row, a header row, root lines, a weighted sub-task line, blank rows in between, one hidden sheet, one empty sheet, one line
 //     with a float that Excel stores as 0.30000000000000004). It has the shape of the largest real BOQ (many trade sheets, weighted
@@ -8,6 +10,7 @@
 //     skipped is a sheet that produces no lines.
 //   * edgeCallerFor(): an EdgeCaller that runs the REAL Edge Function handler (handler.ts) in process with an injected model, so the
 //     tests cross the same boundary the route crosses (JSON body in, status and JSON out).
+import { deflateRawSync } from "node:zlib"
 import * as XLSX from "xlsx"
 import {
   bearerMatches,
@@ -29,8 +32,11 @@ export const TRADES = [
 export const LINES_PER_SHEET = 3
 export const HIDDEN_TRADE = "Ceiling"
 
-/** The 22 trade sheets plus one empty sheet at the end (23 sheets in the file, 22 with content). */
-export function buildFixtureWorkbook(): Buffer {
+/**
+ * The 22 trade sheets plus one empty sheet at the end (23 sheets in the file, 22 with content). SheetJS stores the parts of the file
+ * uncompressed unless asked; Excel deflates them, so `compressed` builds the same workbook the way a real file is written.
+ */
+export function buildFixtureWorkbook(options: { compressed?: boolean } = {}): Buffer {
   const wb = XLSX.utils.book_new()
   TRADES.forEach((trade, i) => {
     const n = i + 1
@@ -49,14 +55,84 @@ export function buildFixtureWorkbook(): Buffer {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([]), "Empty sheet")
   const hiddenIndex = TRADES.indexOf(HIDDEN_TRADE)
   wb.Workbook = { Sheets: wb.SheetNames.map((_, i) => ({ Hidden: i === hiddenIndex ? 1 : 0 })) }
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx", compression: options.compressed === true }) as Buffer
 }
 
-/** A workbook of the given sheets (name and rows), for the cases that need something other than the trade fixture. */
-export function buildWorkbook(sheets: Array<{ name: string; rows: unknown[][] }>): Buffer {
+/**
+ * A workbook of the given sheets (name and rows), for the cases that need something other than the trade fixture. `declaredRange`
+ * replaces a sheet's range (the dimension the file states) without adding cells, which is how a small file declares a huge sheet.
+ */
+export function buildWorkbook(
+  sheets: Array<{ name: string; rows: unknown[][]; declaredRange?: string }>,
+  options: { compressed?: boolean } = {},
+): Buffer {
   const wb = XLSX.utils.book_new()
-  for (const s of sheets) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s.rows), s.name)
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer
+  for (const s of sheets) {
+    const ws = XLSX.utils.aoa_to_sheet(s.rows)
+    if (s.declaredRange) ws["!ref"] = s.declaredRange
+    XLSX.utils.book_append_sheet(wb, ws, s.name)
+  }
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx", compression: options.compressed === true }) as Buffer
+}
+
+/**
+ * A zip archive written by hand, for the archives a workbook writer never produces. Each entry states its own compression method
+ * (0 stored, 8 deflate, anything else as given) and the uncompressed size the archive DECLARES, which may be a lie: the parser and
+ * the size check must not trust it. `sharesDataOf` makes an entry's central-directory record point at the local header of an earlier
+ * entry (overlapping entries). Checksums are left zero: these archives are for refusals, not for reading.
+ */
+export function craftZip(
+  entries: Array<{ name: string; data: Buffer; method?: number; declaredSize?: number; sharesDataOf?: number }>,
+): Buffer {
+  const chunks: Buffer[] = []
+  const localAt: number[] = []
+  const bodies = entries.map((e) => ((e.method ?? 8) === 8 ? deflateRawSync(e.data) : e.data))
+  let offset = 0
+  const push = (b: Buffer) => {
+    chunks.push(b)
+    offset += b.length
+  }
+  for (const [i, e] of entries.entries()) {
+    const method = e.method ?? 8
+    const body = bodies[i]
+    const name = Buffer.from(e.name)
+    const head = Buffer.alloc(30)
+    head.writeUInt32LE(0x04034b50, 0)
+    head.writeUInt16LE(20, 4)
+    head.writeUInt16LE(method, 8)
+    head.writeUInt32LE(body.length, 18)
+    head.writeUInt32LE(e.declaredSize ?? e.data.length, 22)
+    head.writeUInt16LE(name.length, 26)
+    localAt.push(offset)
+    push(head)
+    push(name)
+    push(body)
+  }
+  const centralAt = offset
+  entries.forEach((e, i) => {
+    const method = e.method ?? 8
+    const body = bodies[i]
+    const name = Buffer.from(e.name)
+    const rec = Buffer.alloc(46)
+    rec.writeUInt32LE(0x02014b50, 0)
+    rec.writeUInt16LE(20, 4)
+    rec.writeUInt16LE(20, 6)
+    rec.writeUInt16LE(method, 10)
+    rec.writeUInt32LE(body.length, 20)
+    rec.writeUInt32LE(e.declaredSize ?? e.data.length, 24)
+    rec.writeUInt16LE(name.length, 28)
+    rec.writeUInt32LE(localAt[e.sharesDataOf ?? i], 42)
+    push(rec)
+    push(name)
+  })
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(entries.length, 8)
+  end.writeUInt16LE(entries.length, 10)
+  end.writeUInt32LE(offset - centralAt, 12)
+  end.writeUInt32LE(centralAt, 16)
+  push(end)
+  return Buffer.concat(chunks)
 }
 
 type DocumentData = { fileName: string; sheets: Array<{ name: string; rows: Array<{ row: number; cells: string[] }> }> }
@@ -131,6 +207,8 @@ export function edgeCallerFor(deps: ExtractDeps, bearer: string = SHARED_SECRET)
 export function memoryLedger() {
   const rows = new Map<string, { claimId: string; projectId: string | null }>()
   const events: string[] = []
+  /** What each release() was told: whether the attempt reached a model (the real ledger does not count one that did not). */
+  const releases: Array<{ claimId: string; modelCalled: boolean }> = []
   let n = 0
   const ledger: ProjectSourceLedger = {
     async claim({ contentSha256 }): Promise<LedgerClaim> {
@@ -145,10 +223,11 @@ export function memoryLedger() {
       events.push("attach")
       for (const r of rows.values()) if (r.claimId === claimId) r.projectId = projectId
     },
-    async release(claimId) {
+    async release(claimId, options) {
       events.push("release")
+      releases.push({ claimId, modelCalled: options?.modelCalled !== false })
       for (const [k, r] of rows) if (r.claimId === claimId && !r.projectId) rows.delete(k)
     },
   }
-  return { ledger, rows, events }
+  return { ledger, rows, events, releases }
 }

@@ -41,6 +41,8 @@ let LIMIT: { maxClaims: number; windowSeconds: number }
 // --- the authentication double: what the guard would have said for this test's caller
 type Auth = { orgId: string | null; viaApiKey?: boolean; keyKind?: "org_service" | "project_ai"; roleErr?: Response | null; response?: Response | null }
 let auth: Auth = { orgId: ORG }
+// The role guard is kept in a variable so a test can read what the route asked of it (the floor and the scope are the route's choice).
+const roleGuard = mock((_ctx: unknown, _minRole: string, _scope: string) => auth.roleErr ?? null)
 
 // --- the Edge Function behind a stubbed fetch: the real handler, a stand-in model
 let model: ModelCall | null = deterministicModel
@@ -78,7 +80,7 @@ beforeAll(async () => {
       apiKey: auth.viaApiKey ? { id: "key-1", name: "PROJEXA org key", scopes: ["read", "write"], keyKind: auth.keyKind ?? "org_service", projectId: auth.keyKind === "project_ai" ? "project-9" : null } : null,
       response: auth.response ?? null,
     })),
-    requireRoleOrScope: mock(() => auth.roleErr ?? null),
+    requireRoleOrScope: roleGuard,
   }))
 
   process.env.NEXT_PUBLIC_SUPABASE_URL = BASE_URL
@@ -113,6 +115,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await h.pg.exec("truncate compliance.projects, compliance.construction_boqs, compliance.construction_boq_line_items, compliance.source_object")
   auth = { orgId: ORG }
+  roleGuard.mockClear()
   model = deterministicModel
   allowOverlap = false
   depth = 0
@@ -156,6 +159,24 @@ describe("BR-508: the same file twice", () => {
     expect(boq).toMatchObject({ project_id: body.projectId, title: "villa BOQ", created_by_id: "user-1", version: 1 })
     const children = Number(((await h.pg.query("select count(*)::int as n from compliance.construction_boq_line_items where parent_line_item_id is not null")).rows[0] as { n: number }).n)
     expect(children).toBe(22)
+
+    // The stored figures, read back from the table: quantity and rate of a root line, and of its weighted sub-task (which takes the
+    // root's quantity and the root's rate x its breakdown percentage), with the unit and the category the workbook has.
+    const line = async (itemCode: string) =>
+      (
+        await h.pg.query(
+          "select item_code, unit, category, quantity::float8 as quantity, rate::float8 as rate, amount::float8 as amount, breakdown_percentage::float8 as breakdown from compliance.construction_boq_line_items where item_code = $1",
+          [itemCode],
+        )
+      ).rows[0] as Record<string, unknown>
+    expect(await line("1.01")).toMatchObject({ item_code: "1.01", unit: "m2", category: "Preliminaries", quantity: 10, rate: 101, amount: 1010 })
+    const child = await line("1.01.1")
+    expect(child).toMatchObject({ unit: "", category: "Preliminaries", quantity: 10, breakdown: 40 })
+    expect(child.rate as number).toBeCloseTo(40.4, 9)
+    expect(await line("1.02")).toMatchObject({ unit: "nos", quantity: 1, rate: 0.3 })
+    expect(await line("3.01")).toMatchObject({ unit: "m2", category: "Concrete", quantity: 30, rate: 103, amount: 3090 })
+    expect(await line("22.02")).toMatchObject({ unit: "nos", category: "Provisional Sums", quantity: 22, rate: 2022, amount: 44484 })
+
     const ledger = await ledgerRows()
     expect(ledger).toHaveLength(1)
     expect(ledger[0]).toMatchObject({ linked_entity_type: "project", linked_entity_id: body.projectId, title: "villa.xlsx" })
@@ -419,6 +440,38 @@ describe("the organisation's hourly limit", () => {
     auth = { orgId: "org-free" }
     expect((await POST(formRequest({ productId: "product-free-org" }))).status).toBe(201)
   })
+
+  // While no model is configured (BR-509 today) every upload claims, is answered 503 and releases: nothing is billed, so none of
+  // them may count, or the organisation would be answered 429 instead of the true 503 after 30 of them, for up to an hour.
+  test("with no model configured, more than maxClaims uploads in a row are each answered 503 model_not_configured, never 429", async () => {
+    model = null
+    const small = buildWorkbook([{ name: "Civil", rows: [["Item", "Description", "Unit", "Qty", "Rate"], ["1.01", "Excavation", "m3", 100, 250]] }])
+    for (let i = 0; i < LIMIT.maxClaims + 3; i++) {
+      const res = await POST(formRequest({ file: { bytes: small, name: `boq-${i}.xlsx` } }))
+      expect(`${i} ${res.status} ${(await res.json()).code}`).toBe(`${i} 503 model_not_configured`)
+    }
+    expect(seen.modelCalls).toBe(0)
+    expect(await tableCounts()).toEqual({ projects: 0, boqs: 0, lines: 0 })
+    // Every attempt left a soft-deleted ledger row marked as not counted, and none is live.
+    const marked = (await h.pg.query("select count(*)::int as n from compliance.source_object where extract_error = 'no_model_call' and deleted_at is not null")).rows[0] as { n: number }
+    expect(marked.n).toBe(LIMIT.maxClaims + 3)
+    expect(await ledgerRows()).toEqual([])
+    // Once a model is configured the same organisation extracts at once: the refused attempts left nothing in the way.
+    model = deterministicModel
+    expect((await POST(formRequest({ file: { bytes: small, name: "boq.xlsx" } }))).status).toBe(201)
+  }, 60_000)
+
+  test("an attempt that reached the model and failed still counts: with maxClaims - 1 attempts already made, one invalid answer uses the last slot and the next upload is 429", async () => {
+    await seedAttempts(ORG, LIMIT.maxClaims - 1)
+    model = async () => "prose, not JSON"
+    const other = buildWorkbook([{ name: "Civil", rows: [["Item", "Description", "Unit", "Qty", "Rate"], ["1.01", "Another file", "m3", 5, 5]] }])
+    const failed = await POST(formRequest({ file: { bytes: other, name: "other.xlsx" } }))
+    expect(failed.status).toBe(422)
+    expect(seen.modelCalls).toBe(1)
+    const refused = await POST(formRequest({}))
+    expect(refused.status).toBe(429)
+    expect((await refused.json()).code).toBe("extraction_rate_limited")
+  })
 })
 
 describe("who may call it", () => {
@@ -436,6 +489,12 @@ describe("who may call it", () => {
     expect(res.status).toBe(403)
     expect(seen.fetches).toBe(0)
     expect(await tableCounts()).toEqual({ projects: 0, boqs: 0, lines: 0 })
+  })
+
+  test("the floor the route asks the guard for is the member role and the write scope, the same as the sibling project-create route", async () => {
+    expect((await POST(formRequest({}))).status).toBe(201)
+    expect(roleGuard).toHaveBeenCalledTimes(1)
+    expect(roleGuard).toHaveBeenCalledWith(expect.objectContaining({ orgId: ORG }), "member", "write")
   })
 
   test("an account with no organisation is 400", async () => {

@@ -18,6 +18,7 @@ import {
   extractRawTextForMimeType,
   pickChunkPolicy,
   readWorkbookDigest,
+  assertWorkbookArchiveWithinLimits,
   extractProjectFromDocument,
   createProjectFromDocument,
   createEdgeExtractCaller,
@@ -38,6 +39,7 @@ import { chunkText } from "@/lib/crr/chunker"
 import {
   buildFixtureWorkbook,
   buildWorkbook,
+  craftZip,
   deterministicModel,
   edgeCallerFor,
   edgeDeps,
@@ -323,6 +325,112 @@ describe("readWorkbookDigest -- every sheet of the workbook is read", () => {
     expect(err.code).toBe("workbook_too_large")
     expect(err.message).toContain("Preliminaries")
   })
+
+  test("the row limit is exact: a sheet of maxRowsPerSheet rows is read, one of maxRowsPerSheet + 1 is refused", async () => {
+    const sheetOf = (n: number) => buildWorkbook([{ name: "Long", rows: Array.from({ length: n }, (_, i) => [`r${i + 1}`]) }])
+    const at = await readWorkbookDigest(sheetOf(WORKBOOK_LIMITS.maxRowsPerSheet))
+    expect(at.sheets[0].rows).toHaveLength(WORKBOOK_LIMITS.maxRowsPerSheet)
+    const over = await rejection(readWorkbookDigest(sheetOf(WORKBOOK_LIMITS.maxRowsPerSheet + 1)))
+    expect(over.code).toBe("workbook_too_large")
+    expect(over.message).toContain("Long")
+  })
+})
+
+// A small file can make the read do a lot of work: a sheet that declares a huge range is filled cell by cell, and a zip part can
+// inflate to far more than the file holds. These limits are checked before that work is done (see WORKBOOK_LIMITS).
+describe("readWorkbookDigest -- what a small file can make the read do is bounded", () => {
+  const wide = (columns: number) => [Array.from({ length: columns }, (_, i) => `c${i}`)]
+
+  test("a workbook deflated the way Excel writes it reads exactly like the stored one", async () => {
+    const packed = buildFixtureWorkbook({ compressed: true })
+    expect(packed.length).toBeLessThan(FIXTURE.length)
+    expect((await readWorkbookDigest(packed)).sheets).toEqual((await readWorkbookDigest(FIXTURE)).sheets)
+  })
+
+  test("the column limit is exact: maxColumns columns are read, one more is refused, and the message names the sheet", async () => {
+    const at = await readWorkbookDigest(buildWorkbook([{ name: "Wide", rows: wide(WORKBOOK_LIMITS.maxColumns) }]))
+    expect(at.sheets[0].rows[0].cells).toHaveLength(WORKBOOK_LIMITS.maxColumns)
+    const err = await rejection(readWorkbookDigest(buildWorkbook([{ name: "Wide", rows: wide(WORKBOOK_LIMITS.maxColumns + 1) }])))
+    expect(err.code).toBe("workbook_too_large")
+    expect(err.message).toContain("Wide")
+    expect(err.message).toContain("columns")
+  })
+
+  test("a file that DECLARES a wide range but holds two cells is refused from the declaration alone (scaled: 78 columns against a limit of 50)", async () => {
+    // At the real limit the same file would be A1:XFD5000, 82 million cells; the scaled range keeps a failure of this test cheap.
+    const declared = buildWorkbook([{ name: "Declared", rows: [["Item", "Description"], ["1.01", "x"]], declaredRange: "A1:BZ100" }])
+    const err = await rejection(readWorkbookDigest(declared, { ...WORKBOOK_LIMITS, maxColumns: 50 }))
+    expect(err.code).toBe("workbook_too_large")
+    expect(err.message).toContain("50 columns")
+    // Under the limit the same declaration is read (nothing else about the file is wrong).
+    expect((await readWorkbookDigest(declared, { ...WORKBOOK_LIMITS, maxColumns: 78 })).sheets[0].rows).toHaveLength(2)
+  })
+
+  test("the cells the sheets declare are added up across the workbook: three sheets of 1000 declared cells against a limit of 2500", async () => {
+    const declared = (name: string) => ({ name, rows: [["a", "b"]], declaredRange: "A1:J100" })
+    const limits = { ...WORKBOOK_LIMITS, maxCells: 2500 }
+    expect((await readWorkbookDigest(buildWorkbook([declared("One"), declared("Two")]), limits)).sheets).toHaveLength(2)
+    const err = await rejection(readWorkbookDigest(buildWorkbook([declared("One"), declared("Two"), declared("Three")]), limits))
+    expect(err.code).toBe("workbook_too_large")
+    expect(err.message).toContain("2500 cells")
+  })
+
+  test("an archive that DECLARES small sizes and inflates past the ceiling is refused as workbook_too_large before the parser runs (24 MB of data in a file of a few KB)", async () => {
+    const bomb = craftZip([{ name: "xl/worksheets/sheet1.xml", data: Buffer.alloc(24 * 1024 * 1024, 32), declaredSize: 10 }])
+    expect(bomb.length).toBeLessThan(100_000)
+    const err = await rejection(readWorkbookDigest(bomb))
+    expect(err.code).toBe("workbook_too_large")
+    expect(err.message).toContain("16 MB")
+  })
+
+  describe("the unpacked-size check on its own (ceiling 1 000 000 bytes)", () => {
+    const limits = { ...WORKBOOK_LIMITS, maxUncompressedBytes: 1_000_000 }
+    const codeOf = (zip: Buffer) => {
+      try {
+        assertWorkbookArchiveWithinLimits(zip, limits)
+      } catch (e) {
+        if (e instanceof ExtractionRejectedError) return e.code
+        throw e
+      }
+      return "accepted"
+    }
+    const part = (name: string, size: number, extra: { method?: number; declaredSize?: number; sharesDataOf?: number } = {}) => ({ name, data: Buffer.alloc(size, 65), ...extra })
+
+    test("one part under the ceiling is accepted, one over it is refused, and a real workbook of either kind is accepted", () => {
+      expect(codeOf(craftZip([part("a", 900_000)]))).toBe("accepted")
+      expect(codeOf(craftZip([part("a", 1_100_000)]))).toBe("workbook_too_large")
+      expect(assertWorkbookArchiveWithinLimits(FIXTURE)).toBeUndefined()
+      expect(assertWorkbookArchiveWithinLimits(buildFixtureWorkbook({ compressed: true }))).toBeUndefined()
+    })
+
+    test("the sizes of all parts are added up: two parts of 600 000 bytes are over a ceiling neither is over alone", () => {
+      expect(codeOf(craftZip([part("a", 600_000)]))).toBe("accepted")
+      expect(codeOf(craftZip([part("a", 600_000), part("b", 600_000)]))).toBe("workbook_too_large")
+    })
+
+    test("two entries that share one stream count twice, as they do when the parser reads them", () => {
+      expect(codeOf(craftZip([part("a", 600_000), part("b", 10, { sharesDataOf: 0 })]))).toBe("workbook_too_large")
+    })
+
+    test("the size a part declares is not believed: declared 10 bytes, inflates to 1.1 MB", () => {
+      expect(codeOf(craftZip([part("a", 1_100_000, { declaredSize: 10 })]))).toBe("workbook_too_large")
+    })
+
+    test("a stored part counts by the bytes it holds", () => {
+      expect(codeOf(craftZip([part("a", 900_000, { method: 0 })]))).toBe("accepted")
+      expect(codeOf(craftZip([part("a", 1_100_000, { method: 0 })]))).toBe("workbook_too_large")
+    })
+
+    test("what is not a well-formed archive is workbook_unreadable, never an uncaught error: no directory, a cut-off directory, a stream that does not inflate, an unsupported method", () => {
+      expect(codeOf(Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from("not a zip archive at all, only bytes")]))).toBe("workbook_unreadable")
+      const zip = craftZip([part("a", 1000)])
+      expect(codeOf(zip.subarray(0, zip.length - 10))).toBe("workbook_unreadable")
+      const garbageStream = craftZip([{ name: "a", data: Buffer.from("this is text, not a deflate stream"), method: 0 }])
+      garbageStream.writeUInt16LE(8, 8) // the local header now says deflate
+      expect(codeOf(garbageStream)).toBe("workbook_unreadable")
+      expect(codeOf(craftZip([{ name: "a", data: Buffer.from("x"), method: 12 }]))).toBe("workbook_unreadable")
+    })
+  })
 })
 
 describe("extractProjectFromDocument -- the 22-sheet workbook through the real Edge handler and a stand-in model", () => {
@@ -375,6 +483,26 @@ describe("extractProjectFromDocument -- the 22-sheet workbook through the real E
     expect(items).toHaveLength(66)
     expect(items.every((i) => !("source" in i))).toBe(true)
     expect(items.find((i) => i.itemCode === "1.01.1")).toMatchObject({ parentItemCode: "1.01", breakdownPercentage: 40, quantity: 0, rate: 0 })
+  })
+
+  // What createBoq() stores is what this returns, so the figures of every root line are pinned here, quantity and rate apart: the
+  // fixture gives sheet n the lines n.01 (quantity 10 x n, rate 100 + n, m2) and n.02 (quantity n, rate 2000 + n, nos).
+  test("toBoqLineItems keeps each root line's quantity, rate, unit and category as the workbook has them (quantity and rate are not swapped or mixed up)", async () => {
+    const { result } = await run()
+    const items = toBoqLineItems(result.extracted)
+    expect(items.find((i) => i.itemCode === "1.01")).toEqual({
+      itemCode: "1.01",
+      description: "Preliminaries: main work item",
+      unit: "m2",
+      quantity: 10,
+      rate: 101,
+      category: "Preliminaries",
+    })
+    TRADES.forEach((trade, i) => {
+      const n = i + 1
+      expect(items.find((l) => l.itemCode === `${n}.01`)).toMatchObject({ unit: "m2", quantity: 10 * n, rate: 100 + n, category: trade })
+      expect(items.find((l) => l.itemCode === `${n}.02`)).toMatchObject({ unit: "nos", quantity: n, rate: n === 1 ? 0.3 : 2000 + n, category: trade })
+    })
   })
 })
 
@@ -749,6 +877,43 @@ describe("createProjectFromDocument -- failures", () => {
     const noRelease = { ...h.deps, ledger: { ...h.ledger, release: async () => { throw new Error("database down") } }, callEdge: async () => ({ status: 503, body: { ok: false, code: "model_not_configured" } }) }
     const err = await rejection(createProjectFromDocument({ ...INPUT, fileName: "a.xlsx", bytes: workbookOf("r") }, noRelease))
     expect(err.code).toBe("model_not_configured")
+  })
+
+  // The ledger rows are the organisation's rate limit; a claim released with modelCalled false is left out of the count (see the ledger
+  // notes in document-extraction-service.ts and the SQL proof in document-extraction-ledger.test.ts). Here: which refusals say so.
+  describe("what the claim is released as: an attempt that did not reach a model does not count against the limit", () => {
+    const answering = (status: number, body: unknown) => async () => ({ status, body })
+    const releasedAs = async (bytes: Uint8Array, edge: ReturnType<typeof answering> | null, opts: { failCreateProject?: boolean } = {}) => {
+      const h = harness(opts)
+      const deps = edge ? { ...h.deps, callEdge: edge } : h.deps
+      await createProjectFromDocument({ ...INPUT, fileName: "a.xlsx", bytes }, deps).catch(() => undefined)
+      return h.releases.map((r) => r.modelCalled)
+    }
+    const notReached: Array<[string, () => Promise<boolean[]>]> = [
+      ["the model is not configured (the function says so)", () => releasedAs(workbookOf("n1"), answering(503, { ok: false, code: "model_not_configured" }))],
+      ["extraction is not set up in this environment", () => releasedAs(workbookOf("n2"), answering(503, { ok: false, code: "extraction_not_configured" }))],
+      ["the function refuses the request as too large", () => releasedAs(workbookOf("n3"), answering(413, { ok: false, code: "input_too_large" }))],
+      ["the file is a zip that is not a workbook", () => releasedAs(Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from("garbage")]), null)],
+      ["the workbook has no cells", () => releasedAs(buildWorkbook([{ name: "A", rows: [] }]), null)],
+      ["the workbook is over a limit (too many columns)", () => releasedAs(buildWorkbook([{ name: "W", rows: [Array.from({ length: WORKBOOK_LIMITS.maxColumns + 1 }, (_, i) => `c${i}`)] }]), null)],
+    ]
+    for (const [label, run] of notReached) {
+      test(`released as not counted: ${label}`, async () => {
+        expect(await run()).toEqual([false])
+      })
+    }
+
+    const mayHaveReached: Array<[string, () => Promise<boolean[]>]> = [
+      ["the answer is not valid against the schema", () => releasedAs(workbookOf("m1"), answering(200, { ok: true, output: { action: "createProject" } }))],
+      ["the model call failed inside the function", () => releasedAs(workbookOf("m2"), answering(502, { ok: false, code: "model_error" }))],
+      ["the function refused the caller (a call that may not have been billed is still an attempt)", () => releasedAs(workbookOf("m3"), answering(401, { ok: false, code: "unauthorized" }))],
+      ["the project could not be created after a valid answer", () => releasedAs(workbookOf("m4"), null, { failCreateProject: true })],
+    ]
+    for (const [label, run] of mayHaveReached) {
+      test(`released as counted: ${label}`, async () => {
+        expect(await run()).toEqual([true])
+      })
+    }
   })
 })
 

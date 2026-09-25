@@ -182,7 +182,8 @@ describe("a claim that never reached a project", () => {
 })
 
 // The ledger rows are the per-organisation rate limit: one new claim is one extraction attempt, a released attempt stays in the table
-// (soft-deleted) and still counts, and a submit that inserts nothing (duplicate, in_progress) or is refused is never counted.
+// (soft-deleted) and still counts unless it was released before any model call (modelCalled false, marked no_model_call), and a
+// submit that inserts nothing (duplicate, in_progress) or is refused is never counted.
 describe("the per-organisation rate limit", () => {
   let orgCounter = 0
   const freshOrg = () => `org-ledger-rate-${++orgCounter}`
@@ -249,7 +250,7 @@ describe("the per-organisation rate limit", () => {
     expect((await claim(org, "a7".repeat(32))).kind).toBe("rate_limited")
   })
 
-  test("a claim released after a failed extraction still counts as an attempt", async () => {
+  test("a claim released after a failed extraction that may have reached a model still counts as an attempt (release with no options)", async () => {
     const { maxClaims } = svc.LEDGER_RATE_LIMIT
     const org = freshOrg()
     for (let i = 0; i < maxClaims; i++) {
@@ -259,6 +260,59 @@ describe("the per-organisation rate limit", () => {
     }
     expect(await sql("select id from compliance.source_object where org_id = $1 and deleted_at is null", [org])).toEqual([])
     expect((await claim(org, "a8".repeat(32))).kind).toBe("rate_limited")
+  })
+
+  const releaseNotCounted = (orgId: string, claimId: string) =>
+    h.withTenantContextDouble({ orgId }, (db) => svc.releaseProjectSourceWithDb(db, claimId, { modelCalled: false }))
+
+  test("a claim released before any model call is marked and does not count: 2 x maxClaims such attempts in a row, and the next claim is still claimed", async () => {
+    const { maxClaims } = svc.LEDGER_RATE_LIMIT
+    const org = freshOrg()
+    for (let i = 0; i < maxClaims * 2; i++) {
+      const c = (await claim(org, `${String(i).padStart(3, "0")}`.repeat(21) + "0")) as { kind: string; claimId: string }
+      expect(c.kind).toBe("claimed")
+      await releaseNotCounted(org, c.claimId)
+    }
+    const released = await sql("select extract_error, deleted_at is not null as freed from compliance.source_object where org_id = $1", [org])
+    expect(released).toHaveLength(maxClaims * 2)
+    expect(released.every((r) => r.extract_error === svc.LEDGER_NO_MODEL_CALL_MARK && r.freed === true)).toBe(true)
+    expect(svc.LEDGER_NO_MODEL_CALL_MARK).toBe("no_model_call")
+    expect((await claim(org, "b1".repeat(32))).kind).toBe("claimed")
+  })
+
+  test("only attempts that may have reached a model count: maxClaims - 1 of them, then any number that did not, leave room for exactly one more claim", async () => {
+    const { maxClaims } = svc.LEDGER_RATE_LIMIT
+    const org = freshOrg()
+    for (let i = 0; i < maxClaims - 1; i++) {
+      const c = (await claim(org, `1${String(i).padStart(2, "0")}`.repeat(21) + "0")) as { claimId: string }
+      await h.withTenantContextDouble({ orgId: org }, (db) => svc.releaseProjectSourceWithDb(db, c.claimId, { modelCalled: true }))
+    }
+    for (let i = 0; i < 5; i++) {
+      const c = (await claim(org, `2${String(i).padStart(2, "0")}`.repeat(21) + "0")) as { claimId: string }
+      await releaseNotCounted(org, c.claimId)
+    }
+    expect((await claim(org, "b2".repeat(32))).kind).toBe("claimed")
+    expect((await claim(org, "b3".repeat(32))).kind).toBe("rate_limited")
+  })
+
+  test("a marked claim is also left out of the wait: it is measured from the oldest attempt that counts", async () => {
+    const { maxClaims, windowSeconds } = svc.LEDGER_RATE_LIMIT
+    const org = freshOrg()
+    // One attempt 50 minutes old that did not reach a model (marked), then maxClaims counted attempts 5 minutes old.
+    await seedAttempts(org, 1, 50)
+    await sql("update compliance.source_object set extract_error = $2, deleted_at = now() where org_id = $1", [org, svc.LEDGER_NO_MODEL_CALL_MARK])
+    await sql(
+      `insert into compliance.source_object (id, org_id, origin, origin_ref, sha256, doc_uid, extract_status, created_at)
+       select 'counted-' || $1::text || '-' || g, $1::text, 'upload', 'projexa-from-document:v1', 'counted-key-' || $1::text || '-' || g, 'counted-doc-' || $1::text || '-' || g, 'SKIPPED_UNSUPPORTED', now() - interval '5 minutes'
+       from generate_series(1, ${Number(maxClaims)}) g`,
+      [org],
+    )
+    const refused = await claim(org, "b4".repeat(32))
+    expect(refused.kind).toBe("rate_limited")
+    const wait = (refused as { retryAfterSeconds: number }).retryAfterSeconds
+    // The oldest COUNTED attempt is 5 minutes old, so the wait is about windowSeconds - 5 minutes, not windowSeconds - 50 minutes.
+    expect(wait).toBeGreaterThan(windowSeconds - 5 * 60 - 10)
+    expect(wait).toBeLessThanOrEqual(windowSeconds - 5 * 60)
   })
 })
 

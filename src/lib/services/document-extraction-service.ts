@@ -53,6 +53,7 @@
 // validation ends in an ExtractionRejectedError with a stable code and creates nothing. Re-submitting the same file returns the
 // first project (a per-organisation ledger row keyed by the file's sha256, see the ledger notes below).
 import { createHash } from "node:crypto"
+import { inflateRawSync } from "node:zlib"
 import { createId } from "@paralleldrive/cuid2"
 import { documents, sourceObject, chunkPolicy } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -76,6 +77,7 @@ import {
   WORKBOOK_LIMITS,
   cleanCellText,
   validateExtractionOutput,
+  type ExtractionErrorCode,
   type ExtractedProject,
   type WorkbookDigest,
   type WorkbookLimits,
@@ -618,13 +620,70 @@ export function assertWorkbookBytes(bytes: Uint8Array, limits: WorkbookLimits = 
   }
 }
 
+const ZIP_END_OF_CENTRAL_DIRECTORY = Buffer.from([0x50, 0x4b, 0x05, 0x06])
+const ZIP_CENTRAL_ENTRY_SIGNATURE = 0x02014b50
+const ZIP_LOCAL_ENTRY_SIGNATURE = 0x04034b50
+
+/**
+ * Refuses a workbook whose parts would unpack to more than limits.maxUncompressedBytes, before the workbook parser sees it. The parts
+ * of an xlsx file are deflate streams and the parser inflates each one whole, so the size of the file says little about the memory
+ * a read takes. The sizes the archive declares are not used: an archive can declare small sizes and inflate to gigabytes, and the
+ * parser does not compare what it inflated with what was declared. Each part is inflated here with an output ceiling instead, from
+ * the same place the parser starts (the local header of each entry the central directory lists), and the outputs are added up, so
+ * two entries that share one stream count twice, as they do when the parser reads them. Refusals: workbook_too_large over the
+ * ceiling, workbook_unreadable for anything that is not a well-formed zip archive or whose stream does not inflate.
+ */
+export function assertWorkbookArchiveWithinLimits(bytes: Uint8Array, limits: WorkbookLimits = WORKBOOK_LIMITS): void {
+  const tooLarge = () =>
+    new ExtractionRejectedError("workbook_too_large", `The workbook holds more than ${Math.round(limits.maxUncompressedBytes / (1024 * 1024))} MB once unpacked`)
+  const unreadable = () => new ExtractionRejectedError("workbook_unreadable", "The file could not be read as an xlsx workbook")
+  const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  try {
+    // The last end-of-central-directory signature, which is the one the parser uses.
+    const end = buf.lastIndexOf(ZIP_END_OF_CENTRAL_DIRECTORY)
+    if (end < 0) throw unreadable()
+    const entryCount = buf.readUInt16LE(end + 10)
+    let entryAt = buf.readUInt32LE(end + 16)
+    let unpacked = 0
+    for (let i = 0; i < entryCount; i++) {
+      if (buf.readUInt32LE(entryAt) !== ZIP_CENTRAL_ENTRY_SIGNATURE) throw unreadable()
+      const centralSize = buf.readUInt32LE(entryAt + 20)
+      const localAt = buf.readUInt32LE(entryAt + 42)
+      entryAt += 46 + buf.readUInt16LE(entryAt + 28) + buf.readUInt16LE(entryAt + 30) + buf.readUInt16LE(entryAt + 32)
+      if (buf.readUInt32LE(localAt) !== ZIP_LOCAL_ENTRY_SIGNATURE) throw unreadable()
+      const method = buf.readUInt16LE(localAt + 8)
+      const dataAt = localAt + 30 + buf.readUInt16LE(localAt + 26) + buf.readUInt16LE(localAt + 28)
+      if (method === 0) {
+        // Stored, not deflated: the parser copies as many bytes as the entry says it holds.
+        unpacked += Math.min(Math.max(centralSize, buf.readUInt32LE(localAt + 18)), Math.max(buf.length - dataAt, 0))
+      } else if (method === 8) {
+        try {
+          unpacked += inflateRawSync(buf.subarray(dataAt), { maxOutputLength: Math.max(limits.maxUncompressedBytes - unpacked, 1) }).length
+        } catch (err) {
+          if ((err as { code?: string }).code === "ERR_BUFFER_TOO_LARGE") throw tooLarge()
+          throw unreadable()
+        }
+      } else {
+        throw unreadable()
+      }
+      if (unpacked > limits.maxUncompressedBytes) throw tooLarge()
+    }
+  } catch (err) {
+    if (err instanceof ExtractionRejectedError) throw err
+    throw unreadable()
+  }
+}
+
 /**
  * Reads every worksheet of an xlsx file, hidden ones included, into a digest: the rows that hold something, each with its real
  * 1-based worksheet row number, every cell as cleaned text. Formulas are not evaluated (the value Excel last stored is read).
  * A file over a limit is refused (workbook_too_large), never cut short: a BOQ built from half a workbook would look complete.
+ * The limits that bound the work of the read itself are checked before the work is done: the unpacked size (before the parser
+ * runs) and, from each sheet's declared range, the columns and the cells (before any sheet is turned into rows).
  */
 export async function readWorkbookDigest(bytes: Uint8Array, limits: WorkbookLimits = WORKBOOK_LIMITS): Promise<WorkbookDigest> {
   assertWorkbookBytes(bytes, limits)
+  assertWorkbookArchiveWithinLimits(bytes, limits)
   const mod = await import("xlsx")
   const XLSX = (mod.default ?? mod) as typeof import("xlsx")
   let workbook: import("xlsx").WorkBook
@@ -637,7 +696,8 @@ export async function readWorkbookDigest(bytes: Uint8Array, limits: WorkbookLimi
       cellStyles: false,
       sheetStubs: false,
       bookVBA: false,
-      sheetRows: limits.maxRowsPerSheet + 1,
+      // Reads that many rows and sets !fullref when the sheet has more, so a sheet of maxRowsPerSheet + 1 rows is the first refused.
+      sheetRows: limits.maxRowsPerSheet,
     })
   } catch {
     throw new ExtractionRejectedError("workbook_unreadable", "The file could not be read as an xlsx workbook")
@@ -647,17 +707,36 @@ export async function readWorkbookDigest(bytes: Uint8Array, limits: WorkbookLimi
   if (names.length > limits.maxSheets) {
     throw new ExtractionRejectedError("workbook_too_large", `The workbook has more than ${limits.maxSheets} sheets`)
   }
+  const nameOf = (rawName: string, index: number) => cleanCellText(rawName, 120) || `Sheet ${index + 1}`
+
+  // First pass, from what each sheet declares (its range), before any of it is built: sheet_to_json() below fills every cell of
+  // the range (defval), so a range of A1:XFD5000 would cost 82 million cells even when only two of them hold anything.
+  let declaredCells = 0
+  names.forEach((rawName, index) => {
+    const sheet = workbook.Sheets[rawName]
+    if (!sheet || !sheet["!ref"]) return
+    const name = nameOf(rawName, index)
+    // SheetJS sets !fullref when sheetRows cut the sheet short.
+    if ((sheet as Record<string, unknown>)["!fullref"] !== undefined) {
+      throw new ExtractionRejectedError("workbook_too_large", `Sheet "${name}" has more than ${limits.maxRowsPerSheet} rows`)
+    }
+    const range = XLSX.utils.decode_range(sheet["!ref"])
+    const columns = range.e.c - range.s.c + 1
+    if (columns > limits.maxColumns) {
+      throw new ExtractionRejectedError("workbook_too_large", `Sheet "${name}" has more than ${limits.maxColumns} columns`)
+    }
+    declaredCells += columns * (range.e.r - range.s.r + 1)
+    if (declaredCells > limits.maxCells) {
+      throw new ExtractionRejectedError("workbook_too_large", `The workbook's sheets declare more than ${limits.maxCells} cells in all`)
+    }
+  })
 
   const sheets: WorkbookDigest["sheets"] = []
   names.forEach((rawName, index) => {
-    const name = cleanCellText(rawName, 120) || `Sheet ${index + 1}`
+    const name = nameOf(rawName, index)
     const sheet = workbook.Sheets[rawName]
     const rows: WorkbookDigest["sheets"][number]["rows"] = []
     if (sheet && sheet["!ref"]) {
-      // SheetJS sets !fullref when sheetRows cut the sheet short.
-      if ((sheet as Record<string, unknown>)["!fullref"] !== undefined) {
-        throw new ExtractionRejectedError("workbook_too_large", `Sheet "${name}" has more than ${limits.maxRowsPerSheet} rows`)
-      }
       const firstRow = XLSX.utils.decode_range(sheet["!ref"]).s.r
       const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: "", blankrows: true })
       grid.forEach((cells, i) => {
@@ -817,12 +896,19 @@ export async function extractProjectFromDocument(
 //
 // The same rows are the per-organisation rate limit. Every new claim is one extraction attempt and so one possible model call, and a
 // released or taken-over claim stays in the table (soft-deleted), so counting the rows an organisation created inside the window
-// counts its attempts, failed ones included. A second submit of a file that already has a project (duplicate) or is being processed
-// (in_progress) inserts nothing, costs no model call and is never counted or refused. The count is read before the insert and a
-// refused attempt inserts nothing, so refusals do not lengthen the wait. Two attempts in flight together can each read a count that
-// leaves out the other, so the limit can be passed by the number of concurrent requests. It is a spend bound, not a security boundary.
+// counts its attempts, failed ones included. The exception is a claim released with modelCalled false: the refusal came before any
+// model call (a workbook that is unreadable, empty or over a limit, or extraction or the model not configured), nothing was billed,
+// and the row is marked extract_error 'no_model_call' so the count leaves it out. Without that, an environment with no model
+// configured would answer 429 instead of the true 503 after 30 uploads, for up to an hour. A refusal that does not say the model was
+// not reached (an invalid answer, an unavailable function) still counts. A second submit of a file that already has a project
+// (duplicate) or is being processed (in_progress) inserts nothing, costs no model call and is never counted or refused. The count is
+// read before the insert and a refused attempt inserts nothing, so refusals do not lengthen the wait. Two attempts in flight
+// together can each read a count that leaves out the other, so the limit can be passed by the number of concurrent requests. It is
+// a spend bound, not a security boundary.
 
 const LEDGER_ORIGIN_REF = "projexa-from-document:v1"
+/** Stored in extract_error of a claim that was released before any model call; the rate limit does not count such a claim. */
+export const LEDGER_NO_MODEL_CALL_MARK = "no_model_call"
 export const LEDGER_CLAIM_TTL_SECONDS = 15 * 60
 /** Extraction attempts one organisation may start inside the window (a person seldom needs more than a few workbooks an hour). */
 export const LEDGER_RATE_LIMIT = { maxClaims: 30, windowSeconds: 60 * 60 } as const
@@ -833,10 +919,13 @@ export type LedgerClaim =
   | { kind: "in_progress" }
   | { kind: "rate_limited"; retryAfterSeconds: number }
 
+/** `modelCalled` false means the attempt ended before any model call, so it does not count against the organisation's limit. Default true. */
+export type LedgerReleaseOptions = { modelCalled?: boolean }
+
 export type ProjectSourceLedger = {
   claim(input: { contentSha256: string; fileName: string; byteSize: number }): Promise<LedgerClaim>
   attach(claimId: string, projectId: string): Promise<void>
-  release(claimId: string): Promise<void>
+  release(claimId: string, options?: LedgerReleaseOptions): Promise<void>
 }
 
 function sha256Hex(bytes: Uint8Array | string): string {
@@ -888,6 +977,7 @@ export async function claimProjectSourceWithDb(
           eq(sourceObject.orgId, args.orgId),
           eq(sourceObject.originRef, LEDGER_ORIGIN_REF),
           sql`${sourceObject.createdAt} > now() - (interval '1 second' * ${LEDGER_RATE_LIMIT.windowSeconds})`,
+          sql`${sourceObject.extractError} is distinct from ${LEDGER_NO_MODEL_CALL_MARK}`,
         ),
       )
     if (Number(usage?.attempts ?? 0) >= LEDGER_RATE_LIMIT.maxClaims) {
@@ -930,11 +1020,14 @@ export async function attachProjectSourceWithDb(db: TenantDb, claimId: string, p
   if (updated.length === 0) throw new Error("The upload claim no longer exists, so the project could not be recorded against it")
 }
 
-/** Frees the key of a claim that never reached a project. A claim already linked to a project is left alone. */
-export async function releaseProjectSourceWithDb(db: TenantDb, claimId: string): Promise<void> {
+/**
+ * Frees the key of a claim that never reached a project. A claim already linked to a project is left alone. With
+ * `modelCalled: false` the row is also marked (LEDGER_NO_MODEL_CALL_MARK) so that the rate limit does not count it.
+ */
+export async function releaseProjectSourceWithDb(db: TenantDb, claimId: string, options: LedgerReleaseOptions = {}): Promise<void> {
   await db
     .update(sourceObject)
-    .set({ deletedAt: sql`now()` })
+    .set({ deletedAt: sql`now()`, ...(options.modelCalled === false ? { extractError: LEDGER_NO_MODEL_CALL_MARK } : {}) })
     .where(and(eq(sourceObject.id, claimId), isNull(sourceObject.linkedEntityId), isNull(sourceObject.deletedAt)))
 }
 
@@ -944,11 +1037,26 @@ export function createDbProjectSourceLedger(ctx: { orgId: string; actorId: strin
   return {
     claim: (input) => withTenantContext(tenant, (db) => claimProjectSourceWithDb(db, { orgId: ctx.orgId, actorId: ctx.actorId, ...input })),
     attach: (claimId, projectId) => withTenantContext(tenant, (db) => attachProjectSourceWithDb(db, claimId, projectId)),
-    release: (claimId) => withTenantContext(tenant, (db) => releaseProjectSourceWithDb(db, claimId)),
+    release: (claimId, options) => withTenantContext(tenant, (db) => releaseProjectSourceWithDb(db, claimId, options)),
   }
 }
 
 // ------------------------------------------------------------------------------------------------------ the orchestration
+
+/**
+ * The refusals that come before any model call, in extractProjectFromDocument(): the workbook could not be read or is over a limit
+ * (nothing was sent), the Edge Function is not set up here (no request was made), or it answered that no model is configured (it
+ * stops before the model). Every other refusal (an invalid or ungrounded answer, an unavailable function, a bad BOQ) may follow a
+ * model call, so it counts against the organisation's limit.
+ */
+const NO_MODEL_CALL_CODES: ReadonlySet<ExtractionErrorCode> = new Set<ExtractionErrorCode>([
+  "unsupported_file_type",
+  "workbook_unreadable",
+  "workbook_empty",
+  "workbook_too_large",
+  "extraction_not_configured",
+  "model_not_configured",
+])
 
 export type CreateFromDocumentInput = {
   orgId: string
@@ -1005,9 +1113,9 @@ export async function createProjectFromDocument<P extends { id: string }, B exte
     )
   }
 
-  const release = async () => {
+  const release = async (modelCalled: boolean) => {
     try {
-      await deps.ledger.release(claim.claimId)
+      await deps.ledger.release(claim.claimId, { modelCalled })
     } catch {
       // The claim then frees itself after LEDGER_CLAIM_TTL_SECONDS; the original error is the one to report.
     }
@@ -1017,7 +1125,8 @@ export async function createProjectFromDocument<P extends { id: string }, B exte
   try {
     result = await extractProjectFromDocument({ fileName: input.fileName, bytes: input.bytes }, { callEdge: deps.callEdge })
   } catch (err) {
-    await release()
+    // Only a refusal that says no model was reached is released as not counting; any other failure may have cost a model call.
+    await release(!(err instanceof ExtractionRejectedError && NO_MODEL_CALL_CODES.has(err.code)))
     throw err
   }
 
@@ -1035,7 +1144,7 @@ export async function createProjectFromDocument<P extends { id: string }, B exte
       },
     )
   } catch (err) {
-    await release()
+    await release(true)
     throw err
   }
 
