@@ -27,7 +27,11 @@
 //   - every write refuses a caller that names no person before any service is
 //     reached (PMD-34), and every entry refuses a params.projectId naming another
 //     project (PROJECT_NOT_REACHABLE);
-//   - an id parameter naming a record of another project reads as absent (U-18);
+//   - an id parameter naming a record of another project reads as absent (U-18),
+//     and a material named in words is looked up on the task's own project only;
+//   - a material receipt that cannot succeed (a date that is not a real day, a
+//     vendor that is no supplier of the org) is refused before a new material is
+//     created, so it leaves no material without a receipt;
 //   - a write is a proposal until a person confirms it (PMD-05).
 //
 // WHAT IS REAL: executor.ts, function-registry.ts, run-submission.ts, validate()
@@ -86,6 +90,10 @@ function fixtures(): BoqStore {
   seedRows(s, "construction_materials", [
     { id: "mat_a", orgId: ORG, projectId: PROJECT_A, name: "Cement OPC 53", unit: "bag" },
     { id: "mat_b", orgId: ORG, projectId: PROJECT_B, name: "Steel TMT", unit: "kg" },
+  ]);
+  seedRows(s, "erp_suppliers", [
+    { id: "sup_a", orgId: ORG, supplierName: "Shree Cement Traders" },
+    { id: "sup_x", orgId: OTHER_ORG, supplierName: "Elsewhere Suppliers" },
   ]);
   seedRows(s, "documents", [
     { id: "sheet_a", orgId: ORG, name: "Villa BOQ.xlsx", fileUrl: `${ORG}/sheet-a.xlsx`, fileType: SHEET_TYPE, fileSize: 2048, category: "boq", linkedEntityType: "project", linkedEntityId: PROJECT_A, metadata: null },
@@ -743,6 +751,59 @@ describe("BR-512: material receipts", () => {
     await result("record_material_receipt", { materialName: "Sand", unit: "cum", quantity: 4, unitCost: 1800 });
     expect(callOf(fn.createMaterial)).toEqual([{ orgId: ORG }, { projectId: PROJECT_A, name: "Sand", unit: "cum", spec: undefined, unitCost: 1800 }]);
     expect((callOf(fn.createMaterialReceipt)[1] as Row).materialId).toBe("mat_new");
+  });
+
+  // mat_b "Steel TMT" belongs to project B. The name lookup is per project: a
+  // project that has no material of that name gets its own, and never a receipt
+  // against the other project's row (U-18).
+  test("a material named in words that exists only on another project is not reused", async () => {
+    await result("record_material_receipt", { materialName: "Steel TMT", unit: "kg", quantity: 1 });
+
+    expect(callOf(fn.createMaterial)).toEqual([{ orgId: ORG }, { projectId: PROJECT_A, name: "Steel TMT", unit: "kg", spec: undefined, unitCost: undefined }]);
+    const receipt = callOf(fn.createMaterialReceipt)[1] as Row;
+    expect(receipt.projectId).toBe(PROJECT_A);
+    expect(receipt.materialId).toBe("mat_new");
+    expect(JSON.stringify(fn.createMaterialReceipt.mock.calls)).not.toContain("mat_b");
+  });
+
+  test("that same name without a unit asks for the unit: it does not fall back to the other project's material", async () => {
+    expect(await failure("record_material_receipt", { materialName: "Steel TMT", quantity: 1 })).toEqual({ code: "VALUE_REQUIRED", missing: ["value"], picker: "value" });
+    expect(fn.createMaterial).toHaveBeenCalledTimes(0);
+    expect(fn.createMaterialReceipt).toHaveBeenCalledTimes(0);
+  });
+
+  // createMaterial() commits the new material in its own transaction, before
+  // createMaterialReceipt() runs. A receipt request that cannot succeed is
+  // refused first, so it leaves no material behind.
+  test("a date that is not a real YYYY-MM-DD day is refused before a new material is made", async () => {
+    for (const receivedDate of ["22/09/2026", "2026-9-22", "2026-13-01", "2026-02-30", "2026-02-29", "yesterday", 20260922]) {
+      expect(await failure("record_material_receipt", { materialName: "Sand", unit: "cum", quantity: 4, receivedDate })).toEqual({ code: "DATE_REQUIRED", missing: ["date"], picker: "date" });
+    }
+    expect(fn.createMaterial).toHaveBeenCalledTimes(0);
+    expect(fn.createMaterialReceipt).toHaveBeenCalledTimes(0);
+  });
+
+  test("a leap day is a real day, and a blank date means today", async () => {
+    await result("record_material_receipt", { materialId: "mat_a", quantity: 1, receivedDate: "2028-02-29" });
+    expect((callOf(fn.createMaterialReceipt)[1] as Row).receivedDate).toBe("2028-02-29");
+
+    fn.createMaterialReceipt.mockClear();
+    await result("record_material_receipt", { materialId: "mat_a", quantity: 1, receivedDate: "   " });
+    expect((callOf(fn.createMaterialReceipt)[1] as Row).receivedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  test("a vendor that is not a supplier of this org is refused before a new material is made", async () => {
+    // sup_missing is no supplier at all; sup_x is a supplier of another org.
+    for (const vendorId of ["sup_missing", "sup_x"]) {
+      expect(await failure("record_material_receipt", { materialName: "Sand", unit: "cum", quantity: 4, vendorId })).toEqual({ code: "RECORD_NOT_FOUND", missing: ["vendor"], picker: "none" });
+    }
+    expect(fn.createMaterial).toHaveBeenCalledTimes(0);
+    expect(fn.createMaterialReceipt).toHaveBeenCalledTimes(0);
+  });
+
+  test("a supplier of this org is passed to the service as the vendor", async () => {
+    await result("record_material_receipt", { materialId: "mat_a", quantity: 5, vendorId: "sup_a" });
+    expect((callOf(fn.createMaterialReceipt)[1] as Row).vendorId).toBe("sup_a");
   });
 });
 

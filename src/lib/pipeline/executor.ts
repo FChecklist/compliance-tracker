@@ -9,7 +9,7 @@
 import { and, eq, desc } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { constructionBoqLineItems, constructionBoqs, constructionActivities, constructionChangeOrders, constructionLabourRoster, constructionMaterials, documents, pmsIssues, projects, users } from "@/lib/db/schema";
+import { constructionBoqLineItems, constructionBoqs, constructionActivities, constructionChangeOrders, constructionLabourRoster, constructionMaterials, documents, erpSuppliers, pmsIssues, projects, users } from "@/lib/db/schema";
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
 import { approveTimeEntry, getTimeEntry, logTime, rejectTimeEntry, REJECTION_REASON_MIN_LENGTH } from "@/lib/services/pms-time-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
@@ -1445,11 +1445,40 @@ async function materialIdByName(task: ExecutableTask, projectId: string, name: s
   return rows.find((m) => m.name.trim().toLowerCase() === wanted)?.id;
 }
 
+/** True for a YYYY-MM-DD string that names a real calendar day ("2026-02-30" does not). */
+function isCalendarDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+/** True when this org has a supplier with that id; a supplier of another org reads as absent. */
+async function supplierInOrg(task: ExecutableTask, supplierId: string): Promise<boolean> {
+  const row = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
+    db.query.erpSuppliers.findFirst({
+      where: and(eq(erpSuppliers.orgId, task.orgId), eq(erpSuppliers.id, supplierId)),
+      columns: { id: true },
+    })
+  );
+  return row !== undefined;
+}
+
 async function executeRecordMaterialReceipt(task: ExecutableTask): Promise<ExecutionOutcome> {
   return projectWrite(task, async ({ projectId, actorId }) => {
     const p = task.params;
     const quantity = num(p.quantity);
     if (quantity === undefined || quantity <= 0) return refuse(pipelineFailure("QUANTITY_REQUIRED", ["value"]));
+
+    // The date and the vendor are checked before anything is written. A new
+    // material is committed by createMaterial() in a transaction of its own; a
+    // receipt that the service then refused (a date Postgres cannot read) or
+    // that would point at no supplier of this org (vendor_id has no foreign key)
+    // would leave that material behind with no receipt.
+    const dateGiven = p.receivedDate !== undefined && p.receivedDate !== null && !(typeof p.receivedDate === "string" && p.receivedDate.trim() === "");
+    const receivedDate = dateGiven ? str(p.receivedDate) : today();
+    if (!receivedDate || !isCalendarDay(receivedDate)) return refuse(pipelineFailure("DATE_REQUIRED", ["date"]));
+    const vendorId = str(p.vendorId);
+    if (vendorId && !(await supplierInOrg(task, vendorId))) return refuse(pipelineFailure("RECORD_NOT_FOUND", ["vendor"]));
 
     let materialId = str(p.materialId);
     let material: unknown = null;
@@ -1458,7 +1487,10 @@ async function executeRecordMaterialReceipt(task: ExecutableTask): Promise<Execu
       if (await onAnotherProjectU38(task, "material", materialId, projectId)) return refuse(pipelineFailure("RECORD_NOT_FOUND", ["material"]));
     } else {
       // A material named in words: this project's own material of that name,
-      // or a new one when there is none and the caller gave its unit.
+      // or a new one when there is none and the caller gave its unit. Another
+      // project's material of the same name is not reused. Two calls at the same
+      // moment that name a new material can each create one: the table has no
+      // unique key on (org, project, name) to stop the second.
       const name = str(p.materialName)!;
       materialId = await materialIdByName(task, projectId, name);
       if (!materialId) {
@@ -1474,10 +1506,10 @@ async function executeRecordMaterialReceipt(task: ExecutableTask): Promise<Execu
       {
         projectId,
         materialId,
-        receivedDate: str(p.receivedDate) ?? today(),
+        receivedDate,
         quantity,
         unitCost: num(p.unitCost),
-        vendorId: str(p.vendorId),
+        vendorId,
         reference: str(p.reference),
         notes: str(p.notes),
         createdById: actorId,
