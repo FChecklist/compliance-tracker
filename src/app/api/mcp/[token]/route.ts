@@ -145,8 +145,8 @@ function unmatchedContent(result: RunSubmissionResult, unmatched: string[], tool
 // compliance.users role (resolveAiLinkOwnerRole), passed to runSubmission so
 // the pipeline's construction figures are redacted for a link owner below
 // manager. Both calls below used to pass no role, which the redaction read as
-// "show everything". null (no active user row) is passed through as null, and
-// the redaction treats it as not allowed -- it is never an error here.
+// "show everything". A null role (no active user row) is refused in dispatch()
+// before any tool runs (PMD-33); handleTool only ever sees an active owner's role.
 //
 // U-18 (BR-210): `projectScope` is the link's own project (a PROJEXA work
 // link) or null (a VERIDIAN link, org-wide as before). Both calls pass it to
@@ -227,6 +227,10 @@ function projectScopeRefusal(body: Record<string, unknown>, identity: AiLinkIden
   return check.ok ? null : rpcError(id, PROJECT_OUT_OF_SCOPE, check.message);
 }
 
+// The plain sentence for a link whose person is no longer an active user of the organisation (no stack, no internals).
+const OWNER_NOT_ACTIVE_MESSAGE =
+  "The person this link was made for is no longer an active user of this organisation, so this link cannot act. Ask an admin for a new link.";
+
 async function dispatch(body: Record<string, unknown>, identity: AiLinkIdentity) {
   const { orgId, userId } = identity;
   const { id, method, params } = body as { id: unknown; method: string; params: Record<string, unknown> };
@@ -248,6 +252,11 @@ async function dispatch(body: Record<string, unknown>, identity: AiLinkIdentity)
     try {
       // Read only for tools/call: initialize/tools/list/ping touch no figures.
       const role = await resolveAiLinkOwnerRole(identity);
+      // PMD-33: a link acts as exactly one person. When that person has no active user row in this organisation (deactivated,
+      // deleted or moved) the link cannot act at all: refusing here, before any tool runs, is what keeps a write from going out
+      // under a person who no longer exists. Before this, only the figures were redacted (a null role reads as not allowed) while
+      // the write tools still ran, so an orphaned link could still add a roster entry.
+      if (role === null) return rpcError(id, -32000, OWNER_NOT_ACTIVE_MESSAGE);
       const content = await handleTool(toolName, toolArgs, orgId, userId, role, identity.projectId ?? null);
       return rpcResult(id, { content });
     } catch (err) {
