@@ -97,6 +97,17 @@ function readSpec(functionId: string, label: string, module: string, requiresPro
   return { functionId, label, module, kind: "ask", writes: false, requiresProject, requiredParams: [] };
 }
 
+/** A read that cannot answer without one named record or value (U-38). */
+function readSpecNeeding(
+  functionId: string,
+  label: string,
+  module: string,
+  requiresProject: boolean,
+  requiredParams: RequiredParam[]
+): FunctionSpec {
+  return { ...readSpec(functionId, label, module, requiresProject), requiredParams };
+}
+
 const SPEC_LIST: readonly FunctionSpec[] = [
   // ---- the one write the pipeline has always had -----------------------
   {
@@ -350,6 +361,368 @@ const SPEC_LIST: readonly FunctionSpec[] = [
   readSpec("list_leads", "View leads", "customers", false),
   readSpec("list_opportunities", "View opportunities", "customers", false),
   readSpec("get_sales_pipeline_overview", "View the sales pipeline", "customers", false),
+
+  // ---- PROJEXA-BUILD-001 U-38 (BR-512, BR-513): the remaining registry entries ----
+  //
+  // Each entry wraps the service function the matching PROJEXA route already
+  // calls (PROJEXA_BUILD_SPEC section 5). Appended after every earlier entry so
+  // the order the AI link offers candidates in (registry order on a tie) does
+  // not move for a text that matched before.
+  //
+  // Reads first, then writes. A write is only ever proposed until a person
+  // confirms it (PMD-05), and the executor refuses a write whose caller names
+  // no person (PMD-34), as the U-28 entries do. There is no billing-claim write
+  // here on purpose: R-95 (may an AI write a billing claim) is held for the
+  // owner, so billing has the two reads and nothing else.
+
+  // -- change orders (R-97) --
+  readSpec("list_change_orders", "View change orders", "change_orders", true),
+  readSpecNeeding("get_change_order", "View a change order", "change_orders", true, [
+    { name: "changeOrderId", label: "Change order", code: "VALUE_REQUIRED", field: "value" },
+  ]),
+  {
+    functionId: "create_change_order",
+    label: "New change order",
+    module: "change_orders",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "title", label: "Title", code: "TITLE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: true },
+        { key: "reason", label: "Reason", type: "text", required: false },
+        { key: "costImpact", label: "Cost impact", type: "number", required: false },
+        { key: "scheduleImpactDays", label: "Schedule impact", type: "number", unit: "days", required: false },
+      ],
+      primaryLabel: "Save change order",
+    },
+  },
+
+  // -- site instructions (R-C14) --
+  {
+    functionId: "create_site_instruction",
+    label: "New site instruction",
+    module: "site_instructions",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "issueDate", label: "Issue date", code: "DATE_REQUIRED", field: "date" },
+      { name: "toContractor", label: "To contractor", code: "VALUE_REQUIRED", field: "value" },
+      { name: "description", label: "Instruction", code: "VALUE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "issueDate", label: "Issue date", type: "date", required: true },
+        { key: "toContractor", label: "To contractor", type: "text", required: true },
+        { key: "description", label: "Instruction", type: "text", required: true },
+        { key: "drawingRef", label: "Drawing reference", type: "text", required: false },
+      ],
+      primaryLabel: "Save instruction",
+    },
+  },
+
+  // -- reports and analysis (R-33, R-41..R-45, R-52, R-99, R-100, R-C07, R-C11, R-C12) --
+  readSpecNeeding("run_named_report", "View a named report", "reports", true, [
+    { name: "reportSlug", label: "Report", code: "VALUE_REQUIRED", field: "value" },
+  ]),
+  readSpec("get_project_analysis", "View project analysis", "reports", false),
+  readSpec("get_manpower_cost_report", "View manpower cost", "manpower", true),
+  readSpec("get_designer_timesheet_report", "View designer timesheet report", "timesheets", true),
+
+  // -- line budget (R-C09) --
+  {
+    functionId: "update_line_item_budget",
+    label: "Set a line budget",
+    module: "budget",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "boqLineItemId", label: "BOQ line", code: "BOQ_LINE_REQUIRED", field: "boqLine" },
+    ],
+    card: {
+      fields: [
+        { key: "boqLineItemId", label: "BOQ line", type: "select", required: true, picker: "boq-line" },
+        { key: "budgetPercentage", label: "Budget share", type: "percent", unit: "%", required: false },
+        { key: "vendorAmount", label: "Vendor amount", type: "number", required: false },
+        { key: "materialAmount", label: "Material amount", type: "number", required: false },
+        { key: "manpowerAmount", label: "Manpower amount", type: "number", required: false },
+        { key: "category", label: "Category", type: "text", required: false },
+      ],
+      primaryLabel: "Save line budget",
+    },
+  },
+
+  // -- schedule and milestones (R-C10, R-94) --
+  readSpec("get_project_schedule", "View the schedule", "schedule", true),
+  {
+    functionId: "create_schedule_task",
+    label: "New schedule task",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "title", label: "Title", code: "TITLE_REQUIRED" },
+      { name: "startDate", label: "Start date", code: "DATE_REQUIRED", field: "date" },
+    ],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: true },
+        { key: "startDate", label: "Start date", type: "date", required: true },
+        { key: "dueDate", label: "Finish date", type: "date", required: false },
+        { key: "durationDays", label: "Duration", type: "number", unit: "days", required: false },
+        { key: "description", label: "Description", type: "text", required: false },
+      ],
+      primaryLabel: "Save task",
+    },
+  },
+  readSpec("list_milestones", "View milestones", "milestones", true),
+  {
+    functionId: "create_milestone",
+    label: "New milestone",
+    module: "milestones",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "title", label: "Title", code: "TITLE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: true },
+        { key: "targetDate", label: "Target date", type: "date", required: false },
+        { key: "description", label: "Description", type: "text", required: false },
+      ],
+      primaryLabel: "Save milestone",
+    },
+  },
+  {
+    functionId: "update_milestone",
+    label: "Update a milestone",
+    module: "milestones",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "milestoneId", label: "Milestone", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "milestoneId", label: "Milestone", type: "text", required: true },
+        { key: "title", label: "Title", type: "text", required: false },
+        { key: "targetDate", label: "Target date", type: "date", required: false },
+        { key: "status", label: "Status", type: "text", required: false },
+      ],
+      primaryLabel: "Save milestone",
+    },
+  },
+
+  // -- billing claims (R-95): READ ONLY, no write id is registered --
+  readSpec("list_billing_claims", "View billing claims", "billing", true),
+  readSpec("get_billing_due_queue", "View the billing due list", "billing", false),
+
+  // -- drawings and minutes (R-C02, R-C04) --
+  //
+  // create_drawing is its own entry and not create_document with a drawing
+  // category: create_document calls createDocumentRecord(), which never
+  // supersedes the previous current revision, so a second revision of the same
+  // Drawing No. would leave two rows current with no error. create_drawing
+  // calls createDrawingRecord(), which supersedes it in the same transaction.
+  //
+  // create_mom calls createVeriMeeting() (minutes, action items, publish, PDF,
+  // share link), not the older pms-meeting-service createMeeting() that
+  // create_meeting above wraps.
+  {
+    functionId: "create_drawing",
+    label: "Add a drawing",
+    module: "drawings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "name", label: "Name", code: "TITLE_REQUIRED" },
+      { name: "externalUrl", label: "Link", code: "LINK_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: true },
+        { key: "externalUrl", label: "Link", type: "text", required: true },
+        { key: "drawingNo", label: "Drawing No.", type: "text", required: false },
+        { key: "rev", label: "Revision", type: "text", required: false },
+        { key: "status", label: "Status", type: "select", required: false, default: "for_approval" },
+        { key: "discipline", label: "Discipline", type: "text", required: false },
+      ],
+      primaryLabel: "Save drawing",
+    },
+  },
+  {
+    functionId: "create_mom",
+    label: "New minutes of meeting",
+    module: "meetings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "title", label: "Title", code: "TITLE_REQUIRED" },
+      { name: "scheduledAt", label: "Date and time", code: "DATE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: true },
+        { key: "scheduledAt", label: "Date and time", type: "date", required: true },
+        { key: "minutes", label: "Minutes", type: "text", required: false },
+      ],
+      primaryLabel: "Save minutes",
+    },
+  },
+
+  // -- material receipts (R-C08) --
+  {
+    functionId: "record_material_receipt",
+    label: "Record a material receipt",
+    module: "materials",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "materialId", label: "Material", code: "MATERIAL_REQUIRED", field: "material", alsoSatisfiedBy: ["materialName"] },
+      { name: "quantity", label: "Quantity", code: "QUANTITY_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "materialId", label: "Material", type: "select", required: true, picker: "material" },
+        { key: "quantity", label: "Quantity", type: "number", required: true },
+        { key: "receivedDate", label: "Date", type: "date", required: false },
+        { key: "unitCost", label: "Unit cost", type: "number", required: false },
+        { key: "reference", label: "Reference", type: "text", required: false },
+      ],
+      primaryLabel: "Save receipt",
+    },
+  },
+
+  // -- timesheet approval (R-C12) --
+  {
+    functionId: "approve_timesheet",
+    label: "Approve a timesheet entry",
+    module: "timesheets",
+    kind: "write",
+    writes: true,
+    requiresProject: false,
+    requiredParams: [{ name: "timeEntryId", label: "Time entry", code: "VALUE_REQUIRED", field: "value" }],
+    card: {
+      fields: [{ key: "timeEntryId", label: "Time entry", type: "text", required: true }],
+      primaryLabel: "Approve entry",
+    },
+  },
+  {
+    functionId: "reject_timesheet",
+    label: "Return a timesheet entry",
+    module: "timesheets",
+    kind: "write",
+    writes: true,
+    requiresProject: false,
+    requiredParams: [
+      { name: "timeEntryId", label: "Time entry", code: "VALUE_REQUIRED", field: "value" },
+      { name: "rejectionReason", label: "Reason", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "timeEntryId", label: "Time entry", type: "text", required: true },
+        { key: "rejectionReason", label: "Reason", type: "text", required: true },
+      ],
+      primaryLabel: "Return entry",
+    },
+  },
+
+  // -- institutional memory and sharing (R-C16, R-C15) --
+  readSpecNeeding("recall_precedent", "Recall a precedent", "memory", false, [
+    { name: "query", label: "What to recall", code: "VALUE_REQUIRED" },
+  ]),
+  {
+    functionId: "capture_artifact",
+    label: "Save a note",
+    module: "memory",
+    kind: "write",
+    writes: true,
+    requiresProject: false,
+    requiredParams: [
+      { name: "title", label: "Title", code: "TITLE_REQUIRED" },
+      { name: "text", label: "Text", code: "VALUE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: true },
+        { key: "text", label: "Text", type: "text", required: true },
+      ],
+      primaryLabel: "Save note",
+    },
+  },
+  {
+    functionId: "create_report_share_link",
+    label: "Share a report",
+    module: "reports",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "reportType", label: "Report", code: "VALUE_REQUIRED", field: "value" },
+      { name: "from", label: "From", code: "DATE_REQUIRED", field: "date" },
+      { name: "to", label: "To", code: "DATE_REQUIRED", field: "date" },
+    ],
+    card: {
+      fields: [
+        { key: "reportType", label: "Report", type: "text", required: true },
+        { key: "from", label: "From", type: "date", required: true },
+        { key: "to", label: "To", type: "date", required: true },
+        { key: "expiresInHours", label: "Link lasts", type: "number", unit: "h", required: false },
+      ],
+      primaryLabel: "Create link",
+    },
+  },
+
+  // -- BOQ import from a stored document (R-70..R-72) --
+  //
+  // Link-based, not bytes: a task carries JSON, so the sheet is named by the id
+  // of a document already stored for this project (uploaded on Documents). The
+  // preview is a read; the import is a write and goes through the same
+  // createBoq() / createBoqRevision() the import route calls.
+  readSpecNeeding("preview_boq_import", "Preview a BOQ import", "scope", true, [
+    { name: "documentId", label: "Document", code: "VALUE_REQUIRED", field: "value" },
+  ]),
+  {
+    functionId: "apply_boq_import",
+    label: "Import a BOQ",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "documentId", label: "Document", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "documentId", label: "Document", type: "text", required: true },
+        { key: "title", label: "Title", type: "text", required: false },
+      ],
+      primaryLabel: "Import BOQ",
+    },
+  },
 ];
 
 const SPECS: Readonly<Record<string, FunctionSpec>> = Object.fromEntries(SPEC_LIST.map((s) => [s.functionId, s]));

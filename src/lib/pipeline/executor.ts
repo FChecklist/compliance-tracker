@@ -7,16 +7,34 @@
 // extends to execution: an unregistered function_id blocks the task with an
 // honest reason, never a fabricated success).
 import { and, eq, desc } from "drizzle-orm";
+import { createClient } from "@supabase/supabase-js";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { constructionBoqLineItems, constructionBoqs, constructionActivities, constructionChangeOrders, constructionLabourRoster, pmsIssues, users } from "@/lib/db/schema";
+import { constructionBoqLineItems, constructionBoqs, constructionActivities, constructionChangeOrders, constructionLabourRoster, constructionMaterials, documents, pmsIssues, projects, users } from "@/lib/db/schema";
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
-import { logTime } from "@/lib/services/pms-time-service";
+import { approveTimeEntry, getTimeEntry, logTime, rejectTimeEntry, REJECTION_REASON_MIN_LENGTH } from "@/lib/services/pms-time-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
 import { createRosterEntry, recordAttendance } from "@/lib/services/construction-labour-service";
-import { createBoq, createBoqRevision, getProjectBoqLinePage, validateBoqBodyShape, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
+import { createBoq, createBoqRevision, getProjectBoqLinePage, updateLineItemBudget, validateBoqBodyShape, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
 import { redactProjectSideFields } from "@/lib/services/cost-visibility-service";
 import { createMeeting } from "@/lib/services/pms-meeting-service";
-import { createDocumentRecord } from "@/lib/services/document-service";
+import { createDocumentRecord, createDrawingRecord } from "@/lib/services/document-service";
+import { createChangeOrder, getChangeOrder, listChangeOrders } from "@/lib/services/construction-change-order-service";
+import { createSiteInstruction } from "@/lib/services/construction-site-instruction-service";
+import { buildReportTable, designerTimesheetReport, manpowerCostReport, REPORT_REGISTRY, type ReportName, type ReportTable } from "@/lib/services/construction-reports-service";
+import { getBaseCurrency } from "@/lib/services/erp-accounting-service";
+import { getProjectAnalysis, listOrgAnalysis, sortAnalysisRows } from "@/lib/services/boq-analysis-service";
+import { listIssues } from "@/lib/services/pms-issue-service";
+import { createScheduleActivity, type ScheduleActivityInput } from "@/lib/services/schedule-service";
+import { createMilestone, listMilestones, resolveDefaultIssueTypeId, updateMilestone, type MilestonePatch } from "@/lib/services/pms-taxonomy-service";
+import { listBillingDueQueue, listClaims } from "@/lib/services/construction-billing-workflow-service";
+import { createVeriMeeting } from "@/lib/services/veri-meeting-service";
+import { createMaterial, createMaterialReceipt } from "@/lib/services/construction-materials-service";
+import { recordTimesheetDecisionTasks } from "@/lib/services/timesheet-review-task-service";
+import { recallMemory } from "@/lib/services/memory-recall-service";
+import { createSourceObject } from "@/lib/crr/capture";
+import { createReportShareLink } from "@/lib/services/report-share-service";
+import { analyseBoqPreview, parseBoqSpreadsheet, toPreviewRows } from "@/lib/services/construction-boq-import-service";
+import { categoryForKind, DRAWING_STATUSES } from "@/lib/drawings-register";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ServiceError } from "@/lib/services/compliance-service";
 import { financialsAllowedForRole, redactProjectDashboardFinancials } from "@/lib/task-execution/construction-tools";
@@ -884,6 +902,794 @@ const READ_ONLY_ALIASES: Readonly<Record<string, string>> = {
   review_budget: "get_construction_budget_status",
 };
 
+// ── PROJEXA-BUILD-001 U-38 (BR-512, BR-513): THE REMAINING REGISTRY ENTRIES ───
+//
+// 26 entries, each calling the service function the matching PROJEXA route
+// already calls (PROJEXA_BUILD_SPEC section 5). None re-implements a rule of its
+// service; what each adds around the call is the same four things the U-28
+// entries add:
+//   - the project rule: the entry acts on the task's own project, and a
+//     params.projectId naming another one is refused (PROJECT_NOT_REACHABLE)
+//     instead of dropped;
+//   - the person rule (PMD-34): a write whose caller names no person
+//     (task.actorUserId) is refused before anything is read or written, and the
+//     row is recorded under that person, never under task.userId, which is the
+//     org API key's id on the PROJEXA proxy. Every write below is also in
+//     WRITE_FUNCTION_IDS, so it is proposed and only executed once a person
+//     confirms (PMD-05);
+//   - the same-project rule for an id parameter (U-18): a record that exists on
+//     ANOTHER project of the org reads as absent;
+//   - the money rule (U-01): below manager rank, or with no known role, the
+//     cost fields of a result come back null and the result carries
+//     financialsRedacted: true. Project-side BOQ cost fields never appear.
+//
+// Not built, on purpose: any billing-claim write (R-95, held for the owner), so
+// billing has list_billing_claims and get_billing_due_queue and nothing else.
+//
+// create_drawing calls createDrawingRecord() and not createDocumentRecord(): the
+// generic writer never supersedes the previous current revision of a Drawing No.
+// (trap 1). create_mom calls createVeriMeeting() and not the older
+// pms-meeting-service createMeeting() that create_meeting wraps (trap 2).
+
+function ok(result: unknown): ExecutionOutcome {
+  return { success: true, result };
+}
+
+function refuse(failure: PipelineFailure): ExecutionOutcome {
+  return { success: false, failure };
+}
+
+/** A record that is absent, or that belongs to another project, reads the same way. */
+function notFound(task: ExecutableTask): ExecutionOutcome {
+  return refuse(pipelineFailure("RECORD_NOT_FOUND", [], { status: 404, functionId: task.functionId }));
+}
+
+/** A request the service would refuse with its own 400, in the shape that 400 gets. */
+function badRequest(task: ExecutableTask): ExecutionOutcome {
+  return refuse(pipelineFailure("REQUEST_REJECTED", [], { status: 400, functionId: task.functionId }));
+}
+
+/** One rule for "manager rank or above": the U-01 rule the dashboard reads already use. */
+const atManagerRank = financialsAllowedForRole;
+
+type ProjectPick = { projectId: string | null } | { failure: PipelineFailure };
+
+/** The task's own project. A params.projectId that names another project is refused, not dropped. */
+function pickProject(task: ExecutableTask): ProjectPick {
+  const named = str(task.params.projectId);
+  if (task.projectId && named && named !== task.projectId) {
+    return { failure: pipelineFailure("PROJECT_NOT_REACHABLE", ["projectId"]) };
+  }
+  return { projectId: task.projectId ?? named ?? null };
+}
+
+/** A read that needs one project: the registry's own required parameters first, then the project rule. */
+async function projectRead(task: ExecutableTask, run: (projectId: string) => Promise<ExecutionOutcome>): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return refuse(missing);
+  const pick = pickProject(task);
+  if ("failure" in pick) return refuse(pick.failure);
+  if (!pick.projectId) return refuse(pipelineFailure("PROJECT_REQUIRED", ["projectId"]));
+  return run(pick.projectId);
+}
+
+/** A write on one project: required parameters, the project rule, then the person rule, in that order. */
+async function projectWrite(
+  task: ExecutableTask,
+  run: (scope: { projectId: string; actorId: string }) => Promise<ExecutionOutcome>
+): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return refuse(missing);
+  const pick = pickProject(task);
+  if ("failure" in pick) return refuse(pick.failure);
+  if (!pick.projectId) return refuse(pipelineFailure("PROJECT_REQUIRED", ["projectId"]));
+  if (!task.actorUserId) return unidentifiedActor();
+  return run({ projectId: pick.projectId, actorId: task.actorUserId });
+}
+
+/** A write that needs a person but no project (the project, when named, is still the task's own). */
+async function personWrite(
+  task: ExecutableTask,
+  run: (scope: { projectId: string | null; actorId: string }) => Promise<ExecutionOutcome>
+): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return refuse(missing);
+  const pick = pickProject(task);
+  if ("failure" in pick) return refuse(pick.failure);
+  if (!task.actorUserId) return unidentifiedActor();
+  return run({ projectId: pick.projectId, actorId: task.actorUserId });
+}
+
+/**
+ * The cost fields each entry's result can carry, by function id. A field named
+ * here is set to null (not removed) for a caller below manager rank. The BOQ
+ * line's contract side (rate, amount) is not a cost field: the cost-visibility
+ * rules keep it visible to every reader of the BOQ.
+ */
+const MONEY_FIELDS: Readonly<Record<string, ReadonlySet<string>>> = {
+  list_change_orders: new Set(["costImpact"]),
+  get_change_order: new Set(["costImpact"]),
+  create_change_order: new Set(["costImpact"]),
+  update_line_item_budget: new Set([
+    "budgetPercentage", "vendorAmount", "materialAmount", "manpowerAmount", "computedBudget",
+    "materialCost", "labourCost", "equipmentCost",
+  ]),
+  get_manpower_cost_report: new Set(["totalCost"]),
+  get_designer_timesheet_report: new Set(["actual", "budget", "variance", "overallBudget", "overallActual", "overallVariance"]),
+  record_material_receipt: new Set(["unitCost"]),
+};
+
+function nullFields(value: unknown, fields: ReadonlySet<string>): unknown {
+  if (Array.isArray(value)) return value.map((item) => nullFields(item, fields));
+  if (typeof value === "object" && value !== null && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, inner]) => [key, fields.has(key) ? null : nullFields(inner, fields)])
+    );
+  }
+  return value;
+}
+
+/** The money rule for one result. A manager's result is returned as it is. */
+function withholdMoney(task: ExecutableTask, result: object): object {
+  if (atManagerRank(task.role)) return result;
+  const fields = MONEY_FIELDS[task.functionId] ?? new Set<string>();
+  return { ...(nullFields(result, fields) as object), financialsRedacted: true };
+}
+
+/** The same rule for a report table: a column the report declares as currency is null in every row and has no total. */
+function withholdCurrencyColumns(table: ReportTable): object {
+  const money = new Set(table.columns.filter((column) => column.unit === "currency").map((column) => column.key));
+  return {
+    ...table,
+    rows: table.rows.map((row) => Object.fromEntries(Object.entries(row).map(([key, cell]) => [key, money.has(key) ? null : cell]))),
+    totals: table.totals ? Object.fromEntries(Object.entries(table.totals).filter(([key]) => !money.has(key))) : undefined,
+    financialsRedacted: true,
+  };
+}
+
+/** The acting person as an active user of the task's org: the row a service needs as its dbUser. */
+async function loadActor(
+  task: ExecutableTask,
+  personId: string
+): Promise<{ actor: typeof users.$inferSelect } | { failure: PipelineFailure }> {
+  const actor = await withTenantContext({ orgId: task.orgId }, (db) =>
+    db.query.users.findFirst({ where: and(eq(users.id, personId), eq(users.orgId, task.orgId)) })
+  );
+  if (!actor || !actor.isActive) return { failure: pipelineFailure("NOT_PERMITTED", [], { reason: "unknown_actor" }) };
+  return { actor };
+}
+
+/** True when the project does not exist in the task's org. Its own transaction, closed before the service opens one (D-06). */
+async function projectMissing(task: ExecutableTask, projectId: string): Promise<boolean> {
+  const found = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
+    db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, task.orgId)), columns: { id: true } })
+  );
+  return found === undefined;
+}
+
+/**
+ * U-18's same-project rule for the two id parameters onAnotherProject() does
+ * not cover: a BOQ line (through its BOQ) and a material. True only when the
+ * record exists on ANOTHER project; a record that does not exist reaches the
+ * service and gets its own 404.
+ */
+async function onAnotherProjectU38(task: ExecutableTask, record: "boq_line" | "material", id: string, projectId: string): Promise<boolean> {
+  const owner = await withTenantContext({ orgId: task.orgId, userId: task.userId }, async (db) => {
+    if (record === "material") {
+      const material = await db.query.constructionMaterials.findFirst({
+        where: and(eq(constructionMaterials.id, id), eq(constructionMaterials.orgId, task.orgId)),
+        columns: { projectId: true },
+      });
+      return material?.projectId;
+    }
+    const line = await db.query.constructionBoqLineItems.findFirst({
+      where: and(eq(constructionBoqLineItems.id, id), eq(constructionBoqLineItems.orgId, task.orgId)),
+      columns: { boqId: true },
+    });
+    if (!line) return undefined;
+    const boq = await db.query.constructionBoqs.findFirst({
+      where: and(eq(constructionBoqs.id, line.boqId), eq(constructionBoqs.orgId, task.orgId)),
+      columns: { projectId: true },
+    });
+    return boq?.projectId;
+  });
+  return owner !== undefined && owner !== projectId;
+}
+
+/** A list of non-empty strings from a string or a list, in the order given. */
+function textList(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
+  return raw.filter((v): v is string => typeof v === "string" && v.trim().length > 0).map((v) => v.trim());
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+// -- change orders (R-97) --
+
+async function executeListChangeOrders(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectRead(task, async (projectId) => {
+    const changeOrders = await listChangeOrders({ orgId: task.orgId }, projectId, { status: str(task.params.status) });
+    return ok(withholdMoney(task, { changeOrders }));
+  });
+}
+
+async function executeGetChangeOrder(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectRead(task, async (projectId) => {
+    const row = await getChangeOrder({ orgId: task.orgId }, str(task.params.changeOrderId)!);
+    // getChangeOrder() finds by id and org only, so a change order of another
+    // project is read here and then refused as absent.
+    if (row.projectId !== projectId) return notFound(task);
+    return ok(withholdMoney(task, row));
+  });
+}
+
+async function executeCreateChangeOrder(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    // createChangeOrder() does not look the project up, so an id of no project
+    // of this org would reach the insert.
+    if (await projectMissing(task, projectId)) throw new ServiceError("Project not found", 404);
+    const row = await createChangeOrder(
+      { orgId: task.orgId, userId: actorId },
+      {
+        projectId,
+        title: str(task.params.title)!,
+        description: str(task.params.description),
+        reason: str(task.params.reason),
+        costImpact: num(task.params.costImpact),
+        scheduleImpactDays: num(task.params.scheduleImpactDays),
+        trade: str(task.params.trade),
+      }
+    );
+    return created(row.id, `/change-orders/${row.id}`, withholdMoney(task, row));
+  });
+}
+
+// -- site instructions (R-C14) --
+
+async function executeCreateSiteInstruction(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    // The service looks the project up itself; a BOQ named on the instruction is
+    // found by id and org only, so it is held to this project here.
+    const boqId = str(task.params.boqId);
+    if (boqId && (await onAnotherProject(task, "boq", boqId, projectId))) return notFound(task);
+    const row = await createSiteInstruction(
+      { orgId: task.orgId, userId: actorId },
+      {
+        projectId,
+        issueDate: str(task.params.issueDate)!,
+        toContractor: str(task.params.toContractor)!,
+        description: str(task.params.description)!,
+        drawingRef: str(task.params.drawingRef),
+        // The two flags say that the instruction changes cost or time; they are
+        // not amounts, so a boolean true is the only value that sets them.
+        costImpact: task.params.costImpact === true,
+        timeImpact: task.params.timeImpact === true,
+        boqId,
+      }
+    );
+    return created(row.id, "/site-instructions", row);
+  });
+}
+
+// -- reports and analysis (R-33, R-41..R-45, R-52, R-99, R-100, R-C07, R-C11, R-C12) --
+
+// designer-timesheet answers with an org-wide block as well as the project's own
+// (see designerTimesheetReport), so it has its own entry below that returns the
+// project's part only, and is left out of the named-report entry.
+const NAMED_REPORT_SLUGS: ReadonlySet<string> = new Set(Object.keys(REPORT_REGISTRY).filter((slug) => slug !== "designer-timesheet"));
+// The [reportName] route refuses this one below manager rank; so does the entry.
+const MANAGER_ONLY_REPORTS: ReadonlySet<string> = new Set(["budget-vs-actual"]);
+const WEEK_REPORTS: ReadonlySet<string> = new Set(["weekly-project", "certified-payroll"]);
+
+/** The report functions take different optional parameters; this maps the task's params the way the route maps its query string. */
+function runReport(task: ExecutableTask, slug: ReportName, projectId: string): Promise<unknown> {
+  const ctx = { orgId: task.orgId };
+  const p = task.params;
+  switch (slug) {
+    case "weekly-project":
+    case "certified-payroll":
+      return REPORT_REGISTRY[slug](ctx, projectId, str(p.weekStart)!);
+    case "work-progress":
+      return REPORT_REGISTRY[slug](ctx, projectId, { categoryFilter: textList(p.category) });
+    case "budget-variance":
+      return REPORT_REGISTRY[slug](ctx, projectId, {
+        categories: textList(p.category),
+        vendorId: str(p.vendorId),
+        groupBy: p.groupBy === "category" ? "category" : "scope",
+      });
+    case "manpower-cost":
+      return REPORT_REGISTRY[slug](ctx, projectId, str(p.date), str(p.trade));
+    case "manpower-daily-summary":
+      return REPORT_REGISTRY[slug](ctx, projectId, str(p.date));
+    case "category-boq-amounts":
+      return REPORT_REGISTRY[slug](ctx, projectId, { boqId: str(p.boqId) });
+    default:
+      return (REPORT_REGISTRY[slug] as (c: { orgId: string }, id: string) => Promise<unknown>)(ctx, projectId);
+  }
+}
+
+async function executeRunNamedReport(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectRead(task, async (projectId) => {
+    const slug = str(task.params.reportSlug)!;
+    if (!NAMED_REPORT_SLUGS.has(slug)) return badRequest(task);
+    if (MANAGER_ONLY_REPORTS.has(slug) && !atManagerRank(task.role)) {
+      return refuse(pipelineFailure("NOT_PERMITTED", [], { reason: "manager_rank_required" }));
+    }
+    if (WEEK_REPORTS.has(slug) && !str(task.params.weekStart)) return refuse(pipelineFailure("DATE_REQUIRED", ["date"]));
+    // The same id rule as the other BOQ ids: an explicit BOQ is of this project.
+    const boqId = str(task.params.boqId);
+    if (slug === "category-boq-amounts" && boqId && (await onAnotherProject(task, "boq", boqId, projectId))) return notFound(task);
+
+    const payload = await runReport(task, slug as ReportName, projectId);
+    // The base currency is read after the report, in its own transaction, as the route does.
+    const currency = await getBaseCurrency({ orgId: task.orgId }).then((c) => c.baseCurrency?.code ?? null).catch(() => null);
+    const table = buildReportTable(slug as ReportName, payload, currency);
+    return ok(atManagerRank(task.role) ? table : withholdCurrencyColumns(table));
+  });
+}
+
+async function executeGetProjectAnalysis(task: ExecutableTask): Promise<ExecutionOutcome> {
+  // The route refuses the whole report below manager rank ("the route is
+  // refused, not a column hidden"), so the entry does the same.
+  if (!atManagerRank(task.role)) return refuse(pipelineFailure("NOT_PERMITTED", [], { reason: "manager_rank_required" }));
+  const pick = pickProject(task);
+  if ("failure" in pick) return refuse(pick.failure);
+  if (pick.projectId) return ok({ row: await getProjectAnalysis({ orgId: task.orgId }, pick.projectId) });
+  const rows = await listOrgAnalysis({ orgId: task.orgId });
+  return ok({ rows: sortAnalysisRows(rows, "profitOnGross", "desc") });
+}
+
+async function executeGetManpowerCostReport(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectRead(task, async (projectId) => {
+    const p = task.params;
+    const report = await manpowerCostReport({ orgId: task.orgId }, projectId, str(p.date), str(p.trade), str(p.dateFrom), str(p.dateTo));
+    return ok(withholdMoney(task, report));
+  });
+}
+
+async function executeGetDesignerTimesheetReport(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectRead(task, async (projectId) => {
+    const report = await designerTimesheetReport(
+      { orgId: task.orgId },
+      projectId,
+      { from: str(task.params.from) ?? null, to: str(task.params.to) ?? null }
+    );
+    // The org-wide block (every designer and every project of the org) is not
+    // returned: a project-scoped tool never carries another project's figures.
+    return ok(withholdMoney(task, { period: report.period, projectScoped: report.projectScoped }));
+  });
+}
+
+// -- line budget (R-C09) --
+
+async function executeUpdateLineItemBudget(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId }) => {
+    const lineId = str(task.params.boqLineItemId)!;
+    const p = task.params;
+    const input = {
+      budgetPercentage: num(p.budgetPercentage),
+      vendorId: str(p.vendorId),
+      vendorAmount: num(p.vendorAmount),
+      materialAmount: num(p.materialAmount),
+      manpowerAmount: num(p.manpowerAmount),
+      category: str(p.category),
+    };
+    // Nothing to change is a request the caller can fix, not a silent no-op.
+    if (Object.values(input).every((v) => v === undefined)) return refuse(pipelineFailure("VALUE_REQUIRED", ["value"]));
+    // updateLineItemBudget() finds the line by id and org only.
+    if (await onAnotherProjectU38(task, "boq_line", lineId, projectId)) return refuse(pipelineFailure("BOQ_LINE_NOT_FOUND", ["boqLineItemId"]));
+    const row = await updateLineItemBudget({ orgId: task.orgId }, lineId, input);
+    return created(row.id, "/scope", redactProjectSideFields(withholdMoney(task, row)));
+  });
+}
+
+// -- schedule and milestones (R-C10, R-94) --
+
+async function executeGetProjectSchedule(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectRead(task, async (projectId) => {
+    const tasks = await listIssues({ orgId: task.orgId }, projectId, {
+      statusId: str(task.params.statusId),
+      assigneeId: str(task.params.assigneeId),
+    });
+    return ok({ tasks });
+  });
+}
+
+async function executeCreateScheduleTask(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    // The route gives a task the org's default issue type when none is named.
+    const typeId = str(task.params.typeId) ?? (await resolveDefaultIssueTypeId({ orgId: task.orgId }));
+    if (!typeId) return badRequest(task);
+    const boqLineItemId = str(task.params.boqLineItemId);
+    if (boqLineItemId && (await onAnotherProjectU38(task, "boq_line", boqLineItemId, projectId))) {
+      return refuse(pipelineFailure("BOQ_LINE_NOT_FOUND", ["boqLineItemId"]));
+    }
+    const input: ScheduleActivityInput = {
+      projectId,
+      typeId,
+      title: str(task.params.title)!,
+      description: str(task.params.description),
+      priority: str(task.params.priority),
+      dueDate: str(task.params.dueDate),
+      startDate: str(task.params.startDate),
+      durationDays: num(task.params.durationDays),
+      predecessorId: str(task.params.predecessorId),
+      boqLineItemId,
+      assigneeIds: Array.isArray(task.params.assigneeIds) ? textList(task.params.assigneeIds) : undefined,
+    };
+    // createScheduleActivity() checks the project itself (through createIssue)
+    // and holds a predecessor to the same project.
+    const row = await createScheduleActivity({ orgId: task.orgId, userId: actorId, dbUser: null }, input);
+    return created(String(row.id), "/schedule", row);
+  });
+}
+
+async function executeListMilestones(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectRead(task, async (projectId) => ok({ milestones: await listMilestones({ orgId: task.orgId }, projectId) }));
+}
+
+async function executeCreateMilestone(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    if (await projectMissing(task, projectId)) throw new ServiceError("Project not found", 404);
+    const row = await createMilestone({ orgId: task.orgId, userId: actorId, dbUser: null }, projectId, {
+      name: str(task.params.title)!,
+      description: str(task.params.description),
+      targetDate: str(task.params.targetDate),
+    });
+    return created(row.id, "/milestones", row);
+  });
+}
+
+async function executeUpdateMilestone(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    const p = task.params;
+    const patch: MilestonePatch = {
+      ...(str(p.title) !== undefined ? { name: str(p.title) } : {}),
+      ...(str(p.description) !== undefined ? { description: str(p.description) } : {}),
+      ...(str(p.targetDate) !== undefined ? { targetDate: str(p.targetDate) } : {}),
+      // The service checks the value against its own list of statuses.
+      ...(str(p.status) !== undefined ? { status: str(p.status) as MilestonePatch["status"] } : {}),
+    };
+    if (Object.keys(patch).length === 0) return refuse(pipelineFailure("VALUE_REQUIRED", ["value"]));
+    // updateMilestone() finds the milestone by id and org only, so the project's
+    // own list is read first and the id must be on it.
+    const milestoneId = str(p.milestoneId)!;
+    const known = await listMilestones({ orgId: task.orgId }, projectId);
+    if (!known.some((m) => m.id === milestoneId)) return notFound(task);
+    const row = await updateMilestone({ orgId: task.orgId, userId: actorId, dbUser: null }, milestoneId, patch);
+    return created(row.id, "/milestones", row);
+  });
+}
+
+// -- billing claims (R-95): the two reads, and no write --
+
+async function executeListBillingClaims(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectRead(task, async (projectId) => ok({ claims: await listClaims({ orgId: task.orgId }, projectId) }));
+}
+
+async function executeGetBillingDueQueue(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const pick = pickProject(task);
+  if ("failure" in pick) return refuse(pick.failure);
+  return ok({ claims: await listBillingDueQueue({ orgId: task.orgId }, pick.projectId ?? undefined) });
+}
+
+// -- drawings and minutes (R-C02, R-C04): the two traps --
+
+async function executeCreateDrawing(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    // createDrawingRecord() writes the drawing under the project id it is given
+    // and does not look the project up.
+    if (await projectMissing(task, projectId)) throw new ServiceError("Project not found", 404);
+    const status = str(task.params.status);
+    if (status && !(DRAWING_STATUSES as readonly string[]).includes(status)) return badRequest(task);
+    // Link-only, as create_document is: a task carries JSON, not the file's bytes.
+    // createDrawingRecord() takes the previous 'current' revision of the same
+    // Drawing No. on this project to 'superseded' in the same transaction as the
+    // insert; createDocumentRecord() would leave both current.
+    const row = await createDrawingRecord(
+      { orgId: task.orgId, userId: actorId },
+      {
+        name: str(task.params.name)!,
+        category: categoryForKind(str(task.params.kind)),
+        projectId,
+        discipline: str(task.params.discipline),
+        drawingNo: str(task.params.drawingNo),
+        rev: str(task.params.rev),
+        ...(status ? { status: status as (typeof DRAWING_STATUSES)[number] } : {}),
+        externalUrl: str(task.params.externalUrl)!,
+      }
+    );
+    return created(row.id, `/drawings/${row.id}`, row);
+  });
+}
+
+async function executeCreateMom(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    // createVeriMeeting() needs the person as a real user row (its dbUser), and
+    // does not look the project up.
+    const loaded = await loadActor(task, actorId);
+    if ("failure" in loaded) return refuse(loaded.failure);
+    if (await projectMissing(task, projectId)) throw new ServiceError("Project not found", 404);
+    const p = task.params;
+    // createVeriMeeting(), never pms-meeting-service createMeeting(): it is the
+    // service the MoM screens, the PDF and the share link read.
+    const row = await createVeriMeeting(
+      { orgId: task.orgId, userId: loaded.actor.id, dbUser: loaded.actor },
+      {
+        title: str(p.title)!,
+        meetingType: str(p.meetingType),
+        scheduledAt: str(p.scheduledAt)!,
+        attendees: textList(p.attendees),
+        agenda: textList(p.agenda),
+        contextEntityType: "project",
+        contextEntityId: projectId,
+        minutes: str(p.minutes),
+        actionItems: Array.isArray(p.actionItems) ? (p.actionItems as { title: string }[]) : undefined,
+      }
+    );
+    return created(row.id, `/moms/${row.id}`, row);
+  });
+}
+
+// -- material receipts (R-C08) --
+
+/** The id of this project's material with that name (case and edge spaces ignored), when it has one. */
+async function materialIdByName(task: ExecutableTask, projectId: string, name: string): Promise<string | undefined> {
+  const wanted = name.trim().toLowerCase();
+  const rows = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
+    db.query.constructionMaterials.findMany({
+      where: and(eq(constructionMaterials.orgId, task.orgId), eq(constructionMaterials.projectId, projectId)),
+      columns: { id: true, name: true },
+    })
+  );
+  return rows.find((m) => m.name.trim().toLowerCase() === wanted)?.id;
+}
+
+async function executeRecordMaterialReceipt(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    const p = task.params;
+    const quantity = num(p.quantity);
+    if (quantity === undefined || quantity <= 0) return refuse(pipelineFailure("QUANTITY_REQUIRED", ["value"]));
+
+    let materialId = str(p.materialId);
+    let material: unknown = null;
+    if (materialId) {
+      // createMaterialReceipt() finds the material by id and org only.
+      if (await onAnotherProjectU38(task, "material", materialId, projectId)) return refuse(pipelineFailure("RECORD_NOT_FOUND", ["material"]));
+    } else {
+      // A material named in words: this project's own material of that name,
+      // or a new one when there is none and the caller gave its unit.
+      const name = str(p.materialName)!;
+      materialId = await materialIdByName(task, projectId, name);
+      if (!materialId) {
+        const unit = str(p.unit);
+        if (!unit) return refuse(pipelineFailure("VALUE_REQUIRED", ["value"]));
+        const made = await createMaterial({ orgId: task.orgId }, { projectId, name, unit, spec: str(p.spec), unitCost: num(p.unitCost) });
+        materialId = made.id;
+        material = made;
+      }
+    }
+    const receipt = await createMaterialReceipt(
+      { orgId: task.orgId },
+      {
+        projectId,
+        materialId,
+        receivedDate: str(p.receivedDate) ?? today(),
+        quantity,
+        unitCost: num(p.unitCost),
+        vendorId: str(p.vendorId),
+        reference: str(p.reference),
+        notes: str(p.notes),
+        createdById: actorId,
+      }
+    );
+    return created(receipt.id, "/materials", withholdMoney(task, { receipt, material }));
+  });
+}
+
+// -- timesheet approval (R-C12) --
+
+/**
+ * The reviewer's decision on one time entry, as the approve and reject routes
+ * take it: a manager-rank person, the entry read first (so a missing entry is a
+ * 404 and an entry of another project is refused before anything changes), the
+ * service's own self-approval rule, then the reviewer's Task Master rows.
+ */
+async function reviewTimesheet(task: ExecutableTask, decision: "approved" | "rejected"): Promise<ExecutionOutcome> {
+  return personWrite(task, async ({ projectId, actorId }) => {
+    const loaded = await loadActor(task, actorId);
+    if ("failure" in loaded) return refuse(loaded.failure);
+    // The person's own row decides, not task.role: an approval is not a read.
+    if (!atManagerRank(loaded.actor.role)) return refuse(pipelineFailure("NOT_PERMITTED", [], { reason: "manager_rank_required" }));
+    const reason = decision === "rejected" ? (str(task.params.rejectionReason) ?? null) : null;
+    if (decision === "rejected" && (reason ?? "").length < REJECTION_REASON_MIN_LENGTH) {
+      return refuse(pipelineFailure("VALUE_REQUIRED", ["value"]));
+    }
+    const entryId = str(task.params.timeEntryId)!;
+    const ctx = { orgId: task.orgId, userId: loaded.actor.id };
+    const detail = await getTimeEntry({ orgId: task.orgId }, entryId);
+    if (projectId && detail.projectId !== projectId) return notFound(task);
+    const entry = decision === "approved" ? await approveTimeEntry(ctx, entryId) : await rejectTimeEntry(ctx, entryId, reason ?? undefined);
+    const tasks = await recordTimesheetDecisionTasks(ctx, entryId, decision, reason, entry);
+    return created(entry.id, "/timesheets", { ...entry, ...tasks });
+  });
+}
+
+async function executeApproveTimesheet(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return reviewTimesheet(task, "approved");
+}
+
+async function executeRejectTimesheet(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return reviewTimesheet(task, "rejected");
+}
+
+// -- institutional memory and sharing (R-C16, R-C15) --
+
+const RECALL_MAX_LIMIT = 10;
+const CAPTURE_MAX_CHARS = 50_000;
+
+async function executeRecallPrecedent(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return refuse(missing);
+  // A read has no confirming person, so the caller's own id stands in; an API
+  // key id is not a user, and a memory scope needs one.
+  const loaded = await loadActor(task, task.actorUserId ?? task.userId);
+  if ("failure" in loaded) return refuse(loaded.failure);
+  const actor = loaded.actor;
+  const asked = num(task.params.limit);
+  const limit = asked === undefined ? RECALL_MAX_LIMIT : Math.min(RECALL_MAX_LIMIT, Math.max(1, Math.floor(asked)));
+  // maxTier "keyword": the exact and full-text tiers read the database only.
+  // The vector and graph tiers call an embedding provider, and the AI link makes
+  // no server-side model call (U-43).
+  const result = await withTenantContext({ orgId: task.orgId, userId: actor.id }, (db) =>
+    recallMemory(db, { orgId: task.orgId, userId: actor.id, dbUser: actor }, str(task.params.query)!, {
+      limit,
+      maxTier: "keyword",
+      registryRef: str(task.params.registryRef),
+    })
+  );
+  return ok(result);
+}
+
+async function executeCaptureArtifact(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return personWrite(task, async ({ projectId, actorId }) => {
+    const text = str(task.params.text)!;
+    if (text.length > CAPTURE_MAX_CHARS) return badRequest(task);
+    if (projectId && (await projectMissing(task, projectId))) throw new ServiceError("Project not found", 404);
+    const title = str(task.params.title)!;
+    // Text only: a task carries JSON, so the artifact is the note's own text.
+    const id = await createSourceObject({
+      orgId: task.orgId,
+      origin: "inapp",
+      mimeType: "text/plain",
+      bytes: new TextEncoder().encode(text),
+      title,
+      linkedEntityType: projectId ? "project" : null,
+      linkedEntityId: projectId,
+      createdById: actorId,
+    });
+    return created(id, "/documents", { id, title });
+  });
+}
+
+async function executeCreateReportShareLink(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    const hours = task.params.expiresInHours === undefined ? undefined : num(task.params.expiresInHours);
+    if (task.params.expiresInHours !== undefined && (hours === undefined || hours <= 0)) return badRequest(task);
+    // The report type and the reference are checked by the service; the project
+    // in the reference is the task's own.
+    const link = await createReportShareLink(
+      { orgId: task.orgId, userId: actorId },
+      {
+        reportType: str(task.params.reportType) as Parameters<typeof createReportShareLink>[1]["reportType"],
+        reportRef: { projectId, from: str(task.params.from)!, to: str(task.params.to)! },
+        expiresInHours: hours,
+      }
+    );
+    // Only the token and its expiry, as the share route answers.
+    return created(link.id, "/reports", { token: link.token, expiresAt: link.expiresAt });
+  });
+}
+
+// -- BOQ import from a stored document (R-70..R-72) --
+
+const IMPORT_MAX_BYTES = 10 * 1024 * 1024; // the import route's own cap
+const DOCUMENT_BUCKET = "compliance-documents";
+
+type StoredSheet = { fileName: string; parsed: Awaited<ReturnType<typeof parseBoqSpreadsheet>> };
+
+/** A stored document is on a project when it is filed on it, or carries it in its metadata (D-14). */
+function documentOnProject(doc: typeof documents.$inferSelect, projectId: string): boolean {
+  const meta = (doc.metadata ?? {}) as { projectId?: unknown };
+  return (doc.linkedEntityType === "project" && doc.linkedEntityId === projectId) || meta.projectId === projectId;
+}
+
+/**
+ * Reads a document stored for this project and parses it with the import
+ * route's own parser. Link-only records (an external URL) are refused: the
+ * server does not fetch an address a caller supplies.
+ */
+async function readStoredSheet(task: ExecutableTask, projectId: string): Promise<StoredSheet | ExecutionOutcome> {
+  const doc = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
+    db.query.documents.findFirst({ where: and(eq(documents.id, str(task.params.documentId)!), eq(documents.orgId, task.orgId)) })
+  );
+  if (!doc || !documentOnProject(doc, projectId)) return notFound(task);
+  const meta = (doc.metadata ?? {}) as { isExternalLink?: unknown };
+  if (meta.isExternalLink === true || (doc.fileSize ?? 0) > IMPORT_MAX_BYTES) return badRequest(task);
+
+  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const { data, error } = await admin.storage.from(DOCUMENT_BUCKET).download(doc.fileUrl);
+  if (error || !data) throw new ServiceError("Failed to read the document from storage", 500);
+  try {
+    const parsed = await parseBoqSpreadsheet(Buffer.from(await data.arrayBuffer()), doc.name, doc.fileType ?? "");
+    return { fileName: doc.name, parsed };
+  } catch (parseError) {
+    if (parseError instanceof ServiceError) throw parseError;
+    // A file the parser cannot read is a request the caller can fix.
+    console.error(`executeTask: "${task.functionId}" could not read the document`, parseError);
+    return badRequest(task);
+  }
+}
+
+function isStoredSheet(value: StoredSheet | ExecutionOutcome): value is StoredSheet {
+  return "parsed" in value;
+}
+
+async function executePreviewBoqImport(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectRead(task, async (projectId) => {
+    const sheet = await readStoredSheet(task, projectId);
+    if (!isStoredSheet(sheet)) return sheet;
+    const { lineItems, warnings, issues, totalRows, mapping, headers } = sheet.parsed;
+    const blocking = issues.filter((i) => i.blocking);
+    const preview = analyseBoqPreview(lineItems);
+    const statusByIndex = new Map(preview.rows.map((r) => [r.index, r]));
+    // The import route's own preview, capped at 50 rows: the summary still
+    // describes the whole file.
+    const rows = toPreviewRows(lineItems).slice(0, 50).map((row, i) => ({
+      ...row,
+      status: statusByIndex.get(i + 1)?.status ?? "ok",
+      messages: statusByIndex.get(i + 1)?.messages ?? [],
+    }));
+    return ok({
+      dryRun: true,
+      fileName: sheet.fileName,
+      mapping,
+      headers,
+      rows,
+      issues,
+      warnings,
+      summary: {
+        totalRows,
+        readyLines: lineItems.length,
+        rowsWithErrors: new Set(blocking.map((i) => i.row)).size,
+        willImport: preview.willImport,
+        totalParsed: preview.totalParsed,
+      },
+    });
+  });
+}
+
+async function executeApplyBoqImport(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return projectWrite(task, async ({ projectId, actorId }) => {
+    // The import route creates a revision when a parent BOQ is named, a new BOQ
+    // otherwise. A parent of another project is refused as absent (U-18).
+    const parentBoqId = str(task.params.parentBoqId);
+    if (parentBoqId && (await onAnotherProject(task, "boq", parentBoqId, projectId))) return notFound(task);
+    const sheet = await readStoredSheet(task, projectId);
+    if (!isStoredSheet(sheet)) return sheet;
+    const { lineItems, warnings, totalRows } = sheet.parsed;
+    if (lineItems.length === 0) return badRequest(task);
+    const title = str(task.params.title) ?? sheet.fileName.replace(/\.[^.]+$/, "");
+    const boq = parentBoqId
+      ? await createBoqRevision({ orgId: task.orgId, userId: actorId }, parentBoqId, { title, lineItems })
+      : await createBoq({ orgId: task.orgId, userId: actorId }, { projectId, title, lineItems });
+    // Root lines only, as the route sums it: a sub-task's amount is a share of its parent's.
+    const totalValue =
+      Math.round(lineItems.filter((l) => !l.parentItemCode).reduce((sum, l) => sum + l.quantity * l.rate, 0) * 100) / 100;
+    return created(boq.id, `/scope/${boq.id}`, redactProjectSideFields({ boq, importSummary: { totalRows, importedLineItems: lineItems.length, totalValue, warnings } }));
+  });
+}
+
 const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   record_work_progress: executeRecordWorkProgress,
   // R67 C-03: the timesheet write, wrapping pms-time-service.logTime.
@@ -901,6 +1707,33 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   ...Object.fromEntries(READ_ONLY_DISPATCH_FUNCTION_IDS.map((ref) => [ref, makeDispatchExecutor(ref)])),
   ...Object.fromEntries(Object.entries(READ_ONLY_ALIASES).map(([id, ref]) => [id, makeDispatchExecutor(ref)])),
   ...Object.fromEntries(READ_ONLY_ORG_SCOPED_FUNCTION_IDS.map((ref) => [ref, makeOrgScopedExecutor(ref)])),
+  // PROJEXA-BUILD-001 U-38 (BR-512, BR-513): the remaining registry entries.
+  list_change_orders: executeListChangeOrders,
+  get_change_order: executeGetChangeOrder,
+  create_change_order: executeCreateChangeOrder,
+  create_site_instruction: executeCreateSiteInstruction,
+  run_named_report: executeRunNamedReport,
+  get_project_analysis: executeGetProjectAnalysis,
+  get_manpower_cost_report: executeGetManpowerCostReport,
+  get_designer_timesheet_report: executeGetDesignerTimesheetReport,
+  update_line_item_budget: executeUpdateLineItemBudget,
+  get_project_schedule: executeGetProjectSchedule,
+  create_schedule_task: executeCreateScheduleTask,
+  list_milestones: executeListMilestones,
+  create_milestone: executeCreateMilestone,
+  update_milestone: executeUpdateMilestone,
+  list_billing_claims: executeListBillingClaims,
+  get_billing_due_queue: executeGetBillingDueQueue,
+  create_drawing: executeCreateDrawing,
+  create_mom: executeCreateMom,
+  record_material_receipt: executeRecordMaterialReceipt,
+  approve_timesheet: executeApproveTimesheet,
+  reject_timesheet: executeRejectTimesheet,
+  recall_precedent: executeRecallPrecedent,
+  capture_artifact: executeCaptureArtifact,
+  create_report_share_link: executeCreateReportShareLink,
+  preview_boq_import: executePreviewBoqImport,
+  apply_boq_import: executeApplyBoqImport,
 };
 
 /**
