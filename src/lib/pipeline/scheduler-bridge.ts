@@ -27,6 +27,8 @@
 //        runSubmission() resolve words to a function and may reach Level 1; a job that fires every five minutes must not (PMD-40).
 //   4. AUDIT. One compliance.audit_logs row per claimed run: user_id is the owner, api_key_id is null, surface is
 //      s1_one_page_ai_prepared, details is JSON with trigger "scheduler_bridge" (BR-517 reads exactly that).
+//      The one exception is a run whose owner row no longer exists: there is no person to name, so that row has user_id null and
+//      the actor is the bridge itself (role "system").
 //   5. RECORD. last_result gets the run's outcome and code; a departed owner also sets is_active false.
 //
 // SURFACE. s1_one_page_ai_prepared is the surface a system-prepared proposal is recorded under: the AI prepared it, and the person
@@ -43,7 +45,7 @@
 // the audit row) goes through withTenantContext for that schedule's organisation.
 import { and, asc, eq, lte } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { pipelineSchedules, submissions, users } from "@/lib/db/schema"
+import { auditLogs, pipelineSchedules, submissions, users } from "@/lib/db/schema"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { logActivity, type AuditSurface } from "@/lib/audit"
 import { classifySubmission } from "./classify"
@@ -60,6 +62,8 @@ export const SCHEDULER_BRIDGE_SURFACE = "s1_one_page_ai_prepared" as const satis
 export const SCHEDULER_BRIDGE_RUN_ACTION = "pipeline_schedule.run"
 export const SCHEDULER_BRIDGE_SKIP_ACTION = "pipeline_schedule.deactivated"
 export const SCHEDULER_BRIDGE_ENTITY_TYPE = "pipeline_schedule"
+/** The actor of the one audit row that has no person: the owner row was gone at run time (see auditRun). */
+export const SCHEDULER_BRIDGE_SYSTEM_ACTOR = { name: "Scheduler bridge", role: "system" } as const
 
 /** The most schedules one run claims. The rest stay due for the next tick. */
 export const DEFAULT_BATCH_SIZE = 10
@@ -134,16 +138,40 @@ function auditDetails(schedule: ScheduleRow, report: RunReport, extra: Record<st
   })
 }
 
-async function auditRun(tx: TenantDb, owner: OwnerRow, schedule: ScheduleRow, report: RunReport, extra: Record<string, unknown> = {}): Promise<void> {
+/**
+ * The one audit row of a claimed run. The owner is the actor. When the owner row no longer exists (undefined) there is no person
+ * to name, and logActivity() takes a person or an API key and nothing else, so that row is written directly: user_id and
+ * api_key_id both null, the actor is the bridge itself. It carries the same action, entity, surface and details as any other row.
+ * In production the owner row is missing only in a race: owner_user_id references compliance.users ON DELETE CASCADE, so the
+ * owner's deletion also deletes the schedule, and this is reached only when that delete commits between the claim and the owner read.
+ */
+async function auditRun(tx: TenantDb, owner: OwnerRow | undefined, schedule: ScheduleRow, report: RunReport, extra: Record<string, unknown> = {}): Promise<void> {
+  const action = report.outcome === "owner_not_active" || report.outcome === "invalid_cadence" ? SCHEDULER_BRIDGE_SKIP_ACTION : SCHEDULER_BRIDGE_RUN_ACTION
+  const details = auditDetails(schedule, report, extra)
+  if (!owner) {
+    await tx.insert(auditLogs).values({
+      action,
+      entityType: SCHEDULER_BRIDGE_ENTITY_TYPE,
+      entityId: schedule.id,
+      userId: null,
+      apiKeyId: null,
+      actorName: SCHEDULER_BRIDGE_SYSTEM_ACTOR.name,
+      actorRole: SCHEDULER_BRIDGE_SYSTEM_ACTOR.role,
+      orgId: schedule.orgId,
+      details,
+      surface: SCHEDULER_BRIDGE_SURFACE,
+    })
+    return
+  }
   await logActivity({
     tx,
     orgId: schedule.orgId,
     // The owner is the actor. No apiKey is passed, so api_key_id is written as null.
     dbUser: owner,
-    action: report.outcome === "owner_not_active" || report.outcome === "invalid_cadence" ? SCHEDULER_BRIDGE_SKIP_ACTION : SCHEDULER_BRIDGE_RUN_ACTION,
+    action,
     entityType: SCHEDULER_BRIDGE_ENTITY_TYPE,
     entityId: schedule.id,
-    details: auditDetails(schedule, report, extra),
+    details,
     surface: SCHEDULER_BRIDGE_SURFACE,
   })
 }
@@ -152,9 +180,9 @@ async function auditRun(tx: TenantDb, owner: OwnerRow, schedule: ScheduleRow, re
  * The audit row of a run that stored no proposal, in its own transaction. A failure to write it is logged and recorded in
  * last_result (auditFailed) and does not replace the run's own outcome.
  */
-async function auditOnly(owner: OwnerRow, schedule: ScheduleRow, report: RunReport): Promise<RunReport> {
+async function auditOnly(owner: OwnerRow | undefined, schedule: ScheduleRow, report: RunReport): Promise<RunReport> {
   try {
-    await withTenantContext({ orgId: schedule.orgId, userId: owner.id }, (tx) => auditRun(tx, owner, schedule, report))
+    await withTenantContext({ orgId: schedule.orgId, userId: owner?.id }, (tx) => auditRun(tx, owner, schedule, report))
     return report
   } catch (error) {
     console.error(`scheduler-bridge: the audit row of schedule ${schedule.id} could not be written:`, error)
@@ -188,7 +216,7 @@ async function runClaimed(schedule: ScheduleRow, owner: OwnerRow | undefined): P
   const problem = ownerProblem(owner, schedule.orgId)
   if (problem || !owner) {
     const report: RunReport = { outcome: "owner_not_active", detail: { reason: problem ?? "owner_missing" }, deactivate: true }
-    return owner ? auditOnly(owner, schedule, report) : report
+    return auditOnly(owner, schedule, report)
   }
 
   const functionId = schedule.functionId
@@ -286,7 +314,7 @@ export async function runDueSchedules(input: RunDueInput = {}): Promise<BridgeSu
       const owner = await loadOwner(schedule.ownerUserId)
       if (!next) {
         const skipped: RunReport = { outcome: "invalid_cadence", detail: { reason: "cadence_not_readable" }, deactivate: true }
-        report = owner ? await auditOnly(owner, schedule, skipped) : skipped
+        report = await auditOnly(owner, schedule, skipped)
       } else {
         report = await runClaimed(schedule, owner)
       }

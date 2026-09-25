@@ -387,6 +387,69 @@ describe("an owner who is no longer an active user of the organisation (PMD-33)"
     ])
     expect(execCalls.map((t) => t.userId)).toEqual([OWNER.id])
   })
+
+  // The foreign key on owner_user_id cascades, so a normal delete of the owner removes the schedule with them and nothing is left to run.
+  // The bridge can still meet a schedule whose owner row is gone, in a race: the owner's delete commits after the due read and the
+  // claim and before the owner read. The two tests below hold that state by deleting the owner with foreign-key triggers switched off
+  // for the one statement (session_replication_role), on the same connection, so the schedule stays behind.
+  async function deleteUserLeavingSchedules(id: string): Promise<void> {
+    await pglite.exec("SET session_replication_role = replica")
+    try {
+      await pglite.query("DELETE FROM compliance.users WHERE id = $1", [id])
+    } finally {
+      await pglite.exec("SET session_replication_role = origin")
+    }
+  }
+
+  test("a normal delete of the owner takes the schedule with it (ON DELETE CASCADE), so the bridge finds nothing to run", async () => {
+    await addSchedule("s-cascade")
+    await pglite.query("DELETE FROM compliance.users WHERE id = $1", [OWNER.id])
+    expect((await pglite.query("SELECT id FROM compliance.pipeline_schedules WHERE id = 's-cascade'")).rows).toEqual([])
+    expect((await run()).body).toMatchObject({ checked: 0, claimed: 0 })
+    expect(execCalls).toEqual([])
+  })
+
+  test("an owner row that is gone at run time: the schedule is skipped and deactivated, and one audit row with no person says so", async () => {
+    await addSchedule("s-gone")
+    await addSchedule("s-gone-write", { fn: "create_boq", params: { projectId: "p", title: "t" }, next: "2020-01-02T00:00:00Z" })
+    await deleteUserLeavingSchedules(OWNER.id)
+    const { body } = await run()
+
+    expect(body).toMatchObject({ checked: 2, claimed: 2, skipped: 2, readsRun: 0, proposed: 0, failed: 0 })
+    expect(body.results).toEqual([
+      { scheduleId: "s-gone", outcome: "owner_not_active" },
+      { scheduleId: "s-gone-write", outcome: "owner_not_active" },
+    ])
+    expect(execCalls).toEqual([])
+    expect(await submissions()).toEqual([])
+    for (const [id, functionId] of [["s-gone", "get_construction_project_dashboard"], ["s-gone-write", "create_boq"]]) {
+      const row = await schedule(id)
+      expect(row.is_active).toBe(false)
+      expect(row.last_result).toMatchObject({ trigger: "scheduler_bridge", outcome: "owner_not_active", reason: "owner_missing" })
+      const rows = await audits(id)
+      expect(rows).toHaveLength(1)
+      // No owner to name: no person and no API key, the bridge itself is the actor, in the schedule's own organisation, on surface s1.
+      expect(rows[0]).toMatchObject({ action: "pipeline_schedule.deactivated", entity_type: "pipeline_schedule", entity_id: id, user_id: null, api_key_id: null, actor_name: "Scheduler bridge", actor_role: "system", org_id: ORG_A, surface: "s1_one_page_ai_prepared" })
+      expect(JSON.parse(rows[0].details!)).toEqual({ trigger: "scheduler_bridge", scheduleId: id, functionId, outcome: "owner_not_active", reason: "owner_missing" })
+    }
+    // The audit rows were written inside the schedule's organisation, under the real row-level-security policy, with no user id.
+    expect(tenantCalls).toEqual([{ orgId: ORG_A, userId: undefined }, { orgId: ORG_A, userId: undefined }])
+    // A deactivated schedule is not picked up again.
+    expect((await run()).body.checked).toBe(0)
+  })
+
+  test("a cadence that cannot be read on a schedule whose owner row is gone is still audited once, with no person", async () => {
+    await addSchedule("s-gone-badcron", { cadence: "61 * * * *" })
+    await deleteUserLeavingSchedules(OWNER.id)
+    const { body } = await run()
+    expect(body).toMatchObject({ claimed: 1, skipped: 1 })
+    expect(execCalls).toEqual([])
+    expect(await schedule("s-gone-badcron")).toMatchObject({ is_active: false, last_result: { outcome: "invalid_cadence", reason: "cadence_not_readable" } })
+    const rows = await audits("s-gone-badcron")
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ action: "pipeline_schedule.deactivated", user_id: null, api_key_id: null, actor_role: "system", org_id: ORG_A })
+    expect(JSON.parse(rows[0].details!)).toMatchObject({ outcome: "invalid_cadence", reason: "cadence_not_readable" })
+  })
 })
 
 // ─── failures ──────────────────────────────────────────────────────────────
