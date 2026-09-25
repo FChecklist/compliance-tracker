@@ -5,7 +5,7 @@
 import { complianceItems, departments, auditLogs, notices, users, notifications } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, or, like, asc, desc, not, inArray, gte, lte, lt, sql, type SQL } from "drizzle-orm"
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { notifyAssigned } from "@/lib/email"
 import { checkAndUnlockAchievements } from "./veri-reward-service"
 import type { ServiceContext, ReadContext } from "./context"
@@ -245,7 +245,7 @@ export async function createComplianceItem(ctx: ServiceContext, input: CreateCom
     await logActivity({
       tx: db, action: "create", entityType: "ComplianceItem", entityId: item.id,
       details: `Created compliance item: ${item.title}`, orgId, clientId: item.clientId,
-      request, ...(actor.dbUser ? { dbUser: actor.dbUser } : { apiKey: actor.apiKey! }),
+      request, ...auditActorOf(actor),
     })
 
     return { ok: true as const, item }
@@ -409,7 +409,7 @@ export async function updateComplianceItem(ctx: ServiceContext, id: string, inpu
       }
     }
 
-    const actorParam = actor.dbUser ? { dbUser: actor.dbUser } : { apiKey: actor.apiKey! }
+    const actorParam = auditActorOf(actor)
     const logChange = (action: string, details: string) => logActivity({
       tx: db, action, entityType: "ComplianceItem", entityId: id, details, orgId, clientId: existingItem.clientId, request, ...actorParam,
     })
@@ -472,7 +472,7 @@ export async function deleteComplianceItem(ctx: ServiceContext, id: string) {
     await logActivity({
       tx: db, action: "delete", entityType: "ComplianceItem", entityId: id,
       details: `Deleted compliance item: ${item.title}`, orgId, clientId: item.clientId, request,
-      ...(actor.dbUser ? { dbUser: actor.dbUser } : { apiKey: actor.apiKey! }),
+      ...auditActorOf(actor),
     })
     return true
   })

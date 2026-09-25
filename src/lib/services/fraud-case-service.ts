@@ -10,7 +10,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { ActorCtx, ErpContext } from "./actor-context"
 import { recordAndEscalateAnomaly } from "./risk-escalation-service"
 
@@ -78,9 +78,7 @@ export async function createFraudCaseTx(db: TenantDb, ctx: FraudActorCtx, input:
   }).returning()
 
   await logActivity(
-    ctx.dbUser
-      ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id }
-      : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id }
+    { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id }
   )
   return fraudCase
 }
@@ -112,9 +110,7 @@ export async function updateFraudCaseStatus(ctx: FraudActorCtx, caseId: string, 
     }).where(eq(fraudCases.id, caseId)).returning()
 
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "fraud_case.status_changed", entityType: "fraud_case", entityId: caseId, details: JSON.stringify({ from: fraudCase.status, to: status }) }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "fraud_case.status_changed", entityType: "fraud_case", entityId: caseId, details: JSON.stringify({ from: fraudCase.status, to: status }) }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "fraud_case.status_changed", entityType: "fraud_case", entityId: caseId, details: JSON.stringify({ from: fraudCase.status, to: status }) }
     )
 
     // Risk-Based Escalation (VERIDIAN Review Framework gap-closure): the

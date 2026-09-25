@@ -11,9 +11,9 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
-import { ErpContext } from "./actor-context"
+import { ErpContext, ActorCtx } from "./actor-context"
 
 
 type CreditNoteItemInput = { itemId?: string; description: string; quantity?: number; rate?: number }
@@ -35,7 +35,7 @@ export async function listSalesCreditNotes(ctx: { orgId: string }) {
 // Bearer-key caller never has a session dbUser. submitSalesCreditNote and
 // the purchase-side functions below keep requiring a real dbUser unchanged.
 export async function createSalesCreditNote(
-  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  ctx: ActorCtx,
   input: { customerId: string; salesInvoiceId?: string; postingDate: string; reason?: string; items: CreditNoteItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -63,9 +63,7 @@ export async function createSalesCreditNote(
     )
 
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_credit_note.created", entityType: "erp_sales_credit_note", entityId: note.id }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_credit_note.created", entityType: "erp_sales_credit_note", entityId: note.id }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_sales_credit_note.created", entityType: "erp_sales_credit_note", entityId: note.id }
     )
     return note
   })
@@ -78,7 +76,7 @@ export async function createSalesCreditNote(
 // forever (no GL reversal ever actually posted). See
 // PROJEXA_REAL_SCREEN_CONVERSION_TRACKER.md module #13 for the full finding.
 export async function submitSalesCreditNote(
-  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  ctx: ActorCtx,
   noteId: string
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -88,9 +86,7 @@ export async function submitSalesCreditNote(
     if (note.status !== "draft") throw new ServiceError("Only draft credit notes can be submitted", 409)
     const [updated] = await db.update(erpSalesCreditNotes).set({ status: "submitted" }).where(eq(erpSalesCreditNotes.id, noteId)).returning()
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_credit_note.submitted", entityType: "erp_sales_credit_note", entityId: noteId }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_credit_note.submitted", entityType: "erp_sales_credit_note", entityId: noteId }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_sales_credit_note.submitted", entityType: "erp_sales_credit_note", entityId: noteId }
     )
     return updated
   })

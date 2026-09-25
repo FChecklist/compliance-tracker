@@ -15,7 +15,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { resolveModuleRule } from "@/lib/module-rules-resolver"
 import { ActorCtx } from "./actor-context"
 import { recordAndEscalateAnomaly } from "./risk-escalation-service"
@@ -23,7 +23,7 @@ import { recordAndEscalateAnomaly } from "./risk-escalation-service"
 export type GrcActorCtx = ActorCtx
 
 function actorLogFields(ctx: GrcActorCtx) {
-  return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }
+  return auditActorOf(ctx)
 }
 
 // ============================================================
