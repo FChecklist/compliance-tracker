@@ -283,6 +283,13 @@ describe("readWorkbookDigest -- every sheet of the workbook is read", () => {
     expect(doors.rows.map((r) => r.row)).toEqual([1, 3, 4, 5, 7, 9])
   })
 
+  test("a sheet whose data starts below row 1 keeps the real worksheet row numbers (row = first row of the range + index + 1)", async () => {
+    const wb = buildWorkbook([{ name: "Offset", origin: "A5", declaredRange: "A5:B7", rows: [["Item", "Qty"], [], ["1.01", "4"]] }])
+    const digest = await readWorkbookDigest(wb)
+    expect(digest.sheets[0].rows.map((r) => r.row)).toEqual([5, 7])
+    expect(digest.sheets[0].rows[0].cells).toEqual(["Item", "Qty"])
+  })
+
   test("numbers and dates read as text: 0.1 + 0.2 reads 0.3, a date reads YYYY-MM-DD, a boolean reads true", async () => {
     const digest = await readWorkbookDigest(FIXTURE)
     expect(digest.sheets[0].rows.find((r) => r.row === 7)!.cells[4]).toBe("0.3")

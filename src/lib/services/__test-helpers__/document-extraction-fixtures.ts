@@ -62,14 +62,15 @@ export function buildFixtureWorkbook(options: { compressed?: boolean } = {}): Bu
 /**
  * A workbook of the given sheets (name and rows), for the cases that need something other than the trade fixture. `declaredRange`
  * replaces a sheet's range (the dimension the file states) without adding cells, which is how a small file declares a huge sheet.
+ * `origin` puts the first row at a cell other than A1 (a sheet whose data starts below the top of the grid).
  */
 export function buildWorkbook(
-  sheets: Array<{ name: string; rows: unknown[][]; declaredRange?: string }>,
+  sheets: Array<{ name: string; rows: unknown[][]; declaredRange?: string; origin?: string }>,
   options: { compressed?: boolean } = {},
 ): Buffer {
   const wb = XLSX.utils.book_new()
   for (const s of sheets) {
-    const ws = XLSX.utils.aoa_to_sheet(s.rows)
+    const ws = XLSX.utils.aoa_to_sheet(s.rows, s.origin ? { origin: s.origin } : undefined)
     if (s.declaredRange) ws["!ref"] = s.declaredRange
     XLSX.utils.book_append_sheet(wb, ws, s.name)
   }
