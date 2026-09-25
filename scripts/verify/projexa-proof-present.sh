@@ -48,12 +48,19 @@ if [ -n "$FROM" ]; then
   cp "$FROM" "$TMP"
 else
   command -v gh >/dev/null 2>&1 || finish_usage "gh is not on PATH"
-  if ! gh api "repos/$REPO/contents/$FILE_PATH?ref=$REF" -H "Accept: application/vnd.github.raw" >"$TMP" 2>"$TMP.err"; then
+  # A connection that fails (this laptop's link to api.github.com times out now and then) is tried up to three times, five seconds
+  # apart. A 404 is an answer, not a failure of the link: it stops at once as a real failure, so a deleted spec is never retried.
+  tries=0
+  until gh api "repos/$REPO/contents/$FILE_PATH?ref=$REF" -H "Accept: application/vnd.github.raw" >"$TMP" 2>"$TMP.err"; do
     if grep -q -E "HTTP 404|Not Found" "$TMP.err" 2>/dev/null; then
       finish_fail "$FILE_PATH does not exist on $REPO@$REF"
     fi
-    finish_usage "gh could not read $FILE_PATH from $REPO@$REF: $(head -c 200 "$TMP.err" | tr '\n' ' ')"
-  fi
+    tries=$((tries+1))
+    if [ "$tries" -ge 3 ]; then
+      finish_usage "gh could not read $FILE_PATH from $REPO@$REF after $tries tries: $(head -c 200 "$TMP.err" | tr '\n' ' ')"
+    fi
+    sleep 5
+  done
 fi
 
 COUNT="$(grep -c -F -- "$NEEDLE" "$TMP" 2>/dev/null || true)"
