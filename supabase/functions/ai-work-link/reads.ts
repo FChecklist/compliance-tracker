@@ -56,7 +56,11 @@ export type ExecOutcome = {
   code?: string
   missing?: string[]
 }
-export type ExecClient = (intentId: string) => Promise<ExecOutcome>
+/** What the exec function's POST /read answers: the result of a read function, or a closed failure with the HTTP status to give the caller. */
+export type ExecReadOutcome = { status: "ok"; function_id: string; result: unknown } | { status: "failed"; code: string; missing: string[]; http: 403 | 422 | 503 }
+export type ExecReadRequest = { function_id: string; params: Record<string, unknown>; ctx: { org_id: string; user_id: string; project_id: string; live_role: string }; allowed_functions: string[] }
+/** Runs an intent; `read` (when the exec function is wired for it) runs one read function without recording anything. A throw means unreachable. */
+export type ExecClient = ((intentId: string) => Promise<ExecOutcome>) & { read?: (req: ExecReadRequest) => Promise<ExecReadOutcome> }
 
 export class AwlError extends Error {
   constructor(public status: number, public body: ApiErrorBody, public headers: Record<string, string> = {}) {

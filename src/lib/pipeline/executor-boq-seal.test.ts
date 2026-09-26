@@ -217,12 +217,47 @@ describe("AW-204: seal_boq seals when the AI's control totals match, and only th
   });
 });
 
+describe("AW-204: sealing per area on the ZOOMIES workbook as the reader writes it", () => {
+  // The multi-sheet reader writes "<Area> - <Bill title>" (persona-run finding: the seal read the area before the first "/" only, so every line's whole
+  // category was its own area and the AI's per-area totals never matched). The lines are the 53 the reader reads from the workbook fixture.
+  test("*** the reader's 53 lines, stored through add_boq_lines in batches, seal against Play Area 1,343,445 and Vet Area 252,835, grand 1,596,280 ***", async () => {
+    const { readMultisheetBills, toBoqLineItems } = await import("@/lib/ingest/multisheet-bill-reader");
+    const fixture = (await import("@/lib/ingest/__fixtures__/zoomies-digest.json")).default;
+    const result = readMultisheetBills(fixture as never);
+    const items = toBoqLineItems(result);
+    expect(items).toHaveLength(53);
+    expect(items.every((i) => /^(Play|Vet) Area - /.test(String(i.category)))).toBe(true);
+
+    const made = await run("create_boq", { title: "Zoomies BOQ" });
+    const boqId = (made as { result: { id: string } }).result.id;
+    for (let i = 0, batchNo = 1; i < items.length; i += 25, batchNo += 1) {
+      const added = await run("add_boq_lines", { boqId, batchNo, lines: items.slice(i, i + 25) });
+      expect(codeOf(added)).toBe("OK");
+    }
+    const byArea = Object.fromEntries(result.totals.byArea.map((a) => [a.area, a.computed]));
+    expect(byArea).toEqual({ "Play Area": 1343445, "Vet Area": 252835 });
+
+    const outcome = await seal(boqId, { areas: byArea, grand: 1596280 }, 53);
+
+    expect(codeOf(outcome)).toBe("OK");
+    expect(resultOf(outcome)).toMatchObject({ boqId, sealed: true, lineCount: 53, replayed: false });
+    // re-read from the store: the seal is a ledger row
+    expect(ledger("construction_boq.sealed")).toHaveLength(1);
+  });
+});
+
 describe("AW-204: the comparison and the area rule, on their own", () => {
   const line = (category: string | null, quantity: number, rate: number, parentLineItemId: string | null = null) => ({ quantity: String(quantity), rate: String(rate), category, parentLineItemId });
 
-  test("the area of a category is the text before the first slash, trimmed; a category with no slash is its own area; none is no area", () => {
+  test("the area of a category is the text before the first slash or the first ' - ', trimmed; a category with neither is its own area; none is no area", () => {
     expect(boqAreaOf("Play Area / Joinery")).toBe("Play Area");
     expect(boqAreaOf("  Vet Area/Fit-out / Extra ")).toBe("Vet Area");
+    // the reader's own form, "<Area> - <Bill title>": persona-run finding, an AI could not seal per area without rewriting the separator
+    expect(boqAreaOf("Play Area - Partition and Lining")).toBe("Play Area");
+    expect(boqAreaOf("Vet Area - Fit-out / Extra")).toBe("Vet Area");
+    expect(boqAreaOf("Play Area / Joinery - trim")).toBe("Play Area");
+    // a hyphen with no space on both sides is part of a word, not a separator
+    expect(boqAreaOf("Fit-out")).toBe("Fit-out");
     expect(boqAreaOf("Civil")).toBe("Civil");
     expect(boqAreaOf("")).toBeNull();
     expect(boqAreaOf("   ")).toBeNull();

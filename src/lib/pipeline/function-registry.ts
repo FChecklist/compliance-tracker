@@ -683,6 +683,24 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       primaryLabel: "Approve entry",
     },
   },
+  // Submitting is the person's own step: an AI-recorded entry stays a draft (record_timesheet) until the person confirms this draft.
+  {
+    functionId: "submit_timesheet",
+    label: "Submit a timesheet entry",
+    module: "timesheets",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "timeEntryId", label: "Time entry", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [{ key: "timeEntryId", label: "Time entry", type: "text", required: true }],
+      facts: [{ label: "Effect", value: "Your own draft or returned entry is sent to a manager to approve. It is not approved by this step.", editable: false }],
+      primaryLabel: "Submit entry",
+    },
+  },
   {
     functionId: "reject_timesheet",
     label: "Return a timesheet entry",

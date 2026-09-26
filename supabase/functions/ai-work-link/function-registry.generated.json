@@ -3389,6 +3389,41 @@
     ]
   },
   {
+    "function_id": "submit_timesheet",
+    "label": "Submit a timesheet entry",
+    "module": "timesheets",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "projectId",
+      "timeEntryId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "timeEntryId",
+        "label": "Time entry",
+        "any_of": [
+          "timeEntryId"
+        ]
+      }
+    ],
+    "id_params": [
+      "timeEntryId"
+    ]
+  },
+  {
     "function_id": "update_document_metadata",
     "label": "Edit a document's details",
     "module": "documents",

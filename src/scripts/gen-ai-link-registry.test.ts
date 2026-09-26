@@ -103,7 +103,9 @@ const B002_WAVE_1_2_ON_LINKS: Record<string, [number, number]> = {
   list_billing_claims: [0, 3],
   get_billing_due_queue: [0, 3],
 }
-const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS, ...B002_WAVE_7_9_ON_LINKS }
+// BUILD-002 persona-run finding 3: an AI-recorded timesheet entry stays a draft; submitting it is a level-2 draft the person confirms, member rank.
+const B002_SUBMIT_TIMESHEET_ON_LINKS: Record<string, [number, number]> = { submit_timesheet: [2, 2] }
+const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS, ...B002_WAVE_7_9_ON_LINKS, ...B002_SUBMIT_TIMESHEET_ON_LINKS }
 /** How many functions are on links in all: every list above, so a wave that adds its own list changes one line, not a number. */
 const ON_LINKS_COUNT = Object.keys(ALL_ON_LINKS).length
 // spec 9.1: the 17 excluded (the register row AWL-S03 names the first five)
@@ -146,7 +148,7 @@ describe("the committed outputs are current", () => {
     const io = fsIo(ROOT)
     for (const f of [FUNCTIONS_JSON, KINDS_JSON, CURRENT_SEED_MIGRATION]) expect(io.exists(f)).toBe(true)
     expect(FUNCTIONS_JSON).toBe("supabase/functions/ai-work-link/function-registry.generated.json")
-    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0649_build002_awl_seed_waves_7_9.sql")
+    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0651_build002_awl_seed_submit_timesheet.sql")
   })
 
   test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are every function reviewed onto links, and none of the five bad ones", () => {
@@ -158,11 +160,11 @@ describe("the committed outputs are current", () => {
   })
 })
 
-describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 78 of coverage waves 1 to 9 are on links", () => {
+describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 78 of coverage waves 1 to 9 and submit_timesheet are on links", () => {
   const rows = buildFunctionRows(ALL_FUNCTION_SPECS)
   const on = rows.filter((r) => r.link_level !== null)
 
-  test("the on-link functions are the spec's 10, the five BUILD-002 adds, the 19 of waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9, at the written levels and minimum ranks", () => {
+  test("the on-link functions are the spec's 10, the five BUILD-002 adds, the 19 of waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9 and submit_timesheet, at the written levels and minimum ranks", () => {
     expect(on.length).toBe(ON_LINKS_COUNT)
     expect(on.map((r) => r.function_id).sort()).toEqual(Object.keys(ALL_ON_LINKS).sort())
     for (const r of on) {

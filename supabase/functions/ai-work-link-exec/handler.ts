@@ -3,6 +3,7 @@
 // (scripts/awl-local-exec-host.ts) serves the SAME handler over a real run.
 //
 //   POST /run     {"intent_id": "..."}   claim the intent, run it through the pipeline, finish it, answer the outcome
+//   POST /read    {"function_id","params","ctx","allowed_functions"}   run one READ function read-only (no intent, no submission, nothing written)
 //   GET  /health                         {ok, db_role} (the role the database connection really has), for the switch-on pre-flight
 //
 // WHO MAY CALL. Only the ai-work-link function: every request must carry `Authorization: Bearer <AWL_EXEC_INTERNAL_SECRET>`, compared in constant
@@ -35,6 +36,11 @@ export type Ran =
   | { status: "done"; submission_id: string | null; record: { id: string | null; route: string | null } }
   | { status: "failed"; code: string; missing: string[]; submission_id?: string | null }
 
+/** What POST /read answers (link-exec-entry.ts LinkReadOutcome). */
+export type ReadRan =
+  | { status: "ok"; function_id: string; result: unknown }
+  | { status: "failed"; code: string; missing: string[]; http: 403 | 422 | 503 }
+
 export type ExecDeps = {
   /** The service-role client's rpc (claim and finish are granted to service_role only). */
   rpc: ExecRpc
@@ -44,11 +50,22 @@ export type ExecDeps = {
   dbConfigured: boolean
   /** The pipeline. */
   run: (claimed: Claimed) => Promise<Ran>
+  /** The read-only executor mode (POST /read). Absent means reads answer 503 READ_NOT_AVAILABLE. */
+  read?: (req: ReadBody) => Promise<ReadRan>
   /** The role of the database connection the pipeline uses. */
   health: () => Promise<{ db_role: string }>
   log?: (line: string) => void
 }
 
+/** The body of POST /read: the ai-work-link function resolved the link live in the same request and passes what the run needs. */
+export type ReadBody = {
+  function_id: string
+  params: Record<string, unknown>
+  ctx: { org_id: string; user_id: string; project_id: string; live_role: string }
+  allowed_functions: string[]
+}
+
+const READ_BODY_MAX_BYTES = 16 * 1024
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/
 const BODY_MAX_BYTES = 2 * 1024
 const CODE_RE = /^[A-Z][A-Z0-9_]{0,63}$/
@@ -95,6 +112,24 @@ async function readIntentId(req: Request): Promise<string | null> {
   }
 }
 
+async function readReadBody(req: Request): Promise<ReadBody | null> {
+  const raw = await req.text()
+  if (new TextEncoder().encode(raw).length > READ_BODY_MAX_BYTES) return null
+  try {
+    const b = JSON.parse(raw) as Record<string, unknown>
+    const c = b?.ctx as Record<string, unknown> | undefined
+    const t = (o: unknown): o is string => typeof o === "string" && o !== ""
+    if (!b || typeof b !== "object" || Array.isArray(b) || !c || typeof c !== "object") return null
+    if (!t(b.function_id) || !ID_RE.test(b.function_id)) return null
+    if (!t(c.org_id) || !t(c.user_id) || !t(c.project_id) || !t(c.live_role)) return null
+    if (!b.params || typeof b.params !== "object" || Array.isArray(b.params)) return null
+    if (!Array.isArray(b.allowed_functions) || !b.allowed_functions.every((f) => typeof f === "string")) return null
+    return { function_id: b.function_id, params: b.params as Record<string, unknown>, ctx: { org_id: c.org_id, user_id: c.user_id, project_id: c.project_id, live_role: c.live_role }, allowed_functions: b.allowed_functions as string[] }
+  } catch {
+    return null
+  }
+}
+
 /** The refusal a claim answered, as the exec answer: the SQL's reason in the closed upper-case vocabulary. */
 function refusalOf(intentId: string, claim: Record<string, unknown>): Response {
   const reason = typeof claim.reason === "string" ? claim.reason : ""
@@ -127,6 +162,24 @@ export async function handleExec(req: Request, deps: ExecDeps): Promise<Response
       log("ai-work-link-exec: health: database unreachable -> 503")
       return json(503, { ok: false, code: "DB_UNREACHABLE" })
     }
+  }
+
+  if (route === "read") {
+    if (method !== "POST") return json(405, { ok: false, code: "METHOD_NOT_ALLOWED" })
+    if (!deps.read) return json(503, { ok: false, code: "READ_NOT_AVAILABLE" })
+    const body = await readReadBody(req)
+    if (!body) return json(400, { ok: false, code: "BAD_REQUEST" })
+    let ranRead: ReadRan
+    try {
+      ranRead = await deps.read(body)
+    } catch {
+      // the pipeline turns its own errors into outcomes; a throw here is a bug, answered as a closed failure (the raw text is not kept)
+      log("ai-work-link-exec: read: the run threw -> failed INTERNAL_ERROR")
+      ranRead = { status: "failed", code: "INTERNAL_ERROR", missing: [], http: 503 }
+    }
+    // a read writes no intent and no row: the answer is the result, or a closed code and the names of what is missing, never a message
+    if (ranRead.status === "ok") return json(200, { status: "ok", function_id: ranRead.function_id, result: ranRead.result })
+    return json(200, { status: "failed", code: CODE_RE.test(ranRead.code) ? ranRead.code : "INTERNAL_ERROR", missing: ranRead.missing.slice(0, 20).map((m) => String(m).slice(0, 64)), http: ranRead.http })
   }
 
   if (route !== "run") return json(404, { ok: false, code: "NOT_FOUND" })

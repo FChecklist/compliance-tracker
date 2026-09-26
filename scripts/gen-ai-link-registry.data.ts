@@ -134,6 +134,8 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   record_material_receipt: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["materialName", "reference", "notes", "spec", "unit"] },
   approve_timesheet: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
   reject_timesheet: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: ["rejectionReason"] },
+  // persona-run finding 3: an AI-recorded entry stays a draft, and submitting it is the person's own step: a level-2 draft at the member rank (the route has no role gate).
+  submit_timesheet: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
   // BUILD-002 WP-05f (wave 6, register row AW-306): exceptions, BOQ comparison, budget variance, schedule depth. The three money reads state
   // amounts, so they need the manager rank (the exceptions route asks for it too; the two others have no role gate on their routes and the
   // link asks for more, never less). The schedule reads are project data at the member rank. Freezing a baseline is the plan of record: a

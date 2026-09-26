@@ -118,7 +118,7 @@ async function main() {
   }
 
   // the pipeline and the two handlers are loaded AFTER the mocks above
-  const { runLinkIntent, linkExecHealth } = await import("@/lib/pipeline/link-exec-entry")
+  const { runLinkIntent, runLinkRead, linkExecHealth } = await import("@/lib/pipeline/link-exec-entry")
   const { handleExec } = await import("../supabase/functions/ai-work-link-exec/handler")
   const { handleAwl } = await import("../supabase/functions/ai-work-link/handler")
   const { configFromEnv } = await import("../supabase/functions/ai-work-link/config")
@@ -130,6 +130,7 @@ async function main() {
     secret,
     dbConfigured: dry ? true : Boolean(process.env.APP_RUNTIME_DATABASE_URL),
     run: runLinkIntent,
+    read: runLinkRead,
     health: dry ? async () => ({ db_role: "dry-run (no database role)" }) : linkExecHealth,
   }
   const awlConfig = { ...configFromEnv(() => undefined), functionBase: `${origin}/functions/v1/ai-work-link`, confirmHost: "localhost", execPresent: true }

@@ -188,6 +188,7 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   record_material_receipt: { materialId: "<id from records/materials>", quantity: 20, unitCost: 410, receivedDate: "2026-09-20" },
   approve_timesheet: { timeEntryId: "<id from records/timesheets>" },
   reject_timesheet: { timeEntryId: "<id from records/timesheets>", rejectionReason: "Hours do not match the task" },
+  submit_timesheet: { timeEntryId: "<id of your own draft entry from records/timesheets>" },
   // BUILD-002 WP-05f wave 6: exceptions, BOQ comparison, budget variance and schedule depth
   get_project_exceptions: {},
   compare_boq_revisions: { boqId: "<id from records/boqs>", againstBoqId: "<id from records/boqs>" },

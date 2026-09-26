@@ -366,14 +366,14 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
     expect(read("drizzle/0628_build001_awl_seed.sql")).toContain(`-- registry version ${version}`)
   })
 
-  // BUILD-002: 0628 is the frozen first seed; the generated JSON is the CURRENT registry, which is the block of the newest seed, 0649 (0628, the six
+  // BUILD-002: 0628 is the frozen first seed; the generated JSON is the CURRENT registry, which is the block of the newest seed, 0651 (0628, the six
   // rows of 0644, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4, the 22 of waves 5 and 6 with the exception-capture functions, the 20 of waves 7 to 9,
-  // and the 33 record kinds of 0643). The live order is 0644, then 0643 (WP-06: 20 record kinds and the re-created records core), then 0650, then 0647, then
-  // 0648, then 0649, so the comparison applies them in that order on top of 0628, and puts the 0628 state back afterwards (the down files of 0649, 0648, 0647,
+  // submit_timesheet, and the 33 record kinds of 0643). The live order is 0644, then 0643 (WP-06: 20 record kinds and the re-created records core), then 0650, then 0647, then
+  // 0648, then 0649, then 0651, so the comparison applies them in that order on top of 0628, and puts the 0628 state back afterwards (the down files of 0651, 0649, 0648, 0647,
   // 0650 and 0643, then
   // 0628's own idempotent file), so the tests after this one see the state
   // they always saw.
-  test("the seeded rows, after 0644, 0643, 0650, 0647, 0648 and 0649, are exactly the generated JSON, row by row (the seed and the Edge Function's registry cannot differ)", async () => {
+  test("the seeded rows, after 0644, 0643, 0650, 0647, 0648, 0649 and 0651, are exactly the generated JSON, row by row (the seed and the Edge Function's registry cannot differ)", async () => {
     type FnJson = { function_id: string; product: string; kind: string; link_level: number | null; money_sensitive: boolean; min_role_rank: number; excluded_reason: string | null; text_params: string[] }
     type KindJson = { kind: string; money_columns: string[]; filters: unknown }
     const kindJson = JSON.parse(read("supabase/functions/ai-work-link/record-kinds.generated.json")) as KindJson[]
@@ -385,6 +385,7 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
     await db.exec(forwardSql("0647_build002_awl_seed_waves_3_4"))
     await db.exec(forwardSql("0648_build002_awl_seed_waves_5_6"))
     await db.exec(forwardSql("0649_build002_awl_seed_waves_7_9"))
+    await db.exec(forwardSql("0651_build002_awl_seed_submit_timesheet"))
     const fnJson = (JSON.parse(read("supabase/functions/ai-work-link/function-registry.generated.json")) as FnJson[]).map((f) => ({
       function_id: f.function_id, product: f.product, kind: f.kind, link_level: f.link_level, money_sensitive: f.money_sensitive, min_role_rank: f.min_role_rank, excluded_reason: f.excluded_reason, text_params: f.text_params,
     }))
@@ -394,8 +395,9 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
     expect(kindRows).toHaveLength(33)
     expect([...kindRows].sort((a, b) => (a.kind < b.kind ? -1 : 1))).toEqual([...kindJson].sort((a, b) => (a.kind < b.kind ? -1 : 1)))
     const version = (await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v
-    expect(read("drizzle/0649_build002_awl_seed_waves_7_9.sql")).toContain(`-- registry version ${version}`)
+    expect(read("drizzle/0651_build002_awl_seed_submit_timesheet.sql")).toContain(`-- registry version ${version}`)
     // back to the 0628 state
+    await db.exec(downSql("0651_build002_awl_seed_submit_timesheet"))
     await db.exec(downSql("0649_build002_awl_seed_waves_7_9"))
     await db.exec(downSql("0648_build002_awl_seed_waves_5_6"))
     await db.exec(downSql("0647_build002_awl_seed_waves_3_4"))
