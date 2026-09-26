@@ -29,17 +29,6 @@ import { functionSpec } from "./function-registry";
 import { validate, type ValidationContext } from "./validate";
 import { isRetryableFailure, type PipelineFailure } from "./error-codes";
 
-/**
- * Optional parameters a read accepts that the registry does not declare yet:
- * function-registry.ts's readSpec() declares no parameter at all, but
- * get_boq_line_items pages with boqId, cursor and limit (executor.ts
- * executeGetBoqLineItems). Kept here, next to the rule that needs it, until the
- * registry carries optional parameters itself.
- */
-const READ_OPTIONAL_PARAMS: Readonly<Record<string, readonly string[]>> = {
-  get_boq_line_items: ["boqId", "cursor", "limit"],
-};
-
 export type ExecuteReadInput = {
   orgId: string;
   /** the link's user: a verified person, never an api key (PMD-35). */
@@ -60,7 +49,10 @@ export type ExecuteReadOutcome =
   | { ok: false; status: 403; code: "FUNCTION_NOT_READ" | "FUNCTION_NOT_ALLOWED" }
   | { ok: false; status: 422 | 503; failure: PipelineFailure };
 
-/** The parameter names the registry declares for `functionId`: required ones, the names that stand in for them, card fields, and the optional read parameters above. */
+/**
+ * The parameter names the registry declares for `functionId`: required ones, the names that stand in for them, card fields, and its
+ * `optionalParams` (BUILD-002 WP-05a: get_boq_line_items pages with boqId, cursor and limit; a report takes a week or a trade).
+ */
 export function declaredReadParams(functionId: string): Set<string> {
   const spec = functionSpec(functionId);
   const names = new Set<string>(["projectId"]);
@@ -69,7 +61,7 @@ export function declaredReadParams(functionId: string): Set<string> {
     for (const alias of required.alsoSatisfiedBy ?? []) names.add(alias);
   }
   for (const field of spec?.card?.fields ?? []) names.add(field.key);
-  for (const name of READ_OPTIONAL_PARAMS[functionId] ?? []) names.add(name);
+  for (const name of spec?.optionalParams ?? []) names.add(name);
   return names;
 }
 

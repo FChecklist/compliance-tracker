@@ -129,6 +129,24 @@ function functionTable(functions: FunctionView[]): string {
   return ["| Function | What it does | Kind | Level | Available | Required | Example parameters |", "| --- | --- | --- | --- | --- | --- | --- |", ...rows].join("\n")
 }
 
+/**
+ * The manual's catalogue (section F): one short row per function: the id, the kind (a read, or a change of level 1 or 2) and whether it is available now.
+ * The label, the required parameters and an example of each function are one address away (GET <base>/functions), so the manual does not print
+ * them: with 34 functions the full table was about 5 KB of the 20,000-byte budget (BUILD-002 WP-05a). The paste card, for an AI that cannot open
+ * addresses, keeps the full table (functionTable).
+ */
+function functionCatalogue(functions: FunctionView[], base: string): string {
+  if (functions.length === 0) return "No function is on this link."
+  const rows = functions.map((f) => `| ${f.id} | ${f.kind === "read" ? "read" : `change L${f.level}`} | ${availableWord(f)} |`)
+  return [
+    `Call a function by its id: a read at \`POST ${base}/functions/<id>\`, a change through \`/check\`, \`/drafts\` or \`/actions\` (section D). \`GET ${base}/functions\` gives each function's label, required parameters and an example (\`?format=json\` for JSON).`,
+    "",
+    "| Function | Kind | Available |",
+    "| --- | --- | --- |",
+    ...rows,
+  ].join("\n")
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------------
 // The manual (sections 5.1 A to H)
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -184,7 +202,7 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
         "Install it only in a tool this person alone uses (rule 8).",
       ].join("\n"),
     },
-    { id: "F", title: "Function catalogue (what this link may use now)", body: functionTable(functions) },
+    { id: "F", title: "Function catalogue (what this link may use now)", body: functionCatalogue(functions, base) },
     {
       id: "G", title: "Errors and limits",
       body: [

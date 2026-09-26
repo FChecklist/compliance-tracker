@@ -11,7 +11,7 @@
 // WHAT IS PROVEN
 //   - the three committed outputs equal what the registry generates today (the check that CI and the register row rely on), and the
 //     CLI's --check says so;
-//   - exactly the spec's 10 functions (section 9.1) plus the five BUILD-002 adds (WP-03, WP-04, WP-07) are on links, at the written levels
+//   - exactly the spec's 10 functions (section 9.1), the five BUILD-002 adds (WP-03, WP-04, WP-07) and the 19 of WP-05a waves 1 and 2 are on links, at the written levels
 //     and ranks, and each of the 17 the spec excludes, plus create_project, is generated as excluded with a reason (independent copy of
 //     the tables below, so a typo in the data file is caught);
 //   - it survives what another unit does to function-registry.ts: 26 entries added later (U-38) have no row, are on no link and leave the
@@ -53,7 +53,31 @@ const B002_ON_LINKS: Record<string, [number, number]> = {
   create_activity: [1, 2],
 }
 const B002_EXCLUDED = ["create_project"]
-const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS }
+// BUILD-002 WP-05a waves 1 and 2 (AW-301, AW-302): function -> [function link level, minimum role rank]. create_boq of wave 2 is in B002_ON_LINKS.
+const B002_WAVE_1_2_ON_LINKS: Record<string, [number, number]> = {
+  get_boq_line_items: [0, 3],
+  run_named_report: [0, 2],
+  get_project_schedule: [0, 2],
+  list_milestones: [0, 2],
+  create_milestone: [1, 2],
+  update_milestone: [1, 2],
+  create_schedule_task: [1, 2],
+  get_manpower_cost_report: [0, 2],
+  get_designer_timesheet_report: [0, 2],
+  get_project_analysis: [0, 3],
+  apply_boq_import: [2, 2],
+  preview_boq_import: [0, 3],
+  create_change_order: [2, 2],
+  list_change_orders: [0, 2],
+  get_change_order: [0, 2],
+  create_site_instruction: [2, 2],
+  update_line_item_budget: [2, 3],
+  list_billing_claims: [0, 3],
+  get_billing_due_queue: [0, 3],
+}
+const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS }
+/** How many functions are on links in all: every list above, so a wave that adds its own list changes one line, not a number. */
+const ON_LINKS_COUNT = Object.keys(ALL_ON_LINKS).length
 // spec 9.1: the 17 excluded (the register row AWL-S03 names the first five)
 const SPEC_EXCLUDED = [
   "review_budget", "generate_construction_progress_summary", "detect_construction_budget_schedule_risk", "list_delayed_activities",
@@ -94,15 +118,15 @@ describe("the committed outputs are current", () => {
     const io = fsIo(ROOT)
     for (const f of [FUNCTIONS_JSON, KINDS_JSON, CURRENT_SEED_MIGRATION]) expect(io.exists(f)).toBe(true)
     expect(FUNCTIONS_JSON).toBe("supabase/functions/ai-work-link/function-registry.generated.json")
-    // BUILD-002 WP-06 moved the current seed migration from 0628 (applied live once, never edited again) to 0643, which adds 20 record kinds
-    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0643_build002_record_kinds.sql")
+    // BUILD-002 WP-06 moved the current seed migration from 0628 (applied live once, never edited again) to 0643 (20 record kinds), and WP-05a waves 1 and 2 to 0650 (19 more functions on links)
+    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0650_build002_awl_seed_coverage_waves_1_2.sql")
   })
 
-  test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are the 15, and none of the five bad ones", () => {
+  test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are every function reviewed onto links, and none of the five bad ones", () => {
     const list = JSON.parse(fsIo(ROOT).read(FUNCTIONS_JSON)) as { function_id: string; link_level: number | null }[]
     expect(Array.isArray(list)).toBe(true)
     const on = new Set(list.filter((f) => f.link_level !== null).map((f) => f.function_id))
-    expect(on.size).toBe(15)
+    expect(on.size).toBe(ON_LINKS_COUNT)
     for (const bad of AWL_S03_BAD) expect(on.has(bad)).toBe(false)
   })
 })
@@ -111,8 +135,8 @@ describe("exactly the spec's 10 functions and the five BUILD-002 adds are on lin
   const rows = buildFunctionRows(ALL_FUNCTION_SPECS)
   const on = rows.filter((r) => r.link_level !== null)
 
-  test("the 15 are the spec's 10 and the five BUILD-002 adds, at the written levels and minimum ranks", () => {
-    expect(on.length).toBe(15)
+  test("the on-link functions are the spec's 10, the five BUILD-002 adds and the 19 of waves 1 and 2, at the written levels and minimum ranks", () => {
+    expect(on.length).toBe(ON_LINKS_COUNT)
     expect(on.map((r) => r.function_id).sort()).toEqual(Object.keys(ALL_ON_LINKS).sort())
     for (const r of on) {
       expect({ id: r.function_id, level: r.link_level as number | null, rank: r.min_role_rank }).toEqual({ id: r.function_id, level: ALL_ON_LINKS[r.function_id][0], rank: ALL_ON_LINKS[r.function_id][1] })
@@ -122,7 +146,8 @@ describe("exactly the spec's 10 functions and the five BUILD-002 adds are on lin
     expect(on.filter((r) => r.kind === "read").every((r) => r.link_level === 0)).toBe(true)
     expect(on.filter((r) => r.kind === "write").every((r) => r.link_level === 1 || r.link_level === 2)).toBe(true)
     expect(on.filter((r) => r.link_level === 2).map((r) => r.function_id).sort()).toEqual([
-      "add_boq_lines", "add_roster_entry", "create_boq", "create_boq_revision", "seal_boq", "update_project",
+      "add_boq_lines", "add_roster_entry", "apply_boq_import", "create_boq", "create_boq_revision", "create_change_order", "create_site_instruction",
+      "seal_boq", "update_line_item_budget", "update_project",
     ])
   })
 
@@ -150,8 +175,8 @@ describe("exactly the spec's 10 functions and the five BUILD-002 adds are on lin
     }
   })
 
-  test("the output holds the 33 reviewed functions once each: the 15 on links and the 18 excluded; everything else is on no link", () => {
-    expect(rows.length).toBe(33)
+  test("the output holds the reviewed functions once each: those on links and the 18 excluded; everything else is on no link", () => {
+    expect(rows.length).toBe(ON_LINKS_COUNT + SPEC_EXCLUDED.length + B002_EXCLUDED.length)
     expect(new Set(rows.map((r) => r.function_id)).size).toBe(rows.length)
     expect(rows.map((r) => r.function_id).sort()).toEqual([...Object.keys(ALL_ON_LINKS), ...SPEC_EXCLUDED, ...B002_EXCLUDED].sort())
     expect(rows.find((r) => r.function_id === "run_work_progress_report")).toBeUndefined()
@@ -168,10 +193,15 @@ describe("exactly the spec's 10 functions and the five BUILD-002 adds are on lin
     expect(Object.keys(EXCLUDED_REASONS).sort()).toEqual([...SPEC_EXCLUDED, ...B002_EXCLUDED].sort())
   })
 
-  test("the free-text parameters are declared by the registry, and the id parameters are the four of spec 9.10 plus the three BUILD-002 declares", () => {
+  test("the free-text parameters are declared by the registry, and the id parameters are the four of spec 9.10, the three BUILD-002 declares and the ones waves 1 and 2 add", () => {
     for (const r of on) for (const t of r.text_params) expect({ id: r.function_id, t, declared: r.declared_params.includes(t) }).toEqual({ id: r.function_id, t, declared: true })
     const idParams = new Set(on.flatMap((r) => r.id_params))
-    expect([...idParams].sort()).toEqual(["boqId", "boqLineItemId", "categoryId", "clientId", "issueId", "rosterId", "sourceChangeOrderId"])
+    // waves 1 and 2 add the ids of a schedule filter and task (statusId, assigneeId, assigneeIds, typeId, predecessorId), a milestone, a change order,
+    // a stored document and its parent BOQ, and a vendor; the /Ids?$/ rule of the generator also reads a list of ids (assigneeIds)
+    expect([...idParams].sort()).toEqual([
+      "assigneeId", "assigneeIds", "boqId", "boqLineItemId", "categoryId", "changeOrderId", "clientId", "documentId", "issueId", "milestoneId",
+      "parentBoqId", "predecessorId", "rosterId", "sourceChangeOrderId", "statusId", "typeId", "vendorId",
+    ])
     expect(on.find((r) => r.function_id === "record_work_progress")!.id_params).toEqual(["boqLineItemId"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params.map((p) => p.name)).toEqual(["projectId", "itemCode", "percent"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params[1].any_of).toEqual(["itemCode", "boqLineItemId"])
@@ -180,8 +210,10 @@ describe("exactly the spec's 10 functions and the five BUILD-002 adds are on lin
   test("rows are sorted by id, and money-sensitive functions are the reads of dashboard, budget and KPIs plus the draft-only writes", () => {
     expect(rows.map((r) => r.function_id)).toEqual([...rows.map((r) => r.function_id)].sort())
     expect(on.filter((r) => r.money_sensitive).map((r) => r.function_id).sort()).toEqual([
-      "add_boq_lines", "add_roster_entry", "create_boq", "create_boq_revision", "get_construction_budget_status", "get_construction_kpi_status",
-      "get_construction_project_dashboard", "seal_boq", "update_project",
+      "add_boq_lines", "add_roster_entry", "apply_boq_import", "create_boq", "create_boq_revision", "create_change_order", "get_billing_due_queue",
+      "get_boq_line_items", "get_change_order", "get_construction_budget_status", "get_construction_kpi_status", "get_construction_project_dashboard",
+      "get_designer_timesheet_report", "get_manpower_cost_report", "get_project_analysis", "list_billing_claims", "list_change_orders",
+      "preview_boq_import", "run_named_report", "seal_boq", "update_line_item_budget", "update_project",
     ])
   })
 })
@@ -192,7 +224,7 @@ describe("it survives what other units do to function-registry.ts", () => {
   test("entries added later (a read, a write, a command) are on no link, have no row, and change nothing the generator writes", () => {
     const grown = [...real, fakeSpec("zz_new_read", "ask"), fakeSpec("zz_new_write", "write"), fakeSpec("zz_new_run", "run", { writes: false })]
     expect(buildFunctionRows(grown)).toEqual(buildFunctionRows(real))
-    expect(buildFunctionRows(grown).filter((r) => r.link_level !== null).length).toBe(15)
+    expect(buildFunctionRows(grown).filter((r) => r.link_level !== null).length).toBe(ON_LINKS_COUNT)
     expect(unreviewedFunctionIds(grown)).toEqual([...unreviewedFunctionIds(real), "zz_new_read", "zz_new_write"].sort())
   })
 
@@ -246,9 +278,9 @@ describe("it survives what other units do to function-registry.ts", () => {
 
   test("the allow-list is the only way on: putting an excluded function in it puts it on links, taking one out puts it off", () => {
     const withAlias = buildFunctionRows(real, { ...LINK_FUNCTIONS, review_budget: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] } }, Object.fromEntries(Object.entries(EXCLUDED_REASONS).filter(([k]) => k !== "review_budget")))
-    expect(withAlias.filter((r) => r.link_level !== null).length).toBe(16)
+    expect(withAlias.filter((r) => r.link_level !== null).length).toBe(ON_LINKS_COUNT + 1)
     const { record_attendance: _gone, ...fewer } = LINK_FUNCTIONS
-    expect(buildFunctionRows(real, fewer).filter((r) => r.link_level !== null).length).toBe(14)
+    expect(buildFunctionRows(real, fewer).filter((r) => r.link_level !== null).length).toBe(ON_LINKS_COUNT - 1)
   })
 })
 

@@ -6,7 +6,7 @@
 // Two generated files feed it, and this file only reads them (scripts/gen-ai-link-registry.* writes them; CI checks they are current):
 //   record-kinds.generated.json      the record kinds (13 of section 6.2, and 20 more from BUILD-002 WP-06): money columns and the filter
 //                                    and sort allow-list of section 6.6
-//   function-registry.generated.json the function registry: which functions any link may carry (15 of 33) and their parameters
+//   function-registry.generated.json the function registry: which functions any link may carry (34 of 52) and their parameters
 import RECORD_KINDS_JSON from "./record-kinds.generated.json" with { type: "json" }
 import FUNCTION_REGISTRY_JSON from "./function-registry.generated.json" with { type: "json" }
 import { LIMITS, type Format, type KindDef } from "../_shared/ai-link/core.ts"
@@ -95,7 +95,7 @@ export type RegistryFunction = {
 
 const REGISTRY = FUNCTION_REGISTRY_JSON as unknown as RegistryFunction[]
 
-/** The functions any link may carry (link_level is not null): 15 of the 33 reviewed (the spec's 10 and BUILD-002's five). */
+/** The functions any link may carry (link_level is not null): 34 of the 52 reviewed (the spec's 10, BUILD-002's five and the 19 of WP-05a waves 1 and 2). */
 export const LINK_FUNCTIONS: ReadonlyArray<RegistryFunction> = REGISTRY.filter((f) => f.link_level !== null)
 
 export function functionDef(id: string): RegistryFunction | null {
@@ -134,6 +134,27 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   seal_boq: { boqId: "<id from create_boq>", controlTotals: { areas: { "Play Area": 1343445, "Vet Area": 252835 }, grand: 1596280 }, expectedLineCount: 71 },
   update_project: { name: "Zoomies Dubai", startDate: "2026-10-01", targetDate: "2026-12-15" },
   create_activity: { name: "Slab casting", unit: "cum" },
+  // BUILD-002 WP-05a wave 1: schedule, milestones and reports
+  get_boq_line_items: { limit: 50 },
+  run_named_report: { reportSlug: "work-progress" },
+  get_project_schedule: {},
+  list_milestones: {},
+  create_milestone: { title: "Structure complete", targetDate: "2026-11-30" },
+  update_milestone: { milestoneId: "<id from list_milestones>", status: "completed" },
+  create_schedule_task: { title: "Pour slab", startDate: "2026-10-05", durationDays: 3 },
+  get_manpower_cost_report: { dateFrom: "2026-10-01", dateTo: "2026-10-31" },
+  get_designer_timesheet_report: { from: "2026-10-01", to: "2026-10-31" },
+  get_project_analysis: {},
+  // BUILD-002 WP-05a wave 2: BOQ import, change orders, site instructions, line budgets and billing reads
+  apply_boq_import: { documentId: "<id from records/documents>", title: "Zoomies BOQ" },
+  preview_boq_import: { documentId: "<id from records/documents>" },
+  create_change_order: { title: "Extra partition", reason: "Client request", scheduleImpactDays: 2 },
+  list_change_orders: { status: "draft" },
+  get_change_order: { changeOrderId: "<id from list_change_orders>" },
+  create_site_instruction: { issueDate: "2026-10-05", toContractor: "Main contractor", description: "Move the door by 300 mm" },
+  update_line_item_budget: { boqLineItemId: "<id from records/boq_lines>", budgetPercentage: 70 },
+  list_billing_claims: {},
+  get_billing_due_queue: {},
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
