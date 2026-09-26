@@ -490,7 +490,9 @@ async function captureTaskResultMemory(
         provenanceType: "DATABASE_CONFIRMED",
         lifecycleState: "ACTIVE",
         sourceType: fromLink ? AI_LINK_SOURCE : "task",
-        ...(fromLink ? { sourceId: input.aiLinkId ?? null, metadata: { via: AI_LINK_SOURCE, aiLinkId: input.aiLinkId ?? null } } : {}),
+        // BUILD-002 WP-09b (spec 9.11): no embedding-provider call on link traffic. The row is stored, fenced and
+        // marked, and stays out of semantic search until a repair pass embeds it.
+        ...(fromLink ? { sourceId: input.aiLinkId ?? null, metadata: { via: AI_LINK_SOURCE, aiLinkId: input.aiLinkId ?? null }, skipEmbedding: true } : {}),
       })
     );
   } catch (err) {

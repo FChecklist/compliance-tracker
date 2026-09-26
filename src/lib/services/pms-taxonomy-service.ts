@@ -8,7 +8,7 @@ import {
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray } from "drizzle-orm"
-import { hasRole } from "@/lib/supabase/auth-guard"
+import { hasRole } from "@/lib/supabase/role-rank"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"

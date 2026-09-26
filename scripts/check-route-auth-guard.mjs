@@ -442,6 +442,12 @@ const SERVICE_ERROR_EXEMPTIONS = new Set([
   // anything about its error-handling posture.
   "src/lib/services/report-catalog-service.ts",
   //
+  // PROJEXA-BUILD-002 WP-09b (2026-09-27): a real, PRE-EXISTING posture, not introduced by this diff. memory-service.ts predates the convention and reports
+  // every failure with plain Error (its guards, the write-authorization gate and the attribution check throw Error by design; its own header and
+  // src/lib/services/memory-service.test.ts assert those messages). This diff adds ONE optional input field, `skipEmbedding`, and one condition that
+  // skips the embedding call; it adds no failure path of its own. Exempted only because the diff touches the file at all.
+  "src/lib/services/memory-service.ts",
+  //
   // WO-DPDP-001 (2026-09-15): both genuinely have no validation-failure
   // branch today, the same "cannot fail" class as boq-dual-view-service.ts
   // above, checked directly rather than assumed:

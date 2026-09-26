@@ -15,7 +15,9 @@
 //
 // WHAT THIS FILE NEVER DOES: reimplement the confirmation. The rules (owner only, the token compared as sha256, single use, 48-hour expiry,
 // the writes switch) are the SQL function's. This file maps its five answers to stable HTTP codes and hides everything else:
-//   confirmed              200  {draft_id, status: "confirmed", function_id}
+//   confirmed              200  {draft_id, status: "confirmed", function_id}; with the exec function wired (deps.exec, BUILD-002 WP-09b) the draft is handed to it at
+//                               once and the 200 says what happened: status done {record, submission_id} | failed {code, missing} | refused {code} | executing
+//                               | confirmed (the executor did not answer: the SAME link drives it again, once, after draft_state re-checks owner and code)
 //   not_enabled            503  WRITES_NOT_ENABLED (the draft waits and nothing is consumed)
 //   refused not_owner      403  NOT_YOUR_DRAFT
 //   refused not_found      409  CONFIRM_TOKEN_INVALID (an unknown draft and a wrong code look the same on purpose)
@@ -28,7 +30,7 @@
 // LINK token and an app route has none, so no database function counts these calls. Several isolates each keep their own count, so it is a
 // brake and not a hard cap; the hard limits are the 256-bit confirm token and the owner check.
 import { errorBody } from "../_shared/ai-link/core.ts"
-import type { Rpc } from "./reads.ts"
+import type { ExecClient, ExecOutcome, Rpc } from "./reads.ts"
 import type { SessionVerifier } from "./session.ts"
 
 export type ConfirmDeps = {
@@ -37,6 +39,11 @@ export type ConfirmDeps = {
   log?: (line: string) => void
   /** Milliseconds since the epoch; the test passes its own clock. */
   now?: () => number
+  /**
+   * The client of the ai-work-link-exec function, passed only when that function exists (config.execPresent). With it a confirmed draft is applied
+   * at once and the answer says what happened; without it the draft stays `confirmed` and waits (BUILD-002 WP-09b).
+   */
+  exec?: ExecClient
 }
 
 export type ConfirmAnswer = { status: number; body: unknown; headers?: Record<string, string> }
@@ -166,6 +173,50 @@ export async function readConfirmBody(req: Request, draftId: string): Promise<Ga
   return { ok: true, value: confirmToken }
 }
 
+/** What the person is told once the exec function has answered for a confirmed draft. The confirm itself succeeded, so this is 200 with a message. */
+async function applyConfirmed(exec: ExecClient, draftId: string, fn: string | null, log: (line: string) => void): Promise<ConfirmAnswer> {
+  let out: ExecOutcome
+  try {
+    out = await exec(draftId)
+  } catch {
+    // unreachable: nothing is claimed, the draft stays confirmed and can be driven again by the same confirm link
+    log("ai-work-link: confirm: exec unreachable -> 200 confirmed, not applied")
+    return { status: 200, body: { draft_id: draftId, status: "confirmed", function_id: fn, message: "Confirmed, but the executor did not answer, so the change is not applied yet. Open this link again in a minute." } }
+  }
+  const code = typeof out.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(out.code) ? out.code : "UNKNOWN"
+  if (out.status === "done") {
+    return { status: 200, body: { draft_id: draftId, status: "done", function_id: fn, record: out.record ?? null, submission_id: out.submission_id ?? null, message: "The change is applied to the project." } }
+  }
+  if (out.status === "executing") {
+    return { status: 200, body: { draft_id: draftId, status: "executing", function_id: fn, message: "The change is being applied now. Check the project in a moment." } }
+  }
+  if (out.status === "refused") {
+    const why = code === "ROLE_CHANGED" ? "your role no longer allows this change" : code === "LINK_GONE" ? "the link it came from is no longer valid" : "it can no longer be run"
+    return { status: 200, body: { draft_id: draftId, status: "refused", function_id: fn, code, message: `Confirmed, but nothing was applied: ${why}.` } }
+  }
+  return {
+    status: 200,
+    body: { draft_id: draftId, status: "failed", function_id: fn, code, missing: Array.isArray(out.missing) ? out.missing : [], message: "Confirmed, but the change could not be applied. Ask the AI to draft it again with the missing details." },
+  }
+}
+
+/** A draft that is confirmed but not yet applied: owner and code checked by draft_state, then driven once. Null when it is not that. */
+async function redrive(deps: ConfirmDeps, draftId: string, confirmToken: string, userId: string, log: (line: string) => void): Promise<ConfirmAnswer | null> {
+  if (!deps.exec) return null
+  let st
+  try {
+    st = await deps.rpc("ai_work_link_draft_state", { p_draft_id: draftId, p_actor_user_id: userId, p_confirm_token: confirmToken })
+  } catch {
+    return null
+  }
+  const d = !st.error && st.data && typeof st.data === "object" && !Array.isArray(st.data) ? (st.data as Record<string, unknown>) : null
+  const draft = d && d.status === "ok" && d.draft && typeof d.draft === "object" ? (d.draft as Record<string, unknown>) : null
+  if (!draft || draft.state !== "confirmed") return null
+  const fn = typeof draft.function_id === "string" && ID_RE.test(draft.function_id) ? draft.function_id : null
+  log("ai-work-link: confirm: driving a confirmed draft again")
+  return applyConfirmed(deps.exec, draftId, fn, log)
+}
+
 export async function handleConfirm(req: Request, draftId: string, deps: ConfirmDeps): Promise<ConfirmAnswer> {
   const log = deps.log ?? ((line: string) => console.log(line))
 
@@ -197,6 +248,7 @@ export async function handleConfirm(req: Request, draftId: string, deps: Confirm
     const intent = r?.intent && typeof r.intent === "object" ? (r.intent as Record<string, unknown>) : {}
     const fn = typeof intent.function_id === "string" && ID_RE.test(intent.function_id) ? intent.function_id : null
     log("ai-work-link: confirm: confirmed -> 200")
+    if (deps.exec) return applyConfirmed(deps.exec, draftId, fn, log)
     return { status: 200, body: { draft_id: draftId, status: "confirmed", function_id: fn, message: "Confirmed. The change is queued for the executor." } }
   }
   if (status === "not_enabled") {
@@ -206,7 +258,13 @@ export async function handleConfirm(req: Request, draftId: string, deps: Confirm
     const why = typeof r?.reason === "string" ? r.reason : ""
     if (why === "not_owner") return answer(403, "This draft belongs to another person.", "NOT_YOUR_DRAFT")
     if (why === "not_found") return answer(409, "The draft or the confirm code is not valid.", "CONFIRM_TOKEN_INVALID", "Open the confirm link again.")
-    if (why === "not_pending") return answer(409, "This confirm code was already used, or the draft is no longer waiting.", "CONFIRM_ALREADY_USED")
+    if (why === "not_pending") {
+      // the code is single use, but a draft that was confirmed and NOT applied (the executor was down) is driven again: the owner and the code
+      // are checked by draft_state, then the exec function claims it once (an applied or running one answers what it is)
+      const again = deps.exec ? await redrive(deps, draftId, confirmToken, userId, log) : null
+      if (again) return again
+      return answer(409, "This confirm code was already used, or the draft is no longer waiting.", "CONFIRM_ALREADY_USED")
+    }
     if (why === "expired") return answer(410, "This draft expired. Ask the AI to propose it again.", "CONFIRM_EXPIRED")
   }
   log("ai-work-link: confirm: confirmation unavailable -> 503, nothing reported as confirmed")

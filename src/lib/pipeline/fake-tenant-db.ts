@@ -140,9 +140,15 @@ function makeTransaction(store: FakeStore) {
     }),
     select: () => ({
       from: (table: Table) => ({
-        where: (cond: SQL) => ({
-          limit: async (n: number) => rowsOf(table).filter(predicate(table, cond, store.unparsed)).slice(0, n),
-        }),
+        where: (cond: SQL) => {
+          const matching = () => rowsOf(table).filter(predicate(table, cond, store.unparsed));
+          return {
+            limit: async (n: number) => matching().slice(0, n),
+            // BUILD-002 WP-09b: the BOQ facts read (chain-options-service latestBoqLines) ends in .orderBy(); the rows come back in fixture order
+            orderBy: (..._order: unknown[]) => thenable(matching),
+            ...thenable(matching),
+          };
+        },
       }),
     }),
   };

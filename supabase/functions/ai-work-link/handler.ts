@@ -51,7 +51,7 @@ export type AwlDeps = {
   session?: SessionVerifier
   /** Milliseconds since the epoch for the confirm route's per-person brake; the test passes its own clock. */
   now?: () => number
-  /** The client of the ai-work-link-exec function (a later unit). Absent today: no change can run, so every direct change answers 503. */
+  /** The client of the ai-work-link-exec function (exec-client.ts). Absent when the function is not deployed: no change can run, so every direct change answers 503. */
   exec?: ExecClient
 }
 
@@ -120,7 +120,7 @@ async function appRoute(req: Request, route: string[], deps: AwlDeps): Promise<O
     // confirm.ts answers its own 401s (with a stable code), so it reads the Authorization header itself
     let done
     try {
-      done = await handleConfirm(req, route[1], { rpc: deps.rpc, session: deps.session, log: deps.log, now: deps.now })
+      done = await handleConfirm(req, route[1], { rpc: deps.rpc, session: deps.session, log: deps.log, now: deps.now, exec: deps.config.execPresent ? deps.exec : undefined })
     } catch {
       (deps.log ?? console.log)("ai-work-link: confirm: unhandled error -> 500")
       return plain(500, "Something failed on our side. Try again in a minute.")

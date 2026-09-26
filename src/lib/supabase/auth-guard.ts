@@ -31,16 +31,9 @@ export type AuthContext = {
 // forced it.
 // Imported (not only re-exported) because `export ... from` creates no local
 // binding, and hasRole() below reads ROLE_RANK directly.
-import { ROLE_RANK, type UserRole } from "./role-rank"
-export { ROLE_RANK }
+import { ROLE_RANK, hasRole, type UserRole } from "./role-rank"
+export { ROLE_RANK, hasRole }
 export type { UserRole }
-
-export function hasRole(dbUser: typeof users.$inferSelect | null, minimumRole: UserRole): boolean {
-  if (!dbUser) return false
-  const userRank = ROLE_RANK[dbUser.role as UserRole] ?? 0
-  const requiredRank = ROLE_RANK[minimumRole]
-  return userRank >= requiredRank
-}
 
 export function requireRole(dbUser: typeof users.$inferSelect | null, minimumRole: UserRole): NextResponse | null {
   if (!hasRole(dbUser, minimumRole)) {

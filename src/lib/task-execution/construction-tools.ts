@@ -57,7 +57,7 @@
 // fixed; flagged honestly (see this file's own git history / R-80's
 // sumeet_requirements next_action for the full accounting).
 
-import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
+import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
 
 export const CONSTRUCTION_TOOL_CODES = new Set([

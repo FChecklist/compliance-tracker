@@ -175,7 +175,8 @@ describe("static rules for the link's Edge code", () => {
     expect(FN_DIR.endsWith("/functions/ai-work-link") || FN_DIR.endsWith("\\functions\\ai-work-link")).toBe(true)
     const own = filesOf(FN_DIR)
     expect(own.length).toBeGreaterThanOrEqual(3)
-    const scanned = [...own, ...filesOf(SHARED_DIR), ...filesOf(EXEC_DIR)]
+    const scanned = [...own, ...filesOf(SHARED_DIR), ...filesOf(EXEC_DIR).filter((f) => !f.endsWith(".bundle.mjs"))]
+    // the generated bundle (app.bundle.mjs, built at deploy time by scripts/build-ai-work-link-exec.ts) holds the pipeline's names by design: it is not source
     expect(scanned.length).toBeGreaterThan(10)
     for (const f of scanned) for (const bad of FORBIDDEN) expect(`${f} ${read(f).includes(bad)}`).toBe(`${f} false`)
   })
@@ -202,7 +203,7 @@ describe("static rules for the link's Edge code", () => {
     // every name the Edge code calls is one drizzle/0624 to 0626, 0629 (the write path) or 0631 (the mint variants) defines
     const sql = ["0624_build001_awl_link_functions.sql", "0625_build001_awl_read_functions.sql", "0626_build001_awl_intent_functions.sql", "0629_build001_awl_execution_sql.sql", "0631_build001_awl_mint_for.sql"].map((n) => read(join(ROOT, "drizzle", n))).join(String.fromCharCode(10))
     for (const name of called) expect(`${name} ${sql.includes(`public.${name}(`)}`).toBe(`${name} true`)
-    expect([...called].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_context", "ai_work_link_draft_confirm", "ai_work_link_draft_state", "ai_work_link_history", "ai_work_link_intent_claim", "ai_work_link_intent_finish", "ai_work_link_intent_status", "ai_work_link_list_for", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_mint_for", "ai_work_link_new_project_for", "ai_work_link_record", "ai_work_link_record_intent", "ai_work_link_records", "ai_work_link_revoke_for", "ai_work_link_warning_for"])
+    expect([...called].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_context", "ai_work_link_draft_confirm", "ai_work_link_draft_state", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_list_for", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_mint_for", "ai_work_link_new_project_for", "ai_work_link_record", "ai_work_link_record_intent", "ai_work_link_records", "ai_work_link_revoke_for", "ai_work_link_warning_for"])
   })
 
   test("the service-role key is read in index.ts only, and no Deno global is used outside it", () => {

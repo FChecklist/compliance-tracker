@@ -33,7 +33,7 @@ export type AwlConfig = {
   /** Position counted from the right of x-forwarded-for, or null for the shared bucket (core.ts throttleAddress). */
   addressPosition: number | null
   /**
-   * True only when the ai-work-link-exec Edge function exists and is wired (a later unit sets it). The ONE thing that decides whether a change
+   * True only when the ai-work-link-exec Edge function exists and is wired (the switch-on guide flips EXEC_FUNCTION_PRESENT). The ONE thing that decides whether a change
    * can run is `changes_run`: this flag AND the SQL switch platform.ai_work_link_settings.writes_enabled (see `availabilityOf`). While it is
    * false a draft is still recorded, and the person can still see it, but no change is applied.
    */
@@ -41,11 +41,16 @@ export type AwlConfig = {
 }
 
 /**
- * What the ai-work-link-exec function answers for one claimed intent (the contract of the later exec brief). The exec host writes the outcome
- * to the intent itself through ai_work_link_intent_finish; the link function only maps this answer to HTTP. A throw means it was unreachable.
+ * What the ai-work-link-exec function answers for one intent (BUILD-002 WP-09b). The exec host CLAIMS the intent (ai_work_link_intent_claim: it
+ * re-resolves the link and the person's role live), runs it and writes the outcome to the intent itself (ai_work_link_intent_finish); the link
+ * function only maps this answer to HTTP. A throw means it was unreachable, and then NOTHING is written to the intent here.
+ *   done       the record exists: submission_id and record {id, route}
+ *   failed     it was not applied: a closed code and the names of what is missing
+ *   refused    the claim refused it (LINK_GONE, ROLE_CHANGED, WRITES_NOT_ENABLED, EXPIRED, ...): code says which
+ *   executing  another call is running it now
  */
 export type ExecOutcome = {
-  status: "done" | "failed" | "refused"
+  status: "done" | "failed" | "refused" | "executing"
   submission_id?: string | null
   record?: { id?: string | null; route?: string | null } | null
   code?: string
@@ -145,7 +150,7 @@ export type ReadEnv = {
   /** The link base B (`F/<token>`, or `F/header` in header mode). */
   base: string
   mode: "path" | "header"
-  /** The client of the ai-work-link-exec function, when it is deployed and wired (a later unit). Absent today. */
+  /** The client of the ai-work-link-exec function (exec-client.ts), when it is deployed and wired. Absent otherwise. */
   exec?: ExecClient
 }
 
