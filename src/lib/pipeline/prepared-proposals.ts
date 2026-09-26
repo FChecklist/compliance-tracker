@@ -68,8 +68,8 @@ export const S1_SURFACE = "s1_one_page_ai_prepared" as const satisfies AuditSurf
  */
 export const S1_APPROVABLE_FUNCTION_IDS: readonly string[] = ["create_boq"];
 
-/** Who prepared a proposal: the U-31 email bridge, or a pasted block (POST .../paste-back). */
-export const PREPARED_SOURCES = ["email_intelligence", "paste_back"] as const;
+/** Who prepared a proposal: the U-31 email bridge, a pasted block (POST .../paste-back), or a schedule (the scheduler bridge, BUILD-002 WP-13). */
+export const PREPARED_SOURCES = ["email_intelligence", "paste_back", "scheduler_bridge"] as const;
 export type PreparedSource = (typeof PREPARED_SOURCES)[number];
 
 /** submissions.status values a proposal can still be approved in. done, partial and failed mean it was decided. */

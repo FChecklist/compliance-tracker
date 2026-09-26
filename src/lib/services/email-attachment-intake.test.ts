@@ -234,14 +234,15 @@ describe("AW-604: type and size are checked before anything is read", () => {
     const { deps, seen } = depsFor(carefulHumanModel)
     const result = await run(deps)
 
-    expect(result.outcomes.map((o) => [o.fileName, o.result])).toEqual([
-      ["quote.pdf", "not_read"],
-      ["fake.xlsx", "not_read"],
+    // the three rows are inserted back to back and can share a created_at, so the order between them is not part of the contract: compare as sets
+    expect(result.outcomes.map((o) => [o.fileName, o.result]).sort()).toEqual([
       ["big.xlsx", "not_read"],
+      ["fake.xlsx", "not_read"],
+      ["quote.pdf", "not_read"],
     ])
     expect(result.notes).toHaveLength(3)
-    expect(result.notes[0]).toBe('attachment "quote.pdf" was stored but not read: only .xlsx workbooks are read')
-    expect(result.notes[2]).toContain("over the 5242880-byte limit")
+    expect(result.notes).toContain('attachment "quote.pdf" was stored but not read: only .xlsx workbooks are read')
+    expect(result.notes.some((n) => n.includes('"big.xlsx"') && n.includes("over the 5242880-byte limit"))).toBe(true)
     expect(seen.modelCalls).toBe(0)
     expect(await count("source_object")).toBe(0)
   })
