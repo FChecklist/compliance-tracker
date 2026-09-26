@@ -18,7 +18,8 @@
 // What is proven, beyond "the right function is called":
 //   - billing claims are read-only: the two billing entries call only the two
 //     billing reads, no billing write function is ever reached, and no billing
-//     write id is registered (R-95 is held for the owner);
+//     write id was registered while R-95 was held for the owner (PMD-41 then allowed
+//     level-2 claim DRAFTS, which are BUILD-002 WP-05h's and have their own test);
 //   - cost fields come back null below manager rank (and for a caller with no
 //     known role), and are shown to a manager: change-order cost, the line budget
 //     overlay, manpower and designer cost, a material receipt's unit cost, the
@@ -664,14 +665,20 @@ describe("BR-512: billing claims are read-only", () => {
     nothingWritten(before);
   });
 
-  test("no billing-claim write id is registered anywhere: the only billing or claim ids are the two reads", () => {
+  // BUILD-002 WP-05h (owner decision PMD-41, 2026-09-25): an AI link may PROPOSE a billing claim, so four claim writes now exist, each a level-2 draft a person
+  // confirms (coverage-wave7.test.ts). The claim steps that record the customer's own decision or post an invoice still have no id at all.
+  test("the only billing or claim ids are the two reads and the four level-2 claim drafts; approving and invoicing a claim have no id", () => {
     const billingIds = EXECUTABLE_FUNCTION_IDS.filter((id) => /billing|claim/i.test(id));
-    expect(billingIds.sort()).toEqual(["get_billing_due_queue", "list_billing_claims"]);
-    expect([...WRITE_FUNCTION_IDS].filter((id) => /billing|claim/i.test(id))).toEqual([]);
+    expect(billingIds.sort()).toEqual([
+      "create_progress_claim", "draft_progress_claim", "get_billing_due_queue", "list_billing_claims", "reject_progress_claim", "submit_progress_claim",
+    ]);
+    expect([...WRITE_FUNCTION_IDS].filter((id) => /billing|claim/i.test(id)).sort()).toEqual([
+      "create_progress_claim", "draft_progress_claim", "reject_progress_claim", "submit_progress_claim",
+    ]);
   });
 
-  test("the ids an AI would try for a claim write have no executor: FUNCTION_NOT_AVAILABLE, no service called", async () => {
-    for (const id of ["create_billing_claim", "create_progress_claim", "submit_billing_claim", "approve_billing_claim", "transition_claim", "mark_claim_invoiced"]) {
+  test("the ids an AI would try for a claim's approval or invoice have no executor: FUNCTION_NOT_AVAILABLE, no service called", async () => {
+    for (const id of ["create_billing_claim", "submit_billing_claim", "approve_billing_claim", "approve_progress_claim", "invoice_approved_claim", "transition_claim", "mark_claim_invoiced"]) {
       expect(hasExecutor(id)).toBe(false);
       const refused = await failure(id, { projectId: PROJECT_A });
       expect(refused.code).toBe("FUNCTION_NOT_AVAILABLE");

@@ -9,6 +9,7 @@
 //   3. awl-exec-closure.mjs: stop following dynamic import()                                 -> "a dynamic import() is followed ..." fails
 //   4. awl-exec-closure.mjs: treat every import as used (skip the unused-binding drop)       -> "importsOf drops ..." fails
 //   5. link-exec-entry.ts: import the Level 1 lane directly                                  -> "the real entry is clean ..." fails
+//   6. awl-exec-closure.mjs: drop the `|\.\.\.` alternative of the usage test (a spread is not a use) -> "importsOf keeps an import that is used only as a spread" fails
 //
 // Run: bun test --isolate src/lib/verify/awl-exec-closure.test.ts
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test"
@@ -102,6 +103,13 @@ describe("importsOf", () => {
       'export const z = [used, def, ns]',
     ].join("\n")
     expect(importsOf(src).sort()).toEqual(["default-used", "namespace-used", "reexport", "side-effect", "used"])
+  })
+
+  // BUILD-002 WP-05g/05h: the usage test read `[^w$.]` (a lost backslash), so a name used only as a spread, `...WAVE_3_4_EXECUTORS`, looked unused and its
+  // whole subtree was left out of the closure without a word. A name used only as a property access (`x.name`) is still not a use of the import.
+  test("importsOf keeps an import that is used only as a spread, and still drops one whose name only follows a dot", () => {
+    const spread = ['import { WAVES } from "spread-only"', 'import { other } from "dot-only"', "export const map = { a: 1, ...WAVES, b: obj.other }"].join("\n")
+    expect(importsOf(spread)).toEqual(["spread-only"])
   })
 
   test("importsOf ignores an import that only appears in a comment", () => {

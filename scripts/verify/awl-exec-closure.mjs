@@ -97,7 +97,9 @@ export function importsOf(text) {
       }
       if (allType && locals.length === 0) continue
       const body = code.replace(whole, " ")
-      const used = locals.some((n) => new RegExp("(^|[^\w$.])" + n.replace(/\$/g, "\$") + "([^\w$]|$)").test(body))
+      // String.raw on purpose: in a plain string a single backslash is dropped, which turned the class into [^w$.] and made every import used only as a
+      // spread (`...WAVE_3_4_EXECUTORS`, preceded by a dot) look unused, so its whole subtree was silently left out of the closure.
+      const used = locals.some((n) => new RegExp(String.raw`(^|[^\w$.]|\.\.\.)` + n.replace(/\$/g, String.raw`\$`) + String.raw`([^\w$]|$)`).test(body))
       if (!used) continue
     }
     out.push(spec)
