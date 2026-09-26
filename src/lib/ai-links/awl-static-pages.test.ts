@@ -326,6 +326,7 @@ describe("ai-confirm.html: the change is shown before Confirm is enabled (AW-509
   const signedIn = async (preview: Reply) => {
     const p = run("ai-confirm.html", {
       hash: `#d=drf123.${CONFIRM_CODE}`,
+      config: { authKey: "public-test-key" },
       replies: (s) => (s.url.includes("/auth/v1/token") ? { status: 200, json: { access_token: "t" } } : s.url.endsWith("/preview") ? preview : { status: 200, json: { message: "ok" } }),
     })
     p.$("signin").click()
@@ -350,7 +351,7 @@ describe("ai-confirm.html: the change is shown before Confirm is enabled (AW-509
   })
 
   test("nothing is read before sign-in, and a draft whose code was not in the link is previewed only once the code is typed", async () => {
-    const p = run("ai-confirm.html", { hash: "#d=drf123", replies: (s) => (s.url.includes("/auth/v1/token") ? { status: 200, json: { access_token: "t" } } : PREVIEW) })
+    const p = run("ai-confirm.html", { hash: "#d=drf123", config: { authKey: "public-test-key" }, replies: (s) => (s.url.includes("/auth/v1/token") ? { status: 200, json: { access_token: "t" } } : PREVIEW) })
     await tick()
     expect(p.sent).toEqual([])
     p.$("signin").click()
