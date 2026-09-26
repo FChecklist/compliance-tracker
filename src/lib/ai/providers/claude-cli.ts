@@ -71,6 +71,15 @@ function runClaudeCli(prompt: string): Promise<string> {
   });
 }
 
+/**
+ * PROJEXA-BUILD-002 WP-11: the raw text of one `claude -p` run, for the internal AI's extraction call (internal-model-gateway.ts),
+ * which needs the reply text and builds its own prompt. Same binary, same identity gate before it (internal-ai-policy.ts runs
+ * assertAiProviderAllowed first), same timeout; nothing about how the CLI is launched changes.
+ */
+export async function claudeCliComplete(prompt: string): Promise<string> {
+  return runClaudeCli(prompt);
+}
+
 async function callClaudeCliJson<T>(systemPrompt: string, userMessage: string, expectedKeys: string[]): Promise<T> {
   const prompt = `${systemPrompt}\n\n---\n\nRespond with ONLY the JSON object described above, no other text, no markdown code fence.\n\n${userMessage}`;
   const raw = await runClaudeCli(prompt);
