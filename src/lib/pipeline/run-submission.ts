@@ -979,8 +979,25 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
     });
   }
 
+  // BUILD-001 U-29 fix round 1: once executeTask() has succeeded the record exists, so an error in the bookkeeping that
+  // follows (the task row, the pill and chain history, the submission's own status) is logged and does not abort the
+  // call. Thrown here it reaches the caller after the write, and a caller that retries on an error then writes twice.
+  // A run that failed keeps the old behaviour: nothing was written, and the error surfaces.
+  const afterRun = async (what: string, run: () => Promise<unknown>): Promise<void> => {
+    if (!outcome.success) {
+      await run();
+      return;
+    }
+    try {
+      await run();
+    } catch (error) {
+      console.error(`[pipeline] submission=${submissionId} task=${taskId} ${what} failed after the write (not aborting):`, error);
+    }
+  };
+
   if (outcome.success) {
-    await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
+    const executed = outcome.result;
+    await afterRun("task update", () => updateTask(input.orgId, taskId, "done", executed, undefined));
     // R65 Part C Phase 3: task memory, same as runSubmission()'s own
     // execution loop above -- WRITE tasks only.
     if (functionWrites(input.functionId)) {
@@ -991,12 +1008,14 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
     await updateTask(input.orgId, taskId, statusForFailure(outcome.failure), undefined, outcome.failure);
   }
 
-  await recordPillUse(base, input.functionId, derived);
-  await recordChainHistory(base, input.functionId, derived, outcome.success ? "ok" : "failed");
+  await afterRun("pill use", () => recordPillUse(base, input.functionId, derived));
+  await afterRun("chain history", () => recordChainHistory(base, input.functionId, derived, outcome.success ? "ok" : "failed"));
 
   const status = outcome.success ? "done" : "failed";
-  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.update(submissions).set({ status, classification, selectedChain: derived as unknown as object }).where(eq(submissions.id, submissionId))
+  await afterRun("submission status", () =>
+    withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+      db.update(submissions).set({ status, classification, selectedChain: derived as unknown as object }).where(eq(submissions.id, submissionId))
+    )
   );
 
   console.info(
