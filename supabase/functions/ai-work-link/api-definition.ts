@@ -4,7 +4,8 @@
 // test 5.5) by construction. PURE: no Deno global. The DPDP function keeps the same shape in supabase/functions/dpdp-ai-link/api-definition.ts.
 //
 // Two generated files feed it, and this file only reads them (scripts/gen-ai-link-registry.* writes them; CI checks they are current):
-//   record-kinds.generated.json      the 13 record kinds of section 6.2: money columns and the filter and sort allow-list of section 6.6
+//   record-kinds.generated.json      the record kinds (13 of section 6.2, and 20 more from BUILD-002 WP-06): money columns and the filter
+//                                    and sort allow-list of section 6.6
 //   function-registry.generated.json the function registry: which functions any link may carry (15 of 33) and their parameters
 import RECORD_KINDS_JSON from "./record-kinds.generated.json" with { type: "json" }
 import FUNCTION_REGISTRY_JSON from "./function-registry.generated.json" with { type: "json" }
@@ -24,6 +25,16 @@ export function kindDef(name: string): KindDef | null {
   return RECORD_KINDS.find((k) => k.kind === name) ?? null
 }
 
+/**
+ * Kinds whose name says what they hold (BUILD-002 WP-06). The manual lists them on one line, without their summary, to stay under its
+ * 20,000-byte budget; the OpenAPI document and the MCP tools still use their KIND_SUMMARY line.
+ */
+export const PLAIN_KINDS: ReadonlySet<string> = new Set([
+  "rfis", "submittals", "punch_list", "change_orders", "site_diaries", "site_instructions", "milestones", "progress_claims",
+  "interim_bills", "materials", "material_receipts", "material_issues", "kpi_entries", "expenses", "drawings", "permits",
+  "meeting_minutes", "wiki_pages", "ffe_items", "schedule_baselines",
+])
+
 /** One line per kind, for the manual and the OpenAPI document. */
 export const KIND_SUMMARY: Record<string, string> = {
   project: "the project itself",
@@ -33,12 +44,32 @@ export const KIND_SUMMARY: Record<string, string> = {
   progress: "daily work-progress entries",
   tasks: "tasks (issues) with status, priority and due date",
   meetings: "meetings",
-  documents: "documents linked to the project",
+  documents: "documents, with drawing and permit fields",
   roster: "the labour roster",
   attendance: "daily attendance",
   timesheets: "time entries",
   pipeline_tasks: "recorded pipeline tasks",
-  people: "the project lead and team",
+  people: "the project lead and team, with roles",
+  rfis: "requests for information",
+  submittals: "submittals and their review",
+  punch_list: "punch list items",
+  change_orders: "change orders",
+  site_diaries: "daily site diary",
+  site_instructions: "site instructions",
+  milestones: "milestones",
+  progress_claims: "progress claims",
+  interim_bills: "interim bills",
+  materials: "site materials",
+  material_receipts: "material receipts",
+  material_issues: "material issues",
+  kpi_entries: "KPI entries",
+  expenses: "expense entries",
+  drawings: "drawing register",
+  permits: "permits",
+  meeting_minutes: "meeting minutes",
+  wiki_pages: "wiki pages",
+  ffe_items: "furniture, fixtures, equipment",
+  schedule_baselines: "schedule baselines",
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

@@ -378,14 +378,23 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
     }))
     const fnRows = (await db.query<FnJson>("select function_id, product, kind, link_level::int link_level, money_sensitive, min_role_rank::int min_role_rank, excluded_reason, text_params from platform.ai_work_link_functions order by function_id")).rows
     expect(fnRows).toEqual(fnJson)
+    // the kinds: 0644 keeps the 13 of 0628; BUILD-002 WP-06's 0643 is the generator's current seed migration, applied AFTER 0644, and holds
+    // all 33 kinds with the whole function registry. So the generated JSON is compared with the rows after 0628 -> 0644 -> 0643.
     const kindJson = JSON.parse(read("supabase/functions/ai-work-link/record-kinds.generated.json")) as KindJson[]
+    expect((await db.query<{ kind: string }>("select kind from platform.ai_work_link_record_kinds")).rows.map((r) => r.kind).sort()).toEqual(kindJson.slice(0, 13).map((k) => k.kind).sort())
+    await db.exec(forwardSql("0643_build002_record_kinds"))
     const kindRows = (await db.query<KindJson>("select kind, money_columns, filters from platform.ai_work_link_record_kinds")).rows
+    expect(kindRows).toHaveLength(33)
     expect([...kindRows].sort((a, b) => (a.kind < b.kind ? -1 : 1))).toEqual([...kindJson].sort((a, b) => (a.kind < b.kind ? -1 : 1)))
+    const fnAfter = (await db.query<FnJson>("select function_id, product, kind, link_level::int link_level, money_sensitive, min_role_rank::int min_role_rank, excluded_reason, text_params from platform.ai_work_link_functions order by function_id")).rows
+    expect(fnAfter).toEqual(fnJson)
     const version = (await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v
-    expect(read("drizzle/0644_build002_awl_seed_project_boq.sql")).toContain(`-- registry version ${version}`)
-    // back to the 0628 seed
+    expect(read("drizzle/0643_build002_record_kinds.sql")).toContain(`-- registry version ${version}`)
+    // back to the 0628 state: 0643's down file restores the 0625 core and 0644's rows, then 0628's own idempotent file puts its rows back
+    await db.exec(downSql("0643_build002_record_kinds"))
     await db.exec(forwardSql("0628_build001_awl_seed"))
     expect((await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_functions")).n).toBe(27)
+    expect((await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_record_kinds")).n).toBe(13)
   })
 
   test("the function table refuses a function that is both on a link and excluded, and one that is neither", async () => {

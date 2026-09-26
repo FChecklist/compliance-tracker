@@ -8,7 +8,7 @@
 // `pxa_` text at all, because an AI that cannot open URLs gets them pasted in and the token would land in that vendor's history.
 // FENCING. Every value from project data (person, project) sits inside a fenced data block cleaned by core.ts (section 5.4).
 import { DATA_CLOSING, LIMITS, cleanDeep, cleanText, fenceRows } from "../_shared/ai-link/core.ts"
-import { API_VERSION, ERRORS, KIND_NAMES, KIND_SUMMARY, LINK_FUNCTIONS, PRODUCT, kb } from "./api-definition.ts"
+import { API_VERSION, ERRORS, KIND_NAMES, KIND_SUMMARY, LINK_FUNCTIONS, PLAIN_KINDS, PRODUCT, kb } from "./api-definition.ts"
 import { availabilityOf, availableWord, levelNote, type AwlConfig, type FunctionView, type LinkCtx, type RecordsPage } from "./reads.ts"
 
 export type ManualInput = {
@@ -139,9 +139,13 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
   const { base, ctx, functions, config } = input
   const manifest = buildManifest(input)
   const av = availabilityOf({ ctx, config })
+  // One address pattern for every kind, and one short line each. The full address of each kind is in the manifest (section H), so the
+  // manual does not print it a second time: with 33 kinds the second copy alone was about 4 KB of the 20,000-byte budget.
   const readLines = [
     `- Context: ${base}/context`,
-    ...KIND_NAMES.map((k) => `- ${k} (${KIND_SUMMARY[k] ?? k}): ${manifest.urls.records[k]}`),
+    `- Records: ${base}/records/<kind>?limit=${LIMITS.keysetDefault} (one record: ${base}/records/<kind>/<id>). The kinds and what each holds:`,
+    ...KIND_NAMES.filter((k) => !PLAIN_KINDS.has(k)).map((k) => `  - ${k}: ${KIND_SUMMARY[k] ?? k}`),
+    `  - and, named for what they hold: ${KIND_NAMES.filter((k) => PLAIN_KINDS.has(k)).join(", ")}`,
     `- Functions: ${base}/functions`,
     `- History: ${base}/history`,
   ]

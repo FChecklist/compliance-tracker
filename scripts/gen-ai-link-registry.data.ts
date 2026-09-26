@@ -99,7 +99,9 @@ const RANGE: readonly FilterOp[] = ["eq", "gt", "lt"]
 const TEXT_EQ_IN: FilterField = { type: "text", ops: EQ_IN }
 
 // The Tier-1 record kinds of spec 6.2. The table, the scope and the column list of each kind are in
-// drizzle/0625_build001_awl_read_functions.sql; the money columns are the spec's table, plus rate_contract (a contract rate is money).
+// drizzle/0625_build001_awl_read_functions.sql (the first 13) and, as amended, drizzle/0643_build002_record_kinds.sql (which adds 20
+// kinds, three columns to boq_lines, a curated metadata column to documents and project_role to people); the money columns are the
+// spec's table, plus rate_contract (a contract rate is money).
 export const RECORD_KINDS: readonly RecordKindDef[] = [
   { kind: "project", moneyColumns: ["project_value", "vat_rate_percent", "retention_percent"], fields: {}, sort: [] },
   {
@@ -113,6 +115,8 @@ export const RECORD_KINDS: readonly RecordKindDef[] = [
     moneyColumns: [
       "rate", "amount", "material_cost", "labour_cost", "equipment_cost", "budget_percentage",
       "vendor_amount", "material_amount", "manpower_amount", "rate_project", "rate_contract",
+      // BUILD-002 WP-06: the cost breakdown behind the rate (drizzle/0643)
+      "vendor_id", "overhead_percent", "profit_percent",
     ],
     fields: {
       boq_id: TEXT_EQ_IN,
@@ -122,6 +126,7 @@ export const RECORD_KINDS: readonly RecordKindDef[] = [
       rate: { type: "numeric", ops: RANGE },
       amount: { type: "numeric", ops: RANGE },
       budget_percentage: { type: "numeric", ops: RANGE },
+      breakdown_percentage: { type: "numeric", ops: RANGE },
     },
     sort: ["created_at", "quantity", "rate", "amount", "budget_percentage"],
   },
@@ -215,4 +220,216 @@ export const RECORD_KINDS: readonly RecordKindDef[] = [
     omitWhenHidden: ["params", "result"],
   },
   { kind: "people", moneyColumns: [], fields: { role: TEXT_EQ_IN }, sort: ["name"] },
+
+  // ---- BUILD-002 WP-06 (drizzle/0643_build002_record_kinds.sql): the Tier-1 kinds a project manager reads besides the 13 above. ----
+  // The table, the scope and the column list of each are in that migration. A money column is NULL below rank 3 and can be neither
+  // filtered nor sorted for such a role; a sort field is a NOT NULL column (the keyset cursor compares it as a row).
+  {
+    kind: "rfis",
+    moneyColumns: [],
+    fields: {
+      status: TEXT_EQ_IN,
+      ball_in_court: TEXT_EQ_IN,
+      assigned_to_id: TEXT_EQ_IN,
+      due_date: { type: "date", ops: RANGE },
+      number: { type: "numeric", ops: RANGE },
+    },
+    sort: ["number", "created_at"],
+  },
+  {
+    kind: "submittals",
+    moneyColumns: [],
+    fields: {
+      status: TEXT_EQ_IN,
+      type: TEXT_EQ_IN,
+      due_date: { type: "date", ops: RANGE },
+      number: { type: "numeric", ops: RANGE },
+    },
+    sort: ["number", "created_at"],
+  },
+  {
+    kind: "punch_list",
+    moneyColumns: [],
+    fields: {
+      status: TEXT_EQ_IN,
+      priority: TEXT_EQ_IN,
+      trade: TEXT_EQ_IN,
+      assigned_to_id: TEXT_EQ_IN,
+      due_date: { type: "date", ops: RANGE },
+      number: { type: "numeric", ops: RANGE },
+    },
+    sort: ["number", "created_at"],
+  },
+  {
+    kind: "change_orders",
+    moneyColumns: ["cost_impact"],
+    fields: {
+      status: TEXT_EQ_IN,
+      trade: TEXT_EQ_IN,
+      number: { type: "numeric", ops: RANGE },
+      cost_impact: { type: "numeric", ops: RANGE },
+      schedule_impact_days: { type: "numeric", ops: RANGE },
+    },
+    sort: ["number", "created_at", "cost_impact", "schedule_impact_days"],
+  },
+  {
+    kind: "site_diaries",
+    moneyColumns: [],
+    fields: { diary_date: { type: "date", ops: RANGE } },
+    sort: ["diary_date", "created_at"],
+  },
+  {
+    kind: "site_instructions",
+    moneyColumns: [],
+    fields: {
+      issue_date: { type: "date", ops: RANGE },
+      si_number: { type: "numeric", ops: RANGE },
+      cost_impact: { type: "boolean", ops: ["eq"] },
+      time_impact: { type: "boolean", ops: ["eq"] },
+    },
+    sort: ["si_number", "issue_date", "created_at"],
+  },
+  {
+    kind: "milestones",
+    moneyColumns: [],
+    fields: { status: TEXT_EQ_IN, target_date: { type: "date", ops: RANGE } },
+    sort: ["name", "created_at"],
+  },
+  {
+    kind: "progress_claims",
+    moneyColumns: ["retention_percent", "customer_id", "interim_bill_id"],
+    fields: {
+      status: TEXT_EQ_IN,
+      boq_id: TEXT_EQ_IN,
+      scheduled_date: { type: "date", ops: RANGE },
+      retention_percent: { type: "numeric", ops: RANGE },
+      customer_id: TEXT_EQ_IN,
+    },
+    sort: ["scheduled_date", "created_at", "retention_percent"],
+  },
+  {
+    kind: "interim_bills",
+    moneyColumns: ["retention_percent", "gross_amount", "retention_amount", "net_payable", "retention_released_amount", "sales_invoice_id"],
+    fields: {
+      boq_id: TEXT_EQ_IN,
+      bill_number: { type: "numeric", ops: RANGE },
+      bill_date: { type: "date", ops: RANGE },
+      gross_amount: { type: "numeric", ops: RANGE },
+      net_payable: { type: "numeric", ops: RANGE },
+    },
+    sort: ["bill_number", "bill_date", "created_at", "gross_amount", "net_payable"],
+  },
+  {
+    kind: "materials",
+    moneyColumns: ["unit_cost"],
+    fields: {
+      name: { type: "text", ops: ["eq"] },
+      is_active: { type: "boolean", ops: ["eq"] },
+      unit_cost: { type: "numeric", ops: RANGE },
+    },
+    sort: ["name", "created_at", "unit_cost"],
+  },
+  {
+    kind: "material_receipts",
+    moneyColumns: ["unit_cost", "vendor_id"],
+    fields: {
+      material_id: TEXT_EQ_IN,
+      received_date: { type: "date", ops: RANGE },
+      quantity: { type: "numeric", ops: RANGE },
+      unit_cost: { type: "numeric", ops: RANGE },
+      vendor_id: TEXT_EQ_IN,
+    },
+    sort: ["received_date", "created_at", "quantity"],
+  },
+  {
+    kind: "material_issues",
+    moneyColumns: [],
+    fields: {
+      material_id: TEXT_EQ_IN,
+      boq_line_item_id: TEXT_EQ_IN,
+      issued_date: { type: "date", ops: RANGE },
+      quantity: { type: "numeric", ops: RANGE },
+    },
+    sort: ["issued_date", "created_at", "quantity"],
+  },
+  {
+    kind: "kpi_entries",
+    moneyColumns: ["target_value", "actual_value"],
+    fields: {
+      kpi_definition_id: TEXT_EQ_IN,
+      metric_name: TEXT_EQ_IN,
+      period: TEXT_EQ_IN,
+      approval_status: TEXT_EQ_IN,
+      actual_value: { type: "numeric", ops: RANGE },
+    },
+    sort: ["created_at", "period", "actual_value"],
+  },
+  {
+    kind: "expenses",
+    moneyColumns: ["amount", "description"],
+    fields: {
+      expense_head: TEXT_EQ_IN,
+      expense_date: { type: "date", ops: RANGE },
+      is_rework: { type: "boolean", ops: ["eq"] },
+      amount: { type: "numeric", ops: RANGE },
+    },
+    sort: ["expense_date", "created_at", "amount"],
+  },
+  {
+    kind: "drawings",
+    moneyColumns: [],
+    fields: {
+      drawing_no: TEXT_EQ_IN,
+      revision: TEXT_EQ_IN,
+      drawing_status: TEXT_EQ_IN,
+      discipline: TEXT_EQ_IN,
+      category: TEXT_EQ_IN,
+    },
+    sort: ["name", "created_at", "version_number"],
+  },
+  {
+    kind: "permits",
+    moneyColumns: [],
+    fields: {
+      permit_number: TEXT_EQ_IN,
+      permit_authority: TEXT_EQ_IN,
+      expiry_date: { type: "timestamptz", ops: ["gt", "lt"] },
+    },
+    sort: ["name", "created_at"],
+  },
+  {
+    kind: "meeting_minutes",
+    moneyColumns: [],
+    fields: {
+      status: TEXT_EQ_IN,
+      meeting_type: TEXT_EQ_IN,
+      scheduled_at: { type: "timestamptz", ops: ["gt", "lt"] },
+    },
+    sort: ["scheduled_at", "created_at"],
+  },
+  {
+    kind: "wiki_pages",
+    moneyColumns: [],
+    fields: { slug: TEXT_EQ_IN, title: { type: "text", ops: ["eq"] } },
+    sort: ["slug", "title", "updated_at"],
+  },
+  {
+    kind: "ffe_items",
+    moneyColumns: ["unit_cost", "unit_price", "vendor_id"],
+    fields: {
+      status: TEXT_EQ_IN,
+      category: TEXT_EQ_IN,
+      room_or_area: TEXT_EQ_IN,
+      unit_cost: { type: "numeric", ops: RANGE },
+      unit_price: { type: "numeric", ops: RANGE },
+      vendor_id: TEXT_EQ_IN,
+    },
+    sort: ["item_name", "created_at", "unit_cost", "unit_price"],
+  },
+  {
+    kind: "schedule_baselines",
+    moneyColumns: [],
+    fields: { name: { type: "text", ops: ["eq"] } },
+    sort: ["name", "created_at"],
+  },
 ]

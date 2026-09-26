@@ -26,6 +26,7 @@ Standard library only.
 import argparse
 import http.client
 import json
+import os
 import re
 import sys
 import time
@@ -51,7 +52,46 @@ READ_TOOL_NAMES = {"get_context", "list_records", "get_record", "get_history", "
 BUSINESS = ("intents", "submissions")
 
 
+# PACING. A link may make 120 calls a minute (spec section 4.1) and a run of this harness makes more than that against one link once the
+# manifest lists many record kinds (H24 alone reads every manifest read address, one per kind). So the harness keeps under the limit
+# itself: at most PACE_MAX calls to one link in any PACE_WINDOW seconds, waiting when it would go over. The defaults (100 in 60 seconds)
+# suit a live deployment and make a full run take a few minutes; a test that runs the handler on a faster clock shortens the window with
+# AWL_HARNESS_WINDOW_SECONDS. An answer of 429 despite this is waited out once (Retry-After, at most one window) and retried.
+PACE_MAX = int(os.environ.get("AWL_HARNESS_MAX_CALLS", "100"))
+PACE_WINDOW = float(os.environ.get("AWL_HARNESS_WINDOW_SECONDS", "60"))
+LINK_IN_URL_RE = re.compile(r"/pxa_[0-9a-f]{64}")
+_PACE = {}
+
+
+def _pace(url):
+    """Sleeps as long as one more call to this link would exceed PACE_MAX calls in PACE_WINDOW seconds."""
+    m = LINK_IN_URL_RE.search(url)
+    key = m.group(0) if m else "-" + urllib.parse.urlsplit(url).netloc
+    stamps = _PACE.setdefault(key, [])
+    while True:
+        now = time.monotonic()
+        stamps[:] = [t for t in stamps if now - t < PACE_WINDOW]
+        if len(stamps) < PACE_MAX:
+            stamps.append(now)
+            return
+        time.sleep(max(0.05, PACE_WINDOW - (now - stamps[0]) + 0.05))
+
+
 def call(method, url, headers=None, body=None, timeout=25):
+    """One HTTP request, no redirects followed, paced under the per-link limit. Returns (status, headers, raw, seconds)."""
+    for attempt in (0, 1):
+        _pace(url)
+        status, got, raw, seconds = _call_once(method, url, headers, body, timeout)
+        if status != 429 or attempt == 1 or method not in ("GET", "HEAD"):
+            return status, got, raw, seconds
+        try:
+            wait = float(got.get("retry-after", PACE_WINDOW))
+        except ValueError:
+            wait = PACE_WINDOW
+        time.sleep(min(wait, PACE_WINDOW) + 0.05)
+
+
+def _call_once(method, url, headers=None, body=None, timeout=25):
     """One HTTP request, no redirects followed. Returns (status, headers, raw, seconds)."""
     parts = urllib.parse.urlsplit(url)
     cls = http.client.HTTPSConnection if parts.scheme == "https" else http.client.HTTPConnection
