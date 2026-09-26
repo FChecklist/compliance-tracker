@@ -18,12 +18,13 @@
 // regressed real, already-shipped, already-verified functionality. Said so
 // here rather than silently deviating, per the work order's own instruction.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, type CombinedAuthContext } from "@/lib/supabase/auth-guard"
 import { resolveFinancialRole, resolvePipelineActor } from "@/lib/supabase/acting-role"
 import { assertKeyProjectScope, keyProjectScope } from "@/lib/supabase/api-key-auth"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { dispatchTool } from "@/lib/task-execution-engine"
 import { runSubmission } from "@/lib/pipeline/run-submission"
+import { parseChatAttachment, runChatAttachment } from "@/lib/pipeline/chat-attachment"
 
 const ALLOWED_CODE_REFERENCES = [
   "get_construction_project_dashboard",
@@ -52,6 +53,45 @@ const ALLOWED_CODE_REFERENCES = [
 // returns what the free tiers resolved and ran, with the sentence in
 // chatMessages, and this route answers it with 200. Real errors keep 400.
 
+/**
+ * PROJEXA-BUILD-002 WP-11 (AW-602, way 2): the attachment path of POST. It opens no transaction of its own: the orchestrator calls the
+ * executor, which opens its own short transactions one after another, so this must never be called from inside withTenantContext.
+ */
+async function postAttachment(ctx: CombinedAuthContext, request: NextRequest, body: Record<string, unknown>, orgId: string, actorId: string) {
+  const roleErr = requireRoleOrScope(ctx, "member", "write")
+  if (roleErr) return roleErr
+  // A project-scoped key acts on its own project only; this makes a NEW project, which no such key may do.
+  if (keyProjectScope(ctx.apiKey)) {
+    return NextResponse.json({ error: "A key for one project cannot create a new project" }, { status: 403 })
+  }
+  const attachment = parseChatAttachment(body.attachment)
+  if (!attachment.ok) {
+    return NextResponse.json({ error: "attachment must be {documentId, sha256?}", code: "attachment_invalid" }, { status: 400 })
+  }
+  try {
+    const { role: financialRole, personId } = await resolvePipelineActor(ctx, request, body)
+    const reply = await runChatAttachment({
+      orgId,
+      keyUserId: actorId,
+      personId,
+      role: financialRole,
+      rawInput: typeof body.rawInput === "string" ? body.rawInput : "",
+      attachment: attachment.attachment,
+      productId: typeof body.productId === "string" && body.productId.trim() ? body.productId.trim() : null,
+      projectName: typeof body.projectName === "string" && body.projectName.trim() ? body.projectName.trim() : null,
+      confirm: body.confirm === true,
+      acknowledgeQuestions: body.acknowledgeQuestions === true,
+      acknowledgeShortfall: body.acknowledgeShortfall === true,
+    })
+    // 201 only when a project was created; every other answer (questions, a proposal, a refusal) created nothing.
+    return NextResponse.json(reply, { status: reply.status === "created" ? 201 : 200 })
+  } catch (error) {
+    console.error("v1 projexa assistant attachment error:", error)
+    const message = error instanceof Error ? error.message : "Failed to read the attached file"
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -59,6 +99,11 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json()
   const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+
+  // PROJEXA-BUILD-002 WP-11 (AW-602, way 2): a chat message that carries an uploaded workbook. Checked BEFORE the rawInput path so a
+  // message with an attachment is never sent through the text pipeline: the attachment, not the words, decides the function
+  // (create_project_from_document, level 2), see pipeline/chat-attachment.ts.
+  if (body.attachment !== undefined) return postAttachment(ctx, request, body, ctx.orgId, actorId)
 
   // New pipeline path (R42 seq14).
   if (typeof body.rawInput === "string") {

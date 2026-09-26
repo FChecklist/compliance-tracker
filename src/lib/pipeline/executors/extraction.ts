@@ -33,6 +33,7 @@ import {
   createProjectFromDocument,
   type CreateFromDocumentInput,
   type CreateFromDocumentResult,
+  type EdgeCaller,
 } from "@/lib/services/document-extraction-service"
 import { ExtractionRejectedError, ProjectCreatedUnlinkedError, ProjectCreatedWithoutBoqError, WORKBOOK_LIMITS } from "@/lib/services/document-extraction-schema"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
@@ -58,7 +59,7 @@ export type ExtractionExecutorDeps = {
 
 const str = (value: unknown): string | undefined => (typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined)
 
-async function readStoredDocument(task: ExecutableTask, documentId: string): Promise<StoredWorkbook | "not_found" | "not_usable"> {
+export async function readStoredDocument(task: ExecutableTask, documentId: string): Promise<StoredWorkbook | "not_found" | "not_usable"> {
   const doc = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
     db.query.documents.findFirst({ where: and(eq(documents.id, documentId), eq(documents.orgId, task.orgId)) }),
   )
@@ -72,15 +73,28 @@ async function readStoredDocument(task: ExecutableTask, documentId: string): Pro
   return { fileName: doc.name, bytes: new Uint8Array(await data.arrayBuffer()) }
 }
 
+/**
+ * The executor's deps around a given model caller. The default is the Edge Function's caller (the model lives there, E-13). The
+ * internal chat (WP-11, pipeline/chat-attachment.ts) passes its own metered caller, so the same reader, gates, ledger and services run
+ * behind either model and only the transport of the model call differs.
+ */
+export function extractionDepsWith(callEdge: EdgeCaller): ExtractionExecutorDeps {
+  return {
+    readDocument: readStoredDocument,
+    run: (input) =>
+      createProjectFromDocument(input, {
+        callEdge,
+        ledger: createDbProjectSourceLedger({ orgId: input.orgId, actorId: input.actorId }),
+        createProject,
+        createBoq,
+      }),
+  }
+}
+
 const defaultDeps: ExtractionExecutorDeps = {
   readDocument: readStoredDocument,
   run: (input) =>
-    createProjectFromDocument(input, {
-      callEdge: createEdgeExtractCaller({ baseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL, secret: process.env.PROJEXA_DOCUMENT_EXTRACT_SECRET }),
-      ledger: createDbProjectSourceLedger({ orgId: input.orgId, actorId: input.actorId }),
-      createProject,
-      createBoq,
-    }),
+    extractionDepsWith(createEdgeExtractCaller({ baseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL, secret: process.env.PROJEXA_DOCUMENT_EXTRACT_SECRET })).run(input),
 }
 
 function refuse(failure: ReturnType<typeof pipelineFailure>): ExecutionOutcome {
