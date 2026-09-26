@@ -40,6 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session; BUILD-002 AI work completion; clean docs worktree C:/ct/ct-claims-update, build worktrees under C:/ct/ct-worktrees/)"
+    claimed_at: "2026-09-26T15:00Z (this session)"
+    claim: |
+      SCOPE (owner instruction 2026-09-26 in chat: "build 3 and 2 now, prepare 1 ... find the gaps, review it again, make document, than work as per the document"): BUILD-002 completes what the 198 points of BUILD-001 did not deliver: a user can upload the ZOOMIES data and software (Level 0) plus AI (Level 1, internal or external through the AI work link) create and manage the project. Plan: ai-os/projexa-build-002/00_PLAN_AI_WORK_COMPLETION.md; register: ai-os/projexa-build-002/ACCEPTANCE_REGISTER.csv (ids AW-nnn; BOOLEAN_REGISTER.csv of BUILD-001 is unchanged).
+      Files this claim will touch over its work packages (each package is its own PR):
+        - ai-os/projexa-build-002/**, scripts/verify/build002-register-check.mjs, scripts/verify/*-zoomies.sh, scripts/verify/persona-*.sh (WP-00, WP-14, WP-15)
+        - src/lib/ingest/** and src/app/api/v1/projexa/scope/import/** (WP-01), src/lib/services/document-extraction-*.ts and supabase/functions/projexa-document-extract/** (WP-02)
+        - src/lib/pipeline/function-registry.ts, executor.ts (and the split executor-link.ts), run-submission.ts, classify.ts, scripts/gen-ai-link-registry.* and the generated link files (WP-03 to WP-07, WP-09)
+        - supabase/functions/ai-work-link/** (mint, drafts, actions, confirm, manual), supabase/functions/ai-work-link-exec/** (new, deployed later by the PM, switch OFF), projexa-link-pages/** (WP-08, WP-09)
+        - drizzle/06xx migrations: the next free numbers at build time, for the new ai_work_link_* SQL functions (claim, finish, live, draft state, mint variants) and compliance.submissions.via / ai_link_id (columns only); each with a down file and a rollback rehearsal; schema.ts columns
+        - projexa repo (FChecklist/projexa): ProjectWorkspaceClient / M24Shell dialog, upload-new-project screen, proposals page, chat attachment (WP-08, WP-10, WP-11)
+        - src/app/api/v1/projexa/assistant/**, resend-inbound and email-intelligence services, scheduler bridge and prepared-proposals (WP-11 to WP-13)
+      NOT touching: DPDP-owned objects (dpdp_*, dpdp-* Edge Functions and cron jobs, the DPDP Cloudflare Pages project), Vercel settings or deployments, DNS, any secret or credential value, the owner-only actions listed in the plan section 7.
+      Overlap noted: the BUILD-001 claims below (PM session, units U-44 and phases 4/5 addenda) cover the read half of the link, static pages, scheduler bridge and extraction; BUILD-002 extends those files only where the plan names it, after those PRs merged. src/lib/ai-links/project-scope.ts is untracked in another session's working tree in C:/ct/ct and is not touched here.
+      Commits are local to worktrees; the PM verifies, pushes and merges on green CI (never --admin).
   - session_label: "claude-code (engineer agent for the PROJEXA PROJECT MANAGER, BUILD-001 unit U-44; worktrees C:/ct/ct-worktrees/b001-u49 branch feat/build-001-u44-retire-dups and C:/ct/projexa-worktrees/b001-u26 branch feat/build-001-u44-retire-m4) -- retire the duplicate AI link mechanisms M4/M5 (BR-587) and the shared link helper copies (BR-481) [IN PROGRESS]"
     claimed_at: "2026-09-26 (this session)"
     claim: |
