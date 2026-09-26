@@ -7,6 +7,9 @@
 // (PGlite's own superuser bypasses them, as the U-27 harness already notes) and the doc_uid immutability trigger (the ledger never
 // changes doc_uid).
 //
+// BUILD-002 WP-02: source_object here also has job_state, job_result and the job_state CHECK, the columns that drizzle/0646 adds
+// (document-extraction-job-migration.pglite.test.ts applies that file to the live definition and holds the two equal).
+//
 // As in U-27, only withTenantContext is replaced (by a double that opens one real PGlite transaction per call and refuses nesting),
 // so the real createProject(), createBoq() and ledger statements run against real SQL.
 import { createBoqPglite } from "./boq-keyset-pglite"
@@ -24,7 +27,7 @@ CREATE TABLE compliance.products (
 );
 `
 
-const SOURCE_OBJECT_SQL = `
+export const SOURCE_OBJECT_BASE_SQL = `
 CREATE TABLE compliance.source_object (
   id text PRIMARY KEY,
   org_id text NOT NULL,
@@ -63,11 +66,20 @@ CREATE TABLE compliance.source_object (
 CREATE UNIQUE INDEX source_object_org_sha256_unique ON compliance.source_object USING btree (org_id, sha256) WHERE (deleted_at IS NULL);
 `
 
-/** The U-27 harness plus products and source_object. Same return shape as createBoqPglite(). */
+/** What drizzle/0646 adds to source_object, as a plain ALTER (the migration file is the same change, written idempotent). */
+export const SOURCE_OBJECT_JOB_SQL = `
+ALTER TABLE compliance.source_object ADD COLUMN job_state text;
+ALTER TABLE compliance.source_object ADD COLUMN job_result jsonb;
+ALTER TABLE compliance.source_object ADD CONSTRAINT source_object_job_state_check
+  CHECK (job_state IS NULL OR job_state = ANY (ARRAY['received','reading','needs_answers','ready','created','rejected']));
+`
+
+/** The U-27 harness plus products and source_object (with the 0646 columns). Same return shape as createBoqPglite(). */
 export async function createExtractionPglite() {
   const h = await createBoqPglite()
   await h.pg.exec(PRODUCTS_SQL)
-  await h.pg.exec(SOURCE_OBJECT_SQL)
+  await h.pg.exec(SOURCE_OBJECT_BASE_SQL)
+  await h.pg.exec(SOURCE_OBJECT_JOB_SQL)
   return h
 }
 

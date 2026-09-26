@@ -866,6 +866,30 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       primaryLabel: "Save activity",
     },
   },
+  // PROJEXA-BUILD-002 WP-02 (AW-115 family): a NEW project and its BOQ from an uploaded workbook, through the same service the
+  // from-document route uses (document-extraction-service.ts createProjectFromDocument). It needs no project (it makes one), so it
+  // is on NO project link: a link is bound to one project (executors/extraction.ts says why). It is a write with a money baseline, so
+  // the pipeline treats it as a proposal a person confirms (level 2); a job with open questions answers with them instead of creating.
+  {
+    functionId: "create_project_from_document",
+    label: "New project from a workbook",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: false,
+    requiredParams: [
+      { name: "documentId", label: "Document", code: "VALUE_REQUIRED", field: "value" },
+      { name: "productId", label: "Product", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "documentId", label: "Document", type: "text", required: true },
+        { key: "productId", label: "Product", type: "text", required: true },
+        { key: "name", label: "Project name", type: "text", required: false },
+      ],
+      primaryLabel: "Create project",
+    },
+  },
 ];
 
 const SPECS: Readonly<Record<string, FunctionSpec>> = Object.fromEntries(SPEC_LIST.map((s) => [s.functionId, s]));

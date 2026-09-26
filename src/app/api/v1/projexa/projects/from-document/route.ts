@@ -1,20 +1,41 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { createProject, ServiceError } from "@/lib/services/construction-dashboard-service"
 import { createBoq } from "@/lib/services/construction-boq-service"
 import {
-  createProjectFromDocument,
   createDbProjectSourceLedger,
   createEdgeExtractCaller,
+  getProjectSourceJob,
+  runExtractionJob,
+  startExtractionJob,
+  type CreateFromDocumentDeps,
+  type CreateFromDocumentInput,
+  type CreateFromDocumentResult,
 } from "@/lib/services/document-extraction-service"
 import { ExtractionRejectedError, MAX_REQUEST_BODY_BYTES, ProjectCreatedUnlinkedError, ProjectCreatedWithoutBoqError, WORKBOOK_LIMITS } from "@/lib/services/document-extraction-schema"
 
 // PROJEXA-BUILD-001 U-37 (PMD-03, register rows BR-507 and BR-508): create a project and its BOQ from an uploaded xlsx workbook.
 //
 // multipart/form-data: `file` (the .xlsx workbook, at most 5 MB), `productId` (the product the project belongs to, as for the plain
-// project-create route), optional `name` (replaces the project name the extraction found).
+// project-create route), optional `name` (replaces the project name the extraction found). BUILD-002 WP-02 adds three optional
+// fields and one query parameter:
+//   acknowledgeQuestions=true   the person has seen the open questions and wants the project created without those lines
+//   acknowledgeShortfall=true   the person has seen that the lines add up to less than the file prints and wants the BOQ as it is
+//                               (never covers a total that is too high)
+//   mode=prepare                read and check the file and stop (state ready or needs_answers); the default creates
+//   ?async=1                    answer 202 as soon as the file is claimed and run the job after the response
 //
-//   201 {duplicate:false, projectId, project, boq, extraction:{sheets,rows,lines}}   a project and BOQ were created
+// The ledger row of the file is the JOB RECORD, with the state received, reading, needs_answers, ready, created or rejected
+// (document-extraction-service.ts, ledger notes). A job with open questions waits in needs_answers; a second submit of the same file
+// finishes it with no second model call. GET ?jobId=<id> (the id a 202 or a 200 pending answer returned) or ?sha256=<hex> reads a job.
+//
+//   201 {duplicate:false, state:"created", projectId, project, boq, extraction:{sheets,rows,lines}, questions, reconciliation}
+//                                                                                     a project and BOQ were created
+//   200 {duplicate:false, state:"needs_answers"|"ready", jobId, questions, reconciliation, extraction}
+//                                                                                     nothing was created: the job waits for a person
+//                                                                                     (or for the create call, in mode prepare)
+//   202 {state, jobId}                                                                with ?async=1: the job runs after this answer; read it
+//                                                                                     with GET (state received, then the states above)
 //   200 {duplicate:true, projectId}                                                   this exact file was submitted before: the FIRST
 //                                                                                     project is returned and nothing is inserted
 //   429 {error, code:"extraction_rate_limited"} + Retry-After                         the organisation started too many extractions in the
@@ -70,6 +91,18 @@ async function readBodyWithinLimit(request: NextRequest): Promise<Uint8Array<Arr
   return body
 }
 
+/** The options of an upload beyond the file and the product: a name, the mode and the two acknowledgements. Null when the mode is neither create nor prepare. */
+function readOptions(form: FormData): Pick<CreateFromDocumentInput, "projectName" | "mode" | "acknowledgeQuestions" | "acknowledgeShortfall"> | null {
+  const mode = String(form.get("mode") ?? "create").trim()
+  if (mode !== "create" && mode !== "prepare") return null
+  return {
+    projectName: String(form.get("name") ?? "").trim() || undefined,
+    mode,
+    acknowledgeQuestions: String(form.get("acknowledgeQuestions") ?? "") === "true",
+    acknowledgeShortfall: String(form.get("acknowledgeShortfall") ?? "") === "true",
+  }
+}
+
 /** The multipart form of the request, or the 413 / 400 answer when the body is over the ceiling or is not multipart form data. */
 async function readUploadForm(request: NextRequest): Promise<{ form: FormData } | { response: NextResponse }> {
   const body = await readBodyWithinLimit(request)
@@ -79,6 +112,32 @@ async function readUploadForm(request: NextRequest): Promise<{ form: FormData } 
   } catch {
     return { response: NextResponse.json({ error: "The request body is not multipart form data", code: "invalid_form" }, { status: 400 }) }
   }
+}
+
+type Answer = CreateFromDocumentResult<Awaited<ReturnType<typeof createProject>>, Awaited<ReturnType<typeof createBoq>>>
+
+/** The HTTP answer for a finished run: the first project (200), a job that waits (200 with its state and questions), or a created project (201). */
+function answerFor(result: Answer): NextResponse {
+  if (result.duplicate) return NextResponse.json({ duplicate: true, projectId: result.projectId }, { status: 200 })
+  if (result.pending) {
+    return NextResponse.json(
+      { duplicate: false, state: result.state, jobId: result.jobId, questions: result.questions, reconciliation: result.reconciliation, extraction: result.extraction },
+      { status: 200 },
+    )
+  }
+  return NextResponse.json(
+    {
+      duplicate: false,
+      state: "created",
+      projectId: result.projectId,
+      project: result.project,
+      boq: result.boq,
+      extraction: result.extraction,
+      questions: result.questions,
+      reconciliation: result.reconciliation,
+    },
+    { status: 201 },
+  )
 }
 
 export async function POST(request: NextRequest) {
@@ -105,32 +164,77 @@ export async function POST(request: NextRequest) {
     if (file.size > WORKBOOK_LIMITS.maxBytes) {
       return NextResponse.json({ error: "The file is larger than 5 MB", code: "workbook_too_large" }, { status: 413 })
     }
-    const projectName = String(form.get("name") ?? "").trim()
+    const options = readOptions(form)
+    if (!options) return NextResponse.json({ error: "mode must be create or prepare", code: "invalid_mode" }, { status: 400 })
 
-    const result = await createProjectFromDocument(
-      {
-        orgId,
-        actorId: acting.person.id,
-        productId,
-        fileName: file.name || "upload.xlsx",
-        bytes: new Uint8Array(await file.arrayBuffer()),
-        projectName: projectName || undefined,
-      },
-      {
-        callEdge: createEdgeExtractCaller({
-          baseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-          secret: process.env.PROJEXA_DOCUMENT_EXTRACT_SECRET,
-        }),
-        ledger: createDbProjectSourceLedger({ orgId, actorId: acting.person.id }),
-        createProject,
-        createBoq,
-      },
-    )
-    if (result.duplicate) return NextResponse.json({ duplicate: true, projectId: result.projectId }, { status: 200 })
-    return NextResponse.json(
-      { duplicate: false, projectId: result.projectId, project: result.project, boq: result.boq, extraction: result.extraction },
-      { status: 201 },
-    )
+    const input: CreateFromDocumentInput = {
+      orgId,
+      actorId: acting.person.id,
+      productId,
+      fileName: file.name || "upload.xlsx",
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      ...options,
+    }
+    const deps: CreateFromDocumentDeps<Awaited<ReturnType<typeof createProject>>, Awaited<ReturnType<typeof createBoq>>> = {
+      callEdge: createEdgeExtractCaller({
+        baseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        secret: process.env.PROJEXA_DOCUMENT_EXTRACT_SECRET,
+      }),
+      ledger: createDbProjectSourceLedger({ orgId, actorId: acting.person.id }),
+      createProject,
+      createBoq,
+    }
+
+    // The claim comes first in both modes: a duplicate, a file already being processed and an organisation over its limit are answered
+    // here, before any work. With ?async=1 the answer is 202 as soon as the file is claimed and the job runs after the response.
+    const start = await startExtractionJob(input, deps)
+    if (start.kind === "duplicate") return NextResponse.json({ duplicate: true, projectId: start.projectId }, { status: 200 })
+    if (new URL(request.url).searchParams.get("async") === "1") {
+      after(async () => {
+        try {
+          await runExtractionJob(start, input, deps)
+        } catch (error) {
+          // The job's state is recorded (a refusal releases the claim with its reason; a created project stays linked). Only an
+          // unexpected fault is worth a log line here.
+          if (!(error instanceof ExtractionRejectedError)) console.error("v1 projexa project from document (async job):", error)
+        }
+      })
+      return NextResponse.json({ state: start.kind === "resume" ? start.state : "received", jobId: start.claimId }, { status: 202 })
+    }
+
+    return answerFor(await runExtractionJob(start, input, deps))
+  } catch (error) {
+    return failureResponse(error)
+  }
+}
+
+/**
+ * Reads one extraction job of the caller's organisation: by `jobId` (the id a 202 or a pending answer returned) or by `sha256` (the
+ * hash of the file). Answers the state, and for a job that waits its questions and reconciliation, for a created one its project,
+ * for a refused one the code and the reason. The stored lines are not returned (the BOQ shows them once created). Same auth as POST.
+ */
+export async function GET(request: NextRequest) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  const roleErr = requireRoleOrScope(ctx, "member", "read")
+  if (roleErr) return roleErr
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  if (ctx.apiKey?.keyKind === "project_ai") {
+    return NextResponse.json({ error: "A project key is held to its own project and cannot read an extraction job", code: "project_key_not_allowed" }, { status: 403 })
+  }
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+
+  try {
+    const params = new URL(request.url).searchParams
+    const jobId = (params.get("jobId") ?? "").trim()
+    const sha256 = (params.get("sha256") ?? "").trim().toLowerCase()
+    if (!jobId && !/^[0-9a-f]{64}$/.test(sha256)) {
+      return NextResponse.json({ error: "Give jobId, or the 64-character sha256 of the file", code: "job_reference_required" }, { status: 400 })
+    }
+    const job = await getProjectSourceJob({ orgId: ctx.orgId, actorId: acting.person.id }, jobId ? { jobId } : { contentSha256: sha256 })
+    if (!job) return NextResponse.json({ error: "No such extraction job", code: "job_not_found" }, { status: 404 })
+    return NextResponse.json(job, { status: 200 })
   } catch (error) {
     return failureResponse(error)
   }
