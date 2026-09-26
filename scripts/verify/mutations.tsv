@@ -40,3 +40,11 @@ p5-u36-cell-hidden-chars	src/lib/services/document-extraction-service.ts	return 
 p5-u37-idempotency-lookup	src/lib/services/document-extraction-service.ts	eq(sourceObject.sha256, key)	eq(sourceObject.sha256, args.contentSha256)	bun test --isolate src/app/api/v1/projexa/projects/from-document/route.test.ts
 p5-u38-drawing-no-supersede	src/lib/services/document-service.ts	.set({ metadata: { ...previousMeta, status: "superseded" } })	.set({ metadata: { ...previousMeta } })	bun test --isolate src/lib/pipeline/executor-traps.test.ts
 p5-u40-secret-not-compared	src/app/api/internal/scheduler-bridge/run/route.ts	return timingSafeEqual(digest(presented), digest(secret))	return presented.length > 0	bun test --isolate src/app/api/internal/scheduler-bridge/run/route.test.ts
+
+# ---- BUILD-002 WP-01 (AW-104): run by scripts/verify/mutation-run.sh <name> ----
+#
+# multisheet-no-reconcile (AW-104): the reconcile() call in readMultisheetBills() (src/lib/ingest/multisheet-bill-reader.ts) is
+# replaced by a stub that says reconciled with no totals and no differences, so the reader stops comparing its lines with the
+# bill subtotals, the area totals, the grand total and VAT the workbook prints and still reports a match. multisheet-bill-reader.test.ts
+# must fail: the grand total no longer reads 1,596,280 against a declared 1,596,280, and a tampered quantity is no longer reported.
+multisheet-no-reconcile	src/lib/ingest/multisheet-bill-reader.ts	const recon = reconcile(billList, lumpSums, areaSummaries, main, rowDiffs)	const recon: Reconciliation = { totals: { byBill: [], byArea: [], grand: { computed: 0, declared: null, reconciled: true }, vat: null, checks: 0 }, diffs: [], reconciled: true }	bun test --isolate src/lib/ingest/multisheet-bill-reader.test.ts
