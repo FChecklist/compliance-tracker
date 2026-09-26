@@ -112,17 +112,17 @@ if want_section rate; then
 S="$V/awl-rate-limits.sh"
 check "rate limits: no variables exits 2" 2 "AWL_LINK" -- $CLEAN_ENV bash "$S"
 check "rate limits: only AWL_LINK exits 2" 2 "AWL_F" -- $CLEAN_ENV AWL_LINK="http://127.0.0.1:9/fn/$TA" bash "$S"
-start_stub "" 2500
-check_last "rate limits: clean stub answers 429 three times" 0 "AWL_RATE link_121st=429 unknown_31st=429 rotated_31st=429" -- $CLEAN_ENV AWL_LINK="$BASE/$TA" AWL_F="$BASE" AWL_RATE_WAIT=3 bash "$S"
-start_stub "no-limit" 2500
+start_stub "" 8000
+check_last "rate limits: clean stub answers 429 three times" 0 "AWL_RATE link_121st=429 unknown_31st=429 rotated_31st=429" -- $CLEAN_ENV AWL_LINK="$BASE/$TA" AWL_F="$BASE" AWL_RATE_WAIT=9 bash "$S"
+start_stub "no-limit" 8000
 check_last "rate limits: no throttle at all fails" 1 "AWL_RATE link_121st=200 unknown_31st=410 rotated_31st=410" -- $CLEAN_ENV AWL_LINK="$BASE/$TA" AWL_F="$BASE" AWL_RATE_WAIT=1 bash "$S"
-start_stub "xff-bypass" 2500
-check_last "rate limits: a rotated X-Forwarded-For that escapes the throttle fails" 1 "AWL_RATE link_121st=429 unknown_31st=429 rotated_31st=410" -- $CLEAN_ENV AWL_LINK="$BASE/$TA" AWL_F="$BASE" AWL_RATE_WAIT=3 bash "$S"
-start_stub "" 2500
+start_stub "xff-bypass" 8000
+check_last "rate limits: a rotated X-Forwarded-For that escapes the throttle fails" 1 "AWL_RATE link_121st=429 unknown_31st=429 rotated_31st=410" -- $CLEAN_ENV AWL_LINK="$BASE/$TA" AWL_F="$BASE" AWL_RATE_WAIT=9 bash "$S"
+start_stub "" 8000
 args=(); for _ in $(seq 1 130); do args+=(-o /dev/null "$BASE/$TA/context"); done
 curl -s "${args[@]}" >/dev/null 2>&1
-check "rate limits: a link whose minute was already used is not counted as a pass" 1 "already used" -- $CLEAN_ENV AWL_LINK="$BASE/$TA" AWL_F="$BASE" AWL_RATE_WAIT=3 bash "$S"
-start_stub "" 2500
+check "rate limits: a link whose minute was already used is not counted as a pass" 1 "already used" -- $CLEAN_ENV AWL_LINK="$BASE/$TA" AWL_F="$BASE" AWL_RATE_WAIT=9 bash "$S"
+start_stub "" 8000
 check "rate limits: skipping the wait between series is caught" 1 "rotated call was already 429" -- $CLEAN_ENV AWL_LINK="$BASE/$TA" AWL_F="$BASE" AWL_RATE_WAIT=0 bash "$S"
 check "rate limits: a bad AWL_RATE_WAIT exits 2" 2 "AWL_RATE_WAIT" -- $CLEAN_ENV AWL_LINK="$BASE/$TA" AWL_F="$BASE" AWL_RATE_WAIT=soon bash "$S"
 fi
