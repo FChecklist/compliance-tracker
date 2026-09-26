@@ -1,0 +1,42 @@
+# PROJEXA-BUILD-001 BR-492: the two throttles of the universal AI work link, measured on the deployed Edge function from a GitHub runner.
+# Why a runner: the check needs 121 calls on one link inside one 60-second window. From the 8 GB development laptop each call takes about half a
+# second, so the window resets in the middle of the series and the 121st call proves nothing. A runner makes the calls several times faster.
+# Manual only (workflow_dispatch). It sends about 183 read requests and changes nothing. No Vercel, no deployment, no secret: the one input is a
+# throwaway link that the person running this made for the test and revokes afterwards.
+name: awl live rate limits (BR-492)
+
+on:
+  workflow_dispatch:
+    inputs:
+      link:
+        description: "Throwaway link URL made for this run (revoke it afterwards)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rate-limits:
+    name: awl-rate-limits.sh against the deployed function
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Mask the link in every log line
+        run: |
+          set -eu
+          tok="${AWL_INPUT_LINK##*/}"
+          echo "::add-mask::$tok"
+          echo "::add-mask::$AWL_INPUT_LINK"
+        env:
+          AWL_INPUT_LINK: ${{ inputs.link }}
+      - name: bash scripts/verify/awl-rate-limits.sh
+        run: |
+          set -eu
+          export AWL_LINK="$AWL_INPUT_LINK"
+          export AWL_F="${AWL_INPUT_LINK%/*}"
+          export AWL_RATE_WAIT=65
+          bash scripts/verify/awl-rate-limits.sh
+        env:
+          AWL_INPUT_LINK: ${{ inputs.link }}
