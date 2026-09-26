@@ -97,7 +97,7 @@ export type RegistryFunction = {
 
 const REGISTRY = FUNCTION_REGISTRY_JSON as unknown as RegistryFunction[]
 
-/** The functions any link may carry (link_level is not null): 52 of the 70 reviewed (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2 and the 18 of waves 3 and 4). */
+/** The functions any link may carry (link_level is not null): 73 of the 92 reviewed (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4 and the 21 of waves 5 and 6 with the exception-capture functions). */
 export const LINK_FUNCTIONS: ReadonlyArray<RegistryFunction> = REGISTRY.filter((f) => f.link_level !== null)
 
 export function functionDef(id: string): RegistryFunction | null {
@@ -177,6 +177,30 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   create_material: { name: "Sand, fine", unit: "cum", spec: "Zone II", unitCost: 1800 },
   void_material_receipt: { receiptId: "<id from records/material_receipts>", reason: "Wrong quantity keyed" },
   get_material_cost_report: { from: "2026-09-01", to: "2026-09-30", groupBy: "vendor" },
+  // BUILD-002 WP-05e wave 5: minutes of meeting, drawings, notes, material receipts and timesheet decisions
+  create_mom: { title: "Site meeting", scheduledAt: "2026-10-01T10:00:00Z", attendees: ["Asha", "Ravi"], minutes: "Slab pour agreed for Monday." },
+  update_mom_minutes: { meetingId: "<id from records/meeting_minutes>", minutes: "Slab pour agreed for Monday." },
+  add_meeting_action_item: { meetingId: "<id from records/meeting_minutes>", title: "Order the rubber tiles", dueDate: "2026-10-05" },
+  add_meeting_outcome: { meetingId: "<id from records/meetings>", notes: "Client accepted the mock-up." },
+  publish_mom: { meetingId: "<id from records/meeting_minutes>" },
+  create_drawing: { name: "AR-101 Ground floor plan", externalUrl: "https://example.com/AR-101-B.pdf", drawingNo: "AR-101", rev: "B" },
+  capture_artifact: { title: "Precedent", text: "Slab shuttering was left for 7 days." },
+  record_material_receipt: { materialId: "<id from records/materials>", quantity: 20, unitCost: 410, receivedDate: "2026-09-20" },
+  approve_timesheet: { timeEntryId: "<id from records/timesheets>" },
+  reject_timesheet: { timeEntryId: "<id from records/timesheets>", rejectionReason: "Hours do not match the task" },
+  // BUILD-002 WP-05f wave 6: exceptions, BOQ comparison, budget variance and schedule depth
+  get_project_exceptions: {},
+  compare_boq_revisions: { boqId: "<id from records/boqs>", againstBoqId: "<id from records/boqs>" },
+  get_project_budget_variance: { budgetId: "<budget id>", asOfDate: "2026-09-30" },
+  get_gantt_schedule: {},
+  compare_schedule_baseline: { baselineId: "<id from records/schedule_baselines>" },
+  capture_schedule_baseline: { name: "Baseline 2" },
+  update_task: { issueId: "<id from records/tasks>", title: "Joinery drawings v2", dueDate: "2026-10-10", completionPercentage: 40 },
+  // BUILD-002 AW-312: the facts the owner exception items detect
+  set_progress_drawing: { progressEntryId: "<id from records/progress>", drawingDocumentId: "<id from records/documents>" },
+  record_vendor_dispute: { description: "Tiles delivered short by 40 sqm", amountDisputed: 5000, boqLineItemId: "<id from records/boq_lines>" },
+  record_customer_complaint: { description: "Client says the flooring is uneven", category: "work_dispute", severity: "high" },
+  record_customer_approval: { boqId: "<id from records/boqs>", evidenceDocumentId: "<id from records/documents>", approvedOn: "2026-09-20" },
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

@@ -200,6 +200,8 @@ export function levelNote(ctx: LinkCtx, av: Availability): string {
 export type FunctionView = {
   id: string
   label: string
+  /** The registry module the function belongs to (scope, schedule, meetings ...): the manual groups the ids by it. */
+  module: string
   kind: "read" | "write"
   level: number
   /** A change function can be drafted or made; a read function can be run. The union of the three flags below. */
@@ -225,6 +227,7 @@ export function functionView(def: RegistryFunction, env: { ctx: LinkCtx; config:
   return {
     id: def.function_id,
     label: def.label,
+    module: def.module,
     kind: def.kind,
     level: def.link_level ?? 0,
     available: drafts || direct || reads,

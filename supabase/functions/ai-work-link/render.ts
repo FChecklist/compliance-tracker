@@ -43,14 +43,14 @@ export function recordMarkdown(doc: Record<string, unknown>): string {
 }
 
 export function functionsMarkdown(functions: FunctionView[], note: string): string {
-  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.kind} | ${f.level} | ${availableWord(f)} | ${f.required.join(", ") || "none"} |`)
+  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.module} | ${f.kind} | ${f.level} | ${availableWord(f)} | ${f.required.join(", ") || "none"} |`)
   return [
     "# Functions on this link",
     "",
     note,
     "",
-    "| Function | What it does | Kind | Level | Available | Required parameters |",
-    "| --- | --- | --- | --- | --- | --- |",
+    "| Function | What it does | Module | Kind | Level | Available | Required parameters |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
     "",
   ].join("\n")

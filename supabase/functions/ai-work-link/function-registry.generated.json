@@ -52,6 +52,99 @@
     ]
   },
   {
+    "function_id": "add_meeting_action_item",
+    "label": "Add an action item",
+    "module": "meetings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title"
+    ],
+    "declared_params": [
+      "assigneeUserId",
+      "dueDate",
+      "meetingId",
+      "projectId",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "meetingId",
+        "label": "Meeting",
+        "any_of": [
+          "meetingId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Action",
+        "any_of": [
+          "title"
+        ]
+      }
+    ],
+    "id_params": [
+      "assigneeUserId",
+      "meetingId"
+    ]
+  },
+  {
+    "function_id": "add_meeting_outcome",
+    "label": "Record a meeting outcome",
+    "module": "meetings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "notes"
+    ],
+    "declared_params": [
+      "meetingId",
+      "notes",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "meetingId",
+        "label": "Meeting",
+        "any_of": [
+          "meetingId"
+        ]
+      },
+      {
+        "name": "notes",
+        "label": "Outcome",
+        "any_of": [
+          "notes"
+        ]
+      }
+    ],
+    "id_params": [
+      "meetingId"
+    ]
+  },
+  {
     "function_id": "add_roster_entry",
     "label": "Add a worker",
     "module": "manpower",
@@ -184,6 +277,104 @@
     ]
   },
   {
+    "function_id": "approve_timesheet",
+    "label": "Approve a timesheet entry",
+    "module": "timesheets",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "timeEntryId"
+    ],
+    "required_params": [
+      {
+        "name": "timeEntryId",
+        "label": "Time entry",
+        "any_of": [
+          "timeEntryId"
+        ]
+      }
+    ],
+    "id_params": [
+      "timeEntryId"
+    ]
+  },
+  {
+    "function_id": "capture_artifact",
+    "label": "Save a note",
+    "module": "memory",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "text"
+    ],
+    "declared_params": [
+      "text",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      },
+      {
+        "name": "text",
+        "label": "Text",
+        "any_of": [
+          "text"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
+    "function_id": "capture_schedule_baseline",
+    "label": "Freeze the schedule baseline",
+    "module": "schedule",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "name"
+    ],
+    "declared_params": [
+      "name",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Baseline name",
+        "any_of": [
+          "name"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "close_rfi",
     "label": "Close an RFI",
     "module": "rfis",
@@ -216,6 +407,62 @@
     ],
     "id_params": [
       "rfiId"
+    ]
+  },
+  {
+    "function_id": "compare_boq_revisions",
+    "label": "Compare BOQ revisions",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "againstBoqId",
+      "boqId"
+    ],
+    "required_params": [
+      {
+        "name": "boqId",
+        "label": "BOQ version",
+        "any_of": [
+          "boqId"
+        ]
+      }
+    ],
+    "id_params": [
+      "againstBoqId",
+      "boqId"
+    ]
+  },
+  {
+    "function_id": "compare_schedule_baseline",
+    "label": "Compare with a schedule baseline",
+    "module": "schedule",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "baselineId"
+    ],
+    "required_params": [
+      {
+        "name": "baselineId",
+        "label": "Baseline",
+        "any_of": [
+          "baselineId"
+        ]
+      }
+    ],
+    "id_params": [
+      "baselineId"
     ]
   },
   {
@@ -435,6 +682,59 @@
     "id_params": []
   },
   {
+    "function_id": "create_drawing",
+    "label": "Add a drawing",
+    "module": "drawings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "externalUrl",
+      "drawingNo",
+      "rev",
+      "discipline",
+      "kind"
+    ],
+    "declared_params": [
+      "discipline",
+      "drawingNo",
+      "externalUrl",
+      "kind",
+      "name",
+      "projectId",
+      "rev",
+      "status"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name"
+        ]
+      },
+      {
+        "name": "externalUrl",
+        "label": "Link",
+        "any_of": [
+          "externalUrl"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_material",
     "label": "New material",
     "module": "materials",
@@ -559,6 +859,58 @@
         "label": "Title",
         "any_of": [
           "title"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
+    "function_id": "create_mom",
+    "label": "New minutes of meeting",
+    "module": "meetings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "minutes",
+      "meetingType",
+      "attendees",
+      "agenda"
+    ],
+    "declared_params": [
+      "actionItems",
+      "agenda",
+      "attendees",
+      "meetingType",
+      "minutes",
+      "projectId",
+      "scheduledAt",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      },
+      {
+        "name": "scheduledAt",
+        "label": "Date and time",
+        "any_of": [
+          "scheduledAt"
         ]
       }
     ],
@@ -1131,6 +1483,21 @@
     "id_params": []
   },
   {
+    "function_id": "get_gantt_schedule",
+    "label": "View the Gantt schedule",
+    "module": "schedule",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
     "function_id": "get_manpower_cost_report",
     "label": "View manpower cost",
     "module": "manpower",
@@ -1200,6 +1567,49 @@
     "id_params": []
   },
   {
+    "function_id": "get_project_budget_variance",
+    "label": "View budget against actual",
+    "module": "budget",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "asOfDate",
+      "budgetId"
+    ],
+    "required_params": [
+      {
+        "name": "budgetId",
+        "label": "Budget",
+        "any_of": [
+          "budgetId"
+        ]
+      }
+    ],
+    "id_params": [
+      "budgetId"
+    ]
+  },
+  {
+    "function_id": "get_project_exceptions",
+    "label": "View project exceptions",
+    "module": "reports",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
     "function_id": "get_project_schedule",
     "label": "View the schedule",
     "module": "schedule",
@@ -1234,6 +1644,50 @@
     "declared_params": [],
     "required_params": [],
     "id_params": []
+  },
+  {
+    "function_id": "link_roster_employee",
+    "label": "Link a roster entry to an employee",
+    "module": "manpower",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "An employee id is an organisation-wide HR record (personal data), not project data, so it cannot be checked against the link's project (spec 9.10, F-3). The internal pipeline runs it for a manager.",
+    "text_params": [],
+    "declared_params": [
+      "employeeId",
+      "projectId",
+      "rosterId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "rosterId",
+        "label": "Worker",
+        "any_of": [
+          "rosterId"
+        ]
+      },
+      {
+        "name": "employeeId",
+        "label": "Employee",
+        "any_of": [
+          "employeeId"
+        ]
+      }
+    ],
+    "id_params": [
+      "employeeId",
+      "rosterId"
+    ]
   },
   {
     "function_id": "list_billing_claims",
@@ -1510,6 +1964,41 @@
     ]
   },
   {
+    "function_id": "publish_mom",
+    "label": "Publish the minutes",
+    "module": "meetings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "meetingId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "meetingId",
+        "label": "Meeting",
+        "any_of": [
+          "meetingId"
+        ]
+      }
+    ],
+    "id_params": [
+      "meetingId"
+    ]
+  },
+  {
     "function_id": "record_attendance",
     "label": "Mark attendance",
     "module": "manpower",
@@ -1596,6 +2085,89 @@
     "id_params": []
   },
   {
+    "function_id": "record_customer_approval",
+    "label": "Record the customer's approval of a BOQ",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "approvedOn",
+      "boqId",
+      "evidenceDocumentId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "boqId",
+        "label": "BOQ version",
+        "any_of": [
+          "boqId"
+        ]
+      },
+      {
+        "name": "evidenceDocumentId",
+        "label": "Evidence document",
+        "any_of": [
+          "evidenceDocumentId"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqId",
+      "evidenceDocumentId"
+    ]
+  },
+  {
+    "function_id": "record_customer_complaint",
+    "label": "Record a customer complaint",
+    "module": "disputes",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "description",
+      "category"
+    ],
+    "declared_params": [
+      "category",
+      "description",
+      "projectId",
+      "severity"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "description",
+        "label": "Complaint",
+        "any_of": [
+          "description"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "record_material_issue",
     "label": "Issue material from site stock",
     "module": "materials",
@@ -1654,6 +2226,63 @@
     ]
   },
   {
+    "function_id": "record_material_receipt",
+    "label": "Record a material receipt",
+    "module": "materials",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "materialName",
+      "reference",
+      "notes",
+      "spec",
+      "unit"
+    ],
+    "declared_params": [
+      "materialId",
+      "materialName",
+      "notes",
+      "projectId",
+      "quantity",
+      "receivedDate",
+      "reference",
+      "spec",
+      "unit",
+      "unitCost"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "materialId",
+        "label": "Material",
+        "any_of": [
+          "materialId",
+          "materialName"
+        ]
+      },
+      {
+        "name": "quantity",
+        "label": "Quantity",
+        "any_of": [
+          "quantity"
+        ]
+      }
+    ],
+    "id_params": [
+      "materialId"
+    ]
+  },
+  {
     "function_id": "record_timesheet",
     "label": "Log time",
     "module": "schedule",
@@ -1701,6 +2330,45 @@
     ],
     "id_params": [
       "issueId"
+    ]
+  },
+  {
+    "function_id": "record_vendor_dispute",
+    "label": "Record a vendor dispute",
+    "module": "disputes",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "description"
+    ],
+    "declared_params": [
+      "amountDisputed",
+      "boqLineItemId",
+      "description",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "description",
+        "label": "What is disputed",
+        "any_of": [
+          "description"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqLineItemId"
     ]
   },
   {
@@ -1752,6 +2420,43 @@
     ],
     "id_params": [
       "boqLineItemId"
+    ]
+  },
+  {
+    "function_id": "reject_timesheet",
+    "label": "Return a timesheet entry",
+    "module": "timesheets",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "rejectionReason"
+    ],
+    "declared_params": [
+      "rejectionReason",
+      "timeEntryId"
+    ],
+    "required_params": [
+      {
+        "name": "timeEntryId",
+        "label": "Time entry",
+        "any_of": [
+          "timeEntryId"
+        ]
+      },
+      {
+        "name": "rejectionReason",
+        "label": "Reason",
+        "any_of": [
+          "rejectionReason"
+        ]
+      }
+    ],
+    "id_params": [
+      "timeEntryId"
     ]
   },
   {
@@ -1903,6 +2608,51 @@
     ]
   },
   {
+    "function_id": "set_progress_drawing",
+    "label": "Record the drawing a progress entry was built from",
+    "module": "work_progress",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "confirmed",
+      "drawingDocumentId",
+      "progressEntryId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "progressEntryId",
+        "label": "Progress entry",
+        "any_of": [
+          "progressEntryId"
+        ]
+      },
+      {
+        "name": "drawingDocumentId",
+        "label": "Drawing",
+        "any_of": [
+          "drawingDocumentId"
+        ]
+      }
+    ],
+    "id_params": [
+      "drawingDocumentId",
+      "progressEntryId"
+    ]
+  },
+  {
     "function_id": "update_line_item_budget",
     "label": "Set a line budget",
     "module": "budget",
@@ -1986,6 +2736,51 @@
     ],
     "id_params": [
       "milestoneId"
+    ]
+  },
+  {
+    "function_id": "update_mom_minutes",
+    "label": "Amend the minutes",
+    "module": "meetings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "minutes"
+    ],
+    "declared_params": [
+      "meetingId",
+      "minutes",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "meetingId",
+        "label": "Meeting",
+        "any_of": [
+          "meetingId"
+        ]
+      },
+      {
+        "name": "minutes",
+        "label": "Minutes",
+        "any_of": [
+          "minutes"
+        ]
+      }
+    ],
+    "id_params": [
+      "meetingId"
     ]
   },
   {
@@ -2113,6 +2908,56 @@
     ],
     "id_params": [
       "rosterId"
+    ]
+  },
+  {
+    "function_id": "update_task",
+    "label": "Update a task",
+    "module": "schedule",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "description"
+    ],
+    "declared_params": [
+      "assigneeIds",
+      "completionPercentage",
+      "description",
+      "dueDate",
+      "issueId",
+      "milestoneId",
+      "priority",
+      "projectId",
+      "startDate",
+      "statusId",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "issueId",
+        "label": "Task",
+        "any_of": [
+          "issueId"
+        ]
+      }
+    ],
+    "id_params": [
+      "assigneeIds",
+      "issueId",
+      "milestoneId",
+      "statusId"
     ]
   },
   {
