@@ -13,5 +13,9 @@ Deno.serve((req: Request) =>
     // BR-509: the owner has not named a model provider. While this is null every authenticated call answers 503 model_not_configured.
     // Wiring a provider means replacing null with a function that returns the model's reply text; nothing else in this file changes.
     model: null,
+    // U-36b (BR-526, PMD-43): the spend cap. The handler refuses every model call while this is null, so wiring a model without a
+    // ledger-backed budget cannot spend. Wiring one means passing a BudgetDeps from budget.ts (ledger over compliance.token_usage_ledger,
+    // provider, model, capUsd: parseCapUsd(Deno.env.get("PROJEXA_EXTRACT_BUDGET_CAP_USD")), resolveAttribution: attributionFromHeaders).
+    budget: null,
   }),
 )

@@ -37,6 +37,7 @@ import {
   validateExtractionOutput,
 } from "./document-extraction-schema"
 import { SHARED_SECRET } from "./__test-helpers__/document-extraction-fixtures"
+import { testBudget } from "./__test-helpers__/extract-budget-fixtures"
 
 const FUNCTION_DIR = new URL("../../../supabase/functions/projexa-document-extract/", import.meta.url)
 const source = (name: string) => readFileSync(new URL(name, FUNCTION_DIR), "utf8")
@@ -63,6 +64,7 @@ function deps(reply: string | (() => Promise<string>) = "{}", extra: Partial<Ext
   const d: ExtractDeps = {
     verifyCaller: async (req) => bearerMatches(req.headers.get("authorization"), SHARED_SECRET),
     model,
+    budget: testBudget(),
     log: (line) => state.logs.push(line),
     ...extra,
   }
@@ -145,8 +147,9 @@ describe("no model is configured (BR-509 is the owner's decision)", () => {
     expect(index).not.toContain("https://")
   })
 
-  test("handler.ts has no import at all, so it runs under Deno and under bun unchanged", () => {
-    expect(source("handler.ts")).not.toMatch(/^import /m)
+  test("handler.ts imports only ./budget.ts, and budget.ts has no import, so both run under Deno and under bun unchanged", () => {
+    expect(source("handler.ts").match(/^import .*$/gm)).toEqual(['import { reserveBudget, settleBudget, type BudgetDeps } from "./budget.ts"'])
+    expect(source("budget.ts")).not.toMatch(/^import /m)
   })
 })
 
