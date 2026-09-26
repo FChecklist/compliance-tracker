@@ -45,42 +45,52 @@ export type LogTokenUsageInput = {
   failureReason?: string | null
 }
 
+/**
+ * The ledger write itself, and it THROWS when the row cannot be written. logTokenUsage() below swallows that on purpose (a cost
+ * record must not fail the work it describes), which is right for spend that is only watched. A caller that must BILL what it spends
+ * (PROJEXA-BUILD-002 WP-11: the internal AI's model calls are re-billed to the customer, so a call with no row is a defect) uses this
+ * one and refuses to go on when it throws.
+ */
+export async function recordTokenUsage(input: LogTokenUsageInput): Promise<void> {
+  const estimatedCostUsd = estimateCostUsd(input.model, input.usage)
+  const cacheSavingsUsd = estimateCacheSavingsUsd(input.model, input.usage)
+  const costBreakdown = estimateCostBreakdownUsd(input.model, input.usage)
+  await db.insert(tokenUsageLedger).values({
+    scope: input.scope,
+    orgId: input.orgId ?? null,
+    userId: input.userId ?? null,
+    roleKey: input.roleKey ?? null,
+    layerKey: input.layerKey ?? null,
+    taskSummary: input.taskSummary?.slice(0, 300) ?? null,
+    provider: input.provider,
+    model: input.model,
+    promptTokens: input.usage.promptTokens,
+    completionTokens: input.usage.completionTokens,
+    estimatedCostUsd: estimatedCostUsd !== null ? String(estimatedCostUsd) : null,
+    cacheSavingsUsd: cacheSavingsUsd !== null ? String(cacheSavingsUsd) : null,
+    veridianId: input.veridianId ?? null,
+    veridianProductId: input.veridianProductId ?? null,
+    chatId: input.chatId ?? null,
+    taskId: input.taskId ?? null,
+    routeId: input.routeId ?? null,
+    sessionId: input.sessionId ?? null,
+    level: input.level ?? null,
+    aiRole: input.aiRole ?? null,
+    cacheReadTokens: input.usage.cacheReadTokens ?? null,
+    cacheCreationTokens: input.usage.cacheCreationTokens ?? null,
+    inputCost: costBreakdown !== null ? String(costBreakdown.inputCost) : null,
+    outputCost: costBreakdown !== null ? String(costBreakdown.outputCost) : null,
+    providerCostType: input.providerCostType ?? "METERED_API",
+    durationMs: input.durationMs ?? null,
+    success: input.success ?? true,
+    failureReason: input.failureReason ?? null,
+  })
+}
+
 /** Fire-and-forget-safe: caller decides whether to await or not. Never throws past a caught/logged failure. */
 export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
   try {
-    const estimatedCostUsd = estimateCostUsd(input.model, input.usage)
-    const cacheSavingsUsd = estimateCacheSavingsUsd(input.model, input.usage)
-    const costBreakdown = estimateCostBreakdownUsd(input.model, input.usage)
-    await db.insert(tokenUsageLedger).values({
-      scope: input.scope,
-      orgId: input.orgId ?? null,
-      userId: input.userId ?? null,
-      roleKey: input.roleKey ?? null,
-      layerKey: input.layerKey ?? null,
-      taskSummary: input.taskSummary?.slice(0, 300) ?? null,
-      provider: input.provider,
-      model: input.model,
-      promptTokens: input.usage.promptTokens,
-      completionTokens: input.usage.completionTokens,
-      estimatedCostUsd: estimatedCostUsd !== null ? String(estimatedCostUsd) : null,
-      cacheSavingsUsd: cacheSavingsUsd !== null ? String(cacheSavingsUsd) : null,
-      veridianId: input.veridianId ?? null,
-      veridianProductId: input.veridianProductId ?? null,
-      chatId: input.chatId ?? null,
-      taskId: input.taskId ?? null,
-      routeId: input.routeId ?? null,
-      sessionId: input.sessionId ?? null,
-      level: input.level ?? null,
-      aiRole: input.aiRole ?? null,
-      cacheReadTokens: input.usage.cacheReadTokens ?? null,
-      cacheCreationTokens: input.usage.cacheCreationTokens ?? null,
-      inputCost: costBreakdown !== null ? String(costBreakdown.inputCost) : null,
-      outputCost: costBreakdown !== null ? String(costBreakdown.outputCost) : null,
-      providerCostType: input.providerCostType ?? "METERED_API",
-      durationMs: input.durationMs ?? null,
-      success: input.success ?? true,
-      failureReason: input.failureReason ?? null,
-    })
+    await recordTokenUsage(input)
   } catch (err) {
     console.error("[token-usage] failed to log usage (non-fatal):", err)
   }
