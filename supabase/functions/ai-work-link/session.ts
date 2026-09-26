@@ -10,7 +10,7 @@
 //     project's key set;
 //   * aud containing "authenticated", exp in the future (5 seconds of tolerance), a sub that is a UUID, role "authenticated", and not an
 //     anonymous sign-in.
-// OUTCOMES: { ok: true, sub, email, issuer } | { ok: false, reason: "invalid" } (the handler answers 401) | { ok: false, reason: "unavailable" }
+// OUTCOMES: { ok: true, sub, email, issuer, iat } | { ok: false, reason: "invalid" } (the handler answers 401) | { ok: false, reason: "unavailable" }
 // (a key set could not be fetched or read; the handler answers 503, so an Auth outage is not reported as "your session is bad").
 // Nothing in this file logs or returns the token.
 //
@@ -36,7 +36,8 @@ export type JoseLike = {
   decodeJwt: (token: string) => Record<string, unknown>
 }
 
-export type SessionVerdict = { ok: true; sub: string; email: string | null; issuer: string } | { ok: false; reason: "invalid" | "unavailable" }
+/** `iat` is the token's issued-at time in seconds, or null when the token has none (the mint route treats null as stale). */
+export type SessionVerdict = { ok: true; sub: string; email: string | null; issuer: string; iat: number | null } | { ok: false; reason: "invalid" | "unavailable" }
 export type SessionVerifier = (token: string) => Promise<SessionVerdict>
 export type KeysByIssuer = Readonly<Record<string, KeyResolver>>
 
@@ -90,6 +91,7 @@ export function createSessionVerifier(deps: { jose: JoseLike; keys: KeysByIssuer
     if (payload.role !== "authenticated") return { ok: false, reason: "invalid" }
     if (payload.is_anonymous === true) return { ok: false, reason: "invalid" }
     const email = typeof payload.email === "string" && payload.email.trim() !== "" ? payload.email.trim() : null
-    return { ok: true, sub: sub.toLowerCase(), email, issuer }
+    const iat = typeof payload.iat === "number" && Number.isFinite(payload.iat) ? payload.iat : null
+    return { ok: true, sub: sub.toLowerCase(), email, issuer, iat }
   }
 }

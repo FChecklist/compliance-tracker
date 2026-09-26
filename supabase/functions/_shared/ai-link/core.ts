@@ -48,7 +48,7 @@ export const LIMITS = {
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 /** The first path segments that belong to the signed-in-person routes of section 3.4, never to a link. */
-export const APP_ROOTS: ReadonlyArray<string> = ["mint", "links", "warning", "drafts"]
+export const APP_ROOTS: ReadonlyArray<string> = ["mint", "links", "warning", "drafts", "new-project"]
 
 export type Target =
   | { kind: "link"; mode: "path"; token: string; rest: string[] }

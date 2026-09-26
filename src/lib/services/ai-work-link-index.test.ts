@@ -199,10 +199,10 @@ describe("static rules for the link's Edge code", () => {
     }
     const called = new Set<string>()
     for (const f of tsFiles()) for (const m of read(f).matchAll(/["'`](ai_work_link_[a-z_]+|ai_work_link__[a-z_]+)["'`]/g)) called.add(m[1])
-    // every name the Edge code calls is one drizzle/0624 to 0626 defines
-    const sql = ["0624_build001_awl_link_functions.sql", "0625_build001_awl_read_functions.sql", "0626_build001_awl_intent_functions.sql"].map((n) => read(join(ROOT, "drizzle", n))).join("\n")
+    // every name the Edge code calls is one drizzle/0624 to 0626 (or 0631, the mint variants) defines
+    const sql = ["0624_build001_awl_link_functions.sql", "0625_build001_awl_read_functions.sql", "0626_build001_awl_intent_functions.sql", "0631_build001_awl_mint_for.sql"].map((n) => read(join(ROOT, "drizzle", n))).join("\n")
     for (const name of called) expect(`${name} ${sql.includes(`public.${name}(`)}`).toBe(`${name} true`)
-    expect([...called].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_context", "ai_work_link_draft_confirm", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_record", "ai_work_link_records"])
+    expect([...called].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_context", "ai_work_link_draft_confirm", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_list_for", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_mint_for", "ai_work_link_new_project_for", "ai_work_link_record", "ai_work_link_records", "ai_work_link_revoke_for", "ai_work_link_warning_for"])
   })
 
   test("the service-role key is read in index.ts only, and no Deno global is used outside it", () => {

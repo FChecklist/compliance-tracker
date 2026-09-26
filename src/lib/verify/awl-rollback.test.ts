@@ -35,8 +35,8 @@ const row = (name: string, o: { h0?: string; h1?: string; h2?: string; sha?: str
 const logOf = (rows: string[]) => `# Rollback rehearsals\n\n## Log\n\n| migration | result | hashes | forward | time_utc | who |\n|---|---|---|---|---|---|\n${rows.join("\n")}\n`
 
 describe("the migration list", () => {
-  test("is exactly the eight link migrations, in number order", () => {
-    expect(listAwlMigrations(DRIZZLE)).toEqual(NAMES)
+  test("is exactly the nine link migrations, in number order (the eight of BUILD-001, then 0631 of BUILD-002)", () => {
+    expect(listAwlMigrations(DRIZZLE)).toEqual([...NAMES, "0631_build001_awl_mint_for"])
   })
 
   test("takes only build001_awl files: other migrations, down files and a look-alike are left out", () => {

@@ -29,6 +29,7 @@ import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, functionDef, matchEndpoint, type E
 import { renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
 import { handleConfirm } from "./confirm.ts"
 import { handleMcp, type McpReads } from "./mcp.ts"
+import { handleMint, isMintRoute } from "./mint.ts"
 import { buildOpenApi, buildSwagger } from "./openapi.ts"
 import {
   AwlError, checkChange, effectiveFunctionViews, fail, proposeChange, readContext, readHistory, readIntent, readRecord, readRecords, resolveLink,
@@ -85,6 +86,7 @@ const APP_ROUTES: ReadonlyArray<{ pattern: string[]; methods: string[] }> = [
   { pattern: ["links"], methods: ["GET"] },
   { pattern: ["links", ":id", "revoke"], methods: ["POST"] },
   { pattern: ["warning"], methods: ["GET", "POST"] },
+  { pattern: ["new-project"], methods: ["POST"] },
   { pattern: ["drafts", ":id", "preview"], methods: ["GET"] },
   { pattern: ["drafts", ":id", "confirm"], methods: ["POST"] },
 ]
@@ -109,6 +111,17 @@ async function appRoute(req: Request, route: string[], deps: AwlDeps): Promise<O
       return plain(500, "Something failed on our side. Try again in a minute.")
     }
     return json(done.status, done.body, done.headers)
+  }
+  if (deps.session && isMintRoute(route)) {
+    // mint.ts (BUILD-002 WP-08) answers its own 401s (with a stable code), so it reads the Authorization header itself
+    let made
+    try {
+      made = await handleMint(req, route, { rpc: deps.rpc, session: deps.session, config: deps.config, log: deps.log, now: deps.now })
+    } catch {
+      (deps.log ?? console.log)("ai-work-link: mint routes: unhandled error -> 500")
+      return plain(500, "Something failed on our side. Try again in a minute.")
+    }
+    return json(made.status, made.body, made.headers)
   }
   const bearer = /^Bearer[ ]+([^\s]+)$/i.exec((req.headers.get("authorization") ?? "").trim())
   if (!bearer || bearer[1].startsWith("pxa_")) return plain(401, "Sign in to PROJEXA and send your session token in the Authorization header.", "A link token is not a session.")
