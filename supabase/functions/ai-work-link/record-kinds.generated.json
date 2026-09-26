@@ -1,0 +1,503 @@
+[
+  {
+    "kind": "project",
+    "money_columns": [
+      "project_value",
+      "vat_rate_percent",
+      "retention_percent"
+    ],
+    "filters": {
+      "fields": {},
+      "sort": []
+    }
+  },
+  {
+    "kind": "boqs",
+    "money_columns": [
+      "contract_value_override"
+    ],
+    "filters": {
+      "fields": {
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "version": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "version",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "boq_lines",
+    "money_columns": [
+      "rate",
+      "amount",
+      "material_cost",
+      "labour_cost",
+      "equipment_cost",
+      "budget_percentage",
+      "vendor_amount",
+      "material_amount",
+      "manpower_amount",
+      "rate_project",
+      "rate_contract"
+    ],
+    "filters": {
+      "fields": {
+        "boq_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "item_code": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "category": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "quantity": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "rate": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "amount": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "budget_percentage": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "created_at",
+        "quantity",
+        "rate",
+        "amount",
+        "budget_percentage"
+      ]
+    }
+  },
+  {
+    "kind": "activities",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "category_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "name": {
+          "type": "text",
+          "ops": [
+            "eq"
+          ]
+        }
+      },
+      "sort": [
+        "name",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "progress",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "entry_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "activity_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "boq_line_item_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "percent_complete": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "entry_date",
+        "percent_complete",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "tasks",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "status_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "priority": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "assignee_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "number": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "due_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "completion_percentage": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "is_archived": {
+          "type": "boolean",
+          "ops": [
+            "eq"
+          ]
+        }
+      },
+      "sort": [
+        "number",
+        "priority",
+        "completion_percentage",
+        "created_at",
+        "updated_at"
+      ]
+    }
+  },
+  {
+    "kind": "meetings",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "scheduled_at": {
+          "type": "timestamptz",
+          "ops": [
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "scheduled_at",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "documents",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "category": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "name": {
+          "type": "text",
+          "ops": [
+            "eq"
+          ]
+        }
+      },
+      "sort": [
+        "name",
+        "created_at",
+        "version_number"
+      ]
+    }
+  },
+  {
+    "kind": "roster",
+    "money_columns": [
+      "daily_rate"
+    ],
+    "filters": {
+      "fields": {
+        "trade": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "is_active": {
+          "type": "boolean",
+          "ops": [
+            "eq"
+          ]
+        },
+        "daily_rate": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "name",
+        "created_at",
+        "daily_rate"
+      ]
+    }
+  },
+  {
+    "kind": "attendance",
+    "money_columns": [
+      "daily_cost"
+    ],
+    "filters": {
+      "fields": {
+        "attendance_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "roster_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "daily_cost": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "attendance_date",
+        "created_at",
+        "daily_cost"
+      ]
+    }
+  },
+  {
+    "kind": "timesheets",
+    "money_columns": [
+      "hourly_rate_snapshot",
+      "invoice_item_id"
+    ],
+    "filters": {
+      "fields": {
+        "spent_on": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "issue_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "user_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "activity_type": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "hours": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "hourly_rate_snapshot": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "spent_on",
+        "hours",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "pipeline_tasks",
+    "money_columns": [
+      "params",
+      "result"
+    ],
+    "filters": {
+      "fields": {
+        "function_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "ops": [
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "created_at",
+        "sequence",
+        "status"
+      ],
+      "omit_when_hidden": [
+        "params",
+        "result"
+      ]
+    }
+  },
+  {
+    "kind": "people",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "role": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        }
+      },
+      "sort": [
+        "name"
+      ]
+    }
+  }
+]
