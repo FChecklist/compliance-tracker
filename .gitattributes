@@ -37,3 +37,7 @@ drizzle/*.sql text eol=lf
 # -- keeps it from ever touching a code or JSON/YAML-config file, where a
 # textual union would produce a syntactically broken result (XU-08).
 ai-os/boss/ACTIVE-CLAIMS.yaml merge=union-registry
+
+# U-47b: the inline script of each static page of the AI work link is pinned by a sha256 in its Content-Security-Policy, so its
+# bytes must be LF on every checkout (a CRLF checkout would change the hash and the browser would refuse the script).
+projexa-link-pages/* text eol=lf
