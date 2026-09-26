@@ -54,6 +54,7 @@ import type { ActingActor } from "@/lib/supabase/auth-guard";
 import { missingParamsFor, type DryRunMissing } from "./dry-run";
 import { pipelineFailure, type PipelineFailure } from "./error-codes";
 import { functionLabel } from "./function-registry";
+import { sanitisePastedNote, sanitisePastedParams } from "./paste-back-text";
 import { classifySubmission } from "./classify";
 import { buildValidationContext, runDirectTask, type RunSubmissionResult } from "./run-submission";
 import { validate, type ValidationContext } from "./validate";
@@ -705,8 +706,11 @@ export function parsePasteBack(text: string): { ok: true; blocks: PastedBlock[] 
     if (!functionId) return rejected("function_missing", index);
     const params = parsed.params === undefined ? {} : parsed.params;
     if (!isPlainObject(params)) return rejected("params_not_object", index);
-    const note = typeof parsed.note === "string" && parsed.note.trim() !== "" ? parsed.note.trim().slice(0, NOTE_MAX_LENGTH) : null;
-    blocks.push({ functionId, params, note });
+    // Text a block carries is held to the link's text rules (paste-back-text.ts): control characters removed, backtick
+    // runs defused, and a value over 2,000 characters refused with 422 rather than cut.
+    const text = sanitisePastedParams(params);
+    if (!text.ok) return rejected(text.reason, index, text.detail);
+    blocks.push({ functionId, params: text.params, note: sanitisePastedNote(parsed.note, NOTE_MAX_LENGTH) });
   }
   return { ok: true, blocks };
 }
