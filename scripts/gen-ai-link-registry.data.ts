@@ -87,6 +87,37 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   update_line_item_budget: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: ["category"] },
   list_billing_claims: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
   get_billing_due_queue: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  // BUILD-002 WP-05c (wave 3, AW-303): RFIs, submittals, punch list, site diary. The route floor of every one of these is member; the two
+  // sign-offs (review_submittal, verify_punch_item_closed) are set to the manager rank, stricter than the route, so an AI never has more
+  // authority than the person has on screen. An answer to an RFI is a formal design answer, a review and a sign-off are approval
+  // decisions: all three are drafts the person confirms. Creating an RFI, a submittal, a punch list item or a diary entry, closing an RFI
+  // and marking a punch list item ready record a fact and are direct writes.
+  create_rfi: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["subject", "question"] },
+  answer_rfi: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: ["answer"] },
+  close_rfi: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  create_submittal: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "specSection"] },
+  review_submittal: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: ["comments"] },
+  create_punch_list_item: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["description", "location", "trade"] },
+  mark_punch_item_ready: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  verify_punch_item_closed: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
+  create_site_diary: {
+    linkLevel: 1, moneySensitive: false, minRank: 2,
+    textParams: ["weather", "workDone", "visitors", "issues", "instructions", "materialReceived", "remarks"],
+  },
+  // BUILD-002 WP-05d (wave 4, AW-304): progress, attendance, roster, materials. create_activity (above) is WP-07's. A daily rate and a unit
+  // cost are money inputs, so update_roster_entry and create_material are drafts (the precedent is add_roster_entry). Voiding a receipt
+  // reverses a ledger row and the cost report states costs: manager rank. update_progress_entry and record_attendance_batch are direct
+  // writes with no money input, but their answers carry a contract rate or a day cost (null below the manager rank), so they are marked
+  // money sensitive.
+  create_progress_category: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name"] },
+  update_progress_entry: { linkLevel: 1, moneySensitive: true, minRank: 2, textParams: ["remarks"] },
+  get_daily_progress_report: { linkLevel: 0, moneySensitive: false, minRank: 2, textParams: [] },
+  record_attendance_batch: { linkLevel: 1, moneySensitive: true, minRank: 2, textParams: [] },
+  update_roster_entry: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "trade", "skillLevel"] },
+  record_material_issue: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["issuedTo", "note"] },
+  create_material: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "unit", "spec"] },
+  void_material_receipt: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: ["reason"] },
+  get_material_cost_report: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
 }
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */

@@ -99,6 +99,51 @@
     "id_params": []
   },
   {
+    "function_id": "answer_rfi",
+    "label": "Answer an RFI",
+    "module": "rfis",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "answer"
+    ],
+    "declared_params": [
+      "answer",
+      "projectId",
+      "rfiId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "rfiId",
+        "label": "RFI",
+        "any_of": [
+          "rfiId"
+        ]
+      },
+      {
+        "name": "answer",
+        "label": "Answer",
+        "any_of": [
+          "answer"
+        ]
+      }
+    ],
+    "id_params": [
+      "rfiId"
+    ]
+  },
+  {
     "function_id": "apply_boq_import",
     "label": "Import a BOQ",
     "module": "scope",
@@ -136,6 +181,41 @@
     "id_params": [
       "documentId",
       "parentBoqId"
+    ]
+  },
+  {
+    "function_id": "close_rfi",
+    "label": "Close an RFI",
+    "module": "rfis",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "projectId",
+      "rfiId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "rfiId",
+        "label": "RFI",
+        "any_of": [
+          "rfiId"
+        ]
+      }
+    ],
+    "id_params": [
+      "rfiId"
     ]
   },
   {
@@ -355,6 +435,54 @@
     "id_params": []
   },
   {
+    "function_id": "create_material",
+    "label": "New material",
+    "module": "materials",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "unit",
+      "spec"
+    ],
+    "declared_params": [
+      "name",
+      "projectId",
+      "reorderLevel",
+      "spec",
+      "unit",
+      "unitCost"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name"
+        ]
+      },
+      {
+        "name": "unit",
+        "label": "Unit",
+        "any_of": [
+          "unit"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_meeting",
     "label": "New meeting",
     "module": "meetings",
@@ -437,6 +565,44 @@
     "id_params": []
   },
   {
+    "function_id": "create_progress_category",
+    "label": "New work category",
+    "module": "work_progress",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name"
+    ],
+    "declared_params": [
+      "name",
+      "parentCategoryId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name"
+        ]
+      }
+    ],
+    "id_params": [
+      "parentCategoryId"
+    ]
+  },
+  {
     "function_id": "create_project",
     "label": "New project",
     "module": "projects",
@@ -469,6 +635,99 @@
     "id_params": [
       "clientId",
       "productId"
+    ]
+  },
+  {
+    "function_id": "create_punch_list_item",
+    "label": "New punch list item",
+    "module": "punch_list",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "description",
+      "location",
+      "trade"
+    ],
+    "declared_params": [
+      "assignedToId",
+      "description",
+      "dueDate",
+      "location",
+      "priority",
+      "projectId",
+      "trade"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "description",
+        "label": "Description",
+        "any_of": [
+          "description"
+        ]
+      }
+    ],
+    "id_params": [
+      "assignedToId"
+    ]
+  },
+  {
+    "function_id": "create_rfi",
+    "label": "New RFI",
+    "module": "rfis",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "subject",
+      "question"
+    ],
+    "declared_params": [
+      "assignedToId",
+      "ballInCourt",
+      "dueDate",
+      "projectId",
+      "question",
+      "subject"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "subject",
+        "label": "Subject",
+        "any_of": [
+          "subject"
+        ]
+      },
+      {
+        "name": "question",
+        "label": "Question",
+        "any_of": [
+          "question"
+        ]
+      }
+    ],
+    "id_params": [
+      "assignedToId"
     ]
   },
   {
@@ -529,6 +788,55 @@
     ]
   },
   {
+    "function_id": "create_site_diary",
+    "label": "New site diary entry",
+    "module": "site_diary",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "weather",
+      "workDone",
+      "visitors",
+      "issues",
+      "instructions",
+      "materialReceived",
+      "remarks"
+    ],
+    "declared_params": [
+      "diaryDate",
+      "instructions",
+      "issues",
+      "labourCount",
+      "materialReceived",
+      "projectId",
+      "remarks",
+      "visitors",
+      "weather",
+      "workDone"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "diaryDate",
+        "label": "Diary date",
+        "any_of": [
+          "diaryDate"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_site_instruction",
     "label": "New site instruction",
     "module": "site_instructions",
@@ -586,6 +894,45 @@
     "id_params": [
       "boqId"
     ]
+  },
+  {
+    "function_id": "create_submittal",
+    "label": "New submittal",
+    "module": "submittals",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "specSection"
+    ],
+    "declared_params": [
+      "dueDate",
+      "projectId",
+      "specSection",
+      "title",
+      "type"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      }
+    ],
+    "id_params": []
   },
   {
     "function_id": "detect_construction_budget_schedule_risk",
@@ -741,6 +1088,31 @@
     "id_params": []
   },
   {
+    "function_id": "get_daily_progress_report",
+    "label": "View the daily progress report",
+    "module": "work_progress",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "date"
+    ],
+    "required_params": [
+      {
+        "name": "date",
+        "label": "Date",
+        "any_of": [
+          "date"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "get_designer_timesheet_report",
     "label": "View designer timesheet report",
     "module": "timesheets",
@@ -774,6 +1146,25 @@
       "dateFrom",
       "dateTo",
       "trade"
+    ],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_material_cost_report",
+    "label": "View the material cost report",
+    "module": "materials",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "from",
+      "groupBy",
+      "to"
     ],
     "required_params": [],
     "id_params": []
@@ -1057,6 +1448,41 @@
     "id_params": []
   },
   {
+    "function_id": "mark_punch_item_ready",
+    "label": "Mark a punch list item ready",
+    "module": "punch_list",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "itemId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "itemId",
+        "label": "Punch list item",
+        "any_of": [
+          "itemId"
+        ]
+      }
+    ],
+    "id_params": [
+      "itemId"
+    ]
+  },
+  {
     "function_id": "preview_boq_import",
     "label": "Preview a BOQ import",
     "module": "scope",
@@ -1126,6 +1552,105 @@
     ],
     "id_params": [
       "rosterId"
+    ]
+  },
+  {
+    "function_id": "record_attendance_batch",
+    "label": "Mark attendance for a sheet",
+    "module": "manpower",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "date",
+      "entries",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "date",
+        "label": "Date",
+        "any_of": [
+          "date"
+        ]
+      },
+      {
+        "name": "entries",
+        "label": "Workers",
+        "any_of": [
+          "entries"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
+    "function_id": "record_material_issue",
+    "label": "Issue material from site stock",
+    "module": "materials",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "issuedTo",
+      "note"
+    ],
+    "declared_params": [
+      "boqLineItemId",
+      "issuedDate",
+      "issuedTo",
+      "materialId",
+      "note",
+      "projectId",
+      "quantity"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "materialId",
+        "label": "Material",
+        "any_of": [
+          "materialId"
+        ]
+      },
+      {
+        "name": "quantity",
+        "label": "Quantity",
+        "any_of": [
+          "quantity"
+        ]
+      },
+      {
+        "name": "issuedDate",
+        "label": "Issue date",
+        "any_of": [
+          "issuedDate"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqLineItemId",
+      "materialId"
     ]
   },
   {
@@ -1243,6 +1768,52 @@
     "declared_params": [],
     "required_params": [],
     "id_params": []
+  },
+  {
+    "function_id": "review_submittal",
+    "label": "Review a submittal",
+    "module": "submittals",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "comments"
+    ],
+    "declared_params": [
+      "comments",
+      "projectId",
+      "status",
+      "submittalId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "submittalId",
+        "label": "Submittal",
+        "any_of": [
+          "submittalId"
+        ]
+      },
+      {
+        "name": "status",
+        "label": "Decision",
+        "any_of": [
+          "status"
+        ]
+      }
+    ],
+    "id_params": [
+      "submittalId"
+    ]
   },
   {
     "function_id": "run_named_report",
@@ -1418,6 +1989,51 @@
     ]
   },
   {
+    "function_id": "update_progress_entry",
+    "label": "Correct a progress entry",
+    "module": "work_progress",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "remarks"
+    ],
+    "declared_params": [
+      "activityId",
+      "boqLineItemId",
+      "entryDate",
+      "entryId",
+      "percentComplete",
+      "projectId",
+      "quantityDone",
+      "remarks"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "entryId",
+        "label": "Progress entry",
+        "any_of": [
+          "entryId"
+        ]
+      }
+    ],
+    "id_params": [
+      "activityId",
+      "boqLineItemId",
+      "entryId"
+    ]
+  },
+  {
     "function_id": "update_project",
     "label": "Update the project",
     "module": "projects",
@@ -1453,6 +2069,130 @@
     ],
     "id_params": [
       "clientId"
+    ]
+  },
+  {
+    "function_id": "update_roster_entry",
+    "label": "Change a worker",
+    "module": "manpower",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "trade",
+      "skillLevel"
+    ],
+    "declared_params": [
+      "dailyRate",
+      "isActive",
+      "name",
+      "projectId",
+      "rosterId",
+      "skillLevel",
+      "trade"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "rosterId",
+        "label": "Worker",
+        "any_of": [
+          "rosterId"
+        ]
+      }
+    ],
+    "id_params": [
+      "rosterId"
+    ]
+  },
+  {
+    "function_id": "verify_punch_item_closed",
+    "label": "Verify a punch list item closed",
+    "module": "punch_list",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "itemId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "itemId",
+        "label": "Punch list item",
+        "any_of": [
+          "itemId"
+        ]
+      }
+    ],
+    "id_params": [
+      "itemId"
+    ]
+  },
+  {
+    "function_id": "void_material_receipt",
+    "label": "Void a material receipt",
+    "module": "materials",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "reason"
+    ],
+    "declared_params": [
+      "projectId",
+      "reason",
+      "receiptId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "receiptId",
+        "label": "Receipt",
+        "any_of": [
+          "receiptId"
+        ]
+      },
+      {
+        "name": "reason",
+        "label": "Reason",
+        "any_of": [
+          "reason"
+        ]
+      }
+    ],
+    "id_params": [
+      "receiptId"
     ]
   }
 ]
