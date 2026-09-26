@@ -412,6 +412,19 @@ describe("the confirm token: hashed at rest, single use, tied to the draft, expi
   })
 })
 
+describe("KNOWN GAP in drizzle/0626 (found by U-47b, reported to the PM)", () => {
+  test("while writes are off, ai_work_link_draft_confirm answers not_enabled BEFORE it checks the person, so another person's session reads 503, not 403", async () => {
+    // Spec 9.5 says the endpoint runs every check and THEN answers 503. The SQL function reads the switch first, so the route cannot tell
+    // the owner from a stranger until writes are on, and BR-497's 403 half cannot pass on a live deployment before then. When the SQL is
+    // reordered this test will fail: change it to expect 403 NOT_YOUR_DRAFT and delete this notice.
+    const d = await draftFor("u-mgr")
+    await setWrites(false)
+    const stranger = await confirm(d.id, { token: await sign({ sub: AUTH.mem }), body: { confirmToken: d.token } })
+    expect([stranger.res.status, stranger.json.code]).toEqual([503, "WRITES_NOT_ENABLED"])
+    expect((await rowOf(d.id)).status).toBe("awaiting_confirmation")
+  })
+})
+
 // ---------------------------------------------------------------------------------------------------------------------------------- request
 describe("the request", () => {
   test("a missing, empty, non-string or over-long confirmToken, a body that is not JSON, and a JSON array are 400 after the session check", async () => {
