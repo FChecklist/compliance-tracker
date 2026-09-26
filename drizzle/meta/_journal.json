@@ -3222,6 +3222,13 @@
       "when": 1790086500000,
       "tag": "0641_build001_cron_crm_lead_followups",
       "breakpoints": true
+    },
+    {
+      "idx": 462,
+      "version": "7",
+      "when": 1790087000000,
+      "tag": "0642_build001_pipeline_schedules",
+      "breakpoints": true
     }
   ]
 }
