@@ -51,13 +51,24 @@ jobs:
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
         working-directory: projexa-checkout
+      - name: Live harness first (prints every check so a failure can be read)
+        run: |
+          set -u
+          mapfile -t L < <(printf '%s
+' "$AWL_LINKS" | grep -v '^[[:space:]]*$')
+          export AWL_LINK="${L[0]}" AWL_LINK_B="${L[1]}" AWL_LINK_M="${L[2]}" AWL_LINK_REVOKED="${L[3]}" AWL_LINK_DEMOTED="${L[4]}"
+          export AWL_F="${AWL_LINK%/*}" AWL_CURL_TIMEOUT=90
+          bash scripts/verify/awl-harness.sh readonly || true
+          sleep 75
+        env:
+          AWL_LINKS: ${{ inputs.awl_links }}
       - name: bash scripts/verify/phase-gate.sh 4
         run: |
           set -eu
           mapfile -t L < <(printf '%s\n' "$AWL_LINKS" | grep -v '^[[:space:]]*$')
           [ "${#L[@]}" -eq 5 ] || { echo "need exactly five links, got ${#L[@]}"; exit 2; }
           export AWL_LINK="${L[0]}" AWL_LINK_B="${L[1]}" AWL_LINK_M="${L[2]}" AWL_LINK_REVOKED="${L[3]}" AWL_LINK_DEMOTED="${L[4]}"
-          export AWL_F="${AWL_LINK%/*}"
+          export AWL_F="${AWL_LINK%/*}" AWL_CURL_TIMEOUT=90
           export PROJEXA_DIR="$GITHUB_WORKSPACE/projexa-checkout"
           bash scripts/verify/phase-gate.sh 4
         env:
