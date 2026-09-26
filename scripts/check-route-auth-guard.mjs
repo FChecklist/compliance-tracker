@@ -84,6 +84,13 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // structurally inapplicable here, not merely omitted.
   "src/app/api/internal/dispatch-completion-monitor/run/route.ts",
   //
+  // PROJEXA-BUILD-001 U-40 (2026-09-26): the last hop of the scheduler bridge (pg_cron -> Edge Function -> this route). A job that
+  // pg_cron starts has no Supabase session, so isAuthorized() in the file gates on `Authorization: Bearer
+  // ${SCHEDULER_BRIDGE_INTERNAL_SECRET}` (constant-time compare, fail closed when the secret is unset or short), checked directly in
+  // the route, the same class as the dispatch-completion-monitor entry above. It runs each due schedule as the schedule's owner and
+  // turns every write into a proposal. requireAuth() would be structurally inapplicable here.
+  "src/app/api/internal/scheduler-bridge/run/route.ts",
+  //
   // Deliberately token-based, not session-based -- validateSupportSessionToken()
   // gates on `Authorization: Bearer ss_...`, the same convention as
   // api-key-auth.ts's `Bearer vk_...` pattern, verified by reading the
