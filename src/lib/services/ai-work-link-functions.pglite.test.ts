@@ -241,6 +241,8 @@ describe("the auth-user variants (the four functions the spec marks 'authenticat
 
   test("ai_work_link_list shows only the caller's own links, newest first, with the active flag", async () => {
     await mint(A.mem, "proj-a", { level: 0, label: "older" })
+    // PGlite takes its clock from JavaScript (millisecond resolution): two mints in the same millisecond tie on created_at and the order is then arbitrary, which only happens in this test, not in native Postgres.
+    await new Promise((resolve) => setTimeout(resolve, 15))
     const newest = await mint(A.mem, "proj-a", { level: 1, label: "newest" })
     const list = (await one<{ r: J[] }>(db, "select public.ai_work_link_list($1::uuid, 'proj-a') r", [AUTH.mem])).r
     expect(list.length).toBeGreaterThanOrEqual(2)
