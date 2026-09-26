@@ -8,7 +8,7 @@
 // `pxa_` text at all, because an AI that cannot open URLs gets them pasted in and the token would land in that vendor's history.
 // FENCING. Every value from project data (person, project) sits inside a fenced data block cleaned by core.ts (section 5.4).
 import { DATA_CLOSING, LIMITS, cleanDeep, cleanText, fenceRows } from "../_shared/ai-link/core.ts"
-import { API_VERSION, ERRORS, KIND_NAMES, KIND_SUMMARY, LINK_FUNCTIONS, PLAIN_KINDS, PRODUCT, functionDef, kb } from "./api-definition.ts"
+import { API_VERSION, ERRORS, KIND_NAMES, KIND_SUMMARY, LINK_FUNCTIONS, PLAIN_KINDS, PRODUCT, kb } from "./api-definition.ts"
 import { availabilityOf, availableWord, levelNote, type AwlConfig, type FunctionView, type LinkCtx, type RecordsPage } from "./reads.ts"
 
 export type ManualInput = {
@@ -130,23 +130,20 @@ function functionTable(functions: FunctionView[]): string {
 }
 
 /**
- * The manual's catalogue (section F): one short line per module, the function ids in it and how each is called (r = a read, w1 = a change you may
- * make directly, w2 = a draft the person confirms). The label, the required parameters and an example of each function are one address away
- * (GET <base>/functions), so the manual does not print them: with 34 functions the full table was about 5 KB of the 20,000-byte budget (BUILD-002
- * WP-05a). The paste card, for an AI that cannot open addresses, keeps the full table (functionTable).
+ * The manual's catalogue (section F): one short row per function: the id, the kind (a read, or a change of level 1 or 2) and whether it is available now.
+ * The label, the required parameters and an example of each function are one address away (GET <base>/functions), so the manual does not print
+ * them: with 34 functions the full table was about 5 KB of the 20,000-byte budget (BUILD-002 WP-05a). The paste card, for an AI that cannot open
+ * addresses, keeps the full table (functionTable).
  */
 function functionCatalogue(functions: FunctionView[], base: string): string {
   if (functions.length === 0) return "No function is on this link."
-  const byModule = new Map<string, string[]>()
-  for (const f of functions) {
-    const module = functionDef(f.id)?.module ?? "other"
-    const mark = f.kind === "read" ? "r" : f.level === 2 ? "w2" : "w1"
-    byModule.set(module, [...(byModule.get(module) ?? []), `${f.id} (${mark})`])
-  }
+  const rows = functions.map((f) => `| ${f.id} | ${f.kind === "read" ? "read" : `change L${f.level}`} | ${availableWord(f)} |`)
   return [
     `Call a function by its id: a read at \`POST ${base}/functions/<id>\`, a change through \`/check\`, \`/drafts\` or \`/actions\` (section D). \`GET ${base}/functions\` gives each function's label, required parameters and an example (\`?format=json\` for JSON).`,
     "",
-    ...[...byModule.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([module, ids]) => `- ${module}: ${ids.join(", ")}`),
+    "| Function | Kind | Available |",
+    "| --- | --- | --- |",
+    ...rows,
   ].join("\n")
 }
 
