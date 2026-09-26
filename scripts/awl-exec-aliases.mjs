@@ -42,6 +42,7 @@ export const FILE_STUBS = {
   "src/lib/task-execution-engine.ts": { stub: "task-execution-engine.ts", why: "the read-only dispatch engine (mathjs, model calls): its functions are not link writes" },
   "src/lib/ingest/parser.ts": { stub: "ingest-parser.ts", why: "spreadsheet and PDF parsing for BOQ import: not a link function" },
   "src/lib/email.ts": { stub: "email.ts", why: "the email sender" },
+  "src/lib/officecli-client.ts": { stub: "officecli-client.ts", why: "the vendored docx/pptx reader (a spawned binary), reached through the document-extraction service of the create_project_from_document function, which is not on any link" },
   "src/lib/services/automation-rule-service.ts": {
     stub: "automation-rule-service.ts",
     why: "the fire-and-forget automation-rule trigger after a progress or labour write (PMD-45 R-E, gap G10): a link write skips it. The real trigger is an un-caught dynamic import that needs next/server, and an unhandled rejection can end an Edge isolate",
