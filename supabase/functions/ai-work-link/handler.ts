@@ -17,7 +17,8 @@
 //
 // NOT IN THIS UNIT (a later unit writes them; each answers with the section 4.3 shape and says so):
 //   POST /functions/{fn} and POST /actions: 503 "not switched on yet" once scope passes (no Edge executor: spike S-1), 501 if ever switched on early;
-//   POST /drafts: 501 after scope passes; the signed-in app routes (mint, links, warning, drafts/{id}/...): 401 with no session, else 501.
+//   POST /drafts: 501 after scope passes; the signed-in app routes (mint, links, warning, drafts/{id}/preview): 401 with no session, else 501.
+// BUILT IN U-47b: POST /drafts/{id}/confirm (confirm.ts), when index.ts wires the session verifier (session.ts).
 //
 // The token is never logged and never echoed: log lines carry a route name and a status only, and errorBody scrubs anything token-shaped.
 import {
@@ -26,12 +27,14 @@ import {
 } from "../_shared/ai-link/core.ts"
 import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, functionDef, matchEndpoint, type EndpointId } from "./api-definition.ts"
 import { renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
+import { handleConfirm } from "./confirm.ts"
 import { handleMcp, type McpReads } from "./mcp.ts"
 import { buildOpenApi, buildSwagger } from "./openapi.ts"
 import {
   AwlError, checkChange, effectiveFunctionViews, fail, proposeChange, readContext, readHistory, readIntent, readRecord, readRecords, resolveLink,
   searchRecords, fetchRecord, type AwlConfig, type LinkCtx, type ReadEnv, type Rpc,
 } from "./reads.ts"
+import type { SessionVerifier } from "./session.ts"
 import { contextMarkdown, functionsMarkdown, historyMarkdown, intentMarkdown, proposalMarkdown, recordMarkdown, recordsCsv, recordsMarkdown } from "./render.ts"
 
 export type { AwlConfig, Rpc } from "./reads.ts"
@@ -40,6 +43,10 @@ export type AwlDeps = {
   rpc: Rpc
   config: AwlConfig
   log?: (line: string) => void
+  /** Verifies a signed-in person's access token (session.ts). Without it every app route keeps its 401 / 501 answers (U-46b1). */
+  session?: SessionVerifier
+  /** Milliseconds since the epoch for the confirm route's per-person brake; the test passes its own clock. */
+  now?: () => number
 }
 
 const ALLOW_ALL = "GET, HEAD, POST, OPTIONS"
@@ -84,14 +91,25 @@ const APP_ROUTES: ReadonlyArray<{ pattern: string[]; methods: string[] }> = [
 
 /**
  * Routes for a signed-in person (section 3.4 app-route): a user session token in Authorization, no link token. With none the answer is a
- * plain 401 (these are not link-token routes, section 3.6, AWL-H18) and never a WWW-Authenticate challenge. The session check itself
- * belongs to the later unit that builds them, so with a session the answer is 501.
+ * plain 401 (these are not link-token routes, section 3.6, AWL-H18) and never a WWW-Authenticate challenge. POST /drafts/{id}/confirm is built
+ * (confirm.ts, U-47b) when the session verifier is wired; every other app route belongs to a later unit and answers 501 with a session.
  */
-function appRoute(req: Request, route: string[]): Out {
+async function appRoute(req: Request, route: string[], deps: AwlDeps): Promise<Out> {
   const method = req.method === "HEAD" ? "GET" : req.method
   const hit = APP_ROUTES.find((r) => r.pattern.length === route.length && r.pattern.every((seg, i) => seg.startsWith(":") || seg === route[i]))
   if (!hit) return plain(404, "No such path")
   if (!hit.methods.includes(method)) return plain(405, "Wrong method for this path.", undefined, { Allow: hit.methods.join(", ") })
+  if (deps.session && route.length === 3 && route[0] === "drafts" && route[2] === "confirm") {
+    // confirm.ts answers its own 401s (with a stable code), so it reads the Authorization header itself
+    let done
+    try {
+      done = await handleConfirm(req, route[1], { rpc: deps.rpc, session: deps.session, log: deps.log, now: deps.now })
+    } catch {
+      (deps.log ?? console.log)("ai-work-link: confirm: unhandled error -> 500")
+      return plain(500, "Something failed on our side. Try again in a minute.")
+    }
+    return json(done.status, done.body, done.headers)
+  }
   const bearer = /^Bearer[ ]+([^\s]+)$/i.exec((req.headers.get("authorization") ?? "").trim())
   if (!bearer || bearer[1].startsWith("pxa_")) return plain(401, "Sign in to PROJEXA and send your session token in the Authorization header.", "A link token is not a session.")
   return plain(501, "Written in a later unit.")
@@ -117,7 +135,7 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
 
   const target = parseTarget(url.pathname)
   if (target.kind === "error") return finish(plain(target.status, target.message))
-  if (target.kind === "app") return finish(appRoute(req, target.route))
+  if (target.kind === "app") return finish(await appRoute(req, target.route, deps))
 
   const token = target.mode === "path" ? target.token : tokenFromHeaders(req.headers)
   if (!token) return finish(plain(404, LINK_GONE, "In header mode send the token in the Link-Token header."))

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-GO/fAUflL/+RC+aqcBq4y6DGiwy+SVW7zI+3BTqh6Vg='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co; base-uri 'none'; form-action 'none'">
+<title>Changes your AI proposed</title>
+<style>
+body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1c2b3a; background: #fffdf9; }
+h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 1.6rem; }
+textarea { font: 14px/1.4 monospace; width: 100%; min-height: 8rem; box-sizing: border-box; padding: .4rem; border: 1px solid #8a94a0; border-radius: 4px; }
+input { font: inherit; padding: .4rem .5rem; border: 1px solid #8a94a0; border-radius: 4px; }
+#confirm-code { width: 8rem; letter-spacing: .3em; text-transform: uppercase; }
+output { font: 700 1.6rem/1 monospace; letter-spacing: .3em; background: #eef1f4; padding: .3rem .6rem; border-radius: 4px; }
+button { font: inherit; margin-top: .6rem; padding: .45rem 1rem; border: 0; border-radius: 4px; background: #0e7c6e; color: #fff; cursor: pointer; }
+button[disabled] { background: #9aa5b1; cursor: not-allowed; }
+ul { padding-left: 1.2rem; } li { margin: .5rem 0; }
+.block { border: 1px solid #c3cad2; border-radius: 4px; padding: .6rem .8rem; margin: .7rem 0; }
+.msg { white-space: pre-wrap; margin: .4rem 0; } .bad { color: #a12b1c; } .ok { color: #0b6a5d; }
+small { color: #4a5663; }
+</style>
+</head>
+<body>
+<h1>Changes your AI proposed</h1>
+<p>Nothing here changes by itself. You read each change, type the code shown below and press Confirm.</p>
+<p id="status"></p>
+
+<h2>Waiting for your confirmation</h2>
+<ul id="drafts"></ul>
+<p><small>Open the confirm link your AI gave you for a draft, or open the page below with the draft code.</small></p>
+
+<h2>Changes pasted from your AI</h2>
+<textarea id="paste" spellcheck="false" placeholder="Paste the projexa-proposal blocks here (up to 20)"></textarea>
+<button id="read" type="button">Read the changes</button>
+<div id="blocks"></div>
+
+<p>Type this code to confirm you are here: <output id="shown-code" aria-live="off"></output>
+  <input id="confirm-code" type="text" autocomplete="off" spellcheck="false" maxlength="4" inputmode="text" aria-label="Code"></p>
+<p><small>An email scanner that opens this page cannot confirm anything: it does not type the code. An AI that drives your own browser could, so keep your assistant away from this page.</small></p>
+
+<script type="application/json" id="awl-config">
+{"function": "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/ai-work-link", "confirmPage": "ai-confirm.html"}
+</script>
+<script>
+"use strict";
+(function () {
+  var cfg = JSON.parse(document.getElementById("awl-config").textContent);
+  var $ = function (id) { return document.getElementById(id); };
+  var token = "", proposals = [];
+
+  // The link token is in the fragment (#t=pxa_...) and optionally one proposal (#p=<base64url JSON>). Both are read into memory and the
+  // fragment is removed from the address bar. The token then travels in a header (header mode), never in an address.
+  var frag = location.hash.replace(/^#/, "");
+  var tm = /(?:^|&)t=(pxa_[0-9a-f]{64})(?:&|$)/.exec(frag);
+  var pm = /(?:^|&)p=([A-Za-z0-9_-]{1,6000})(?:&|$)/.exec(frag);
+  if (tm) token = tm[1];
+  if (pm) {
+    try {
+      var b64 = pm[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      var bin = atob(b64), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      proposals.push(JSON.parse(new TextDecoder().decode(bytes)));
+    } catch (e) { /* an unreadable proposal is ignored */ }
+  }
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+
+  var ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  var buf = new Uint8Array(4);
+  crypto.getRandomValues(buf);
+  var code = "";
+  for (var j = 0; j < 4; j++) code += ALPHABET.charAt(buf[j] % ALPHABET.length);
+  $("shown-code").textContent = code;
+  var codeOk = function () { return $("confirm-code").value.trim().toUpperCase() === code; };
+
+  function api(method, path, body) {
+    var headers = { "link-token": token, accept: "application/json" };
+    if (body !== undefined) headers["content-type"] = "application/json";
+    return fetch(cfg["function"] + "/header" + path, { method: method, headers: headers, body: body === undefined ? undefined : JSON.stringify(body) })
+      .then(function (res) { return res.json().catch(function () { return {}; }).then(function (j) { return { status: res.status, j: j }; }); });
+  }
+  function line(parent, text, cls) {
+    var d = document.createElement("div");
+    d.className = "msg " + (cls || "");
+    d.textContent = text;
+    parent.appendChild(d);
+    return d;
+  }
+
+  if (!token) {
+    $("status").textContent = "Open this page from the link your AI gave you: it carries your link in the address.";
+  } else {
+    $("status").textContent = "Loading the drafts waiting for you...";
+    // Only a read: the link's own history, newest first. Nothing is posted on page load.
+    api("GET", "/history?format=json&limit=50").then(function (r) {
+      var list = $("drafts");
+      if (r.status !== 200) { $("status").textContent = "Your link could not be read (" + r.status + "). Ask your AI for a new link."; return; }
+      $("status").textContent = "";
+      var waiting = (r.j.items || []).filter(function (it) { return it.kind === "draft" && it.status === "awaiting_confirmation"; });
+      if (!waiting.length) { var li0 = document.createElement("li"); li0.textContent = "Nothing is waiting."; list.appendChild(li0); return; }
+      waiting.forEach(function (it) {
+        var li = document.createElement("li");
+        var a = document.createElement("a");
+        a.textContent = String(it.function_id) + " (" + String(it.created_at) + ")";
+        a.href = cfg.confirmPage + "#d=" + encodeURIComponent(String(it.intent_id));
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    }).catch(function () { $("status").textContent = "Could not reach the service. Try again in a minute."; });
+  }
+
+  // Blocks: ```projexa-proposal {"v":1,"function":"...","params":{...},"note":"...","idempotency_key":"..."} ```
+  function parseBlocks(text) {
+    var out = [], re = /```projexa-proposal\s*([\s\S]*?)```/g, m;
+    while ((m = re.exec(text)) && out.length < 20) {
+      try { out.push(JSON.parse(m[1])); } catch (e) { out.push(null); }
+    }
+    return out;
+  }
+  function render(list) {
+    var host = $("blocks");
+    host.textContent = "";
+    list.forEach(function (p) {
+      var box = document.createElement("div");
+      box.className = "block";
+      host.appendChild(box);
+      if (!p || typeof p.function !== "string" || typeof p.params !== "object" || p.params === null) { line(box, "This block could not be read.", "bad"); return; }
+      line(box, "Change: " + p.function);
+      Object.keys(p.params).forEach(function (k) { line(box, "  " + k + ": " + String(p.params[k])); });
+      if (p.note) line(box, "Note: " + String(p.note));
+      var verdict = line(box, token ? "Checking..." : "No link: it cannot be checked.");
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.textContent = "Confirm"; btn.disabled = true;
+      box.appendChild(btn);
+      var direct = false;
+      if (token) api("POST", "/check", { function: p.function, params: p.params }).then(function (r) {
+        if (r.status === 200 && r.j.valid) { verdict.textContent = "Checked: valid."; verdict.className = "msg ok"; direct = !!r.j.will_execute_directly; btn.disabled = false; }
+        else { verdict.textContent = "Checked: " + (r.j.error || (r.j.problems || []).join(" ") || "not valid") + (r.j.missing && r.j.missing.length ? " Missing: " + r.j.missing.join(", ") : ""); verdict.className = "msg bad"; }
+      });
+      // The only requests that change anything, and only from this click, only after the typed code matches.
+      btn.addEventListener("click", function () {
+        if (!codeOk()) { line(box, "Type the code shown above first.", "bad"); return; }
+        btn.disabled = true;
+        var body = { function: p.function, params: p.params };
+        if (p.idempotency_key) body.idempotency_key = String(p.idempotency_key);
+        api("POST", direct ? "/actions" : "/drafts", body).then(function (r) {
+          if (r.status === 200 || r.status === 201) line(box, "Sent.", "ok");
+          else line(box, (r.j.error || "Not sent") + " (" + r.status + ")", "bad");
+        }).catch(function () { line(box, "Could not reach the service. Nothing was sent.", "bad"); btn.disabled = false; });
+      });
+    });
+  }
+  $("read").addEventListener("click", function () { render(parseBlocks($("paste").value)); });
+  if (proposals.length) render(proposals);
+})();
+</script>
+</body>
+</html>

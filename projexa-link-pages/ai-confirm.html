@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-I2X1WSn6bmhYnA5hsJ05HPNBbEBJTHcZLMla4aJzaNg='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co https://evpckeuxgvahguwsaeul.supabase.co; base-uri 'none'; form-action 'none'">
+<title>Confirm a change</title>
+<style>
+body { font: 16px/1.5 system-ui, sans-serif; max-width: 34rem; margin: 2rem auto; padding: 0 1rem; color: #1c2b3a; background: #fffdf9; }
+h1 { font-size: 1.4rem; }
+label { display: block; margin-top: 1rem; font-weight: 600; }
+input { font: inherit; padding: .4rem .5rem; width: 100%; box-sizing: border-box; border: 1px solid #8a94a0; border-radius: 4px; }
+#confirm-code { width: 8rem; letter-spacing: .3em; text-transform: uppercase; }
+output { font: 700 1.6rem/1 monospace; letter-spacing: .3em; background: #eef1f4; padding: .3rem .6rem; border-radius: 4px; }
+button { font: inherit; margin-top: 1rem; padding: .5rem 1.1rem; border: 0; border-radius: 4px; background: #0e7c6e; color: #fff; cursor: pointer; }
+button[disabled] { background: #9aa5b1; cursor: not-allowed; }
+#result { margin-top: 1.2rem; padding: .7rem .9rem; border-radius: 4px; background: #eef1f4; white-space: pre-wrap; }
+#result.ok { background: #dff3ee; }
+#result.bad { background: #fbe4e0; }
+small { color: #4a5663; }
+</style>
+</head>
+<body>
+<h1>Confirm a change your AI proposed</h1>
+<p>Nothing changes until you sign in, type the code shown below and press Confirm. This page never confirms by itself.</p>
+
+<p id="draft-line"></p>
+
+<div id="token-row" hidden>
+  <label for="confirm-token">Confirm code from the link your AI gave you</label>
+  <input id="confirm-token" type="text" autocomplete="off" spellcheck="false" maxlength="200">
+</div>
+
+<div id="signin-row">
+  <label for="email">Your PROJEXA email</label>
+  <input id="email" type="email" autocomplete="username">
+  <label for="password">Password</label>
+  <input id="password" type="password" autocomplete="current-password">
+  <button id="signin" type="button">Sign in</button>
+  <p><small id="signin-note"></small></p>
+</div>
+
+<p>Type this code to confirm you are here: <output id="shown-code" aria-live="off"></output></p>
+<label for="confirm-code">Code</label>
+<input id="confirm-code" type="text" autocomplete="off" spellcheck="false" maxlength="4" inputmode="text">
+<button id="confirm" type="button" disabled>Confirm</button>
+
+<div id="result" role="status" hidden></div>
+<p><small>An email scanner that opens this link cannot confirm anything: it has no sign-in and does not type the code. An AI that drives your own signed-in browser could, so keep your assistant away from this page.</small></p>
+
+<script type="application/json" id="awl-config">
+{"function": "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/ai-work-link", "authUrl": "https://evpckeuxgvahguwsaeul.supabase.co/auth/v1", "authKey": ""}
+</script>
+<script>
+"use strict";
+(function () {
+  var cfg = JSON.parse(document.getElementById("awl-config").textContent);
+  var $ = function (id) { return document.getElementById(id); };
+  var draftId = "", confirmToken = "", accessToken = "", busy = false;
+
+  // The link's fragment holds the draft id and the one-time confirm code: #d=<id>.<code> (or #d=<id> alone). It is read into memory and
+  // removed from the address bar, so it is not left in history or in a shared screenshot.
+  var m = /(?:^|&)d=([A-Za-z0-9_-]{1,128})(?:\.([0-9a-f]{64}))?(?:&|$)/.exec(location.hash.replace(/^#/, ""));
+  if (m) { draftId = m[1]; confirmToken = m[2] || ""; }
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+
+  // A code of 4 characters, random on every page load, from letters and digits without look-alikes (no 0, O, 1, I, L).
+  var ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  var buf = new Uint8Array(4);
+  crypto.getRandomValues(buf);
+  var code = "";
+  for (var i = 0; i < 4; i++) code += ALPHABET.charAt(buf[i] % ALPHABET.length);
+  $("shown-code").textContent = code;
+
+  $("draft-line").textContent = draftId ? "Draft " + draftId.slice(0, 8) + "..." : "Open this page from the confirm link your AI gave you.";
+  if (draftId && !confirmToken) $("token-row").hidden = false;
+  if (!cfg.authKey) $("signin-note").textContent = "Sign-in is not set up on this page yet, so nothing can be confirmed here.";
+
+  function show(text, kind) {
+    var r = $("result");
+    r.hidden = false;
+    r.className = kind || "";
+    r.textContent = text;
+  }
+  function refresh() {
+    var token = confirmToken || $("confirm-token").value.trim();
+    $("confirm").disabled = busy || !draftId || !token || !accessToken || $("confirm-code").value.trim().toUpperCase() !== code;
+  }
+  $("confirm-code").addEventListener("input", refresh);
+  $("confirm-token").addEventListener("input", refresh);
+
+  $("signin").addEventListener("click", function () {
+    if (!cfg.authKey) return;
+    show("Signing in...");
+    fetch(cfg.authUrl + "/token?grant_type=password", {
+      method: "POST",
+      headers: { "content-type": "application/json", apikey: cfg.authKey },
+      body: JSON.stringify({ email: $("email").value.trim(), password: $("password").value })
+    }).then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
+      .then(function (r) {
+        $("password").value = "";
+        if (r.ok && r.j && r.j.access_token) { accessToken = r.j.access_token; show("Signed in. Now type the code and press Confirm.", "ok"); }
+        else show("Sign-in failed. Check your email and password.", "bad");
+        refresh();
+      })
+      .catch(function () { show("Sign-in could not be reached. Try again in a minute.", "bad"); });
+  });
+
+  var MESSAGES = {
+    SESSION_REQUIRED: "Sign in first.",
+    SESSION_INVALID: "Your sign-in is not valid or has expired. Sign in again.",
+    SESSION_CHECK_UNAVAILABLE: "Sign-in could not be checked just now. Try again in a minute.",
+    USER_NOT_LINKED: "Your account is not linked to a user. Ask your admin.",
+    NOT_YOUR_DRAFT: "This change was proposed for another person. You cannot confirm it.",
+    CONFIRM_TOKEN_INVALID: "The confirm code does not match. Open the link your AI gave you again.",
+    CONFIRM_ALREADY_USED: "This change was already confirmed, or is no longer waiting.",
+    CONFIRM_EXPIRED: "This change expired. Ask the AI to propose it again.",
+    WRITES_NOT_ENABLED: "Changes are not switched on yet. Your change is kept and waits.",
+    RATE_LIMITED: "Too many attempts. Wait a minute.",
+    CONFIRM_TOKEN_REQUIRED: "The confirm code is missing.",
+    DRAFT_NOT_FOUND: "There is no such change.",
+    CONFIRM_UNAVAILABLE: "Something failed on our side and nothing was confirmed. Try again in a minute."
+  };
+
+  // The only request that changes anything, and only from this click: never on page load.
+  $("confirm").addEventListener("click", function () {
+    var token = confirmToken || $("confirm-token").value.trim();
+    if ($("confirm").disabled || !draftId || !token || !accessToken) return;
+    busy = true; refresh();
+    show("Confirming...");
+    fetch(cfg["function"] + "/drafts/" + encodeURIComponent(draftId) + "/confirm", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + accessToken },
+      body: JSON.stringify({ confirmToken: token })
+    }).then(function (res) { return res.json().catch(function () { return {}; }).then(function (j) { return { status: res.status, j: j }; }); })
+      .then(function (r) {
+        busy = false;
+        if (r.status === 200) { confirmToken = ""; $("confirm-token").value = ""; show("Confirmed. " + (r.j.message || ""), "ok"); }
+        else show(MESSAGES[r.j && r.j.code] || "Not confirmed (" + r.status + ").", "bad");
+        refresh();
+      })
+      .catch(function () { busy = false; show("Could not reach the service. Nothing was confirmed. Try again in a minute.", "bad"); refresh(); });
+  });
+  refresh();
+})();
+</script>
+</body>
+</html>
