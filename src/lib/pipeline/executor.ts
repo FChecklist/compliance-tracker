@@ -45,6 +45,7 @@ import { executeCreateProject, executeUpdateProject } from "./executors/project"
 import { executeAddBoqLines, executeSealBoq, withholdBoqMoney } from "./executors/boq-payload";
 import { ensureDefaultActivity, executeCreateActivity } from "./executors/activity";
 import { WAVE_3_4_EXECUTORS } from "./executors/coverage-waves-3-4";
+import { WAVE_7_9_EXECUTORS } from "./executors/coverage-waves-7-9";
 import { createBoqLedgerHooks } from "@/lib/services/construction-boq-payload-service";
 import { executeCreateProjectFromDocument } from "./executors/extraction";
 // PROJEXA-BUILD-002 WP-05e/05f (waves 5 and 6): the minutes functions, the schedule, analysis and exception-capture functions.
@@ -1952,6 +1953,8 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   record_customer_complaint: executeRecordCustomerComplaint,
   record_customer_approval: executeRecordCustomerApproval,
   link_roster_employee: executeLinkRosterEmployee,
+  // PROJEXA-BUILD-002 WP-05g/WP-05h: coverage waves 7, 8 and 9 (progress claims, approvals and KPIs as drafts; permits, wiki, interior design, floor plans).
+  ...WAVE_7_9_EXECUTORS,
 };
 
 /**

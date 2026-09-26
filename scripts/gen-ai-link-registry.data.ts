@@ -153,6 +153,35 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   record_vendor_dispute: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["description"] },
   record_customer_complaint: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: ["description", "category"] },
   record_customer_approval: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
+  // BUILD-002 WP-05h (wave 7, register row AW-308, owner decision PMD-41): claims, submit for approval and KPIs, DRAFTS only. Every one is level 2: a
+  // claim is billed money, a submit sends work to the people who decide (a change order goes to external signers as an e-signature request), and a KPI
+  // value is money until the owner says otherwise (spec U-13). A claim and a submit need the manager rank (the claim routes ask for member, the change
+  // order and BOQ submit routes for senior professional, which is rank 3; the link asks for more, never less). A KPI value may be submitted at rank 2
+  // (its route asks for member) and is approved at rank 3 (its route asks for manager). Approving a claim and invoicing one have no function.
+  create_progress_claim: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: ["milestoneDescription"] },
+  draft_progress_claim: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  submit_progress_claim: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  reject_progress_claim: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: ["rejectionReason"] },
+  submit_change_order_for_approval: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  submit_boq_for_approval: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  submit_kpi_entry: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["period"] },
+  approve_kpi_entry: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  // BUILD-002 WP-05g (waves 8 and 9, register row AW-307): permits, document details, wiki, interior design. Records a person's own words or plans are level
+  // 1, rank 2 (no money, no approval, nothing published). The FF&E item carries a trade cost and a client price, so it is a draft (money, rank 2 like
+  // add_roster_entry) and its cost and price are null in the answer below rank 3; a status change may record a purchase, so it is a draft at rank 3; the
+  // margin summary is a money read at rank 3.
+  create_permit: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "externalUrl", "permitNumber", "permitAuthority"] },
+  update_document_metadata: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "category"] },
+  create_wiki_page: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "content"] },
+  update_wiki_page: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "content"] },
+  create_mood_board: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "roomOrArea", "description"] },
+  add_mood_board_item: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["label", "notes"] },
+  create_ffe_item: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["itemName", "roomOrArea", "description", "sku"] },
+  update_ffe_status: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  get_ffe_margin_summary: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  create_floor_plan: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "floorLevel"] },
+  add_room: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name"] },
+  place_furniture: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
 }
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */
