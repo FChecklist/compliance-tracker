@@ -1,5 +1,57 @@
 [
   {
+    "function_id": "add_boq_lines",
+    "label": "Add BOQ lines",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "body_max_bytes": 65536,
+    "declared_params": [
+      "batchNo",
+      "boqId",
+      "lines",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "boqId",
+        "label": "BOQ version",
+        "any_of": [
+          "boqId"
+        ]
+      },
+      {
+        "name": "batchNo",
+        "label": "Batch number",
+        "any_of": [
+          "batchNo"
+        ]
+      },
+      {
+        "name": "lines",
+        "label": "Lines",
+        "any_of": [
+          "lines"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqId"
+    ]
+  },
+  {
     "function_id": "add_roster_entry",
     "label": "Add a worker",
     "module": "manpower",
@@ -47,6 +99,92 @@
     "id_params": []
   },
   {
+    "function_id": "create_activity",
+    "label": "New activity",
+    "module": "work_progress",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "unit"
+    ],
+    "declared_params": [
+      "categoryId",
+      "name",
+      "plannedQuantity",
+      "projectId",
+      "unit"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name"
+        ]
+      }
+    ],
+    "id_params": [
+      "categoryId"
+    ]
+  },
+  {
+    "function_id": "create_boq",
+    "label": "New BOQ",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title"
+    ],
+    "body_max_bytes": 65536,
+    "declared_params": [
+      "idempotency_key",
+      "lineItems",
+      "projectId",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      },
+      {
+        "name": "idempotency_key",
+        "label": "Idempotency key",
+        "any_of": [
+          "idempotency_key"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_boq_revision",
     "label": "New BOQ revision",
     "module": "scope",
@@ -60,8 +198,11 @@
       "title"
     ],
     "declared_params": [
+      "allowScopeReductionOverride",
       "boqId",
+      "lineItems",
       "projectId",
+      "sourceChangeOrderId",
       "title"
     ],
     "required_params": [
@@ -81,7 +222,8 @@
       }
     ],
     "id_params": [
-      "boqId"
+      "boqId",
+      "sourceChangeOrderId"
     ]
   },
   {
@@ -172,6 +314,32 @@
       }
     ],
     "id_params": []
+  },
+  {
+    "function_id": "create_project",
+    "label": "New project",
+    "module": "projects",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "A link is bound to one project, so it cannot make another one: the New project with my AI flow and the internal pipeline do.",
+    "text_params": [],
+    "declared_params": [
+      "clientId",
+      "description",
+      "name",
+      "productId",
+      "shell",
+      "startDate",
+      "targetDate"
+    ],
+    "required_params": [],
+    "id_params": [
+      "clientId",
+      "productId"
+    ]
   },
   {
     "function_id": "detect_construction_budget_schedule_risk",
@@ -618,5 +786,95 @@
     "declared_params": [],
     "required_params": [],
     "id_params": []
+  },
+  {
+    "function_id": "seal_boq",
+    "label": "Seal the BOQ",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "body_max_bytes": 65536,
+    "declared_params": [
+      "boqId",
+      "controlTotals",
+      "expectedLineCount",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "boqId",
+        "label": "BOQ version",
+        "any_of": [
+          "boqId"
+        ]
+      },
+      {
+        "name": "controlTotals",
+        "label": "Control totals",
+        "any_of": [
+          "controlTotals"
+        ]
+      },
+      {
+        "name": "expectedLineCount",
+        "label": "Line count",
+        "any_of": [
+          "expectedLineCount"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqId"
+    ]
+  },
+  {
+    "function_id": "update_project",
+    "label": "Update the project",
+    "module": "projects",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "description"
+    ],
+    "declared_params": [
+      "clientId",
+      "description",
+      "name",
+      "projectId",
+      "projectValue",
+      "retentionPercent",
+      "startDate",
+      "targetDate",
+      "vatRatePercent"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      }
+    ],
+    "id_params": [
+      "clientId"
+    ]
   }
 ]

@@ -18,6 +18,17 @@ export type LinkFunctionPolicy = {
   minRank: number
   /** Free-text parameters (spec 9.11): capped at 2,000 characters and cleaned at write time. Must be declared by the registry. */
   textParams: readonly string[]
+  /**
+   * BUILD-002 WP-04: the most bytes a call to this function may carry, when it is more than the link's 8 KB (LIMITS.bodyMaxBytes of
+   * supabase/functions/_shared/ai-link/core.ts). Read by the Edge Function through the generated JSON, so a limit is a reviewed change
+   * here, never a list of function ids in the handler. At most 65536 (LIMITS.bodyMaxBytesCeiling); the generator refuses more.
+   */
+  bodyMaxBytes?: number
+  /**
+   * BUILD-002 WP-04: parameters the LINK requires although the registry does not (a retry key: the internal pipeline dedupes a confirm in
+   * its own ledger, a link call is retried by the AI). Each must be declared by the registry; they are added to required_params.
+   */
+  linkRequiredParams?: readonly string[]
 }
 
 export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
@@ -34,10 +45,21 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   // writes that always wait for the person's own confirmation (a daily rate, a commercial baseline)
   add_roster_entry: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "trade", "employeeCode"] },
   create_boq_revision: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["title"] },
+  // BUILD-002 WP-03, WP-04, WP-07 (register rows AW-201 to AW-205, AW-331). A BOQ is built in three calls: create_boq (empty, or with lines
+  // that fit), add_boq_lines (at most 25 per call) and seal_boq (against the totals the AI read). All three take a body up to 64 KB, all are
+  // drafts the person confirms (they carry rates), and seal_boq needs the manager rank because its answer states amounts. create_boq makes a
+  // retry key mandatory on a link, so a repeated call is one BOQ. update_project can change the project value, VAT and retention, so it is a
+  // draft too. create_activity is the one direct write: a name and a unit, no money.
+  create_boq: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["title"], bodyMaxBytes: 65536, linkRequiredParams: ["idempotency_key"] },
+  add_boq_lines: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: [], bodyMaxBytes: 65536 },
+  seal_boq: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [], bodyMaxBytes: 65536 },
+  update_project: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "description"] },
+  create_activity: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "unit"] },
 }
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */
 export const EXCLUDED_REASONS: Readonly<Record<string, string>> = {
+  create_project: "A link is bound to one project, so it cannot make another one: the New project with my AI flow and the internal pipeline do.",
   review_budget: "An alias that duplicates get_construction_budget_status.",
   generate_construction_progress_summary: "Calls a server-side model (F-2): the internal AI never runs on link traffic.",
   detect_construction_budget_schedule_risk: "Calls a server-side model (F-2): the internal AI never runs on link traffic.",

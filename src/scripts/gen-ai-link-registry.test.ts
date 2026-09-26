@@ -11,8 +11,9 @@
 // WHAT IS PROVEN
 //   - the three committed outputs equal what the registry generates today (the check that CI and the register row rely on), and the
 //     CLI's --check says so;
-//   - exactly the spec's 10 functions (section 9.1) are on links, at the spec's levels and ranks, and each of the 17 the spec excludes
-//     is generated as excluded with a reason (independent copy of the spec's table below, so a typo in the data file is caught);
+//   - exactly the spec's 10 functions (section 9.1) plus the five BUILD-002 adds (WP-03, WP-04, WP-07) are on links, at the written levels
+//     and ranks, and each of the 17 the spec excludes, plus create_project, is generated as excluded with a reason (independent copy of
+//     the tables below, so a typo in the data file is caught);
 //   - it survives what another unit does to function-registry.ts: 26 entries added later (U-38) have no row, are on no link and leave the
 //     committed outputs current, the 10 do not move; a removed or renamed allow-listed function is an error, never a silent drop; a
 //     wrong kind or an undeclared text parameter is an error;
@@ -43,6 +44,16 @@ const SPEC_ON_LINKS: Record<string, [number, number]> = {
   add_roster_entry: [2, 2],
   create_boq_revision: [2, 2],
 }
+// BUILD-002 WP-03, WP-04, WP-07 (AW-201 to AW-205, AW-331): function -> [function link level, minimum role rank]. create_project is on no link.
+const B002_ON_LINKS: Record<string, [number, number]> = {
+  create_boq: [2, 2],
+  add_boq_lines: [2, 2],
+  seal_boq: [2, 3],
+  update_project: [2, 2],
+  create_activity: [1, 2],
+}
+const B002_EXCLUDED = ["create_project"]
+const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS }
 // spec 9.1: the 17 excluded (the register row AWL-S03 names the first five)
 const SPEC_EXCLUDED = [
   "review_budget", "generate_construction_progress_summary", "detect_construction_budget_schedule_risk", "list_delayed_activities",
@@ -83,33 +94,50 @@ describe("the committed outputs are current", () => {
     const io = fsIo(ROOT)
     for (const f of [FUNCTIONS_JSON, KINDS_JSON, CURRENT_SEED_MIGRATION]) expect(io.exists(f)).toBe(true)
     expect(FUNCTIONS_JSON).toBe("supabase/functions/ai-work-link/function-registry.generated.json")
-    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0628_build001_awl_seed.sql")
+    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0644_build002_awl_seed_project_boq.sql")
   })
 
-  test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are the 10, and none of the five bad ones", () => {
+  test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are the 15, and none of the five bad ones", () => {
     const list = JSON.parse(fsIo(ROOT).read(FUNCTIONS_JSON)) as { function_id: string; link_level: number | null }[]
     expect(Array.isArray(list)).toBe(true)
     const on = new Set(list.filter((f) => f.link_level !== null).map((f) => f.function_id))
-    expect(on.size).toBe(10)
+    expect(on.size).toBe(15)
     for (const bad of AWL_S03_BAD) expect(on.has(bad)).toBe(false)
   })
 })
 
-describe("exactly the spec's 10 functions are on links", () => {
+describe("exactly the spec's 10 functions and the five BUILD-002 adds are on links", () => {
   const rows = buildFunctionRows(ALL_FUNCTION_SPECS)
   const on = rows.filter((r) => r.link_level !== null)
 
-  test("the 10 are the spec's, at the spec's levels and minimum ranks", () => {
-    expect(on.length).toBe(10)
-    expect(on.map((r) => r.function_id).sort()).toEqual(Object.keys(SPEC_ON_LINKS).sort())
+  test("the 15 are the spec's 10 and the five BUILD-002 adds, at the written levels and minimum ranks", () => {
+    expect(on.length).toBe(15)
+    expect(on.map((r) => r.function_id).sort()).toEqual(Object.keys(ALL_ON_LINKS).sort())
     for (const r of on) {
-      expect({ id: r.function_id, level: r.link_level as number | null, rank: r.min_role_rank }).toEqual({ id: r.function_id, level: SPEC_ON_LINKS[r.function_id][0], rank: SPEC_ON_LINKS[r.function_id][1] })
+      expect({ id: r.function_id, level: r.link_level as number | null, rank: r.min_role_rank }).toEqual({ id: r.function_id, level: ALL_ON_LINKS[r.function_id][0], rank: ALL_ON_LINKS[r.function_id][1] })
       expect(r.excluded_reason).toBeNull()
     }
-    // a read is level 0; the writes are 1 or 2; the two that touch a daily rate or a commercial baseline are drafts only
+    // a read is level 0; the writes are 1 or 2; everything that carries a rate, a daily rate or a commercial baseline is a draft only
     expect(on.filter((r) => r.kind === "read").every((r) => r.link_level === 0)).toBe(true)
     expect(on.filter((r) => r.kind === "write").every((r) => r.link_level === 1 || r.link_level === 2)).toBe(true)
-    expect(on.filter((r) => r.link_level === 2).map((r) => r.function_id).sort()).toEqual(["add_roster_entry", "create_boq_revision"])
+    expect(on.filter((r) => r.link_level === 2).map((r) => r.function_id).sort()).toEqual([
+      "add_boq_lines", "add_roster_entry", "create_boq", "create_boq_revision", "seal_boq", "update_project",
+    ])
+  })
+
+  test("BUILD-002: create_project is excluded with a reason (a link is bound to one project); the three BOQ functions may take 64 KB, no other function more than 8 KB", () => {
+    for (const id of B002_EXCLUDED) {
+      const r = rows.find((x) => x.function_id === id)!
+      expect({ id, level: r.link_level, reason: (r.excluded_reason ?? "").length > 20 }).toEqual({ id, level: null, reason: true })
+    }
+    expect(rows.filter((r) => r.body_max_bytes !== undefined).map((r) => [r.function_id, r.body_max_bytes]).sort()).toEqual([
+      ["add_boq_lines", 65536], ["create_boq", 65536], ["seal_boq", 65536],
+    ])
+    // the link makes a retry key mandatory on create_boq only; the registry itself does not require it
+    expect(rows.find((r) => r.function_id === "create_boq")!.required_params.map((p) => p.name)).toEqual(["projectId", "title", "idempotency_key"])
+    expect(ALL_FUNCTION_SPECS.find((s) => s.functionId === "create_boq")!.requiredParams.map((p) => p.name)).toEqual(["projectId", "title"])
+    expect(rows.find((r) => r.function_id === "create_boq")!.declared_params).toEqual(expect.arrayContaining(["lineItems", "idempotency_key"]))
+    expect(rows.find((r) => r.function_id === "create_boq_revision")!.declared_params).toEqual(expect.arrayContaining(["lineItems", "sourceChangeOrderId", "allowScopeReductionOverride"]))
   })
 
   test("each of the 17 the spec excludes is present, on no link, with a reason", () => {
@@ -121,10 +149,10 @@ describe("exactly the spec's 10 functions are on links", () => {
     }
   })
 
-  test("the output holds the 27 reviewed functions once each: the 10 on links and the 17 excluded; everything else is on no link", () => {
-    expect(rows.length).toBe(27)
+  test("the output holds the 33 reviewed functions once each: the 15 on links and the 18 excluded; everything else is on no link", () => {
+    expect(rows.length).toBe(33)
     expect(new Set(rows.map((r) => r.function_id)).size).toBe(rows.length)
-    expect(rows.map((r) => r.function_id).sort()).toEqual([...Object.keys(SPEC_ON_LINKS), ...SPEC_EXCLUDED].sort())
+    expect(rows.map((r) => r.function_id).sort()).toEqual([...Object.keys(ALL_ON_LINKS), ...SPEC_EXCLUDED, ...B002_EXCLUDED].sort())
     expect(rows.find((r) => r.function_id === "run_work_progress_report")).toBeUndefined()
     // a registry function that has an executor and that nobody reviewed has no row: it is listed as unreviewed, never as on a link
     const executable = ALL_FUNCTION_SPECS.filter((s) => s.kind !== "run")
@@ -136,22 +164,23 @@ describe("exactly the spec's 10 functions are on links", () => {
   test("no function is both allow-listed and excluded in the data file, and every excluded one has a real reason", () => {
     for (const id of Object.keys(LINK_FUNCTIONS)) expect(id in EXCLUDED_REASONS).toBe(false)
     for (const [id, reason] of Object.entries(EXCLUDED_REASONS)) expect({ id, ok: reason.length > 20 }).toEqual({ id, ok: true })
-    expect(Object.keys(EXCLUDED_REASONS).sort()).toEqual([...SPEC_EXCLUDED].sort())
+    expect(Object.keys(EXCLUDED_REASONS).sort()).toEqual([...SPEC_EXCLUDED, ...B002_EXCLUDED].sort())
   })
 
-  test("the free-text parameters are declared by the registry, and the id parameters are the four of spec 9.10", () => {
+  test("the free-text parameters are declared by the registry, and the id parameters are the four of spec 9.10 plus the three BUILD-002 declares", () => {
     for (const r of on) for (const t of r.text_params) expect({ id: r.function_id, t, declared: r.declared_params.includes(t) }).toEqual({ id: r.function_id, t, declared: true })
     const idParams = new Set(on.flatMap((r) => r.id_params))
-    expect([...idParams].sort()).toEqual(["boqId", "boqLineItemId", "issueId", "rosterId"])
+    expect([...idParams].sort()).toEqual(["boqId", "boqLineItemId", "categoryId", "clientId", "issueId", "rosterId", "sourceChangeOrderId"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.id_params).toEqual(["boqLineItemId"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params.map((p) => p.name)).toEqual(["projectId", "itemCode", "percent"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params[1].any_of).toEqual(["itemCode", "boqLineItemId"])
   })
 
-  test("rows are sorted by id, and money-sensitive functions are the reads of dashboard, budget and KPIs plus the two draft-only writes", () => {
+  test("rows are sorted by id, and money-sensitive functions are the reads of dashboard, budget and KPIs plus the draft-only writes", () => {
     expect(rows.map((r) => r.function_id)).toEqual([...rows.map((r) => r.function_id)].sort())
     expect(on.filter((r) => r.money_sensitive).map((r) => r.function_id).sort()).toEqual([
-      "add_roster_entry", "create_boq_revision", "get_construction_budget_status", "get_construction_kpi_status", "get_construction_project_dashboard",
+      "add_boq_lines", "add_roster_entry", "create_boq", "create_boq_revision", "get_construction_budget_status", "get_construction_kpi_status",
+      "get_construction_project_dashboard", "seal_boq", "update_project",
     ])
   })
 })
@@ -162,7 +191,7 @@ describe("it survives what other units do to function-registry.ts", () => {
   test("entries added later (a read, a write, a command) are on no link, have no row, and change nothing the generator writes", () => {
     const grown = [...real, fakeSpec("zz_new_read", "ask"), fakeSpec("zz_new_write", "write"), fakeSpec("zz_new_run", "run", { writes: false })]
     expect(buildFunctionRows(grown)).toEqual(buildFunctionRows(real))
-    expect(buildFunctionRows(grown).filter((r) => r.link_level !== null).length).toBe(10)
+    expect(buildFunctionRows(grown).filter((r) => r.link_level !== null).length).toBe(15)
     expect(unreviewedFunctionIds(grown)).toEqual([...unreviewedFunctionIds(real), "zz_new_read", "zz_new_write"].sort())
   })
 
@@ -206,14 +235,19 @@ describe("it survives what other units do to function-registry.ts", () => {
     expect(() => buildFunctionRows(asWrite)).toThrow(/get_construction_kpi_status.*level 0.*writes/)
     expect(() => buildFunctionRows(real, { ...LINK_FUNCTIONS, create_meeting: { ...LINK_FUNCTIONS.create_meeting, textParams: ["not_a_param"] } })).toThrow('text parameter "not_a_param"')
     expect(() => buildFunctionRows(real, { ...LINK_FUNCTIONS, create_meeting: { ...LINK_FUNCTIONS.create_meeting, minRank: 9 } })).toThrow("invalid minimum rank")
+    // BUILD-002: a body limit must be above the link's 8 KB and at most the 64 KB ceiling, and a link-required parameter must be declared
+    for (const bad of [8192, 65537, 9000.5, 0]) {
+      expect(() => buildFunctionRows(real, { ...LINK_FUNCTIONS, create_meeting: { ...LINK_FUNCTIONS.create_meeting, bodyMaxBytes: bad } })).toThrow("invalid body limit")
+    }
+    expect(() => buildFunctionRows(real, { ...LINK_FUNCTIONS, create_meeting: { ...LINK_FUNCTIONS.create_meeting, linkRequiredParams: ["not_a_param"] } })).toThrow('makes "not_a_param" required on a link')
     expect(() => buildFunctionRows(real, LINK_FUNCTIONS, { ...EXCLUDED_REASONS, create_meeting: "x" })).toThrow("both allow-listed and excluded")
   })
 
   test("the allow-list is the only way on: putting an excluded function in it puts it on links, taking one out puts it off", () => {
     const withAlias = buildFunctionRows(real, { ...LINK_FUNCTIONS, review_budget: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] } }, Object.fromEntries(Object.entries(EXCLUDED_REASONS).filter(([k]) => k !== "review_budget")))
-    expect(withAlias.filter((r) => r.link_level !== null).length).toBe(11)
+    expect(withAlias.filter((r) => r.link_level !== null).length).toBe(16)
     const { record_attendance: _gone, ...fewer } = LINK_FUNCTIONS
-    expect(buildFunctionRows(real, fewer).filter((r) => r.link_level !== null).length).toBe(9)
+    expect(buildFunctionRows(real, fewer).filter((r) => r.link_level !== null).length).toBe(14)
   })
 })
 

@@ -13,7 +13,7 @@ import {
   HIDDEN_FIELD, LIMITS, LINK_GONE, checkRecordQuery, cleanDeep, cleanText, errorBody, redactItem, redactToken,
   type ApiErrorBody, type KindDef,
 } from "../_shared/ai-link/core.ts"
-import { EXAMPLE_PARAMS, KIND_NAMES, SEARCH_KINDS, SEARCH_MAX_RESULTS, SEARCH_ROWS, functionDef, kindDef, type RegistryFunction } from "./api-definition.ts"
+import { EXAMPLE_PARAMS, KIND_NAMES, SEARCH_KINDS, SEARCH_MAX_RESULTS, SEARCH_ROWS, bodyLimitFor, functionDef, kb, kindDef, type RegistryFunction } from "./api-definition.ts"
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Dependencies and errors
@@ -349,7 +349,7 @@ function isEmpty(v: unknown): boolean {
 
 /**
  * Scope first (the section 4.3 order): the function must be on this link's EFFECTIVE list and any projectId must be the link's own,
- * else 403. Then the parameters: a JSON object of at most 8 KB, only names the registry declares, every required parameter present,
+ * else 403. Then the parameters: a JSON object of at most 8 KB (the function's own limit when its policy gives more), only names the registry declares, every required parameter present,
  * every free-text parameter at most 2,000 characters. Whether an id names a record of this project is decided later, inside the
  * executor (section 9.10); it is not checked here.
  */
@@ -360,7 +360,8 @@ export function checkChange(env: { ctx: LinkCtx; config: AwlConfig }, fn: unknow
   const p = params === undefined || params === null ? {} : params
   if (typeof p !== "object" || Array.isArray(p)) throw fail(400, "params must be a JSON object.")
   const obj = p as Record<string, unknown>
-  if (JSON.stringify(obj).length > LIMITS.bodyMaxBytes) throw fail(413, "params are over 8 KB.")
+  const cap = bodyLimitFor(def.function_id)
+  if (JSON.stringify(obj).length > cap) throw fail(413, `params are over ${kb(cap)}.`)
   if (obj.projectId !== undefined && obj.projectId !== null && obj.projectId !== env.ctx.project_id) {
     throw fail(403, "This link is for one project only.", "Leave projectId out: the link supplies it.", { code: "WRONG_PROJECT" })
   }

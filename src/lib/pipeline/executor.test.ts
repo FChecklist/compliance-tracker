@@ -490,7 +490,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function loadExecutor(db: unknown) {
+async function loadExecutor(db: unknown, progressOverrides: Record<string, unknown> = {}) {
   const order: Order = [];
   let openTransactions = 0;
   let maxOpenTransactions = 0;
@@ -511,7 +511,7 @@ async function loadExecutor(db: unknown) {
   });
 
   await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext }));
-  await mock.module("@/lib/services/construction-progress-service", () => ({ ...realProgressService, createProgressEntry }));
+  await mock.module("@/lib/services/construction-progress-service", () => ({ ...realProgressService, createProgressEntry, ...progressOverrides }));
 
   const { executeTask } = await import("./executor");
   return { executeTask, order, withTenantContext, createProgressEntry, maxOpen: () => maxOpenTransactions };
@@ -588,16 +588,29 @@ describe("executeRecordWorkProgress: the lookups and the write no longer share a
     expect(createProgressEntry.mock.calls.length).toBe(0);
   });
 
-  test("a project with no activity fails with ACTIVITY_REQUIRED, and never reaches the write", async () => {
-    const { executeTask, createProgressEntry } = await loadExecutor(
-      fakeDb({ constructionActivities: { findFirst: async () => undefined } })
+  // BUILD-002 WP-07: a project with no activity used to fail with ACTIVITY_REQUIRED, and no function an AI could call made one. The
+  // default activity is now made through the progress service AFTER the lookup transaction has closed (so still never two open at once),
+  // and the write uses it. executor-work-progress.test.ts proves the rest against the store double.
+  test("a project with no activity gets a default one after the lookup transaction closes, and the write uses it", async () => {
+    let order: Order = [];
+    const { executeTask, order: log, createProgressEntry, maxOpen } = await loadExecutor(
+      fakeDb({ constructionActivities: { findFirst: async () => undefined } }),
+      {
+        listActivities: async () => (order.push("list-activities"), []),
+        listCategories: async () => (order.push("list-categories"), []),
+        createCategory: async () => (order.push("create-category"), { id: "cat-new" }),
+        createActivity: async () => (order.push("create-activity"), { id: "act-new" }),
+      }
     );
+    order = log;
 
     const outcome = await executeTask(SPLIT_TASK);
 
-    expect(outcome.success).toBe(false);
-    expect(outcome.success === false && outcome.failure.code).toBe("ACTIVITY_REQUIRED");
-    expect(createProgressEntry.mock.calls.length).toBe(0);
+    expect(outcome.success).toBe(true);
+    expect(maxOpen()).toBe(1);
+    expect(log).toEqual(["open-transaction", "close-transaction", "list-activities", "list-categories", "create-category", "create-activity", "create-progress-entry"]);
+    const [, input] = createProgressEntry.mock.calls[0] as unknown as [unknown, Record<string, unknown>];
+    expect(input.activityId).toBe("act-new");
   });
 
   // The failure paths above all return BEFORE the write, so the transaction
@@ -605,7 +618,7 @@ describe("executeRecordWorkProgress: the lookups and the write no longer share a
   // opened and closed, and nothing after it.
   test("a failure path still opens exactly one transaction and closes it", async () => {
     const { executeTask, order, maxOpen } = await loadExecutor(
-      fakeDb({ constructionActivities: { findFirst: async () => undefined } })
+      fakeDb({ constructionBoqs: { findFirst: async () => undefined } })
     );
 
     await executeTask(SPLIT_TASK);

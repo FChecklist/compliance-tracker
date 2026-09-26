@@ -57,6 +57,14 @@ export const PIPELINE_ERROR_CODES = [
   "RECORD_NOT_FOUND",
   "ALREADY_RECORDED",
   "REQUEST_REJECTED",
+  // BUILD-002 WP-04 -- what a BOQ built in batches refuses (construction-boq-payload-service.ts).
+  // TOTAL_MISMATCH carries the list of differences in context.diffs (a JSON text) so an AI can show
+  // its user exactly which area or count disagrees; BOQ_SEALED is a batch sent after the seal;
+  // DUPLICATE_ITEM_CODE is an item code already on the BOQ from an earlier batch. All three are the
+  // request's fault and none is retryable: sending the same thing again gives the same answer.
+  "TOTAL_MISMATCH",
+  "BOQ_SEALED",
+  "DUPLICATE_ITEM_CODE",
   // --- what this account/workspace may not do ----------------------------
   "FUNCTION_NOT_AVAILABLE",
   "NOT_PERMITTED",
@@ -109,6 +117,9 @@ const PICKER_BY_CODE: Readonly<Record<PipelineErrorCode, PickerHint>> = {
   RECORD_NOT_FOUND: "none",
   ALREADY_RECORDED: "none",
   REQUEST_REJECTED: "none",
+  TOTAL_MISMATCH: "none",
+  BOQ_SEALED: "none",
+  DUPLICATE_ITEM_CODE: "none",
   FUNCTION_NOT_AVAILABLE: "none",
   NOT_PERMITTED: "none",
   READ_AS_QUESTION: "none",

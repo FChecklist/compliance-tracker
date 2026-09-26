@@ -40,6 +40,11 @@ import { ServiceError } from "@/lib/services/compliance-service";
 import { financialsAllowedForRole, redactProjectDashboardFinancials } from "@/lib/task-execution/construction-tools";
 import { codeForServiceError, normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
 import { functionSpec, requiredParamSatisfied, WRITE_FUNCTION_IDS as REGISTERED_WRITES } from "./function-registry";
+// PROJEXA-BUILD-002: executors that live in their own files (WP-03 project, WP-04 BOQ batches, WP-07 activity).
+import { executeCreateProject, executeUpdateProject } from "./executors/project";
+import { executeAddBoqLines, executeSealBoq, withholdBoqMoney } from "./executors/boq-payload";
+import { ensureDefaultActivity, executeCreateActivity } from "./executors/activity";
+import { createBoqLedgerHooks } from "@/lib/services/construction-boq-payload-service";
 
 /**
  * R67 lane B (B-01, decision D-03). `error: string` is gone: a failure is a
@@ -154,6 +159,26 @@ function num(value: unknown): number | undefined {
   return undefined;
 }
 
+/** Progress recorded for a date this many days ahead of the server's UTC date is refused (a site in a timezone ahead of UTC is a day early). */
+const PROGRESS_DATE_LOOKAHEAD_DAYS = 1;
+const PROGRESS_REMARKS_MAX = 2000;
+
+/**
+ * PROJEXA-BUILD-002 WP-07: the date a progress entry is recorded for. Absent means today, as it always did;
+ * a date the caller names must be a real YYYY-MM-DD and not in the future, so an AI can backdate the
+ * day's work it is catching up on but cannot record work that has not happened.
+ */
+function progressEntryDate(raw: unknown): { ok: true; date: string } | { ok: false; failure: PipelineFailure } {
+  const today = new Date().toISOString().slice(0, 10);
+  if (raw === undefined || raw === null || raw === "") return { ok: true, date: today };
+  const text = typeof raw === "string" ? raw.trim() : "";
+  const real = /^\d{4}-\d{2}-\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`)) && new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) === text;
+  if (!real) return { ok: false, failure: pipelineFailure("DATE_REQUIRED", ["date"]) };
+  const limit = new Date(Date.parse(`${today}T00:00:00Z`) + PROGRESS_DATE_LOOKAHEAD_DAYS * 86_400_000).toISOString().slice(0, 10);
+  if (text > limit) return { ok: false, failure: pipelineFailure("VALUE_OUT_OF_RANGE", ["date"]) };
+  return { ok: true, date: text };
+}
+
 async function executeRecordWorkProgress(task: ExecutableTask): Promise<ExecutionOutcome> {
   const itemCode = str(task.params.itemCode);
   // R67 B-07: the verdict offers the project's real BOQ lines as chips, so
@@ -176,6 +201,17 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["value"]) };
   }
   if (!projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
+  // WP-07: entryDate and remarks were on the card and ignored by this executor (the date was always today).
+  const entryDate = progressEntryDate(task.params.entryDate);
+  if (!entryDate.ok) return { success: false, failure: entryDate.failure };
+  const rawRemarks = task.params.remarks;
+  if (rawRemarks !== undefined && rawRemarks !== null && typeof rawRemarks !== "string") {
+    return { success: false, failure: pipelineFailure("REQUEST_REJECTED", [], { status: 400, functionId: task.functionId, reason: "remarks_type" }) };
+  }
+  const remarks = str(rawRemarks);
+  if (remarks && remarks.length > PROGRESS_REMARKS_MAX) {
+    return { success: false, failure: pipelineFailure("REQUEST_REJECTED", [], { status: 400, functionId: task.functionId, reason: "remarks_too_long", max: PROGRESS_REMARKS_MAX }) };
+  }
 
   // R67 F-15 (R-232/R-251) -- THE PIPELINE'S ONE WRITE PATH WAS NESTING.
   //
@@ -205,7 +241,8 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
   // mistaken for an ExecutionOutcome: only the WRITE below produces one.
   type ResolvedTarget =
     | { ok: false; failure: PipelineFailure }
-    | { ok: true; activityId: string; boqLineItemId: string; percentComplete: number; quantityDone: number };
+    // activityId is null when the project has no activity yet (WP-07): the default one is made after this read closes.
+    | { ok: true; activityId: string | null; boqLineItemId: string; percentComplete: number; quantityDone: number };
   const resolved = await withTenantContext<ResolvedTarget>({ orgId: task.orgId, userId: task.userId }, async (db): Promise<ResolvedTarget> => {
     // Real data-model quirk found while wiring this (not invented): the most
     // recent BOQ for the project is used deterministically -- version DESC
@@ -282,13 +319,16 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     // not something seq14 invents or should silently paper over. The
     // pragmatic, honest choice here: use any real activity already recorded
     // against this project if one exists (matches the live convention seen
-    // on real verified rows, e.g. "projexa_demo_activity"); if the project
-    // genuinely has none, the task fails with that reason rather than
-    // fabricating an activity row.
+    // on real verified rows, e.g. "projexa_demo_activity"). BUILD-002 WP-07
+    // changes only the last step: a project that genuinely has none used to
+    // fail with ACTIVITY_REQUIRED; it now gets one default activity, made
+    // below by executors/activity.ts through the existing service.
     const activity = await db.query.constructionActivities.findFirst({
       where: and(eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
     });
-    if (!activity) return { ok: false, failure: pipelineFailure("ACTIVITY_REQUIRED", ["activityId"]) };
+    // BUILD-002 WP-07: no activity used to end the task with ACTIVITY_REQUIRED, and no function an AI could
+    // call made one. The default activity is created after this transaction closes (below), through the
+    // same service PROJEXA's own screens use, rather than refusing a project that has just been set up.
 
     // R67 B-11: the quantity -> percent conversion, done HERE because the
     // line's own total quantity is the only honest denominator and it is not
@@ -312,18 +352,20 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     // write, and it opens its own. B-11's conversion stays on this side of the
     // boundary because the line's total quantity is the only honest
     // denominator and it is only knowable from the read above.
-    return { ok: true, activityId: activity.id, boqLineItemId: lineItem.id, percentComplete, quantityDone: quantityDone ?? 0 };
+    return { ok: true, activityId: activity?.id ?? null, boqLineItemId: lineItem.id, percentComplete, quantityDone: quantityDone ?? 0 };
   });
 
   if (!resolved.ok) return { success: false, failure: resolved.failure };
+  const activityId = resolved.activityId ?? (await ensureDefaultActivity(task.orgId, projectId));
 
   const row = await createProgressEntry(
     { orgId: task.orgId, userId: task.userId },
     {
       projectId,
-      activityId: resolved.activityId,
+      activityId,
       boqLineItemId: resolved.boqLineItemId,
-      entryDate: new Date().toISOString().slice(0, 10),
+      entryDate: entryDate.date,
+      remarks,
       // Was hard-coded 0 before B-11, so the quantity column of every
       // pipeline-written entry was a lie by omission. It now carries what the
       // user actually said when they said it in units, and the percent is the
@@ -612,13 +654,24 @@ async function executeCreateBoq(task: ExecutableTask): Promise<ExecutionOutcome>
   // "line_items" / "items" in place of lineItems would otherwise make a
   // header-only BOQ and report success. Throws the service's own 400.
   validateBoqBodyShape(task.params);
+  // BUILD-002 WP-04: a retry key makes a second call with the same key the SAME BOQ, not a second
+  // version-1 BOQ. A key that is present but not usable is refused, never ignored.
+  const rawKey = task.params.idempotency_key;
+  let ledger: ReturnType<typeof createBoqLedgerHooks> | null = null;
+  if (rawKey !== undefined && rawKey !== null) {
+    const key = str(rawKey);
+    if (!key) return { success: false, failure: pipelineFailure("REQUEST_REJECTED", [], { status: 400, functionId: task.functionId, reason: "idempotency_key_type" }) };
+    ledger = createBoqLedgerHooks({ orgId: task.orgId, userId: actorId }, projectId, key);
+  }
   // createBoq() looks the project up by id AND org (task.orgId), so a project
   // of another org is its own 404 -> RECORD_NOT_FOUND, with nothing written.
   const row = await createBoq(
     { orgId: task.orgId, userId: actorId },
-    { projectId, title: str(task.params.title)!, lineItems: lineItems.items ?? [] }
+    { projectId, title: str(task.params.title)!, lineItems: lineItems.items ?? [] },
+    ledger?.hooks
   );
-  return created(row.id, `/scope/${row.id}`, redactProjectSideFields(row));
+  // WP-04: below the manager rank the answer carries no money (withholdBoqMoney), as the `boq_lines` record kind does.
+  return created(row.id, `/scope/${row.id}`, withholdBoqMoney(task.role, redactProjectSideFields(row)));
 }
 
 async function executeCreateBoqRevision(task: ExecutableTask): Promise<ExecutionOutcome> {
@@ -1731,6 +1784,13 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   // PROJEXA-BUILD-001 U-28 (BR-406): a new BOQ with its line items.
   create_boq: executeCreateBoq,
   create_boq_revision: executeCreateBoqRevision,
+  // PROJEXA-BUILD-002 WP-03, WP-04, WP-07: a project an AI can create and rename, a BOQ built in
+  // batches and sealed, and the activity a progress entry needs.
+  create_project: executeCreateProject,
+  update_project: executeUpdateProject,
+  add_boq_lines: executeAddBoqLines,
+  seal_boq: executeSealBoq,
+  create_activity: executeCreateActivity,
   create_document: executeCreateDocument,
   get_construction_project_dashboard: executeGetProjectDashboard,
   // PROJEXA-BUILD-001 U-28 part 2 (BR-407): a BOQ's line items, one page at a time.

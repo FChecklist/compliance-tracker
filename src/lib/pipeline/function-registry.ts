@@ -84,6 +84,16 @@ export type FunctionSpec = {
   writes: boolean;
   requiresProject: boolean;
   requiredParams: RequiredParam[];
+  /**
+   * BUILD-002 WP-03/WP-04 -- parameters the function accepts that are neither
+   * required nor a card field: a list (`lineItems`, `lines`), an id that is
+   * only sometimes needed (`sourceChangeOrderId`, `clientId`), a retry key.
+   * A card field has no list type, and the AI work link only accepts the
+   * parameter names the registry declares, so before this list a list-valued
+   * parameter that the executor read was dropped on the link (GAP_A 0.5).
+   * scripts/gen-ai-link-registry.ts adds these names to `declared_params`.
+   */
+  optionalParams?: readonly string[];
   card?: CardSchema;
   /**
    * Only for kind "run" (a COMMAND verb: Run / Export / Share). A command
@@ -225,6 +235,11 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
       { name: "title", label: "Title", code: "TITLE_REQUIRED" },
     ],
+    // BUILD-002 WP-04: lineItems is declared so a link keeps it (a title-only BOQ is still
+    // allowed, R-03). idempotency_key makes a retry of the same call one BOQ, not two; the
+    // link makes it mandatory (gen-ai-link-registry.data.ts), the internal pipeline does not
+    // need one because its own submission ledger already dedupes a confirm.
+    optionalParams: ["lineItems", "idempotency_key"],
     card: {
       fields: [{ key: "title", label: "Title", type: "text", required: true }],
       primaryLabel: "Save BOQ",
@@ -244,6 +259,9 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
       { name: "boqId", label: "BOQ version", code: "BOQ_VERSION_REQUIRED" },
     ],
+    // BUILD-002 WP-04: the three optional parameters executeCreateBoqRevision already forwards
+    // (BR-408) are declared, so a link keeps them instead of dropping them.
+    optionalParams: ["lineItems", "sourceChangeOrderId", "allowScopeReductionOverride"],
     card: {
       fields: [
         { key: "boqId", label: "From version", type: "select", required: true, picker: "boq-version" },
@@ -721,6 +739,130 @@ const SPEC_LIST: readonly FunctionSpec[] = [
         { key: "title", label: "Title", type: "text", required: false },
       ],
       primaryLabel: "Import BOQ",
+    },
+  },
+
+  // ---- PROJEXA-BUILD-002 WP-03: a project an AI can create and rename ---------------------
+  //
+  // create_project wraps createProject(), the service POST /api/v1/projexa/projects calls, and
+  // update_project wraps updateProjectDetails() next to updateProjectValue(). Neither is a read.
+  // create_project needs no project (it makes one) and is on no link: a link is bound to one
+  // project. With `shell: true` and no name it creates the placeholder project the "New project
+  // with my AI" flow hands to an AI (src/lib/project-shell.ts).
+  {
+    functionId: "create_project",
+    label: "New project",
+    module: "projects",
+    kind: "write",
+    writes: true,
+    requiresProject: false,
+    requiredParams: [],
+    optionalParams: ["shell", "productId", "clientId"],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: false },
+        { key: "description", label: "Description", type: "text", required: false },
+        { key: "startDate", label: "Start date", type: "date", required: false },
+        { key: "targetDate", label: "Target date", type: "date", required: false },
+      ],
+      primaryLabel: "Save project",
+    },
+  },
+  {
+    functionId: "update_project",
+    label: "Update the project",
+    module: "projects",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [{ name: "projectId", label: "Project", code: "PROJECT_REQUIRED" }],
+    optionalParams: ["clientId"],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: false },
+        { key: "description", label: "Description", type: "text", required: false },
+        { key: "startDate", label: "Start date", type: "date", required: false },
+        { key: "targetDate", label: "Target date", type: "date", required: false },
+        { key: "projectValue", label: "Project value", type: "number", required: false },
+        { key: "vatRatePercent", label: "VAT", type: "percent", unit: "%", required: false },
+        { key: "retentionPercent", label: "Retention", type: "percent", unit: "%", required: false },
+      ],
+      primaryLabel: "Save project",
+    },
+  },
+
+  // ---- PROJEXA-BUILD-002 WP-04: a BOQ built in batches, then sealed -----------------------
+  //
+  // create_boq (above) makes the empty BOQ, add_boq_lines appends at most 25 lines per call and
+  // seal_boq closes it against the totals the AI read from the sheet. See
+  // src/lib/services/construction-boq-payload-service.ts for the rules.
+  {
+    functionId: "add_boq_lines",
+    label: "Add BOQ lines",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "boqId", label: "BOQ version", code: "BOQ_VERSION_REQUIRED" },
+      { name: "batchNo", label: "Batch number", code: "VALUE_REQUIRED", field: "value" },
+      { name: "lines", label: "Lines", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "boqId", label: "BOQ version", type: "select", required: true, picker: "boq-version" },
+        { key: "batchNo", label: "Batch number", type: "number", required: true },
+      ],
+      primaryLabel: "Add lines",
+    },
+  },
+  {
+    functionId: "seal_boq",
+    label: "Seal the BOQ",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "boqId", label: "BOQ version", code: "BOQ_VERSION_REQUIRED" },
+      { name: "controlTotals", label: "Control totals", code: "VALUE_REQUIRED", field: "value" },
+      { name: "expectedLineCount", label: "Line count", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "boqId", label: "BOQ version", type: "select", required: true, picker: "boq-version" },
+        { key: "expectedLineCount", label: "Line count", type: "number", required: true },
+      ],
+      primaryLabel: "Seal BOQ",
+    },
+  },
+
+  // ---- PROJEXA-BUILD-002 WP-07: the activity a progress entry needs ----------------------
+  //
+  // record_work_progress writes against an activity, and a new project has none. create_activity
+  // wraps createActivity(); without a categoryId it uses the project's "General" category,
+  // creating it when it is missing (the same default record_work_progress uses).
+  {
+    functionId: "create_activity",
+    label: "New activity",
+    module: "work_progress",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "name", label: "Name", code: "TITLE_REQUIRED" },
+    ],
+    optionalParams: ["categoryId"],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: true },
+        { key: "unit", label: "Unit", type: "text", required: false },
+        { key: "plannedQuantity", label: "Planned quantity", type: "number", required: false },
+      ],
+      primaryLabel: "Save activity",
     },
   },
 ];
