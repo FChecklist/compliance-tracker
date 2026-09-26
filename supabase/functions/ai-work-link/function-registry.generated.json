@@ -1,0 +1,622 @@
+[
+  {
+    "function_id": "add_roster_entry",
+    "label": "Add a worker",
+    "module": "manpower",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "trade",
+      "employeeCode"
+    ],
+    "declared_params": [
+      "dailyRate",
+      "employeeCode",
+      "name",
+      "projectId",
+      "trade"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name"
+        ]
+      },
+      {
+        "name": "dailyRate",
+        "label": "Daily rate",
+        "any_of": [
+          "dailyRate"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
+    "function_id": "create_boq_revision",
+    "label": "New BOQ revision",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title"
+    ],
+    "declared_params": [
+      "boqId",
+      "projectId",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "boqId",
+        "label": "BOQ version",
+        "any_of": [
+          "boqId"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqId"
+    ]
+  },
+  {
+    "function_id": "create_document",
+    "label": "Add a document link",
+    "module": "documents",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "category"
+    ],
+    "declared_params": [
+      "category",
+      "expiryDate",
+      "externalUrl",
+      "name"
+    ],
+    "required_params": [
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name"
+        ]
+      },
+      {
+        "name": "category",
+        "label": "Category",
+        "any_of": [
+          "category"
+        ]
+      },
+      {
+        "name": "externalUrl",
+        "label": "Link",
+        "any_of": [
+          "externalUrl"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
+    "function_id": "create_meeting",
+    "label": "New meeting",
+    "module": "meetings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title"
+    ],
+    "declared_params": [
+      "durationMinutes",
+      "projectId",
+      "scheduledAt",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      },
+      {
+        "name": "scheduledAt",
+        "label": "Date and time",
+        "any_of": [
+          "scheduledAt"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
+    "function_id": "detect_construction_budget_schedule_risk",
+    "label": "Check budget and schedule risk",
+    "module": "reports",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Calls a server-side model (F-2): the internal AI never runs on link traffic.",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "generate_construction_progress_summary",
+    "label": "View progress summary",
+    "module": "reports",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Calls a server-side model (F-2): the internal AI never runs on link traffic.",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_compliance_stats",
+    "label": "View compliance stats",
+    "module": "compliance",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_construction_budget_status",
+    "label": "View budget status",
+    "module": "budget",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_construction_kpi_status",
+    "label": "View KPIs",
+    "module": "reports",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_construction_project_dashboard",
+    "label": "View project dashboard",
+    "module": "dashboard",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 1,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_overdue_items",
+    "label": "View overdue items",
+    "module": "compliance",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_sales_pipeline_overview",
+    "label": "View the sales pipeline",
+    "module": "customers",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_compliance_items",
+    "label": "View compliance items",
+    "module": "compliance",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_customers",
+    "label": "View customers",
+    "module": "customers",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_delayed_activities",
+    "label": "View delayed activities",
+    "module": "schedule",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Reads the whole organisation, not one project (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_departments",
+    "label": "View departments",
+    "module": "department",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_gst_import_batches",
+    "label": "View GST import batches",
+    "module": "compliance",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_gst_returns",
+    "label": "View GST returns",
+    "module": "compliance",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_leads",
+    "label": "View leads",
+    "module": "customers",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_notices",
+    "label": "View notices",
+    "module": "compliance",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_opportunities",
+    "label": "View opportunities",
+    "module": "customers",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_over_budget_projects",
+    "label": "View over-budget projects",
+    "module": "budget",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Reads the whole organisation, not one project (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_sales_orders",
+    "label": "View sales orders",
+    "module": "sales",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "Organisation-scoped read, not project data (F-3).",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "record_attendance",
+    "label": "Mark attendance",
+    "module": "manpower",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "date",
+      "hours",
+      "projectId",
+      "rosterId",
+      "status"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "rosterId",
+        "label": "Worker",
+        "any_of": [
+          "rosterId"
+        ]
+      },
+      {
+        "name": "date",
+        "label": "Date",
+        "any_of": [
+          "date"
+        ]
+      }
+    ],
+    "id_params": [
+      "rosterId"
+    ]
+  },
+  {
+    "function_id": "record_timesheet",
+    "label": "Log time",
+    "module": "schedule",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "task",
+      "activityType"
+    ],
+    "declared_params": [
+      "activityType",
+      "hours",
+      "issueId",
+      "projectId",
+      "spentOn",
+      "task"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "task",
+        "label": "Task",
+        "any_of": [
+          "task",
+          "issueId"
+        ]
+      },
+      {
+        "name": "hours",
+        "label": "Hours",
+        "any_of": [
+          "hours"
+        ]
+      }
+    ],
+    "id_params": [
+      "issueId"
+    ]
+  },
+  {
+    "function_id": "record_work_progress",
+    "label": "Record progress",
+    "module": "work_progress",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "remarks"
+    ],
+    "declared_params": [
+      "boqLineItemId",
+      "entryDate",
+      "itemCode",
+      "percent",
+      "projectId",
+      "quantityDone",
+      "remarks"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "itemCode",
+        "label": "BOQ line",
+        "any_of": [
+          "itemCode",
+          "boqLineItemId"
+        ]
+      },
+      {
+        "name": "percent",
+        "label": "Percent complete",
+        "any_of": [
+          "percent",
+          "quantityDone"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqLineItemId"
+    ]
+  },
+  {
+    "function_id": "review_budget",
+    "label": "Review Budget",
+    "module": "budget",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": null,
+    "money_sensitive": false,
+    "min_role_rank": 0,
+    "excluded_reason": "An alias that duplicates get_construction_budget_status.",
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  }
+]
