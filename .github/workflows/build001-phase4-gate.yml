@@ -1,0 +1,65 @@
+# PROJEXA-BUILD-001 BR-501: the phase 4 gate (scripts/verify/phase-gate.sh 4) on a GitHub runner.
+# It re-runs every phase 4 [EXIT] row that is not blocked_owner: the bun tests, the two projexa BOQ Playwright specs (BR-420, BR-421) and the live
+# conformance harness against the deployed ai-work-link function (BR-490). The laptop has neither the RAM for the browser rows nor a network that
+# survives 100 live calls, so the gate runs here. Manual only. The five links are throwaway links made for the run (they expire in a day and are
+# revoked afterwards); they are masked in the log. No Vercel, no deployment, no repository secret beyond the read-only SQL mode token.
+name: build-001 phase 4 gate (BR-501)
+
+on:
+  workflow_dispatch:
+    inputs:
+      awl_links:
+        description: "Five pasted links, one per line, in this order: manager A, manager B (other project), member, revoked, demoted"
+        required: true
+        type: string
+      projexa_ref:
+        description: "projexa ref to test"
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  phase4-gate:
+    name: phase-gate.sh 4
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: FChecklist/projexa
+          ref: ${{ inputs.projexa_ref }}
+          path: projexa-checkout
+      - uses: oven-sh/setup-bun@v2
+      - name: Mask the links
+        run: |
+          set -eu
+          printf '%s\n' "$AWL_LINKS" | while IFS= read -r l; do
+            [ -n "$l" ] || continue
+            echo "::add-mask::$l"
+            echo "::add-mask::${l##*/}"
+          done
+        env:
+          AWL_LINKS: ${{ inputs.awl_links }}
+      - run: bun install --frozen-lockfile
+      - name: Install projexa deps
+        run: bun install --frozen-lockfile
+        working-directory: projexa-checkout
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+        working-directory: projexa-checkout
+      - name: bash scripts/verify/phase-gate.sh 4
+        run: |
+          set -eu
+          mapfile -t L < <(printf '%s\n' "$AWL_LINKS" | grep -v '^[[:space:]]*$')
+          [ "${#L[@]}" -eq 5 ] || { echo "need exactly five links, got ${#L[@]}"; exit 2; }
+          export AWL_LINK="${L[0]}" AWL_LINK_B="${L[1]}" AWL_LINK_M="${L[2]}" AWL_LINK_REVOKED="${L[3]}" AWL_LINK_DEMOTED="${L[4]}"
+          export AWL_F="${AWL_LINK%/*}"
+          export PROJEXA_DIR="$GITHUB_WORKSPACE/projexa-checkout"
+          bash scripts/verify/phase-gate.sh 4
+        env:
+          AWL_LINKS: ${{ inputs.awl_links }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
