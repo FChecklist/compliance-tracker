@@ -239,6 +239,8 @@ describe("AW-204: the comparison and the area rule, on their own", () => {
 
   test("quantity times rate is rounded to whole cents per line, so 0.1 x 3 is 0.30 and not 0.30000000000000004", () => {
     expect(compareControlTotals([line("A", 3, 0.1)], { areas: { A: 0.3 }, grand: 0.3 }, 1)).toEqual([]);
+    // 0.29 x 100 is 28.999999999999996 in floating point: rounding (not truncating) is what makes 0.29 + 0.01 equal 0.30
+    expect(compareControlTotals([line("A", 1, 0.29), line("A", 1, 0.01)], { areas: { A: 0.3 }, grand: 0.3 }, 2)).toEqual([]);
   });
 
   test("a sub-task (a line with a parent) is not added", () => {
