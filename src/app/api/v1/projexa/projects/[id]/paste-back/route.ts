@@ -8,7 +8,8 @@
 // service's line-item rules, so a paste with any block that fails answers 422 and stores 0 proposals. The proposal is
 // stored under the signed-in person, or the person an API key names in X-Acting-User / X-Acting-User-Email; a key
 // that names nobody is refused with 400. A project of another organisation, or one a project-pinned key may not
-// reach, is a 404 before any block is read.
+// reach, is a 404 before any block is read. Text in a block gets the link's text rules (control characters removed,
+// a value over 2,000 characters refused with 422; src/lib/pipeline/paste-back-text.ts), and a body over 200 KB is 413.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { ServiceError } from "@/lib/services/compliance-service"
@@ -37,9 +38,9 @@ async function POST_impl(request: NextRequest, { params }: { params: Promise<{ i
   if (roleErr) return roleErr
 
   try {
-    // The JSON envelope may escape every newline of the text, so the envelope is allowed twice the text's size.
+    // The whole body is held to 200 KB, envelope included, before any of it is parsed.
     const raw = await request.text()
-    if (raw.length > MAX_PASTE_CHARS * 2) return NextResponse.json({ error: "The pasted text is too large" }, { status: 413 })
+    if (raw.length > MAX_PASTE_CHARS) return NextResponse.json({ error: "The pasted text is too large" }, { status: 413 })
     let body: Record<string, unknown>
     try {
       const parsed: unknown = JSON.parse(raw)
@@ -64,7 +65,7 @@ async function POST_impl(request: NextRequest, { params }: { params: Promise<{ i
     const parsed = parsePasteBack(text)
     if (!parsed.ok) {
       return NextResponse.json(
-        { stored: 0, error: "The pasted text is not a valid proposal", block: parsed.block, failure: parsed.failure },
+        { stored: 0, error: "The pasted text is not a valid proposal", block: parsed.block, failure: parsed.failure, ...(parsed.detail ? { detail: parsed.detail } : {}) },
         { status: 422 }
       )
     }
