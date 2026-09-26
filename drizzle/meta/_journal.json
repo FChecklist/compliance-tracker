@@ -3229,6 +3229,62 @@
       "when": 1790087000000,
       "tag": "0642_build001_pipeline_schedules",
       "breakpoints": true
+    },
+    {
+      "idx": 463,
+      "version": "7",
+      "when": 1790090000000,
+      "tag": "0621_build001_awl_config_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 464,
+      "version": "7",
+      "when": 1790090500000,
+      "tag": "0622_build001_awl_intent",
+      "breakpoints": true
+    },
+    {
+      "idx": 465,
+      "version": "7",
+      "when": 1790091000000,
+      "tag": "0623_build001_awl_call_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 466,
+      "version": "7",
+      "when": 1790091500000,
+      "tag": "0624_build001_awl_link_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 467,
+      "version": "7",
+      "when": 1790092000000,
+      "tag": "0625_build001_awl_read_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 468,
+      "version": "7",
+      "when": 1790092500000,
+      "tag": "0626_build001_awl_intent_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 469,
+      "version": "7",
+      "when": 1790093000000,
+      "tag": "0627_build001_awl_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 470,
+      "version": "7",
+      "when": 1790093500000,
+      "tag": "0628_build001_awl_seed",
+      "breakpoints": true
     }
   ]
 }
