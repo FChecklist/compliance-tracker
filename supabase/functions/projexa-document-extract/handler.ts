@@ -2,6 +2,12 @@
 // Function, with its I/O passed in (`deps`) so bun can run the real handler in src/lib/services/projexa-document-extract.test.ts.
 // index.ts only wires Deno.serve and the environment.
 //
+// SPEND CAP (U-36b, BR-526, PMD-43, PMD-40). Every model call is metered in the usage ledger through `deps.budget` (see budget.ts):
+// before the model is called the handler reserves the call's estimated cost against the cap (default 1.00 USD) and refuses with
+// 402 budget_exhausted when the recorded total has reached the cap or the call would carry it over; after the call it records the
+// tokens and the cost computed from the token counts the model returned. A model with no budget wired, a ledger that cannot be
+// read or written, or a model with no price is refused (503), never allowed: spend is never allowed because bookkeeping failed.
+//
 // WHAT IT DOES. The compliance-tracker route POST /api/v1/projexa/projects/from-document reads an uploaded workbook, turns every
 // sheet into a small JSON digest (rows of cleaned text with their real row numbers) and posts it here. This function is the only
 // place a model is called for that path (E-13: zero Vercel invocations for the model work). It builds a fixed system prompt, puts
@@ -23,7 +29,11 @@
 // ENDPOINT   POST, JSON body {"schema":"boq_project_v1","fileName":"...","sheets":[{"name":"...","rows":[{"row":3,"cells":["..."]}]}]}
 //   200 {"ok":true,"schema":"boq_project_v1","output":<the JSON value the model returned>}
 //   400 bad_request | unknown_schema      401 unauthorized      405 method not allowed      413 input_too_large
-//   502 model_error | model_output_too_large | model_output_not_json      503 model_not_configured
+//   400 attribution_required (the request does not name its organisation and user)
+//   402 budget_exhausted      502 model_error | model_output_too_large | model_output_not_json
+//   503 model_not_configured | budget_not_configured | budget_ledger_unavailable | model_price_unknown
+import { reserveBudget, settleBudget, type BudgetDeps } from "./budget.ts"
+
 export const EXTRACTION_SCHEMA_NAME = "boq_project_v1"
 
 export type Limits = {
@@ -37,12 +47,16 @@ export type Limits = {
 export const DEFAULT_LIMITS: Limits = { maxRequestChars: 200_000, maxOutputChars: 80_000, modelTimeoutMs: 100_000 }
 
 export type ModelRequest = { system: string; user: string; maxOutputChars: number; signal?: AbortSignal }
-/** Returns the model's reply as text. It throws when the provider fails. */
-export type ModelCall = (req: ModelRequest) => Promise<string>
+/** Returns the model's reply as text, or as text plus token counts. It throws when the provider fails. */
+export type ModelCall = (req: ModelRequest) => Promise<string | ModelReply>
+/** A reply that also reports the tokens the provider counted. The cost recorded in the ledger is computed from these counts. */
+export type ModelReply = { text: string; usage?: { promptTokens: number; completionTokens: number } }
 
 export type ExtractDeps = {
   verifyCaller: (req: Request) => Promise<boolean>
   model: ModelCall | null
+  /** The spend cap and the usage ledger (budget.ts). Required whenever `model` is set: without it every call is refused. */
+  budget?: BudgetDeps | null
   limits?: Partial<Limits>
   log?: (line: string) => void
 }
@@ -204,6 +218,11 @@ export async function handleProjexaDocumentExtract(req: Request, deps: ExtractDe
     log("projexa-document-extract: no model configured -> 503")
     return refuse(503, "model_not_configured")
   }
+  const budget = deps.budget ?? null
+  if (budget === null) {
+    log("projexa-document-extract: no budget configured -> 503")
+    return refuse(503, "budget_not_configured")
+  }
 
   const declared = Number(req.headers.get("content-length") ?? "0")
   if (Number.isFinite(declared) && declared > limits.maxRequestChars * 4) return refuse(413, "input_too_large")
@@ -216,13 +235,42 @@ export async function handleProjexaDocumentExtract(req: Request, deps: ExtractDe
   const parsed = parseRequestBody(text)
   if (!parsed.ok) return refuse(400, parsed.code)
 
-  let modelText: unknown
+  let who: ReturnType<BudgetDeps["resolveAttribution"]> = null
+  try {
+    who = budget.resolveAttribution(req)
+  } catch {
+    who = null
+  }
+  if (who === null) return refuse(400, "attribution_required")
+
+  const user = buildUserMessage(parsed.value)
+  const reserved = await reserveBudget(budget, who, { inputChars: SYSTEM_PROMPT.length + user.length, maxOutputChars: limits.maxOutputChars })
+  if (reserved.kind === "refused") {
+    log(`projexa-document-extract: spend cap ${reserved.reason} -> 402`)
+    return refuse(402, "budget_exhausted")
+  }
+  if (reserved.kind === "unavailable") {
+    log(`projexa-document-extract: budget ${reserved.reason} -> 503`)
+    return refuse(503, reserved.reason === "price_unknown" ? "model_price_unknown" : "budget_ledger_unavailable")
+  }
+  const reservation = reserved.reservation
+
+  let modelReply: string | ModelReply
   try {
     const signal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(limits.modelTimeoutMs) : undefined
-    modelText = await deps.model({ system: SYSTEM_PROMPT, user: buildUserMessage(parsed.value), maxOutputChars: limits.maxOutputChars, signal })
+    modelReply = await deps.model({ system: SYSTEM_PROMPT, user, maxOutputChars: limits.maxOutputChars, signal })
   } catch {
+    // The provider may have billed a call that failed, so the reservation stays at its estimate (recorded as a failed call).
+    if (!(await settleBudget(budget, reservation, null, { success: false, failureReason: "model_error" }))) log("projexa-document-extract: ledger settle failed")
     log("projexa-document-extract: model call failed -> 502")
     return refuse(502, "model_error")
+  }
+  const modelText: unknown = typeof modelReply === "object" && modelReply !== null ? modelReply.text : modelReply
+  const usage = typeof modelReply === "object" && modelReply !== null && modelReply.usage ? modelReply.usage : null
+  // Settle before the reply is judged: the tokens were spent whether or not the text turns out to be usable.
+  const usable = typeof modelText === "string"
+  if (!(await settleBudget(budget, reservation, usage, { success: usable, failureReason: usable ? null : "model_error" }))) {
+    log("projexa-document-extract: ledger settle failed")
   }
   if (typeof modelText !== "string") {
     log("projexa-document-extract: model returned a non-text value -> 502")
