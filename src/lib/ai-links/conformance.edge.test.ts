@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { afterAll, describe, expect, test } from "bun:test"
-import { spawn, spawnSync } from "node:child_process"
+import { spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { join } from "node:path"
 import { handleAwl } from "../../../supabase/functions/ai-work-link/handler"
 import type { AwlConfig } from "../../../supabase/functions/ai-work-link/handler"
@@ -110,10 +110,10 @@ function run(cmd: string, args: string[], env: Record<string, string> = {}, time
   const clean: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !k.startsWith("AWL_") && !k.startsWith("VERIFY_")) clean[k] = v
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd: ROOT, env: { ...clean, PYTHONDONTWRITEBYTECODE: "1", PYTHONIOENCODING: "utf-8", ...env } })
+    const child = spawn(cmd, args, { cwd: ROOT, env: { ...clean, PYTHONDONTWRITEBYTECODE: "1", PYTHONIOENCODING: "utf-8", ...env } as unknown as NodeJS.ProcessEnv }) as ChildProcess
     let out = ""
-    child.stdout.on("data", (d) => (out += d))
-    child.stderr.on("data", (d) => (out += d))
+    child.stdout?.on("data", (d) => (out += d))
+    child.stderr?.on("data", (d) => (out += d))
     const timer = setTimeout(() => child.kill(), timeoutMs)
     child.on("close", (code) => {
       clearTimeout(timer)
