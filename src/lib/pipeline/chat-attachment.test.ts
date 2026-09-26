@@ -301,6 +301,8 @@ describe("the gates run before the file is read and before any model call", () =
       const r = rig(carefulHumanModel, ZOOMIES)
       const reply = await runChatAttachment(input({ role }), r.deps)
       expect(reply).toMatchObject({ status: "refused", failure: { code: "NOT_PERMITTED", context: { reason: "role" } } })
+      // Refused before the policy is asked: the executor repeats the role gate, this one runs first.
+      expect(r.counts.routeAsked).toBe(0)
       untouched(r)
     }
     for (const role of ["member", "manager", "admin"]) {
@@ -367,6 +369,8 @@ describe("what the file says is shown as data", () => {
   test("chatText removes control characters and line breaks, keeps the words, and caps the length", () => {
     expect(chatText("Row 4\nhas\tno\u0007 rate\u2028now\u202e!", 100)).toBe("Row 4 has no rate now !")
     expect(chatText("x".repeat(500), 10)).toBe("xxxxxxxxx\u2026")
+    // The cap counts the cleaned text, not the raw one.
+    expect(chatText("ab" + "\n".repeat(20) + "cd", 10)).toBe("ab cd")
     expect(chatText(undefined, 10)).toBe("")
     expect(chatText(42, 10)).toBe("")
   })
