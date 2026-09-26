@@ -14,7 +14,8 @@ import {
 } from "../../../supabase/functions/_shared/ai-link/core"
 import { handleAwl } from "../../../supabase/functions/ai-work-link/handler"
 import { KIND_NAMES, RECORD_KINDS, kindDef } from "../../../supabase/functions/ai-work-link/api-definition"
-import { F, PRIVATE_HEADERS, TOKENS, makeFake, manifestOf, req, testConfig, tok, type FakeOptions } from "./__test-helpers__/awl-edge-fake"
+import type { Rpc } from "../../../supabase/functions/ai-work-link/handler"
+import { F, PRIVATE_HEADERS, TOKENS, makeFake, manifestOf, req, testConfig, type FakeOptions } from "./__test-helpers__/awl-edge-fake"
 
 function setup(opts: FakeOptions = {}, cfg: Parameters<typeof testConfig>[0] = {}) {
   const fake = makeFake(opts)
@@ -236,6 +237,22 @@ describe("addresses: path mode, header mode, tokens", () => {
       }
     }
     expect(fake.names().filter((n) => DATA_RPCS.includes(n) || n === "ai_work_link__resolve")).toEqual([])
+  })
+
+  test("each layer refuses a dead link on its own: a resolve that lies cannot revive it, and neither can a call log that lies", async () => {
+    const fake = makeFake()
+    const live = await fake.rpc("ai_work_link__resolve", { p_token: TOKENS.manager })
+    const config = testConfig()
+    const lyingResolve: Rpc = async (name, args) => (name === "ai_work_link__resolve" && args?.p_token === TOKENS.revoked ? live : fake.rpc(name, args))
+    const lyingLog: Rpc = async (name, args) =>
+      name === "ai_work_link_log_call" && args?.p_token === TOKENS.revoked ? { data: { status: "ok", call_id: "call_x", calls_last_minute: 1, limit_per_minute: 120 }, error: null } : fake.rpc(name, args)
+    for (const rpc of [lyingResolve, lyingLog]) {
+      for (const [path, init] of [["", {}], ["/card.md", {}], ["", { method: "POST", body: { jsonrpc: "2.0", id: 1, method: "tools/list" } }]] as const) {
+        const r = await handleAwl(req(at(TOKENS.revoked, path), init), { rpc, config })
+        expect(r.status).toBe(410)
+        expect((await r.json()).error).toBe(LINK_GONE)
+      }
+    }
   })
 
   test("a well-formed unknown token from an address is counted; the 31st unknown-token call is 429 even with a rotated X-Forwarded-For", async () => {
