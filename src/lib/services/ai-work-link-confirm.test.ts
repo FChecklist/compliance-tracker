@@ -326,6 +326,9 @@ describe("200: the draft's own person with the right token", () => {
     expect(r.res.status).toBe(200)
     expect(Object.keys(r.json).sort()).toEqual(["draft_id", "function_id", "message", "status"])
     for (const leak of [d.token, session, d.linkToken, "48123", "999777", "5551", "dailyRate", "amount", "org-a", "u-mgr", "proj-a", "params"]) expect(r.text).not.toContain(leak)
+    // and no log line of a successful confirm holds a secret either
+    expect(logs.some((l) => l.includes("confirmed -> 200"))).toBe(true)
+    for (const line of logs) for (const secret of [d.token, session, d.linkToken]) expect(line).not.toContain(secret)
   })
 })
 
