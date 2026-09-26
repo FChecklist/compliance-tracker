@@ -8,7 +8,7 @@
 //   --exceptions       COVERAGE_111.csv gives every EXC-ITEM row a function or a recorded reason (WP-05f)
 //   --owner-kit        the prepared enable-writes migration, its down file and the owner guide exist (WP-09)
 // Exit 0 pass, 1 fail, 3 not built yet (a row must never pass because its input does not exist).
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 
 const root = process.cwd()
@@ -88,10 +88,28 @@ function coverage(exceptionsOnly) {
 }
 
 function ownerKit() {
-  const need = ["OWNER_SWITCH_ON_GUIDE.md"]
-  const miss = need.filter((f) => !existsSync(join(dir, f)))
-  if (miss.length) return notBuilt("owner kit missing: " + miss.join(", "))
-  console.log("OK")
+  // AW-511 (WP-09b): the guide, the prepared enable-writes migration and its down file (outside drizzle/, in no journal, so nothing applies them), the
+  // pre-flight and the kill-switch drill exist, the guide names every owner step, and nothing outside the prepared file sets the switch on.
+  const rel = (p) => join(root, p)
+  const guide = join(dir, "OWNER_SWITCH_ON_GUIDE.md")
+  const prepared = join(dir, "prepared")
+  const enable = join(prepared, "0645_build002_awl_enable_writes.sql")
+  const disable = join(prepared, "0645_build002_awl_enable_writes.down.sql")
+  const files = [guide, enable, disable, rel("scripts/verify/awl-exec-preflight.sh"), rel("scripts/verify/awl-killswitch-drill.sh"), rel("scripts/awl-local-exec-host.ts"), rel("scripts/verify/awl-exec-closure.mjs")]
+  const miss = files.filter((f) => !existsSync(f))
+  if (miss.length) return notBuilt("owner kit missing: " + miss.map((f) => f.slice(root.length + 1)).join(", "))
+  const guideText = readFileSync(guide, "utf8")
+  for (const term of ["AWL_EXEC_INTERNAL_SECRET", "APP_RUNTIME_DATABASE_URL", "awl-exec-preflight.sh", "AWL_EXEC_READY db_role=app_runtime", "EXEC_FUNCTION_PRESENT", "0645_build002_awl_enable_writes.sql", "writes_enabled = false", "awl-killswitch-drill.sh"]) {
+    if (!guideText.includes(term)) fail("OWNER_SWITCH_ON_GUIDE.md does not name " + term)
+  }
+  if (!/SET writes_enabled = true/.test(readFileSync(enable, "utf8"))) fail("the prepared migration does not set writes_enabled = true")
+  if (!/SET writes_enabled = false/.test(readFileSync(disable, "utf8"))) fail("the down file does not set writes_enabled = false")
+  // unapplied: not in drizzle/ and not in its journal
+  const drizzleDir = join(root, "drizzle")
+  if (existsSync(drizzleDir) && readdirSync(drizzleDir).some((f) => /awl_enable_writes/.test(f))) fail("an enable-writes migration is inside drizzle/ (it must stay outside, unapplied)")
+  const journal = join(drizzleDir, "meta", "_journal.json")
+  if (existsSync(journal) && readFileSync(journal, "utf8").includes("awl_enable_writes")) fail("the journal names the enable-writes migration")
+  if (!process.exitCode) console.log("OK")
 }
 
 switch (mode) {

@@ -11,10 +11,11 @@
 //   replay     the same key is the same intent (id, no second row, no second slot, no confirm code again); with no key the same function and
 //              parameters on the same UTC day are one intent whatever the key order, different parameters are another; done keeps its key and a
 //              replay returns its stored outcome; failed, refused and expired free the key
-//   /actions   through the handler: record, claim, then the exec function ONCE; the answer is 201 with the record; the same request again is 200
-//              replayed with the stored record and the exec function is not called again; a failure is 422 with its code and the key is free; an
-//              exec function that cannot be reached is 503 and the intent is failed EXEC_UNAVAILABLE (key freed); a request that arrives while the
-//              intent is executing gets 200 executing and does not start a second run; the caps hold on this path too
+//   /actions   through the handler: record, then the exec function ONCE (it claims, runs and finishes: BUILD-002 WP-09b); the answer is 201 with the
+//              record; the same request again is 200 replayed with the stored record and the exec function is not called again; a failure is 422 with
+//              its code and the key is free; an exec function that cannot be reached is 503 and NOTHING is written to the intent (recorded: the same
+//              request runs it; claimed and answer lost: it stays executing and never runs twice); a request that arrives while the intent is
+//              executing gets 200 executing and does not start a second run; the caps hold on this path too
 //
 // Falsifiability (each break was made, the named test failed, the file was restored byte for byte):
 //   1. record_intent: raise the hour cap from 30 to 31 (drizzle/0629)                  -> "the 31st ..." fails
@@ -177,11 +178,18 @@ describe("POST /actions through the handler, with a stand-in for the exec functi
   let execCalls: string[]
   let logs: string[]
 
-  /** What the exec host will do for an intent it was handed: finish it in SQL, then answer. */
-  const execFinishing = (outcome: "done" | "failed" | "throw" | "slow"): ExecClient => async (intentId) => {
+  /**
+   * What the exec host does for an intent it was handed (BUILD-002 WP-09b: the exec function CLAIMS, runs and finishes; the link function only records):
+   * claim it in SQL, then finish it, then answer. "throw-before" is an exec function that could not be reached (nothing claimed); "throw-after" is one
+   * that claimed the intent and whose answer was lost.
+   */
+  const claim = (intentId: string) => db.query("select public.ai_work_link_intent_claim($1)", [intentId])
+  const execFinishing = (outcome: "done" | "failed" | "throw-before" | "throw-after" | "slow"): ExecClient => async (intentId) => {
     execCalls.push(intentId)
-    if (outcome === "throw") throw new Error("connection reset")
-    if (outcome === "slow") return { status: "done" }
+    if (outcome === "throw-before") throw new Error("connection reset")
+    await claim(intentId)
+    if (outcome === "throw-after") throw new Error("timed out waiting for the answer")
+    if (outcome === "slow") return { status: "executing" }
     if (outcome === "failed") {
       await db.query(`select public.ai_work_link_intent_finish($1, 'failed', null, null, '{"code":"RECORD_NOT_FOUND","missing":["itemCode"]}'::jsonb)`, [intentId])
       return { status: "failed", code: "RECORD_NOT_FOUND", missing: ["itemCode"] }
@@ -238,16 +246,20 @@ describe("POST /actions through the handler, with a stand-in for the exec functi
     }
   })
 
-  test("an exec function that cannot be reached is 503, the intent is failed EXEC_UNAVAILABLE and its key is free", async () => {
+  test("an exec function that cannot be reached is 503 and NOTHING is written to the intent: it stays recorded and the same request runs it", async () => {
     execCalls = []
     await setWrites(db, true)
     try {
       const link = await mintLink(db, "u-mgr", "proj-a")
-      const r = await act(link, request("act-down"), execFinishing("throw"))
+      const r = await act(link, request("act-down"), execFinishing("throw-before"))
       expect(r.status).toBe(503)
       expect(r.json).toMatchObject({ code: "EXEC_UNAVAILABLE", available: false })
-      expect(await intentRow(db, execCalls[0])).toMatchObject({ status: "failed", failure: { code: "EXEC_UNAVAILABLE", missing: [] } })
-      expect((await act(link, request("act-down"), execFinishing("done"))).status).toBe(201)
+      expect(await intentRow(db, execCalls[0])).toMatchObject({ status: "recorded", failure: null })
+      // the same request is the same intent, driven again
+      const again = await act(link, request("act-down"), execFinishing("done"))
+      expect(again.status).toBe(201)
+      expect(again.json.intent_id).toBe(execCalls[0])
+      expect(await count(db, "platform.ai_work_link_intent where link_id = $1", [link.link_id])).toBe(1)
       // and with no exec client at all (execPresent true but nothing wired): 503 and nothing recorded
       const other = await mintLink(db, "u-mem", "proj-a")
       const none = await act(other, request("act-none"), undefined)
@@ -259,19 +271,54 @@ describe("POST /actions through the handler, with a stand-in for the exec functi
     }
   })
 
+  test("an exec function whose answer was lost AFTER it claimed the intent is 503, the intent is NOT marked failed, and a retry never runs it twice", async () => {
+    execCalls = []
+    await setWrites(db, true)
+    try {
+      const link = await mintLink(db, "u-mgr", "proj-a")
+      const r = await act(link, request("act-lost"), execFinishing("throw-after"))
+      expect(r.status).toBe(503)
+      expect(r.json).toMatchObject({ code: "EXEC_UNAVAILABLE" })
+      // the write may exist: the row stays executing (it reads failed EXECUTION_UNCERTAIN after 10 minutes), the key stays held
+      expect((await intentRow(db, execCalls[0])).status).toBe("executing")
+      const retry = await act(link, request("act-lost"), execFinishing("done"))
+      expect(retry.status).toBe(200)
+      expect(retry.json).toMatchObject({ intent_id: execCalls[0], status: "executing", replayed: true })
+      expect(execCalls).toEqual([execCalls[0]])
+    } finally {
+      await setWrites(db, false)
+    }
+  })
+
   test("a request that arrives while the intent is executing is 200 executing and does not start a second run", async () => {
     execCalls = []
     await setWrites(db, true)
     try {
       const link = await mintLink(db, "u-mgr", "proj-a")
-      // the exec function answers but has not finished the intent yet (slow): the row stays executing
+      // the exec function claimed it and answers executing (another call is running it): the row stays executing
       const first = await act(link, request("act-slow"), execFinishing("slow"))
-      expect(first.status).toBe(201)
+      expect(first.status).toBe(200)
+      expect(first.json).toMatchObject({ status: "executing", replayed: true })
       expect((await intentRow(db, first.json.intent_id)).status).toBe("executing")
       const second = await act(link, request("act-slow"), execFinishing("done"))
       expect(second.status).toBe(200)
       expect(second.json).toMatchObject({ intent_id: first.json.intent_id, status: "executing", replayed: true })
       expect(execCalls).toEqual([first.json.intent_id])
+    } finally {
+      await setWrites(db, false)
+    }
+  })
+
+  test("the exec function's refusals are mapped to their honest HTTP answers: ROLE_CHANGED 403, LINK_GONE 410, WRITES_NOT_ENABLED 403, any other 409", async () => {
+    await setWrites(db, true)
+    try {
+      const link = await mintLink(db, "u-mgr", "proj-a")
+      const refuse = (code: string): ExecClient => async () => ({ status: "refused", code })
+      for (const [code, want] of [["ROLE_CHANGED", 403], ["LINK_GONE", 410], ["WRITES_NOT_ENABLED", 403], ["EXPIRED", 409], ["NOT_CLAIMABLE", 409]] as const) {
+        const r = await act(link, request(`act-ref-${code}`), refuse(code))
+        expect({ code, status: r.status }).toEqual({ code, status: want })
+        if (code !== "LINK_GONE") expect(r.json.code).toBe(code)
+      }
     } finally {
       await setWrites(db, false)
     }

@@ -61,6 +61,16 @@ export const IDLE_IN_TRANSACTION_TIMEOUT_MS = 30_000
 export const APP_RUNTIME_STARTUP_OPTIONS = `-c idle_in_transaction_session_timeout=${IDLE_IN_TRANSACTION_TIMEOUT_MS}`
 
 /**
+ * The pool size: 20 unless APP_RUNTIME_POOL_MAX names another whole number from 1 to 50 (BUILD-002 WP-09b, blocker B9: the ai-work-link-exec Edge
+ * function runs one link write per isolate and sets 2, so a warm isolate does not open 20 pooler connections). Unset or invalid keeps 20, the
+ * value the comments below re-measured.
+ */
+export function appRuntimePoolMax(): number {
+  const n = Number(process.env.APP_RUNTIME_POOL_MAX)
+  return Number.isInteger(n) && n >= 1 && n <= 50 ? n : 20
+}
+
+/**
  * The exact options object handed to postgres() for the app_runtime pool.
  * Exported so the sibling test can assert on it without dialling a database --
  * every value here is a production incident's fix (R46's timeouts, R67 F-16's
@@ -114,7 +124,7 @@ export function appRuntimePoolOptions() {
     // once more, 15 -> 20, still well inside the confirmed ~48-connection
     // headroom (60 max_connections - ~12 baseline) -- not a blind escalation,
     // the same measured-headroom check as the first raise, just re-applied.
-    max: 20,
+    max: appRuntimePoolMax(),
     connect_timeout: 10,
     idle_timeout: 30,
     connection: {

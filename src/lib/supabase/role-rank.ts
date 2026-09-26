@@ -50,3 +50,15 @@ export const ROLE_RANK: Record<UserRole, number> = {
   admin: 5,
   veridian_admin: 6,
 }
+
+/**
+ * Is this person's role at least `minimumRole`? Moved here from auth-guard.ts (BUILD-002 WP-09b, blocker B1 of the exec bundle): it needs only the
+ * rank table, and auth-guard.ts pulls in next/server and next/headers. auth-guard.ts re-exports it, so every existing importer is unchanged. Typed on
+ * the one field it reads, so the users row type (a drizzle schema type) is not needed here either.
+ */
+export function hasRole(dbUser: { role: string } | null, minimumRole: UserRole): boolean {
+  if (!dbUser) return false
+  const userRank = ROLE_RANK[dbUser.role as UserRole] ?? 0
+  const requiredRank = ROLE_RANK[minimumRole]
+  return userRank >= requiredRank
+}

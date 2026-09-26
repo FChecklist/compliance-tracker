@@ -11,8 +11,8 @@
 //                                                  writes are off.
 //   POST /actions                   (link token)  a direct level-1 change. Refuses with a TRUE reason while the switch is off (403
 //                                                  WRITES_NOT_ENABLED), and never with LEVEL_NOT_ALLOWED unless the level really is the reason. When the
-//                                                  switch and the exec function are both on and the level allows: record_intent(kind 'action'), then
-//                                                  ai_work_link_intent_claim, then the exec function (a later unit supplies it as `env.exec`).
+//                                                  switch and the exec function are both on and the level allows: record_intent(kind 'action'), then the
+//                                                  exec function (`env.exec`, exec-client.ts), which claims the intent, runs it and finishes it (WP-09b).
 //
 // WHAT THIS FILE NEVER DOES: run a pipeline function, call a model, hold a database client, log a token or a confirm code, or send the confirm
 // code anywhere but the fragment of confirm_url in the ONE answer that mints it. A replay of a draft never returns the code again (SQL returns it
@@ -21,7 +21,7 @@
 import { cleanDeep, errorBody } from "../_shared/ai-link/core.ts"
 import { functionDef } from "./api-definition.ts"
 import { readConfirmBody, personGate, sessionGate, type ConfirmDeps } from "./confirm.ts"
-import { AwlError, availabilityOf, callRpc, checkChange, fail, readIntent, requireScope, type ExecOutcome, type ReadEnv } from "./reads.ts"
+import { availabilityOf, callRpc, checkChange, fail, readIntent, requireScope, type ExecOutcome, type ReadEnv } from "./reads.ts"
 
 export type Answer = { status: number; body: unknown; headers?: Record<string, string> }
 
@@ -237,21 +237,24 @@ export async function draftPreview(req: Request, draftId: string, deps: ConfirmD
 // POST /actions
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-/** Best effort: an intent that was claimed but could not be handed to the exec function must not stay `executing` and hold its key. */
-async function finishFailed(env: ReadEnv, intentId: string, code: string): Promise<void> {
-  try {
-    await env.rpc("ai_work_link_intent_finish", { p_intent_id: intentId, p_status: "failed", p_submission_id: null, p_result: null, p_failure: { code, missing: [] } })
-  } catch {
-    // the sweep of the next POST turns a stale executing row into a failed one
-  }
-}
-
+/**
+ * The answer of the exec function, as HTTP. The exec function CLAIMS the intent, runs it and writes the outcome to the intent itself
+ * (ai_work_link_intent_claim / _finish), so this only maps what it said. A refusal at the claim carries the reason the SQL gave.
+ */
 function fromExec(intentId: string, out: ExecOutcome): Answer {
   if (out.status === "done") {
     return { status: 201, body: { intent_id: intentId, status: "done", record: out.record ?? null, submission_id: out.submission_id ?? null, replayed: false } }
   }
+  if (out.status === "executing") {
+    return { status: 200, body: { intent_id: intentId, status: "executing", replayed: true, hint: "Read GET /intents/{id} in a moment." } }
+  }
   const code = typeof out.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(out.code) ? out.code : "UNKNOWN"
-  if (out.status === "refused") return { status: 403, body: errorBody(403, "This change is no longer allowed on this link.", undefined, { code }) }
+  if (out.status === "refused") {
+    if (code === "WRITES_NOT_ENABLED") return { status: 403, body: errorBody(403, "Direct changes are switched off for every link at the moment.", "POST /drafts records a draft and the person confirms it.", { code, available: false }) }
+    if (code === "LINK_GONE") return { status: 410, body: errorBody(410, "This link has expired or was revoked.", "Ask the person for a new link.") }
+    if (code === "ROLE_CHANGED") return { status: 403, body: errorBody(403, "This person's role no longer allows this change.", "POST /drafts records a draft.", { code }) }
+    return { status: 409, body: errorBody(409, "This change can no longer be run.", undefined, { code }) }
+  }
   return { status: 422, body: errorBody(422, "The change could not be applied.", "code and missing say what to fix; a corrected request with the same parameters can run.", { code, missing: Array.isArray(out.missing) ? out.missing : [] }) }
 }
 
@@ -288,7 +291,7 @@ export async function actionCreate(env: ReadEnv, body: Record<string, unknown>):
     throw fail(503, "The executor is not available yet, so no change can be applied.", "POST /drafts records a draft and the person confirms it.", { code: "EXECUTOR_NOT_AVAILABLE", available: false })
   }
 
-  // 4. record, claim, run
+  // 4. record, then the exec function (it claims, runs and finishes)
   const rec = await recordIntent(env, "action", def.function_id, params, key)
   if (rec.replayed) {
     if (rec.status === "done") {
@@ -297,22 +300,14 @@ export async function actionCreate(env: ReadEnv, body: Record<string, unknown>):
     if (rec.status === "executing") return { status: 200, body: { intent_id: rec.intent_id, status: "executing", replayed: true, hint: "Read GET /intents/{id} in a moment." } }
     // a recorded action that was never claimed is driven again below
   }
-  const claim = (await callRpc(env.rpc, "ai_work_link_intent_claim", { p_intent_id: rec.intent_id })) as { status?: string; reason?: string } | null
-  if (claim?.status === "not_enabled") throw fail(403, "Direct changes are switched off for every link at the moment.", "POST /drafts records a draft and the person confirms it.", { code: "WRITES_NOT_ENABLED", available: false })
-  if (claim?.status === "refused") {
-    if (claim.reason === "already_executing") return { status: 200, body: { intent_id: rec.intent_id, status: "executing", replayed: true, hint: "Read GET /intents/{id} in a moment." } }
-    if (claim.reason === "LINK_GONE") throw new AwlError(410, errorBody(410, "This link has expired or was revoked.", "Ask the person for a new link."))
-    if (claim.reason === "ROLE_CHANGED") throw fail(403, "This person's role no longer allows this change.", "POST /drafts records a draft.", { code: "ROLE_CHANGED" })
-    throw fail(409, "This change can no longer be run.", undefined, { code: String(claim.reason ?? "NOT_CLAIMABLE").toUpperCase() })
-  }
-  if (claim?.status !== "ok") throw fail(500, "Something failed on our side. Try again in a minute.")
-
   let out: ExecOutcome
   try {
     out = await env.exec(rec.intent_id)
   } catch {
-    await finishFailed(env, rec.intent_id, "EXEC_UNAVAILABLE")
-    throw fail(503, "The executor did not answer. The change was not applied.", "Send the same request again in a minute.", { code: "EXEC_UNAVAILABLE", available: false })
+    // NOT finished as failed here: the exec function may have claimed the intent and even written the record before its answer was lost. The intent
+    // stays `recorded` (not reached: the same request runs it) or `executing` (a stale one reads failed EXECUTION_UNCERTAIN after 10 minutes and the
+    // person is told to check the record). Never a failure that frees the key while a write may exist.
+    throw fail(503, "The executor did not answer. The change may or may not have been applied.", "Read GET /intents/{id} before sending it again; the same request never runs twice.", { code: "EXEC_UNAVAILABLE", available: false })
   }
   return fromExec(rec.intent_id, out)
 }

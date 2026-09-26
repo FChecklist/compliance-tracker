@@ -13,7 +13,11 @@
   "entry": [
     "scripts/**/*.{mjs,ts}!",
     "ai-os/scripts/**/*.mjs!",
-    "src/db/seed.ts"
+    "src/db/seed.ts",
+    // PROJEXA-BUILD-002 WP-09b: the ai-work-link-exec bundle's entry and the stubs it maps heavy modules to. Reached by the bundler through the
+    // table in scripts/awl-exec-aliases.mjs (a string path), never by an import knip can follow.
+    "src/lib/pipeline/link-exec-entry.ts",
+    "src/lib/pipeline/link-exec-stubs/*.ts"
   ],
   // examples/**: standalone reference/demo code, deliberately outside the
   // app's real module graph. public/**: static assets, not part of the TS
