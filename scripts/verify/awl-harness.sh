@@ -18,6 +18,12 @@
 #   full --link <url> --link-b <url> --member-link <url> --revoked-link <url> --demoted-link <url> --write
 #                        all 24 checks. --write runs ONE real level-1 write and replays it (H20), so this mode changes data:
 #                        use it only on a test project. All six options are required, so that "full" always means 24 checks.
+#   readonly (no arguments, BR-490)
+#                        the 23 read-only checks (H01 to H19 and H21 to H24: every check but the H20 write) against one link and the four
+#                        test links, all from the environment: AWL_LINK, AWL_LINK_B (a link of another project), AWL_LINK_M (a member-role
+#                        link), AWL_LINK_REVOKED, AWL_LINK_DEMOTED. All five are required: a missing one is exit 2 (a run with fewer links
+#                        is fewer than 23 checks and must not look like a pass). Exit 0 only when the harness exits 0 AND its last stdout
+#                        line is exactly `RESULT: 23 passed, 0 failed`. A pxa_ token in the output is masked.
 #   run <options>        pass-through to ai_link_conformance.py with the options exactly as its own header documents them
 #                        (--link is required; --link-b, --member-link, --revoked-link, --demoted-link, --write are optional).
 #
@@ -26,6 +32,7 @@
 # The last stderr line is `PASS BR-280` or `FAIL BR-280: <reason>`.
 #
 # Usage: bash scripts/verify/awl-harness.sh selftest
+#        AWL_LINK=... AWL_LINK_B=... AWL_LINK_M=... AWL_LINK_REVOKED=... AWL_LINK_DEMOTED=... bash scripts/verify/awl-harness.sh readonly
 #        bash scripts/verify/awl-harness.sh readonly --link "<pasted link>"
 #        bash scripts/verify/awl-harness.sh full --link A --link-b B --member-link M --revoked-link R --demoted-link D --write
 #        bash scripts/verify/awl-harness.sh run --link "<pasted link>" [--write ...]
@@ -63,7 +70,7 @@ shift
 
 # run_harness <harness options...>: runs ai_link_conformance.py, prints its output with LF line endings, and returns its exit code.
 run_harness() {
-  "$PY" "$(winpath "$HARNESS_PY")" "$@" | tr -d '\r'
+  "$PY" "$(winpath "$HARNESS_PY")" "$@" | tr -d '\r' | sed -E 's/pxa_[0-9a-fA-F]{64}/pxa_[masked]/g'
   return "${PIPESTATUS[0]}"
 }
 
@@ -91,6 +98,24 @@ case "$MODE" in
     finish_ok
     ;;
   readonly)
+    if [ $# -eq 0 ]; then
+      missing=""
+      for v in AWL_LINK AWL_LINK_B AWL_LINK_M AWL_LINK_REVOKED AWL_LINK_DEMOTED; do
+        if [ -z "${!v:-}" ]; then missing="$missing $v"; fi
+      done
+      [ -z "$missing" ] || finish_usage "missing environment variable(s):$missing (23 checks need all five links; see scripts/verify/awl-README.md)"
+      OUT="$(run_harness --link "$AWL_LINK" --link-b "$AWL_LINK_B" --member-link "$AWL_LINK_M" --revoked-link "$AWL_LINK_REVOKED" --demoted-link "$AWL_LINK_DEMOTED")"
+      RC=$?
+      printf '%s\n' "$OUT"
+      LAST="$(printf '%s\n' "$OUT" | tail -n 1)"
+      case "$RC" in
+        0) ;;
+        1) finish_fail "the harness reported at least one failed check (see the FAIL lines above)" ;;
+        *) finish_usage "the harness stopped with exit $RC (bad options or a crash; see above)" ;;
+      esac
+      [ "$LAST" = "RESULT: 23 passed, 0 failed" ] || finish_fail "the last line is '$LAST', expected 'RESULT: 23 passed, 0 failed'"
+      finish_ok
+    fi
     [ $# -eq 2 ] && [ "$1" = "--link" ] && [ -n "$2" ] || finish_usage "readonly mode takes exactly: --link <url> (no write and no optional check is allowed here)"
     run_harness --link "$2"
     harness_verdict $?
