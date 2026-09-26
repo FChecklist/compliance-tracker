@@ -52,7 +52,7 @@ function changesOn(input: ManualInput): boolean {
 
 export function buildManifest(input: ManualInput): Manifest {
   const { base, ctx, functions } = input
-  const example = functions.find((f) => f.kind === "write") ?? functions[0]
+  const example = functions.find((f) => f.id === "record_work_progress") ?? functions.find((f) => f.kind === "write") ?? functions[0]
   const params = example ? Object.entries(example.example_params).filter(([, v]) => typeof v !== "string" || !String(v).startsWith("<")) : []
   const query = params.map(([k, v]) => `p.${k}=${encodeURIComponent(String(v))}`).join("&")
   const fn = example?.id ?? "record_work_progress"
