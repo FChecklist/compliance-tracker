@@ -125,31 +125,41 @@ function bodyLimitNote(): string {
 
 /**
  * The paste card's table. The card is for an AI that cannot call anything and has a budget of 8,000 bytes (LIMITS.cardMaxBytes, harness H19), so
- * it has no Available column (it would read "not yet" on every row), no Kind column (a level 0 function is a read), and an example writes
- * "<id>" where the manual's example says where to find one; the manual and /functions keep the full example.
+ * a row is the id, the level (0 a read, 1 a change that may be made directly, 2 a draft only) and the required parameters: no label (the id
+ * says it), no Available column (it would read "not yet" on every row), no Kind column and no example (the proposal block below is the one
+ * example the card needs). With 73 functions a row with a label and an example was about 96 bytes and the table alone passed the limit.
  */
 function functionTable(functions: FunctionView[]): string {
   if (functions.length === 0) return "No function is on this link."
-  const example = (f: FunctionView) => JSON.stringify(f.example_params).replace(/<id from [^>]*>/g, "<id>")
-  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.level} | ${f.required.join(", ") || "none"} | ${example(f)} |`)
-  return ["| Function | What it does | Level | Required | Example parameters |", "| --- | --- | --- | --- | --- |", ...rows].join("\n")
+  const rows = functions.map((f) => `| ${f.id} | ${f.level} | ${f.required.join(", ") || "none"} |`)
+  return ["| Function | Level | Required |", "| --- | --- | --- |", ...rows].join("\n")
 }
 
 /**
- * The manual's catalogue (section F): one short row per function: the id, its level (0 a read, 1 a change that may be made directly, 2 a draft only) and whether it is available now.
- * The label, the required parameters and an example of each function are one address away (GET <base>/functions), so the manual does not print
- * them: with 34 functions the full table was about 5 KB of the 20,000-byte budget (BUILD-002 WP-05a). The paste card, for an AI that cannot open
- * addresses, keeps the full table (functionTable).
+ * The manual's catalogue (section F): the modules of the functions this link may use, each with how many it holds, and where the per-function
+ * facts are. The id, label, level (0 a read, 1 a change that may be made directly, 2 a draft only), availability, required parameters and example
+ * of every function are one address away (GET <base>/functions), and the bare ids are `allowed_functions` in the manifest (section H), so the
+ * manual prints neither a row nor an id list per function: with 34 functions the table was about 5 KB of the 20,000-byte budget and with 73
+ * neither a table nor a second copy of the ids fits (BUILD-002 WP-05a, WP-05e/05f). The paste card, for an AI that cannot open addresses,
+ * keeps a compact table (functionTable).
  */
 function functionCatalogue(functions: FunctionView[], base: string): string {
   if (functions.length === 0) return "No function is on this link."
-  const rows = functions.map((f) => `| ${f.id} | ${f.level} | ${availableWord(f)} |`)
+  const byModule = new Map<string, number>()
+  for (const f of functions) byModule.set(f.module, (byModule.get(f.module) ?? 0) + 1)
+  const modules = [...byModule.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1)).map(([module, n]) => `${module} (${n})`)
+  const now = (label: string, f: FunctionView | undefined) => (f ? [`${label} ${availableWord(f)}`] : [])
+  const available = [
+    ...now("a read:", functions.find((f) => f.kind === "read")),
+    ...now("a level 1 change:", functions.find((f) => f.kind === "write" && f.level === 1)),
+    ...now("a level 2 change:", functions.find((f) => f.kind === "write" && f.level === 2)),
+  ].join("; ")
   return [
-    `\`GET ${base}/functions\` gives each label, required parameters and example (\`?format=json\`); a read is a \`POST\` to \`/functions/<id>\` under this address, a change goes through section D.`,
+    `${functions.length} functions, in these modules: ${modules.join(", ")}.`,
     "",
-    "| Function | Level | Available |",
-    "| --- | --- | --- |",
-    ...rows,
+    `The ids are \`allowed_functions\` in section H. \`GET ${base}/functions\` gives, for each one, its module, label, level (0 a read, 1 a change that may be made directly, 2 a draft only), availability now, required parameters and an example (\`?format=json\`). A read is a \`POST\` to \`/functions/<id>\` under this address; a change goes through section D.`,
+    "",
+    `Available now: ${available}.`,
   ].join("\n")
 }
 

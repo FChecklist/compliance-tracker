@@ -81,9 +81,15 @@ describe("writes OFF: level 0 with the reason, drafts open, direct changes and r
     expect(manual).toContain("Direct changes are not switched on")
     expect(manual).toContain("WRITES_NOT_ENABLED")
     expect(manual).toContain("`POST " + `${F}/${mgr.token}` + "/drafts`")
-    expect(manual).toContain("| record_work_progress | ")
-    expect(manual).toMatch(/\| record_work_progress \|[^\n]*\| draft \|/)
-    expect(manual).toMatch(/\| get_construction_project_dashboard \|[^\n]*\| not yet \|/)
+    // the manual names the modules and what is available now; the per-function rows (id, level, availability) are served at /functions
+    expect(manual).toContain("work_progress (1)")
+    expect(manual).toContain("Available now: a read: not yet; a level 1 change: draft; a level 2 change: draft.")
+    expect(manual).toContain("`GET " + `${F}/${mgr.token}` + "/functions`")
+    expect(manual).not.toContain("| record_work_progress |")
+    const rows = (await get(mgr, "/functions", base, "text/markdown")).text
+    expect(rows).toMatch(/\| record_work_progress \|[^\n]*\| work_progress \| write \| 1 \| draft \|/)
+    expect(rows).toMatch(/\| add_roster_entry \|[^\n]*\| write \| 2 \| draft \|/)
+    expect(rows).toMatch(/\| get_construction_project_dashboard \|[^\n]*\| read \| 0 \| not yet \|/)
     const md = (await get(mgr, "/context", base, "text/markdown")).text
     expect(md).toContain("Effective level 0; the level this link was made at is 1.")
     expect(md).toContain("Direct changes are not switched on")
@@ -149,7 +155,8 @@ describe("writes ON: the SQL flag alone is not the whole switch", () => {
       expect(fnOf(ctx, "get_construction_project_dashboard")).toMatchObject({ available: true, reads_open: true })
       expect((await post(mgr, "/check", WORK, withExec)).json.will_execute_directly).toBe(true)
       const manual = (await get(mgr, "", withExec, "text/markdown")).text
-      expect(manual).toMatch(/\| record_work_progress \|[^\n]*\| draft or direct \|/)
+      expect(manual).toContain("Available now: a read: yes; a level 1 change: draft or direct; a level 2 change: draft.")
+      expect((await get(mgr, "/functions", withExec, "text/markdown")).text).toMatch(/\| record_work_progress \|[^\n]*\| write \| 1 \| draft or direct \|/)
       expect(manual).toContain("Direct level-1 changes are switched on for this link")
       // and the same link with the switch flipped back is level 0 again on the very next call
       await setWrites(db, false)
@@ -183,7 +190,9 @@ describe("the live role is read on every call: a demotion at once, a promotion n
       expect((await post(mgr, "/actions", WORK, withExec)).json.code).toBe("FUNCTION_NOT_ON_LINK")
       expect((await post(mgr, "/drafts", { function: "create_meeting", params: { title: "x", scheduledAt: "2026-10-01T10:00:00Z" } }, withExec)).json.code).toBe("FUNCTION_NOT_ON_LINK")
       const manual = (await get(mgr, "", withExec, "text/markdown")).text
-      expect(manual).not.toContain("| record_work_progress |")
+      expect(manual).not.toContain("a level 1 change")
+      expect(manual).not.toContain("work_progress (")
+      expect((await get(mgr, "/functions", withExec, "text/markdown")).text).not.toContain("| record_work_progress |")
 
       await setRole("u-mgr", "manager")
       expect((await get(mgr, "/context", withExec)).json.level).toBe(1)

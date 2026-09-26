@@ -599,6 +599,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       { name: "name", label: "Name", code: "TITLE_REQUIRED" },
       { name: "externalUrl", label: "Link", code: "LINK_REQUIRED" },
     ],
+    optionalParams: ["kind"],
     card: {
       fields: [
         { key: "name", label: "Name", type: "text", required: true },
@@ -608,6 +609,8 @@ const SPEC_LIST: readonly FunctionSpec[] = [
         { key: "status", label: "Status", type: "select", required: false, default: "for_approval" },
         { key: "discipline", label: "Discipline", type: "text", required: false },
       ],
+      // BUILD-002 WP-05e: the side effect is named on the card the person confirms.
+      facts: [{ label: "Effect", value: "A drawing set to current takes over the build set from the previous current revision of the same Drawing No.", editable: false }],
       primaryLabel: "Save drawing",
     },
   },
@@ -623,12 +626,15 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       { name: "title", label: "Title", code: "TITLE_REQUIRED" },
       { name: "scheduledAt", label: "Date and time", code: "DATE_REQUIRED" },
     ],
+    // BUILD-002 WP-05e: what the executor reads besides the card. Lists and an id are not card fields, and the AI link accepts only declared names.
+    optionalParams: ["meetingType", "attendees", "agenda", "actionItems"],
     card: {
       fields: [
         { key: "title", label: "Title", type: "text", required: true },
         { key: "scheduledAt", label: "Date and time", type: "date", required: true },
         { key: "minutes", label: "Minutes", type: "text", required: false },
       ],
+      facts: [{ label: "Effect", value: "Each action item with an owner becomes a task for that person.", editable: false }],
       primaryLabel: "Save minutes",
     },
   },
@@ -646,6 +652,9 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       { name: "materialId", label: "Material", code: "MATERIAL_REQUIRED", field: "material", alsoSatisfiedBy: ["materialName"] },
       { name: "quantity", label: "Quantity", code: "QUANTITY_REQUIRED", field: "value" },
     ],
+    // BUILD-002 WP-05e: `unit` and `spec` let a receipt name a new material, `notes` is free text. vendorId is left out on purpose: a supplier is an
+    // organisation record, not a project record, so a link cannot name one (the internal pipeline still can).
+    optionalParams: ["unit", "spec", "notes"],
     card: {
       fields: [
         { key: "materialId", label: "Material", type: "select", required: true, picker: "material" },
@@ -654,6 +663,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
         { key: "unitCost", label: "Unit cost", type: "number", required: false },
         { key: "reference", label: "Reference", type: "text", required: false },
       ],
+      facts: [{ label: "Effect", value: "A material named in words that the project does not have yet is created with this receipt.", editable: false }],
       primaryLabel: "Save receipt",
     },
   },
@@ -669,6 +679,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     requiredParams: [{ name: "timeEntryId", label: "Time entry", code: "VALUE_REQUIRED", field: "value" }],
     card: {
       fields: [{ key: "timeEntryId", label: "Time entry", type: "text", required: true }],
+      facts: [{ label: "Effect", value: "The entry is approved and your review task for it is closed.", editable: false }],
       primaryLabel: "Approve entry",
     },
   },
@@ -688,6 +699,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
         { key: "timeEntryId", label: "Time entry", type: "text", required: true },
         { key: "rejectionReason", label: "Reason", type: "text", required: true },
       ],
+      facts: [{ label: "Effect", value: "The entry goes back to its author, who gets a task to correct it.", editable: false }],
       primaryLabel: "Return entry",
     },
   },
@@ -1247,6 +1259,270 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     },
   },
   { ...readSpec("get_material_cost_report", "View the material cost report", "materials", true), optionalParams: ["from", "to", "groupBy"] },
+
+  // ---- PROJEXA-BUILD-002 WP-05e (wave 5): minutes of meeting, beyond create_mom ---------------
+  //
+  // Each wraps the service the matching PROJEXA route calls: veri-meeting-service.ts (the minutes, their action
+  // items, the publish lock) and pms-meeting-service.ts (a project meeting's outcome). The executors are in
+  // executors/meetings.ts.
+  {
+    functionId: "update_mom_minutes",
+    label: "Amend the minutes",
+    module: "meetings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "meetingId", label: "Meeting", code: "VALUE_REQUIRED", field: "value" },
+      { name: "minutes", label: "Minutes", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "meetingId", label: "Meeting", type: "text", required: true },
+        { key: "minutes", label: "Minutes", type: "text", required: true },
+      ],
+      primaryLabel: "Save minutes",
+    },
+  },
+  {
+    functionId: "add_meeting_action_item",
+    label: "Add an action item",
+    module: "meetings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "meetingId", label: "Meeting", code: "VALUE_REQUIRED", field: "value" },
+      { name: "title", label: "Action", code: "TITLE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "meetingId", label: "Meeting", type: "text", required: true },
+        { key: "title", label: "Action", type: "text", required: true },
+        { key: "assigneeUserId", label: "Owner", type: "text", required: false },
+        { key: "dueDate", label: "Due", type: "date", required: false },
+      ],
+      facts: [{ label: "Effect", value: "The owner gets a task for it (yours when no owner is named).", editable: false }],
+      primaryLabel: "Save action item",
+    },
+  },
+  {
+    functionId: "add_meeting_outcome",
+    label: "Record a meeting outcome",
+    module: "meetings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "meetingId", label: "Meeting", code: "VALUE_REQUIRED", field: "value" },
+      { name: "notes", label: "Outcome", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "meetingId", label: "Meeting", type: "text", required: true },
+        { key: "notes", label: "Outcome", type: "text", required: true },
+      ],
+      primaryLabel: "Save outcome",
+    },
+  },
+  {
+    functionId: "publish_mom",
+    label: "Publish the minutes",
+    module: "meetings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "meetingId", label: "Meeting", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [{ key: "meetingId", label: "Meeting", type: "text", required: true }],
+      facts: [{ label: "Effect", value: "The minutes are locked: they cannot be edited after this.", editable: false }],
+      primaryLabel: "Publish minutes",
+    },
+  },
+
+  // ---- PROJEXA-BUILD-002 WP-05f (wave 6): exceptions, BOQ comparison, budget variance, schedule depth ----
+  //
+  // Reads first. The executors are in executors/analysis.ts and executors/schedule.ts.
+  readSpec("get_project_exceptions", "View project exceptions", "reports", true),
+  {
+    ...readSpecNeeding("compare_boq_revisions", "Compare BOQ revisions", "scope", true, [
+      { name: "boqId", label: "BOQ version", code: "BOQ_VERSION_REQUIRED", field: "boqVersion" },
+    ]),
+    // `againstBoqId` is the other revision to compare with; without it the BOQ is compared with its own parent.
+    optionalParams: ["againstBoqId"],
+  },
+  {
+    ...readSpecNeeding("get_project_budget_variance", "View budget against actual", "budget", true, [
+      { name: "budgetId", label: "Budget", code: "VALUE_REQUIRED", field: "value" },
+    ]),
+    optionalParams: ["asOfDate"],
+  },
+  readSpec("get_gantt_schedule", "View the Gantt schedule", "schedule", true),
+  readSpecNeeding("compare_schedule_baseline", "Compare with a schedule baseline", "schedule", true, [
+    { name: "baselineId", label: "Baseline", code: "VALUE_REQUIRED", field: "value" },
+  ]),
+  {
+    functionId: "capture_schedule_baseline",
+    label: "Freeze the schedule baseline",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "name", label: "Baseline name", code: "TITLE_REQUIRED" },
+    ],
+    card: {
+      fields: [{ key: "name", label: "Baseline name", type: "text", required: true }],
+      facts: [{ label: "Effect", value: "Every task's start and due date is copied as the plan of record.", editable: false }],
+      primaryLabel: "Save baseline",
+    },
+  },
+  {
+    functionId: "update_task",
+    label: "Update a task",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "issueId", label: "Task", code: "TASK_REQUIRED", field: "task" },
+    ],
+    // The people on the task are a list, and a card field has no list type.
+    optionalParams: ["assigneeIds"],
+    card: {
+      fields: [
+        { key: "issueId", label: "Task", type: "text", required: true },
+        { key: "title", label: "Title", type: "text", required: false },
+        { key: "description", label: "Description", type: "text", required: false },
+        { key: "statusId", label: "Status", type: "text", required: false },
+        { key: "priority", label: "Priority", type: "select", required: false },
+        { key: "startDate", label: "Start", type: "date", required: false },
+        { key: "dueDate", label: "Due", type: "date", required: false },
+        { key: "completionPercentage", label: "Complete", type: "percent", required: false },
+        { key: "milestoneId", label: "Milestone", type: "text", required: false },
+      ],
+      primaryLabel: "Save task",
+    },
+  },
+
+  // ---- PROJEXA-BUILD-002 AW-312: the facts eight owner exception items detect and nothing could write ----
+  //
+  // Each wraps a function of construction-exception-capture-service.ts; the executors are in executors/exception-capture.ts. vendorId,
+  // customerId and employeeId are organisation records, not project records: they are read from the task by the executor but are not
+  // declared here, so an AI work link cannot name one.
+  {
+    functionId: "set_progress_drawing",
+    label: "Record the drawing a progress entry was built from",
+    module: "work_progress",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "progressEntryId", label: "Progress entry", code: "VALUE_REQUIRED", field: "value" },
+      { name: "drawingDocumentId", label: "Drawing", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    // false records the drawing without confirming it; the default confirms it under the person.
+    optionalParams: ["confirmed"],
+    card: {
+      fields: [
+        { key: "progressEntryId", label: "Progress entry", type: "text", required: true },
+        { key: "drawingDocumentId", label: "Drawing", type: "text", required: true },
+      ],
+      facts: [{ label: "Effect", value: "You confirm the site builds from this drawing.", editable: false }],
+      primaryLabel: "Confirm drawing",
+    },
+  },
+  {
+    functionId: "record_vendor_dispute",
+    label: "Record a vendor dispute",
+    module: "disputes",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "description", label: "What is disputed", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "description", label: "What is disputed", type: "text", required: true },
+        { key: "amountDisputed", label: "Amount disputed", type: "number", required: false },
+        { key: "boqLineItemId", label: "BOQ line", type: "text", required: false },
+      ],
+      primaryLabel: "Save dispute",
+    },
+  },
+  {
+    functionId: "record_customer_complaint",
+    label: "Record a customer complaint",
+    module: "disputes",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "description", label: "Complaint", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "description", label: "Complaint", type: "text", required: true },
+        { key: "category", label: "Kind", type: "text", required: false, default: "general" },
+        { key: "severity", label: "Severity", type: "select", required: false, default: "medium" },
+      ],
+      primaryLabel: "Save complaint",
+    },
+  },
+  {
+    functionId: "record_customer_approval",
+    label: "Record the customer's approval of a BOQ",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "boqId", label: "BOQ version", code: "BOQ_VERSION_REQUIRED", field: "boqVersion" },
+      { name: "evidenceDocumentId", label: "Evidence document", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "boqId", label: "BOQ version", type: "text", required: true },
+        { key: "evidenceDocumentId", label: "Evidence document", type: "text", required: true },
+        { key: "approvedOn", label: "Approved on", type: "date", required: false },
+      ],
+      facts: [{ label: "Effect", value: "You record that the customer approved this BOQ, on the evidence named.", editable: false }],
+      primaryLabel: "Record approval",
+    },
+  },
+  {
+    functionId: "link_roster_employee",
+    label: "Link a roster entry to an employee",
+    module: "manpower",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "rosterId", label: "Worker", code: "WORKER_REQUIRED", field: "worker" },
+      { name: "employeeId", label: "Employee", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "rosterId", label: "Worker", type: "text", required: true },
+        { key: "employeeId", label: "Employee", type: "text", required: true },
+      ],
+      primaryLabel: "Link employee",
+    },
+  },
 ];
 
 const SPECS: Readonly<Record<string, FunctionSpec>> = Object.fromEntries(SPEC_LIST.map((s) => [s.functionId, s]));

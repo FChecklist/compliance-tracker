@@ -118,6 +118,41 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   create_material: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "unit", "spec"] },
   void_material_receipt: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: ["reason"] },
   get_material_cost_report: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  // BUILD-002 WP-05e (wave 5, register row AW-305): minutes of meeting, drawings, notes, material receipts, timesheet decisions.
+  // The minutes are level 1 for what records a person's own words (a new MoM, an amendment, an action item, an outcome): no money and the
+  // record is a draft until published. Publishing locks the minutes, so it is a draft the person confirms and needs the manager rank (the
+  // cookie route of the same action asks for it); it also runs WITHOUT the model pass publishVeriMeeting() would start. A drawing can take over
+  // the build set from the previous revision, so it is a draft. A material receipt carries a unit cost, so it is a draft (money, rank 2 like
+  // add_roster_entry). An approval or a return of a timesheet entry is a decision of a manager: draft, rank 3.
+  create_mom: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "minutes", "meetingType", "attendees", "agenda"] },
+  update_mom_minutes: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["minutes"] },
+  add_meeting_action_item: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title"] },
+  add_meeting_outcome: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["notes"] },
+  publish_mom: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
+  create_drawing: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: ["name", "externalUrl", "drawingNo", "rev", "discipline", "kind"] },
+  capture_artifact: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "text"] },
+  record_material_receipt: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["materialName", "reference", "notes", "spec", "unit"] },
+  approve_timesheet: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
+  reject_timesheet: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: ["rejectionReason"] },
+  // BUILD-002 WP-05f (wave 6, register row AW-306): exceptions, BOQ comparison, budget variance, schedule depth. The three money reads state
+  // amounts, so they need the manager rank (the exceptions route asks for it too; the two others have no role gate on their routes and the
+  // link asks for more, never less). The schedule reads are project data at the member rank. Freezing a baseline is the plan of record: a
+  // draft, and the manager rank although the route asks for member. update_task is level 1 (no money, no approval; it never takes position,
+  // archive or labels).
+  get_project_exceptions: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  compare_boq_revisions: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  get_project_budget_variance: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  get_gantt_schedule: { linkLevel: 0, moneySensitive: false, minRank: 2, textParams: [] },
+  compare_schedule_baseline: { linkLevel: 0, moneySensitive: false, minRank: 2, textParams: [] },
+  capture_schedule_baseline: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: ["name"] },
+  update_task: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "description"] },
+  // BUILD-002 AW-312: the facts eight owner exception items detect and nothing could write. Each is a statement the person attests to (a drawing
+  // confirmed, a dispute, a complaint, the customer's approval), so each is a draft. A dispute carries an amount (money, rank 2 like
+  // add_roster_entry); the customer's approval needs the manager rank and a stored evidence document.
+  set_progress_drawing: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  record_vendor_dispute: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["description"] },
+  record_customer_complaint: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: ["description", "category"] },
+  record_customer_approval: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
 }
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */
@@ -140,6 +175,9 @@ export const EXCLUDED_REASONS: Readonly<Record<string, string>> = {
   list_leads: "Organisation-scoped read, not project data (F-3).",
   list_opportunities: "Organisation-scoped read, not project data (F-3).",
   get_sales_pipeline_overview: "Organisation-scoped read, not project data (F-3).",
+  // BUILD-002 AW-312 (owner exception item 21): the function exists for the internal pipeline (a manager links a roster row to an employee) but a link
+  // cannot run it, because the employee id is not project data and so cannot be checked against the link's project.
+  link_roster_employee: "An employee id is an organisation-wide HR record (personal data), not project data, so it cannot be checked against the link's project (spec 9.10, F-3). The internal pipeline runs it for a manager.",
 }
 
 export type FilterOp = "eq" | "gt" | "lt" | "in"

@@ -390,7 +390,12 @@ export async function updateMeetingMinutes(ctx: VeriMeetingContext, meetingId: s
 
 // Publish/lock -- the core auditability feature adopted from meettrack-v2,
 // enforced server-side (assertEditable), not just a disabled UI input.
-export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: string) {
+//
+// PROJEXA-BUILD-002 WP-05e: `opts.generateIntelligence` (default true, so every existing caller
+// is unchanged) turns off the best-effort model call below. The AI work link never runs a model
+// (spec F-2), so publish_mom passes false: the minutes are locked and nothing else happens; a person
+// can still ask for the intelligence pass from the meeting screen.
+export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: string, opts: { generateIntelligence?: boolean } = {}) {
   const updated = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Meeting not found", 404)
@@ -418,7 +423,7 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
   // ever ran -- confirmed via orchestra_executions showing zero
   // meeting_intelligence.extract rows after a real publish. after() keeps the
   // invocation alive until this callback settles.
-  if (updated?.minutes?.trim()) {
+  if (opts.generateIntelligence !== false && updated?.minutes?.trim()) {
     after(() => generateMeetingIntelligence(ctx, meetingId).catch((err) => {
       console.error("Meeting intelligence generation failed (non-fatal, meeting still published):", err)
     }))
@@ -583,10 +588,15 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
 // "in_progress"), it just doesn't get the AI-planned dispatch.
 const DEDUPE_WINDOW_MS = 30_000
 
+// PROJEXA-BUILD-002 WP-05e: `opts.autoExecute` (default true, so every existing caller is unchanged)
+// turns off the after() call below that hands the new task's title to the task execution engine, which
+// can run a model. The AI work link never runs a model (spec F-2): add_meeting_action_item passes false
+// and the action item is only recorded; the assignee sees it in VERI To Do like any other task.
 export async function addMeetingActionItem(
   ctx: VeriMeetingContext,
   meetingId: string,
-  input: { title: string; assigneeUserId?: string; dueDate?: string }
+  input: { title: string; assigneeUserId?: string; dueDate?: string },
+  opts: { autoExecute?: boolean } = {}
 ) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
@@ -625,6 +635,7 @@ export async function addMeetingActionItem(
   })
 
   if (created.deduped) return { ...created.actionItem, task: created.task }
+  if (opts.autoExecute === false) return { ...created.actionItem, task: created.task }
 
   // R39/R-C04: executeTask needs a real actor -- prefer the task's own
   // resolved assignee (real whenever assigneeUserId was supplied, which the

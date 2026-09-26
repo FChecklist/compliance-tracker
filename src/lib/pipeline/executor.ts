@@ -47,6 +47,13 @@ import { ensureDefaultActivity, executeCreateActivity } from "./executors/activi
 import { WAVE_3_4_EXECUTORS } from "./executors/coverage-waves-3-4";
 import { createBoqLedgerHooks } from "@/lib/services/construction-boq-payload-service";
 import { executeCreateProjectFromDocument } from "./executors/extraction";
+// PROJEXA-BUILD-002 WP-05e/05f (waves 5 and 6): the minutes functions, the schedule, analysis and exception-capture functions.
+import { executeAddMeetingActionItem, executeAddMeetingOutcome, executePublishMom, executeUpdateMomMinutes } from "./executors/meetings";
+import { executeCaptureScheduleBaseline, executeCompareScheduleBaseline, executeGetGanttSchedule, executeUpdateTask } from "./executors/schedule";
+import { executeCompareBoqRevisions, executeGetProjectBudgetVariance, executeGetProjectExceptions } from "./executors/analysis";
+import { executeLinkRosterEmployee, executeRecordCustomerApproval, executeRecordCustomerComplaint, executeRecordVendorDispute, executeSetProgressDrawing } from "./executors/exception-capture";
+import { allPeopleOfProject, cleanOneText, cleanTextList, isHttpsUrl, withMinRank } from "./executors/scope";
+import { ROLE_RANK } from "@/lib/supabase/role-rank";
 
 /**
  * R67 lane B (B-01, decision D-03). `error: string` is gone: a failure is a
@@ -1494,6 +1501,8 @@ async function executeCreateDrawing(task: ExecutableTask): Promise<ExecutionOutc
     if (await projectMissing(task, projectId)) throw new ServiceError("Project not found", 404);
     const status = str(task.params.status);
     if (status && !(DRAWING_STATUSES as readonly string[]).includes(status)) return badRequest(task);
+    // The link is stored as written and never fetched, and people open it from the register: only an https address is kept.
+    if (!isHttpsUrl(str(task.params.externalUrl)!)) return badRequest(task);
     // Link-only, as create_document is: a task carries JSON, not the file's bytes.
     // createDrawingRecord() takes the previous 'current' revision of the same
     // Drawing No. on this project to 'superseded' in the same transaction as the
@@ -1515,6 +1524,23 @@ async function executeCreateDrawing(task: ExecutableTask): Promise<ExecutionOutc
   });
 }
 
+/** The action items of a MoM as the service takes them: titles cleaned and capped, at most 25, each a title with an optional assignee and due date. */
+const MAX_MOM_ACTION_ITEMS = 25;
+function momActionItems(raw: unknown): { ok: true; items: { title: string; assigneeUserId?: string; dueDate?: string }[] | undefined } | { ok: false } {
+  if (raw === undefined || raw === null) return { ok: true, items: undefined };
+  if (!Array.isArray(raw) || raw.length > MAX_MOM_ACTION_ITEMS) return { ok: false };
+  const items: { title: string; assigneeUserId?: string; dueDate?: string }[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return { ok: false };
+    const item = entry as Record<string, unknown>;
+    const title = cleanOneText(item.title);
+    if (!title.ok) return { ok: false };
+    if (title.text === undefined) continue;
+    items.push({ title: title.text, assigneeUserId: str(item.assigneeUserId), dueDate: str(item.dueDate) });
+  }
+  return { ok: true, items };
+}
+
 async function executeCreateMom(task: ExecutableTask): Promise<ExecutionOutcome> {
   return projectWrite(task, async ({ projectId, actorId }) => {
     // createVeriMeeting() needs the person as a real user row (its dbUser), and
@@ -1523,20 +1549,33 @@ async function executeCreateMom(task: ExecutableTask): Promise<ExecutionOutcome>
     if ("failure" in loaded) return refuse(loaded.failure);
     if (await projectMissing(task, projectId)) throw new ServiceError("Project not found", 404);
     const p = task.params;
+    // Free text is cleaned and capped here as well as at the link: lists are not strings, so the link's 2,000-character rule does not see them.
+    const attendees = cleanTextList(p.attendees);
+    const agenda = cleanTextList(p.agenda);
+    const title = cleanOneText(p.title);
+    const minutes = cleanOneText(p.minutes);
+    const items = momActionItems(p.actionItems);
+    if (!attendees.ok || !agenda.ok || !title.ok || !minutes.ok || !items.ok) return badRequest(task);
+    if (title.text === undefined) return refuse(pipelineFailure("TITLE_REQUIRED", ["title"]));
+    // An action item becomes a task row for its assignee: only a person the project names may be given one (createVeriMeeting checks the organisation only).
+    const assignees = [...new Set((items.items ?? []).map((i) => i.assigneeUserId).filter((id): id is string => typeof id === "string"))];
+    if (!(await allPeopleOfProject(task, projectId, assignees))) {
+      return refuse(pipelineFailure("RECORD_NOT_FOUND", ["worker"], { status: 404, functionId: task.functionId, param: "actionItems.assigneeUserId" }));
+    }
     // createVeriMeeting(), never pms-meeting-service createMeeting(): it is the
     // service the MoM screens, the PDF and the share link read.
     const row = await createVeriMeeting(
       { orgId: task.orgId, userId: loaded.actor.id, dbUser: loaded.actor },
       {
-        title: str(p.title)!,
+        title: title.text,
         meetingType: str(p.meetingType),
         scheduledAt: str(p.scheduledAt)!,
-        attendees: textList(p.attendees),
-        agenda: textList(p.agenda),
+        attendees: attendees.items,
+        agenda: agenda.items,
         contextEntityType: "project",
         contextEntityId: projectId,
-        minutes: str(p.minutes),
-        actionItems: Array.isArray(p.actionItems) ? (p.actionItems as { title: string }[]) : undefined,
+        minutes: minutes.text,
+        actionItems: items.items,
       }
     );
     return created(row.id, `/moms/${row.id}`, row);
@@ -1878,13 +1917,15 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   update_milestone: executeUpdateMilestone,
   list_billing_claims: executeListBillingClaims,
   get_billing_due_queue: executeGetBillingDueQueue,
-  create_drawing: executeCreateDrawing,
-  create_mom: executeCreateMom,
-  record_material_receipt: executeRecordMaterialReceipt,
-  approve_timesheet: executeApproveTimesheet,
-  reject_timesheet: executeRejectTimesheet,
+  // BUILD-002 WP-05e: the four writes below ask for the member rank of the person (the link's own floor), so an absent or unknown role is refused.
+  create_drawing: withMinRank(ROLE_RANK.member, "role_below_member", executeCreateDrawing),
+  create_mom: withMinRank(ROLE_RANK.member, "role_below_member", executeCreateMom),
+  record_material_receipt: withMinRank(ROLE_RANK.member, "role_below_member", executeRecordMaterialReceipt),
+  // The decision is a manager's: the task's role must be at the manager rank as well as the person's own row (reviewTimesheet).
+  approve_timesheet: withMinRank(ROLE_RANK.manager, "manager_rank_required", executeApproveTimesheet),
+  reject_timesheet: withMinRank(ROLE_RANK.manager, "manager_rank_required", executeRejectTimesheet),
   recall_precedent: executeRecallPrecedent,
-  capture_artifact: executeCaptureArtifact,
+  capture_artifact: withMinRank(ROLE_RANK.member, "role_below_member", executeCaptureArtifact),
   create_report_share_link: executeCreateReportShareLink,
   preview_boq_import: executePreviewBoqImport,
   apply_boq_import: executeApplyBoqImport,
@@ -1892,6 +1933,25 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   create_project_from_document: (task) => executeCreateProjectFromDocument(task),
   // PROJEXA-BUILD-002 WP-05c/WP-05d: coverage waves 3 and 4 (RFIs, submittals, punch list, site diary; progress, attendance, materials).
   ...WAVE_3_4_EXECUTORS,
+  // PROJEXA-BUILD-002 WP-05e (wave 5): minutes of meeting, beyond create_mom.
+  update_mom_minutes: executeUpdateMomMinutes,
+  add_meeting_action_item: executeAddMeetingActionItem,
+  add_meeting_outcome: executeAddMeetingOutcome,
+  publish_mom: executePublishMom,
+  // PROJEXA-BUILD-002 WP-05f (wave 6): exceptions, BOQ comparison, budget variance, schedule depth.
+  get_project_exceptions: executeGetProjectExceptions,
+  compare_boq_revisions: executeCompareBoqRevisions,
+  get_project_budget_variance: executeGetProjectBudgetVariance,
+  get_gantt_schedule: executeGetGanttSchedule,
+  compare_schedule_baseline: executeCompareScheduleBaseline,
+  capture_schedule_baseline: executeCaptureScheduleBaseline,
+  update_task: executeUpdateTask,
+  // PROJEXA-BUILD-002 AW-312: the facts eight owner exception items detect and nothing could record.
+  set_progress_drawing: executeSetProgressDrawing,
+  record_vendor_dispute: executeRecordVendorDispute,
+  record_customer_complaint: executeRecordCustomerComplaint,
+  record_customer_approval: executeRecordCustomerApproval,
+  link_roster_employee: executeLinkRosterEmployee,
 };
 
 /**
