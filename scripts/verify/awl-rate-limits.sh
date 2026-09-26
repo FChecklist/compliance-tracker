@@ -2,7 +2,7 @@
 # register: BR-492
 # PROJEXA-BUILD-001 phase 4 (U-46b2): the two throttles of the universal AI work link, measured on the real function
 # (AWL-H09, H10 and H24 merged; spike S-3):
-#   link_121st     121 calls in a row on one link, path /context: the 121st answers 429 (the limit is 120 a minute per link)
+#   link_121st     121 calls sent at once on one link, path /context: 120 answer 200 and the 121st answers 429 (the limit is 120 a minute per link)
 #   unknown_31st   31 calls in a row with a fresh, unknown pxa_ token each time: the 31st answers 429 (30 a minute per address)
 #   rotated_31st   the same 31 unknown-token calls, each with a DIFFERENT X-Forwarded-For header: the 31st still answers 429, so a
 #                  client cannot rotate its way past the throttle by writing that header itself
@@ -37,14 +37,18 @@ note() { problems="$problems; $1"; awl_say "NOTE $1"; }
 mapfile -t TOKS < <(awl_rand_tokens 62 | tr -d '\r')
 [ "${#TOKS[@]}" -eq 62 ] || awl_die2 "cannot make random tokens"
 
-# link series: one curl process, 121 URLs, every body discarded, one status per line
+# link series: ONE curl process sends all 121 requests in parallel (--parallel-max 25), so the whole series lands inside one 60-second window
+# even when a single call takes seconds (a /context call runs several database calls; from a runner it took about 2.5 s, so 121 in a row took
+# five minutes and the limit could never be reached). The status lines come back in completion order, so the series is judged by counts:
+# with a clear bucket exactly 120 calls answer 200 and exactly 1 answers 429, which is what "the 121st answers 429" means.
 args=()
 for _ in $(seq 1 121); do args+=(-o /dev/null "$LINK/context"); done
-mapfile -t L < <(curl -s --max-time "$AWL_CURL_TIMEOUT" -H 'Accept: application/json' -w '%{http_code}\n' "${args[@]}" 2>/dev/null | tr -d '\r')
-link121="$(awl_norm_code "${L[120]:-}")"
-if [ "${L[0]:-000}" = "429" ]; then note "the link's minute was already used before the series (call 1 was 429); wait a minute and run again"; fi
-if [ "${L[119]:-000}" = "429" ]; then note "call 120 was already 429, so the limit was hit early and the 121st proves nothing; wait a minute and run again"; fi
+mapfile -t L < <(curl -s --parallel --parallel-max 25 --max-time "$AWL_CURL_TIMEOUT" -H 'Accept: application/json' -w '%{http_code}\n' "${args[@]}" 2>/dev/null | tr -d '\r')
+n200=0; n429=0
+for c in "${L[@]}"; do case "$(awl_norm_code "$c")" in 200) n200=$((n200 + 1)) ;; 429) n429=$((n429 + 1)) ;; esac; done
 if [ "${#L[@]}" -ne 121 ]; then note "only ${#L[@]} of 121 link calls were answered"; fi
+if [ "$n200" -lt 120 ] && [ "$n429" -gt 1 ]; then note "only $n200 link calls answered 200 before the limit, so the link's minute was already used; wait a minute and run again"; fi
+if [ "$n200" -eq 120 ] && [ "$n429" -eq 1 ]; then link121="429"; elif [ "$n429" -eq 0 ]; then link121="200"; else link121="$n429-429s"; fi
 
 # unknown-token series: one process, a fresh token per URL
 args=()
