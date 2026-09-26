@@ -1,0 +1,65 @@
+id,area,title,source,verify_command,expected_output,status,evidence_ref,owner_blocked
+AW-001,gov,BUILD-002 claim is present in ai-os/boss/ACTIVE-CLAIMS.yaml on main,WP-00,git grep -c -F BUILD-002 origin/main -- ai-os/boss/ACTIVE-CLAIMS.yaml,count >= 1,pending,,no
+AW-002,gov,New objects (ai-work-link-exec and the new SQL functions) each have one row in ai-os/SHARED_BOUNDARY.md before they are created,WP-00,node scripts/verify/build002-register-check.mjs --shared-boundary,EXIT 0,pending,,no
+AW-003,gov,This register parses: unique ids and every verify_command is one line,WP-00,node scripts/verify/build002-register-check.mjs --lint,EXIT 0,pending,,no
+AW-004,gov,Every one of the 111 requirement ids maps to a way and a function or an explicit recorded exclusion (coverage matrix),WP-00;WP-05,node scripts/verify/build002-register-check.mjs --coverage-111,EXIT 0 and unmapped = 0,pending,,no
+AW-101,upload,The raw ZOOMIES workbook is read by the deterministic reader: 50 priced lines totalling 1388480 plus 3 flagged lump-sum lines totalling 207800 reconcile to 1596280,WP-01,bun test --isolate src/lib/ingest/multisheet-bill-reader.test.ts,0 fail,pending,,no
+AW-102,upload,The summary sheet is never read as a bill (no line with an amount above the grand total) and per-bill subtotals reconcile,WP-01,bun test --isolate src/lib/ingest/multisheet-bill-reader.reconcile.test.ts,0 fail,pending,,no
+AW-103,upload,scope/import accepts the raw ZOOMIES file into an existing project and a single-sheet workbook still imports exactly as before,WP-01,bun test --isolate src/app/api/v1/projexa/scope/import/route.multisheet.test.ts,0 fail,pending,,no
+AW-104,upload,Mutation proof: removing the reconciliation check makes AW-101 fail,WP-01,bash scripts/verify/mutation-run.sh multisheet-no-reconcile,mutation detected and tree restored,pending,,no
+AW-111,upload,Digest keeps row breaks and merged-cell text and cells up to 2000 characters (terms and payment schedule survive),WP-02,bun test --isolate src/lib/services/document-extraction-contract.test.ts,0 fail,pending,,no
+AW-112,upload,Extraction output schema carries controlTotals areas client currency paymentTerms questions and a reconciliation gate rejects a wrong total,WP-02,bun test --isolate src/lib/services/document-extraction-reconcile.test.ts,0 fail,pending,,no
+AW-113,upload,Two areas produce ONE BOQ with area-prefixed categories and item codes unique across sheets,WP-02,bun test --isolate src/lib/services/document-extraction-areas.test.ts,0 fail,pending,,no
+AW-114,upload,Lines with a quantity and no rate are flagged for a question and never created as zero-priced lines,WP-02,bun test --isolate src/lib/services/document-extraction-questions.test.ts,0 fail,pending,,no
+AW-115,upload,A planted prompt-injection inside a ZOOMIES-shaped workbook creates nothing,WP-02,bun test --isolate src/lib/services/document-extraction-service.injection.test.ts,0 fail,pending,,no
+AW-201,project,create_project creates a shell project attributed to the person and update_project renames and fills it (registry and link),WP-03,bun test --isolate src/lib/pipeline/executor-project.test.ts,0 fail,pending,,no
+AW-202,boq,create_boq on the link is a level-2 draft; lineItems is a declared parameter; per-function body cap 64 KB,WP-04,bun test --isolate src/lib/pipeline/executor-boq-payload.test.ts,0 fail,pending,,no
+AW-203,boq,add_boq_lines takes at most 25 lines per batch and a replay of the same boq id and batch number stores one write,WP-04,bun test --isolate src/lib/pipeline/executor-boq-batches.test.ts,0 fail,pending,,no
+AW-204,boq,seal_boq answers TOTAL_MISMATCH with the diffs when the AI's control totals differ and seals when they match (ZOOMIES 1343445 + 252835 = 1596280),WP-04,bun test --isolate src/lib/pipeline/executor-boq-seal.test.ts,0 fail,pending,,no
+AW-205,boq,A member-rank link reads BOQ lines with every money value null and cannot call seal_boq,WP-04,bun test --isolate src/lib/pipeline/executor-boq-redaction.test.ts,0 fail,pending,,no
+AW-301,coverage,Wave 1 functions (schedule reports milestones) validate params refuse another project's ids and respect rank,WP-05a,bun test --isolate src/lib/pipeline/coverage-wave1.test.ts,0 fail,pending,,no
+AW-302,coverage,Wave 2 (BOQ import change orders site instructions billing reads) as above,WP-05b,bun test --isolate src/lib/pipeline/coverage-wave2.test.ts,0 fail,pending,,no
+AW-303,coverage,Wave 3 (RFI submittal punch list site diary) as above,WP-05c,bun test --isolate src/lib/pipeline/coverage-wave3.test.ts,0 fail,pending,,no
+AW-304,coverage,Wave 4 (progress activities attendance materials) as above,WP-05d,bun test --isolate src/lib/pipeline/coverage-wave4.test.ts,0 fail,pending,,no
+AW-305,coverage,Wave 5 (meetings drawings timesheets) as above,WP-05e,bun test --isolate src/lib/pipeline/coverage-wave5.test.ts,0 fail,pending,,no
+AW-306,coverage,Wave 6 (exceptions baselines variance) as above,WP-05f,bun test --isolate src/lib/pipeline/coverage-wave6.test.ts,0 fail,pending,,no
+AW-307,coverage,Waves 8 and 9 (permits wiki mood boards FF&E floor plans) as above,WP-05g,bun test --isolate src/lib/pipeline/coverage-wave8-9.test.ts,0 fail,pending,,no
+AW-308,coverage,Wave 7 (progress claims KPI submit for approval) exist as level-2 drafts only and no function writes an approval on its own,WP-05h,bun test --isolate src/lib/pipeline/coverage-wave7.test.ts,0 fail,pending,,no
+AW-309,coverage,Every function on a link is generated from one registry and the generated files are current (no hand edits),WP-05,bun run gen:ai-link-registry -- --check,EXIT 0,pending,,no
+AW-310,coverage,The manual stays within its size budget with the full function list (grouped catalogue with paging),WP-05,bun test --isolate src/lib/services/ai-work-link-manual-size.test.ts,0 fail,pending,,no
+AW-311,coverage,Excluded classes stay excluded (platform admin deletes secrets model calls org-wide reads),WP-05,bun test --isolate src/lib/pipeline/coverage-exclusions.test.ts,0 fail,pending,,no
+AW-312,coverage,The 8 exception items with no write path have a service and a function or a recorded reason,WP-05f,node scripts/verify/build002-register-check.mjs --exceptions,EXIT 0,pending,,no
+AW-321,records,About 20 new Tier-1 record kinds read through the link with money columns hidden below rank 3,WP-06,bun test --isolate src/lib/services/ai-work-link-records-v2.test.ts,0 fail,pending,,no
+AW-322,records,The documents kind returns metadata (drawing number revision permit fields),WP-06,bun test --isolate src/lib/services/ai-work-link-records-documents.test.ts,0 fail,pending,,no
+AW-331,fix,record_work_progress honours remarks and entryDate and works on a project with no activity,WP-07,bun test --isolate src/lib/pipeline/executor-work-progress.test.ts,0 fail,pending,,no
+AW-401,mint,Edge /mint creates a link only for a signed-in person on a project they can read and the token is returned once and never logged,WP-08,bun test --isolate src/lib/services/ai-work-link-mint.test.ts,0 fail,pending,,no
+AW-402,mint,/links lists the person's links for the project with expiry and /links/{id}/revoke revokes,WP-08,bun test --isolate src/lib/services/ai-work-link-links.test.ts,0 fail,pending,,no
+AW-403,mint,Mint needs a fresh token (issued in the last 15 minutes) and is rate limited,WP-08,bun test --isolate src/lib/services/ai-work-link-mint-limits.test.ts,0 fail,pending,,no
+AW-404,mint,The warning text is true for the current state (no promise of writes while writes are off),WP-08,bun test --isolate src/lib/services/ai-work-link-warning.test.ts,0 fail,pending,,no
+AW-405,mint,PROJEXA dialog: a signed-in user opens a project clicks AI work link chooses level and days sees the warning gets the link once with a Copy button and can revoke (Playwright),WP-08,bash scripts/verify/projexa-playwright.sh e2e/ai-link-mint.spec.ts,0 fail,pending,,no
+AW-406,mint,New project with my AI: one click creates a shell project and a link for the same user,WP-08;WP-03,bun test --isolate src/lib/services/ai-work-link-shell-project.test.ts,0 fail,pending,,no
+AW-501,write,Drafts are recorded live at level 0 and return a confirm url; nothing changes until confirmed,WP-09,bun test --isolate src/lib/services/ai-work-link-drafts.test.ts,0 fail,pending,,no
+AW-502,write,A link write is recorded with executor ai and via ai_link and model_calls 0 and level1_outcome not_needed,WP-09,bun test --isolate src/lib/pipeline/run-direct-task.link.test.ts,0 fail,pending,,no
+AW-503,write,Effective level and function list are recomputed from the live role on every call and the manual and context show the true level and availability,WP-09,bun test --isolate src/lib/services/ai-work-link-effective-level.test.ts,0 fail,pending,,no
+AW-504,write,ai-work-link-exec bundles for Deno within the size limit and its import closure has no next/* module,WP-09,node scripts/verify/awl-exec-closure.mjs,EXIT 0,pending,,no
+AW-505,write,executeIntent on the local execution host: a level-1 write lands attributed to the person and a demoted person is refused ROLE_CHANGED,WP-09,bun test --isolate src/lib/services/ai-work-link-exec.test.ts,0 fail,pending,,no
+AW-506,write,Same-project id check refuses another project's roster issue BOQ line or BOQ and writes 0 rows,WP-09,bun test --isolate src/lib/services/ai-work-link-exec-scope.test.ts,0 fail,pending,,no
+AW-507,write,Write caps 30 per hour and 200 per day and idempotent replay,WP-09,bun test --isolate src/lib/services/ai-work-link-exec-caps.test.ts,0 fail,pending,,no
+AW-508,write,Level-2 confirm: a draft is executed only by the link's own signed-in person; another person gets 403 and the confirm code is single use,WP-09,bun test --isolate src/lib/services/ai-work-link-confirm.test.ts,0 fail,pending,,no
+AW-509,write,Static inbox and confirm pages keep the confirm code show the parameters and can sign in (authKey set),WP-09,bun test --isolate src/lib/ai-links/awl-static-pages.test.ts,0 fail,pending,,no
+AW-510,write,Kill switch drill: with writes_enabled false every write answers 503 and no row is written,WP-09,bash scripts/verify/awl-killswitch-drill.sh,EXIT 0,pending,,no
+AW-511,write,The enable-writes migration exists unapplied with its down file and the owner kit is complete,WP-09,node scripts/verify/build002-register-check.mjs --owner-kit,EXIT 0,pending,,no
+AW-601,way1,Way 1: human upload in PROJEXA creates a new project and populates it from the ZOOMIES file (Playwright plus database re-read),WP-10;WP-01,bash scripts/verify/way1-zoomies.sh,EXIT 0,pending,,no
+AW-602,way2,Way 2: the internal chat with the file attached creates the project and populates it with model_calls metered per user and organisation,WP-11,bash scripts/verify/way2-zoomies.sh,EXIT 0,pending,,no
+AW-603,way3,Way 3: an external AI given only the link reads the ZOOMIES workbook itself and creates and fills the project through the link (local execution host),WP-14,bash scripts/verify/way3-zoomies.sh,EXIT 0,pending,,no
+AW-604,way4,Way 4: an email with the ZOOMIES attachment produces a proposal listing the whole BOQ that the person confirms,WP-12,bash scripts/verify/way4-zoomies.sh,EXIT 0,pending,,no
+AW-605,way5,Way 5: a file dropped in the watched mailbox or folder produces the same proposal with no human trigger,WP-13,bash scripts/verify/way5-zoomies.sh,EXIT 0,pending,,no
+AW-606,way,In every way the project total re-read from the database equals 1596280 and each line is attributed to a real person,WP-14,bash scripts/verify/ways-reconcile.sh,EXIT 0,pending,,no
+AW-701,persona,Persona: Sumeet manages the ZOOMIES project through the link (daily progress RFIs punch list change orders billing proposals KPI meetings timesheets reports exceptions) with each result re-read from the database,WP-14,bash scripts/verify/persona-zoomies.sh,EXIT 0,pending,,no
+AW-702,persona,Persona: a member-role link sees no money and cannot write money functions and a link for another project is refused,WP-14,bash scripts/verify/persona-roles.sh,EXIT 0,pending,,no
+AW-703,persona,Persona cleanup: every throwaway link is revoked and every demoted demo user is restored,WP-14,bash scripts/verify/persona-cleanup-check.sh,EXIT 0,pending,,no
+AW-901,live,Live: writes switched on by the owner and the persona run repeats against the live function,WP-14,bash scripts/verify/persona-zoomies.sh --live,EXIT 0,pending,,yes
+AW-902,live,Live: extraction provider set by the owner and the ZOOMIES file extracts through the model route within the cost cap,WP-02,bash scripts/verify/p5-extraction-idempotent.sh,EXIT 0,pending,,yes
+AW-903,live,Live: PROJEXA release deployed by the owner shows the upload mint and approvals screens,WP-08;WP-10,bash scripts/verify/projexa-live-screens.sh,EXIT 0,pending,,yes
+AW-904,live,Live: inbound email DNS and keys set by the owner and the ZOOMIES email arrives,WP-12,bash scripts/verify/way4-zoomies.sh --live,EXIT 0,pending,,yes
+AW-905,live,Owner acceptance with real ChatGPT Gemini Claude DeepSeek and the others,WP-14,see BR-588 to BR-597,recorded yes or no per AI,pending,,yes
