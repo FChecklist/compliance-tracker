@@ -18,14 +18,14 @@ AW-203,boq,add_boq_lines takes at most 25 lines per batch and a replay of the sa
 AW-204,boq,seal_boq answers TOTAL_MISMATCH with the diffs when the AI's control totals differ and seals when they match (ZOOMIES 1343445 + 252835 = 1596280),WP-04,bun test --isolate src/lib/pipeline/executor-boq-seal.test.ts,0 fail,pending,,no
 AW-205,boq,A member-rank link reads BOQ lines with every money value null and cannot call seal_boq,WP-04,bun test --isolate src/lib/pipeline/executor-boq-redaction.test.ts,0 fail,pending,,no
 AW-301,coverage,Wave 1 functions (schedule reports milestones) validate params refuse another project's ids and respect rank,WP-05a,bun test --isolate src/lib/pipeline/coverage-wave1.test.ts,0 fail,pending,,no
-AW-302,coverage,Wave 2 (BOQ import change orders site instructions billing reads) as above,WP-05b,bun test --isolate src/lib/pipeline/coverage-wave2.test.ts,0 fail,pending,,no
+AW-302,coverage,Wave 2 (BOQ import change orders site instructions billing reads; create_boq is on links since WP-04) as above,WP-05a,bun test --isolate src/lib/pipeline/coverage-wave2.test.ts,0 fail,pending,,no
 AW-303,coverage,Wave 3 (RFI submittal punch list site diary) as above,WP-05c,bun test --isolate src/lib/pipeline/coverage-wave3.test.ts,0 fail,pending,,no
 AW-304,coverage,Wave 4 (progress activities attendance materials) as above,WP-05d,bun test --isolate src/lib/pipeline/coverage-wave4.test.ts,0 fail,pending,,no
 AW-305,coverage,Wave 5 (meetings drawings timesheets) as above,WP-05e,bun test --isolate src/lib/pipeline/coverage-wave5.test.ts,0 fail,pending,,no
 AW-306,coverage,Wave 6 (exceptions baselines variance) as above,WP-05f,bun test --isolate src/lib/pipeline/coverage-wave6.test.ts,0 fail,pending,,no
 AW-307,coverage,Waves 8 and 9 (permits wiki mood boards FF&E floor plans) as above,WP-05g,bun test --isolate src/lib/pipeline/coverage-wave8-9.test.ts,0 fail,pending,,no
 AW-308,coverage,Wave 7 (progress claims KPI submit for approval) exist as level-2 drafts only and no function writes an approval on its own,WP-05h,bun test --isolate src/lib/pipeline/coverage-wave7.test.ts,0 fail,pending,,no
-AW-309,coverage,Every function on a link is generated from one registry and the generated files are current (no hand edits),WP-05,bun run gen:ai-link-registry -- --check,EXIT 0,pending,,no
+AW-309,coverage,Every function on a link is generated from one registry and the generated files are current (no hand edits),WP-05,bun scripts/gen-ai-link-registry.ts --check,EXIT 0; prints "ai-link registry up to date",pending,,no
 AW-310,coverage,The manual stays within its size budget with the full function list (grouped catalogue with paging),WP-05,bun test --isolate src/lib/services/ai-work-link-manual-size.test.ts,0 fail,pending,,no
 AW-311,coverage,Excluded classes stay excluded (platform admin deletes secrets model calls org-wide reads),WP-05,bun test --isolate src/lib/pipeline/coverage-exclusions.test.ts,0 fail,pending,,no
 AW-312,coverage,The 8 exception items with no write path have a service and a function or a recorded reason,WP-05f,node scripts/verify/build002-register-check.mjs --exceptions,EXIT 0,pending,,no
