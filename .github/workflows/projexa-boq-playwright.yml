@@ -1,0 +1,45 @@
+# PROJEXA-BUILD-001 BR-420 and BR-421 (U-33): the two BOQ browser specs of the projexa repository, run on a GitHub runner.
+# Why a runner: each spec starts Next.js dev and a Chromium (about 2 GB); the 8 GB development laptop rarely has that free.
+# Manual only (workflow_dispatch). The specs run against a LOCAL projexa server started by playwright.boq-local.config.ts with a local stand-in for
+# Supabase Auth and synthetic fixture data: no session is minted against any real project, no secret is used, nothing is deployed, Vercel is not touched.
+name: projexa BOQ playwright (BR-420, BR-421)
+
+on:
+  workflow_dispatch:
+    inputs:
+      projexa_ref:
+        description: "projexa ref to test"
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  boq-playwright:
+    name: BR-420 offline render and BR-421 worker filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: FChecklist/projexa
+          ref: ${{ inputs.projexa_ref }}
+          path: projexa-checkout
+      - uses: oven-sh/setup-bun@v2
+      - name: Install projexa deps
+        run: bun install --frozen-lockfile
+        working-directory: projexa-checkout
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+        working-directory: projexa-checkout
+      - name: BR-420 (E-09) bash scripts/verify/projexa-playwright.sh e2e/boq-offline.spec.ts
+        run: bash scripts/verify/projexa-playwright.sh e2e/boq-offline.spec.ts
+        env:
+          PROJEXA_DIR: ${{ github.workspace }}/projexa-checkout
+      - name: BR-421 (E-10) bash scripts/verify/projexa-playwright.sh e2e/boq-worker-filter.spec.ts
+        run: bash scripts/verify/projexa-playwright.sh e2e/boq-worker-filter.spec.ts
+        env:
+          PROJEXA_DIR: ${{ github.workspace }}/projexa-checkout
