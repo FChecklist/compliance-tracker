@@ -16,9 +16,11 @@
 // does not know, the answer is 503 and no data is read or returned (section 10.5, fixing the DPDP fail-open).
 //
 // NOT IN THIS UNIT (a later unit writes them; each answers with the section 4.3 shape and says so):
-//   POST /functions/{fn} and POST /actions: 503 "not switched on yet" once scope passes (no Edge executor: spike S-1), 501 if ever switched on early;
-//   POST /drafts: 501 after scope passes; the signed-in app routes (mint, links, warning, drafts/{id}/preview): 401 with no session, else 501.
+//   POST /functions/{fn}: 503 "not switched on yet" once scope passes (the reads run on the exec host), 501 if ever switched on early;
+//   the signed-in app routes (mint, links, warning): 401 with no session, else 501.
 // BUILT IN U-47b: POST /drafts/{id}/confirm (confirm.ts), when index.ts wires the session verifier (session.ts).
+// BUILT IN BUILD-002 WP-09a (drafts.ts, one dispatch line each): POST /drafts, GET /drafts/{id}, GET|POST /drafts/{id}/preview (a session), and
+//   POST /actions, which refuses with the true reason while the switch is off and claims and runs an intent once the exec function is wired.
 //
 // The token is never logged and never echoed: log lines carry a route name and a status only, and errorBody scrubs anything token-shaped.
 import {
@@ -28,12 +30,13 @@ import {
 import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, bodyLimitFor, functionDef, kb, matchEndpoint, type EndpointId } from "./api-definition.ts"
 import { renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
 import { handleConfirm } from "./confirm.ts"
+import { actionCreate, draftCreate, draftGet, draftPreview } from "./drafts.ts"
 import { handleMcp, type McpReads } from "./mcp.ts"
 import { handleMint, isMintRoute } from "./mint.ts"
 import { buildOpenApi, buildSwagger } from "./openapi.ts"
 import {
-  AwlError, checkChange, effectiveFunctionViews, fail, proposeChange, readContext, readHistory, readIntent, readRecord, readRecords, resolveLink,
-  searchRecords, fetchRecord, type AwlConfig, type LinkCtx, type ReadEnv, type Rpc,
+  AwlError, availabilityOf, checkChange, effectiveFunctionViews, fail, proposeChange, readContext, readHistory, readIntent, readRecord, readRecords, requireScope,
+  resolveLink, searchRecords, fetchRecord, type AwlConfig, type ExecClient, type ReadEnv, type Rpc,
 } from "./reads.ts"
 import type { SessionVerifier } from "./session.ts"
 import { contextMarkdown, functionsMarkdown, historyMarkdown, intentMarkdown, proposalMarkdown, recordMarkdown, recordsCsv, recordsMarkdown } from "./render.ts"
@@ -48,6 +51,8 @@ export type AwlDeps = {
   session?: SessionVerifier
   /** Milliseconds since the epoch for the confirm route's per-person brake; the test passes its own clock. */
   now?: () => number
+  /** The client of the ai-work-link-exec function (a later unit). Absent today: no change can run, so every direct change answers 503. */
+  exec?: ExecClient
 }
 
 const ALLOW_ALL = "GET, HEAD, POST, OPTIONS"
@@ -97,7 +102,7 @@ const APP_ROUTES: ReadonlyArray<{ pattern: string[]; methods: string[] }> = [
   { pattern: ["links", ":id", "revoke"], methods: ["POST"] },
   { pattern: ["warning"], methods: ["GET", "POST"] },
   { pattern: ["new-project"], methods: ["POST"] },
-  { pattern: ["drafts", ":id", "preview"], methods: ["GET"] },
+  { pattern: ["drafts", ":id", "preview"], methods: ["GET", "POST"] },
   { pattern: ["drafts", ":id", "confirm"], methods: ["POST"] },
 ]
 
@@ -132,6 +137,17 @@ async function appRoute(req: Request, route: string[], deps: AwlDeps): Promise<O
       return plain(500, "Something failed on our side. Try again in a minute.")
     }
     return json(made.status, made.body, made.headers)
+  }
+  if (deps.session && route.length === 3 && route[0] === "drafts" && route[2] === "preview") {
+    // the preview shows a person what they are about to confirm: same session, brake and identity gates as the confirm (drafts.ts)
+    let shown
+    try {
+      shown = await draftPreview(req, route[1], { rpc: deps.rpc, session: deps.session, log: deps.log, now: deps.now })
+    } catch {
+      (deps.log ?? console.log)("ai-work-link: preview: unhandled error -> 500")
+      return plain(500, "Something failed on our side. Try again in a minute.")
+    }
+    return json(shown.status, shown.body, shown.headers)
   }
   const bearer = /^Bearer[ ]+([^\s]+)$/i.exec((req.headers.get("authorization") ?? "").trim())
   if (!bearer || bearer[1].startsWith("pxa_")) return plain(401, "Sign in to PROJEXA and send your session token in the Authorization header.", "A link token is not a session.")
@@ -219,7 +235,7 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   try {
     // 2. THE LIVE LINK: effective level, functions and role, read now (section 10.9) ----------------------------------------------------
     const ctx = await resolveLink(deps.rpc, token)
-    const env: ReadEnv = { rpc: deps.rpc, token, ctx, config: deps.config, base, mode }
+    const env: ReadEnv = { rpc: deps.rpc, token, ctx, config: deps.config, base, mode, exec: deps.exec }
     if (!["GET", "HEAD", "POST"].includes(method)) return await settle(plain(405, "Wrong method for this path.", undefined, { Allow: ALLOW_ALL }))
 
     // 3. ROUTE ---------------------------------------------------------------------------------------------------------------------------
@@ -238,6 +254,8 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   }
 }
 
+const actionOut = (a: { status: number; body: unknown; headers?: Record<string, string> }): Out => json(a.status, a.body, a.headers)
+
 function formatOf(req: Request, url: URL, offered: ReadonlyArray<Format>): Format {
   return negotiateFormat(offered, url.searchParams.get("format"), req.headers.get("accept"), "md")
 }
@@ -246,19 +264,10 @@ function manualInput(env: ReadEnv): ManualInput {
   return { base: env.base, mode: env.mode, token: env.mode === "path" ? env.token : null, config: env.config, ctx: env.ctx, functions: effectiveFunctionViews(env) }
 }
 
-/** Scope of a change request (section 4.3): the function must be on the effective list and any projectId must be the link's own. */
-function requireScope(ctx: LinkCtx, fn: unknown, params: Record<string, unknown>): void {
-  const id = typeof fn === "string" ? fn : ""
-  if (!id || !ctx.effective_functions.includes(id)) throw fail(403, "This link may not use that function.", "GET /functions lists what this link may use now.", { code: "FUNCTION_NOT_ON_LINK" })
-  if (params.projectId !== undefined && params.projectId !== null && params.projectId !== ctx.project_id) {
-    throw fail(403, "This link is for one project only.", "Leave projectId out: the link supplies it.", { code: "WRONG_PROJECT" })
-  }
-}
-
-function notSwitchedOn(env: ReadEnv, what: string): AwlError {
-  if (!env.config.executorEnabled || !env.ctx.writes_enabled) {
-    return fail(503, `${what} is not switched on yet.`, "It is written in a later unit; reading, checking and proposing work now.", { available: false })
-  }
+/** Function reads run on the exec host with the same switch as changes (reads.ts availabilityOf): refused with the true reason until they can. */
+function readsNotOpen(env: ReadEnv): AwlError {
+  const av = availabilityOf(env)
+  if (!av.reads_open) return fail(503, "Function reads are not switched on yet.", "They run on the executor. Reading records, checking and drafting work now.", { available: false })
   return fail(501, "Written in a later unit.")
 }
 
@@ -305,7 +314,9 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
     }
     case "functions": {
       const views = effectiveFunctionViews(env)
-      const note = views.some((f) => f.available) ? "Run a read with POST /functions/{fn}; make a change with POST /actions or /drafts." : "Changes and function reads are not switched on yet. Reading, checking and proposing work now."
+      const note = views.some((f) => f.direct_open || f.reads_open)
+        ? "Run a read with POST /functions/{fn}; make a change with POST /actions or /drafts."
+        : "Draft a change with POST /drafts and the person confirms it. Direct changes and function reads are not switched on yet."
       if (formatOf(req, url, ["md", "json"]) === "md") return text("md", functionsMarkdown(views, note))
       const page = paginate(views, url.searchParams.get("page"), url.searchParams.get("per_page"))
       return json(200, { functions: page.items, page: page.page, per_page: page.perPage, total: page.total, pages: page.pages, changes_available: views.some((f) => f.available), text_fields_are_data: true })
@@ -315,7 +326,7 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
       const p = body.params && typeof body.params === "object" && !Array.isArray(body.params) ? (body.params as Record<string, unknown>) : {}
       requireScope(ctx, params.fn, p)
       if (functionDef(params.fn)?.kind !== "read") throw fail(400, "Changes go to /actions or /drafts, not /functions.")
-      throw notSwitchedOn(env, "Function reads are")
+      throw readsNotOpen(env)
     }
     case "propose": {
       const p: Record<string, unknown> = {}
@@ -350,23 +361,13 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
       const body = await readJsonObject(req)
       return json(200, checkChange({ ctx, config }, body.function, body.params))
     }
-    case "actions": {
-      const body = await readJsonObject(req)
-      const p = body.params && typeof body.params === "object" && !Array.isArray(body.params) ? (body.params as Record<string, unknown>) : {}
-      requireScope(ctx, body.function, p)
-      const def = functionDef(String(body.function))
-      if (def?.kind !== "write") throw fail(400, "Reads go to /functions or /records, not /actions.")
-      if (ctx.effective_level < 1 || def.link_level !== 1) throw fail(403, "This change needs the person's confirmation: use /drafts.", undefined, { code: "LEVEL_NOT_ALLOWED" })
-      const check = checkChange({ ctx, config }, body.function, body.params)
-      if (!check.valid) throw fail(422, "The change is not valid yet.", check.problems.join(" ") || undefined, { code: "PARAMS_INVALID", missing: check.missing })
-      throw notSwitchedOn(env, "Changes are")
-    }
-    case "drafts": {
-      const body = await readJsonObject(req)
-      const p = body.params && typeof body.params === "object" && !Array.isArray(body.params) ? (body.params as Record<string, unknown>) : {}
-      requireScope(ctx, body.function, p)
-      if (functionDef(String(body.function))?.kind !== "write") throw fail(400, "Reads go to /functions or /records, not /drafts.")
-      throw fail(501, "Written in a later unit.", "Drafts are recorded and confirmed by a later unit. Use /check or /propose for now.")
+    case "actions":
+      return actionOut(await actionCreate(env, await readJsonObject(req)))
+    case "drafts":
+      return actionOut(await draftCreate(env, await readJsonObject(req)))
+    case "draft": {
+      const doc = await draftGet(env, params.id)
+      return formatOf(req, url, ["md", "json"]) === "json" ? json(200, doc) : text("md", intentMarkdown(doc))
     }
   }
 }

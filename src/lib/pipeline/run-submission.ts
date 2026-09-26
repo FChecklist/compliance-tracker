@@ -301,6 +301,27 @@ function withLinkText<T extends { functionId: string; params?: Record<string, un
   return { ...input, params: rules.params, ...(note !== undefined ? { note } : {}) };
 }
 
+/**
+ * BUILD-002 WP-09a (spec 9.7 C-1, migration 0630): the two provenance columns of compliance.submissions. A link submission carries
+ * via 'ai_link' and its link id; every other caller writes neither (both columns stay NULL). The CHECK of 0630 admits only NULL or
+ * 'ai_link', so a caller that names a link by id alone is still written as 'ai_link'.
+ */
+function linkProvenanceColumns(input: { via?: SubmissionVia | null; aiLinkId?: string | null }): { via?: SubmissionVia; aiLinkId?: string } {
+  if (!isFromAiLink(input)) return {};
+  return { via: AI_LINK_SOURCE, ...(input.aiLinkId ? { aiLinkId: input.aiLinkId } : {}) };
+}
+
+/**
+ * BUILD-002 WP-09a (spec 9.7 C-1 and 9.6 step 5, gap G8): the telemetry a link write persists. runDirectTask has always RETURNED
+ * modelCalls 0 and level1Outcome 'not_needed' but never wrote them, so BR-586's model_calls = 0 read NULL and proved nothing. Built
+ * with level1Columns() like every other writer, so the same situation is recorded one way. Only for a link: the columns of a
+ * session/app pill are not changed by this work.
+ */
+function linkTelemetryColumns(input: { via?: SubmissionVia | null; aiLinkId?: string | null }) {
+  if (!isFromAiLink(input)) return {};
+  return level1Columns({ outcome: "not_needed", refusalKind: null, reason: null, modelCalls: 0, cacheHits: 0, l0HitRate: 1 });
+}
+
 /** The provenance the one-line submission log carries, so a link submission is recognisable in the logs. Empty for every other caller. */
 function linkLogSuffix(input: { via?: SubmissionVia | null; aiLinkId?: string | null }): string {
   return isFromAiLink(input) ? ` via=${AI_LINK_SOURCE} ai_link_id=${input.aiLinkId ?? "-"}` : "";
@@ -544,6 +565,8 @@ export async function runSubmission(submitted: RunSubmissionInput): Promise<RunS
         selectedChain: (input.selectedChain as object | undefined) ?? null,
         rawInput: input.rawInput,
         userId: input.userId,
+        // BUILD-002 WP-09a (migration 0630): the AI work link this submission came through, if any.
+        ...linkProvenanceColumns(input),
       })
       .returning({ id: submissions.id });
     return row.id;
@@ -886,6 +909,9 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
           mode: input.mode,
           rawInput: base.rawInput,
           userId: input.userId,
+          // BUILD-002 WP-09a (spec 9.7 C-1, migration 0630): where the submission came from, so
+          // a link write can be listed and counted. Null on every session/app submission.
+          ...linkProvenanceColumns(input),
         })
         .returning({ id: submissions.id });
       return row.id;
@@ -926,7 +952,7 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
     const line = failureLogLine(v);
     await logGap(base, submissionId, base.rawInput, input.functionId, line);
     await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-      db.update(submissions).set({ status: "failed", classification }).where(eq(submissions.id, submissionId))
+      db.update(submissions).set({ status: "failed", classification, ...linkTelemetryColumns(input) }).where(eq(submissions.id, submissionId))
     );
     return {
       submissionId,
@@ -954,7 +980,13 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
   // "phrase_map": runDirectTask is the pill path -- the USER named the
   // function, so no model was involved and its own telemetry above says so
   // (l0HitRate 1, modelCalls 0).
-  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "phrase_map");
+  //
+  // BUILD-002 WP-09a (spec 9.7 C-1): when the call came through an AI work link the
+  // function was chosen by the caller's own AI, so the task is "external_ai" and
+  // pipeline_tasks.executor records "ai". Still no model call in this pipeline.
+  const taskId = isFromAiLink(input)
+    ? await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "external_ai")
+    : await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "phrase_map");
 
   let outcome: { success: true; result: unknown } | { success: false; failure: PipelineFailure; debug?: string };
   if (!hasExecutor(input.functionId)) {
@@ -1014,7 +1046,10 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
   const status = outcome.success ? "done" : "failed";
   await afterRun("submission status", () =>
     withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-      db.update(submissions).set({ status, classification, selectedChain: derived as unknown as object }).where(eq(submissions.id, submissionId))
+      db
+        .update(submissions)
+        .set({ status, classification, selectedChain: derived as unknown as object, ...linkTelemetryColumns(input) })
+        .where(eq(submissions.id, submissionId))
     )
   );
 
@@ -1356,7 +1391,9 @@ function deriveSubmissionStatus(tasks: TaskOutcome[], gapCount: number): RunSubm
  * decision" to change it to.
  */
 export function executorFor(source: ResolutionSource | "none"): "software" | "ai" {
-  return source === "level1" ? "ai" : "software";
+  // "external_ai" (BUILD-002 WP-09a, spec 9.7 C-1): the caller's own AI chose this write and it came in through an AI work link.
+  // No internal model ran, but a model did decide it, which is what the column records.
+  return source === "level1" || source === "external_ai" ? "ai" : "software";
 }
 
 async function mintTask(
@@ -1565,6 +1602,8 @@ export async function submitForVerdict(submitted: RunSubmissionInput): Promise<S
         selectedChain: (input.selectedChain as object | undefined) ?? null,
         rawInput: input.rawInput,
         userId: input.userId,
+        // BUILD-002 WP-09a (migration 0630): the AI work link this submission came through, if any.
+        ...linkProvenanceColumns(input),
       })
       .returning({ id: submissions.id });
     return row.id;

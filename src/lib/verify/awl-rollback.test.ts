@@ -2,7 +2,7 @@
 // Lives under src/ because bunfig.toml sets [test] root = "src": a test outside it is skipped by CI.
 //
 // WHAT IS PROVEN
-//   - the migration list is exactly the eight link migrations, in number order, and nothing else in drizzle/;
+//   - the migration list is exactly the ten link migrations (0621 to 0630), in number order, and nothing else in drizzle/;
 //   - the rehearsal check counts a migration as rehearsed only for a valid PASS_ROLLED_BACK row: no row, a row for another migration,
 //     h2 different from h0, h1 equal to h0, and a forward file edited after the rehearsal (its sha256 no longer matches) are all
 //     missing; a valid row for each is zero missing;
@@ -24,6 +24,8 @@ const FIXTURES = path.join(ROOT, "scripts/verify/fixtures")
 const NAMES = [
   "0621_build001_awl_config_tables", "0622_build001_awl_intent", "0623_build001_awl_call_log", "0624_build001_awl_link_functions",
   "0625_build001_awl_read_functions", "0626_build001_awl_intent_functions", "0627_build001_awl_retention", "0628_build001_awl_seed",
+  // BUILD-002 WP-09a
+  "0629_build001_awl_execution_sql", "0630_build001_awl_submissions_via",
 ]
 
 const sha = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex")
@@ -35,7 +37,7 @@ const row = (name: string, o: { h0?: string; h1?: string; h2?: string; sha?: str
 const logOf = (rows: string[]) => `# Rollback rehearsals\n\n## Log\n\n| migration | result | hashes | forward | time_utc | who |\n|---|---|---|---|---|---|\n${rows.join("\n")}\n`
 
 describe("the migration list", () => {
-  test("is exactly the nine link migrations, in number order (the eight of BUILD-001, then 0631 of BUILD-002)", () => {
+  test("is exactly the eleven link migrations, in number order (0621 to 0631: the eight of BUILD-001, then 0629, 0630 and 0631 of BUILD-002)", () => {
     expect(listAwlMigrations(DRIZZLE)).toEqual([...NAMES, "0631_build001_awl_mint_for"])
   })
 
@@ -57,7 +59,7 @@ describe("the rehearsal check (missing_rehearsal)", () => {
 
   test("no row at all: every migration is missing, and each line says why", () => {
     const r = run([])
-    expect(r.missing).toBe(8)
+    expect(r.missing).toBe(NAMES.length)
     expect(r.lines.every((l) => l.startsWith("MISSING") && l.includes("no log line under '## Log'"))).toBe(true)
   })
 
@@ -68,7 +70,7 @@ describe("the rehearsal check (missing_rehearsal)", () => {
   })
 
   test("only the migrations with a valid row are counted as rehearsed", () => {
-    expect(run(NAMES.slice(0, 3).map((n) => row(n))).missing).toBe(5)
+    expect(run(NAMES.slice(0, 3).map((n) => row(n))).missing).toBe(NAMES.length - 3)
   })
 
   test("h2 different from h0 (the down file did not restore), and h1 equal to h0 (the forward file changed nothing), do not count", () => {

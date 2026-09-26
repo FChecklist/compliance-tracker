@@ -32,9 +32,26 @@ export type AwlConfig = {
   appBase: string
   /** Position counted from the right of x-forwarded-for, or null for the shared bucket (core.ts throttleAddress). */
   addressPosition: number | null
-  /** True only when the Edge executor exists (spike S-1 passed). False in this unit: writes and function reads answer 503. */
-  executorEnabled: boolean
+  /**
+   * True only when the ai-work-link-exec Edge function exists and is wired (a later unit sets it). The ONE thing that decides whether a change
+   * can run is `changes_run`: this flag AND the SQL switch platform.ai_work_link_settings.writes_enabled (see `availabilityOf`). While it is
+   * false a draft is still recorded, and the person can still see it, but no change is applied.
+   */
+  execPresent: boolean
 }
+
+/**
+ * What the ai-work-link-exec function answers for one claimed intent (the contract of the later exec brief). The exec host writes the outcome
+ * to the intent itself through ai_work_link_intent_finish; the link function only maps this answer to HTTP. A throw means it was unreachable.
+ */
+export type ExecOutcome = {
+  status: "done" | "failed" | "refused"
+  submission_id?: string | null
+  record?: { id?: string | null; route?: string | null } | null
+  code?: string
+  missing?: string[]
+}
+export type ExecClient = (intentId: string) => Promise<ExecOutcome>
 
 export class AwlError extends Error {
   constructor(public status: number, public body: ApiErrorBody, public headers: Record<string, string> = {}) {
@@ -56,7 +73,11 @@ export function mapRpcError(e: RpcError): AwlError {
     return fail(403, "Outside what this link may do.", word === "WRONG_PROJECT" ? "This link is for one project only." : undefined)
   }
   if (code === "AW404") return fail(404, "Not found")
-  if (code === "AW429") return fail(429, "Over the change limit for this link. Try again later.")
+  if (code === "AW429") {
+    if (word === "WRITE_CAP_HOUR") return fail(429, "Over the hourly limit of 30 changes and drafts for this link. Try again in an hour.", undefined, { code: "WRITE_CAP_HOUR" })
+    if (word === "WRITE_CAP_DAY") return fail(429, "Over the daily limit of 200 changes and drafts for this link. Try again tomorrow.", undefined, { code: "WRITE_CAP_DAY" })
+    return fail(429, "Over the change limit for this link. Try again later.")
+  }
   if (code === "AW400") {
     if (word === "UNKNOWN_KIND") return fail(404, "No such record kind")
     if (word === "UNKNOWN_FILTER") return fail(400, "Unknown filter")
@@ -124,6 +145,47 @@ export type ReadEnv = {
   /** The link base B (`F/<token>`, or `F/header` in header mode). */
   base: string
   mode: "path" | "header"
+  /** The client of the ai-work-link-exec function, when it is deployed and wired (a later unit). Absent today. */
+  exec?: ExecClient
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The one switch, and what is open on this link now (spec 10.9; BUILD-002 WP-09a)
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+/**
+ * What can happen on this link right now, from three facts read on THIS call: the SQL switch (`ctx.writes_enabled`), whether the exec
+ * function exists (`config.execPresent`), and the link's effective level. Everything the manual, /context, /functions, /check and the change
+ * routes say about availability comes from here, so they cannot disagree.
+ *   drafts_open   POST /drafts records a draft. True on every link: a draft changes nothing until the person confirms.
+ *   changes_run   a confirmed draft or a direct action is applied: the switch AND the exec function.
+ *   direct_open   POST /actions can apply a level-1 change at once: changes_run and an effective level of 1.
+ *   reads_open    POST /functions/{fn} runs a read function: changes_run (the reads run on the same host).
+ */
+export type Availability = { writes_enabled: boolean; exec_present: boolean; drafts_open: boolean; changes_run: boolean; direct_open: boolean; reads_open: boolean }
+
+export function availabilityOf(env: { ctx: LinkCtx; config: AwlConfig }): Availability {
+  const run = env.ctx.writes_enabled && env.config.execPresent
+  return {
+    writes_enabled: env.ctx.writes_enabled,
+    exec_present: env.config.execPresent,
+    drafts_open: true,
+    changes_run: run,
+    direct_open: run && env.ctx.effective_level >= 1,
+    reads_open: run,
+  }
+}
+
+/** One plain sentence on why the level reads as it does: the stored ceiling, the effective level, and the switch (spec 10.9, G13). */
+export function levelNote(ctx: LinkCtx, av: Availability): string {
+  if (ctx.effective_level >= 1) {
+    return av.direct_open
+      ? "Direct level-1 changes are on for this link."
+      : "This link may make level-1 changes directly, but the executor is not switched on yet: draft them and the person confirms."
+  }
+  if (ctx.authority_level >= 1 && ctx.live_rank < 2) return "This link was made at level 1, but this person's role can no longer make changes: it can read, check and draft."
+  if (ctx.authority_level >= 1) return "This link was made at level 1; direct changes are switched off for every link at the moment, so draft them and the person confirms."
+  return "This link was made at level 0: it can read, check and draft, and the person confirms every change."
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -135,7 +197,14 @@ export type FunctionView = {
   label: string
   kind: "read" | "write"
   level: number
+  /** A change function can be drafted or made; a read function can be run. The union of the three flags below. */
   available: boolean
+  /** A draft of this function is recorded (write functions only). It is applied when the person confirms it, once changes run. */
+  drafts_open: boolean
+  /** POST /actions applies this function at once (level-1 write functions, while changes run and the effective level is 1). */
+  direct_open: boolean
+  /** POST /functions/{fn} runs this function (read functions, while changes run). */
+  reads_open: boolean
   money_sensitive: boolean
   min_role_rank: number
   required: string[]
@@ -143,18 +212,31 @@ export type FunctionView = {
 }
 
 export function functionView(def: RegistryFunction, env: { ctx: LinkCtx; config: AwlConfig }): FunctionView {
+  const av = availabilityOf(env)
+  const write = def.kind === "write"
+  const drafts = write && av.drafts_open
+  const direct = write && def.link_level === 1 && av.direct_open
+  const reads = !write && av.reads_open
   return {
     id: def.function_id,
     label: def.label,
     kind: def.kind,
     level: def.link_level ?? 0,
-    // Nothing runs until the Edge executor exists (spike S-1); until then no function is available, whatever SQL says.
-    available: env.config.executorEnabled && env.ctx.writes_enabled,
+    available: drafts || direct || reads,
+    drafts_open: drafts,
+    direct_open: direct,
+    reads_open: reads,
     money_sensitive: def.money_sensitive,
     min_role_rank: def.min_role_rank,
     required: def.required_params.filter((r) => r.name !== "projectId").map((r) => r.any_of.join("|")),
     example_params: EXAMPLE_PARAMS[def.function_id] ?? {},
   }
+}
+
+/** The word the Available column shows: a change function is drafted (and made directly when that is on), a read function is run. */
+export function availableWord(f: Pick<FunctionView, "kind" | "drafts_open" | "direct_open" | "reads_open">): string {
+  if (f.kind === "write") return f.direct_open ? "draft or direct" : f.drafts_open ? "draft" : "not yet"
+  return f.reads_open ? "yes" : "not yet"
 }
 
 /** The functions on this link now: the SQL effective list, described from the registry. */
@@ -182,10 +264,19 @@ export async function readContext(env: ReadEnv): Promise<Record<string, unknown>
       if (cols.length) money[k] = Array.from(new Set([...(money[k] ?? []), ...cols]))
     }
   }
+  const av = availabilityOf(env)
   return {
     ...doc,
     base: env.base,
+    // `level` stays the EFFECTIVE level (harness H04 and H20 read it); the stored ceiling, the switch and the reason sit beside it (spec 10.9)
     level: env.ctx.effective_level,
+    effective_level: env.ctx.effective_level,
+    authority_level: env.ctx.authority_level,
+    writes_enabled: av.writes_enabled,
+    level_note: levelNote(env.ctx, av),
+    drafts_open: av.drafts_open,
+    direct_open: av.direct_open,
+    reads_open: av.reads_open,
     allowed_functions: env.ctx.effective_functions,
     functions,
     money_fields: money,
@@ -332,6 +423,15 @@ export async function fetchRecord(env: ReadEnv, id: string): Promise<SearchHit> 
 // POST /check and GET /propose (section 6.4): validation only, nothing is recorded
 // ---------------------------------------------------------------------------------------------------------------------------------
 
+/** Scope of a change request (section 4.3): the function must be on the effective list and any projectId must be the link's own. */
+export function requireScope(ctx: LinkCtx, fn: unknown, params: Record<string, unknown>): void {
+  const id = typeof fn === "string" ? fn : ""
+  if (!id || !ctx.effective_functions.includes(id)) throw fail(403, "This link may not use that function.", "GET /functions lists what this link may use now.", { code: "FUNCTION_NOT_ON_LINK" })
+  if (params.projectId !== undefined && params.projectId !== null && params.projectId !== ctx.project_id) {
+    throw fail(403, "This link is for one project only.", "Leave projectId out: the link supplies it.", { code: "WRONG_PROJECT" })
+  }
+}
+
 export type CheckResult = {
   valid: boolean
   function: string
@@ -379,8 +479,8 @@ export function checkChange(env: { ctx: LinkCtx; config: AwlConfig }, fn: unknow
     if (r.any_of.every((n) => isEmpty(obj[n]))) missing.push(r.name)
   }
   const valid = missing.length === 0 && problems.length === 0
-  const direct = valid && def.kind === "write" && def.link_level === 1 && env.ctx.effective_level === 1
-  const available = env.config.executorEnabled && env.ctx.writes_enabled
+  const view = functionView(def, env)
+  const direct = valid && view.direct_open
   return {
     valid,
     function: def.function_id,
@@ -388,8 +488,14 @@ export function checkChange(env: { ctx: LinkCtx; config: AwlConfig }, fn: unknow
     missing,
     problems,
     will_execute_directly: direct,
-    available,
-    ...(available ? {} : { note: "Changes are not switched on yet: nothing sent here is applied." }),
+    available: view.available,
+    ...(direct
+      ? {}
+      : {
+          note: view.drafts_open
+            ? `Nothing is applied by this check. POST /drafts records this change and the person confirms it${availabilityOf(env).changes_run ? "." : "; confirming is not switched on yet, so a draft waits up to 48 hours."}`
+            : "Nothing is applied by this check. Function reads are not switched on yet.",
+        }),
   }
 }
 

@@ -5,7 +5,7 @@
 //      passes to Deno.serve is called. The service-role client is built once from the environment; a database error keeps its SQLSTATE
 //      code on the way to the handler; the service-role key never appears in an answer.
 //   2. SETTINGS: configFromEnv holds every default (the fixed project host, a confirm host that never resolves, the shared throttle bucket,
-//      no executor) and refuses a settings value that is not what it should be.
+//      the exec function not present) and refuses a settings value that is not what it should be.
 //   3. STATIC RULES: the files of the function name none of runSubmission, runLevel1, callLLM, resolveModelConfig or the Vercel route of
 //      the old link (BR-480), import nothing from the DPDP function, build no SQL text, take no table by name, read the service-role key in
 //      index.ts only, and use no Deno global outside index.ts.
@@ -134,7 +134,7 @@ describe("configFromEnv", () => {
       confirmHost: DEFAULT_CONFIRM_HOST,
       appBase: DEFAULT_APP_BASE,
       addressPosition: null,
-      executorEnabled: false,
+      execPresent: false,
     })
     expect(DEFAULT_CONFIRM_HOST.endsWith(".invalid")).toBe(true)
     expect(DEFAULT_SUPABASE_URL).toBe("https://pcrjmlpuqsbocqfwoxod.supabase.co")
@@ -155,8 +155,8 @@ describe("configFromEnv", () => {
     expect(cfg({ AWL_CLIENT_ADDR_POSITION: "1" }).addressPosition).toBe(1)
     expect(cfg({ AWL_CLIENT_ADDR_POSITION: "3" }).addressPosition).toBe(3)
     for (const bad of ["0", "-1", "abc", "9", "1.5", "10", ""]) expect(cfg({ AWL_CLIENT_ADDR_POSITION: bad }).addressPosition).toBeNull()
-    // no setting can switch the executor on in this unit
-    expect(cfg({ AWL_EXECUTOR_ENABLED: "true", EXECUTOR_ENABLED: "1" }).executorEnabled).toBe(false)
+    // no setting can say the exec function is present in this unit (a later unit changes the constant when it is deployed)
+    expect(cfg({ AWL_EXECUTOR_ENABLED: "true", EXECUTOR_ENABLED: "1", AWL_EXEC_PRESENT: "true" }).execPresent).toBe(false)
   })
 
   test("jwt.ts: verify_jwt is false and the PROJEXA settings match projexa-read's", () => {
@@ -199,10 +199,10 @@ describe("static rules for the link's Edge code", () => {
     }
     const called = new Set<string>()
     for (const f of tsFiles()) for (const m of read(f).matchAll(/["'`](ai_work_link_[a-z_]+|ai_work_link__[a-z_]+)["'`]/g)) called.add(m[1])
-    // every name the Edge code calls is one drizzle/0624 to 0626 (or 0631, the mint variants) defines
-    const sql = ["0624_build001_awl_link_functions.sql", "0625_build001_awl_read_functions.sql", "0626_build001_awl_intent_functions.sql", "0631_build001_awl_mint_for.sql"].map((n) => read(join(ROOT, "drizzle", n))).join("\n")
+    // every name the Edge code calls is one drizzle/0624 to 0626, 0629 (the write path) or 0631 (the mint variants) defines
+    const sql = ["0624_build001_awl_link_functions.sql", "0625_build001_awl_read_functions.sql", "0626_build001_awl_intent_functions.sql", "0629_build001_awl_execution_sql.sql", "0631_build001_awl_mint_for.sql"].map((n) => read(join(ROOT, "drizzle", n))).join(String.fromCharCode(10))
     for (const name of called) expect(`${name} ${sql.includes(`public.${name}(`)}`).toBe(`${name} true`)
-    expect([...called].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_context", "ai_work_link_draft_confirm", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_list_for", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_mint_for", "ai_work_link_new_project_for", "ai_work_link_record", "ai_work_link_records", "ai_work_link_revoke_for", "ai_work_link_warning_for"])
+    expect([...called].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_context", "ai_work_link_draft_confirm", "ai_work_link_draft_state", "ai_work_link_history", "ai_work_link_intent_claim", "ai_work_link_intent_finish", "ai_work_link_intent_status", "ai_work_link_list_for", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_mint_for", "ai_work_link_new_project_for", "ai_work_link_record", "ai_work_link_record_intent", "ai_work_link_records", "ai_work_link_revoke_for", "ai_work_link_warning_for"])
   })
 
   test("the service-role key is read in index.ts only, and no Deno global is used outside it", () => {

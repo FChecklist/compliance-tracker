@@ -9,7 +9,7 @@
 // FENCING. Every value from project data (person, project) sits inside a fenced data block cleaned by core.ts (section 5.4).
 import { DATA_CLOSING, LIMITS, cleanDeep, cleanText, fenceRows } from "../_shared/ai-link/core.ts"
 import { API_VERSION, ERRORS, KIND_NAMES, KIND_SUMMARY, LINK_FUNCTIONS, PRODUCT, kb } from "./api-definition.ts"
-import type { AwlConfig, FunctionView, LinkCtx, RecordsPage } from "./reads.ts"
+import { availabilityOf, availableWord, levelNote, type AwlConfig, type FunctionView, type LinkCtx, type RecordsPage } from "./reads.ts"
 
 export type ManualInput = {
   /** The link base `B`: `F/<token>` (path mode) or `F/header` (header mode). */
@@ -44,10 +44,6 @@ export type Manifest = {
     inbox: string
     card: string
   }
-}
-
-function changesOn(input: ManualInput): boolean {
-  return input.functions.some((f) => f.available)
 }
 
 export function buildManifest(input: ManualInput): Manifest {
@@ -108,6 +104,8 @@ function whoBlock(ctx: LinkCtx): string {
     role: ctx.live_role,
     project: cleanText(ctx.project_name, 120),
     level: ctx.effective_level,
+    link_level_when_made: ctx.authority_level,
+    direct_changes_switched_on: ctx.writes_enabled,
     expires_at: ctx.expires_at,
     money_figures_shown: ctx.money_visible,
     other_people_contact_details_hidden: ctx.hide_personal,
@@ -127,7 +125,7 @@ function bodyLimitNote(): string {
 
 function functionTable(functions: FunctionView[]): string {
   if (functions.length === 0) return "No function is on this link."
-  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.kind} | ${f.level} | ${f.available ? "yes" : "not yet"} | ${f.required.join(", ") || "none"} | ${JSON.stringify(f.example_params)} |`)
+  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.kind} | ${f.level} | ${availableWord(f)} | ${f.required.join(", ") || "none"} | ${JSON.stringify(f.example_params)} |`)
   return ["| Function | What it does | Kind | Level | Available | Required | Example parameters |", "| --- | --- | --- | --- | --- | --- | --- |", ...rows].join("\n")
 }
 
@@ -140,7 +138,7 @@ export type ManualSection = { id: string; title: string; body: string }
 export function buildManualSections(input: ManualInput): ManualSection[] {
   const { base, ctx, functions, config } = input
   const manifest = buildManifest(input)
-  const on = changesOn(input)
+  const av = availabilityOf({ ctx, config })
   const readLines = [
     `- Context: ${base}/context`,
     ...KIND_NAMES.map((k) => `- ${k} (${KIND_SUMMARY[k] ?? k}): ${manifest.urls.records[k]}`),
@@ -154,6 +152,8 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
         "You work for the person below, on one project, with exactly what they can see. Level 0 means read, check and draft; level 1 adds direct level-1 changes.",
         "",
         whoBlock(ctx),
+        "",
+        levelNote(ctx, av),
         ...(ctx.money_visible ? [] : ["", "Money figures (rates, amounts, budgets) are hidden for this role."]),
       ].join("\n"),
     },
@@ -162,10 +162,11 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
     {
       id: "D", title: "Change",
       body: [
-        on
-          ? "Changes are switched on for this link."
-          : "Changes are not switched on yet: nothing you send through this link changes the project, and drafts are not open yet. Reading, checking and proposing work now.",
-        "- You can send HTTP POST: `POST " + base + "/check` with `{\"function\":\"<id>\",\"params\":{}}` checks a change and records nothing. `POST " + base + "/actions` and `/drafts` (same body, optional `idempotency_key`) make a change or a draft once they are on.",
+        av.direct_open
+          ? "Direct level-1 changes are switched on for this link; a level-2 change is a draft the person confirms."
+          : "Direct changes are not switched on: `POST " + base + "/actions` answers 403 WRITES_NOT_ENABLED and applies nothing. Drafts are open: a draft changes nothing until the person confirms it, signed in.",
+        "- You can send HTTP POST: `POST " + base + "/check` with `{\"function\":\"<id>\",\"params\":{}}` checks a change and records nothing. `POST " + base + "/drafts` (the same body, optional `idempotency_key`) records a draft and answers `confirm_url`: give that address to the person, who opens it, signs in, types the code the page shows and confirms. A draft is kept 48 hours and `GET " + base + "/drafts/{id}` shows its state." + (av.changes_run ? "" : " Confirming is not switched on yet: a draft waits until it expires."),
+        "- `POST " + base + "/actions` makes a level-1 change directly when it is on.",
         "- You can only open web addresses: `GET " + manifest.urls.propose_example + "` returns a confirm link. Give it to the person. Nothing is recorded.",
         "- You cannot open web addresses: print one fenced block labelled projexa-proposal per change (format in " + base + "/card.md) and tell the person to paste them at " + manifest.urls.inbox.split("#")[0] + " .",
       ].join("\n"),
@@ -230,7 +231,7 @@ export function renderCard(input: Pick<ManualInput, "ctx" | "functions">): strin
     "",
     "## Functions you may propose",
     "",
-    functionTable(functions.map((f) => ({ ...f, available: false }))),
+    functionTable(functions.map((f) => ({ ...f, available: false, drafts_open: false, direct_open: false, reads_open: false }))),
     "",
     "## How to propose a change",
     "",

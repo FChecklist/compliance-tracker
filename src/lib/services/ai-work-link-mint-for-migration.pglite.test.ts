@@ -91,7 +91,8 @@ describe("forward", () => {
     const journal = JSON.parse(readFileSync(new URL("../../../drizzle/meta/_journal.json", import.meta.url), "utf8")) as { entries: Array<{ idx: number; when: number; tag: string }> }
     const mine = journal.entries.find((e) => e.tag === NAME)
     expect(mine).toBeDefined()
-    const links = journal.entries.filter((e) => /^\d{4}_build001_awl_/.test(e.tag) && e.tag !== NAME)
+    // the eight of BUILD-001 that come BEFORE 0631 in number order (0629 and 0630 of WP-09a are numbered lower but journalled later, so they are not compared)
+    const links = journal.entries.filter((e) => /^\d{4}_build001_awl_/.test(e.tag) && e.tag < NAME && !/^06(29|30)_/.test(e.tag))
     expect(links.length).toBe(8)
     for (const e of links) expect(mine!.when).toBeGreaterThan(e.when)
     expect(mine!.when).toBe(1790100000000 + 500000 * 1)

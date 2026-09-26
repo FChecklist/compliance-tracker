@@ -110,7 +110,7 @@ describe("OpenAPI 3.0.3", () => {
 describe("no documented path is one the router does not answer, and every routed path is documented", () => {
   const SAMPLE: Record<string, { method: string; path: string; body?: unknown }> = {}
   for (const { path, method } of operations()) {
-    const filled = path.replace("{kind}", "boq_lines").replace("{id}", path.startsWith("/intents") ? "int_1" : "boq_lines-a001").replace("{fn}", "get_construction_project_dashboard")
+    const filled = path.replace("{kind}", "boq_lines").replace("{id}", path.startsWith("/intents") || path.startsWith("/drafts") ? "int_1" : "boq_lines-a001").replace("{fn}", "get_construction_project_dashboard")
     const body = path === "/check" ? { function: "record_work_progress", params: {} } : path === "/actions" ? { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } }
       : path === "/drafts" ? { function: "create_meeting", params: { title: "x", scheduledAt: "2026-10-01T10:00:00Z" } } : path === "/functions/{fn}" ? {}
       : path === "/" || path === "/mcp" ? { jsonrpc: "2.0", id: 1, method: "ping" } : undefined

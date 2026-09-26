@@ -111,7 +111,7 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
 
 export type EndpointId =
   | "manual" | "manual_md" | "manual_json" | "card" | "card_data" | "openapi" | "swagger" | "context" | "records" | "record" | "functions"
-  | "function_run" | "propose" | "intents" | "history" | "mcp" | "mcp_path" | "check" | "actions" | "drafts"
+  | "function_run" | "propose" | "intents" | "history" | "mcp" | "mcp_path" | "check" | "actions" | "drafts" | "draft"
 
 export type Endpoint = {
   id: EndpointId
@@ -148,8 +148,9 @@ export const ENDPOINTS: ReadonlyArray<Endpoint> = [
   { id: "mcp", methods: ["POST"], pattern: [], path: "/", summary: "MCP over HTTP (JSON-RPC), both protocol eras, no session.", formats: ["json"], available: true },
   { id: "mcp_path", methods: ["POST"], pattern: ["mcp"], path: "/mcp", summary: "The same MCP endpoint at a second address.", formats: ["json"], available: true },
   { id: "check", methods: ["POST"], pattern: ["check"], path: "/check", summary: "Check a change without making it. Records nothing.", formats: ["json"], body: "{ \"function\": \"<id>\", \"params\": { } }", available: true },
-  { id: "actions", methods: ["POST"], pattern: ["actions"], path: "/actions", summary: "Make one level-1 change directly.", formats: ["json"], body: "{ \"function\": \"<id>\", \"params\": { }, \"idempotency_key\": \"<optional>\" }", available: false },
-  { id: "drafts", methods: ["POST"], pattern: ["drafts"], path: "/drafts", summary: "Record a draft the person confirms while signed in.", formats: ["json"], body: "{ \"function\": \"<id>\", \"params\": { }, \"idempotency_key\": \"<optional>\" }", available: false },
+  { id: "actions", methods: ["POST"], pattern: ["actions"], path: "/actions", summary: "Make one level-1 change directly, once direct changes are switched on (the reply says when they are not).", formats: ["json"], body: "{ \"function\": \"<id>\", \"params\": { }, \"idempotency_key\": \"<optional>\" }", available: false },
+  { id: "drafts", methods: ["POST"], pattern: ["drafts"], path: "/drafts", summary: "Record a draft the person confirms while signed in. The reply carries confirm_url: give it to the person.", formats: ["json"], body: "{ \"function\": \"<id>\", \"params\": { }, \"idempotency_key\": \"<optional>\" }", available: true },
+  { id: "draft", methods: ["GET"], pattern: ["drafts", ":id"], path: "/drafts/{id}", summary: "The state of one draft this link recorded: waiting, confirmed, done, failed or expired.", formats: ["md", "json"], available: true },
 ]
 
 export type Matched = { endpoint: Endpoint; params: Record<string, string> }
@@ -220,9 +221,9 @@ export const ERRORS: ReadonlyArray<{ status: number; meaning: string }> = [
   { status: 410, meaning: "This link has expired or was revoked. Ask the person for a new one." },
   { status: 413, meaning: "The body is over its limit (8 KB; the manual names the functions that take more)." },
   { status: 422, meaning: "The change is not valid yet: `missing` names what to add." },
-  { status: 429, meaning: "Over the rate limit (120 calls a minute per link). Wait a minute." },
+  { status: 429, meaning: "Over the rate limit (120 calls a minute per link), or over 30 changes and drafts an hour or 200 a day (WRITE_CAP_HOUR, WRITE_CAP_DAY). Wait." },
   { status: 501, meaning: "Written in a later unit." },
-  { status: 503, meaning: "Not available: the call log is down, or writes and function reads are not switched on yet." },
+  { status: 503, meaning: "Not available: the call log is down, or direct changes and function reads are not switched on yet (a draft still works)." },
   { status: 500, meaning: "Our fault. Nothing is echoed." },
 ]
 

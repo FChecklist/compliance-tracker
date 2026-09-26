@@ -1,8 +1,8 @@
 // PROJEXA-BUILD-001 U-46b1: a fake of the database side of the ai-work-link Edge Function, for the four ai-work-link-*.test.ts files that run
 // the REAL handler, MCP layer and document builders without Deno, network or database. It behaves like the public.ai_work_link_* SQL
 // functions of drizzle/0624 to 0626 where the Edge Function depends on them: the coded errors (AW410, AW403, AW400), the call log with its
-// two limits and its `throttled` answer before any row is written, the effective level and function list from the live role, and keyset
-// record pages. It does NOT run the real SQL (src/lib/services/ai-work-link-functions.pglite.test.ts does that); it lets a test switch a
+// two limits and its `throttled` answer before any row is written, the effective level and function list from the live role, keyset
+// record pages, and (BUILD-002 WP-09a) a small ai_work_link_record_intent with idempotent replay and the two write caps. It does NOT run the real SQL (src/lib/services/ai-work-link-functions.pglite.test.ts does that); it lets a test switch a
 // faulty layer on (`leaksMoney`: SQL forgets to null money, `failLog`: the call log breaks) to prove the Edge layer holds on its own.
 import { configFromEnv } from "../../../../supabase/functions/ai-work-link/config"
 import type { AwlConfig, Rpc, RpcResult } from "../../../../supabase/functions/ai-work-link/reads"
@@ -20,6 +20,7 @@ export const TOKENS = {
   revoked: tok("e"),
   expired: tok("f"),
   unknown: tok("9"),
+  levelZero: tok("7"), // a manager whose link was made at level 0
 } as const
 
 const RANK: Record<string, number> = { viewer: 1, member: 2, manager: 3, admin: 5 }
@@ -75,10 +76,23 @@ export type FakeOptions = {
 export type FakeCall = { name: string; args: Record<string, unknown> }
 export type LogRow = { link_id: string | null; prefix: string | null; at: number; path: string; status: number | null; ua: string | null }
 
+export type FakeIntent = {
+  id: string
+  link_id: string
+  kind: string
+  function_id: string
+  params: Record<string, unknown>
+  key: string
+  status: string
+  confirm_token: string | null
+  at: number
+}
+
 export type Fake = {
   rpc: Rpc
   calls: FakeCall[]
   logRows: LogRow[]
+  intents: FakeIntent[]
   links: Map<string, FakeLink>
   state: { clock: number; failLog: null | "error" | "throw" | "shape"; leaksMoney: boolean; writesEnabled: boolean }
   names(): string[]
@@ -116,6 +130,7 @@ export function makeFake(opts: FakeOptions = {}): Fake {
   add(linkFor(TOKENS.otherProject, { role: "manager", project_id: "proj_b", project_name: "Warehouse B shell" }))
   add(linkFor(TOKENS.revoked, { role: "manager", status: "revoked" }))
   add(linkFor(TOKENS.expired, { role: "manager", expired: true }))
+  add(linkFor(TOKENS.levelZero, { role: "manager", authority_level: 0 }))
 
   const state: Fake["state"] = { clock: 1_800_000_000_000, failLog: null, leaksMoney: opts.leaksMoney ?? false, writesEnabled: opts.writesEnabled ?? false }
   const calls: FakeCall[] = []
@@ -230,9 +245,45 @@ export function makeFake(opts: FakeOptions = {}): Fake {
     })
   }
 
+  const intents: FakeIntent[] = []
+  const HELD = ["recorded", "executing", "done", "awaiting_confirmation", "confirmed"]
+
+  /** ai_work_link_record_intent, the parts the Edge layer depends on (the real SQL is proven on PGlite): scope, level, idempotent replay, caps. */
+  function recordIntent(a: Record<string, unknown>): RpcResult {
+    const l = need(String(a.p_token))
+    if ("error" in l) return l
+    const kind = String(a.p_kind)
+    if (kind !== "action" && kind !== "draft") return codeErr("AW400", "BAD_KIND")
+    const fnId = String(a.p_function_id)
+    const e = effective(l)
+    if (!e.fns.includes(fnId)) return codeErr("AW403", "FUNCTION_NOT_ON_LINK")
+    const def = REGISTRY.find((f) => f.function_id === fnId)
+    if (!def || def.kind !== "write") return codeErr("AW400", "NOT_A_WRITE")
+    if (kind === "action" && !(e.level >= 1 && def.link_level === 1)) return codeErr("AW403", "LEVEL_NOT_ALLOWED")
+    const params = (a.p_params ?? {}) as Record<string, unknown>
+    const key = typeof a.p_idempotency_key === "string" && a.p_idempotency_key !== "" ? a.p_idempotency_key : `${fnId}:${JSON.stringify(params)}`
+    const shape = (i: FakeIntent, replayed: boolean) => ({
+      intent_id: i.id, status: i.status, kind: i.kind, function_id: i.function_id, replayed, confirm_token: replayed ? null : i.confirm_token,
+      expires_at: "2026-10-02T00:00:00Z", submission_id: null, result: null, failure: null,
+    })
+    const held = intents.find((i) => i.link_id === l.id && i.key === key && HELD.includes(i.status))
+    if (held) return ok(shape(held, true))
+    const mine = intents.filter((i) => i.link_id === l.id)
+    if (mine.filter((i) => i.at > state.clock - 3_600_000).length >= 30) return codeErr("AW429", "WRITE_CAP_HOUR")
+    if (mine.filter((i) => i.at > state.clock - 86_400_000).length >= 200) return codeErr("AW429", "WRITE_CAP_DAY")
+    const made: FakeIntent = {
+      id: `int_${intents.length + 2}`, link_id: l.id, kind, function_id: fnId, params, key,
+      status: kind === "draft" ? "awaiting_confirmation" : "recorded", confirm_token: kind === "draft" ? "c".repeat(64) : null, at: state.clock,
+    }
+    intents.push(made)
+    return ok(shape(made, false))
+  }
+
   const rpc: Rpc = async (name, args = {}) => {
     calls.push({ name, args })
     switch (name) {
+      case "ai_work_link_record_intent":
+        return recordIntent(args)
       case "ai_work_link_log_call":
         return logCall(args)
       case "ai_work_link_log_call_result": {
@@ -255,6 +306,8 @@ export function makeFake(opts: FakeOptions = {}): Fake {
       case "ai_work_link_intent_status": {
         const l = need(String(args.p_token))
         if ("error" in l) return l
+        const made = intents.find((i) => i.id === args.p_intent_id && i.link_id === l.id)
+        if (made) return ok({ intent_id: made.id, kind: made.kind, function_id: made.function_id, status: made.status })
         return ok(args.p_intent_id === "int_1" ? { intent_id: "int_1", kind: "draft", status: "awaiting_confirmation" } : null)
       }
       default:
@@ -262,7 +315,7 @@ export function makeFake(opts: FakeOptions = {}): Fake {
     }
   }
 
-  return { rpc, calls, logRows, links, state, names: () => calls.map((c) => c.name) }
+  return { rpc, calls, logRows, intents, links, state, names: () => calls.map((c) => c.name) }
 }
 
 /** The settings a test runs with: the defaults of config.ts, plus a realistic confirm host. */

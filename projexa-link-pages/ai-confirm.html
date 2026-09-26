@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-I2X1WSn6bmhYnA5hsJ05HPNBbEBJTHcZLMla4aJzaNg='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co https://evpckeuxgvahguwsaeul.supabase.co; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TPc0ej2bCZkWT4MputgPZNKf6DrSxiACYHbFKDVI6k0='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co https://evpckeuxgvahguwsaeul.supabase.co; base-uri 'none'; form-action 'none'">
 <title>Confirm a change</title>
 <style>
 body { font: 16px/1.5 system-ui, sans-serif; max-width: 34rem; margin: 2rem auto; padding: 0 1rem; color: #1c2b3a; background: #fffdf9; }
@@ -24,9 +24,10 @@ small { color: #4a5663; }
 </head>
 <body>
 <h1>Confirm a change your AI proposed</h1>
-<p>Nothing changes until you sign in, type the code shown below and press Confirm. This page never confirms by itself.</p>
+<p>Nothing changes until you sign in, read the change shown below, type the code and press Confirm. This page never confirms by itself.</p>
 
 <p id="draft-line"></p>
+<div id="preview" hidden></div>
 
 <div id="token-row" hidden>
   <label for="confirm-token">Confirm code from the link your AI gave you</label>
@@ -58,7 +59,7 @@ small { color: #4a5663; }
 (function () {
   var cfg = JSON.parse(document.getElementById("awl-config").textContent);
   var $ = function (id) { return document.getElementById(id); };
-  var draftId = "", confirmToken = "", accessToken = "", busy = false;
+  var draftId = "", confirmToken = "", accessToken = "", busy = false, previewOk = false;
 
   // The link's fragment holds the draft id and the one-time confirm code: #d=<id>.<code> (or #d=<id> alone). It is read into memory and
   // removed from the address bar, so it is not left in history or in a shared screenshot.
@@ -86,10 +87,57 @@ small { color: #4a5663; }
   }
   function refresh() {
     var token = confirmToken || $("confirm-token").value.trim();
-    $("confirm").disabled = busy || !draftId || !token || !accessToken || $("confirm-code").value.trim().toUpperCase() !== code;
+    $("confirm").disabled = busy || !draftId || !token || !accessToken || !previewOk || $("confirm-code").value.trim().toUpperCase() !== code;
   }
   $("confirm-code").addEventListener("input", refresh);
   $("confirm-token").addEventListener("input", refresh);
+
+  // What the person is about to confirm, read from the service with their own session (the draft is theirs and the code opens it). It is
+  // shown as text, never as markup, and Confirm stays disabled until it has been shown.
+  function add(parent, text, cls) {
+    var d = document.createElement("div");
+    d.className = cls || "";
+    d.textContent = text;
+    parent.appendChild(d);
+    return d;
+  }
+  function renderPreview(j) {
+    var host = $("preview");
+    host.textContent = "";
+    host.hidden = false;
+    add(host, "Change: " + String(j.label || j.function_id) + " (" + String(j.function_id) + ")", "pv-title");
+    var params = j.params && typeof j.params === "object" ? j.params : {};
+    Object.keys(params).forEach(function (k) {
+      var v = params[k];
+      add(host, "  " + k + ": " + (typeof v === "object" && v !== null ? JSON.stringify(v) : String(v)), "pv-param");
+    });
+    if (j.total && typeof j.total.total === "number") add(host, "Total: " + String(j.total.total) + " (" + String(j.total.lines) + " lines; " + String(j.total.basis) + ")", "pv-total");
+    if (j.expires_at) add(host, "Kept until " + String(j.expires_at), "pv-note");
+    if (j.message) add(host, String(j.message), "pv-note");
+  }
+  function loadPreview() {
+    var token = confirmToken || $("confirm-token").value.trim();
+    previewOk = false; refresh();
+    if (!draftId || !token || !accessToken) return;
+    fetch(cfg["function"] + "/drafts/" + encodeURIComponent(draftId) + "/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + accessToken },
+      body: JSON.stringify({ confirmToken: token })
+    }).then(function (res) { return res.json().catch(function () { return {}; }).then(function (j) { return { status: res.status, j: j }; }); })
+      .then(function (r) {
+        if (r.status === 200 && r.j && typeof r.j.function_id === "string") {
+          renderPreview(r.j);
+          previewOk = r.j.can_confirm === true;
+          if (!previewOk) show("This change is not waiting for a confirmation (" + String(r.j.state) + ").", "bad");
+        } else {
+          $("preview").hidden = true;
+          show(MESSAGES[r.j && r.j.code] || "The change could not be shown (" + r.status + "). Nothing was confirmed.", "bad");
+        }
+        refresh();
+      })
+      .catch(function () { show("Could not reach the service. The change was not shown. Try again in a minute.", "bad"); refresh(); });
+  }
+  $("confirm-token").addEventListener("change", loadPreview);
 
   $("signin").addEventListener("click", function () {
     if (!cfg.authKey) return;
@@ -101,7 +149,7 @@ small { color: #4a5663; }
     }).then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
       .then(function (r) {
         $("password").value = "";
-        if (r.ok && r.j && r.j.access_token) { accessToken = r.j.access_token; show("Signed in. Now type the code and press Confirm.", "ok"); }
+        if (r.ok && r.j && r.j.access_token) { accessToken = r.j.access_token; show("Signed in. Read the change, type the code and press Confirm.", "ok"); loadPreview(); }
         else show("Sign-in failed. Check your email and password.", "bad");
         refresh();
       })
@@ -137,7 +185,7 @@ small { color: #4a5663; }
     }).then(function (res) { return res.json().catch(function () { return {}; }).then(function (j) { return { status: res.status, j: j }; }); })
       .then(function (r) {
         busy = false;
-        if (r.status === 200) { confirmToken = ""; $("confirm-token").value = ""; show("Confirmed. " + (r.j.message || ""), "ok"); }
+        if (r.status === 200) { confirmToken = ""; previewOk = false; $("confirm-token").value = ""; show("Confirmed. " + (r.j.message || ""), "ok"); }
         else show(MESSAGES[r.j && r.j.code] || "Not confirmed (" + r.status + ").", "bad");
         refresh();
       })
