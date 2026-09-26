@@ -40,6 +40,18 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (engineer agent for the PROJEXA PROJECT MANAGER, BUILD-001 unit U-44; worktrees C:/ct/ct-worktrees/b001-u49 branch feat/build-001-u44-retire-dups and C:/ct/projexa-worktrees/b001-u26 branch feat/build-001-u44-retire-m4) -- retire the duplicate AI link mechanisms M4/M5 (BR-587) and the shared link helper copies (BR-481) [IN PROGRESS]"
+    claimed_at: "2026-09-26 (this session)"
+    claim: |
+      Register rows BR-587 and BR-481 (ai-os/projexa-build-001/BOOLEAN_REGISTER.csv); spec AWL-S08, AWL-S09, decision OD-6 (PMD-24).
+      Files this claim touches:
+        - src/lib/services/dpdp-ai-link-service.ts (M5: the public snapshot lookup goes by token_hash only, and a new link stores only its hash) + a new unit test beside it
+        - supabase/functions/dpdp-ai-link/router.ts (OD-6: import negotiateFormat/paginate/errorBody from supabase/functions/_shared/ai-link/core.ts, ONLY if DPDP behaviour stays identical; otherwise not edited and the differences go to the PM)
+        - projexa repo: src/app/api/ai/[token]/route.ts (M4, deleted) + its test, and the UI that hands out that route's URL
+      NOT touching: any database object, migration or data (no migration is created), any Edge Function deployment, Vercel, DNS, dpdp_* SQL functions, dpdp-* cron jobs.
+      Overlap noted: the WO-DPDP-002/009 entries below (claimed 2026-09-16/18, scope src/lib/services/dpdp-*.ts) are more than 4 hours old; the change here is limited to the one lookup and the one insert of the pre-0607 Next.js AI link path.
+      Commits are local; the PM verifies, pushes and merges.
+      OUTCOME (2026-09-26): M5 lookup by hash done (dpdp-ai-link-service.ts + dpdp-ai-link-lookup.test.ts). M4 route removed on the projexa branch. OD-6 half STOPPED: supabase/functions/dpdp-ai-link/router.ts was NOT edited, because the shared paginate (50/200 per page) and errorBody (scrubs pxa_ token shapes) do not behave like the DPDP copies (100/500 per page, no scrub); the PM decides between a parameterised shared helper and exception EXC-DUP-2.
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session; isolated worktree C:/ct/ct-worktrees/b001-p1, branch feat/build-001-phase1) -- WORK_ORDER_PROJEXA-BUILD-001 + ADDENDUM_A + master handoff (Claude chat audits, KT Drive folder 1eB19FvfLXDf1VlyggqYZg0oyBOa1Am6e): Phase 1 development [IN PROGRESS]"
     claimed_at: "2026-09-25T07:10Z (this session)"
     claim: |
