@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { Resend } from "resend"
 import { eq } from "drizzle-orm"
 import { db, inboundEmailMessages, users } from "@/lib/db"
@@ -6,6 +6,8 @@ import { verifyResendSvixSignature } from "@/lib/webhooks/resend-svix-signature"
 import { resolveEmailAlias } from "@/lib/services/email-alias-service"
 import { analyzeInboundEmail } from "@/lib/services/email-intelligence-service"
 import { storeInboundEmailAttachments } from "@/lib/webhooks/resend-inbound-attachments"
+import { verifySender } from "@/lib/services/email-sender-check"
+import { prepareEmailProposals } from "@/lib/services/email-attachment-intake"
 
 // R-C17 (platform.sumeet_requirements, Owner-initiated 2026-09-13,
 // "Platform: Email Engine"). The real inbound-email trigger this
@@ -66,6 +68,16 @@ import { storeInboundEmailAttachments } from "@/lib/webhooks/resend-inbound-atta
 // attachment it cannot or may not store (over 10 MB, a failed download, a
 // failed insert) is named in the message's processingError; the message
 // itself is always kept and the route still answers 200.
+//
+// PROJEXA-BUILD-002 WP-12 (way 4, AW-604): two steps are added. (1) A SENDER CHECK before anything is stored, read or analysed: the From
+// address must be an active member-or-above person of the organisation the alias resolved to (email-sender-check.ts). Any other sender is
+// a recorded refusal on the message row (processingError names the reason and the address), and no attachment is downloaded, stored or
+// read and the body is not sent to a model. (2) After the answer is prepared, the stored attachments of a verified sender are read by
+// prepareEmailProposals() (email-attachment-intake.ts): each .xlsx becomes a job in the extraction ledger that a person
+// approves; nothing is created from an email. That work runs after the response (next/server after()), because the model wait is up to
+// about two minutes and Resend must get its 200 at once; maxDuration covers it. The receiving hostnames are the ones in
+// ALLOWED_ALIAS_DOMAINS (email-alias-service.ts), which now match ai-os/projexa-build-001/DNS_RESEND_INBOUND_RECORDS.md.
+export const maxDuration = 300
 
 type ReceivedEmailEventData = {
   email_id: string
@@ -136,6 +148,40 @@ async function storeAttachmentsOf(
   return note
 }
 
+/**
+ * Runs `work` after the response is sent. Outside a request (a unit test) next/server's after() throws; then the work starts at once and
+ * is not waited for, so the answer is never held up by it. `work` never throws (runIntake catches everything).
+ */
+function scheduleAfterResponse(work: () => Promise<void>): void {
+  try {
+    after(work)
+  } catch {
+    void work()
+  }
+}
+
+/**
+ * WP-12: the intake for one verified message. Its notes (a file not read, a file refused) are added to the message row's processingError.
+ * Never throws; only the error's name is logged, never a file's content.
+ */
+async function runIntake(args: { orgId: string; personId: string; messageId: string }): Promise<void> {
+  try {
+    const result = await prepareEmailProposals({ orgId: args.orgId, person: { id: args.personId }, inboundMessageId: args.messageId })
+    const prepared = result.outcomes.filter((o) => o.result === "prepared" || o.result === "already_prepared").length
+    console.info(`[resend-inbound-webhook] inboundEmailMessages row ${args.messageId}: ${prepared} proposal(s) prepared, ${result.notes.length} note(s).`)
+    const note = joinNotes(...result.notes)
+    if (note) {
+      const row = await db.query.inboundEmailMessages.findFirst({ where: eq(inboundEmailMessages.id, args.messageId) })
+      await db
+        .update(inboundEmailMessages)
+        .set({ processingError: joinNotes(row?.processingError, note) })
+        .where(eq(inboundEmailMessages.id, args.messageId))
+    }
+  } catch (err) {
+    console.error(`[resend-inbound-webhook] intake failed for inboundEmailMessages row ${args.messageId} (${err instanceof Error ? err.name : "unknown error"}).`)
+  }
+}
+
 export async function POST(request: NextRequest) {
   const secret = process.env.RESEND_WEBHOOK_SECRET
   const svixId = request.headers.get("svix-id")
@@ -187,6 +233,8 @@ export async function POST(request: NextRequest) {
   let subject: string | null = eventData.subject ?? null
   let body: string | null = null
   let fetchError: string | null = null
+  // WP-12: the receiving server's own headers, when Resend returns them; the sender check reads the authentication verdict from them.
+  let emailHeaders: Record<string, string> | null = null
   // U-31: whether the email has any attachment to read, from the webhook's own
   // metadata or from the full email below. No attachment, no attachment call.
   let hasAttachments = (eventData.attachments?.length ?? 0) > 0
@@ -204,6 +252,7 @@ export async function POST(request: NextRequest) {
       subject = full.subject ?? subject
       body = full.text ?? full.html ?? null
       if ((full.attachments?.length ?? 0) > 0) hasAttachments = true
+      emailHeaders = full.headers ?? null
     }
   }
 
@@ -228,10 +277,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to record inbound email" }, { status: 500 })
   }
 
+  // WP-12: who sent it. An unknown or unverified sender is refused here: the refusal is recorded, and no attachment is downloaded,
+  // stored or read, and the body is not analysed. Only a verified sender's message goes on.
+  let sender: Awaited<ReturnType<typeof verifySender>> | null = null
+  if (resolved) {
+    sender = await verifySender(db, { orgId: resolved.orgId, fromAddress, headers: emailHeaders })
+    if (!sender.ok) {
+      await db.update(inboundEmailMessages).set({ processingError: joinNotes(inserted.processingError, sender.note) }).where(eq(inboundEmailMessages.id, inserted.id))
+      console.warn(`[resend-inbound-webhook] inboundEmailMessages row ${inserted.id} refused (${sender.code}); nothing was stored or read.`)
+      return NextResponse.json({ ok: true, id: inserted.id, processed: false, refused: sender.code })
+    }
+  }
+
   // U-31 (BR-413): the message row exists, so its attachments can be linked to
   // it. An organisation is required (inbound_email_attachments.org_id is NOT
   // NULL), so an unresolved recipient's attachments are not read.
-  const attachmentNote = resolved && client && hasAttachments ? await storeAttachmentsOf(client, emailId, resolved.orgId, inserted) : null
+  const attachmentNote =
+    resolved && client && hasAttachments && sender?.ok ? await storeAttachmentsOf(client, emailId, resolved.orgId, inserted) : null
+
+  // WP-12: prepare proposals from the stored attachments, after this answer.
+  if (resolved && client && sender?.ok && hasAttachments) {
+    const intake = { orgId: resolved.orgId, personId: sender.person.id, messageId: inserted.id }
+    scheduleAfterResponse(() => runIntake(intake))
+  }
 
   if (!resolved || fetchError) {
     console.warn(

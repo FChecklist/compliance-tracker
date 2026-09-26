@@ -9,8 +9,10 @@
 // .base.sql plus drizzle/0620 itself, so the foreign key, the ON DELETE CASCADE and the 10 MB CHECK are the real ones.
 // WHAT IS FAKED, and nothing else: the `resend` SDK (receiving.get and receiving.attachments.list answer fixtures),
 // globalThis.fetch (it serves only the fixture's signed download URL and throws for any other URL, so no test can reach
-// the network), the alias lookup, analyzeInboundEmail (it would call a model), and db.query.users (the users table is not
-// in this snapshot). No real key or secret is used: the Svix secret below is a test value.
+// the network), the alias lookup, analyzeInboundEmail (it would call a model), db.query.users (the users table is not
+// in this snapshot) and, from BUILD-002 WP-12, prepareEmailProposals() (it has its own test, email-attachment-intake.test.ts;
+// here only what the route hands it is recorded). The sender check is REAL: compliance.users is added to the PGlite database with the
+// five columns it reads, holding the fixture sender. No real key or secret is used: the Svix secret below is a test value.
 //
 // Run: bun test --isolate src/app/api/webhooks/resend-inbound/route.attachments.test.ts
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
@@ -47,6 +49,12 @@ CREATE ROLE authenticator NOLOGIN; CREATE ROLE app_runtime NOLOGIN;
 `)
 await pglite.exec(read("scripts/verify/fixtures/0620_build001_inbound_email_attachments.base.sql"))
 await pglite.exec(read("drizzle/0620_build001_inbound_email_attachments.sql"))
+// WP-12: the table the sender check reads (see the header). The fixture sender is a member of ORG; the others are for the refusal tests.
+await pglite.exec(`
+CREATE TABLE compliance.users (id text PRIMARY KEY, email text NOT NULL, role text NOT NULL, org_id text, is_active boolean NOT NULL DEFAULT true);
+INSERT INTO compliance.users (id, email, role, org_id) VALUES ('user-site', 'site@vendor.test', 'member', 'org-1');
+INSERT INTO compliance.users (id, email, role, org_id) VALUES ('user-other-org', 'other@vendor.test', 'admin', 'org-2');
+`)
 const pgDb = drizzle(pglite, { schema })
 
 const FIXTURE_USER = { id: USER, name: "Asha M", email: "asha@example.test", role: "manager" }
@@ -103,6 +111,7 @@ let downloads: string[] = []
 let downloadResponse: (url: string) => Response
 let resolveEmailAliasResult: { orgId: string; userId: string; aliasId: string } | null
 let analyzeCalls = 0
+let intakeCalls: Array<{ orgId: string; person: { id: string }; inboundMessageId: string }> = []
 
 mock.module("@/lib/db", () => ({ ...realDb, db: testDb }))
 mock.module("resend", () => ({
@@ -125,6 +134,13 @@ mock.module("@/lib/services/email-intelligence-service", () => ({
   analyzeInboundEmail: async () => {
     analyzeCalls++
     return { id: "item-1" }
+  },
+}))
+
+mock.module("@/lib/services/email-attachment-intake", () => ({
+  prepareEmailProposals: async (args: { orgId: string; person: { id: string }; inboundMessageId: string }) => {
+    intakeCalls.push(args)
+    return { outcomes: [], notes: [] }
   },
 }))
 
@@ -185,6 +201,7 @@ beforeEach(async () => {
   downloadResponse = () => new Response(XLSX_BYTES, { status: 200, headers: { "content-type": XLSX_TYPE } })
   resolveEmailAliasResult = { orgId: ORG, userId: USER, aliasId: "alias-1" }
   analyzeCalls = 0
+  intakeCalls = []
   logged = []
   spies = (["log", "info", "warn", "error"] as const).map((level) =>
     spyOn(console, level).mockImplementation((...args: unknown[]) => {
@@ -441,5 +458,72 @@ describe("BR-413: what is stored for each attachment", () => {
 
     expect(await count("select count(*)::int n from compliance.inbound_email_attachments where inbound_message_id = 'msg-direct'")).toBe(1)
     expect(downloads).toHaveLength(1)
+  })
+})
+
+describe("BUILD-002 WP-12 (AW-604): the sender is checked before anything is downloaded, stored, read or analysed", () => {
+  test("*** a known member's email: the attachment is stored, then the intake is handed the organisation, the person and the message ***", async () => {
+    const res = await POST(signedRequest(receivedEvent("email_known_sender")) as never)
+    restoreLogs()
+    expect(res.status).toBe(200)
+    const { id } = (await res.json()) as { id: string }
+    expect(await count("select count(*)::int n from compliance.inbound_email_attachments where inbound_message_id = $1", [id])).toBe(1)
+    // The intake runs after the answer; give the detached call a turn.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(intakeCalls).toEqual([{ orgId: ORG, person: { id: "user-site" }, inboundMessageId: id }])
+    expect(analyzeCalls).toBe(1)
+  })
+
+  test("*** an unknown sender: refused and recorded; 0 attachment calls, 0 downloads, 0 rows stored, no analysis, no intake ***", async () => {
+    receivingGetResult = { data: { ...receivingGetResult.data!, from: "stranger@nowhere.test" }, error: null }
+    const res = await POST(signedRequest(receivedEvent("email_unknown_sender")) as never)
+    restoreLogs()
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ ok: true, processed: false, refused: "sender_not_a_user_of_this_organisation" })
+    const [message] = await messageRow("email_unknown_sender")
+    expect(message.org_id).toBe(ORG)
+    expect(message.processing_error).toBe("message refused: stranger@nowhere.test is not an active person of this organisation")
+    expect(message.processed_at).toBeNull()
+    expect(listCalls).toEqual([])
+    expect(downloads).toEqual([])
+    expect(await count("select count(*)::int n from compliance.inbound_email_attachments")).toBe(0)
+    expect(analyzeCalls).toBe(0)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(intakeCalls).toEqual([])
+  })
+
+  test("a person of another organisation writing to this organisation's address is refused the same way", async () => {
+    receivingGetResult = { data: { ...receivingGetResult.data!, from: "Other <other@vendor.test>" }, error: null }
+    const res = await POST(signedRequest(receivedEvent("email_other_org")) as never)
+    restoreLogs()
+    expect(await res.json()).toMatchObject({ processed: false, refused: "sender_not_a_user_of_this_organisation" })
+    expect(listCalls).toEqual([])
+    expect(await count("select count(*)::int n from compliance.inbound_email_attachments")).toBe(0)
+    expect(intakeCalls).toEqual([])
+  })
+
+  test("a known sender whose message failed the receiving server's DKIM check is refused before any attachment is read", async () => {
+    receivingGetResult = { data: { ...receivingGetResult.data!, headers: { "Authentication-Results": "mx.resend.test; dkim=fail" } }, error: null }
+    const res = await POST(signedRequest(receivedEvent("email_dkim_fail")) as never)
+    restoreLogs()
+    expect(await res.json()).toMatchObject({ processed: false, refused: "sender_authentication_failed" })
+    const [message] = await messageRow("email_dkim_fail")
+    expect(message.processing_error).toContain("failed SPF, DKIM or DMARC")
+    expect(listCalls).toEqual([])
+    expect(downloads).toEqual([])
+    expect(await count("select count(*)::int n from compliance.inbound_email_attachments")).toBe(0)
+    expect(analyzeCalls).toBe(0)
+    expect(intakeCalls).toEqual([])
+  })
+
+  test("a known sender's email with no attachment does not start the intake", async () => {
+    receivingGetResult = { data: { ...receivingGetResult.data!, attachments: [] }, error: null }
+    const res = await POST(signedRequest(receivedEvent("email_known_plain", [])) as never)
+    restoreLogs()
+    expect(res.status).toBe(200)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(intakeCalls).toEqual([])
+    expect(analyzeCalls).toBe(1)
   })
 })

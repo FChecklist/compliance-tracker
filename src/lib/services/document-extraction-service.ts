@@ -1177,6 +1177,9 @@ export const LEDGER_PARKED_TTL_SECONDS = 7 * 24 * 60 * 60
 /** Extraction attempts one organisation may start inside the window (a person seldom needs more than a few workbooks an hour). */
 export const LEDGER_RATE_LIMIT = { maxClaims: 30, windowSeconds: 60 * 60 } as const
 
+/** How the file reached the ledger: uploaded by a person (the default) or read from an inbound email attachment (BUILD-002 WP-12). */
+export type LedgerOrigin = "upload" | "email"
+
 export const JOB_STATES = ["received", "reading", "needs_answers", "ready", "created", "rejected"] as const
 export type JobState = (typeof JOB_STATES)[number]
 export type ParkedState = "needs_answers" | "ready"
@@ -1226,7 +1229,7 @@ function isParked(state: string | null | undefined): state is ParkedState {
 /** Claim, on an open tenant transaction. Exported so the ledger can be run against real Postgres in a test. */
 export async function claimProjectSourceWithDb(
   db: TenantDb,
-  args: { orgId: string; actorId: string; contentSha256: string; fileName: string; byteSize: number },
+  args: { orgId: string; actorId: string; contentSha256: string; fileName: string; byteSize: number; origin?: LedgerOrigin },
 ): Promise<LedgerClaim> {
   const key = projectSourceLedgerKey(args.contentSha256)
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -1287,7 +1290,7 @@ export async function claimProjectSourceWithDb(
       .insert(sourceObject)
       .values({
         orgId: args.orgId,
-        origin: "upload",
+        origin: args.origin ?? "upload",
         originRef: LEDGER_ORIGIN_REF,
         mimeType: XLSX_MIME_TYPE,
         byteSize: args.byteSize,
@@ -1355,10 +1358,10 @@ export async function takeParkedProjectSourceWithDb(db: TenantDb, claimId: strin
 }
 
 /** The ledger the route uses: each step is its own tenant transaction, none opened inside another. */
-export function createDbProjectSourceLedger(ctx: { orgId: string; actorId: string }): ProjectSourceLedger {
+export function createDbProjectSourceLedger(ctx: { orgId: string; actorId: string; origin?: LedgerOrigin }): ProjectSourceLedger {
   const tenant = { orgId: ctx.orgId, userId: ctx.actorId }
   return {
-    claim: (input) => withTenantContext(tenant, (db) => claimProjectSourceWithDb(db, { orgId: ctx.orgId, actorId: ctx.actorId, ...input })),
+    claim: (input) => withTenantContext(tenant, (db) => claimProjectSourceWithDb(db, { orgId: ctx.orgId, actorId: ctx.actorId, ...(ctx.origin ? { origin: ctx.origin } : {}), ...input })),
     attach: (claimId, projectId) => withTenantContext(tenant, (db) => attachProjectSourceWithDb(db, claimId, projectId)),
     release: (claimId, options) => withTenantContext(tenant, (db) => releaseProjectSourceWithDb(db, claimId, options)),
     setState: (claimId, state, result) => withTenantContext(tenant, (db) => setProjectSourceStateWithDb(db, claimId, state, result)),
@@ -1373,6 +1376,10 @@ export type JobView = {
   jobId: string
   state: JobState
   fileName: string | null
+  /** How the file arrived: upload (a person sent it) or email (read from an inbound email attachment, WP-12). */
+  origin: string
+  /** For an emailed file: which message and which stored attachment it was read from. Null for any other origin. */
+  via: JobVia | null
   projectId: string | null
   questions: ExtractionQuestion[]
   reconciliation: Reconciliation | null
@@ -1381,8 +1388,22 @@ export type JobView = {
   updatedAt: string
 }
 
+/** Where an emailed job's file is kept: the inbound message and the row of compliance.inbound_email_attachments. Stored beside the job's extraction. */
+export type JobVia = { channel: "email"; inboundMessageId: string; attachmentId: string }
+
+/** The `via` a stored job result carries, or null when it has none or it is not well formed. */
+export function readJobVia(result: unknown): JobVia | null {
+  if (typeof result !== "object" || result === null) return null
+  const via = (result as { via?: unknown }).via
+  if (typeof via !== "object" || via === null) return null
+  const { channel, inboundMessageId, attachmentId } = via as Record<string, unknown>
+  if (channel !== "email" || typeof inboundMessageId !== "string" || typeof attachmentId !== "string") return null
+  return { channel: "email", inboundMessageId, attachmentId }
+}
+
 type JobRow = {
   id: string
+  origin?: string | null
   jobState: string | null
   linkedEntityId: string | null
   jobResult: unknown
@@ -1401,6 +1422,11 @@ function jobStateOfRow(row: Pick<JobRow, "jobState" | "linkedEntityId" | "delete
   return row.linkedEntityId ? "created" : row.deletedAt ? "rejected" : "received"
 }
 
+/** Where a job's file came from: its origin (upload unless the row says otherwise) and, for an emailed file, where it is kept. */
+function jobSourceOf(row: Pick<JobRow, "origin" | "jobResult">): { origin: string; via: JobVia | null } {
+  return { origin: row.origin ?? "upload", via: readJobVia(row.jobResult) }
+}
+
 /** A ledger row as a JobView. Pure. A row written before job_state existed reads as created (has a project), rejected (released) or received. */
 export function jobViewFromRow(row: JobRow): JobView {
   const state = jobStateOfRow(row)
@@ -1412,6 +1438,7 @@ export function jobViewFromRow(row: JobRow): JobView {
     jobId: row.id,
     state,
     fileName: row.displayName,
+    ...jobSourceOf(row),
     projectId: row.linkedEntityId ?? (result && typeof result.projectId === "string" ? result.projectId : null),
     questions: stored?.questions ?? [],
     reconciliation: stored?.reconciliation ?? null,
@@ -1431,6 +1458,7 @@ export async function getProjectSourceJobWithDb(db: TenantDb, args: { orgId: str
   const [row] = await db
     .select({
       id: sourceObject.id,
+      origin: sourceObject.origin,
       jobState: sourceObject.jobState,
       linkedEntityId: sourceObject.linkedEntityId,
       jobResult: sourceObject.jobResult,
@@ -1447,6 +1475,45 @@ export async function getProjectSourceJobWithDb(db: TenantDb, args: { orgId: str
 
 export function getProjectSourceJob(ctx: { orgId: string; actorId: string }, args: { jobId?: string; contentSha256?: string }): Promise<JobView | null> {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.actorId }, (db) => getProjectSourceJobWithDb(db, { orgId: ctx.orgId, ...args }))
+}
+
+/** The most jobs the open list answers with, newest first. */
+export const MAX_OPEN_JOBS = 50
+
+/**
+ * The extraction jobs of this organisation that wait for a person (needs_answers, ready), newest first, at most MAX_OPEN_JOBS. These are the
+ * proposals an upload in prepare mode and an inbound email leave behind: nothing has been created for any of them. A job that was finished,
+ * refused or freed is not listed. One read, no write, no model call.
+ */
+export async function listOpenExtractionJobsWithDb(db: TenantDb, args: { orgId: string }): Promise<JobView[]> {
+  const rows = await db
+    .select({
+      id: sourceObject.id,
+      origin: sourceObject.origin,
+      jobState: sourceObject.jobState,
+      linkedEntityId: sourceObject.linkedEntityId,
+      jobResult: sourceObject.jobResult,
+      displayName: sourceObject.displayName,
+      deletedAt: sourceObject.deletedAt,
+      updatedAt: sourceObject.updatedAt,
+    })
+    .from(sourceObject)
+    .where(
+      and(
+        eq(sourceObject.orgId, args.orgId),
+        eq(sourceObject.originRef, LEDGER_ORIGIN_REF),
+        isNull(sourceObject.deletedAt),
+        isNull(sourceObject.linkedEntityId),
+        inArray(sourceObject.jobState, ["needs_answers", "ready"]),
+      ),
+    )
+    .orderBy(sql`${sourceObject.updatedAt} desc`, sql`${sourceObject.id} desc`)
+    .limit(MAX_OPEN_JOBS)
+  return rows.map(jobViewFromRow)
+}
+
+export function listOpenExtractionJobs(ctx: { orgId: string; actorId: string }): Promise<JobView[]> {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.actorId }, (db) => listOpenExtractionJobsWithDb(db, { orgId: ctx.orgId }))
 }
 
 // ------------------------------------------------------------------------------------------------------ the orchestration
@@ -1631,8 +1698,10 @@ export async function runExtractionJob<P extends { id: string }, B extends { id:
 
   const pendingState: ParkedState | null = result.questions.length > 0 && input.acknowledgeQuestions !== true ? "needs_answers" : input.mode === "prepare" ? "ready" : null
   if (pendingState) {
+    // A job that came from an email keeps saying where its file is when it is parked again (WP-12).
+    const via = start.kind === "resume" ? readJobVia(start.result) : null
     try {
-      await deps.ledger.setState(claimId, pendingState, { ...storedExtraction(result), acknowledgedShortfall })
+      await deps.ledger.setState(claimId, pendingState, { ...storedExtraction(result), acknowledgedShortfall, ...(via ? { via } : {}) })
     } catch (err) {
       await release(true)
       throw err

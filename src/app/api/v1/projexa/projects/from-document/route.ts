@@ -6,12 +6,14 @@ import {
   createDbProjectSourceLedger,
   createEdgeExtractCaller,
   getProjectSourceJob,
+  listOpenExtractionJobs,
   runExtractionJob,
   startExtractionJob,
   type CreateFromDocumentDeps,
   type CreateFromDocumentInput,
   type CreateFromDocumentResult,
 } from "@/lib/services/document-extraction-service"
+import { loadEmailJobFile } from "@/lib/services/email-attachment-intake"
 import { ExtractionRejectedError, MAX_REQUEST_BODY_BYTES, ProjectCreatedUnlinkedError, ProjectCreatedWithoutBoqError, WORKBOOK_LIMITS } from "@/lib/services/document-extraction-schema"
 
 // PROJEXA-BUILD-001 U-37 (PMD-03, register rows BR-507 and BR-508): create a project and its BOQ from an uploaded xlsx workbook.
@@ -24,6 +26,13 @@ import { ExtractionRejectedError, MAX_REQUEST_BODY_BYTES, ProjectCreatedUnlinked
 //                               (never covers a total that is too high)
 //   mode=prepare                read and check the file and stop (state ready or needs_answers); the default creates
 //   ?async=1                    answer 202 as soon as the file is claimed and run the job after the response
+//
+// BUILD-002 WP-12 (way 4, email): an inbound email with a workbook attached leaves a prepared job on the same ledger (origin email,
+// state ready or needs_answers, nothing created). GET ?open=1 lists every job of the organisation that waits for a person, from an
+// upload in prepare mode or from an email, with a JobView each (origin, via, questions, reconciliation) and the approve action. A person
+// approves an emailed job by posting `jobId` and `productId` (and acknowledgeQuestions=true when the job has questions and the person
+// wants the project without those lines) instead of a file: the file is read from the stored attachment the job names, never from the
+// request, and the parked job is finished from what it stored with no second model call.
 //
 // The ledger row of the file is the JOB RECORD, with the state received, reading, needs_answers, ready, created or rejected
 // (document-extraction-service.ts, ledger notes). A job with open questions waits in needs_answers; a second submit of the same file
@@ -103,6 +112,21 @@ function readOptions(form: FormData): Pick<CreateFromDocumentInput, "projectName
   }
 }
 
+/**
+ * The file to read: the uploaded one or, with a job id and no file (WP-12), the stored attachment of an emailed job of this organisation
+ * that still waits. The bytes of an emailed job come from the row the job names, never from the request. 404 when there is no such job.
+ */
+async function readSource(
+  file: FormDataEntryValue | null,
+  emailJobId: string,
+  ctx: { orgId: string; actorId: string },
+): Promise<{ fileName: string; bytes: Uint8Array } | { response: NextResponse }> {
+  if (file instanceof File) return { fileName: file.name || "upload.xlsx", bytes: new Uint8Array(await file.arrayBuffer()) }
+  const emailed = await loadEmailJobFile(ctx, emailJobId)
+  if (!emailed) return { response: NextResponse.json({ error: "No emailed proposal with that job id is waiting", code: "job_not_found" }, { status: 404 }) }
+  return { fileName: emailed.fileName, bytes: emailed.bytes }
+}
+
 /** The multipart form of the request, or the 413 / 400 answer when the body is over the ceiling or is not multipart form data. */
 async function readUploadForm(request: NextRequest): Promise<{ form: FormData } | { response: NextResponse }> {
   const body = await readBodyWithinLimit(request)
@@ -158,21 +182,26 @@ export async function POST(request: NextRequest) {
     if ("response" in upload) return upload.response
     const form = upload.form
     const file = form.get("file")
-    if (!(file instanceof File)) return NextResponse.json({ error: "No file provided", code: "no_file" }, { status: 400 })
+    const emailJobId = String(form.get("jobId") ?? "").trim()
+    if (!(file instanceof File) && !emailJobId) return NextResponse.json({ error: "No file provided", code: "no_file" }, { status: 400 })
     const productId = String(form.get("productId") ?? "").trim()
     if (!productId) return NextResponse.json({ error: "productId is required", code: "product_required" }, { status: 400 })
-    if (file.size > WORKBOOK_LIMITS.maxBytes) {
+    if (file instanceof File && file.size > WORKBOOK_LIMITS.maxBytes) {
       return NextResponse.json({ error: "The file is larger than 5 MB", code: "workbook_too_large" }, { status: 413 })
     }
     const options = readOptions(form)
     if (!options) return NextResponse.json({ error: "mode must be create or prepare", code: "invalid_mode" }, { status: 400 })
 
+    const source = await readSource(file, emailJobId, { orgId, actorId: acting.person.id })
+    if ("response" in source) return source.response
+    const { fileName, bytes } = source
+
     const input: CreateFromDocumentInput = {
       orgId,
       actorId: acting.person.id,
       productId,
-      fileName: file.name || "upload.xlsx",
-      bytes: new Uint8Array(await file.arrayBuffer()),
+      fileName,
+      bytes,
       ...options,
     }
     const deps: CreateFromDocumentDeps<Awaited<ReturnType<typeof createProject>>, Awaited<ReturnType<typeof createBoq>>> = {
@@ -227,6 +256,19 @@ export async function GET(request: NextRequest) {
 
   try {
     const params = new URL(request.url).searchParams
+    if (params.get("open") === "1") {
+      const jobs = await listOpenExtractionJobs({ orgId: ctx.orgId, actorId: acting.person.id })
+      return NextResponse.json(
+        {
+          count: jobs.length,
+          jobs: jobs.map((job) => ({
+            ...job,
+            approve: { method: "POST", path: "/api/v1/projexa/projects/from-document", form: { jobId: job.jobId, productId: "<the product of the new project>" } },
+          })),
+        },
+        { status: 200 },
+      )
+    }
     const jobId = (params.get("jobId") ?? "").trim()
     const sha256 = (params.get("sha256") ?? "").trim().toLowerCase()
     if (!jobId && !/^[0-9a-f]{64}$/.test(sha256)) {
