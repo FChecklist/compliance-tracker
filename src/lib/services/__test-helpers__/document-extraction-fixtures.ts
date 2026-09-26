@@ -19,6 +19,7 @@ import {
   type ExtractDeps,
   type ModelCall,
 } from "../../../../supabase/functions/projexa-document-extract/handler"
+import { testBudget } from "./extract-budget-fixtures"
 import { projectSourceLedgerKey, type EdgeCaller, type LedgerClaim, type ProjectSourceLedger } from "../document-extraction-service"
 
 export const SHARED_SECRET = "test-shared-secret-0123456789abcdef0123"
@@ -200,9 +201,9 @@ export function repackWithDataDescriptors(workbook: Buffer): Buffer {
   return craftZip(parts)
 }
 
-/** Deps for the real handler: the shared secret as the credential, the given model (or none), no log output. */
+/** Deps for the real handler: the shared secret as the credential, the given model (or none), a budget on an in-memory ledger with a very high cap (U-36b), no log output. */
 export function edgeDeps(model: ModelCall | null, extra: Partial<ExtractDeps> = {}): ExtractDeps {
-  return { verifyCaller: async (req) => bearerMatches(req.headers.get("authorization"), SHARED_SECRET), model, log: () => {}, ...extra }
+  return { verifyCaller: async (req) => bearerMatches(req.headers.get("authorization"), SHARED_SECRET), model, budget: testBudget(), log: () => {}, ...extra }
 }
 
 /** An EdgeCaller that posts to the real handler in process. `calls` counts requests and keeps the last body sent. */
