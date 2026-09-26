@@ -332,3 +332,70 @@ describe("BR-424: who may paste, and where", () => {
     expect(snapshot()).toBe(before)
   })
 })
+
+// U-47a: text inside a block gets the link's text rules (UNIVERSAL_AI_WORK_LINK_SPEC.md 9.11). A JSON escape (\u0007,
+// \u0060) is how a block carries a control character or a backtick run, because a literal run of three backticks
+// would end the fence itself.
+describe("BR-424: text inside a pasted block follows the link's text rules", () => {
+  const TICKS = "\\u0060\\u0060\\u0060"
+  const rawBlock = (params: string, note = '"a note"') => `${FENCE}projexa-proposal\n{"v":1,"function":"create_boq","params":${params},"note":${note}}\n${FENCE}`
+
+  test("control characters are removed and a backtick run is defused before the proposal is stored", async () => {
+    const res = await pasteText(rawBlock(`{"title":"Ti\\u0007tle\\u0000 ${TICKS}x","lineItems":[{"itemCode":"P1","description":"Brick\\u001b work\\nline two","unit":"cum","quantity":12,"rate":5200}]}`, '"n\\u0007ote"'))
+    expect(res.status).toBe(201)
+
+    const [row] = table("submissions")
+    const chain = row.selectedChain as { params: Record<string, unknown>; note: string }
+    expect(chain.params.title).toBe("Title ''x")
+    expect((chain.params.lineItems as Array<Record<string, unknown>>)[0].description).toBe("Brick work\nline two")
+    expect(chain.note).toBe("note")
+    // The approvals list shows the cleaned text, not what was pasted.
+    const [proposal] = (await (await list()).json()).proposals
+    expect(proposal.params.title).toBe("Title ''x")
+    expect(noBoqWritten()).toEqual([0, 0, 0, 0, 0])
+  })
+
+  test("2,000 characters are kept whole; 2,001 are refused with 422, the path and the length, and nothing is stored", async () => {
+    const ok = await pasteText(fence(withParams({ title: "T", lineItems: [{ ...LINE, description: "d".repeat(2000) }] })))
+    expect(ok.status).toBe(201)
+    expect(((table("submissions")[0].selectedChain as { params: { lineItems: Array<{ description: string }> } }).params.lineItems[0].description)).toHaveLength(2000)
+
+    const before = snapshot()
+    const res = await pasteText(fence(withParams({ title: "T", lineItems: [LINE, { ...LINE, description: "d".repeat(2001) }] })))
+    const body = await res.json()
+    expect(res.status).toBe(422)
+    expect(body.stored).toBe(0)
+    expect(body.block).toBe(0)
+    expect(body.failure.context.reason).toBe("text_too_long")
+    expect(body.detail).toContain("lineItems[1].description")
+    expect(body.detail).toContain("2001")
+    expect(snapshot()).toBe(before)
+  })
+
+  test("the length is counted after control characters are removed", async () => {
+    const res = await pasteText(fence(withParams({ title: "T", lineItems: [{ ...LINE, description: `${"d".repeat(2000)}${"\u0007".repeat(50)}` }] })))
+    expect(res.status).toBe(201)
+  })
+
+  test("a title over 2,000 characters is refused too, and a block nested beyond 32 levels is refused", async () => {
+    const before = snapshot()
+    const long = await pasteText(fence(withParams({ title: "t".repeat(2001), lineItems: [] })))
+    expect(long.status).toBe(422)
+    expect((await long.json()).detail).toContain("title")
+
+    let deep: unknown = "x"
+    for (let i = 0; i < 40; i++) deep = { a: deep }
+    const nested = await pasteText(fence(withParams({ title: "T", extra: deep })))
+    expect(nested.status).toBe(422)
+    expect((await nested.json()).failure.context.reason).toBe("params_too_deep")
+    expect(snapshot()).toBe(before)
+  })
+
+  test("the body is held to 200 KB as a whole: a short text whose JSON escapes push the body over is 413", async () => {
+    const before = snapshot()
+    // 120,000 newlines are 120,000 characters of text, under the text limit, and 240,000 bytes once JSON escapes them.
+    const res = await pasteText(`${fence(block())}${"\n".repeat(120_000)}`)
+    expect(res.status).toBe(413)
+    expect(snapshot()).toBe(before)
+  })
+})
