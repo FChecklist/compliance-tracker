@@ -3152,6 +3152,83 @@
       "when": 1790076000000,
       "tag": "0620_build001_inbound_email_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 452,
+      "version": "7",
+      "when": 1790082000000,
+      "tag": "0632_build001_cron_fm_ppm_occurrences",
+      "breakpoints": true
+    },
+    {
+      "idx": 453,
+      "version": "7",
+      "when": 1790082500000,
+      "tag": "0633_build001_cron_metric_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 454,
+      "version": "7",
+      "when": 1790083000000,
+      "tag": "0634_build001_cron_the_firm_recur",
+      "breakpoints": true
+    },
+    {
+      "idx": 455,
+      "version": "7",
+      "when": 1790083500000,
+      "tag": "0635_build001_cron_audit_cadence",
+      "breakpoints": true
+    },
+    {
+      "idx": 456,
+      "version": "7",
+      "when": 1790084000000,
+      "tag": "0636_build001_cron_task_nudge_digest",
+      "breakpoints": true
+    },
+    {
+      "idx": 457,
+      "version": "7",
+      "when": 1790084500000,
+      "tag": "0637_build001_cron_report_schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 458,
+      "version": "7",
+      "when": 1790085000000,
+      "tag": "0638_build001_cron_orchestra_log_purge",
+      "breakpoints": true
+    },
+    {
+      "idx": 459,
+      "version": "7",
+      "when": 1790085500000,
+      "tag": "0639_build001_cron_ai_reduction_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 460,
+      "version": "7",
+      "when": 1790086000000,
+      "tag": "0640_build001_cron_pipeline_stuck_deals",
+      "breakpoints": true
+    },
+    {
+      "idx": 461,
+      "version": "7",
+      "when": 1790086500000,
+      "tag": "0641_build001_cron_crm_lead_followups",
+      "breakpoints": true
+    },
+    {
+      "idx": 462,
+      "version": "7",
+      "when": 1790087000000,
+      "tag": "0642_build001_pipeline_schedules",
+      "breakpoints": true
     }
   ]
 }
