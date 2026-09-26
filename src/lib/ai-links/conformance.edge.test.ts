@@ -317,14 +317,14 @@ describe("detail rows of BR-523 that need no deployed function (BR-581, BR-583 a
   // BUILD-002 WP-03/04/07 added five functions to the spec's ten (create_boq, add_boq_lines, seal_boq, update_project, create_activity), WP-05a
   // waves 1 and 2 added 19 more and WP-05c/WP-05d the eighteen of coverage waves 3 and 4, so the count was 52 before waves 5 and 6;
   // scripts/gen-ai-link-registry.data.ts is the one place it changes.
-  // BUILD-002 WP-05e/05f and AW-312 added 21 more (waves 5 and 6 and the exception-capture functions): 73 in all.
-  test("BR-581: exactly 73 functions are offered on links (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4 and the 21 of waves 5 and 6), a manager sees all 73, a member only what its rank allows, none offered twice", async () => {
+  // BUILD-002 WP-05e/05f and AW-312 added 21 more (waves 5 and 6 and the exception-capture functions): 73; WP-05g/05h added the 20 of waves 7, 8 and 9: 93 in all.
+  test("BR-581: exactly 93 functions are offered on links (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9), a manager sees all 93, a member only what its rank allows, none offered twice", async () => {
     const edge = startEdge({ writesEnabled: true })
-    expect(onLinks).toHaveLength(73)
+    expect(onLinks).toHaveLength(93)
     const allowed = async (token: string) => ((await (await fetch(edge.link(token) + "/context", { headers: { accept: "application/json" } })).json()) as { allowed_functions: string[] }).allowed_functions
     const manager = await allowed(TOKENS.manager)
     expect(sorted(manager)).toEqual(sorted(onLinks.map((f) => f.function_id)))
-    expect(new Set(manager).size).toBe(73)
+    expect(new Set(manager).size).toBe(93)
     const member = await allowed(TOKENS.member)
     expect(sorted(member)).toEqual(sorted(onLinks.filter((f) => f.min_role_rank <= 2).map((f) => f.function_id)))
     expect(member).not.toContain("get_construction_budget_status")

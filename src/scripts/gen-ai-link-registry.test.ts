@@ -60,6 +60,18 @@ const B002_WAVE_5_6_ON_LINKS: Record<string, [number, number]> = {
   compare_schedule_baseline: [0, 2], capture_schedule_baseline: [2, 3], update_task: [1, 2],
   set_progress_drawing: [2, 2], record_vendor_dispute: [2, 2], record_customer_complaint: [2, 2], record_customer_approval: [2, 3],
 }
+// BUILD-002 WP-05g/WP-05h (AW-307, AW-308): coverage waves 7, 8 and 9. function -> [function link level, minimum role rank]. Wave 7 is level 2 throughout (PMD-41).
+const B002_WAVE_7_9_ON_LINKS: Record<string, [number, number]> = {
+  create_progress_claim: [2, 3], draft_progress_claim: [2, 3], submit_progress_claim: [2, 3], reject_progress_claim: [2, 3],
+  submit_change_order_for_approval: [2, 3], submit_boq_for_approval: [2, 3], submit_kpi_entry: [2, 2], approve_kpi_entry: [2, 3],
+  create_permit: [1, 2], update_document_metadata: [1, 2], create_wiki_page: [1, 2], update_wiki_page: [1, 2], create_mood_board: [1, 2],
+  add_mood_board_item: [1, 2], create_ffe_item: [2, 2], update_ffe_status: [2, 3], get_ffe_margin_summary: [0, 3],
+  create_floor_plan: [1, 2], add_room: [1, 2], place_furniture: [1, 2],
+}
+const B002_WAVE_7_9_MONEY = [
+  "approve_kpi_entry", "create_ffe_item", "create_progress_claim", "draft_progress_claim", "get_ffe_margin_summary", "reject_progress_claim",
+  "submit_boq_for_approval", "submit_change_order_for_approval", "submit_kpi_entry", "submit_progress_claim", "update_ffe_status",
+]
 const B002_WAVE_5_6_MONEY = ["compare_boq_revisions", "get_project_budget_variance", "get_project_exceptions", "record_material_receipt", "record_vendor_dispute"]
 const B002_EXCLUDED = ["create_project", "link_roster_employee"]
 // BUILD-002 WP-05c and WP-05d (AW-303, AW-304): coverage waves 3 and 4. function -> [function link level, minimum role rank].
@@ -91,7 +103,7 @@ const B002_WAVE_1_2_ON_LINKS: Record<string, [number, number]> = {
   list_billing_claims: [0, 3],
   get_billing_due_queue: [0, 3],
 }
-const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS }
+const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS, ...B002_WAVE_7_9_ON_LINKS }
 /** How many functions are on links in all: every list above, so a wave that adds its own list changes one line, not a number. */
 const ON_LINKS_COUNT = Object.keys(ALL_ON_LINKS).length
 // spec 9.1: the 17 excluded (the register row AWL-S03 names the first five)
@@ -134,7 +146,7 @@ describe("the committed outputs are current", () => {
     const io = fsIo(ROOT)
     for (const f of [FUNCTIONS_JSON, KINDS_JSON, CURRENT_SEED_MIGRATION]) expect(io.exists(f)).toBe(true)
     expect(FUNCTIONS_JSON).toBe("supabase/functions/ai-work-link/function-registry.generated.json")
-    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0648_build002_awl_seed_waves_5_6.sql")
+    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0649_build002_awl_seed_waves_7_9.sql")
   })
 
   test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are every function reviewed onto links, and none of the five bad ones", () => {
@@ -146,11 +158,11 @@ describe("the committed outputs are current", () => {
   })
 })
 
-describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 58 of coverage waves 1 to 6 are on links", () => {
+describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 78 of coverage waves 1 to 9 are on links", () => {
   const rows = buildFunctionRows(ALL_FUNCTION_SPECS)
   const on = rows.filter((r) => r.link_level !== null)
 
-  test("the on-link functions are the spec's 10, the five BUILD-002 adds, the 19 of waves 1 and 2, the 18 of waves 3 and 4 and the 21 of waves 5 and 6, at the written levels and minimum ranks", () => {
+  test("the on-link functions are the spec's 10, the five BUILD-002 adds, the 19 of waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9, at the written levels and minimum ranks", () => {
     expect(on.length).toBe(ON_LINKS_COUNT)
     expect(on.map((r) => r.function_id).sort()).toEqual(Object.keys(ALL_ON_LINKS).sort())
     for (const r of on) {
@@ -213,9 +225,9 @@ describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 58 of
     // waves 1 and 2 add the ids of a schedule filter and task (statusId, assigneeId, assigneeIds, typeId, predecessorId), a milestone, a change order,
     // a stored document and its parent BOQ, and a vendor; the /Ids?$/ rule of the generator also reads a list of ids (assigneeIds)
     expect([...idParams].sort()).toEqual([
-      "activityId", "againstBoqId", "assignedToId", "assigneeId", "assigneeIds", "assigneeUserId", "baselineId", "boqId", "boqLineItemId", "budgetId", "categoryId", "changeOrderId", "clientId", "documentId",
-      "drawingDocumentId", "entryId", "evidenceDocumentId", "issueId", "itemId", "materialId", "meetingId", "milestoneId", "parentBoqId", "parentCategoryId", "predecessorId", "progressEntryId", "receiptId", "rfiId",
-      "rosterId", "sourceChangeOrderId", "statusId", "submittalId", "timeEntryId", "typeId", "vendorId",
+      "activityId", "againstBoqId", "assignedToId", "assigneeId", "assigneeIds", "assigneeUserId", "baselineId", "boqId", "boqLineItemId", "budgetId", "categoryId", "changeOrderId", "claimId", "clientId", "customerId", "documentId",
+      "drawingDocumentId", "entryId", "evidenceDocumentId", "ffeItemId", "floorPlanId", "issueId", "itemId", "kpiDefinitionId", "materialId", "meetingId", "milestoneId", "moodBoardId", "pageId", "parentBoqId", "parentCategoryId",
+      "parentPageId", "predecessorId", "progressEntryId", "receiptId", "rfiId", "roomId", "rosterId", "sourceChangeOrderId", "statusId", "submittalId", "timeEntryId", "typeId", "vendorId",
     ])
     expect(on.find((r) => r.function_id === "record_work_progress")!.id_params).toEqual(["boqLineItemId"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params.map((p) => p.name)).toEqual(["projectId", "itemCode", "percent"])
@@ -230,7 +242,7 @@ describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 58 of
       "get_construction_project_dashboard", "get_designer_timesheet_report", "get_manpower_cost_report", "get_material_cost_report",
       "get_project_analysis", "list_billing_claims", "list_change_orders", "preview_boq_import", "record_attendance_batch", "run_named_report",
       "seal_boq", "update_line_item_budget", "update_progress_entry", "update_project", "update_roster_entry", "void_material_receipt",
-      ...B002_WAVE_5_6_MONEY,
+      ...B002_WAVE_5_6_MONEY, ...B002_WAVE_7_9_MONEY,
     ].sort())
   })
 })

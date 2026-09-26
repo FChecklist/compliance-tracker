@@ -145,6 +145,102 @@
     ]
   },
   {
+    "function_id": "add_mood_board_item",
+    "label": "Add to a mood board",
+    "module": "interior",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "label",
+      "notes"
+    ],
+    "declared_params": [
+      "documentId",
+      "label",
+      "moodBoardId",
+      "notes",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "moodBoardId",
+        "label": "Mood board",
+        "any_of": [
+          "moodBoardId"
+        ]
+      }
+    ],
+    "id_params": [
+      "documentId",
+      "moodBoardId"
+    ]
+  },
+  {
+    "function_id": "add_room",
+    "label": "Add a room to a floor plan",
+    "module": "interior",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name"
+    ],
+    "declared_params": [
+      "ceilingHeightCm",
+      "floorPlanId",
+      "name",
+      "polygon",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "floorPlanId",
+        "label": "Floor plan",
+        "any_of": [
+          "floorPlanId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Room",
+        "any_of": [
+          "name"
+        ]
+      },
+      {
+        "name": "polygon",
+        "label": "Outline",
+        "any_of": [
+          "polygon"
+        ]
+      }
+    ],
+    "id_params": [
+      "floorPlanId"
+    ]
+  },
+  {
     "function_id": "add_roster_entry",
     "label": "Add a worker",
     "module": "manpower",
@@ -274,6 +370,41 @@
     "id_params": [
       "documentId",
       "parentBoqId"
+    ]
+  },
+  {
+    "function_id": "approve_kpi_entry",
+    "label": "Approve a KPI value",
+    "module": "kpis",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "entryId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "entryId",
+        "label": "KPI value",
+        "any_of": [
+          "entryId"
+        ]
+      }
+    ],
+    "id_params": [
+      "entryId"
     ]
   },
   {
@@ -735,6 +866,95 @@
     "id_params": []
   },
   {
+    "function_id": "create_ffe_item",
+    "label": "New FF&E item",
+    "module": "interior",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "itemName",
+      "roomOrArea",
+      "description",
+      "sku"
+    ],
+    "declared_params": [
+      "category",
+      "depthCm",
+      "description",
+      "documentId",
+      "heightCm",
+      "itemName",
+      "leadTimeDays",
+      "projectId",
+      "quantity",
+      "roomOrArea",
+      "sku",
+      "unitCost",
+      "unitPrice",
+      "widthCm"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "itemName",
+        "label": "Item",
+        "any_of": [
+          "itemName"
+        ]
+      }
+    ],
+    "id_params": [
+      "documentId"
+    ]
+  },
+  {
+    "function_id": "create_floor_plan",
+    "label": "New floor plan",
+    "module": "interior",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "floorLevel"
+    ],
+    "declared_params": [
+      "floorLevel",
+      "name",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_material",
     "label": "New material",
     "module": "materials",
@@ -917,6 +1137,116 @@
     "id_params": []
   },
   {
+    "function_id": "create_mood_board",
+    "label": "New mood board",
+    "module": "interior",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "roomOrArea",
+      "description"
+    ],
+    "declared_params": [
+      "description",
+      "projectId",
+      "roomOrArea",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
+    "function_id": "create_permit",
+    "label": "Record a permit",
+    "module": "permits",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "externalUrl",
+      "permitNumber",
+      "permitAuthority"
+    ],
+    "declared_params": [
+      "expiryDate",
+      "externalUrl",
+      "issueDate",
+      "name",
+      "permitAuthority",
+      "permitNumber",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Permit name",
+        "any_of": [
+          "name"
+        ]
+      },
+      {
+        "name": "externalUrl",
+        "label": "Link",
+        "any_of": [
+          "externalUrl"
+        ]
+      },
+      {
+        "name": "permitNumber",
+        "label": "Permit number",
+        "any_of": [
+          "permitNumber"
+        ]
+      },
+      {
+        "name": "permitAuthority",
+        "label": "Authority",
+        "any_of": [
+          "permitAuthority"
+        ]
+      },
+      {
+        "name": "expiryDate",
+        "label": "End date",
+        "any_of": [
+          "expiryDate"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_progress_category",
     "label": "New work category",
     "module": "work_progress",
@@ -952,6 +1282,69 @@
     ],
     "id_params": [
       "parentCategoryId"
+    ]
+  },
+  {
+    "function_id": "create_progress_claim",
+    "label": "Draft a progress claim",
+    "module": "billing",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "milestoneDescription"
+    ],
+    "declared_params": [
+      "boqId",
+      "customerId",
+      "milestoneDescription",
+      "projectId",
+      "retentionPercent",
+      "scheduledDate"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "boqId",
+        "label": "BOQ version",
+        "any_of": [
+          "boqId"
+        ]
+      },
+      {
+        "name": "customerId",
+        "label": "Customer",
+        "any_of": [
+          "customerId"
+        ]
+      },
+      {
+        "name": "milestoneDescription",
+        "label": "Milestone",
+        "any_of": [
+          "milestoneDescription"
+        ]
+      },
+      {
+        "name": "scheduledDate",
+        "label": "Billing date",
+        "any_of": [
+          "scheduledDate"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqId",
+      "customerId"
     ]
   },
   {
@@ -1287,6 +1680,46 @@
     "id_params": []
   },
   {
+    "function_id": "create_wiki_page",
+    "label": "New wiki page",
+    "module": "wiki",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "content"
+    ],
+    "declared_params": [
+      "content",
+      "parentPageId",
+      "projectId",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      }
+    ],
+    "id_params": [
+      "parentPageId"
+    ]
+  },
+  {
     "function_id": "detect_construction_budget_schedule_risk",
     "label": "Check budget and schedule risk",
     "module": "reports",
@@ -1300,6 +1733,41 @@
     "declared_params": [],
     "required_params": [],
     "id_params": []
+  },
+  {
+    "function_id": "draft_progress_claim",
+    "label": "Mark a claim drafted",
+    "module": "billing",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "claimId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "claimId",
+        "label": "Claim",
+        "any_of": [
+          "claimId"
+        ]
+      }
+    ],
+    "id_params": [
+      "claimId"
+    ]
   },
   {
     "function_id": "generate_construction_progress_summary",
@@ -1479,6 +1947,21 @@
       "from",
       "to"
     ],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_ffe_margin_summary",
+    "label": "View the FF&E margin summary",
+    "module": "interior",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
     "required_params": [],
     "id_params": []
   },
@@ -1934,6 +2417,55 @@
     ],
     "id_params": [
       "itemId"
+    ]
+  },
+  {
+    "function_id": "place_furniture",
+    "label": "Place furniture on a floor plan",
+    "module": "interior",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "ffeItemId",
+      "floorPlanId",
+      "projectId",
+      "roomId",
+      "rotationDeg",
+      "x",
+      "y"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "floorPlanId",
+        "label": "Floor plan",
+        "any_of": [
+          "floorPlanId"
+        ]
+      },
+      {
+        "name": "ffeItemId",
+        "label": "FF&E item",
+        "any_of": [
+          "ffeItemId"
+        ]
+      }
+    ],
+    "id_params": [
+      "ffeItemId",
+      "floorPlanId",
+      "roomId"
     ]
   },
   {
@@ -2423,6 +2955,44 @@
     ]
   },
   {
+    "function_id": "reject_progress_claim",
+    "label": "Record a claim as queried",
+    "module": "billing",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "rejectionReason"
+    ],
+    "declared_params": [
+      "claimId",
+      "projectId",
+      "rejectionReason"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "claimId",
+        "label": "Claim",
+        "any_of": [
+          "claimId"
+        ]
+      }
+    ],
+    "id_params": [
+      "claimId"
+    ]
+  },
+  {
     "function_id": "reject_timesheet",
     "label": "Return a timesheet entry",
     "module": "timesheets",
@@ -2650,6 +3220,256 @@
     "id_params": [
       "drawingDocumentId",
       "progressEntryId"
+    ]
+  },
+  {
+    "function_id": "submit_boq_for_approval",
+    "label": "Submit a BOQ for approval",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "boqId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "boqId",
+        "label": "BOQ version",
+        "any_of": [
+          "boqId"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqId"
+    ]
+  },
+  {
+    "function_id": "submit_change_order_for_approval",
+    "label": "Send a change order for approval",
+    "module": "change_orders",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "changeOrderId",
+      "projectId",
+      "signers"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "changeOrderId",
+        "label": "Change order",
+        "any_of": [
+          "changeOrderId"
+        ]
+      },
+      {
+        "name": "signers",
+        "label": "Signers",
+        "any_of": [
+          "signers"
+        ]
+      }
+    ],
+    "id_params": [
+      "changeOrderId"
+    ]
+  },
+  {
+    "function_id": "submit_kpi_entry",
+    "label": "Submit a KPI value",
+    "module": "kpis",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "period"
+    ],
+    "declared_params": [
+      "actualValue",
+      "kpiDefinitionId",
+      "period",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "kpiDefinitionId",
+        "label": "KPI",
+        "any_of": [
+          "kpiDefinitionId"
+        ]
+      },
+      {
+        "name": "period",
+        "label": "Period",
+        "any_of": [
+          "period"
+        ]
+      },
+      {
+        "name": "actualValue",
+        "label": "Value",
+        "any_of": [
+          "actualValue"
+        ]
+      }
+    ],
+    "id_params": [
+      "kpiDefinitionId"
+    ]
+  },
+  {
+    "function_id": "submit_progress_claim",
+    "label": "Mark a claim submitted",
+    "module": "billing",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "claimId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "claimId",
+        "label": "Claim",
+        "any_of": [
+          "claimId"
+        ]
+      }
+    ],
+    "id_params": [
+      "claimId"
+    ]
+  },
+  {
+    "function_id": "update_document_metadata",
+    "label": "Edit a document's details",
+    "module": "documents",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "category"
+    ],
+    "declared_params": [
+      "category",
+      "documentId",
+      "expiryDate",
+      "name",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "documentId",
+        "label": "Document",
+        "any_of": [
+          "documentId"
+        ]
+      }
+    ],
+    "id_params": [
+      "documentId"
+    ]
+  },
+  {
+    "function_id": "update_ffe_status",
+    "label": "Change an FF&E item's status",
+    "module": "interior",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "itemId",
+      "projectId",
+      "status"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "itemId",
+        "label": "FF&E item",
+        "any_of": [
+          "itemId"
+        ]
+      },
+      {
+        "name": "status",
+        "label": "Status",
+        "any_of": [
+          "status"
+        ]
+      }
+    ],
+    "id_params": [
+      "itemId"
     ]
   },
   {
@@ -2958,6 +3778,46 @@
       "issueId",
       "milestoneId",
       "statusId"
+    ]
+  },
+  {
+    "function_id": "update_wiki_page",
+    "label": "Edit a wiki page",
+    "module": "wiki",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "content"
+    ],
+    "declared_params": [
+      "content",
+      "pageId",
+      "projectId",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "pageId",
+        "label": "Page",
+        "any_of": [
+          "pageId"
+        ]
+      }
+    ],
+    "id_params": [
+      "pageId"
     ]
   },
   {

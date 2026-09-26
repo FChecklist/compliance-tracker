@@ -196,11 +196,17 @@ describe("AW-312: link_roster_employee is on no link, with a reason; an organisa
     expect(((await res.json()) as { code: string }).code).toBe("FUNCTION_NOT_ON_LINK");
   });
 
-  test("customerId and employeeId are declared by no function that is on a link, and vendorId only by the two functions WP-05a put there (a supplier, a customer and an employee are not project records)", () => {
+  test("employeeId is declared by no function that is on a link, customerId only by create_progress_claim, and vendorId only by the two functions WP-05a put there (a supplier, a customer and an employee are not project records)", () => {
     for (const f of REGISTRY.filter((x) => x.link_level !== null)) {
       // run_named_report (a vendor filter) and update_line_item_budget (a vendor on a line) took an optional vendorId in WP-05a; none of the functions of waves 5 and 6 or AW-312 declares one
       const allowed = new Set(["run_named_report", "update_line_item_budget"]);
-      for (const name of ["vendorId", "customerId", "employeeId"]) expect({ id: f.function_id, name, declared: f.declared_params.includes(name) && !(name === "vendorId" && allowed.has(f.function_id)) }).toEqual({ id: f.function_id, name, declared: false });
+      // BUILD-002 WP-05h: a progress claim is billed to a customer, and create_progress_claim is the one function that names one. Its executor accepts a customer only when the
+      // project already bills it (linked to the project's client, or the customer of an earlier claim on the project): coverage-wave7.test.ts proves any other reads as absent.
+      const billsCustomer = new Set(["create_progress_claim"]);
+      for (const name of ["vendorId", "customerId", "employeeId"]) {
+        const permitted = (name === "vendorId" && allowed.has(f.function_id)) || (name === "customerId" && billsCustomer.has(f.function_id));
+        expect({ id: f.function_id, name, declared: f.declared_params.includes(name) && !permitted }).toEqual({ id: f.function_id, name, declared: false });
+      }
     }
   });
 

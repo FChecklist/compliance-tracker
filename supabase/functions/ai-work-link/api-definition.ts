@@ -97,7 +97,7 @@ export type RegistryFunction = {
 
 const REGISTRY = FUNCTION_REGISTRY_JSON as unknown as RegistryFunction[]
 
-/** The functions any link may carry (link_level is not null): 73 of the 92 reviewed (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4 and the 21 of waves 5 and 6 with the exception-capture functions). */
+/** The functions any link may carry (link_level is not null): 93 of the 112 reviewed (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 with the exception-capture functions, and the 20 of waves 7, 8 and 9). */
 export const LINK_FUNCTIONS: ReadonlyArray<RegistryFunction> = REGISTRY.filter((f) => f.link_level !== null)
 
 export function functionDef(id: string): RegistryFunction | null {
@@ -201,6 +201,28 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   record_vendor_dispute: { description: "Tiles delivered short by 40 sqm", amountDisputed: 5000, boqLineItemId: "<id from records/boq_lines>" },
   record_customer_complaint: { description: "Client says the flooring is uneven", category: "work_dispute", severity: "high" },
   record_customer_approval: { boqId: "<id from records/boqs>", evidenceDocumentId: "<id from records/documents>", approvedOn: "2026-09-20" },
+  // BUILD-002 WP-05h wave 7: progress claims, submit for approval and KPIs, drafts a person confirms
+  create_progress_claim: { boqId: "<id from records/boqs>", customerId: "<customer id of this project>", milestoneDescription: "Slab complete, level 2", scheduledDate: "2026-10-15", retentionPercent: 5 },
+  draft_progress_claim: { claimId: "<id from records/progress_claims>" },
+  submit_progress_claim: { claimId: "<id from records/progress_claims>" },
+  reject_progress_claim: { claimId: "<id from records/progress_claims>", rejectionReason: "Quantities do not match the site measurement" },
+  submit_change_order_for_approval: { changeOrderId: "<id from records/change_orders>", signers: [{ name: "Asha Rao", email: "asha@example.com" }] },
+  submit_boq_for_approval: { boqId: "<id from records/boqs>" },
+  submit_kpi_entry: { kpiDefinitionId: "<id of a KPI of this project>", period: "2026-09", actualValue: 92 },
+  approve_kpi_entry: { entryId: "<id from records/kpi_entries>" },
+  // BUILD-002 WP-05g waves 8 and 9: permits, document details, wiki, mood boards, FF&E and floor plans
+  create_permit: { name: "Fit-out permit", externalUrl: "https://example.com/permits/fitout-2026.pdf", permitNumber: "FO-2026-114", permitAuthority: "Dubai Municipality", expiryDate: "2027-03-31", issueDate: "2026-09-01" },
+  update_document_metadata: { documentId: "<id from records/documents>", name: "Fit-out permit, stamped", expiryDate: "2027-04-30" },
+  create_wiki_page: { title: "Site access rules", content: "Deliveries between 7 and 11 only." },
+  update_wiki_page: { pageId: "<id from records/wiki_pages>", content: "Deliveries between 7 and 10 only." },
+  create_mood_board: { title: "Master bedroom", roomOrArea: "Level 2", description: "Warm neutrals, brushed brass." },
+  add_mood_board_item: { moodBoardId: "<id of a mood board of this project>", label: "Oak veneer sample", notes: "Matte finish" },
+  create_ffe_item: { itemName: "Lounge chair", roomOrArea: "Living", category: "furniture", quantity: 2, unitCost: 900, unitPrice: 1400, leadTimeDays: 45 },
+  update_ffe_status: { itemId: "<id from records/ffe_items>", status: "ordered" },
+  get_ffe_margin_summary: {},
+  create_floor_plan: { name: "Level 2", floorLevel: "2" },
+  add_room: { floorPlanId: "<id of a floor plan of this project>", name: "Living", polygon: [{ x: 0, y: 0 }, { x: 500, y: 0 }, { x: 500, y: 400 }, { x: 0, y: 400 }], ceilingHeightCm: 270 },
+  place_furniture: { floorPlanId: "<id of a floor plan of this project>", ffeItemId: "<id from records/ffe_items>", x: 120, y: 80, rotationDeg: 90 },
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

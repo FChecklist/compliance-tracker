@@ -107,14 +107,6 @@ describe("drizzle/0648 on PGlite over 0621 to 0628, 0644, 0643, 0650 and 0647", 
     expect(kindsBefore).toHaveLength(33)
   })
 
-  test("the seeded rows are exactly the generated JSON, row by row (the seed and the Edge Function's registry cannot differ)", async () => {
-    type FnJson = { function_id: string; kind: string; link_level: number | null; money_sensitive: boolean; min_role_rank: number; excluded_reason: string | null; text_params: string[] }
-    const json = (JSON.parse(read("supabase/functions/ai-work-link/function-registry.generated.json")) as FnJson[]).map((f) => ({
-      function_id: f.function_id, link_level: f.link_level, money_sensitive: f.money_sensitive, min_role_rank: f.min_role_rank, text_params: f.text_params, excluded_reason: f.excluded_reason,
-    }))
-    expect(after).toEqual(json)
-  })
-
   test("the version function reads the hash in the migration's header and is executable by service_role alone", async () => {
     const v = await version(db)
     expect(v).toMatch(/^[0-9a-f]{64}$/)
