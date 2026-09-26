@@ -19,8 +19,8 @@ handler runs under bun in `src/lib/ai-links/conformance.edge.test.ts` (BR-523). 
 | BR-493 | one `curl` command, no script | no | live-only (spike S-2: a Bearer that is not a JWT through the gateway) |
 | BR-494 | one `curl` command, no script | no | live-only |
 | BR-495 | two `curl` commands and `bash scripts/verify/awl-member-money.sh` | yes | live-only for the row |
-| BR-496 | `bash scripts/verify/awl-static-pages.sh` | selftest only | live-only: the static host of decision OD-3 must exist |
-| BR-497 | one `curl` command, no script | no | live-only, and needs the confirm route (a later unit) |
+| BR-496 | `bash scripts/verify/awl-static-pages.sh` | selftest, and `src/lib/ai-links/awl-static-pages.test.ts` runs it against a local server that serves the real files of `projexa-link-pages/` (U-47b) | live-only: the static host of decision OD-3 must exist and hold those two files |
+| BR-497 | one `curl` command, no script | `src/lib/services/ai-work-link-confirm.test.ts` runs the same two calls and more against the real handler and the real SQL on PGlite (U-47b) | live-only: the deployed function, a real draft, and two real sign-ins. While `writes_enabled` is false the SQL answers `not_enabled` before it checks the person, so the 403 half reads 503 live until that order is changed (see the U-47b report) |
 | BR-498 | `bash scripts/verify/awl-live-authority.sh` | selftest only | live-only, and it revokes a throwaway link |
 | BR-499 | `bash scripts/verify/awl-largest-page.sh` | yes | live-only for the largest project |
 | BR-523 | `bun test --isolate src/lib/ai-links/conformance.edge.test.ts` | yes | no |
@@ -45,7 +45,7 @@ Set them in the shell that runs the command. To keep a token out of shell histor
 | `AWL_LINK_D` | BR-498 | The pasted link of the demoted person (the same one as `AWL_LINK_DEMOTED`). |
 | `AWL_OWNER_JWT` | BR-498 | The signed-in session token of the person who owns the throwaway link, used only for the revoke call. |
 | `VERIFY_DATABASE_URL` | BR-498 | A read connection for a role that sees `platform.user_ai_links` rows (or `VERIFY_SQL_MODE=mgmt` with the management token in the environment); see `scripts/verify/sql-assert.mjs`. Checked before anything is revoked. |
-| `AWL_CONFIRM_TOKEN`, `AWL_DRAFT_ID` | BR-497 | A confirm token and the id of a draft that exist for the person who made the draft. |
+| `AWL_CONFIRM_TOKEN`, `AWL_DRAFT_ID` | BR-497 | A confirm token and the id of a draft that exist for the person who made the draft (the token is returned once by `POST /drafts`; only its sha256 is stored). |
 | `AWL_OTHER_USER_JWT` | BR-497 | The session token of a different signed-in person (not the draft's owner), which must be refused 403. |
 | `AWL_RATE_WAIT` | BR-492 | Seconds the script waits between the unknown-token series and the rotated series, default 65 (the window is 60 seconds). |
 | `AWL_CURL_TIMEOUT` | all scripts | Seconds per request, default 30. |
