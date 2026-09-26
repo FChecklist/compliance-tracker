@@ -11,6 +11,7 @@
 //      index.ts only, and use no Deno global outside index.ts.
 // Run: bun test --isolate src/lib/services/ai-work-link-index.test.ts
 import { describe, test, expect, mock } from "bun:test"
+import * as realJose from "jose"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { DEFAULT_APP_BASE, DEFAULT_CONFIRM_HOST, DEFAULT_SUPABASE_URL, FUNCTION_PATH, configFromEnv } from "../../../supabase/functions/ai-work-link/config"
@@ -59,6 +60,8 @@ describe("index.ts wiring", () => {
         }
       },
     }))
+    // index.ts imports jose for the app route (U-47b); bun cannot resolve the npm: specifier, so the real package stands in for it
+    mock.module("npm:jose@6.2.10", () => realJose)
     let handler: ((req: Request) => Promise<Response>) | null = null
     const g = globalThis as unknown as { Deno?: unknown }
     const before = g.Deno
@@ -199,7 +202,7 @@ describe("static rules for the link's Edge code", () => {
     // every name the Edge code calls is one drizzle/0624 to 0626 defines
     const sql = ["0624_build001_awl_link_functions.sql", "0625_build001_awl_read_functions.sql", "0626_build001_awl_intent_functions.sql"].map((n) => read(join(ROOT, "drizzle", n))).join("\n")
     for (const name of called) expect(`${name} ${sql.includes(`public.${name}(`)}`).toBe(`${name} true`)
-    expect([...called].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_context", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_record", "ai_work_link_records"])
+    expect([...called].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_context", "ai_work_link_draft_confirm", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_record", "ai_work_link_records"])
   })
 
   test("the service-role key is read in index.ts only, and no Deno global is used outside it", () => {
