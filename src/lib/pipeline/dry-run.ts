@@ -25,7 +25,7 @@ import { segment } from "./segment";
 import { classifyL0, type L0Repo } from "./level0";
 import { classifySegment, type Classification, type ResolvedFunction } from "./classify";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
-import { runLevel1, refusalAsUnresolved, type Level1LaneOutcome } from "./level1";
+import { runLevel1, refusalAsUnresolved, level1OffRunner, type Level1LaneOutcome } from "./level1";
 import type { PhraseFuzzyRepo } from "./phrase-fuzzy";
 import { deriveChain, type ChainRepo, type DerivedChain } from "./derive-chain";
 import { functionWrites, type ExecutableTask, type ExecutionOutcome } from "./executor";
@@ -201,6 +201,13 @@ export type DryRunInput = {
   rawInput: string;
   role?: string | null;
   candidateFunctionIds: readonly string[];
+  /**
+   * PROJEXA-BUILD-001 U-46c (BR-287): "off" stops the proposal at Level 0, the
+   * reuse cache and the fuzzy tier: the internal model is never asked and no
+   * provider is consulted, the same meaning as runSubmission()'s own level1
+   * switch. run-submission.ts resolves it once (effectiveLevel1) and passes it.
+   */
+  level1?: "internal" | "off";
 };
 
 /**
@@ -388,9 +395,11 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
           candidateFunctionIds: input.candidateFunctionIds,
         },
         deps.reuseRepo,
-        refusalAsUnresolved(runLevel1, (error) => {
-          refused.error = error;
-        }),
+        input.level1 === "off"
+          ? level1OffRunner()
+          : refusalAsUnresolved(runLevel1, (error) => {
+              refused.error = error;
+            }),
         undefined,
         // P1.2/P1.3: the trigram fuzzy tier reads the classification-time
         // similarity signal here, at the same L0-miss -> Level-1 boundary
