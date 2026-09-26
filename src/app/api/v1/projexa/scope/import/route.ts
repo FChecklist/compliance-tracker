@@ -27,10 +27,21 @@
 // sends is honoured too, for the response shape only. A caller that sends only
 // the form field has therefore already passed the write-role gate, which is
 // stricter than it needs to be but never weaker.
+//
+// PROJEXA-BUILD-002 WP-01 (AW-103): a workbook spread over many sheets (a cover, a summary, one sheet per bill, the way a
+// PDF-table export lays out a prospect's bill of quantities) has no Description column on its first sheet, so
+// parseBoqSpreadsheet() refuses it with "Could not find a Description column". readUpload() below catches EXACTLY that refusal for
+// an Excel file and reads the workbook with the deterministic multi-sheet reader (src/lib/ingest/multisheet-bill-reader.ts)
+// instead. Nothing else changes: a file the single-sheet reader accepts never reaches the fallback, and any other error from
+// it is rethrown unchanged. The fallback's dry run (?dryRun=1) returns the reader's totals, lump sums and questions and writes
+// nothing; its commit is refused (400 RECONCILIATION_REQUIRED) when the lines do not add up to the totals the file prints,
+// unless the caller sends acknowledgeShortfall=true.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, resolveWriteActorId } from "@/lib/supabase/auth-guard"
 import { parseBoqSpreadsheet, toPreviewRows, analyseBoqPreview, ServiceError, type BoqColumnMapping } from "@/lib/services/construction-boq-import-service"
 import { createBoq, createBoqRevision } from "@/lib/services/construction-boq-service"
+import { readWorkbookGrid } from "@/lib/ingest/parser"
+import { hasBillSheets, readMultisheetBills, toBoqLineItems, type MultisheetBillResult } from "@/lib/ingest/multisheet-bill-reader"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
@@ -107,6 +118,82 @@ function readImportFields(formData: FormData, file: File, dryRunQuery: boolean) 
   }
 }
 
+type ParsedBoq = Awaited<ReturnType<typeof parseBoqSpreadsheet>>
+
+const EXCEL_EXTENSIONS = ["xlsx", "xls", "xlsm", "xlsb"]
+const NO_DESCRIPTION_COLUMN = "Could not find a Description column"
+
+/**
+ * The upload read as a BOQ: one parse, from either reader. `multisheet` is set only when the fallback read the file.
+ */
+async function readUpload(
+  buffer: Buffer,
+  file: File,
+  mappingOverride: BoqColumnMapping | undefined
+): Promise<{ parsed: ParsedBoq; multisheet: MultisheetBillResult | null }> {
+  try {
+    return { parsed: await parseBoqSpreadsheet(buffer, file.name, file.type, { mappingOverride }), multisheet: null }
+  } catch (error) {
+    const extension = file.name.toLowerCase().split(".").pop() ?? ""
+    const applies = error instanceof ServiceError && error.message.startsWith(NO_DESCRIPTION_COLUMN) && EXCEL_EXTENSIONS.includes(extension)
+    if (!applies) throw error
+    // The first sheet has no bill table. Read every sheet; when none has a bill header either, the original refusal stands.
+    let grid: Awaited<ReturnType<typeof readWorkbookGrid>>
+    try {
+      grid = await readWorkbookGrid(buffer)
+    } catch {
+      throw error
+    }
+    if (!hasBillSheets(grid)) throw error
+    const multisheet = readMultisheetBills(grid)
+    const unpriced = multisheet.questions.filter((q) => q.kind === "no_rate" || q.kind === "packed_cell" || q.kind === "bad_quantity")
+    const lineItems = toBoqLineItems(multisheet)
+    return {
+      multisheet,
+      parsed: {
+        lineItems,
+        warnings: multisheet.warnings.map((w) => `${w.source.sheet} row ${w.source.row}: ${w.message}`),
+        issues: [],
+        mapping: {},
+        headers: [],
+        // Rows that held an item: the priced lines, the unpriced rows that became questions, and the lump-sum lines.
+        totalRows: lineItems.length + unpriced.length,
+      },
+    }
+  }
+}
+
+/** What the fallback adds to a response: the reader's own account of the file, so the caller sees totals, gaps and questions. */
+function multisheetPayload(result: MultisheetBillResult) {
+  return {
+    reconciled: result.reconciled,
+    totals: result.totals,
+    diffs: result.diffs,
+    lumpSums: result.lumpSums,
+    questions: result.questions,
+    sheets: result.sheets,
+    projectName: result.projectName,
+  }
+}
+
+/** The dry-run answer: the ordinary preview, plus the reader's own account of the file when the fallback read it. */
+function dryRunBody(fileName: string, parsed: ParsedBoq, multisheet: MultisheetBillResult | null) {
+  const preview = buildDryRunResponse(fileName, parsed)
+  return multisheet ? { ...preview, source: "multisheet_bills", multisheet: multisheetPayload(multisheet) } : preview
+}
+
+/**
+ * A workbook read by the fallback must add up to the totals it prints itself, or the caller says so on purpose
+ * (acknowledgeShortfall=true). Null means the import may go ahead.
+ */
+function reconciliationRefusal(multisheet: MultisheetBillResult | null, formData: FormData): NextResponse | null {
+  if (!multisheet || multisheet.reconciled || String(formData.get("acknowledgeShortfall") || "") === "true") return null
+  return NextResponse.json(
+    { error: "The lines do not add up to the totals the file prints", code: "RECONCILIATION_REQUIRED", multisheet: multisheetPayload(multisheet) },
+    { status: 400 }
+  )
+}
+
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -143,17 +230,19 @@ export async function POST(request: NextRequest) {
     if (!projectId && !dryRun) return NextResponse.json({ error: "projectId is required" }, { status: 400 })
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const parsed = await parseBoqSpreadsheet(buffer, file.name, file.type, { mappingOverride })
+    const { parsed, multisheet } = await readUpload(buffer, file, mappingOverride)
     const { lineItems, warnings, totalRows } = parsed
 
     // BEFORE the empty-file 400 deliberately: a preview of a file that yielded
     // nothing must still be able to SAY so, with its issues attached, rather
     // than answering an error the screen has to translate.
-    if (dryRun) return NextResponse.json(buildDryRunResponse(file.name, parsed))
+    if (dryRun) return NextResponse.json(dryRunBody(file.name, parsed, multisheet))
 
     if (lineItems.length === 0) {
       return NextResponse.json({ error: "No usable line items found in this spreadsheet", warnings }, { status: 400 })
     }
+    const refusal = reconciliationRefusal(multisheet, formData)
+    if (refusal) return refusal
 
     const boq = parentBoqId
       ? await createBoqRevision({ orgId: ctx.orgId, userId: acting.actorId }, parentBoqId, { title, lineItems })
@@ -168,7 +257,8 @@ export async function POST(request: NextRequest) {
     const totalValue = Math.round(
       lineItems.filter((l) => !l.parentItemCode).reduce((sum, l) => sum + l.quantity * l.rate, 0) * 100
     ) / 100
-    return NextResponse.json({ boq, importSummary: { totalRows, importedLineItems: lineItems.length, totalValue, warnings } }, { status: 201 })
+    const importSummary = { totalRows, importedLineItems: lineItems.length, totalValue, warnings }
+    return NextResponse.json({ boq, importSummary: multisheet ? { ...importSummary, multisheet: multisheetPayload(multisheet) } : importSummary }, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa scope import error:", error)
