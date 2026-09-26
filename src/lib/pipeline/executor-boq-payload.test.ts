@@ -265,6 +265,20 @@ describe("AW-202: the executor's create_boq", () => {
     expect(boqs()).toHaveLength(3);
   });
 
+  test("the same key with a DIFFERENT payload is a 409 and writes nothing (a reused key must not answer with another BOQ)", async () => {
+    const first = await create({ title: "Zoomies BOQ", lineItems: flatLines(3), idempotency_key: "k-same" });
+    const stored = snapshot();
+    for (const other of [{ title: "Another title", lineItems: flatLines(3) }, { title: "Zoomies BOQ", lineItems: flatLines(4) }, { title: "Zoomies BOQ" }]) {
+      const outcome = await create({ ...other, idempotency_key: "k-same" });
+      expect({ other, code: codeOf(outcome) }).toMatchObject({ code: "ALREADY_RECORDED" });
+    }
+    expect(snapshot()).toBe(stored);
+    expect(boqs()).toHaveLength(1);
+    // the same payload with the keys of a line written in another order is still the same payload
+    const reordered = (flatLines(3) as Row[]).map((l) => Object.fromEntries(Object.entries(l).reverse()));
+    expect(idOf(await create({ title: "Zoomies BOQ", lineItems: reordered, idempotency_key: "k-same" }))).toBe(idOf(first));
+  });
+
   test("another key is another BOQ; the same key on another project is its own BOQ; the key is recorded under the person", async () => {
     const a = await create({ title: "A", idempotency_key: "k-1" });
     const b = await create({ title: "B", idempotency_key: "k-2" });
@@ -272,7 +286,7 @@ describe("AW-202: the executor's create_boq", () => {
     expect(new Set([idOf(a), idOf(b), idOf(c)]).size).toBe(3);
     expect(keyRows()).toHaveLength(3);
     expect(keyRows().find((r) => r.entityId === `${PROJECT_A}:k-1`)).toMatchObject({ entityType: "construction_boq_key", userId: MANAGER, actorName: "Asha Manager", orgId: ORG });
-    expect(JSON.parse(String(keyRows().find((r) => r.entityId === `${PROJECT_A}:k-1`)!.details))).toEqual({ boqId: idOf(a) });
+    expect(JSON.parse(String(keyRows().find((r) => r.entityId === `${PROJECT_A}:k-1`)!.details))).toMatchObject({ boqId: idOf(a) });
   });
 
   test("a key that is present but not usable is refused with nothing written", async () => {

@@ -5,7 +5,7 @@
 //
 // Two generated files feed it, and this file only reads them (scripts/gen-ai-link-registry.* writes them; CI checks they are current):
 //   record-kinds.generated.json      the 13 record kinds of section 6.2: money columns and the filter and sort allow-list of section 6.6
-//   function-registry.generated.json the function registry: which functions any link may carry (10 of 27) and their parameters
+//   function-registry.generated.json the function registry: which functions any link may carry (15 of 33) and their parameters
 import RECORD_KINDS_JSON from "./record-kinds.generated.json" with { type: "json" }
 import FUNCTION_REGISTRY_JSON from "./function-registry.generated.json" with { type: "json" }
 import { LIMITS, type Format, type KindDef } from "../_shared/ai-link/core.ts"
@@ -64,7 +64,7 @@ export type RegistryFunction = {
 
 const REGISTRY = FUNCTION_REGISTRY_JSON as unknown as RegistryFunction[]
 
-/** The functions any link may carry (link_level is not null): 10 of the 27. */
+/** The functions any link may carry (link_level is not null): 15 of the 33 reviewed (the spec's 10 and BUILD-002's five). */
 export const LINK_FUNCTIONS: ReadonlyArray<RegistryFunction> = REGISTRY.filter((f) => f.link_level !== null)
 
 export function functionDef(id: string): RegistryFunction | null {
@@ -97,6 +97,12 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   create_document: { name: "Site plan", category: "drawing", externalUrl: "https://example.com/site-plan.pdf" },
   add_roster_entry: { name: "A. Worker", dailyRate: 800 },
   create_boq_revision: { boqId: "<id from records/boqs>", title: "Revision 2" },
+  // BUILD-002: a BOQ is made empty, filled 25 lines at a time and sealed. A line's category starts with its area ("Play Area / Joinery"), which is what seal_boq sums by.
+  create_boq: { title: "Zoomies BOQ", idempotency_key: "zoomies-2026-09-26-a" },
+  add_boq_lines: { boqId: "<id from create_boq>", batchNo: 1, lines: [{ itemCode: "PLAY-1.01", description: "Play structure", unit: "nos", quantity: 10, rate: 65000, category: "Play Area / Joinery" }] },
+  seal_boq: { boqId: "<id from create_boq>", controlTotals: { areas: { "Play Area": 1343445, "Vet Area": 252835 }, grand: 1596280 }, expectedLineCount: 71 },
+  update_project: { name: "Zoomies Dubai", startDate: "2026-10-01", targetDate: "2026-12-15" },
+  create_activity: { name: "Slab casting", unit: "cum" },
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

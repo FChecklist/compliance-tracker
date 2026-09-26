@@ -20,7 +20,7 @@
 //     manager rank, exactly as the record kind `project` hides them on a link.
 import { and, eq } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { products } from "@/lib/db/schema";
+import { clients, products } from "@/lib/db/schema";
 import { createProject, updateProjectDetails, type ProjectPatch } from "@/lib/services/construction-dashboard-service";
 import { SHELL_PROJECT_NAME, SHELL_PROJECT_STATUS } from "@/lib/project-shell";
 import { pipelineFailure } from "../error-codes";
@@ -51,6 +51,14 @@ async function activeProducts(task: ExecutableTask): Promise<Array<{ id: string;
   return rows.map((r) => ({ id: r.id, name: r.name })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** True when the client is one of the organisation's. createProject() stores a clientId as it is given, so a wrong id would be kept. */
+async function clientExists(task: ExecutableTask, clientId: string): Promise<boolean> {
+  const found = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
+    db.query.clients.findFirst({ where: and(eq(clients.id, clientId), eq(clients.orgId, task.orgId)), columns: { id: true } })
+  );
+  return found !== undefined;
+}
+
 export async function executeCreateProject(task: ExecutableTask): Promise<ExecutionOutcome> {
   if (!task.actorUserId) return unidentifiedActor();
   if (rankOf(task.role) < RANK_MEMBER) return notPermitted("role_below_member");
@@ -58,6 +66,11 @@ export async function executeCreateProject(task: ExecutableTask): Promise<Execut
   const shell = task.params.shell === true;
   const name = str(task.params.name) ?? (shell ? SHELL_PROJECT_NAME : undefined);
   if (!name) return refuse(pipelineFailure("TITLE_REQUIRED", ["name"]));
+
+  const clientId = str(task.params.clientId);
+  if (clientId && !(await clientExists(task, clientId))) {
+    return refuse(pipelineFailure("RECORD_NOT_FOUND", ["value"], { status: 404, functionId: task.functionId, param: "clientId" }));
+  }
 
   let productId = str(task.params.productId);
   if (!productId) {
@@ -76,7 +89,7 @@ export async function executeCreateProject(task: ExecutableTask): Promise<Execut
       productId,
       name,
       description: str(task.params.description),
-      clientId: str(task.params.clientId),
+      clientId,
       startDate: str(task.params.startDate),
       targetDate: str(task.params.targetDate),
       ...(shell ? { status: SHELL_PROJECT_STATUS } : {}),

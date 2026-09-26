@@ -335,7 +335,16 @@
       "startDate",
       "targetDate"
     ],
-    "required_params": [],
+    "required_params": [
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name",
+          "shell"
+        ]
+      }
+    ],
     "id_params": [
       "clientId",
       "productId"

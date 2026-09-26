@@ -59,9 +59,10 @@ let executeTask: typeof import("./executor").executeTask;
 let hasExecutor: typeof import("./executor").hasExecutor;
 let functionWrites: typeof import("./executor").functionWrites;
 let functionSpec: typeof import("./function-registry").functionSpec;
+let requiredParamSatisfied: typeof import("./function-registry").requiredParamSatisfied;
 beforeAll(async () => {
   ({ executeTask, hasExecutor, functionWrites } = await import("./executor"));
-  ({ functionSpec } = await import("./function-registry"));
+  ({ functionSpec, requiredParamSatisfied } = await import("./function-registry"));
 });
 
 let silenced: Array<{ mockRestore: () => void }> = [];
@@ -100,7 +101,13 @@ describe("AW-201: registry and link policy", () => {
       expect({ id, executor: hasExecutor(id), write: functionWrites(id) }).toEqual({ id, executor: true, write: true });
     }
     expect(functionSpec("create_project")!.requiresProject).toBe(false);
-    expect(functionSpec("create_project")!.requiredParams).toEqual([]);
+    // it needs a name, or shell: true (the placeholder name): either answers the one required parameter
+    const required = functionSpec("create_project")!.requiredParams;
+    expect(required.map((p) => [p.name, p.alsoSatisfiedBy])).toEqual([["name", ["shell"]]]);
+    expect(requiredParamSatisfied(required[0], { name: "Zoomies" })).toBe(true);
+    expect(requiredParamSatisfied(required[0], { shell: true })).toBe(true);
+    expect(requiredParamSatisfied(required[0], {})).toBe(false);
+    expect(requiredParamSatisfied(required[0], { name: "  " })).toBe(false);
     expect(functionSpec("update_project")!.requiresProject).toBe(true);
     expect(functionSpec("update_project")!.requiredParams.map((p) => p.name)).toEqual(["projectId"]);
   });
@@ -196,6 +203,16 @@ describe("AW-201: create_project makes a shell attributed to the person", () => 
     // and with none active at all
     store.tables.products = store.tables.products.map((p) => ({ ...p, isActive: false }));
     expect(codeOf(await executeTask(create({ shell: true })))).toBe("VALUE_REQUIRED");
+  });
+
+  test("a clientId of the org is stored; one of another org, or that does not exist, is absent and nothing is written", async () => {
+    const ok = await executeTask(create({ shell: true, clientId: "client_1" }));
+    expect(project((ok as { result: { id: string } }).result.id).clientId).toBe("client_1");
+    const before = snapshot();
+    for (const clientId of ["client_x", "no-such-client"]) {
+      expect({ clientId, code: codeOf(await executeTask(create({ shell: true, clientId }))) }).toEqual({ clientId, code: "RECORD_NOT_FOUND" });
+    }
+    expect(snapshot()).toBe(before);
   });
 
   test("the answer below the manager rank carries the project's money fields as null", async () => {

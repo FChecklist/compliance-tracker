@@ -661,7 +661,7 @@ async function executeCreateBoq(task: ExecutableTask): Promise<ExecutionOutcome>
   if (rawKey !== undefined && rawKey !== null) {
     const key = str(rawKey);
     if (!key) return { success: false, failure: pipelineFailure("REQUEST_REJECTED", [], { status: 400, functionId: task.functionId, reason: "idempotency_key_type" }) };
-    ledger = createBoqLedgerHooks({ orgId: task.orgId, userId: actorId }, projectId, key);
+    ledger = createBoqLedgerHooks({ orgId: task.orgId, userId: actorId }, projectId, key, { title: str(task.params.title), lineItems: lineItems.items ?? [] });
   }
   // createBoq() looks the project up by id AND org (task.orgId), so a project
   // of another org is its own 404 -> RECORD_NOT_FOUND, with nothing written.

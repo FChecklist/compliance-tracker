@@ -756,11 +756,12 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     kind: "write",
     writes: true,
     requiresProject: false,
-    requiredParams: [],
+    // A project needs a name, or `shell: true` (the placeholder name): either answers the requirement.
+    requiredParams: [{ name: "name", label: "Name", code: "TITLE_REQUIRED", alsoSatisfiedBy: ["shell"] }],
     optionalParams: ["shell", "productId", "clientId"],
     card: {
       fields: [
-        { key: "name", label: "Name", type: "text", required: false },
+        { key: "name", label: "Name", type: "text", required: true },
         { key: "description", label: "Description", type: "text", required: false },
         { key: "startDate", label: "Start date", type: "date", required: false },
         { key: "targetDate", label: "Target date", type: "date", required: false },

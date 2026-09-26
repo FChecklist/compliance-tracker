@@ -21,7 +21,7 @@
 //   action                                entity_type          entity_id               details (JSON)
 //   construction_boq.lines_batch_added    construction_boq     the BOQ id              batchNo, digest, lineIds, itemCodes, linesInBoq
 //   construction_boq.sealed               construction_boq     the BOQ id              digest, controlTotals, expectedLineCount, lineCount
-//   construction_boq.created_with_key     construction_boq_key <projectId>:<key>       boqId
+//   construction_boq.created_with_key     construction_boq_key <projectId>:<key>       boqId, digest of the title and lines
 //
 // RULES (each has a test in src/lib/pipeline/executor-boq-*.test.ts):
 //   - a batch has 1 to 25 lines, and EVERY line needs an itemCode (the duplicate check and the area
@@ -152,17 +152,21 @@ export function assertIdempotencyKey(key: string): void {
 }
 
 /**
- * The hooks that make createBoq() idempotent on a key: a second call with the same project and key
- * returns the BOQ the first call made and writes nothing. `state.replayed` is true afterwards when the
- * BOQ already existed.
+ * The hooks that make createBoq() idempotent on a key: a second call with the same project, key AND
+ * payload (`payload` is the title and lines the caller sends) returns the BOQ the first call made and
+ * writes nothing. The same key with a different payload is a 409, never a silent answer with the first
+ * BOQ: a caller that reuses a key for another BOQ would otherwise believe its lines were stored.
+ * `state.replayed` is true afterwards when the BOQ already existed.
  */
 export function createBoqLedgerHooks(
   ctx: BoqPayloadCtx,
   projectId: string,
-  key: string
+  key: string,
+  payload: unknown
 ): { hooks: CreateBoqHooks; state: { replayed: boolean } } {
   assertIdempotencyKey(key)
   const entityId = `${projectId}:${key}`
+  const digest = sha(canonical(payload))
   const state = { replayed: false }
   return {
     state,
@@ -171,13 +175,16 @@ export function createBoqLedgerHooks(
         const [hit] = await readLedger(db, ctx.orgId, ENTITY_KEY, entityId, [ACTION_CREATED])
         const boqId = typeof hit?.details.boqId === "string" ? hit.details.boqId : null
         if (!boqId) return null
+        if (hit.details.digest !== digest) {
+          throw new ServiceError(`idempotency_key "${key}" was already used to create a different BOQ. Use a new key for a new BOQ.`, 409)
+        }
         const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)), columns: { id: true } })
         state.replayed = boq !== undefined
         return boq ? boq.id : null
       },
       afterCreate: async (db, boqId) => {
         const actor = await loadActor(db, ctx.orgId, ctx.userId)
-        await logActivity({ tx: db, action: ACTION_CREATED, entityType: ENTITY_KEY, entityId, orgId: ctx.orgId, dbUser: actor, details: JSON.stringify({ boqId }) })
+        await logActivity({ tx: db, action: ACTION_CREATED, entityType: ENTITY_KEY, entityId, orgId: ctx.orgId, dbUser: actor, details: JSON.stringify({ boqId, digest }) })
       },
     },
   }
