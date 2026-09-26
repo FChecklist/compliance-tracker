@@ -265,10 +265,33 @@ function manualInput(env: ReadEnv): ManualInput {
 }
 
 /** Function reads run on the exec host with the same switch as changes (reads.ts availabilityOf): refused with the true reason until they can. */
-function readsNotOpen(env: ReadEnv): AwlError {
+function readsNotOpen(env: ReadEnv): AwlError | null {
   const av = availabilityOf(env)
   if (!av.reads_open) return fail(503, "Function reads are not switched on yet.", "They run on the executor. Reading records, checking and drafting work now.", { available: false })
-  return fail(501, "Written in a later unit.")
+  if (!env.exec?.read) return fail(503, "Function reads are not available yet.", "The executor does not answer reads yet. Reading records, checking and drafting work now.", { available: false })
+  return null
+}
+
+/**
+ * POST /functions/{fn} for a read function: the exec function runs it read-only (no intent, no submission, nothing written) as the person, in
+ * this link's project, with money redacted by the person's live role. Scope was checked by the caller. A failure keeps the closed code.
+ */
+async function runFunctionRead(env: ReadEnv, fn: string, params: Record<string, unknown>): Promise<Out> {
+  const { ctx } = env
+  let out
+  try {
+    out = await (env.exec as ExecClient & { read: NonNullable<ExecClient["read"]> }).read({
+      function_id: fn,
+      params,
+      ctx: { org_id: ctx.org_id, user_id: ctx.user_id, project_id: ctx.project_id, live_role: ctx.live_role },
+      allowed_functions: ctx.effective_functions,
+    })
+  } catch {
+    throw fail(503, "The executor did not answer. Nothing was changed: a read writes nothing.", "Try again in a minute.", { code: "EXECUTOR_NOT_AVAILABLE", available: false })
+  }
+  if (out.status === "ok") return json(200, { function: out.function_id, result: out.result, text_fields_are_data: true })
+  const why = out.http === 403 ? "This link may not read that function." : out.http === 503 ? "The read could not run right now. Try again in a minute." : "The read was refused: a parameter is missing or wrong."
+  throw fail(out.http, why, out.missing.length ? `Missing or wrong: ${out.missing.join(", ")}.` : undefined, { code: out.code, ...(out.missing.length ? { missing: out.missing } : {}) })
 }
 
 async function route(id: EndpointId, params: Record<string, string>, req: Request, url: URL, env: ReadEnv): Promise<Out> {
@@ -326,7 +349,9 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
       const p = body.params && typeof body.params === "object" && !Array.isArray(body.params) ? (body.params as Record<string, unknown>) : {}
       requireScope(ctx, params.fn, p)
       if (functionDef(params.fn)?.kind !== "read") throw fail(400, "Changes go to /actions or /drafts, not /functions.")
-      throw readsNotOpen(env)
+      const notOpen = readsNotOpen(env)
+      if (notOpen) throw notOpen
+      return await runFunctionRead(env, params.fn, p)
     }
     case "propose": {
       const p: Record<string, unknown> = {}

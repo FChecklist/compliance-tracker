@@ -46,6 +46,7 @@ import { executeAddBoqLines, executeSealBoq, withholdBoqMoney } from "./executor
 import { ensureDefaultActivity, executeCreateActivity } from "./executors/activity";
 import { WAVE_3_4_EXECUTORS } from "./executors/coverage-waves-3-4";
 import { WAVE_7_9_EXECUTORS } from "./executors/coverage-waves-7-9";
+import { executeSubmitTimesheet } from "./executors/timesheets";
 import { createBoqLedgerHooks } from "@/lib/services/construction-boq-payload-service";
 import { executeCreateProjectFromDocument } from "./executors/extraction";
 // PROJEXA-BUILD-002 WP-05e/05f (waves 5 and 6): the minutes functions, the schedule, analysis and exception-capture functions.
@@ -1923,6 +1924,7 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   create_mom: withMinRank(ROLE_RANK.member, "role_below_member", executeCreateMom),
   record_material_receipt: withMinRank(ROLE_RANK.member, "role_below_member", executeRecordMaterialReceipt),
   // The decision is a manager's: the task's role must be at the manager rank as well as the person's own row (reviewTimesheet).
+  submit_timesheet: executeSubmitTimesheet,
   approve_timesheet: withMinRank(ROLE_RANK.manager, "manager_rank_required", executeApproveTimesheet),
   reject_timesheet: withMinRank(ROLE_RANK.manager, "manager_rank_required", executeRejectTimesheet),
   recall_precedent: executeRecallPrecedent,

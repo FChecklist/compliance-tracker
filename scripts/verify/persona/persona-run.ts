@@ -311,7 +311,9 @@ async function zoomies(cx: Ctx): Promise<void> {
   t.section("Friday. Reports and exceptions")
   const exc = await ai.post("/functions/get_project_exceptions", { params: {} })
   const rep = await ai.post("/functions/run_named_report", { params: { reportSlug: "work-progress" } })
-  c.ok([200, 501, 503].includes(exc.status) && [200, 501, 503].includes(rep.status), `function reads are asked for: exceptions ${exc.status}, report ${rep.status}`)
+  // BUILD-002 persona findings fix: a read function now runs on the executor (POST /read). Exceptions must answer 200. A named report needs the real reporting SQL,
+  // which the in-memory dry world does not have: there it may answer 422 INTERNAL_ERROR (the executor refused, nothing was written); live it answers 200.
+  c.ok(exc.status === 200 && (rep.status === 200 || (rep.status === 422 && rep.json.code === "INTERNAL_ERROR")), `function reads are asked for: exceptions ${exc.status}, report ${rep.status}`)
   if (exc.status !== 200) cx.findings.push(`POST /functions/{fn} for a READ function (get_project_exceptions, run_named_report) answers ${exc.status} even with writes on and the exec function wired ("Written in a later unit"): reports and exceptions are not readable through the link yet. The AI worked from records/ instead.`)
   const progress = await ai.records("progress")
   const claims = await ai.records("progress_claims")

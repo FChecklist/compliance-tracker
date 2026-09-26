@@ -8,42 +8,42 @@ The AI uses only the link address; the person's steps use a local session; the a
 
 **1. Sumeet (signed in): `POST /mint`**
 - sent: `{"projectId":"projects_1","level":1,"days":7,"label":"Set-up, Sumeet's chat AI"}`
-- answer: **201** `{"link_id":"471f9b27e70a44f3bf55da76adbaab38","level":1,"allowed_functions":["add_boq_lines","add_meeting_action_item","add_meeting_outcome","add_mood_board_item","add_room","add_roster_entry","answer_rfi","apply_boq_import","approve_kpi_entry","approve_timesheet","capture_artifact","capture_schedule_baseline","close_rfi","compare_boq_revisions","compare_schedule_baseline","create_activity","create_boq","create_boq_revision","create_change_order","create_document","create_drawing","create_ffe_item","create_floor_pl …(2782 chars)`
+- answer: **201** `{"link_id":"88dd38f4490c44ee8e388d93611c04cd","level":1,"allowed_functions":["add_boq_lines","add_meeting_action_item","add_meeting_outcome","add_mood_board_item","add_room","add_roster_entry","answer_rfi","apply_boq_import","approve_kpi_entry","approve_timesheet","capture_artifact","capture_schedule_baseline","close_rfi","compare_boq_revisions","compare_schedule_baseline","create_activity","create_boq","create_boq_revision","create_change_order","create_document","create_drawing","create_ffe_item","create_floor_pl …(2782 chars)`
 
 **2. Sumeet's AI: `POST /drafts`**
 - sent: `{"function":"add_roster_entry","params":{"name":"Ravi Kumar","dailyRate":850,"trade":"Carpenter"},"idempotency_key":"<key>"}`
-- answer: **201** `{"draft_id":"90024ca94f1848b3b1c3ef6feb4c630e","intent_id":"90024ca94f1848b3b1c3ef6feb4c630e","status":"awaiting_confirmation","kind":"draft","function":"add_roster_entry","replayed":false,"expires_at":"2026-09-28T21:46:53Z","confirm_url":"https://localhost/ai-confirm.html#d=90024ca94f1848b3b1c3ef6feb4c630e.b86b5a…","status_url":"http://127.0.0.1:8906/functions/v1/ai-work-link/pxa_25…/drafts/90024ca …(725 chars)`
+- answer: **201** `{"draft_id":"daddcccac1e04fc28d9aab59dd41483f","intent_id":"daddcccac1e04fc28d9aab59dd41483f","status":"awaiting_confirmation","kind":"draft","function":"add_roster_entry","replayed":false,"expires_at":"2026-09-28T23:42:56Z","confirm_url":"https://localhost/ai-confirm.html#d=daddcccac1e04fc28d9aab59dd41483f.bb3ad5…","status_url":"http://127.0.0.1:8849/functions/v1/ai-work-link/pxa_b9…/drafts/daddccc …(725 chars)`
 
-**3. Sumeet (signed in): `POST /drafts/90024ca94f1848b3b1c3ef6feb4c630e/preview`**
-- sent: `{"confirmToken":"b86b5a…"}`
-- answer: **200** `{"draft_id":"90024ca94f1848b3b1c3ef6feb4c630e","function_id":"add_roster_entry","label":"Add a worker","params":{"name":"Ravi Kumar","trade":"Carpenter","dailyRate":850},"state":"awaiting_confirmation","can_confirm":true,"writes_enabled":true,"created_at":"2026-09-26T21:46:53Z","expires_at":"2026-09-28T21:46:53Z","confirmed_at":null,"submission_id":null,"result":null,"failure":null,"message":"Check the change, type the code and confirm. Nothing changes until you do."}`
+**3. Sumeet (signed in): `POST /drafts/daddcccac1e04fc28d9aab59dd41483f/preview`**
+- sent: `{"confirmToken":"bb3ad5…"}`
+- answer: **200** `{"draft_id":"daddcccac1e04fc28d9aab59dd41483f","function_id":"add_roster_entry","label":"Add a worker","params":{"name":"Ravi Kumar","trade":"Carpenter","dailyRate":850},"state":"awaiting_confirmation","can_confirm":true,"writes_enabled":true,"created_at":"2026-09-26T23:42:56Z","expires_at":"2026-09-28T23:42:56Z","confirmed_at":null,"submission_id":null,"result":null,"failure":null,"message":"Check the change, type the code and confirm. Nothing changes until you do."}`
 
-**4. Sumeet (signed in): `POST /drafts/90024ca94f1848b3b1c3ef6feb4c630e/confirm`**
-- sent: `{"confirmToken":"b86b5a…"}`
-- answer: **200** `{"draft_id":"90024ca94f1848b3b1c3ef6feb4c630e","status":"done","function_id":"add_roster_entry","record":{"id":"construction_labour_roster_58","route":"/labour/construction_labour_roster_58"},"submission_id":"submissions_56","message":"The change is applied to the project."}`
+**4. Sumeet (signed in): `POST /drafts/daddcccac1e04fc28d9aab59dd41483f/confirm`**
+- sent: `{"confirmToken":"bb3ad5…"}`
+- answer: **200** `{"draft_id":"daddcccac1e04fc28d9aab59dd41483f","status":"done","function_id":"add_roster_entry","record":{"id":"construction_labour_roster_58","route":"/labour/construction_labour_roster_58"},"submission_id":"submissions_56","message":"The change is applied to the project."}`
 
 - PASS: set-up: add_roster_entry is drafted by the AI and confirmed by Sumeet
 **5. Sumeet's AI: `POST /drafts`**
 - sent: `{"function":"create_material","params":{"name":"Rubber tile 25 mm","unit":"sqm","unitCost":210},"idempotency_key":"<key>"}`
-- answer: **201** `{"draft_id":"31aacc694c3d4e2f85713b7d3eddbbce","intent_id":"31aacc694c3d4e2f85713b7d3eddbbce","status":"awaiting_confirmation","kind":"draft","function":"create_material","replayed":false,"expires_at":"2026-09-28T21:46:53Z","confirm_url":"https://localhost/ai-confirm.html#d=31aacc694c3d4e2f85713b7d3eddbbce.f5a758…","status_url":"http://127.0.0.1:8906/functions/v1/ai-work-link/pxa_25…/drafts/31aacc69 …(724 chars)`
+- answer: **201** `{"draft_id":"066b95d759c840e8b5d01ba020438e84","intent_id":"066b95d759c840e8b5d01ba020438e84","status":"awaiting_confirmation","kind":"draft","function":"create_material","replayed":false,"expires_at":"2026-09-28T23:42:56Z","confirm_url":"https://localhost/ai-confirm.html#d=066b95d759c840e8b5d01ba020438e84.b8c835…","status_url":"http://127.0.0.1:8849/functions/v1/ai-work-link/pxa_b9…/drafts/066b95d7 …(724 chars)`
 
-**6. Sumeet (signed in): `POST /drafts/31aacc694c3d4e2f85713b7d3eddbbce/preview`**
-- sent: `{"confirmToken":"f5a758…"}`
-- answer: **200** `{"draft_id":"31aacc694c3d4e2f85713b7d3eddbbce","function_id":"create_material","label":"New material","params":{"name":"Rubber tile 25 mm","unit":"sqm","unitCost":210},"state":"awaiting_confirmation","can_confirm":true,"writes_enabled":true,"created_at":"2026-09-26T21:46:53Z","expires_at":"2026-09-28T21:46:53Z","confirmed_at":null,"submission_id":null,"result":null,"failure":null,"message":"Check the change, type the code and confirm. Nothing changes until you do."}`
+**6. Sumeet (signed in): `POST /drafts/066b95d759c840e8b5d01ba020438e84/preview`**
+- sent: `{"confirmToken":"b8c835…"}`
+- answer: **200** `{"draft_id":"066b95d759c840e8b5d01ba020438e84","function_id":"create_material","label":"New material","params":{"name":"Rubber tile 25 mm","unit":"sqm","unitCost":210},"state":"awaiting_confirmation","can_confirm":true,"writes_enabled":true,"created_at":"2026-09-26T23:42:56Z","expires_at":"2026-09-28T23:42:56Z","confirmed_at":null,"submission_id":null,"result":null,"failure":null,"message":"Check the change, type the code and confirm. Nothing changes until you do."}`
 
-**7. Sumeet (signed in): `POST /drafts/31aacc694c3d4e2f85713b7d3eddbbce/confirm`**
-- sent: `{"confirmToken":"f5a758…"}`
-- answer: **200** `{"draft_id":"31aacc694c3d4e2f85713b7d3eddbbce","status":"done","function_id":"create_material","record":{"id":"construction_materials_63","route":"/materials"},"submission_id":"submissions_61","message":"The change is applied to the project."}`
+**7. Sumeet (signed in): `POST /drafts/066b95d759c840e8b5d01ba020438e84/confirm`**
+- sent: `{"confirmToken":"b8c835…"}`
+- answer: **200** `{"draft_id":"066b95d759c840e8b5d01ba020438e84","status":"done","function_id":"create_material","record":{"id":"construction_materials_63","route":"/materials"},"submission_id":"submissions_61","message":"The change is applied to the project."}`
 
 - PASS: set-up: create_material is drafted by the AI and confirmed by Sumeet
 **8. Sumeet's AI: `GET /records/boq_lines?format=json&limit=50`**
-- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_10","rate":190,"unit":"m2","amount":28500,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":150,"item_code":"PLAY-B3-09","vendor_id":null,"created_at":"2026-09-26T21:46:48.712+00:00","activity_id":null,"description":"Mezzanine Floor - 100mm thick Block wall - Supply and installation of block wall including stiffener columns and beams Location: Kennels Area Height:1.8m ht","labour_cost":null,"qty_contract":null,"rat …(37491 chars)`
+- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_10","rate":190,"unit":"m2","amount":28500,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":150,"item_code":"PLAY-B3-09","vendor_id":null,"created_at":"2026-09-26T23:42:48.976+00:00","activity_id":null,"description":"Mezzanine Floor - 100mm thick Block wall - Supply and installation of block wall including stiffener columns and beams Location: Kennels Area Height:1.8m ht","labour_cost":null,"qty_contract":null,"rat …(37491 chars)`
 
 **9. Sumeet's AI: `GET /records/boq_lines?format=json&limit=50&after=construction_boq_line_items_6`**
-- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_7","rate":110,"unit":"m2","amount":16390,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":149,"item_code":"PLAY-B3-05","vendor_id":null,"created_at":"2026-09-26T21:46:48.712+00:00","activity_id":null,"description":"Ground Floor - Regular Gypsum partition - Supply and installation of 100mm thick single layer regular 12.5mm thick gypsum board partition Location: Grooming Area, Utility and Store Height: 4.2m","labour …(2453 chars)`
+- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_7","rate":110,"unit":"m2","amount":16390,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":149,"item_code":"PLAY-B3-05","vendor_id":null,"created_at":"2026-09-26T23:42:48.976+00:00","activity_id":null,"description":"Ground Floor - Regular Gypsum partition - Supply and installation of 100mm thick single layer regular 12.5mm thick gypsum board partition Location: Grooming Area, Utility and Store Height: 4.2m","labour …(2453 chars)`
 
 **10. Sumeet's AI: `GET /records/roster?format=json&limit=50`**
-- answer: **200** `{"kind":"roster","items":[{"id":"construction_labour_roster_58","name":"Ravi Kumar","trade":"Carpenter","is_active":true,"created_at":"2026-09-26T21:46:53.338+00:00","daily_rate":850,"skill_level":null,"employee_code":"W-0001"}],"next":null,"next_after":null,"hidden_fields":[],"redacted":false,"text_fields_are_data":true}`
+- answer: **200** `{"kind":"roster","items":[{"id":"construction_labour_roster_58","name":"Ravi Kumar","trade":"Carpenter","is_active":true,"created_at":"2026-09-26T23:42:56.12+00:00","daily_rate":850,"skill_level":null,"employee_code":"W-0001"}],"next":null,"next_after":null,"hidden_fields":[],"redacted":false,"text_fields_are_data":true}`
 
 - PASS: the manager's link sees every line with its rate
 - PASS: the manager's link sees the daily rate of the crew member
@@ -52,7 +52,7 @@ The AI uses only the link address; the person's steps use a local session; the a
 
 **11. Maya (signed in): `POST /mint`**
 - sent: `{"projectId":"projects_1","level":1,"days":7,"label":"Maya's chat AI"}`
-- answer: **201** `{"link_id":"856b6b705fb74417836eaf1f39ccb5b8","level":1,"allowed_functions":["add_boq_lines","add_meeting_action_item","add_meeting_outcome","add_mood_board_item","add_room","add_roster_entry","answer_rfi","apply_boq_import","capture_artifact","close_rfi","compare_schedule_baseline","create_activity","create_boq","create_boq_revision","create_change_order","create_document","create_drawing","create_ffe_item","create_floor_plan","create_material","create_meeting","create_milestone","create_mom","create_mood_board"," …(2056 chars)`
+- answer: **201** `{"link_id":"936ca4aba06c4acd8a693c65ba0227df","level":1,"allowed_functions":["add_boq_lines","add_meeting_action_item","add_meeting_outcome","add_mood_board_item","add_room","add_roster_entry","answer_rfi","apply_boq_import","capture_artifact","close_rfi","compare_schedule_baseline","create_activity","create_boq","create_boq_revision","create_change_order","create_document","create_drawing","create_ffe_item","create_floor_plan","create_material","create_meeting","create_milestone","create_mom","create_mood_board"," …(2056 chars)`
 
 - PASS: a member can make a level-1 link for a project she can read
 **12. Maya's AI: `GET /context?format=json`**
@@ -82,37 +82,37 @@ The AI uses only the link address; the person's steps use a local session; the a
 
 - PASS: a rank-3 function sent to /drafts on Maya's link is refused (403)
 **16. Maya's AI: `GET /records/boq_lines?format=json&limit=50`**
-- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_10","rate":null,"unit":"m2","amount":null,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":150,"item_code":"PLAY-B3-09","vendor_id":null,"created_at":"2026-09-26T21:46:48.712+00:00","activity_id":null,"description":"Mezzanine Floor - 100mm thick Block wall - Supply and installation of block wall including stiffener columns and beams Location: Kennels Area Height:1.8m ht","labour_cost":null,"qty_contract":null,"rat …(38619 chars)`
+- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_10","rate":null,"unit":"m2","amount":null,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":150,"item_code":"PLAY-B3-09","vendor_id":null,"created_at":"2026-09-26T23:42:48.976+00:00","activity_id":null,"description":"Mezzanine Floor - 100mm thick Block wall - Supply and installation of block wall including stiffener columns and beams Location: Kennels Area Height:1.8m ht","labour_cost":null,"qty_contract":null,"rat …(38619 chars)`
 
 **17. Maya's AI: `GET /records/boq_lines?format=json&limit=50&after=construction_boq_line_items_6`**
-- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_7","rate":null,"unit":"m2","amount":null,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":149,"item_code":"PLAY-B3-05","vendor_id":null,"created_at":"2026-09-26T21:46:48.712+00:00","activity_id":null,"description":"Ground Floor - Regular Gypsum partition - Supply and installation of 100mm thick single layer regular 12.5mm thick gypsum board partition Location: Grooming Area, Utility and Store Height: 4.2m","labour …(2720 chars)`
+- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_7","rate":null,"unit":"m2","amount":null,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":149,"item_code":"PLAY-B3-05","vendor_id":null,"created_at":"2026-09-26T23:42:48.976+00:00","activity_id":null,"description":"Ground Floor - Regular Gypsum partition - Supply and installation of 100mm thick single layer regular 12.5mm thick gypsum board partition Location: Grooming Area, Utility and Store Height: 4.2m","labour …(2720 chars)`
 
 - PASS: records/boq_lines: 53 rows, 0 money values (0 non-null in 14 hidden columns)
 **18. Maya's AI: `GET /records/roster?format=json&limit=50`**
-- answer: **200** `{"kind":"roster","items":[{"id":"construction_labour_roster_58","name":"Ravi Kumar","trade":"Carpenter","is_active":true,"created_at":"2026-09-26T21:46:53.338+00:00","daily_rate":null,"skill_level":null,"employee_code":"W-0001","redacted":true}],"next":null,"next_after":null,"hidden_fields":["daily_rate"],"redacted":true,"text_fields_are_data":true}`
+- answer: **200** `{"kind":"roster","items":[{"id":"construction_labour_roster_58","name":"Ravi Kumar","trade":"Carpenter","is_active":true,"created_at":"2026-09-26T23:42:56.12+00:00","daily_rate":null,"skill_level":null,"employee_code":"W-0001","redacted":true}],"next":null,"next_after":null,"hidden_fields":["daily_rate"],"redacted":true,"text_fields_are_data":true}`
 
 - PASS: records/roster: the crew member is visible, the daily rate is not
 **19. Maya's AI: `GET /records/materials?format=json&limit=50`**
-- answer: **200** `{"kind":"materials","items":[{"id":"construction_materials_63","name":"Rubber tile 25 mm","spec":null,"unit":"sqm","is_active":true,"unit_cost":null,"created_at":"2026-09-26T21:46:53.459+00:00","reorder_level":null,"redacted":true}],"next":null,"next_after":null,"hidden_fields":["unit_cost"],"redacted":true,"text_fields_are_data":true}`
+- answer: **200** `{"kind":"materials","items":[{"id":"construction_materials_63","name":"Rubber tile 25 mm","spec":null,"unit":"sqm","is_active":true,"unit_cost":null,"created_at":"2026-09-26T23:42:56.348+00:00","reorder_level":null,"redacted":true}],"next":null,"next_after":null,"hidden_fields":["unit_cost"],"redacted":true,"text_fields_are_data":true}`
 
 - PASS: records/materials: the material is visible, its cost is not
 **20. Maya's AI: `GET /records/boqs?format=json&limit=50`**
-- answer: **200** `{"kind":"boqs","items":[{"id":"construction_boqs_2","title":"12039 ZOOMIES, DIP, DUBAI, UAE. BOQ","status":"draft","version":1,"created_at":"2026-09-26T21:46:48.711+00:00","project_id":"projects_1","updated_at":"2026-09-26T21:46:48.711+00:00","approved_at":null,"created_by_id":"person_sumeet","parent_boq_id":null,"approved_by_id":null,"contract_value_override":null,"redacted":true}],"next":null,"next_after":null,"hidden_fields":["contract_value_override"],"redacted":true,"text_fields_are_data":true}`
+- answer: **200** `{"kind":"boqs","items":[{"id":"construction_boqs_2","title":"12039 ZOOMIES, DIP, DUBAI, UAE. BOQ","status":"draft","version":1,"created_at":"2026-09-26T23:42:48.975+00:00","project_id":"projects_1","updated_at":"2026-09-26T23:42:48.975+00:00","approved_at":null,"created_by_id":"person_sumeet","parent_boq_id":null,"approved_by_id":null,"contract_value_override":null,"redacted":true}],"next":null,"next_after":null,"hidden_fields":["contract_value_override"],"redacted":true,"text_fields_are_data":true}`
 
 - PASS: records/boqs: no contract value
 **21. Maya's AI: `GET /records/boq_lines?format=csv&limit=5`**
-- answer: **200** `id,rate,unit,amount,boq_id,category,quantity,item_code,vendor_id,created_at,activity_id,description,labour_cost,qty_contract,rate_project,material_cost,rate_contract,vendor_amount,equipment_cost,profit_percent,manpower_amount,material_amount,overhead_percent,budget_percentage,parent_line_item_id,breakdown_percentage,redacted / construction_boq_line_items_10,,m2,,construction_boqs_2,Play Area - Partition and Lining,150,PLAY-B3-09,,2026-09-26T21:46:48.712+00:00,,Mezzanine Floor - 100mm thick Block wall - Supply and i …(1979 chars)`
+- answer: **200** `id,rate,unit,amount,boq_id,category,quantity,item_code,vendor_id,created_at,activity_id,description,labour_cost,qty_contract,rate_project,material_cost,rate_contract,vendor_amount,equipment_cost,profit_percent,manpower_amount,material_amount,overhead_percent,budget_percentage,parent_line_item_id,breakdown_percentage,redacted / construction_boq_line_items_10,,m2,,construction_boqs_2,Play Area - Partition and Lining,150,PLAY-B3-09,,2026-09-26T23:42:48.976+00:00,,Mezzanine Floor - 100mm thick Block wall - Supply and i …(1979 chars)`
 
 - PASS: the CSV form of the same page carries no money either
 **22. Maya's AI: `POST /actions`**
 - sent: `{"function":"record_work_progress","params":{"itemCode":"PLAY-B3-09","percent":10,"entryDate":"2026-09-27","remarks":"Maya, walk-round"},"idempotency_key":"<key>"}`
-- answer: **201** `{"intent_id":"80aa5379072c4712bbd30c33c0f8c4d2","status":"done","record":{"id":"construction_work_progress_entries_70","route":null},"submission_id":"submissions_66","replayed":false}`
+- answer: **201** `{"intent_id":"7b36ecdc19444a20a31fd19cd4ebdf90","status":"done","record":{"id":"construction_work_progress_entries_70","route":null},"submission_id":"submissions_66","replayed":false}`
 
 - PASS: what a member may do works: a level-1 progress entry
 - PASS: re-read: the entry is attributed to Maya, not to Sumeet
 **23. Maya's AI: `POST /drafts`**
 - sent: `{"function":"add_roster_entry","params":{"name":"Maya's man","dailyRate":700},"idempotency_key":"<key>"}`
-- answer: **201** `{"draft_id":"8321fc797a6b492c8c04196e719b908b","intent_id":"8321fc797a6b492c8c04196e719b908b","status":"awaiting_confirmation","kind":"draft","function":"add_roster_entry","replayed":false,"expires_at":"2026-09-28T21:46:53Z","confirm_url":"https://localhost/ai-confirm.html#d=8321fc797a6b492c8c04196e719b908b.41c1f4…","status_url":"http://127.0.0.1:8906/functions/v1/ai-work-link/pxa_9a…/drafts/8321fc7 …(725 chars)`
+- answer: **201** `{"draft_id":"0a6ef08d970e4807b149e774e7755c7a","intent_id":"0a6ef08d970e4807b149e774e7755c7a","status":"awaiting_confirmation","kind":"draft","function":"add_roster_entry","replayed":false,"expires_at":"2026-09-28T23:42:56Z","confirm_url":"https://localhost/ai-confirm.html#d=0a6ef08d970e4807b149e774e7755c7a.7c6e88…","status_url":"http://127.0.0.1:8849/functions/v1/ai-work-link/pxa_11…/drafts/0a6ef08 …(725 chars)`
 
 - PASS: a money change on Maya's link is a DRAFT: nothing is written until the person confirms
 - PASS: re-read: the money draft wrote no row
@@ -131,7 +131,7 @@ The AI uses only the link address; the person's steps use a local session; the a
 - PASS: a viewer may not choose level 1 for a link (403)
 **26. Vic (signed in): `POST /mint`**
 - sent: `{"projectId":"projects_1","level":0,"days":7,"label":"Vic read only"}`
-- answer: **201** `{"link_id":"c795597e7ce444719c0949d148eab76a","level":0,"allowed_functions":["get_construction_project_dashboard"],"hide_personal":true,"label":"Vic read only","expires_at":"2026-10-03T21:46:53Z","project":{"id":"projects_1","name":"12039 ZOOMIES, DIP, DUBAI, UAE."},"token":"pxa_88…","links":{"link":"http://127.0.0.1:8906/functions/v1/ai-work-link/pxa_88…","header_base":"http://127.0.0.1:8906/fu …(780 chars)`
+- answer: **201** `{"link_id":"5b91e9ed872f4264a475bcfede841e61","level":0,"allowed_functions":["get_construction_project_dashboard"],"hide_personal":true,"label":"Vic read only","expires_at":"2026-10-03T23:42:56Z","project":{"id":"projects_1","name":"12039 ZOOMIES, DIP, DUBAI, UAE."},"token":"pxa_6e…","links":{"link":"http://127.0.0.1:8849/functions/v1/ai-work-link/pxa_6e…","header_base":"http://127.0.0.1:8849/fu …(780 chars)`
 
 - PASS: a viewer may make a level-0 (read and draft) link
 **27. Vic's AI: `GET /functions?format=json&per_page=100`**
@@ -158,7 +158,7 @@ The AI uses only the link address; the person's steps use a local session; the a
 
 **31. Sumeet (signed in): `POST /mint`**
 - sent: `{"projectId":"project_oakwood","level":1,"days":7,"label":"Oakwood, Sumeet's chat AI"}`
-- answer: **201** `{"link_id":"18b005b565df42dc9f084fb3f2f78e21","level":1,"allowed_functions":["add_boq_lines","add_meeting_action_item","add_meeting_outcome","add_mood_board_item","add_room","add_roster_entry","answer_rfi","apply_boq_import","approve_kpi_entry","approve_timesheet","capture_artifact","capture_schedule_baseline","close_rfi","compare_boq_revisions","compare_schedule_baseline","create_activity","create_boq","create_boq_revision","create_change_order","create_document","create_drawing","create_ffe_item","create_floor_pl …(2764 chars)`
+- answer: **201** `{"link_id":"b95c5a25f746427e9a82572cfd689e0c","level":1,"allowed_functions":["add_boq_lines","add_meeting_action_item","add_meeting_outcome","add_mood_board_item","add_room","add_roster_entry","answer_rfi","apply_boq_import","approve_kpi_entry","approve_timesheet","capture_artifact","capture_schedule_baseline","close_rfi","compare_boq_revisions","compare_schedule_baseline","create_activity","create_boq","create_boq_revision","create_change_order","create_document","create_drawing","create_ffe_item","create_floor_pl …(2764 chars)`
 
 - PASS: Sumeet can make a link for the Oakwood project too
 **32. AI (Oakwood link): `POST /actions`**
@@ -167,7 +167,7 @@ The AI uses only the link address; the person's steps use a local session; the a
 
 - PASS: the Oakwood link naming the ZOOMIES project is refused (403)
 **33. Sumeet's AI: `GET /records/roster?format=json&limit=50`**
-- answer: **200** `{"kind":"roster","items":[{"id":"construction_labour_roster_58","name":"Ravi Kumar","trade":"Carpenter","is_active":true,"created_at":"2026-09-26T21:46:53.338+00:00","daily_rate":850,"skill_level":null,"employee_code":"W-0001"}],"next":null,"next_after":null,"hidden_fields":[],"redacted":false,"text_fields_are_data":true}`
+- answer: **200** `{"kind":"roster","items":[{"id":"construction_labour_roster_58","name":"Ravi Kumar","trade":"Carpenter","is_active":true,"created_at":"2026-09-26T23:42:56.12+00:00","daily_rate":850,"skill_level":null,"employee_code":"W-0001"}],"next":null,"next_after":null,"hidden_fields":[],"redacted":false,"text_fields_are_data":true}`
 
 **34. AI (Oakwood link): `POST /actions`**
 - sent: `{"function":"record_attendance","params":{"rosterId":"construction_labour_roster_58","date":"2026-09-27"},"idempotency_key":"<key>"}`
@@ -185,7 +185,7 @@ The AI uses only the link address; the person's steps use a local session; the a
 
 **36. Sumeet (signed in): `POST /mint`**
 - sent: `{"projectId":"projects_1","level":1,"days":7,"label":"Before the demotion"}`
-- answer: **201** `{"link_id":"6b7ce54126fa47acb2d660bbf43622da","level":1,"allowed_functions":["add_boq_lines","add_meeting_action_item","add_meeting_outcome","add_mood_board_item","add_room","add_roster_entry","answer_rfi","apply_boq_import","approve_kpi_entry","approve_timesheet","capture_artifact","capture_schedule_baseline","close_rfi","compare_boq_revisions","compare_schedule_baseline","create_activity","create_boq","create_boq_revision","create_change_order","create_document","create_drawing","create_ffe_item","create_floor_pl …(2777 chars)`
+- answer: **201** `{"link_id":"584e6154e969406285b7f6923aae35e8","level":1,"allowed_functions":["add_boq_lines","add_meeting_action_item","add_meeting_outcome","add_mood_board_item","add_room","add_roster_entry","answer_rfi","apply_boq_import","approve_kpi_entry","approve_timesheet","capture_artifact","capture_schedule_baseline","close_rfi","compare_boq_revisions","compare_schedule_baseline","create_activity","create_boq","create_boq_revision","create_change_order","create_document","create_drawing","create_ffe_item","create_floor_pl …(2777 chars)`
 
 **37. AI (Sumeet's link): `GET /functions?format=json&per_page=100`**
 - answer: **200** `{"functions":[{"id":"add_boq_lines","label":"Add BOQ lines","module":"scope","kind":"write","level":2,"available":true,"drafts_open":true,"direct_open":false,"reads_open":false,"money_sensitive":true,"min_role_rank":2,"required":["boqId","batchNo","lines"],"example_params":{"boqId":"<id from create_boq>","batchNo":1,"lines":[{"itemCode":"PLAY-1.01","description":"Play structure","unit":"nos","quantity":10,"rate":65000,"category":"Play Area / Joinery"}]}},{"id":"add_meeting_action_item","label":"Add an action item", …(31346 chars)`
@@ -193,7 +193,7 @@ The AI uses only the link address; the person's steps use a local session; the a
 - PASS: before: the manager's link carries approve_timesheet
 **38. AI (Sumeet's link): `POST /drafts`**
 - sent: `{"function":"approve_timesheet","params":{"timeEntryId":"time_maya"},"idempotency_key":"<key>"}`
-- answer: **201** `{"draft_id":"2b18befe515c4c5dbb910d7d6131ceb5","intent_id":"2b18befe515c4c5dbb910d7d6131ceb5","status":"awaiting_confirmation","kind":"draft","function":"approve_timesheet","replayed":false,"expires_at":"2026-09-28T21:46:54Z","confirm_url":"https://localhost/ai-confirm.html#d=2b18befe515c4c5dbb910d7d6131ceb5.17d76a…","status_url":"http://127.0.0.1:8906/functions/v1/ai-work-link/pxa_2d…/drafts/2b18be …(726 chars)`
+- answer: **201** `{"draft_id":"76997c4146974781a8823842531e7496","intent_id":"76997c4146974781a8823842531e7496","status":"awaiting_confirmation","kind":"draft","function":"approve_timesheet","replayed":false,"expires_at":"2026-09-28T23:42:57Z","confirm_url":"https://localhost/ai-confirm.html#d=76997c4146974781a8823842531e7496.7bca4b…","status_url":"http://127.0.0.1:8849/functions/v1/ai-work-link/pxa_0a…/drafts/76997c …(726 chars)`
 
 - PASS: the AI drafts approve_timesheet while Sumeet is a manager
 **39. AI (Sumeet's link): `GET /functions?format=json&per_page=100`**
@@ -201,19 +201,19 @@ The AI uses only the link address; the person's steps use a local session; the a
 
 - PASS: after the demotion the same link no longer carries approve_timesheet
 **40. AI (Sumeet's link): `GET /records/boq_lines?format=json&limit=50`**
-- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_10","rate":null,"unit":"m2","amount":null,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":150,"item_code":"PLAY-B3-09","vendor_id":null,"created_at":"2026-09-26T21:46:48.712+00:00","activity_id":null,"description":"Mezzanine Floor - 100mm thick Block wall - Supply and installation of block wall including stiffener columns and beams Location: Kennels Area Height:1.8m ht","labour_cost":null,"qty_contract":null,"rat …(38619 chars)`
+- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_10","rate":null,"unit":"m2","amount":null,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":150,"item_code":"PLAY-B3-09","vendor_id":null,"created_at":"2026-09-26T23:42:48.976+00:00","activity_id":null,"description":"Mezzanine Floor - 100mm thick Block wall - Supply and installation of block wall including stiffener columns and beams Location: Kennels Area Height:1.8m ht","labour_cost":null,"qty_contract":null,"rat …(38619 chars)`
 
 **41. AI (Sumeet's link): `GET /records/boq_lines?format=json&limit=50&after=construction_boq_line_items_6`**
-- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_7","rate":null,"unit":"m2","amount":null,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":149,"item_code":"PLAY-B3-05","vendor_id":null,"created_at":"2026-09-26T21:46:48.712+00:00","activity_id":null,"description":"Ground Floor - Regular Gypsum partition - Supply and installation of 100mm thick single layer regular 12.5mm thick gypsum board partition Location: Grooming Area, Utility and Store Height: 4.2m","labour …(2720 chars)`
+- answer: **200** `{"kind":"boq_lines","items":[{"id":"construction_boq_line_items_7","rate":null,"unit":"m2","amount":null,"boq_id":"construction_boqs_2","category":"Play Area - Partition and Lining","quantity":149,"item_code":"PLAY-B3-05","vendor_id":null,"created_at":"2026-09-26T23:42:48.976+00:00","activity_id":null,"description":"Ground Floor - Regular Gypsum partition - Supply and installation of 100mm thick single layer regular 12.5mm thick gypsum board partition Location: Grooming Area, Utility and Store Height: 4.2m","labour …(2720 chars)`
 
 - PASS: after the demotion the same link reads no rates (money is redacted by the role NOW)
-**42. Sumeet (signed in): `POST /drafts/2b18befe515c4c5dbb910d7d6131ceb5/preview`**
-- sent: `{"confirmToken":"17d76a…"}`
-- answer: **200** `{"draft_id":"2b18befe515c4c5dbb910d7d6131ceb5","function_id":"approve_timesheet","label":"Approve a timesheet entry","params":{"timeEntryId":"time_maya"},"state":"awaiting_confirmation","can_confirm":true,"writes_enabled":true,"created_at":"2026-09-26T21:46:54Z","expires_at":"2026-09-28T21:46:54Z","confirmed_at":null,"submission_id":null,"result":null,"failure":null,"message":"Check the change, type the code and confirm. Nothing changes until you do."}`
+**42. Sumeet (signed in): `POST /drafts/76997c4146974781a8823842531e7496/preview`**
+- sent: `{"confirmToken":"7bca4b…"}`
+- answer: **200** `{"draft_id":"76997c4146974781a8823842531e7496","function_id":"approve_timesheet","label":"Approve a timesheet entry","params":{"timeEntryId":"time_maya"},"state":"awaiting_confirmation","can_confirm":true,"writes_enabled":true,"created_at":"2026-09-26T23:42:57Z","expires_at":"2026-09-28T23:42:57Z","confirmed_at":null,"submission_id":null,"result":null,"failure":null,"message":"Check the change, type the code and confirm. Nothing changes until you do."}`
 
-**43. Sumeet (signed in): `POST /drafts/2b18befe515c4c5dbb910d7d6131ceb5/confirm`**
-- sent: `{"confirmToken":"17d76a…"}`
-- answer: **200** `{"draft_id":"2b18befe515c4c5dbb910d7d6131ceb5","status":"refused","function_id":"approve_timesheet","code":"ROLE_CHANGED","message":"Confirmed, but nothing was applied: your role no longer allows this change."}`
+**43. Sumeet (signed in): `POST /drafts/76997c4146974781a8823842531e7496/confirm`**
+- sent: `{"confirmToken":"7bca4b…"}`
+- answer: **200** `{"draft_id":"76997c4146974781a8823842531e7496","status":"refused","function_id":"approve_timesheet","code":"ROLE_CHANGED","message":"Confirmed, but nothing was applied: your role no longer allows this change."}`
 
 - PASS: confirming the earlier draft after the demotion does not apply it (200 refused ROLE_CHANGED)
 - PASS: re-read: Maya's timesheet is still submitted (the demoted person's confirm changed nothing)
@@ -223,45 +223,45 @@ The AI uses only the link address; the person's steps use a local session; the a
 - PASS: after the role is restored the same link carries approve_timesheet again
 **45. AI (Sumeet's link): `POST /drafts`**
 - sent: `{"function":"approve_timesheet","params":{"timeEntryId":"time_maya"},"idempotency_key":"<key>"}`
-- answer: **201** `{"draft_id":"0615b5a84a6140cbabe6fb9d77adaafc","intent_id":"0615b5a84a6140cbabe6fb9d77adaafc","status":"awaiting_confirmation","kind":"draft","function":"approve_timesheet","replayed":false,"expires_at":"2026-09-28T21:46:54Z","confirm_url":"https://localhost/ai-confirm.html#d=0615b5a84a6140cbabe6fb9d77adaafc.3a2372…","status_url":"http://127.0.0.1:8906/functions/v1/ai-work-link/pxa_2d…/drafts/0615b5 …(726 chars)`
+- answer: **201** `{"draft_id":"4fbe4b8fadf3488984846865f29cd531","intent_id":"4fbe4b8fadf3488984846865f29cd531","status":"awaiting_confirmation","kind":"draft","function":"approve_timesheet","replayed":false,"expires_at":"2026-09-28T23:42:57Z","confirm_url":"https://localhost/ai-confirm.html#d=4fbe4b8fadf3488984846865f29cd531.2a1335…","status_url":"http://127.0.0.1:8849/functions/v1/ai-work-link/pxa_0a…/drafts/4fbe4b …(726 chars)`
 
-**46. Sumeet (signed in): `POST /drafts/0615b5a84a6140cbabe6fb9d77adaafc/preview`**
-- sent: `{"confirmToken":"3a2372…"}`
-- answer: **200** `{"draft_id":"0615b5a84a6140cbabe6fb9d77adaafc","function_id":"approve_timesheet","label":"Approve a timesheet entry","params":{"timeEntryId":"time_maya"},"state":"awaiting_confirmation","can_confirm":true,"writes_enabled":true,"created_at":"2026-09-26T21:46:54Z","expires_at":"2026-09-28T21:46:54Z","confirmed_at":null,"submission_id":null,"result":null,"failure":null,"message":"Check the change, type the code and confirm. Nothing changes until you do."}`
+**46. Sumeet (signed in): `POST /drafts/4fbe4b8fadf3488984846865f29cd531/preview`**
+- sent: `{"confirmToken":"2a1335…"}`
+- answer: **200** `{"draft_id":"4fbe4b8fadf3488984846865f29cd531","function_id":"approve_timesheet","label":"Approve a timesheet entry","params":{"timeEntryId":"time_maya"},"state":"awaiting_confirmation","can_confirm":true,"writes_enabled":true,"created_at":"2026-09-26T23:42:57Z","expires_at":"2026-09-28T23:42:57Z","confirmed_at":null,"submission_id":null,"result":null,"failure":null,"message":"Check the change, type the code and confirm. Nothing changes until you do."}`
 
-**47. Sumeet (signed in): `POST /drafts/0615b5a84a6140cbabe6fb9d77adaafc/confirm`**
-- sent: `{"confirmToken":"3a2372…"}`
-- answer: **200** `{"draft_id":"0615b5a84a6140cbabe6fb9d77adaafc","status":"done","function_id":"approve_timesheet","record":{"id":"time_maya","route":"/timesheets"},"submission_id":"submissions_77","message":"The change is applied to the project."}`
+**47. Sumeet (signed in): `POST /drafts/4fbe4b8fadf3488984846865f29cd531/confirm`**
+- sent: `{"confirmToken":"2a1335…"}`
+- answer: **200** `{"draft_id":"4fbe4b8fadf3488984846865f29cd531","status":"done","function_id":"approve_timesheet","record":{"id":"time_maya","route":"/timesheets"},"submission_id":"submissions_77","message":"The change is applied to the project."}`
 
 - PASS: a new draft confirmed by the restored manager is applied
 
 ## Cleanup: every throwaway link revoked, every demoted user restored
 
-**48. Sumeet (signed in): `POST /links/471f9b27e70a44f3bf55da76adbaab38/revoke`**
+**48. Sumeet (signed in): `POST /links/88dd38f4490c44ee8e388d93611c04cd/revoke`**
 - sent: `{}`
-- answer: **200** `{"link_id":"471f9b27e70a44f3bf55da76adbaab38","revoked":false,"already":true}`
+- answer: **200** `{"link_id":"88dd38f4490c44ee8e388d93611c04cd","revoked":false,"already":true}`
 
-- PASS: link 471f9b… is revoked through the app route (200)
-**49. Maya (signed in): `POST /links/856b6b705fb74417836eaf1f39ccb5b8/revoke`**
+- PASS: link 88dd38… is revoked through the app route (200)
+**49. Maya (signed in): `POST /links/936ca4aba06c4acd8a693c65ba0227df/revoke`**
 - sent: `{}`
-- answer: **200** `{"link_id":"856b6b705fb74417836eaf1f39ccb5b8","revoked":true,"already":false}`
+- answer: **200** `{"link_id":"936ca4aba06c4acd8a693c65ba0227df","revoked":true,"already":false}`
 
-- PASS: link 856b6b… is revoked through the app route (200)
-**50. Vic (signed in): `POST /links/c795597e7ce444719c0949d148eab76a/revoke`**
+- PASS: link 936ca4… is revoked through the app route (200)
+**50. Vic (signed in): `POST /links/5b91e9ed872f4264a475bcfede841e61/revoke`**
 - sent: `{}`
-- answer: **200** `{"link_id":"c795597e7ce444719c0949d148eab76a","revoked":true,"already":false}`
+- answer: **200** `{"link_id":"5b91e9ed872f4264a475bcfede841e61","revoked":true,"already":false}`
 
-- PASS: link c79559… is revoked through the app route (200)
-**51. Sumeet (signed in): `POST /links/18b005b565df42dc9f084fb3f2f78e21/revoke`**
+- PASS: link 5b91e9… is revoked through the app route (200)
+**51. Sumeet (signed in): `POST /links/b95c5a25f746427e9a82572cfd689e0c/revoke`**
 - sent: `{}`
-- answer: **200** `{"link_id":"18b005b565df42dc9f084fb3f2f78e21","revoked":true,"already":false}`
+- answer: **200** `{"link_id":"b95c5a25f746427e9a82572cfd689e0c","revoked":true,"already":false}`
 
-- PASS: link 18b005… is revoked through the app route (200)
-**52. Sumeet (signed in): `POST /links/6b7ce54126fa47acb2d660bbf43622da/revoke`**
+- PASS: link b95c5a… is revoked through the app route (200)
+**52. Sumeet (signed in): `POST /links/584e6154e969406285b7f6923aae35e8/revoke`**
 - sent: `{}`
-- answer: **200** `{"link_id":"6b7ce54126fa47acb2d660bbf43622da","revoked":true,"already":false}`
+- answer: **200** `{"link_id":"584e6154e969406285b7f6923aae35e8","revoked":true,"already":false}`
 
-- PASS: link 6b7ce5… is revoked through the app route (200)
+- PASS: link 584e61… is revoked through the app route (200)
 - PASS: no throwaway link is still active (re-read from the links table)
 - PASS: every user's role is back to what it was at the start (re-read)
 

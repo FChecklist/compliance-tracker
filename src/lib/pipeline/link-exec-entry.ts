@@ -18,6 +18,7 @@ import { sql } from "drizzle-orm"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { ServiceError } from "@/lib/services/service-error"
 import { codeForServiceError, normaliseThrownError } from "./error-codes"
+import { executeRead } from "./execute-read"
 import { functionWrites, hasExecutor } from "./executor"
 import { runDirectTask, type RunDirectTaskInput } from "./run-submission"
 
@@ -123,4 +124,68 @@ export async function runLinkIntent(claimed: ClaimedIntent): Promise<LinkRunOutc
 export async function linkExecHealth(): Promise<{ db_role: string }> {
   const rows = (await withTenantContext({ orgId: "awl-exec-health" }, (db) => db.execute(sql`select current_user as db_role`))) as unknown as { db_role: string }[]
   return { db_role: String(rows[0]?.db_role ?? "") }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// A READ function through the link (BUILD-002 persona findings): POST /functions/{fn} for a function of kind read.
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+/**
+ * What the exec function's POST /read passes in. The ai-work-link function resolved the link and the person live in the same request and
+ * holds the shared internal secret; the exec function never sees a token. The role is the person's live role, so money is redacted by it.
+ */
+export type ReadRequest = {
+  function_id: string
+  params: Record<string, unknown>
+  ctx: { org_id: string; user_id: string; project_id: string; live_role: string }
+  /** The link's effective function list (spec 10.9). */
+  allowed_functions: string[]
+}
+
+export type LinkReadOutcome =
+  | { status: "ok"; function_id: string; result: unknown }
+  | { status: "failed"; code: string; missing: string[]; http: 403 | 422 | 503 }
+
+export function readRequestIsWellFormed(r: ReadRequest | null | undefined): r is ReadRequest {
+  if (!r || typeof r !== "object" || !r.ctx || typeof r.ctx !== "object") return false
+  const c = r.ctx
+  return (
+    isText(r.function_id) &&
+    isText(c.org_id) &&
+    isText(c.user_id) &&
+    isText(c.project_id) &&
+    isText(c.live_role) &&
+    !!r.params &&
+    typeof r.params === "object" &&
+    !Array.isArray(r.params) &&
+    Array.isArray(r.allowed_functions) &&
+    r.allowed_functions.every((f) => typeof f === "string")
+  )
+}
+
+/**
+ * Runs one read function in the read-only executor mode (execute-read.ts): no submission, task, pill use, chain row, gap row, memory or intent is
+ * written. The project is the link's, money is redacted by the live role, and a function that is not a read or not on the list is refused.
+ */
+export async function runLinkRead(req: ReadRequest): Promise<LinkReadOutcome> {
+  if (!readRequestIsWellFormed(req)) return { status: "failed", code: "BAD_REQUEST", missing: [], http: 422 }
+  try {
+    const out = await executeRead({
+      orgId: req.ctx.org_id,
+      userId: req.ctx.user_id,
+      actorUserId: req.ctx.user_id,
+      projectId: req.ctx.project_id,
+      role: req.ctx.live_role,
+      functionId: req.function_id,
+      params: req.params,
+      allowedFunctionIds: req.allowed_functions,
+    })
+    if (out.ok) return { status: "ok", function_id: out.functionId, result: out.result }
+    if ("code" in out) return { status: "failed", code: out.code, missing: [], http: 403 }
+    const f = out.failure
+    return { status: "failed", code: CODE_RE.test(f.code) ? f.code : "INTERNAL_ERROR", missing: f.missing ?? [], http: out.status }
+  } catch (error) {
+    console.error(`[ai-work-link-exec] read function=${req.function_id} failed:`, error)
+    return { status: "failed", code: codeOfThrown(error), missing: [], http: 503 }
+  }
 }

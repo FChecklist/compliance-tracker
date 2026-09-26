@@ -36,9 +36,11 @@
 //     TOTAL_MISMATCH with every difference listed and nothing is sealed. Sealing does NOT approve the
 //     BOQ: its status is not touched, and approval stays the existing approve flow.
 //
-// WHAT "AREA" MEANS. The area of a line is the text of its category before the first "/", trimmed, so
-// the categories "Play Area / Joinery" and "Play Area / Flooring" are both in the area "Play Area". A
-// category with no "/" is its own area. A line with no category is in no area and is counted only in
+// WHAT "AREA" MEANS. The area of a line is the text of its category before the first "/" or the first
+// " - " (a space, a hyphen, a space), trimmed, so the categories "Play Area / Joinery" and "Play Area / Flooring"
+// are both in the area "Play Area", and so is "Play Area - Partition and Lining" (the form the multi-sheet
+// reader writes: "<Area> - <Bill title>"). A hyphen inside a word ("Fit-out") is not a separator. A category
+// with neither is its own area. A line with no category is in no area and is counted only in
 // the grand total. Areas are matched without regard to case.
 import { and, eq, inArray } from "drizzle-orm"
 import { createHash } from "node:crypto"
@@ -102,10 +104,10 @@ function canonical(value: unknown): string {
   return JSON.stringify(value) ?? "null"
 }
 
-/** The area of a category (see the header): the text before the first "/", trimmed; null when there is no category. */
+/** The area of a category (see the header): the text before the first "/" or " - ", trimmed; null when there is no category. */
 export function boqAreaOf(category: string | null | undefined): string | null {
   if (typeof category !== "string") return null
-  const first = category.split("/")[0]?.trim() ?? ""
+  const first = category.split(/\/| - /)[0]?.trim() ?? ""
   return first === "" ? null : first
 }
 
