@@ -95,9 +95,9 @@ export function linkBase(functionBase: string, token: string | null): string {
   return token ? `${functionBase}/${token}` : `${functionBase}/header`
 }
 
-/** The path after the token, for the call log. Never contains the token, and carries no query string. `/` for the root. */
+/** The path after the token, for the call log. Carries no query string, and anything token-shaped in it (a caller can put one in a later segment) is scrubbed. `/` for the root. */
 export function relativePathOf(rest: string[]): string {
-  return "/" + rest.join("/")
+  return redactToken("/" + rest.join("/"))
 }
 
 /** The first product name in a User-Agent (`Claude-User`, `curl`, `ChatGPT-User`), at most 40 characters, or null. */
