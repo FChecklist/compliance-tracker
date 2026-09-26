@@ -107,6 +107,21 @@ function readSpec(functionId: string, label: string, module: string, requiresPro
   return { functionId, label, module, kind: "ask", writes: false, requiresProject, requiredParams: [] };
 }
 
+/**
+ * A read that takes optional parameters (BUILD-002 WP-05a): a filter, a date, a page cursor, an id. readSpec() declares none, and
+ * the AI work link only accepts the names the registry declares (execute-read.ts, scripts/gen-ai-link-registry.ts), so before
+ * this a report's week or trade, or a schedule filter, was dropped on a link (GAP_A 0.5).
+ */
+function readSpecWith(
+  functionId: string,
+  label: string,
+  module: string,
+  requiresProject: boolean,
+  optionalParams: readonly string[]
+): FunctionSpec {
+  return { ...readSpec(functionId, label, module, requiresProject), optionalParams };
+}
+
 /** A read that cannot answer without one named record or value (U-38). */
 function readSpecNeeding(
   functionId: string,
@@ -353,7 +368,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
   // the project's current BOQ), so it declares no required parameter. Placed
   // after the dashboard so an unmatched `ask` on the MCP link still offers the
   // dashboard first (candidates keep registry order).
-  readSpec("get_boq_line_items", "View BOQ line items", "scope", true),
+  readSpecWith("get_boq_line_items", "View BOQ line items", "scope", true, ["boqId", "cursor", "limit"]),
   readSpec("get_construction_budget_status", "View budget status", "budget", true),
   // R67 B-02: the catalogue's own id for PROJEXA's Budget card (Sumeet order
   // 9). A READ -- it resolves to the same real backing action the budget pill
@@ -394,7 +409,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
   // owner, so billing has the two reads and nothing else.
 
   // -- change orders (R-97) --
-  readSpec("list_change_orders", "View change orders", "change_orders", true),
+  readSpecWith("list_change_orders", "View change orders", "change_orders", true, ["status"]),
   readSpecNeeding("get_change_order", "View a change order", "change_orders", true, [
     { name: "changeOrderId", label: "Change order", code: "VALUE_REQUIRED", field: "value" },
   ]),
@@ -412,7 +427,9 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     card: {
       fields: [
         { key: "title", label: "Title", type: "text", required: true },
+        { key: "description", label: "Description", type: "text", required: false },
         { key: "reason", label: "Reason", type: "text", required: false },
+        { key: "trade", label: "Trade", type: "text", required: false },
         { key: "costImpact", label: "Cost impact", type: "number", required: false },
         { key: "scheduleImpactDays", label: "Schedule impact", type: "number", unit: "days", required: false },
       ],
@@ -434,6 +451,8 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       { name: "toContractor", label: "To contractor", code: "VALUE_REQUIRED", field: "value" },
       { name: "description", label: "Instruction", code: "VALUE_REQUIRED" },
     ],
+    // costImpact and timeImpact are yes/no flags (the instruction changes cost or time), not amounts; boqId names the BOQ it varies.
+    optionalParams: ["costImpact", "timeImpact", "boqId"],
     card: {
       fields: [
         { key: "issueDate", label: "Issue date", type: "date", required: true },
@@ -446,12 +465,16 @@ const SPEC_LIST: readonly FunctionSpec[] = [
   },
 
   // -- reports and analysis (R-33, R-41..R-45, R-52, R-99, R-100, R-C07, R-C11, R-C12) --
-  readSpecNeeding("run_named_report", "View a named report", "reports", true, [
-    { name: "reportSlug", label: "Report", code: "VALUE_REQUIRED", field: "value" },
-  ]),
+  {
+    ...readSpecNeeding("run_named_report", "View a named report", "reports", true, [
+      { name: "reportSlug", label: "Report", code: "VALUE_REQUIRED", field: "value" },
+    ]),
+    // The filters the [reportName] route reads from its query string (executor.ts runReport maps them the same way).
+    optionalParams: ["weekStart", "date", "trade", "category", "groupBy", "vendorId", "boqId"],
+  },
   readSpec("get_project_analysis", "View project analysis", "reports", false),
-  readSpec("get_manpower_cost_report", "View manpower cost", "manpower", true),
-  readSpec("get_designer_timesheet_report", "View designer timesheet report", "timesheets", true),
+  readSpecWith("get_manpower_cost_report", "View manpower cost", "manpower", true, ["date", "trade", "dateFrom", "dateTo"]),
+  readSpecWith("get_designer_timesheet_report", "View designer timesheet report", "timesheets", true, ["from", "to"]),
 
   // -- line budget (R-C09) --
   {
@@ -465,6 +488,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
       { name: "boqLineItemId", label: "BOQ line", code: "BOQ_LINE_REQUIRED", field: "boqLine" },
     ],
+    optionalParams: ["vendorId"],
     card: {
       fields: [
         { key: "boqLineItemId", label: "BOQ line", type: "select", required: true, picker: "boq-line" },
@@ -479,7 +503,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
   },
 
   // -- schedule and milestones (R-C10, R-94) --
-  readSpec("get_project_schedule", "View the schedule", "schedule", true),
+  readSpecWith("get_project_schedule", "View the schedule", "schedule", true, ["statusId", "assigneeId"]),
   {
     functionId: "create_schedule_task",
     label: "New schedule task",
@@ -492,6 +516,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       { name: "title", label: "Title", code: "TITLE_REQUIRED" },
       { name: "startDate", label: "Start date", code: "DATE_REQUIRED", field: "date" },
     ],
+    optionalParams: ["priority", "predecessorId", "boqLineItemId", "assigneeIds", "typeId"],
     card: {
       fields: [
         { key: "title", label: "Title", type: "text", required: true },
@@ -539,6 +564,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       fields: [
         { key: "milestoneId", label: "Milestone", type: "text", required: true },
         { key: "title", label: "Title", type: "text", required: false },
+        { key: "description", label: "Description", type: "text", required: false },
         { key: "targetDate", label: "Target date", type: "date", required: false },
         { key: "status", label: "Status", type: "text", required: false },
       ],
@@ -733,6 +759,8 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
       { name: "documentId", label: "Document", code: "VALUE_REQUIRED", field: "value" },
     ],
+    // parentBoqId makes the import a revision of that BOQ (executor.ts executeApplyBoqImport), not a new BOQ.
+    optionalParams: ["parentBoqId"],
     card: {
       fields: [
         { key: "documentId", label: "Document", type: "text", required: true },

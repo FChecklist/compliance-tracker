@@ -99,6 +99,46 @@
     "id_params": []
   },
   {
+    "function_id": "apply_boq_import",
+    "label": "Import a BOQ",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title"
+    ],
+    "declared_params": [
+      "documentId",
+      "parentBoqId",
+      "projectId",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "documentId",
+        "label": "Document",
+        "any_of": [
+          "documentId"
+        ]
+      }
+    ],
+    "id_params": [
+      "documentId",
+      "parentBoqId"
+    ]
+  },
+  {
     "function_id": "create_activity",
     "label": "New activity",
     "module": "work_progress",
@@ -227,6 +267,49 @@
     ]
   },
   {
+    "function_id": "create_change_order",
+    "label": "New change order",
+    "module": "change_orders",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "description",
+      "reason",
+      "trade"
+    ],
+    "declared_params": [
+      "costImpact",
+      "description",
+      "projectId",
+      "reason",
+      "scheduleImpactDays",
+      "title",
+      "trade"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_document",
     "label": "Add a document link",
     "module": "documents",
@@ -316,6 +399,44 @@
     "id_params": []
   },
   {
+    "function_id": "create_milestone",
+    "label": "New milestone",
+    "module": "milestones",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "description"
+    ],
+    "declared_params": [
+      "description",
+      "projectId",
+      "targetDate",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_project",
     "label": "New project",
     "module": "projects",
@@ -351,6 +472,122 @@
     ]
   },
   {
+    "function_id": "create_schedule_task",
+    "label": "New schedule task",
+    "module": "schedule",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "description"
+    ],
+    "declared_params": [
+      "assigneeIds",
+      "boqLineItemId",
+      "description",
+      "dueDate",
+      "durationDays",
+      "predecessorId",
+      "priority",
+      "projectId",
+      "startDate",
+      "title",
+      "typeId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "title",
+        "label": "Title",
+        "any_of": [
+          "title"
+        ]
+      },
+      {
+        "name": "startDate",
+        "label": "Start date",
+        "any_of": [
+          "startDate"
+        ]
+      }
+    ],
+    "id_params": [
+      "assigneeIds",
+      "boqLineItemId",
+      "predecessorId",
+      "typeId"
+    ]
+  },
+  {
+    "function_id": "create_site_instruction",
+    "label": "New site instruction",
+    "module": "site_instructions",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "toContractor",
+      "description",
+      "drawingRef"
+    ],
+    "declared_params": [
+      "boqId",
+      "costImpact",
+      "description",
+      "drawingRef",
+      "issueDate",
+      "projectId",
+      "timeImpact",
+      "toContractor"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "issueDate",
+        "label": "Issue date",
+        "any_of": [
+          "issueDate"
+        ]
+      },
+      {
+        "name": "toContractor",
+        "label": "To contractor",
+        "any_of": [
+          "toContractor"
+        ]
+      },
+      {
+        "name": "description",
+        "label": "Instruction",
+        "any_of": [
+          "description"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqId"
+    ]
+  },
+  {
     "function_id": "detect_construction_budget_schedule_risk",
     "label": "Check budget and schedule risk",
     "module": "reports",
@@ -379,6 +616,69 @@
     "declared_params": [],
     "required_params": [],
     "id_params": []
+  },
+  {
+    "function_id": "get_billing_due_queue",
+    "label": "View the billing due list",
+    "module": "billing",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_boq_line_items",
+    "label": "View BOQ line items",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "boqId",
+      "cursor",
+      "limit"
+    ],
+    "required_params": [],
+    "id_params": [
+      "boqId"
+    ]
+  },
+  {
+    "function_id": "get_change_order",
+    "label": "View a change order",
+    "module": "change_orders",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "changeOrderId"
+    ],
+    "required_params": [
+      {
+        "name": "changeOrderId",
+        "label": "Change order",
+        "any_of": [
+          "changeOrderId"
+        ]
+      }
+    ],
+    "id_params": [
+      "changeOrderId"
+    ]
   },
   {
     "function_id": "get_compliance_stats",
@@ -441,6 +741,44 @@
     "id_params": []
   },
   {
+    "function_id": "get_designer_timesheet_report",
+    "label": "View designer timesheet report",
+    "module": "timesheets",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "from",
+      "to"
+    ],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_manpower_cost_report",
+    "label": "View manpower cost",
+    "module": "manpower",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "date",
+      "dateFrom",
+      "dateTo",
+      "trade"
+    ],
+    "required_params": [],
+    "id_params": []
+  },
+  {
     "function_id": "get_overdue_items",
     "label": "View overdue items",
     "module": "compliance",
@@ -456,6 +794,42 @@
     "id_params": []
   },
   {
+    "function_id": "get_project_analysis",
+    "label": "View project analysis",
+    "module": "reports",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "get_project_schedule",
+    "label": "View the schedule",
+    "module": "schedule",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "assigneeId",
+      "statusId"
+    ],
+    "required_params": [],
+    "id_params": [
+      "assigneeId",
+      "statusId"
+    ]
+  },
+  {
     "function_id": "get_sales_pipeline_overview",
     "label": "View the sales pipeline",
     "module": "customers",
@@ -467,6 +841,38 @@
     "excluded_reason": "Organisation-scoped read, not project data (F-3).",
     "text_params": [],
     "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_billing_claims",
+    "label": "View billing claims",
+    "module": "billing",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_change_orders",
+    "label": "View change orders",
+    "module": "change_orders",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "status"
+    ],
     "required_params": [],
     "id_params": []
   },
@@ -576,6 +982,21 @@
     "id_params": []
   },
   {
+    "function_id": "list_milestones",
+    "label": "View milestones",
+    "module": "milestones",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [],
+    "required_params": [],
+    "id_params": []
+  },
+  {
     "function_id": "list_notices",
     "label": "View notices",
     "module": "compliance",
@@ -634,6 +1055,33 @@
     "declared_params": [],
     "required_params": [],
     "id_params": []
+  },
+  {
+    "function_id": "preview_boq_import",
+    "label": "Preview a BOQ import",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "documentId"
+    ],
+    "required_params": [
+      {
+        "name": "documentId",
+        "label": "Document",
+        "any_of": [
+          "documentId"
+        ]
+      }
+    ],
+    "id_params": [
+      "documentId"
+    ]
   },
   {
     "function_id": "record_attendance",
@@ -797,6 +1245,41 @@
     "id_params": []
   },
   {
+    "function_id": "run_named_report",
+    "label": "View a named report",
+    "module": "reports",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "boqId",
+      "category",
+      "date",
+      "groupBy",
+      "reportSlug",
+      "trade",
+      "vendorId",
+      "weekStart"
+    ],
+    "required_params": [
+      {
+        "name": "reportSlug",
+        "label": "Report",
+        "any_of": [
+          "reportSlug"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqId",
+      "vendorId"
+    ]
+  },
+  {
     "function_id": "seal_boq",
     "label": "Seal the BOQ",
     "module": "scope",
@@ -846,6 +1329,92 @@
     ],
     "id_params": [
       "boqId"
+    ]
+  },
+  {
+    "function_id": "update_line_item_budget",
+    "label": "Set a line budget",
+    "module": "budget",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "category"
+    ],
+    "declared_params": [
+      "boqLineItemId",
+      "budgetPercentage",
+      "category",
+      "manpowerAmount",
+      "materialAmount",
+      "projectId",
+      "vendorAmount",
+      "vendorId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "boqLineItemId",
+        "label": "BOQ line",
+        "any_of": [
+          "boqLineItemId"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqLineItemId",
+      "vendorId"
+    ]
+  },
+  {
+    "function_id": "update_milestone",
+    "label": "Update a milestone",
+    "module": "milestones",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "description"
+    ],
+    "declared_params": [
+      "description",
+      "milestoneId",
+      "projectId",
+      "status",
+      "targetDate",
+      "title"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "milestoneId",
+        "label": "Milestone",
+        "any_of": [
+          "milestoneId"
+        ]
+      }
+    ],
+    "id_params": [
+      "milestoneId"
     ]
   },
   {

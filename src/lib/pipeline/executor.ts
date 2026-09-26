@@ -9,7 +9,7 @@
 import { and, eq, desc } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { constructionBoqLineItems, constructionBoqs, constructionActivities, constructionChangeOrders, constructionLabourRoster, constructionMaterials, documents, erpSuppliers, pmsIssues, projects, users } from "@/lib/db/schema";
+import { constructionBoqLineItems, constructionBoqs, constructionActivities, constructionChangeOrders, constructionLabourRoster, constructionMaterials, documents, erpSuppliers, pmsIssues, pmsIssueTypes, projects, projectTeamMembers, users } from "@/lib/db/schema";
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
 import { approveTimeEntry, getTimeEntry, logTime, rejectTimeEntry, REJECTION_REASON_MIN_LENGTH } from "@/lib/services/pms-time-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
@@ -1071,6 +1071,10 @@ const MONEY_FIELDS: Readonly<Record<string, ReadonlySet<string>>> = {
   get_manpower_cost_report: new Set(["totalCost"]),
   get_designer_timesheet_report: new Set(["actual", "budget", "variance", "overallBudget", "overallActual", "overallVariance"]),
   record_material_receipt: new Set(["unitCost"]),
+  // BUILD-002 WP-05a: a progress claim's retention share and the ids that lead to its interim bill and its customer are commercial
+  // terms; the record kind that will list claims (WP-06) hides the same three below manager (GAP_A section 6).
+  list_billing_claims: new Set(["retentionPercent", "customerId", "interimBillId"]),
+  get_billing_due_queue: new Set(["retentionPercent", "customerId", "interimBillId"]),
 };
 
 function nullFields(value: unknown, fields: ReadonlySet<string>): unknown {
@@ -1097,6 +1101,9 @@ function withholdCurrencyColumns(table: ReportTable): object {
     ...table,
     rows: table.rows.map((row) => Object.fromEntries(Object.entries(row).map(([key, cell]) => [key, money.has(key) ? null : cell]))),
     totals: table.totals ? Object.fromEntries(Object.entries(table.totals).filter(([key]) => !money.has(key))) : undefined,
+    // A report's note is a sentence built from its figures ("The total includes 45000 of BOQ value on lines with no category"), so a
+    // reader below manager does not get it (BUILD-002 WP-05a, found on category-boq-amounts).
+    note: undefined,
     financialsRedacted: true,
   };
 }
@@ -1231,8 +1238,10 @@ async function executeCreateSiteInstruction(task: ExecutableTask): Promise<Execu
 // (see designerTimesheetReport), so it has its own entry below that returns the
 // project's part only, and is left out of the named-report entry.
 const NAMED_REPORT_SLUGS: ReadonlySet<string> = new Set(Object.keys(REPORT_REGISTRY).filter((slug) => slug !== "designer-timesheet"));
-// The [reportName] route refuses this one below manager rank; so does the entry.
-const MANAGER_ONLY_REPORTS: ReadonlySet<string> = new Set(["budget-vs-actual"]);
+// The [reportName] route refuses budget-vs-actual below manager rank; so does the entry. budget-variance is held to manager here as well
+// (BUILD-002 WP-05a): it lists each line's budget share and the vendor it is committed to, and withholdCurrencyColumns() only nulls
+// columns whose unit is currency, so a percent column and a vendor name would reach a member.
+const MANAGER_ONLY_REPORTS: ReadonlySet<string> = new Set(["budget-vs-actual", "budget-variance"]);
 const WEEK_REPORTS: ReadonlySet<string> = new Set(["weekly-project", "certified-payroll"]);
 
 /** The report functions take different optional parameters; this maps the task's params the way the route maps its query string. */
@@ -1332,6 +1341,8 @@ async function executeUpdateLineItemBudget(task: ExecutableTask): Promise<Execut
     if (Object.values(input).every((v) => v === undefined)) return refuse(pipelineFailure("VALUE_REQUIRED", ["value"]));
     // updateLineItemBudget() finds the line by id and org only.
     if (await onAnotherProjectU38(task, "boq_line", lineId, projectId)) return refuse(pipelineFailure("BOQ_LINE_NOT_FOUND", ["boqLineItemId"]));
+    // vendor_id has no foreign key (as on a material receipt): a supplier of another org, or none, is refused before the write.
+    if (input.vendorId && !(await supplierInOrg(task, input.vendorId))) return refuse(pipelineFailure("RECORD_NOT_FOUND", ["vendor"]));
     const row = await updateLineItemBudget({ orgId: task.orgId }, lineId, input);
     return created(row.id, "/scope", redactProjectSideFields(withholdMoney(task, row)));
   });
@@ -1349,10 +1360,56 @@ async function executeGetProjectSchedule(task: ExecutableTask): Promise<Executio
   });
 }
 
+/**
+ * BUILD-002 WP-05a, spec 9.10: the ids of a schedule task that name something other than the BOQ line, held to what this project may use. An
+ * issue type belongs to the org, so one of another org reads as absent. An assignee must be on THIS project's team: createScheduleActivity()
+ * -> createIssue() stores any id it is given, so without this an AI could assign a task to a person of another organisation or of no part of
+ * the project. A predecessor must be an activity of this project (the service refuses another project's with a 400; this reads it as absent,
+ * like every other id). True when every named id passes.
+ */
+async function scheduleIdsOnProject(
+  task: ExecutableTask,
+  projectId: string,
+  ids: { typeId?: string; predecessorId?: string; assigneeIds: string[] }
+): Promise<boolean> {
+  const { typeId, predecessorId, assigneeIds } = ids;
+  if (typeId === undefined && predecessorId === undefined && assigneeIds.length === 0) return true;
+  return withTenantContext({ orgId: task.orgId, userId: task.userId }, async (db) => {
+    if (predecessorId !== undefined) {
+      const predecessor = await db.query.pmsIssues.findFirst({
+        where: and(eq(pmsIssues.id, predecessorId), eq(pmsIssues.orgId, task.orgId)),
+        columns: { id: true, projectId: true },
+      });
+      if (!predecessor || predecessor.projectId !== projectId) return false;
+    }
+    if (typeId !== undefined) {
+      const type = await db.query.pmsIssueTypes.findFirst({
+        where: and(eq(pmsIssueTypes.id, typeId), eq(pmsIssueTypes.orgId, task.orgId)),
+        columns: { id: true },
+      });
+      if (!type) return false;
+    }
+    if (assigneeIds.length > 0) {
+      const team = await db.query.projectTeamMembers.findMany({
+        where: and(eq(projectTeamMembers.orgId, task.orgId), eq(projectTeamMembers.projectId, projectId)),
+        columns: { userId: true },
+      });
+      const onTeam = new Set(team.map((m) => m.userId));
+      if (!assigneeIds.every((id) => onTeam.has(id))) return false;
+    }
+    return true;
+  });
+}
+
 async function executeCreateScheduleTask(task: ExecutableTask): Promise<ExecutionOutcome> {
   return projectWrite(task, async ({ projectId, actorId }) => {
+    const namedType = str(task.params.typeId);
+    const assigneeIds = Array.isArray(task.params.assigneeIds) ? textList(task.params.assigneeIds) : [];
+    // The ids are checked before anything is read or written on their account.
+    const predecessorId = str(task.params.predecessorId);
+    if (!(await scheduleIdsOnProject(task, projectId, { typeId: namedType, predecessorId, assigneeIds }))) return notFound(task);
     // The route gives a task the org's default issue type when none is named.
-    const typeId = str(task.params.typeId) ?? (await resolveDefaultIssueTypeId({ orgId: task.orgId }));
+    const typeId = namedType ?? (await resolveDefaultIssueTypeId({ orgId: task.orgId }));
     if (!typeId) return badRequest(task);
     const boqLineItemId = str(task.params.boqLineItemId);
     if (boqLineItemId && (await onAnotherProjectU38(task, "boq_line", boqLineItemId, projectId))) {
@@ -1369,7 +1426,7 @@ async function executeCreateScheduleTask(task: ExecutableTask): Promise<Executio
       durationDays: num(task.params.durationDays),
       predecessorId: str(task.params.predecessorId),
       boqLineItemId,
-      assigneeIds: Array.isArray(task.params.assigneeIds) ? textList(task.params.assigneeIds) : undefined,
+      assigneeIds: Array.isArray(task.params.assigneeIds) ? assigneeIds : undefined,
     };
     // createScheduleActivity() checks the project itself (through createIssue)
     // and holds a predecessor to the same project.
@@ -1418,13 +1475,13 @@ async function executeUpdateMilestone(task: ExecutableTask): Promise<ExecutionOu
 // -- billing claims (R-95): the two reads, and no write --
 
 async function executeListBillingClaims(task: ExecutableTask): Promise<ExecutionOutcome> {
-  return projectRead(task, async (projectId) => ok({ claims: await listClaims({ orgId: task.orgId }, projectId) }));
+  return projectRead(task, async (projectId) => ok(withholdMoney(task, { claims: await listClaims({ orgId: task.orgId }, projectId) })));
 }
 
 async function executeGetBillingDueQueue(task: ExecutableTask): Promise<ExecutionOutcome> {
   const pick = pickProject(task);
   if ("failure" in pick) return refuse(pick.failure);
-  return ok({ claims: await listBillingDueQueue({ orgId: task.orgId }, pick.projectId ?? undefined) });
+  return ok(withholdMoney(task, { claims: await listBillingDueQueue({ orgId: task.orgId }, pick.projectId ?? undefined) }));
 }
 
 // -- drawings and minutes (R-C02, R-C04): the two traps --
@@ -1771,7 +1828,11 @@ async function executeApplyBoqImport(task: ExecutableTask): Promise<ExecutionOut
     // Root lines only, as the route sums it: a sub-task's amount is a share of its parent's.
     const totalValue =
       Math.round(lineItems.filter((l) => !l.parentItemCode).reduce((sum, l) => sum + l.quantity * l.rate, 0) * 100) / 100;
-    return created(boq.id, `/scope/${boq.id}`, redactProjectSideFields({ boq, importSummary: { totalRows, importedLineItems: lineItems.length, totalValue, warnings } }));
+    // Below the manager rank the answer carries no money, as create_boq's does (withholdBoqMoney), and the sheet's total is a money value too.
+    const answer = redactProjectSideFields({ boq, importSummary: { totalRows, importedLineItems: lineItems.length, totalValue, warnings } });
+    const seen = withholdBoqMoney(task.role, answer);
+    const shown = seen === answer ? answer : { ...seen, importSummary: { ...seen.importSummary, totalValue: null } };
+    return created(boq.id, `/scope/${boq.id}`, shown);
   });
 }
 

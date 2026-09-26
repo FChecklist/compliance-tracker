@@ -87,6 +87,9 @@ function fixtures(): BoqStore {
     { id: "line_a", orgId: ORG, boqId: "boq_a", itemCode: "EX-01", quantity: "10" },
     { id: "line_b", orgId: ORG, boqId: "boq_b", itemCode: "EX-01", quantity: "10" },
   ]);
+  // BUILD-002 WP-05a: create_schedule_task holds a named issue type to the org (an issue type has no project) and a predecessor to the project
+  seedRows(s, "pms_issue_types", [{ id: "type_named", orgId: ORG, name: "Activity" }]);
+  seedRows(s, "pms_issues", [{ id: "issue_1", orgId: ORG, projectId: PROJECT_A, title: "Joinery shop drawings" }]);
   seedRows(s, "construction_materials", [
     { id: "mat_a", orgId: ORG, projectId: PROJECT_A, name: "Cement OPC 53", unit: "bag" },
     { id: "mat_b", orgId: ORG, projectId: PROJECT_B, name: "Steel TMT", unit: "kg" },

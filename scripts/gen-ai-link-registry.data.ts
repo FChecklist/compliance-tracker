@@ -55,6 +55,38 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   seal_boq: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [], bodyMaxBytes: 65536 },
   update_project: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "description"] },
   create_activity: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "unit"] },
+  // BUILD-002 WP-05a wave 1 (AW-301): schedule, milestones and reports. These 10 functions already had an executor (U-38) and were on no link.
+  // Each minimum rank is the rank of the route the same action has in the app (PROJEXA schedule and milestones: member to write, no read
+  // gate; reports/[reportName]: no read gate except budget-vs-actual; reports/boq-analysis: manager), so an AI never has more authority than
+  // its person has in the screens. The reads that show money are withheld or nulled below manager by the executor (executor.ts withholdMoney,
+  // withholdCurrencyColumns); get_boq_line_items and get_project_analysis are rank 3 because the executor shows a BOQ line's contract rate
+  // and amount to every reader (cost-visibility rules) while the link's boq_lines record kind hides them below rank 3, so a member link reads
+  // lines through that kind, with the money hidden.
+  get_boq_line_items: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  run_named_report: { linkLevel: 0, moneySensitive: true, minRank: 2, textParams: [] },
+  get_project_schedule: { linkLevel: 0, moneySensitive: false, minRank: 2, textParams: [] },
+  list_milestones: { linkLevel: 0, moneySensitive: false, minRank: 2, textParams: [] },
+  create_milestone: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "description"] },
+  update_milestone: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "description"] },
+  create_schedule_task: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "description"] },
+  get_manpower_cost_report: { linkLevel: 0, moneySensitive: true, minRank: 2, textParams: [] },
+  get_designer_timesheet_report: { linkLevel: 0, moneySensitive: true, minRank: 2, textParams: [] },
+  get_project_analysis: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  // BUILD-002 WP-05a wave 2 (AW-302): BOQ import, change orders, site instructions, line budgets and billing reads. create_boq, the eleventh
+  // function of this wave, is on links since WP-04 (above). Every write here carries money or a commercial instruction, so all are drafts the
+  // person confirms (level 2). A change order and a BOQ import are rank 2 like their app routes (POST change-orders and scope/import: member);
+  // update_line_item_budget is rank 3 although its route allows a member, because the budget of a line is internal cost. The two billing
+  // reads are rank 3: their route has no read gate, but a claim's retention and customer are commercial terms and the executor nulls them
+  // below manager. preview_boq_import is rank 3 for the same reason as get_boq_line_items (its rows carry the sheet's rates).
+  apply_boq_import: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["title"] },
+  preview_boq_import: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  create_change_order: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["title", "description", "reason", "trade"] },
+  list_change_orders: { linkLevel: 0, moneySensitive: true, minRank: 2, textParams: [] },
+  get_change_order: { linkLevel: 0, moneySensitive: true, minRank: 2, textParams: [] },
+  create_site_instruction: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: ["toContractor", "description", "drawingRef"] },
+  update_line_item_budget: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: ["category"] },
+  list_billing_claims: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
+  get_billing_due_queue: { linkLevel: 0, moneySensitive: true, minRank: 3, textParams: [] },
 }
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */
