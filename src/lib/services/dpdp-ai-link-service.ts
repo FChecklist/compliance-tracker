@@ -18,7 +18,16 @@
 // function: flagged here, not silently presented as done. Converting this
 // to plpgsql is real, separate work (a DDL migration, its own review) that
 // this pass did not have room for.
-import { randomBytes } from "node:crypto"
+//
+// TOKEN AT REST (PROJEXA-BUILD-001 U-44, register row BR-587, spec AWL-S09):
+// this Next.js path stores only sha256(token) in dpdp.ai_link.token_hash, the
+// same digest the Supabase path (drizzle/0607, 0610) stores, and the public
+// snapshot lookup goes by that hash only. The plaintext `token` column is
+// never written or read here any more. The lookup also requires
+// membership_id IS NULL: the Supabase path always sets membership_id, so its
+// links keep resolving only through the dpdp-ai-link Edge Function and its
+// membership checks, never through /api/dpdp/ai/[token].
+import { createHash, randomBytes } from "node:crypto"
 import { eq, and, count, isNull, gt, sql } from "drizzle-orm"
 import {
   db, dpdpAiLink, dpdpAiLinkRead, dpdpAiProposal, dpdpAiProposalLine, dpdpObligation, dpdpNoticeVersion,
@@ -32,6 +41,16 @@ const AI_LINK_TTL_DAYS = 90
 
 function newOpaqueToken(): string {
   return randomBytes(18).toString("base64url")
+}
+
+/**
+ * sha256 hex of the token's first 256 characters, exactly what
+ * dpdp.ai_link.token_hash holds: encode(sha256(convert_to(left(token, 256),
+ * 'UTF8')), 'hex') in drizzle/0607 and 0610. Array.from counts code points,
+ * as Postgres left() does.
+ */
+export function aiLinkTokenHash(rawToken: string): string {
+  return createHash("sha256").update(Array.from(rawToken).slice(0, 256).join(""), "utf8").digest("hex")
 }
 
 /** Reduces a full User-Agent string to a coarse family name only -- never the raw string (WO 5.10: "user-agent family... only"). */
@@ -66,7 +85,8 @@ export async function getOrCreateAiLink(orgId: string, identityId: string) {
 async function issueAiLink(orgId: string, identityId: string, tx: TenantDb) {
   const token = newOpaqueToken()
   const expiresAt = new Date(Date.now() + AI_LINK_TTL_DAYS * 86400_000)
-  await tx.insert(dpdpAiLink).values({ orgId, identityId, token, expiresAt })
+  // Only the hash is stored; the plaintext is returned once to the caller.
+  await tx.insert(dpdpAiLink).values({ orgId, identityId, tokenHash: aiLinkTokenHash(token), expiresAt })
   return { token, expiresAt, isNew: true }
 }
 
@@ -86,9 +106,16 @@ export async function listAiLinkReads(orgId: string, identityId: string) {
   })
 }
 
-/** Public lookup -- no session, no org context (mirrors resolveConsentToken). Every real fetch is logged. */
+/**
+ * Public lookup -- no session, no org context (mirrors resolveConsentToken).
+ * By token hash only (see the header), and only among this path's own links
+ * (membership_id IS NULL). Every real fetch is logged.
+ */
 export async function resolveAiLinkSnapshot(rawToken: string, userAgent?: string | null, requestIp?: string | null): Promise<string | null> {
-  const link = await db.query.dpdpAiLink.findFirst({ where: and(eq(dpdpAiLink.token, rawToken), isNull(dpdpAiLink.revokedAt), gt(dpdpAiLink.expiresAt, new Date())) })
+  const { tokenHash, membershipId, revokedAt, expiresAt } = dpdpAiLink
+  const link = await db.query.dpdpAiLink.findFirst({
+    where: and(eq(tokenHash, aiLinkTokenHash(rawToken)), isNull(membershipId), isNull(revokedAt), gt(expiresAt, new Date())),
+  })
   if (!link) return null
   await db.insert(dpdpAiLinkRead).values({ linkId: link.id, userAgentFamily: classifyUserAgent(userAgent ?? null), ipPrefix: ipPrefix(requestIp ?? null) })
   return buildAiSnapshot(link.orgId)
