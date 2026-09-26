@@ -10,6 +10,7 @@ import { db, tokenUsageLedger, organisations } from "@/lib/db"
 import { sql, gte, and, isNotNull, eq } from "drizzle-orm"
 import { estimateCostUsd, estimateCostBreakdownUsd, estimateCacheSavingsUsd, type LLMUsage } from "@/lib/llm-client"
 import { buildSpendForecast, startOfMonthUtc, type SpendForecast } from "@/lib/spend-forecast"
+import { ServiceError } from "@/lib/services/service-error"
 
 // R65 Part D -- AI Usage Ledger (drizzle/0524, 2026-09-02): every new field
 // below is OPTIONAL and additive -- every pre-existing call site
@@ -55,36 +56,41 @@ export async function recordTokenUsage(input: LogTokenUsageInput): Promise<void>
   const estimatedCostUsd = estimateCostUsd(input.model, input.usage)
   const cacheSavingsUsd = estimateCacheSavingsUsd(input.model, input.usage)
   const costBreakdown = estimateCostBreakdownUsd(input.model, input.usage)
-  await db.insert(tokenUsageLedger).values({
-    scope: input.scope,
-    orgId: input.orgId ?? null,
-    userId: input.userId ?? null,
-    roleKey: input.roleKey ?? null,
-    layerKey: input.layerKey ?? null,
-    taskSummary: input.taskSummary?.slice(0, 300) ?? null,
-    provider: input.provider,
-    model: input.model,
-    promptTokens: input.usage.promptTokens,
-    completionTokens: input.usage.completionTokens,
-    estimatedCostUsd: estimatedCostUsd !== null ? String(estimatedCostUsd) : null,
-    cacheSavingsUsd: cacheSavingsUsd !== null ? String(cacheSavingsUsd) : null,
-    veridianId: input.veridianId ?? null,
-    veridianProductId: input.veridianProductId ?? null,
-    chatId: input.chatId ?? null,
-    taskId: input.taskId ?? null,
-    routeId: input.routeId ?? null,
-    sessionId: input.sessionId ?? null,
-    level: input.level ?? null,
-    aiRole: input.aiRole ?? null,
-    cacheReadTokens: input.usage.cacheReadTokens ?? null,
-    cacheCreationTokens: input.usage.cacheCreationTokens ?? null,
-    inputCost: costBreakdown !== null ? String(costBreakdown.inputCost) : null,
-    outputCost: costBreakdown !== null ? String(costBreakdown.outputCost) : null,
-    providerCostType: input.providerCostType ?? "METERED_API",
-    durationMs: input.durationMs ?? null,
-    success: input.success ?? true,
-    failureReason: input.failureReason ?? null,
-  })
+  try {
+    await db.insert(tokenUsageLedger).values({
+      scope: input.scope,
+      orgId: input.orgId ?? null,
+      userId: input.userId ?? null,
+      roleKey: input.roleKey ?? null,
+      layerKey: input.layerKey ?? null,
+      taskSummary: input.taskSummary?.slice(0, 300) ?? null,
+      provider: input.provider,
+      model: input.model,
+      promptTokens: input.usage.promptTokens,
+      completionTokens: input.usage.completionTokens,
+      estimatedCostUsd: estimatedCostUsd !== null ? String(estimatedCostUsd) : null,
+      cacheSavingsUsd: cacheSavingsUsd !== null ? String(cacheSavingsUsd) : null,
+      veridianId: input.veridianId ?? null,
+      veridianProductId: input.veridianProductId ?? null,
+      chatId: input.chatId ?? null,
+      taskId: input.taskId ?? null,
+      routeId: input.routeId ?? null,
+      sessionId: input.sessionId ?? null,
+      level: input.level ?? null,
+      aiRole: input.aiRole ?? null,
+      cacheReadTokens: input.usage.cacheReadTokens ?? null,
+      cacheCreationTokens: input.usage.cacheCreationTokens ?? null,
+      inputCost: costBreakdown !== null ? String(costBreakdown.inputCost) : null,
+      outputCost: costBreakdown !== null ? String(costBreakdown.outputCost) : null,
+      providerCostType: input.providerCostType ?? "METERED_API",
+      durationMs: input.durationMs ?? null,
+      success: input.success ?? true,
+      failureReason: input.failureReason ?? null,
+    })
+  } catch (err) {
+    // A typed error, so a caller that bills what it spends can tell "the ledger could not be written" from any other fault.
+    throw new ServiceError(`The usage ledger could not be written: ${err instanceof Error ? err.message : "unknown error"}`, 503)
+  }
 }
 
 /** Fire-and-forget-safe: caller decides whether to await or not. Never throws past a caught/logged failure. */

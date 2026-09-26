@@ -242,6 +242,24 @@ describe("the real ledger write", () => {
   })
 })
 
+describe("recordTokenUsage", () => {
+  test("throws a typed 503 ServiceError when the insert fails, where logTokenUsage swallows it", async () => {
+    mock.module("@/lib/db", () => ({
+      ...realSchema,
+      db: { insert: mock(() => ({ values: async () => { throw new Error("connection closed") } })) },
+      organisations: realSchema.organisations,
+    }))
+    const { recordTokenUsage, logTokenUsage } = await import("@/lib/services/token-usage-service")
+    const { ServiceError } = await import("@/lib/services/service-error")
+    const entry = { scope: "product_orchestra" as const, provider: "openrouter", model: "m", usage: { promptTokens: 1, completionTokens: 1 } }
+    const err = await recordTokenUsage(entry).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ServiceError)
+    expect((err as InstanceType<typeof ServiceError>).status).toBe(503)
+    expect((err as Error).message).toContain("connection closed")
+    await expect(logTokenUsage(entry)).resolves.toBeUndefined()
+  })
+})
+
 describe("transactions", () => {
   test("the caller opens no tenant transaction, so it is safe inside one", async () => {
     let opened = 0
