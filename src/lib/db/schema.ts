@@ -13929,10 +13929,17 @@ export const submissions = complianceSchemaDB.table('submissions', {
   // ruling. A code cannot leak a credential; a message can, and the leak would
   // only be found by grepping the column later. Detail belongs in logs.
   level1RefusalCode: text('level1_refusal_code'),
+  // BUILD-002 WP-09a (drizzle/0630, spec 9.7 C-1) -- provenance of a submission
+  // that came through an AI work link. `via` is NULL for every session/app
+  // submission and 'ai_link' for a link's (CHECK in 0630 admits nothing else);
+  // `ai_link_id` names the link (platform.user_ai_links.id, a text id in another
+  // schema, so no foreign key). Both nullable, never backfilled.
+  via: text('via'),
+  aiLinkId: text('ai_link_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const pipelineTasks = complianceSchemaDB.table('pipeline_tasks', {
+export const pipelineTasks =complianceSchemaDB.table('pipeline_tasks', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
   sequence: integer('sequence').notNull(), // 0-based position within the submission, execution order for depends_on chaining

@@ -9,7 +9,8 @@
 //   2. the extension the functions use: pgcrypto in schema extensions (gen_random_bytes).
 //   3. scripts/verify/fixtures/0625_build001_awl_read_functions.base.sql, a schema-only snapshot of the live tables the link
 //      functions read (compliance.users, projects, the BOQ tables and the rest), written by scripts/verify/gen-base-snapshot.mjs.
-//   4. the migration files 0621 to 0628, in number order, as far as the caller asks (`upTo`).
+//   4. the migration files 0621 to 0630, in number order, as far as the caller asks (`upTo`). A test written before 0629 asks for "0628"
+//      and keeps the database it was written against; a test of the write path takes the default.
 // PGlite's own superuser runs the statements, as postgres does live (it bypasses row-level security, like the live owner).
 import { createHash } from "node:crypto"
 import { readFileSync } from "node:fs"
@@ -28,6 +29,9 @@ export const AWL_MIGRATIONS = [
   "0626_build001_awl_intent_functions",
   "0627_build001_awl_retention",
   "0628_build001_awl_seed",
+  // BUILD-002 WP-09a: the write path's SQL (claim, finish, draft state, live re-resolve) and the two provenance columns of submissions
+  "0629_build001_awl_execution_sql",
+  "0630_build001_awl_submissions_via",
 ] as const
 
 export const forwardSql = (name: string) => read(`drizzle/${name}.sql`)
@@ -55,8 +59,8 @@ export async function openAwlPglite(): Promise<PGlite> {
   return pg
 }
 
-/** A database with migrations 0621 .. `upTo` (inclusive; a 4-digit prefix such as "0624") applied. */
-export async function createAwlDb(upTo: string = "0628"): Promise<PGlite> {
+/** A database with migrations 0621 .. `upTo` (inclusive; a 4-digit prefix such as "0624") applied. The default is the newest, 0630. */
+export async function createAwlDb(upTo: string = "0630"): Promise<PGlite> {
   const pg = await openAwlPglite()
   for (const name of AWL_MIGRATIONS) {
     if (name.slice(0, 4) > upTo) break

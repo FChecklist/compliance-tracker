@@ -3,6 +3,17 @@
 // POST F/drafts/{id}/confirm of the Edge Function ai-work-link, run as the REAL handler (handleAwl, confirm.ts, session.ts) over the REAL SQL
 // (drizzle/0618 and 0621 to 0628 on PGlite, real Postgres as WASM): no Deno, no network, no live database.
 //
+// BUILD-002 WP-09a (AW-508, AW-509's server half): the database is now drizzle/0621 to 0630. Only the link's own signed-in person confirms a draft:
+// another person is 403 NOT_YOUR_DRAFT and a wrong code 409, WHETHER OR NOT writes are on (drizzle/0629 checks owner, code and state BEFORE the switch;
+// the "KNOWN GAP in drizzle/0626" test of U-47b is replaced by the proof); the code is single use; and the preview route
+// GET|POST /drafts/{id}/preview shows the owner the change (function, every parameter, a BOQ total) before confirming, behind the same session, brake and
+// identity gates, and works while writes are off.
+//
+// Falsifiability of the new tests (each break was made, the named test failed, the file was restored byte for byte):
+//   1. drizzle/0629 draft_confirm reads the switch first again (the 0626 order)   -> "while writes are OFF another person is 403" fails
+//   2. drafts.ts draftPreview skips personGate (no identity check)                 -> the preview 403 and 401 tests fail
+//   3. drizzle/0629 draft_state skips the confirm-code check                       -> "another person is 403 ... a wrong code ... 409" fails
+//
 // WHAT IS REAL: the handler, the token verifier with the real jose package and real ES256 key pairs (one per Auth project, served through
 // jose's local key set in place of the published key sets), and the database functions ai_work_link_record_intent, ai_work_link_draft_confirm
 // and projexa_read_resolve_user. WHAT IS FAKED: only the failure cases, by wrapping the same rpc so one function errors, throws or answers a
@@ -34,6 +45,7 @@ import {
 import type { Rpc, RpcResult } from "../../../supabase/functions/ai-work-link/reads"
 import { createSessionVerifier, type JoseLike, type KeyResolver } from "../../../supabase/functions/ai-work-link/session"
 import * as projexaRead from "../../../supabase/functions/projexa-read/jwt"
+import { boqTotalOf } from "../../../supabase/functions/ai-work-link/drafts"
 import { createAwlDb, forwardSql, one, sha256Hex } from "./__test-helpers__/awl-pglite"
 
 // PGlite tests run real Postgres as WASM: a loaded laptop or CI runner can pass bun's 5 s default for one test
@@ -171,7 +183,7 @@ async function draftFor(userId = "u-mgr", projectId = "proj-a", params: unknown 
 const rowOf = (id: string) => one<J>(db, "select status, confirmed_at, confirmed_by, confirm_token_hash, expires_at from platform.ai_work_link_intent where id = $1", [id])
 
 beforeAll(async () => {
-  db = await createAwlDb("0628")
+  db = await createAwlDb() // 0621 to 0630
   await db.exec(forwardSql("0618_build001_projexa_gateway"))
   await db.exec(FIXTURE_SQL)
   projexaKeys = await newPair()
@@ -415,16 +427,180 @@ describe("the confirm token: hashed at rest, single use, tied to the draft, expi
   })
 })
 
-describe("KNOWN GAP in drizzle/0626 (found by U-47b, reported to the PM)", () => {
-  test("while writes are off, ai_work_link_draft_confirm answers not_enabled BEFORE it checks the person, so another person's session reads 503, not 403", async () => {
-    // Spec 9.5 says the endpoint runs every check and THEN answers 503. The SQL function reads the switch first, so the route cannot tell
-    // the owner from a stranger until writes are on, and BR-497's 403 half cannot pass on a live deployment before then. When the SQL is
-    // reordered this test will fail: change it to expect 403 NOT_YOUR_DRAFT and delete this notice.
+describe("writes OFF: owner, code and state are checked before the switch (BR-497's 403 half, drizzle/0629)", () => {
+  test("while writes are OFF another person is 403 NOT_YOUR_DRAFT, a wrong code is 409, and only the owner's valid confirm reaches 503 WRITES_NOT_ENABLED and waits", async () => {
     const d = await draftFor("u-mgr")
     await setWrites(false)
-    const stranger = await confirm(d.id, { token: await sign({ sub: AUTH.mem }), body: { confirmToken: d.token } })
-    expect([stranger.res.status, stranger.json.code]).toEqual([503, "WRITES_NOT_ENABLED"])
+    for (const sub of [AUTH.mem, AUTH.adm, AUTH.b]) {
+      const stranger = await confirm(d.id, { token: await sign({ sub }), body: { confirmToken: d.token } })
+      expect(`${sub}: ${stranger.res.status} ${stranger.json.code}`).toBe(`${sub}: 403 NOT_YOUR_DRAFT`)
+    }
+    const wrong = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: "0".repeat(64) } })
+    expect([wrong.res.status, wrong.json.code]).toEqual([409, "CONFIRM_TOKEN_INVALID"])
     expect((await rowOf(d.id)).status).toBe("awaiting_confirmation")
+    // the owner with the right code: the switch is the only thing left, the draft waits and nothing is consumed
+    const owner = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token } })
+    expect([owner.res.status, owner.json.code]).toEqual([503, "WRITES_NOT_ENABLED"])
+    expect(await rowOf(d.id)).toMatchObject({ status: "awaiting_confirmation", confirmed_at: null, confirmed_by: null })
+    // once they are on, the same code confirms exactly once
+    await setWrites(true)
+    expect((await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token } })).res.status).toBe(200)
+    expect((await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token } })).json.code).toBe("CONFIRM_ALREADY_USED")
+  })
+
+  test("an expired draft is 410 CONFIRM_EXPIRED even while writes are off", async () => {
+    const d = await draftFor("u-mgr")
+    await setWrites(false)
+    await db.query("update platform.ai_work_link_intent set expires_at = now() - interval '1 minute' where id = $1", [d.id])
+    const r = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token } })
+    expect([r.res.status, r.json.code]).toEqual([410, "CONFIRM_EXPIRED"])
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------------------------- preview
+async function preview(draftId: string, opts: { token?: string | null; body?: unknown; method?: string; headers?: Record<string, string>; over?: Over } = {}): Promise<{ res: Response; json: J; text: string }> {
+  const headers: Record<string, string> = { "content-type": "application/json", ...(opts.headers ?? {}) }
+  if (opts.token) headers.authorization = `Bearer ${opts.token}`
+  const method = opts.method ?? "POST"
+  const res = await handleAwl(new Request(`${F}/drafts/${draftId}/preview`, { method, headers, body: method === "POST" ? JSON.stringify(opts.body ?? {}) : undefined }), {
+    config, rpc: makeRpc(opts.over ?? {}), session: createSessionVerifier({ jose: JOSE, keys: keysByIssuer }), log: (line) => logs.push(line), now: () => clock,
+  })
+  const text = await res.text()
+  let json: J = {}
+  try {
+    json = JSON.parse(text)
+  } catch {
+    // not JSON
+  }
+  return { res, json, text }
+}
+
+describe("the preview route: the owner sees the change before confirming", () => {
+  test("the draft's own person with the code sees the function, every parameter and what they can do, with writes ON; nothing is changed", async () => {
+    const d = await draftFor("u-mgr", "proj-a", { name: "Ravi", dailyRate: 48123 })
+    const r = await preview(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token } })
+    expect(r.res.status).toBe(200)
+    expect(r.json).toMatchObject({
+      draft_id: d.id, function_id: "add_roster_entry", label: "Add a worker", params: { name: "Ravi", dailyRate: 48123 }, state: "awaiting_confirmation",
+      can_confirm: true, writes_enabled: true,
+    })
+    expect(r.json.message).toContain("type the code and confirm")
+    expect(sqlCalls).toEqual(["projexa_read_resolve_user", "ai_work_link_draft_state"])
+    expect(await rowOf(d.id)).toMatchObject({ status: "awaiting_confirmation", confirmed_at: null })
+    // never the code, the session, an organisation, link or person id
+    for (const leak of [d.token, d.linkToken, "org-a", "u-mgr", "proj-a", "confirm_token_hash"]) expect(r.text).not.toContain(leak)
+  })
+
+  test("with writes OFF it still shows the change, and says confirming is not switched on yet", async () => {
+    const d = await draftFor("u-mgr")
+    await setWrites(false)
+    const r = await preview(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token } })
+    expect(r.res.status).toBe(200)
+    expect(r.json).toMatchObject({ function_id: "add_roster_entry", can_confirm: true, writes_enabled: false })
+    expect(r.json.message).toContain("not switched on yet")
+  })
+
+  test("another person is 403 NOT_YOUR_DRAFT and sees no parameter; a wrong code, another draft's code and an unknown draft are 409 CONFIRM_TOKEN_INVALID with one body", async () => {
+    const d = await draftFor("u-mgr", "proj-a", { name: "Secret", dailyRate: 999111 })
+    const other = await draftFor("u-mgr")
+    for (const sub of [AUTH.mem, AUTH.adm, AUTH.b]) {
+      const r = await preview(d.id, { token: await sign({ sub }), body: { confirmToken: d.token } })
+      expect(`${sub}: ${r.res.status} ${r.json.code}`).toBe(`${sub}: 403 NOT_YOUR_DRAFT`)
+      expect(r.text).not.toContain("999111")
+      expect(r.text).not.toContain("Secret")
+    }
+    const session = await sign({ sub: AUTH.mgr })
+    const wrong = await preview(d.id, { token: session, body: { confirmToken: "0".repeat(64) } })
+    const crossed = await preview(d.id, { token: session, body: { confirmToken: other.token } })
+    const unknown = await preview("no-such-draft-0000", { token: session, body: { confirmToken: d.token } })
+    for (const r of [wrong, crossed, unknown]) {
+      expect(r.res.status).toBe(409)
+      expect(r.json.code).toBe("CONFIRM_TOKEN_INVALID")
+      expect(r.text).not.toContain("999111")
+    }
+    expect(wrong.text).toBe(unknown.text)
+  })
+
+  test("no session is 401 with no database call; a link token is not a session; a person who is not one active user is 403 and the draft is not read", async () => {
+    const d = await draftFor("u-mgr")
+    sqlCalls = []
+    const none = await preview(d.id, { body: { confirmToken: d.token } })
+    expect([none.res.status, none.json.code]).toEqual([401, "SESSION_REQUIRED"])
+    const link = await preview(d.id, { token: d.linkToken, body: { confirmToken: d.token } })
+    expect(link.res.status).toBe(401)
+    expect(sqlCalls).toEqual([])
+    const stranger = await preview(d.id, { token: await sign({ sub: AUTH.nobody }), body: { confirmToken: d.token } })
+    expect([stranger.res.status, stranger.json.code]).toEqual([403, "USER_NOT_LINKED"])
+    expect(sqlCalls).toEqual(["projexa_read_resolve_user"])
+  })
+
+  test("a draft that is no longer waiting is shown with its state and cannot be confirmed; a confirmed one keeps showing to its owner", async () => {
+    const d = await draftFor("u-mgr")
+    const session = await sign({ sub: AUTH.mgr })
+    expect((await confirm(d.id, { token: session, body: { confirmToken: d.token } })).res.status).toBe(200)
+    const after = await preview(d.id, { token: session, body: { confirmToken: d.token } })
+    expect(after.res.status).toBe(200)
+    expect(after.json).toMatchObject({ state: "confirmed", can_confirm: false })
+    expect(after.json.message).toContain("not waiting")
+    const late = await draftFor("u-mgr")
+    await db.query("update platform.ai_work_link_intent set expires_at = now() - interval '1 minute' where id = $1", [late.id])
+    expect((await preview(late.id, { token: session, body: { confirmToken: late.token } })).json).toMatchObject({ state: "expired", can_confirm: false })
+  })
+
+  test("GET works for a program: the code in the x-confirm-token header; without it 400; a bad id 404; a wrong method is 405 with Allow GET, POST", async () => {
+    const d = await draftFor("u-mgr")
+    const session = await sign({ sub: AUTH.mgr })
+    const ok = await preview(d.id, { token: session, method: "GET", headers: { "x-confirm-token": d.token } })
+    expect(ok.res.status).toBe(200)
+    expect(ok.json.function_id).toBe("add_roster_entry")
+    expect((await preview(d.id, { token: session, method: "GET" })).json.code).toBe("CONFIRM_TOKEN_REQUIRED")
+    expect((await preview("bad id!", { token: session, method: "GET", headers: { "x-confirm-token": d.token } })).res.status).toBe(404)
+    const put = await handleAwl(new Request(`${F}/drafts/${d.id}/preview`, { method: "PUT", headers: { authorization: `Bearer ${session}` } }), { config, rpc: realRpc, session: createSessionVerifier({ jose: JOSE, keys: keysByIssuer }) })
+    expect(put.status).toBe(405)
+    expect(put.headers.get("allow")).toBe("GET, POST")
+  })
+
+  test("text written by an AI in a parameter is cleaned: control characters and a run of three backticks do not reach the page", async () => {
+    const d = await draftFor("u-mgr", "proj-a", { name: "Ravi\u0007\u001b ```break out```", dailyRate: 1 })
+    const r = await preview(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token } })
+    expect(r.res.status).toBe(200)
+    expect(r.json.params.name).not.toMatch(/[\u0001-\u0008\u001b]/)
+    expect(r.json.params.name).not.toContain("```")
+  })
+
+  test("the preview and the confirm share one per-person brake (the 11th call in a minute is 429 whichever route)", async () => {
+    const d = await draftFor("u-mgr")
+    const session = await sign({ sub: AUTH.mgr })
+    for (let i = 0; i < CONFIRM_LIMIT_PER_MINUTE - 1; i++) expect((await preview(d.id, { token: session, body: { confirmToken: d.token } })).res.status).toBe(200)
+    expect((await confirm(d.id, { token: session, body: { confirmToken: "0".repeat(64) } })).res.status).toBe(409)
+    sqlCalls = []
+    const over = await preview(d.id, { token: session, body: { confirmToken: d.token } })
+    expect([over.res.status, over.json.code]).toEqual([429, "RATE_LIMITED"])
+    expect(sqlCalls).toEqual([])
+  })
+
+  test("a failure of the draft-state function is 503 and shows nothing", async () => {
+    const d = await draftFor("u-mgr")
+    for (const over of [
+      { ai_work_link_draft_state: async () => ({ data: null, error: { message: "boom", code: "XX000" } }) },
+      { ai_work_link_draft_state: async () => { throw new Error("connection reset") } },
+      { ai_work_link_draft_state: async () => ({ data: { status: "maybe" }, error: null }) },
+    ] as Over[]) {
+      const r = await preview(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token }, over })
+      expect([r.res.status, r.json.code]).toEqual([503, "CONFIRM_UNAVAILABLE"])
+      expect(r.text).not.toContain("dailyRate")
+    }
+  })
+})
+
+describe("boqTotalOf: the total a BOQ draft would create", () => {
+  test("quantity times rate of the lines that have no parent, rounded to 2 places; none for a function that is not a BOQ or a draft with no lines", () => {
+    const lines = [{ quantity: 2, rate: 10.005 }, { quantity: 3, rate: 11 }, { quantity: 9, rate: 9, parentItemCode: "1.01" }, { quantity: "x", rate: 1 }, null, "junk"]
+    expect(boqTotalOf("create_boq", { lineItems: lines })).toEqual({ lines: 6, total: 53.01, basis: "quantity times rate of each line without a parent" })
+    expect(boqTotalOf("create_boq_revision", { lineItems: [{ quantity: 1, rate: 100 }] })?.total).toBe(100)
+    expect(boqTotalOf("create_boq_revision", { boqId: "b1", title: "Revision 2" })).toBeNull()
+    expect(boqTotalOf("create_boq", { lineItems: [] })).toBeNull()
+    expect(boqTotalOf("add_roster_entry", { lineItems: lines })).toBeNull()
   })
 })
 

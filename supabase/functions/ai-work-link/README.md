@@ -38,15 +38,18 @@ Relative to the link base `B` (`F/<token>`) or the header-mode base `F/header` (
 | `GET /context`, `/records/{kind}`, `/records/{kind}/{id}`, `/functions`, `/history`, `/intents/{id}` | reads; Markdown with no `Accept` header, JSON on request, CSV for records |
 | `GET /propose`, `POST /check` | dry runs: nothing is recorded |
 | `POST /` or `/mcp` | MCP (`initialize`, `tools/list`, `tools/call`, and `server/discover` for 2026-07-28) |
-| `POST /functions/{fn}`, `POST /actions` | scope is checked (403), then 503 "not switched on yet" (no Edge executor) |
-| `POST /drafts` | scope is checked (403), then 501 "written in a later unit" |
+| `POST /functions/{fn}` | scope is checked (403), then 503 "not switched on yet" (the reads run on the exec host, a later unit) |
+| `POST /actions` | scope (403), then the true reason: 403 `LEVEL_NOT_ALLOWED` (this link's level or a level-2 function), 422, 403 `WRITES_NOT_ENABLED` (the switch is off), 503 `EXECUTOR_NOT_AVAILABLE`; with the switch and the exec function on: record, `ai_work_link_intent_claim`, the exec function, 201 (BUILD-002 WP-09a, `drafts.ts`) |
+| `POST /drafts`, `GET /drafts/{id}` | records a draft LIVE at level 0 (scope 403, body 400/413, parameters 422, `CONFIRM_HOST_NOT_SET` 503, caps 429 `WRITE_CAP_HOUR` / `WRITE_CAP_DAY`) and answers 201 `{draft_id, confirm_url, expires_at}` (the confirm code is in the URL fragment only); a replay is 200 with no code; `GET` is the state of this link's own draft (`drafts.ts`) |
 | `POST /drafts/{id}/confirm` | 401 no or bad session, 403 not the draft's person, 409 wrong or reused code, 410 expired, 429 over 10 a minute per person, 503 writes off or any failure, 200 confirmed (U-47b) |
 | `POST /mint` | signed-in person; fresh session (issued within 15 minutes, else 401 `SESSION_STALE`); 201 with the link and token, shown once; 404 a project the person cannot read; 403 level or function above their rank; 429 caps (10 an hour, 30 a day; 5 a minute brake) (BUILD-002 WP-08) |
 | `GET /links[?project=]`, `POST /links/{id}/revoke` | the person's own links (no token, no hash); revoke by the link's person or an org admin |
 | `GET` or `POST /warning?level=&project=` | the warning sentence, true for the current state: it promises direct entries only when writes are switched on |
 | `POST /new-project` | "New project with my AI": a shell project named "New project (AI setup)" and a level 0 link for the same person in one transaction; rank 2 and above; fresh session; 5 a day |
-| `/drafts/{id}/preview` | 401 with no session, 501 with one (a later unit) |
+| `GET|POST /drafts/{id}/preview` | a signed-in person and the confirm code: the function, every parameter and a BOQ total, before confirming; 401, 403 not the draft's person, 409 wrong code, 429 (shared brake), 503; works while writes are off (`drafts.ts`) |
 | `OPTIONS` | 204 preflight; `PUT`, `PATCH`, `DELETE` 405 |
+
+One switch: a change runs only when the SQL flag `writes_enabled` AND the exec function (`config.ts` `EXEC_FUNCTION_PRESENT`, false until a later unit) are both on; `reads.ts` `availabilityOf` is the one place that decides, and `/context`, the manual, `/functions` and `/check` all report from it (`level` is the effective level, beside `authority_level`, `writes_enabled`, `level_note`, `drafts_open`, `direct_open`, `reads_open`).
 
 Order of checks: query-string token 400, token shape 404, call log 503, rate limit 429, link 410, scope 403, body 400/413/422, availability 503. The call log is written before anything is answered; if it fails nothing is read.
 
@@ -60,7 +63,7 @@ The caller is an AI tool holding a link, not a signed-in browser, so there is no
 
 ## How the PM deploys it
 
-After the U-46a migrations (`drizzle/0621` to `0628`) are applied to production and the ACTIVE-CLAIMS entry for this function is on `main`: deploy the folder as the function `ai-work-link` with `verify_jwt` false, through the Supabase MCP or the CLI. The bundle needs `../_shared/ai-link/core.ts` and both generated JSON files beside the sources (whether the MCP file list accepts a `../_shared` path was not tried; the CLI bundles it). Then run the harness of `scripts/verify/ai-link/` against a test link (later unit U-46b2). Not deployed by this unit.
+After the U-46a migrations (`drizzle/0621` to `0628`, and for the write path `0629` and `0630`, applied in that order BEFORE the code that names the two `submissions` columns is merged) are applied to production and the ACTIVE-CLAIMS entry for this function is on `main`: deploy the folder as the function `ai-work-link` with `verify_jwt` false, through the Supabase MCP or the CLI. The bundle needs `../_shared/ai-link/core.ts` and both generated JSON files beside the sources (whether the MCP file list accepts a `../_shared` path was not tried; the CLI bundles it). Then run the harness of `scripts/verify/ai-link/` against a test link (later unit U-46b2). Not deployed by this unit.
 
 ## Tests
 

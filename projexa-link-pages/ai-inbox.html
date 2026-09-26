@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-GO/fAUflL/+RC+aqcBq4y6DGiwy+SVW7zI+3BTqh6Vg='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Sw4UyDxiIw5KTEO70+2jaSc6sTQ9gjsmWTMgeztTpmQ='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co; base-uri 'none'; form-action 'none'">
 <title>Changes your AI proposed</title>
 <style>
 body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1c2b3a; background: #fffdf9; }
@@ -26,6 +26,7 @@ small { color: #4a5663; }
 <h1>Changes your AI proposed</h1>
 <p>Nothing here changes by itself. You read each change, type the code shown below and press Confirm.</p>
 <p id="status"></p>
+<div id="confirm-links"></div>
 
 <h2>Waiting for your confirmation</h2>
 <ul id="drafts"></ul>
@@ -48,7 +49,7 @@ small { color: #4a5663; }
 (function () {
   var cfg = JSON.parse(document.getElementById("awl-config").textContent);
   var $ = function (id) { return document.getElementById(id); };
-  var token = "", proposals = [];
+  var token = "", proposals = [], codes = {};
 
   // The link token is in the fragment (#t=pxa_...) and optionally one proposal (#p=<base64url JSON>). Both are read into memory and the
   // fragment is removed from the address bar. The token then travels in a header (header mode), never in an address.
@@ -104,11 +105,23 @@ small { color: #4a5663; }
         var li = document.createElement("li");
         var a = document.createElement("a");
         a.textContent = String(it.function_id) + " (" + String(it.created_at) + ")";
-        a.href = cfg.confirmPage + "#d=" + encodeURIComponent(String(it.intent_id));
+        // a draft made on this page keeps its confirm code in memory, so its link opens the confirm page with the code in it
+        a.href = cfg.confirmPage + "#d=" + encodeURIComponent(String(it.intent_id)) + (codes[String(it.intent_id)] ? "." + codes[String(it.intent_id)] : "");
         li.appendChild(a);
         list.appendChild(li);
       });
     }).catch(function () { $("status").textContent = "Could not reach the service. Try again in a minute."; });
+  }
+
+  // The confirm link of a new draft: the answer carries confirm_url, and only its fragment (#d=<id>.<code>) is used, so the link always opens the
+  // confirm page next to this one. Anything else is not a link.
+  function confirmLinkOf(j) {
+    if (!j || typeof j.confirm_url !== "string") return null;
+    var at = j.confirm_url.indexOf("#");
+    if (at < 0) return null;
+    var hash = j.confirm_url.slice(at);
+    var m = /^#d=([A-Za-z0-9_-]{1,128})\.([0-9a-f]{64})$/.exec(hash);
+    return m ? { hash: hash, code: m[2] } : null;
   }
 
   // Blocks: ```projexa-proposal {"v":1,"function":"...","params":{...},"note":"...","idempotency_key":"..."} ```
@@ -146,8 +159,22 @@ small { color: #4a5663; }
         var body = { function: p.function, params: p.params };
         if (p.idempotency_key) body.idempotency_key = String(p.idempotency_key);
         api("POST", direct ? "/actions" : "/drafts", body).then(function (r) {
-          if (r.status === 200 || r.status === 201) line(box, "Sent.", "ok");
-          else line(box, (r.j.error || "Not sent") + " (" + r.status + ")", "bad");
+          if (r.status !== 200 && r.status !== 201) { line(box, (r.j.error || "Not sent") + " (" + r.status + ")", "bad"); return; }
+          if (direct) { line(box, "Sent.", "ok"); return; }
+          // A draft is not done until the person confirms it: show the confirm link, or say plainly that there is none.
+          var link = confirmLinkOf(r.j);
+          if (link) {
+            codes[String(r.j.draft_id)] = link.code;
+            line(box, "Recorded as a draft. Nothing has changed. Open the confirm page to review it and confirm:", "ok");
+            var a = document.createElement("a");
+            a.textContent = "Open the confirm page for this draft";
+            a.href = cfg.confirmPage + link.hash;
+            box.appendChild(a);
+          } else if (r.j.replayed) {
+            line(box, "This draft was recorded before. Its confirm link was shown once and cannot be shown again: ask your AI to record it again with a new idempotency_key.", "bad");
+          } else {
+            line(box, "The draft was recorded but no confirm link came back, so it cannot be confirmed. Ask your AI to record it again.", "bad");
+          }
         }).catch(function () { line(box, "Could not reach the service. Nothing was sent.", "bad"); btn.disabled = false; });
       });
     });

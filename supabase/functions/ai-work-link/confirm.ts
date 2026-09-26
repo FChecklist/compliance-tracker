@@ -5,8 +5,13 @@
 // ORDER OF CHECKS, each before anything is changed
 //   no Bearer, or a link token as Bearer (401) -> the session token (401; 503 when a key set cannot be read) -> the per-person limit (429)
 //   -> the draft id (404) and the body (400) -> who the person is, through public.projexa_read_resolve_user (403 when the person is not one
-//   active user of one organisation) -> public.ai_work_link_draft_confirm (drizzle/0626), which alone decides ownership, token, state and
+//   active user of one organisation) -> public.ai_work_link_draft_confirm (drizzle/0629), which alone decides ownership, token, state and
 //   expiry and moves the draft to `confirmed` in ONE UPDATE ... WHERE status = 'awaiting_confirmation'.
+//   Inside that SQL function the order is: the draft exists, it is this person's, the code matches, it is still waiting and unexpired, and
+//   ONLY THEN the writes switch (BUILD-002 WP-09a). So while writes are off another person's session is 403 and a wrong code is 409 (the
+//   403 half of BR-497 can be proven now), and only the owner's own valid confirm reaches 503 WRITES_NOT_ENABLED and waits.
+//   The session, the brake and the person lookup are `sessionGate` and `personGate` below: the draft preview route (drafts.ts) runs the
+//   same two gates, so a person is authenticated one way on both routes.
 //
 // WHAT THIS FILE NEVER DOES: reimplement the confirmation. The rules (owner only, the token compared as sha256, single use, 48-hour expiry,
 // the writes switch) are the SQL function's. This file maps its five answers to stable HTTP codes and hides everything else:
@@ -83,13 +88,16 @@ function firstRow(data: unknown): Record<string, unknown> | null {
   return row && typeof row === "object" && !Array.isArray(row) ? (row as Record<string, unknown>) : null
 }
 
-export async function handleConfirm(req: Request, draftId: string, deps: ConfirmDeps): Promise<ConfirmAnswer> {
+type Gate<T> = { ok: true; value: T } | { ok: false; answer: ConfirmAnswer }
+
+/** Steps 1 and 2: a valid session of a real person, and the per-person brake. The same for the confirm route and the preview route. */
+export async function sessionGate(req: Request, deps: Pick<ConfirmDeps, "session" | "log" | "now">): Promise<Gate<{ sub: string; email: string | null; issuer: string }>> {
   const log = deps.log ?? ((line: string) => console.log(line))
   const at = (deps.now ?? Date.now)()
 
   // 1. THE SESSION -------------------------------------------------------------------------------------------------------------------------
   const token = bearerOf(req)
-  if (!token || token.startsWith("pxa_")) return answer(401, "Sign in to PROJEXA and send your session token in the Authorization header.", "SESSION_REQUIRED", "A link token is not a session.")
+  if (!token || token.startsWith("pxa_")) return { ok: false, answer: answer(401, "Sign in to PROJEXA and send your session token in the Authorization header.", "SESSION_REQUIRED", "A link token is not a session.") }
   let who
   try {
     who = await deps.session(token)
@@ -99,34 +107,23 @@ export async function handleConfirm(req: Request, draftId: string, deps: Confirm
   if (!who.ok) {
     if (who.reason === "unavailable") {
       log("ai-work-link: confirm: key set unavailable -> 503")
-      return answer(503, "Service unavailable. Try again in a minute.", "SESSION_CHECK_UNAVAILABLE")
+      return { ok: false, answer: answer(503, "Service unavailable. Try again in a minute.", "SESSION_CHECK_UNAVAILABLE") }
     }
     log("ai-work-link: confirm: session refused -> 401")
-    return answer(401, "Your session is not valid. Sign in again.", "SESSION_INVALID")
+    return { ok: false, answer: answer(401, "Your session is not valid. Sign in again.", "SESSION_INVALID") }
   }
 
   // 2. THE BRAKE ---------------------------------------------------------------------------------------------------------------------------
   if (overLimit(`${who.issuer}|${who.sub}`, at)) {
     log("ai-work-link: confirm: over the per-person limit -> 429")
-    return answer(429, `Too many confirm attempts (${CONFIRM_LIMIT_PER_MINUTE} a minute). Wait a minute.`, "RATE_LIMITED", undefined, { "Retry-After": "60" })
+    return { ok: false, answer: answer(429, `Too many confirm attempts (${CONFIRM_LIMIT_PER_MINUTE} a minute). Wait a minute.`, "RATE_LIMITED", undefined, { "Retry-After": "60" }) }
   }
+  return { ok: true, value: { sub: who.sub, email: who.email, issuer: who.issuer } }
+}
 
-  // 3. THE DRAFT AND THE BODY --------------------------------------------------------------------------------------------------------------
-  if (!ID_RE.test(draftId)) return answer(404, "No such draft.", "DRAFT_NOT_FOUND")
-  const raw = await req.text()
-  if (new TextEncoder().encode(raw).length > BODY_MAX_BYTES) return answer(413, "The body is over 8 KB.", "BODY_TOO_LARGE")
-  let parsed: unknown = null
-  try {
-    parsed = raw.trim() === "" ? null : JSON.parse(raw)
-  } catch {
-    parsed = null
-  }
-  const confirmToken = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>).confirmToken : undefined
-  if (typeof confirmToken !== "string" || confirmToken.length === 0 || confirmToken.length > TOKEN_MAX_CHARS) {
-    return answer(400, "The body must be JSON with the confirm code from the link, as confirmToken.", "CONFIRM_TOKEN_REQUIRED")
-  }
-
-  // 4. WHO THE PERSON IS -------------------------------------------------------------------------------------------------------------------
+/** Step 4: who the person is (one active user of one organisation), through public.projexa_read_resolve_user. */
+export async function personGate(who: { sub: string; email: string | null }, deps: Pick<ConfirmDeps, "rpc" | "log">): Promise<Gate<string>> {
+  const log = deps.log ?? ((line: string) => console.log(line))
   let res
   try {
     res = await deps.rpc("projexa_read_resolve_user", { p_sub: who.sub, p_email: who.email })
@@ -136,18 +133,56 @@ export async function handleConfirm(req: Request, draftId: string, deps: Confirm
   const person = res.error ? null : firstRow(res.data)
   if (!person) {
     log("ai-work-link: confirm: identity lookup failed -> 503")
-    return answer(503, "Service unavailable. Try again in a minute.", "CONFIRM_UNAVAILABLE", "Nothing was confirmed.")
+    return { ok: false, answer: answer(503, "Service unavailable. Try again in a minute.", "CONFIRM_UNAVAILABLE", "Nothing was confirmed.") }
   }
   const reason = typeof person.reason === "string" ? person.reason : null
   if (reason !== null) {
     log(`ai-work-link: confirm: person not linked (${NOT_LINKED_REASONS.has(reason) ? reason : "other"}) -> 403`)
-    return answer(403, USER_NOT_LINKED_MESSAGE, "USER_NOT_LINKED")
+    return { ok: false, answer: answer(403, USER_NOT_LINKED_MESSAGE, "USER_NOT_LINKED") }
   }
   const userId = typeof person.user_id === "string" && person.user_id !== "" ? person.user_id : null
   if (!userId) {
     log("ai-work-link: confirm: identity lookup answered an unknown shape -> 503")
-    return answer(503, "Service unavailable. Try again in a minute.", "CONFIRM_UNAVAILABLE", "Nothing was confirmed.")
+    return { ok: false, answer: answer(503, "Service unavailable. Try again in a minute.", "CONFIRM_UNAVAILABLE", "Nothing was confirmed.") }
   }
+  return { ok: true, value: userId }
+}
+
+/** The JSON body {confirmToken} shared by the confirm and the preview routes: the id, the size and the shape are checked before any lookup. */
+export async function readConfirmBody(req: Request, draftId: string): Promise<Gate<string>> {
+  if (!ID_RE.test(draftId)) return { ok: false, answer: answer(404, "No such draft.", "DRAFT_NOT_FOUND") }
+  const raw = await req.text()
+  if (new TextEncoder().encode(raw).length > BODY_MAX_BYTES) return { ok: false, answer: answer(413, "The body is over 8 KB.", "BODY_TOO_LARGE") }
+  let parsed: unknown = null
+  try {
+    parsed = raw.trim() === "" ? null : JSON.parse(raw)
+  } catch {
+    parsed = null
+  }
+  const confirmToken = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>).confirmToken : undefined
+  if (typeof confirmToken !== "string" || confirmToken.length === 0 || confirmToken.length > TOKEN_MAX_CHARS) {
+    return { ok: false, answer: answer(400, "The body must be JSON with the confirm code from the link, as confirmToken.", "CONFIRM_TOKEN_REQUIRED") }
+  }
+  return { ok: true, value: confirmToken }
+}
+
+export async function handleConfirm(req: Request, draftId: string, deps: ConfirmDeps): Promise<ConfirmAnswer> {
+  const log = deps.log ?? ((line: string) => console.log(line))
+
+  // 1 and 2. THE SESSION AND THE BRAKE ------------------------------------------------------------------------------------------------------
+  const gate = await sessionGate(req, deps)
+  if (!gate.ok) return gate.answer
+  const who = gate.value
+
+  // 3. THE DRAFT AND THE BODY --------------------------------------------------------------------------------------------------------------
+  const body = await readConfirmBody(req, draftId)
+  if (!body.ok) return body.answer
+  const confirmToken = body.value
+
+  // 4. WHO THE PERSON IS -------------------------------------------------------------------------------------------------------------------
+  const person = await personGate(who, deps)
+  if (!person.ok) return person.answer
+  const userId = person.value
 
   // 5. THE CONFIRMATION, by the SQL function ----------------------------------------------------------------------------------------------
   let out

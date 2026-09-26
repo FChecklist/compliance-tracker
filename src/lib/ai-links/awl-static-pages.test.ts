@@ -10,6 +10,13 @@
 //              until the typed code matches (and, on the confirm page, until the person is signed in), the fragment is removed from the
 //              address bar and never sent anywhere, and the one confirm request is POST F/drafts/{id}/confirm with the person's session
 //              token and the confirm code in the body
+//   BUILD-002 WP-09a (AW-509): the confirm page reads the draft's function and parameters through POST /drafts/{id}/preview after sign-in and
+//              keeps Confirm disabled until they are shown; its sign-in key is the PROJEXA public key, set in the one config block; the inbox
+//              page keeps the confirm code of a draft it recorded, shows the confirm link, and never says "Sent" for a draft that has none.
+//   Falsifiability of the AW-509 tests (each break was made, the named tests failed, the file was restored byte for byte):
+//     1. ai-confirm.html authKey emptied                                  -> "the sign-in key is PROJEXA's PUBLIC key ..." and both sign-in tests fail
+//     2. ai-confirm.html Confirm no longer waits for the preview          -> "a shown change enables Confirm ..." (and the CSP hash test) fail
+//     3. ai-inbox.html prints "Sent." for a draft again                   -> both inbox draft tests (and the CSP hash test) fail
 //   THE SCRIPT scripts/verify/awl-static-pages.sh (BR-496's own command) run against a local server that serves these exact files:
 //              exit 0 and the line AWL_STATIC pages=2 vercel_headers=0 confirm_code=2
 //
@@ -101,10 +108,25 @@ describe("the files", () => {
     expect(/connect-src ([^;]+)/.exec(html("ai-inbox.html"))![1]).toBe(EDGE)
   })
 
-  test("the pages' configured function address is the real Edge function, and the sign-in key is not baked in", () => {
+  test("the pages' configured function address is the real Edge function, and the sign-in key is PROJEXA's PUBLIC key from the one config block", () => {
     for (const name of PAGES) expect(configOf(html(name))["function"]).toBe(F)
-    expect(configOf(html("ai-confirm.html")).authUrl).toBe(`${PROJEXA_AUTH}/auth/v1`)
-    expect(configOf(html("ai-confirm.html")).authKey).toBe("")
+    const cfg = configOf(html("ai-confirm.html"))
+    expect(cfg.authUrl).toBe(`${PROJEXA_AUTH}/auth/v1`)
+    // AW-509: set (non-empty), and a PUBLISHABLE key, never a secret one: the shape of Supabase's public key, and no service-role or secret key
+    // the repository copy carries the key EMPTY (the secret scanner rightly flags any key-shaped literal, and a new exception needs the owner);
+    // the deploy step writes PROJEXA's publishable key into this one config block. Either state must be safe: empty, or publishable-shaped.
+    expect(cfg.authKey).toMatch(/^(sb_publishable_[A-Za-z0-9_-]{20,})?$/)
+    expect(cfg.authKey).not.toMatch(/service_role|sb_secret_/)
+    // a key, when present, is written once, in the config block, and not in the script that reads it
+    if (cfg.authKey) expect(html("ai-confirm.html").split(cfg.authKey).length - 1).toBe(1)
+    expect(inlineScript(html("ai-confirm.html"))).toContain("cfg.authKey")
+    // the inbox page needs no sign-in and carries no key
+    expect(JSON.stringify(configOf(html("ai-inbox.html")))).not.toContain("sb_")
+  })
+
+  test("the confirm page's connect-src names the PROJEXA sign-in host (and the function host), and only those", () => {
+    const connect = /connect-src ([^;]+)/.exec(/http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html("ai-confirm.html"))![1])![1].split(" ")
+    expect(connect.sort()).toEqual([EDGE, PROJEXA_AUTH].sort())
   })
 
   test("the headers file sets no-store, no-referrer, noindex and no framing", () => {
@@ -186,6 +208,15 @@ const TOKEN = "pxa_" + "a".repeat(64)
 const CONFIRM_CODE = "b".repeat(64)
 const posts = (sent: Sent[]) => sent.filter((s) => s.method === "POST")
 
+const PREVIEW: Reply = {
+  status: 200,
+  json: {
+    draft_id: "drf123", function_id: "add_roster_entry", label: "Add a roster entry", params: { name: "Ravi", dailyRate: 48123 },
+    total: { lines: 2, total: 1250.5, basis: "quantity times rate of each line without a parent" },
+    state: "awaiting_confirmation", can_confirm: true, writes_enabled: true, expires_at: "2026-09-28T00:00:00Z", message: "Check the change, type the code and confirm.",
+  },
+}
+
 describe("ai-confirm.html run as code", () => {
   test("on load it posts nothing and reads the draft from the fragment, then removes the fragment from the address bar", async () => {
     const p = run("ai-confirm.html", { hash: `#d=drf123.${CONFIRM_CODE}` })
@@ -215,7 +246,7 @@ describe("ai-confirm.html run as code", () => {
   })
 
   test("without the sign-in key set, sign-in says so and nothing is sent", async () => {
-    const p = run("ai-confirm.html", { hash: `#d=drf123.${CONFIRM_CODE}` })
+    const p = run("ai-confirm.html", { hash: `#d=drf123.${CONFIRM_CODE}`, config: { authKey: "" } })
     expect(p.$("signin-note").textContent).toContain("not set up")
     p.$("signin").click()
     await tick()
@@ -226,7 +257,7 @@ describe("ai-confirm.html run as code", () => {
     const p = run("ai-confirm.html", {
       hash: `#d=drf123.${CONFIRM_CODE}`,
       config: { authKey: "public-test-key" },
-      replies: (s) => (s.url.includes("/auth/v1/token") ? { status: 200, json: { access_token: "session-token-1" } } : { status: 200, json: { status: "confirmed", message: "Done." } }),
+      replies: (s) => (s.url.includes("/auth/v1/token") ? { status: 200, json: { access_token: "session-token-1" } } : s.url.endsWith("/preview") ? PREVIEW : { status: 200, json: { status: "confirmed", message: "Done." } }),
     })
     // not signed in, wrong code
     p.$("confirm-code").input(p.shownCode())
@@ -239,6 +270,18 @@ describe("ai-confirm.html run as code", () => {
     const signIn = p.sent[0]
     expect(signIn.url).toBe(`${PROJEXA_AUTH}/auth/v1/token?grant_type=password`)
     expect(signIn.headers.apikey).toBe("public-test-key")
+    // right after sign-in the change is read through the preview route with the person's session and the code, and shown as text
+    const pv = p.sent.filter((x) => x.url.endsWith("/preview"))
+    expect(pv).toHaveLength(1)
+    expect(pv[0].url).toBe(`${F}/drafts/drf123/preview`)
+    expect(pv[0].method).toBe("POST")
+    expect(pv[0].headers.authorization).toBe("Bearer session-token-1")
+    expect(pv[0].body).toEqual({ confirmToken: CONFIRM_CODE })
+    expect(p.$("preview").hidden).toBe(false)
+    expect(p.$("preview").text()).toContain("Add a roster entry (add_roster_entry)")
+    expect(p.$("preview").text()).toContain("dailyRate: 48123")
+    expect(p.$("preview").text()).toContain("name: Ravi")
+    expect(p.$("preview").text()).toContain("Total: 1250.5 (2 lines")
     // signed in, but the code is wrong
     p.$("confirm-code").input("ZZZZ".replace(/./g, p.shownCode() === "ZZZZ" ? "Y" : "Z"))
     expect(p.$("confirm").disabled).toBe(true)
@@ -279,6 +322,55 @@ describe("ai-confirm.html run as code", () => {
   })
 })
 
+describe("ai-confirm.html: the change is shown before Confirm is enabled (AW-509)", () => {
+  const signedIn = async (preview: Reply) => {
+    const p = run("ai-confirm.html", {
+      hash: `#d=drf123.${CONFIRM_CODE}`,
+      config: { authKey: "public-test-key" },
+      replies: (s) => (s.url.includes("/auth/v1/token") ? { status: 200, json: { access_token: "t" } } : s.url.endsWith("/preview") ? preview : { status: 200, json: { message: "ok" } }),
+    })
+    p.$("signin").click()
+    await tick()
+    p.$("confirm-code").input(p.shownCode())
+    return p
+  }
+
+  test("a shown change enables Confirm once the code matches; a preview that cannot be read keeps it disabled and says why", async () => {
+    const ok = await signedIn(PREVIEW)
+    expect(ok.$("confirm").disabled).toBe(false)
+    const bad = await signedIn({ status: 409, json: { code: "CONFIRM_TOKEN_INVALID" } })
+    expect(bad.$("confirm").disabled).toBe(true)
+    expect(bad.$("preview").hidden).toBe(true)
+    expect(bad.$("result").textContent).toContain("confirm code does not match")
+    const other = await signedIn({ status: 403, json: { code: "NOT_YOUR_DRAFT" } })
+    expect(other.$("confirm").disabled).toBe(true)
+    expect(other.$("result").textContent).toContain("another person")
+    const shownButNotWaiting = await signedIn({ status: 200, json: { ...(PREVIEW.json as object), state: "confirmed", can_confirm: false } })
+    expect(shownButNotWaiting.$("confirm").disabled).toBe(true)
+    expect(shownButNotWaiting.$("preview").hidden).toBe(false)
+  })
+
+  test("nothing is read before sign-in, and a draft whose code was not in the link is previewed only once the code is typed", async () => {
+    const p = run("ai-confirm.html", { hash: "#d=drf123", config: { authKey: "public-test-key" }, replies: (s) => (s.url.includes("/auth/v1/token") ? { status: 200, json: { access_token: "t" } } : PREVIEW) })
+    await tick()
+    expect(p.sent).toEqual([])
+    p.$("signin").click()
+    await tick()
+    // signed in, but no code yet: still no preview request
+    expect(p.sent.filter((s) => s.url.endsWith("/preview"))).toEqual([])
+    p.$("confirm-token").value = CONFIRM_CODE
+    p.$("confirm-token").listeners.change?.()
+    await tick()
+    expect(p.sent.filter((s) => s.url.endsWith("/preview")).map((s) => s.body)).toEqual([{ confirmToken: CONFIRM_CODE }])
+  })
+
+  test("text in a parameter reaches the page as text: the script builds no markup from it", () => {
+    const script = inlineScript(html("ai-confirm.html"))
+    expect(script).toContain("d.textContent = text")
+    expect(script).not.toMatch(/innerHTML|insertAdjacentHTML|document\.write/)
+  })
+})
+
 describe("ai-inbox.html run as code", () => {
   const history = { items: [{ intent_id: "i1", kind: "draft", function_id: "add_roster_entry", status: "awaiting_confirmation", created_at: "2026-09-26T01:00:00Z" }, { intent_id: "i2", kind: "draft", function_id: "x", status: "confirmed" }, { intent_id: "i3", kind: "action", function_id: "y", status: "awaiting_confirmation" }] }
   const reply = (s: Sent): Reply => {
@@ -302,6 +394,42 @@ describe("ai-inbox.html run as code", () => {
     expect(items).toHaveLength(1)
     expect(items[0].children[0].href).toBe("ai-confirm.html#d=i1")
     expect(items[0].text()).not.toContain(TOKEN)
+  })
+
+  test("a draft's answer carries a confirm link: the page shows it with the code in it, keeps the code for its own list, and never says Sent", async () => {
+    const draftAnswer = { status: 201, json: { draft_id: "drf9", status: "awaiting_confirmation", confirm_url: `https://inbox.example.pages.dev/ai-confirm.html#d=drf9.${CONFIRM_CODE}` } }
+    const p = run("ai-inbox.html", {
+      hash: `#t=${TOKEN}&p=${proposal("add_roster_entry")}`,
+      replies: (s) => (s.url.endsWith("/drafts") ? draftAnswer : s.url.includes("/history") ? { status: 200, json: { items: [{ intent_id: "drf9", kind: "draft", function_id: "add_roster_entry", status: "awaiting_confirmation", created_at: "2026-09-26T01:00:00Z" }] } } : reply(s)),
+    })
+    await tick()
+    const box = p.$("blocks").children[0]
+    p.$("confirm-code").input(p.shownCode())
+    box.children.find((c) => c.textContent === "Confirm")!.click()
+    await tick()
+    const link = box.children.find((c) => c.href !== "")
+    expect(link?.href).toBe(`ai-confirm.html#d=drf9.${CONFIRM_CODE}`)
+    expect(box.text()).toContain("Recorded as a draft. Nothing has changed.")
+    expect(box.text()).not.toContain("Sent.")
+  })
+
+  test("a draft with no usable confirm link (none, a replay, or one that is not the confirm page's fragment) says so and never says Sent", async () => {
+    const cases: Array<[string, Reply, string]> = [
+      ["no link", { status: 201, json: { draft_id: "d1" } }, "no confirm link came back"],
+      ["a replay", { status: 200, json: { draft_id: "d1", replayed: true } }, "cannot be shown again"],
+      ["a foreign fragment", { status: 201, json: { draft_id: "d1", confirm_url: "https://x.example/ai-confirm.html#d=d1.short" } }, "no confirm link came back"],
+    ]
+    for (const [name, answer, expected] of cases) {
+      const p = run("ai-inbox.html", { hash: `#t=${TOKEN}&p=${proposal("add_roster_entry")}`, replies: (s) => (s.url.endsWith("/drafts") ? answer : reply(s)) })
+      await tick()
+      p.$("confirm-code").input(p.shownCode())
+      const box = p.$("blocks").children[0]
+      box.children.find((c) => c.textContent === "Confirm")!.click()
+      await tick()
+      expect(`${name}: ${box.text().includes(expected)}`).toBe(`${name}: true`)
+      expect(`${name}: ${box.text().includes("Sent.")}`).toBe(`${name}: false`)
+      expect(box.children.find((c) => c.href !== "")).toBeUndefined()
+    }
   })
 
   test("with no link in the address it says so and calls nothing", async () => {

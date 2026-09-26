@@ -4,7 +4,7 @@
 // run of three backticks, capped), so a record cannot close the fence or pose as an instruction. Text that is ours (function ids and
 // labels, urls built from the fixed base) stays outside a fence.
 import { DATA_CLOSING, cleanDeep, fenceRows, fenceValue } from "../_shared/ai-link/core.ts"
-import type { FunctionView, RecordsPage } from "./reads.ts"
+import { availableWord, type FunctionView, type RecordsPage } from "./reads.ts"
 
 const HEADING_RE = /[\r\n]/
 
@@ -19,12 +19,13 @@ export function docMarkdown(title: string, doc: unknown, note?: string): string 
 
 export function contextMarkdown(doc: Record<string, unknown>): string {
   const fns = (doc.functions as FunctionView[] | undefined) ?? []
-  const level = String(doc.level ?? 0)
+  const level = String(doc.effective_level ?? doc.level ?? 0)
   const note = [
-    `Level ${level} (${level === "1" ? "level-1 changes may run directly when they are switched on" : "read, check and draft only"}). Expires ${String(doc.expires_at ?? "")}.`,
-    doc.changes_available ? "Changes are switched on." : "Changes are not switched on yet: nothing you send is applied.",
+    `Effective level ${level}; the level this link was made at is ${String(doc.authority_level ?? level)}. Expires ${String(doc.expires_at ?? "")}.`,
+    typeof doc.level_note === "string" ? doc.level_note : "",
+    doc.direct_open ? "Direct changes are switched on." : "Direct changes are not switched on: draft a change and the person confirms it.",
     `Functions on this link now: ${fns.map((f) => f.id).join(", ") || "none"}.`,
-  ].join("\n")
+  ].filter((l) => l !== "").join("\n")
   return docMarkdown("Context: who you work for", doc, note)
 }
 
@@ -42,7 +43,7 @@ export function recordMarkdown(doc: Record<string, unknown>): string {
 }
 
 export function functionsMarkdown(functions: FunctionView[], note: string): string {
-  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.kind} | ${f.level} | ${f.available ? "yes" : "not yet"} | ${f.required.join(", ") || "none"} |`)
+  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.kind} | ${f.level} | ${availableWord(f)} | ${f.required.join(", ") || "none"} |`)
   return [
     "# Functions on this link",
     "",

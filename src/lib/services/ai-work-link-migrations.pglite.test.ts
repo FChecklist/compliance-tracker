@@ -1,6 +1,8 @@
 /// <reference types="bun-types" />
 // PROJEXA-BUILD-001 U-46 step 1 (BR-483 to BR-488): offline proof of migrations drizzle/0621 to 0628 (the database of the Universal AI
 // Work Link) and of their down files, on PGlite (real Postgres compiled to WASM). No live database is touched.
+// BUILD-002 WP-09a extends it to 0629 (the write path's SQL) and 0630 (the two provenance columns of compliance.submissions): the
+// migration count, the function inventory, the owner-only list and the round trip below include them.
 //
 // BASE: scripts/verify/fixtures/0625_build001_awl_read_functions.base.sql, the committed read-only snapshot of the live tables the
 // link reads, with the roles and the live database's default privileges added by __test-helpers__/awl-pglite.ts (so a missing REVOKE
@@ -29,7 +31,9 @@ setDefaultTimeout(60_000)
 // The LIVE_FACTS section (b) schema hash, over the three schemas the migrations touch, with triggers, partitions and grants added.
 const STATE_CTE = `
 with cols as (
-  select 'col:'||table_schema||'.'||table_name||'.'||lpad(ordinal_position::text, 3, '0')||'.'||column_name||':'||data_type||':'||is_nullable||':'||coalesce(column_default, '') s
+  -- the position is the RANK among the table's live columns, not attnum: a dropped column leaves a gap in attnum, so a column that a down
+  -- file dropped and a forward file added again (0630's via) would sit at a higher attnum with the same place in the table
+  select 'col:'||table_schema||'.'||table_name||'.'||lpad((row_number() over (partition by table_schema, table_name order by ordinal_position))::text, 3, '0')||'.'||column_name||':'||data_type||':'||is_nullable||':'||coalesce(column_default, '') s
   from information_schema.columns where table_schema in ('compliance', 'platform', 'public')
 ), cons as (
   select 'con:'||n.nspname||'.'||c.relname||'.'||k.conname||':'||k.contype::text||':'||pg_get_constraintdef(k.oid) s
@@ -76,7 +80,8 @@ const undoAll = async (db: PGlite) => {
   for (const name of [...AWL_MIGRATIONS].reverse()) await db.exec(downSql(name))
 }
 
-// the 33 functions the eight migrations create, all in schema public: 17 named by spec section 10.11 and 16 helpers
+// the 39 functions the ten migrations create, all in schema public: 17 named by spec section 10.11, 3 of the write path's executor
+// (BUILD-002 WP-09a: claim, finish, draft state) and 19 helpers
 const SPEC_FUNCTIONS = [
   "ai_work_link__resolve", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_context", "ai_work_link_records",
   "ai_work_link_record", "ai_work_link_record_intent", "ai_work_link_intent_status", "ai_work_link_history", "ai_work_link_create_for",
@@ -90,12 +95,15 @@ const HELPER_FUNCTIONS = [
   "ai_work_link__project_people", "ai_work_link__eligibility", "ai_work_link__require", "ai_work_link__user_for_project",
   "ai_work_link__records_core", "ai_work_link__registry_version", "ai_work_link__create_call_partition", "ai_work_link_call_guard",
 ]
-const ALL_FUNCTIONS = [...SPEC_FUNCTIONS, ...HELPER_FUNCTIONS].sort()
+// BUILD-002 WP-09a (migration 0629): three functions the executor calls, and three helpers only they call
+const WRITE_PATH_FUNCTIONS = ["ai_work_link_intent_claim", "ai_work_link_intent_finish", "ai_work_link_draft_state"]
+const WRITE_PATH_HELPERS = ["ai_work_link__live", "ai_work_link__intent_state", "ai_work_link__sweep_intents"]
+const ALL_FUNCTIONS = [...SPEC_FUNCTIONS, ...HELPER_FUNCTIONS, ...WRITE_PATH_FUNCTIONS, ...WRITE_PATH_HELPERS].sort()
 // executable by the owner alone: the retention job (spec 10.10), the guard trigger function, and the helpers that only the other functions call
 const OWNER_ONLY = [
   "ai_work_link_call_retention", "ai_work_link__cost_visible", "ai_work_link__hidden_cols", "ai_work_link__project_people",
   "ai_work_link__eligibility", "ai_work_link__require", "ai_work_link__user_for_project", "ai_work_link__records_core",
-  "ai_work_link__create_call_partition", "ai_work_link_call_guard",
+  "ai_work_link__create_call_partition", "ai_work_link_call_guard", ...WRITE_PATH_HELPERS,
 ]
 
 const TABLES = ["ai_work_link_settings", "ai_work_link_record_kinds", "ai_work_link_functions", "ai_work_link_intent", "ai_work_link_call"]
@@ -103,7 +111,7 @@ const CONFIG_TABLES = ["ai_work_link_settings", "ai_work_link_record_kinds", "ai
 
 const monthsFromNow = (delta: number) => `(date_trunc('month', now() at time zone 'UTC') + interval '${delta} months')::date`
 
-describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base snapshot", () => {
+describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base snapshot", () => {
   let db: PGlite
   let baseState: string[]
   let forwardState: string[]
@@ -116,13 +124,13 @@ describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base
     await applyAll(db)
     forwardState = await state(db)
     switchAfterApply = await one<{ n: number; w: boolean }>(db, "select count(*)::int n, bool_or(writes_enabled) w from platform.ai_work_link_settings")
-  }, 120_000) // PGlite starts and the eight migrations apply here: slow on a loaded laptop, and bun's default hook limit is 5 s
+  }, 120_000) // PGlite starts and the ten migrations apply here: slow on a loaded laptop, and bun's default hook limit is 5 s
   afterAll(async () => {
     await db.close()
   })
 
-  test("the eight migrations apply in order, and the state differs from the base", () => {
-    expect(AWL_MIGRATIONS.length).toBe(8)
+  test("the ten migrations apply in order, and the state differs from the base", () => {
+    expect(AWL_MIGRATIONS.length).toBe(10)
     expect(forwardState.length).toBeGreaterThan(baseState.length + 100)
   })
 
@@ -159,7 +167,7 @@ describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base
     expect(second.v).toBe(1)
   })
 
-  test("the function inventory is exactly the 33 expected, and the four spec 'authenticated' functions are among them", async () => {
+  test("the function inventory is exactly the 39 expected, and the four spec 'authenticated' functions are among them", async () => {
     const names = (await db.query<{ n: string }>("select p.proname n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace where ns.nspname = 'public' and p.proname like 'ai\\_work\\_link%' order by 1")).rows.map((r) => r.n)
     expect(names).toEqual(ALL_FUNCTIONS)
     expect(SPEC_FUNCTIONS.length).toBe(17)
@@ -177,7 +185,7 @@ describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base
        from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
        where ns.nspname = 'public' and p.proname like 'ai\\_work\\_link%' order by 1`,
     )
-    expect(r.rows.length).toBe(33)
+    expect(r.rows.length).toBe(39)
     for (const row of r.rows) {
       expect({ n: row.n, anon: row.anon, auth: row.auth, app: row.app, pub: row.pub }).toEqual({ n: row.n, anon: false, auth: false, app: false, pub: false })
       expect({ n: row.n, svc: row.svc }).toEqual({ n: row.n, svc: !OWNER_ONLY.includes(row.n) })
@@ -190,7 +198,7 @@ describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base
        from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
        where ns.nspname in ('public', 'platform') and p.proname like 'ai\\_work\\_link%' order by 1`,
     )
-    expect(r.rows.length).toBe(33) // all in schema public: the 31 of the link lifecycle and the two of the call log (trigger function, partition helper)
+    expect(r.rows.length).toBe(39) // all in schema public: the 37 of the link lifecycle and the two of the call log (trigger function, partition helper)
     const definers = r.rows.filter((x) => x.definer)
     expect(definers.length).toBeGreaterThanOrEqual(20)
     for (const row of r.rows) expect({ n: row.n, cfg: row.cfg }).toEqual({ n: row.n, cfg: "search_path=pg_catalog, pg_temp" })
@@ -473,7 +481,7 @@ describe("the retention cron job, on a database with a stand-in cron schema", ()
   })
 })
 
-describe("drizzle/down: the eight down files restore the base snapshot exactly", () => {
+describe("drizzle/down: the ten down files restore the base snapshot exactly", () => {
   let db: PGlite
   let baseState: string[]
   let forwardState: string[]

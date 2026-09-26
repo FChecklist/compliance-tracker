@@ -54,6 +54,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA compliance GRANT SELECT, INSERT, UPDATE, DELE
 `)
 await pglite.exec(read("scripts/verify/fixtures/0642_build001_pipeline_schedules.base.sql"))
 await pglite.exec(read("drizzle/0642_build001_pipeline_schedules.sql"))
+// the pipeline now writes submissions.via and ai_link_id (schema.ts, BUILD-002 WP-09a), which the 0642 base snapshot predates
+await pglite.exec(read("drizzle/0630_build001_awl_submissions_via.sql"))
 const pgDb = drizzle(pglite, { schema })
 
 // ─── the two fakes ─────────────────────────────────────────────────────────

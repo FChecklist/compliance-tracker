@@ -349,7 +349,7 @@ describe("rate limit and the fail-closed call log", () => {
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 describe("every response carries the private headers", () => {
-  test("200, 400, 401, 403, 404, 405, 410, 429, 501, 503 and the 204 preflight, HEAD included", async () => {
+  test("200, 201, 400, 401, 403, 404, 405, 410, 429, 501, 503 and the 204 preflight, HEAD included", async () => {
     const seen = new Map<number, Response>()
     const remember = (r: Response) => { if (!seen.has(r.status)) seen.set(r.status, r) }
     const { run, fake } = setup()
@@ -364,6 +364,7 @@ describe("every response carries the private headers", () => {
     await go(at(TOKENS.manager, "/actions"))
     await go(at(TOKENS.revoked, "/context"))
     await go(at(TOKENS.manager, "/drafts"), { method: "POST", body: { function: "create_meeting", params: { title: "x", scheduledAt: "2026-10-01T10:00:00Z" } } })
+    await go("/mint", { method: "POST", headers: { authorization: "Bearer eyJhbGciOiJFUzI1NiJ9.e30.sig" } }) // an app route with a session-shaped token and no verifier: 501
     await go(at(TOKENS.manager, "/context"), { method: "OPTIONS" })
     await go(at(TOKENS.manager, "/context"), { method: "HEAD" })
     await go(at(TOKENS.manager, "/context"), { method: "DELETE" })
@@ -371,7 +372,7 @@ describe("every response carries the private headers", () => {
     fake.state.failLog = "error"
     await go(at(TOKENS.manager, "/context"))
     const codes = [...seen.keys()].sort()
-    for (const c of [200, 204, 400, 401, 403, 404, 405, 410, 501, 503]) expect(codes).toContain(c)
+    for (const c of [200, 201, 204, 400, 401, 403, 404, 405, 410, 501, 503]) expect(codes).toContain(c)
     for (const r of all) for (const [k, v] of Object.entries(PRIVATE_HEADERS)) expect(r.headers.get(k)).toBe(v)
     // the 429
     const b = setup()
@@ -433,11 +434,20 @@ describe("scope: another project is 403 before availability; the live role decid
     expect(d.status).toBe(403)
   })
 
-  test("effective level: every link is level 0 until writes are switched on, so /actions is 403 pointing at /drafts; a level-2 function is never direct", async () => {
+  test("effective level: every link is level 0 until writes are switched on, and /actions then says the true reason; a level-2 function is never direct", async () => {
     const off = setup()
-    const r = await off.run(at(TOKENS.manager, "/actions"), { method: "POST", body: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } } })
+    const body = { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } }
+    // a link made at level 1 while the switch is off: the reason is the switch, not the level (BUILD-002 WP-09a)
+    const r = await off.run(at(TOKENS.manager, "/actions"), { method: "POST", body })
     expect(r.status).toBe(403)
-    expect((await r.json()).code).toBe("LEVEL_NOT_ALLOWED")
+    const refused = await r.json()
+    expect(refused).toMatchObject({ code: "WRITES_NOT_ENABLED", available: false })
+    expect(refused.code).not.toBe("LEVEL_NOT_ALLOWED")
+    expect(refused.hint).toContain("/drafts")
+    // a link made at level 0 is refused for what is true of it: its level
+    const zero = await off.run(at(TOKENS.levelZero, "/actions"), { method: "POST", body })
+    expect(zero.status).toBe(403)
+    expect((await zero.json()).code).toBe("LEVEL_NOT_ALLOWED")
     const ctx = await (await off.run(at(TOKENS.manager, "/context"), { headers: JSONH })).json()
     expect(ctx.level).toBe(0)
     const on = setup({ writesEnabled: true })
@@ -445,16 +455,17 @@ describe("scope: another project is 403 before availability; the live role decid
     expect(c2.level).toBe(1)
     const lvl2 = await on.run(at(TOKENS.manager, "/actions"), { method: "POST", body: { function: "add_roster_entry", params: { name: "A", dailyRate: 1 } } })
     expect(lvl2.status).toBe(403)
-    // a demoted person (a viewer link minted at level 1) is level 0 and refused
-    const demoted = await on.run(at(TOKENS.viewer, "/actions"), { method: "POST", body: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } } })
+    expect((await lvl2.json()).code).toBe("LEVEL_NOT_ALLOWED")
+    // a demoted person (a viewer link minted at level 1) has no write function on the list: refused as not on the link
+    const demoted = await on.run(at(TOKENS.viewer, "/actions"), { method: "POST", body })
     expect(demoted.status).toBe(403)
   })
 
-  test("not switched on yet: a valid level-1 action and a read function are 503 with available:false; an invalid action is 422; a draft is 501", async () => {
+  test("not switched on yet: with writes on but no exec function a valid level-1 action and a read function are 503 with available:false; an invalid action is 422; a draft is recorded (201)", async () => {
     const { run, fake } = setup({ writesEnabled: true })
     const act = await run(at(TOKENS.manager, "/actions"), { method: "POST", body: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } } })
     expect(act.status).toBe(503)
-    expect(await act.json()).toMatchObject({ status: 503, available: false })
+    expect(await act.json()).toMatchObject({ status: 503, available: false, code: "EXECUTOR_NOT_AVAILABLE" })
     const bad = await run(at(TOKENS.manager, "/actions"), { method: "POST", body: { function: "record_work_progress", params: {} } })
     expect(bad.status).toBe(422)
     expect(await bad.json()).toMatchObject({ code: "PARAMS_INVALID", missing: ["itemCode", "percent"] })
@@ -463,11 +474,13 @@ describe("scope: another project is 403 before availability; the live role decid
     expect((await read.json()).available).toBe(false)
     const write = await run(at(TOKENS.manager, "/functions/record_work_progress"), { method: "POST", body: {} })
     expect(write.status).toBe(400)
+    // no action was recorded or claimed anywhere
+    expect(fake.names().filter((n) => n.includes("intent") || n.includes("claim"))).toEqual([])
+    // a draft needs neither the switch nor the exec function: it is recorded, and the answer carries the confirm link
     const draft = await run(at(TOKENS.manager, "/drafts"), { method: "POST", body: { function: "create_meeting", params: { title: "x", scheduledAt: "2026-10-01T10:00:00Z" } } })
-    expect(draft.status).toBe(501)
-    expect((await draft.json()).error).toBe("Written in a later unit.")
-    // nothing was recorded anywhere
-    expect(fake.names().every((n) => ["ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link__resolve"].includes(n))).toBe(true)
+    expect(draft.status).toBe(201)
+    expect(await draft.json()).toMatchObject({ status: "awaiting_confirmation", replayed: false, function: "create_meeting" })
+    expect(fake.names().filter((n) => n.includes("intent"))).toEqual(["ai_work_link_record_intent"])
   })
 
   test("method rules: a GET never runs a function; wrong methods are 405 with Allow; PUT, PATCH, DELETE are 405", async () => {
@@ -627,13 +640,17 @@ describe("check and propose: dry runs that record nothing", () => {
   test("POST /check: valid, missing, unknown parameter, over-long text, and the direct-execution flag", async () => {
     const { run, fake } = setup()
     const chk = async (params: Record<string, unknown>, fn = "record_work_progress") => (await run(at(TOKENS.manager, "/check"), { method: "POST", body: { function: fn, params } })).json()
-    expect(await chk({ itemCode: "EX-01", percent: 10 })).toMatchObject({ valid: true, missing: [], problems: [], function: "record_work_progress", will_execute_directly: false, available: false })
+    expect(await chk({ itemCode: "EX-01", percent: 10 })).toMatchObject({ valid: true, missing: [], problems: [], function: "record_work_progress", will_execute_directly: false, available: true })
     expect(await chk({})).toMatchObject({ valid: false, missing: ["itemCode", "percent"] })
     expect(await chk({ boqLineItemId: "boq_lines-a001", quantityDone: 3 })).toMatchObject({ valid: true })
     expect((await chk({ itemCode: "EX-01", percent: 10, evil: 1 })).problems).toEqual(["Unknown parameter evil."])
     expect((await chk({ itemCode: "EX-01", percent: 10, remarks: "x".repeat(2001) })).problems[0]).toContain("TEXT_TOO_LONG")
     expect(await chk({}, "get_construction_project_dashboard")).toMatchObject({ valid: true })
-    const on = setup({ writesEnabled: true })
+    // writes on but the exec function not there: a valid change still cannot run directly
+    const noExec = setup({ writesEnabled: true })
+    const notYet = await (await noExec.run(at(TOKENS.manager, "/check"), { method: "POST", body: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } } })).json()
+    expect(notYet.will_execute_directly).toBe(false)
+    const on = setup({ writesEnabled: true }, { execPresent: true })
     const direct = await (await on.run(at(TOKENS.manager, "/check"), { method: "POST", body: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } } })).json()
     expect(direct.will_execute_directly).toBe(true)
     const draftOnly = await (await on.run(at(TOKENS.manager, "/check"), { method: "POST", body: { function: "add_roster_entry", params: { name: "A", dailyRate: 1 } } })).json()

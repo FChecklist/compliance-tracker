@@ -14,13 +14,17 @@
 //   * addressPosition the position, counted from the right of x-forwarded-for, that the unknown-token throttle counts by. null (the default)
 //                    is the shared bucket that no header can rotate. Set AWL_CLIENT_ADDR_POSITION only after spike S-3 shows which entry the
 //                    gateway appends (section 10.5, U-16).
-//   * executorEnabled always false in this unit: the Edge executor (spike S-1) is a later unit.
+//   * execPresent     always false until the ai-work-link-exec Edge function is deployed and wired (a later unit changes the constant). It is NOT
+//                    the whole switch: a change runs only when this AND the SQL flag writes_enabled are true (reads.ts availabilityOf), so
+//                    there is one place that decides, and it reads both.
 import type { AwlConfig } from "./reads.ts"
 
 export const DEFAULT_SUPABASE_URL = "https://pcrjmlpuqsbocqfwoxod.supabase.co"
 export const DEFAULT_CONFIRM_HOST = "confirm-host-not-set.invalid"
 export const DEFAULT_APP_BASE = "https://projexa-ai.com"
 export const FUNCTION_PATH = "/functions/v1/ai-work-link"
+/** The ai-work-link-exec function is not deployed yet (BUILD-002 WP-09a builds the write path with the switch OFF). The later exec brief sets this. */
+export const EXEC_FUNCTION_PRESENT = false
 
 const HOST_RE = /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/i
 
@@ -41,6 +45,6 @@ export function configFromEnv(get: (name: string) => string | undefined): AwlCon
     confirmHost: HOST_RE.test(host) && !host.includes("/") ? host : DEFAULT_CONFIRM_HOST,
     appBase: /^https:\/\/[^/?#\s]+$/.test(app) ? app : DEFAULT_APP_BASE,
     addressPosition: /^[1-8]$/.test(posText) ? Number(posText) : null,
-    executorEnabled: false,
+    execPresent: EXEC_FUNCTION_PRESENT,
   }
 }
