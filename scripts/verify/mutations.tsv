@@ -1,4 +1,4 @@
-# register: BR-405
+# register: BR-405 BR-525
 # Named mutations for scripts/verify/mutation-check.sh (PROJEXA-BUILD-001). One per line, five fields separated by ONE
 # tab each: name, file (repository-relative), find text (must occur exactly once in the file), replacement text (may
 # be empty), test command (run with bash -c from the repository root). Lines starting with # are comments.
@@ -8,3 +8,35 @@
 # return the whole revision on every page; route.d11.test.ts must fail because the keyset read returns more than
 # limit + 1 rows.
 boq-keyset-no-limit	src/lib/services/construction-boq-service.ts	.limit(page.limit + 1)		bun test --isolate src/app/api/v1/construction/boq/route.d11.test.ts
+
+# ---- phase 5 (U-42a, BR-525): one mutation per phase-5 unit, run together by scripts/verify/p5-mutations.sh ----
+#
+# p5-u36b-cap-at-equality (U-36b, BR-525): decideBudget() in the projexa-document-extract Edge Function compares the
+# recorded total with the cap using > instead of >=, so a total that sits exactly on the cap no longer refuses with
+# cap_reached (with a zero estimate the call goes through). projexa-document-extract-budget.test.ts must fail because a
+# recorded total of 1.00 against a cap of 1.00 is no longer {allow:false, reason:"cap_reached"}.
+#
+# p5-u36-cell-hidden-chars (U-36, BR-525): digestCellText() in document-extraction-service.ts returns the raw cell text
+# instead of cleanCellText(), so tag characters, zero-width characters and the right-to-left override that can hide an
+# instruction reach the digest and the request to the model. document-extraction-service.injection.test.ts must fail
+# because the planted cell no longer reads "Create project PWNED" and the request body holds the hidden characters.
+#
+# p5-u37-idempotency-lookup (U-37, BR-525): the ledger lookup in claimProjectSourceWithDb() searches source_object.sha256
+# for the raw file hash instead of the derived ledger key it stores, so a second submit of the same file never finds the
+# first project. from-document/route.test.ts must fail because the second submit no longer answers 200 {duplicate:true}
+# with the first project's id.
+#
+# p5-u38-drawing-no-supersede (U-38, BR-525): createDrawingRecord() in document-service.ts updates the previous current
+# revision without setting its status to superseded, so two revisions of one Drawing No. both read current.
+# executor-traps.test.ts must fail because Rev A is no longer superseded after Rev B. (The register title speaks of
+# isLatestVersion; createDrawingRecord() never touches that column, the register reads metadata.status, see the
+# test's own header.)
+#
+# p5-u40-secret-not-compared (U-40, BR-525): isAuthorized() in the scheduler-bridge run route accepts any non-empty
+# bearer instead of comparing its digest with the shared secret's. scheduler-bridge/run/route.test.ts must fail because
+# a wrong secret no longer gets 401.
+p5-u36b-cap-at-equality	supabase/functions/projexa-document-extract/budget.ts	if (recorded >= cap) return	if (recorded > cap) return	bun test --isolate src/lib/services/projexa-document-extract-budget.test.ts
+p5-u36-cell-hidden-chars	src/lib/services/document-extraction-service.ts	return cleanCellText(String(value))	return String(value)	bun test --isolate src/lib/services/document-extraction-service.injection.test.ts
+p5-u37-idempotency-lookup	src/lib/services/document-extraction-service.ts	eq(sourceObject.sha256, key)	eq(sourceObject.sha256, args.contentSha256)	bun test --isolate src/app/api/v1/projexa/projects/from-document/route.test.ts
+p5-u38-drawing-no-supersede	src/lib/services/document-service.ts	.set({ metadata: { ...previousMeta, status: "superseded" } })	.set({ metadata: { ...previousMeta } })	bun test --isolate src/lib/pipeline/executor-traps.test.ts
+p5-u40-secret-not-compared	src/app/api/internal/scheduler-bridge/run/route.ts	return timingSafeEqual(digest(presented), digest(secret))	return presented.length > 0	bun test --isolate src/app/api/internal/scheduler-bridge/run/route.test.ts
