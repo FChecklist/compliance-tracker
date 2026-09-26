@@ -14258,6 +14258,11 @@ export const sourceObject = complianceSchemaDB.table('source_object', {
   supersedesDocUid: text('supersedes_doc_uid'),
   supersededByDocUid: text('superseded_by_doc_uid'),
   isCurrent: boolean('is_current').notNull().default(true),
+  // PROJEXA-BUILD-002 WP-02 (migration 0646): the from-document ledger row is also the extraction job record. job_state is one of
+  // received, reading, needs_answers, ready, created, rejected (CHECK); job_result is what a parked or refused job keeps. Both are
+  // NULL on every other kind of source_object.
+  jobState: text('job_state'),
+  jobResult: jsonb('job_result'),
 })
 
 // One row per chunk of a source_object's extracted content.

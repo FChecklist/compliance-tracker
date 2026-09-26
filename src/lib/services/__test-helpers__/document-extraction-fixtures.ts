@@ -20,7 +20,7 @@ import {
   type ModelCall,
 } from "../../../../supabase/functions/projexa-document-extract/handler"
 import { testBudget } from "./extract-budget-fixtures"
-import { projectSourceLedgerKey, type EdgeCaller, type LedgerClaim, type ProjectSourceLedger } from "../document-extraction-service"
+import { projectSourceLedgerKey, type EdgeAttribution, type EdgeCaller, type LedgerClaim, type ProjectSourceLedger } from "../document-extraction-service"
 
 export const SHARED_SECRET = "test-shared-secret-0123456789abcdef0123"
 
@@ -207,15 +207,29 @@ export function edgeDeps(model: ModelCall | null, extra: Partial<ExtractDeps> = 
 }
 
 /** An EdgeCaller that posts to the real handler in process. `calls` counts requests and keeps the last body sent. */
-export function edgeCallerFor(deps: ExtractDeps, bearer: string = SHARED_SECRET): EdgeCaller & { calls: { count: number; lastBody: string | null } } {
-  const calls = { count: 0, lastBody: null as string | null }
-  const caller = async (bodyJson: string) => {
+export function edgeCallerFor(
+  deps: ExtractDeps,
+  bearer: string = SHARED_SECRET,
+): EdgeCaller & { calls: { count: number; lastBody: string | null; attributions: Array<EdgeAttribution | undefined> } } {
+  const calls = { count: 0, lastBody: null as string | null, attributions: [] as Array<EdgeAttribution | undefined> }
+  const caller = async (bodyJson: string, attribution?: EdgeAttribution) => {
     calls.count++
     calls.lastBody = bodyJson
+    calls.attributions.push(attribution)
     const res = await handleProjexaDocumentExtract(
       new Request("https://edge.test/functions/v1/projexa-document-extract", {
         method: "POST",
-        headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+        headers: {
+          authorization: `Bearer ${bearer}`,
+          "content-type": "application/json",
+          ...(attribution
+            ? {
+                "x-projexa-org-id": attribution.orgId,
+                "x-projexa-user-id": attribution.userId,
+                ...(attribution.requestId ? { "x-projexa-request-id": attribution.requestId } : {}),
+              }
+            : {}),
+        },
         body: bodyJson,
       }),
       deps,
@@ -236,18 +250,25 @@ export function edgeCallerFor(deps: ExtractDeps, bearer: string = SHARED_SECRET)
  * project is a duplicate; a claim without one is in progress; release frees an unattached claim). `events` records the calls.
  */
 export function memoryLedger() {
-  const rows = new Map<string, { claimId: string; projectId: string | null }>()
+  const rows = new Map<string, { claimId: string; projectId: string | null; parked: { state: "needs_answers" | "ready"; result: unknown } | null }>()
+  // `events` is the sequence of claim, attach and release calls that earlier tests assert exactly; setState() is recorded apart, in
+  // `states`, so a new state label never changes those sequences.
   const events: string[] = []
-  /** What each release() was told: whether the attempt reached a model (the real ledger does not count one that did not). */
-  const releases: Array<{ claimId: string; modelCalled: boolean }> = []
+  const states: Array<{ claimId: string; state: string; result?: unknown }> = []
+  /** What each release() was told: whether the attempt reached a model (the real ledger does not count one that did not), and why it was refused. */
+  const releases: Array<{ claimId: string; modelCalled: boolean; rejection?: { code: string; message: string; issues?: string[] } }> = []
   let n = 0
   const ledger: ProjectSourceLedger = {
     async claim({ contentSha256 }): Promise<LedgerClaim> {
       events.push("claim")
       const held = rows.get(projectSourceLedgerKey(contentSha256))
-      if (held) return held.projectId ? { kind: "duplicate", projectId: held.projectId } : { kind: "in_progress" }
+      if (held) {
+        if (held.projectId) return { kind: "duplicate", projectId: held.projectId }
+        if (held.parked) return { kind: "resume", claimId: held.claimId, state: held.parked.state, result: held.parked.result }
+        return { kind: "in_progress" }
+      }
       const claimId = `claim-${++n}`
-      rows.set(projectSourceLedgerKey(contentSha256), { claimId, projectId: null })
+      rows.set(projectSourceLedgerKey(contentSha256), { claimId, projectId: null, parked: null })
       return { kind: "claimed", claimId }
     },
     async attach(claimId, projectId) {
@@ -256,9 +277,25 @@ export function memoryLedger() {
     },
     async release(claimId, options) {
       events.push("release")
-      releases.push({ claimId, modelCalled: options?.modelCalled !== false })
+      releases.push({ claimId, modelCalled: options?.modelCalled !== false, ...(options?.rejection ? { rejection: options.rejection } : {}) })
       for (const [k, r] of rows) if (r.claimId === claimId && !r.projectId) rows.delete(k)
     },
+    async setState(claimId, state, result) {
+      states.push({ claimId, state, ...(result !== undefined ? { result } : {}) })
+      for (const r of rows.values()) {
+        if (r.claimId !== claimId) continue
+        r.parked = state === "needs_answers" || state === "ready" ? { state, result } : null
+      }
+    },
+    async takeParked(claimId) {
+      for (const r of rows.values()) {
+        if (r.claimId !== claimId || !r.parked || r.projectId) continue
+        r.parked = null
+        states.push({ claimId, state: "reading" })
+        return true
+      }
+      return false
+    },
   }
-  return { ledger, rows, events, releases }
+  return { ledger, rows, events, releases, states }
 }

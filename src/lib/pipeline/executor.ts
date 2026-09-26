@@ -45,6 +45,7 @@ import { executeCreateProject, executeUpdateProject } from "./executors/project"
 import { executeAddBoqLines, executeSealBoq, withholdBoqMoney } from "./executors/boq-payload";
 import { ensureDefaultActivity, executeCreateActivity } from "./executors/activity";
 import { createBoqLedgerHooks } from "@/lib/services/construction-boq-payload-service";
+import { executeCreateProjectFromDocument } from "./executors/extraction";
 
 /**
  * R67 lane B (B-01, decision D-03). `error: string` is gone: a failure is a
@@ -1825,6 +1826,8 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   create_report_share_link: executeCreateReportShareLink,
   preview_boq_import: executePreviewBoqImport,
   apply_boq_import: executeApplyBoqImport,
+  // PROJEXA-BUILD-002 WP-02: a NEW project and its BOQ from a stored workbook (executors/extraction.ts). On no project link.
+  create_project_from_document: (task) => executeCreateProjectFromDocument(task),
 };
 
 /**

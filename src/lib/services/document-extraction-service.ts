@@ -52,12 +52,24 @@
 // document-extraction-schema.ts, and only then calls the existing createProject() and createBoq(). Anything that fails
 // validation ends in an ExtractionRejectedError with a stable code and creates nothing. Re-submitting the same file returns the
 // first project (a per-organisation ledger row keyed by the file's sha256, see the ledger notes below).
+//
+// PROJEXA-BUILD-002 WP-02 (register rows AW-111 to AW-115) made that path fit a real bill workbook (the ZOOMIES file: 22 sheets, two
+// areas, notes and payment terms in single long cells, lines with a quantity and no rate):
+//   * the digest keeps line breaks and cells up to 2,000 characters (EXTRACTION_DIGEST_LIMITS); a workbook that does not fit one
+//     request is sent in groups of sheets, never cut;
+//   * the deterministic reader (src/lib/ingest/multisheet-bill-reader.ts) runs FIRST and its lines and printed totals go to the
+//     model as candidates; the model adds only what the reader cannot, and refusals for a line that was dropped, added or changed;
+//   * a line with a quantity and no rate is a question, never a zero-priced line; two areas are ONE BOQ;
+//   * the sum of the lines must equal the totals the file prints, or nothing is created (unless the caller acknowledges a shortfall);
+//   * the ledger row is the job record: received, reading, needs_answers, ready, created, rejected. A job that has questions waits in
+//     needs_answers and is finished by a second submit of the same file, with no second model call.
+// The pure decisions are in document-extraction-reconcile.ts. Nothing here calls a model directly: the Edge Function does.
 import { createHash } from "node:crypto"
 import { inflateRawSync } from "node:zlib"
 import { createId } from "@paralleldrive/cuid2"
 import { documents, sourceObject, chunkPolicy } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, isNull, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMVision, callLLMJson, type LLMUsage } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -70,18 +82,36 @@ import { storeChunkEmbeddingsBatch } from "@/lib/crr/embed"
 import { recordIngestError } from "@/lib/crr/ingest-error"
 import {
   EDGE_REQUEST_MAX_CHARS,
+  EXTRACTION_DIGEST_LIMITS,
   EXTRACTION_SCHEMA_NAME,
   ExtractionRejectedError,
   ProjectCreatedUnlinkedError,
   ProjectCreatedWithoutBoqError,
   WORKBOOK_LIMITS,
   cleanCellText,
+  cleanCellTextKeepBreaks,
   validateExtractionOutput,
+  type CutCell,
   type ExtractionErrorCode,
+  type ExtractionQuestion,
   type ExtractedProject,
   type WorkbookDigest,
   type WorkbookLimits,
 } from "@/lib/services/document-extraction-schema"
+import {
+  assertReconciliationAllowed,
+  buildCandidates,
+  candidatesForSheets,
+  checkAgainstCandidates,
+  checkProjectName,
+  computeReconciliation,
+  cutCellQuestions,
+  mergeExtractions,
+  mergeQuestions,
+  splitUnpricedLines,
+  type Candidates,
+  type Reconciliation,
+} from "@/lib/services/document-extraction-reconcile"
 import type { BoqLineItemInput } from "@/lib/services/construction-boq-service"
 import type { ProjectInput } from "@/lib/services/construction-dashboard-service"
 
@@ -607,6 +637,13 @@ function digestCellText(value: unknown): string {
   return cleanCellText(String(value))
 }
 
+/** The row-preserving form of digestCellText(): a text cell keeps its line breaks; `chars` is its length before any cut. */
+function digestCellTextKeepBreaks(value: unknown, maxChars: number): { text: string; chars: number } {
+  if (typeof value === "string") return cleanCellTextKeepBreaks(value, maxChars)
+  const text = digestCellText(value)
+  return { text, chars: text.length }
+}
+
 /**
  * The checks that need no parser: the size, and that the bytes start like a zip archive ("PK"), which an xlsx file is. Older .xls
  * files and anything else are refused here, before a parser sees them and before createProjectFromDocument() claims the file.
@@ -674,14 +711,25 @@ export function assertWorkbookArchiveWithinLimits(bytes: Uint8Array, limits: Wor
   }
 }
 
+export type DigestOptions = { keepLineBreaks?: boolean }
+
 /**
  * Reads every worksheet of an xlsx file, hidden ones included, into a digest: the rows that hold something, each with its real
  * 1-based worksheet row number, every cell as cleaned text. Formulas are not evaluated (the value Excel last stored is read).
  * A file over a limit is refused (workbook_too_large), never cut short: a BOQ built from half a workbook would look complete.
  * The limits that bound the work of the read itself are checked before the work is done: the unpacked size (before the parser
  * runs) and, from each sheet's declared range, the columns and the cells (before any sheet is turned into rows).
+ *
+ * `options.keepLineBreaks` (BUILD-002 WP-02, AW-111) reads the way the model route needs: a line break inside a cell stays a line break
+ * (a merged cell of a PDF-table export holds several table lines) and a cell longer than limits.maxCellChars is cut AND listed in
+ * the digest's `cutCells`. Without it the digest is the one every earlier caller was written against: one space for any run of
+ * whitespace, cut without a note. The model route passes EXTRACTION_DIGEST_LIMITS (2,000-character cells) with it.
  */
-export async function readWorkbookDigest(bytes: Uint8Array, limits: WorkbookLimits = WORKBOOK_LIMITS): Promise<WorkbookDigest> {
+export async function readWorkbookDigest(
+  bytes: Uint8Array,
+  limits: WorkbookLimits = WORKBOOK_LIMITS,
+  options: DigestOptions = {},
+): Promise<WorkbookDigest> {
   assertWorkbookBytes(bytes, limits)
   assertWorkbookArchiveWithinLimits(bytes, limits)
   const mod = await import("xlsx")
@@ -732,6 +780,7 @@ export async function readWorkbookDigest(bytes: Uint8Array, limits: WorkbookLimi
   })
 
   const sheets: WorkbookDigest["sheets"] = []
+  const cutCells: CutCell[] = []
   names.forEach((rawName, index) => {
     const name = nameOf(rawName, index)
     const sheet = workbook.Sheets[rawName]
@@ -740,15 +789,21 @@ export async function readWorkbookDigest(bytes: Uint8Array, limits: WorkbookLimi
       const firstRow = XLSX.utils.decode_range(sheet["!ref"]).s.r
       const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: "", blankrows: true })
       grid.forEach((cells, i) => {
-        const texts = cells.map((c) => digestCellText(c).slice(0, limits.maxCellChars))
+        const row = firstRow + i + 1
+        const texts = cells.map((c, columnIndex) => {
+          if (!options.keepLineBreaks) return digestCellText(c).slice(0, limits.maxCellChars)
+          const kept = digestCellTextKeepBreaks(c, limits.maxCellChars)
+          if (kept.chars > limits.maxCellChars) cutCells.push({ sheet: name, row, column: columnIndex + 1, chars: kept.chars })
+          return kept.text
+        })
         while (texts.length > 0 && texts[texts.length - 1] === "") texts.pop()
-        if (texts.length > 0) rows.push({ row: firstRow + i + 1, cells: texts })
+        if (texts.length > 0) rows.push({ row, cells: texts })
       })
     }
     sheets.push({ name, rows })
   })
   if (!sheets.some((s) => s.rows.length > 0)) throw new ExtractionRejectedError("workbook_empty", "The workbook has no cells with content")
-  return { sheets }
+  return cutCells.length > 0 ? { sheets, cutCells } : { sheets }
 }
 
 /** The JSON body posted to the Edge Function. Over the request ceiling is workbook_too_large: the same number the function enforces. */
@@ -760,9 +815,83 @@ export function buildEdgeRequestBody(fileName: string, digest: WorkbookDigest): 
   return body
 }
 
+/** Most requests one workbook may be split into. Each is one model call, so this bounds what a single upload can cost. */
+export const MAX_EDGE_REQUESTS = 8
+
+export type EdgeRequest = {
+  body: string
+  /** The sheets this request carries, in workbook order. */
+  sheets: string[]
+  /** The candidates that belong to those sheets; null when the reader did not apply. */
+  candidates: Candidates | null
+}
+
+/** What the model is shown of the reader's reading: its lines, questions and printed totals. The reader's own verdict stays here. */
+function candidatePayload(c: Candidates) {
+  return { projectName: c.projectName, areas: c.areas, lines: c.lines, questions: c.questions, totals: c.totals }
+}
+
+/**
+ * The requests for one workbook (BUILD-002 WP-02, AW-111). One request when the whole digest fits under `maxChars` (default the Edge
+ * ceiling EDGE_REQUEST_MAX_CHARS, 200,000): the ZOOMIES file is about 27,000 characters and 60,000 with the reader's candidates.
+ * Otherwise the sheets are split, in order, into the fewest groups that each fit; every sheet goes into exactly one group, and
+ * nothing is cut. A single sheet that does not fit alone, or a workbook that needs more than MAX_EDGE_REQUESTS groups, is refused
+ * (workbook_too_large), never shortened: a BOQ built from part of a workbook would look complete.
+ * Each request carries the candidates of its own sheets and the whole workbook's printed totals.
+ */
+export function buildEdgeRequestBodies(
+  fileName: string,
+  digest: WorkbookDigest,
+  candidates: Candidates | null,
+  maxChars: number = EDGE_REQUEST_MAX_CHARS,
+): EdgeRequest[] {
+  const cleanName = cleanCellText(fileName, 200)
+  const bodyFor = (group: WorkbookDigest["sheets"], part: { index: number; of: number } | null): EdgeRequest => {
+    const names = new Set(group.map((s) => s.name))
+    const forGroup = candidates ? candidatesForSheets(candidates, names) : null
+    const body = JSON.stringify({
+      schema: EXTRACTION_SCHEMA_NAME,
+      fileName: cleanName,
+      sheets: group,
+      ...(forGroup ? { candidates: candidatePayload(forGroup) } : {}),
+      ...(part ? { part } : {}),
+    })
+    return { body, sheets: group.map((s) => s.name), candidates: forGroup }
+  }
+  const whole = bodyFor(digest.sheets, null)
+  if (whole.body.length <= maxChars) return [whole]
+
+  // Placeholder part numbers have the width of the final ones (MAX_EDGE_REQUESTS is one digit), so a group that fits here fits later.
+  const probe = { index: 1, of: MAX_EDGE_REQUESTS }
+  const groups: WorkbookDigest["sheets"][] = []
+  let current: WorkbookDigest["sheets"] = []
+  for (const sheet of digest.sheets) {
+    const alone = bodyFor([sheet], probe).body.length
+    if (alone > maxChars) {
+      throw new ExtractionRejectedError("workbook_too_large", `Sheet "${sheet.name}" alone holds more text than one extraction reads (${maxChars} characters)`)
+    }
+    if (current.length > 0 && bodyFor([...current, sheet], probe).body.length > maxChars) {
+      groups.push(current)
+      current = []
+    }
+    current.push(sheet)
+  }
+  if (current.length > 0) groups.push(current)
+  if (groups.length > MAX_EDGE_REQUESTS) {
+    throw new ExtractionRejectedError("workbook_too_large", `The workbook needs ${groups.length} requests and one extraction sends at most ${MAX_EDGE_REQUESTS}`)
+  }
+  return groups.map((g, i) => bodyFor(g, { index: i + 1, of: groups.length }))
+}
+
 export type EdgeCallResult = { status: number; body: unknown }
+/**
+ * Who a request is for (BUILD-002 WP-02). The Edge Function meters every model call against an organisation and a user and answers
+ * 400 attribution_required to a request that names neither, so a caller that reaches a wired model must send them: the
+ * organisation, the acting person and, for the ledger row, the job (the claim id, with a suffix per part of a split workbook).
+ */
+export type EdgeAttribution = { orgId: string; userId: string; requestId?: string }
 /** Posts the JSON body to the extraction Edge Function and returns its status and parsed body. It never throws. */
-export type EdgeCaller = (bodyJson: string) => Promise<EdgeCallResult>
+export type EdgeCaller = (bodyJson: string, attribution?: EdgeAttribution) => Promise<EdgeCallResult>
 
 const EDGE_EXTRACT_PATH = "/functions/v1/projexa-document-extract"
 
@@ -772,7 +901,7 @@ const EDGE_EXTRACT_PATH = "/functions/v1/projexa-document-extract"
  * without the function set up refuses cleanly instead of failing on a bad URL.
  */
 export function createEdgeExtractCaller(config: { baseUrl?: string | null; secret?: string | null; fetchImpl?: typeof fetch; timeoutMs?: number }): EdgeCaller {
-  return async (bodyJson) => {
+  return async (bodyJson, attribution) => {
     const baseUrl = config.baseUrl?.trim()
     const secret = config.secret?.trim()
     if (!baseUrl || !secret) return { status: 503, body: { ok: false, code: "extraction_not_configured" } }
@@ -780,7 +909,17 @@ export function createEdgeExtractCaller(config: { baseUrl?: string | null; secre
     try {
       const res = await doFetch(`${baseUrl.replace(/\/+$/, "")}${EDGE_EXTRACT_PATH}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${secret}`,
+          ...(attribution
+            ? {
+                "x-projexa-org-id": attribution.orgId,
+                "x-projexa-user-id": attribution.userId,
+                ...(attribution.requestId ? { "x-projexa-request-id": attribution.requestId } : {}),
+              }
+            : {}),
+        },
         body: bodyJson,
         cache: "no-store",
         signal: AbortSignal.timeout(config.timeoutMs ?? 110_000),
@@ -859,30 +998,139 @@ async function assertBoqAcceptable(extracted: ExtractedProject): Promise<void> {
   }
 }
 
-export type ExtractionResult = { extracted: ExtractedProject; stats: { sheets: number; rows: number; lines: number } }
+export type ExtractionResult = {
+  /** The project and the BOQ lines that will be created. A line with a quantity and no rate is not among them: it is a question. */
+  extracted: ExtractedProject
+  stats: { sheets: number; rows: number; lines: number }
+  /** Everything a person still has to settle, once each. Nothing is created for it and nothing is guessed. */
+  questions: ExtractionQuestion[]
+  /** The lines held to the totals the file prints (assertReconciliationAllowed() has already passed for this result). */
+  reconciliation: Reconciliation
+  /** "model+reader" when the deterministic reader's candidates were sent to the model and checked; "model" when the reader did not apply. */
+  source: "model" | "model+reader"
+}
+
+export type ExtractOptions = {
+  /** The caller has seen that the lines add up to less than the file prints and wants the BOQ as it is. Never covers an excess. */
+  acknowledgeShortfall?: boolean
+  /** Characters one request may hold (default EDGE_REQUEST_MAX_CHARS). A workbook over it is sent in groups of sheets. For tests and tuning. */
+  requestCeilingChars?: number
+}
+
+/**
+ * The steps after the model's answer, shared by a fresh extraction and by the finishing of a parked job: unpriced lines become
+ * questions, the questions of every source are merged, the lines are held to the printed totals, and createBoq()'s own rules are
+ * run. Creates nothing. Throws ExtractionRejectedError.
+ */
+async function finishExtraction(
+  answer: ExtractedProject,
+  digest: WorkbookDigest,
+  candidates: Candidates | null,
+  options: ExtractOptions,
+): Promise<ExtractionResult> {
+  const split = splitUnpricedLines(answer)
+  if (split.extracted.boq.lineItems.length === 0) {
+    throw new ExtractionRejectedError(
+      "extraction_boq_invalid",
+      "No line of the workbook has both a quantity and a rate, so there is nothing to create",
+      split.questions.slice(0, 5).map((q) => q.text),
+    )
+  }
+  const questions = mergeQuestions(candidates?.questions ?? [], answer.questions ?? [], split.questions, cutCellQuestions(digest, EXTRACTION_DIGEST_LIMITS.maxCellChars))
+  const extracted: ExtractedProject = { ...split.extracted, ...(questions.length > 0 ? { questions } : {}) }
+  const reconciliation = computeReconciliation(extracted, candidates)
+  assertReconciliationAllowed(reconciliation, options)
+  await assertBoqAcceptable(extracted)
+  return {
+    extracted,
+    stats: { sheets: digest.sheets.length, rows: digest.sheets.reduce((n, s) => n + s.rows.length, 0), lines: extracted.boq.lineItems.length },
+    questions,
+    reconciliation,
+    source: candidates ? "model+reader" : "model",
+  }
+}
 
 /**
  * Register row BR-505's entry point. Reads every sheet of the workbook, asks the Edge Function for a project and BOQ, validates the
  * answer, and returns it. It creates nothing and writes nothing: whoever calls it decides what to do with a validated result.
  * Throws ExtractionRejectedError (stable `code`) for every refusal.
+ *
+ * BUILD-002 WP-02 (AW-111 to AW-114). The workbook is read with its line breaks and 2,000-character cells. When the file prints
+ * totals the deterministic reader can check itself against, the reader's lines and totals go to the model as candidates and the
+ * model's lines must be exactly those (a dropped, added or changed line is extraction_lines_diverge). A workbook too big for one
+ * request goes in groups of sheets (buildEdgeRequestBodies). The lines that would be created are then held to the printed totals
+ * (extraction_total_mismatch unless options.acknowledgeShortfall covers a shortfall) and the unpriced lines are returned as
+ * questions.
  */
 export async function extractProjectFromDocument(
-  input: { fileName: string; bytes: Uint8Array },
+  input: { fileName: string; bytes: Uint8Array; attribution?: EdgeAttribution },
   deps: { callEdge: EdgeCaller },
+  options: ExtractOptions = {},
 ): Promise<ExtractionResult> {
-  const digest = await readWorkbookDigest(input.bytes)
-  const response = await deps.callEdge(buildEdgeRequestBody(input.fileName, digest))
-  const extracted = validateExtractionOutput(readEdgeOutput(response), digest)
-  await assertBoqAcceptable(extracted)
-  return {
-    extracted,
-    stats: { sheets: digest.sheets.length, rows: digest.sheets.reduce((n, s) => n + s.rows.length, 0), lines: extracted.boq.lineItems.length },
+  const digest = await readWorkbookDigest(input.bytes, EXTRACTION_DIGEST_LIMITS, { keepLineBreaks: true })
+  const candidates = buildCandidates(digest)
+  const requests = buildEdgeRequestBodies(input.fileName, digest, candidates, options.requestCeilingChars)
+  const parts: ExtractedProject[] = []
+  for (const [index, request] of requests.entries()) {
+    // One ledger row per call: a split workbook gives each part its own request id.
+    const attribution = input.attribution
+      ? { ...input.attribution, ...(input.attribution.requestId && requests.length > 1 ? { requestId: `${input.attribution.requestId}-p${index + 1}` } : {}) }
+      : undefined
+    const answer = validateExtractionOutput(readEdgeOutput(await deps.callEdge(request.body, attribution)), digest, { minLines: requests.length > 1 ? 0 : 1 })
+    if (request.candidates) {
+      const problems = checkAgainstCandidates(answer, request.candidates)
+      if (problems.length > 0) {
+        throw new ExtractionRejectedError("extraction_lines_diverge", "The extraction's lines are not the lines the file's own reading found, so nothing was created", problems)
+      }
+    }
+    parts.push(answer)
   }
+  const whole = parts.length === 1 ? parts[0] : validateExtractionOutput(mergeExtractions(parts), digest)
+  if (candidates) {
+    const problems = checkProjectName(whole, candidates)
+    if (problems.length > 0) {
+      throw new ExtractionRejectedError("extraction_lines_diverge", "The extraction names the project differently from the file, so nothing was created", problems)
+    }
+  }
+  return finishExtraction(whole, digest, candidates, options)
+}
+
+/** What a parked job keeps (ledger job_result): enough to finish it without a second model call. */
+export type StoredExtraction = {
+  v: 1
+  extracted: ExtractedProject
+  questions: ExtractionQuestion[]
+  reconciliation: Reconciliation
+  stats: ExtractionResult["stats"]
+  source: ExtractionResult["source"]
+  /** The person acknowledged a shortfall when the job was parked, so finishing it does not ask again. */
+  acknowledgedShortfall?: boolean
+}
+
+function storedExtraction(result: ExtractionResult): StoredExtraction {
+  return { v: 1, extracted: result.extracted, questions: result.questions, reconciliation: result.reconciliation, stats: result.stats, source: result.source }
+}
+
+/**
+ * Finishes a parked job from what it stored, reading the same file again (no model call). The stored answer is validated again
+ * against the file (shape, rows, areas), so a stored value that is out of date or was altered is not trusted: null then, and the
+ * caller extracts afresh.
+ */
+async function resumeExtraction(stored: unknown, bytes: Uint8Array, options: ExtractOptions): Promise<ExtractionResult | null> {
+  if (typeof stored !== "object" || stored === null || (stored as { v?: unknown }).v !== 1) return null
+  const digest = await readWorkbookDigest(bytes, EXTRACTION_DIGEST_LIMITS, { keepLineBreaks: true })
+  let answer: ExtractedProject
+  try {
+    answer = validateExtractionOutput((stored as { extracted?: unknown }).extracted, digest)
+  } catch {
+    return null
+  }
+  return finishExtraction(answer, digest, buildCandidates(digest), options)
 }
 
 // ------------------------------------------------------------------------------------------------------------- the ledger
 //
-// Idempotency without a new column or table: compliance.source_object already holds one row per captured file with its sha256, and
+// Idempotency without a new table: compliance.source_object already holds one row per captured file with its sha256, and
 // its partial unique index (org_id, sha256) WHERE deleted_at IS NULL makes "one live row per organisation and key" a fact the
 // database enforces, which is what makes a double submit safe. A ledger row is a source_object row that
 //   * has origin_ref 'projexa-from-document:v1' and no storage_path (the bytes are not kept),
@@ -894,6 +1142,20 @@ export async function extractProjectFromDocument(
 // which frees the unique index). A claim that is never attached or released (a process that died) is taken over after
 // LEDGER_CLAIM_TTL_SECONDS. If a typed column on projects is preferred later, only this section changes.
 //
+// The same row is the JOB RECORD (BUILD-002 WP-02, migration 0646: job_state and job_result). The state is one of
+//   received       the file was accepted and claimed (the insert sets it);
+//   reading        the workbook is being read and the extraction is running;
+//   needs_answers  the extraction is finished and has questions; nothing is created. The result is kept in job_result;
+//   ready          the extraction is finished, has no open question and was asked only to prepare; nothing is created yet;
+//   created        the project and the BOQ exist (linked_entity_id is the project);
+//   rejected       the file was refused with a stable code (job_result holds it). A rejected row is released (deleted_at set) so
+//                  the same file can be sent again, and it stays in the table so the state can still be read.
+// needs_answers and ready are PARKED: the claim is kept (for LEDGER_PARKED_TTL_SECONDS, not the 15 minutes of a running job) and the
+// next submit of the same file finishes the job from job_result, with no second model call (a `resume` claim). A row with no
+// job_state is one written before 0646; it reads as created when it has a project and as received otherwise. Finishing a parked job
+// first TAKES it (takeParked: one update that moves it to reading and answers true to one caller only), so two submits that both saw
+// it parked cannot both create; a job that fails its gate again on the way is put back as it was.
+//
 // The same rows are the per-organisation rate limit. Every new claim is one extraction attempt and so one possible model call, and a
 // released or taken-over claim stays in the table (soft-deleted), so counting the rows an organisation created inside the window
 // counts its attempts, failed ones included. The exception is a claim released with modelCalled false: the refusal came before any
@@ -901,31 +1163,51 @@ export async function extractProjectFromDocument(
 // and the row is marked extract_error 'no_model_call' so the count leaves it out. Without that, an environment with no model
 // configured would answer 429 instead of the true 503 after 30 uploads, for up to an hour. A refusal that does not say the model was
 // not reached (an invalid answer, an unavailable function) still counts. A second submit of a file that already has a project
-// (duplicate) or is being processed (in_progress) inserts nothing, costs no model call and is never counted or refused. The count is
-// read before the insert and a refused attempt inserts nothing, so refusals do not lengthen the wait. Two attempts in flight
-// together can each read a count that leaves out the other, so the limit can be passed by the number of concurrent requests. It is
-// a spend bound, not a security boundary.
+// (duplicate), is being processed (in_progress) or is parked (resume) inserts nothing, costs no model call and is never counted or
+// refused. The count is read before the insert and a refused attempt inserts nothing, so refusals do not lengthen the wait. Two
+// attempts in flight together can each read a count that leaves out the other, so the limit can be passed by the number of concurrent
+// requests. It is a spend bound, not a security boundary.
 
 const LEDGER_ORIGIN_REF = "projexa-from-document:v1"
 /** Stored in extract_error of a claim that was released before any model call; the rate limit does not count such a claim. */
 export const LEDGER_NO_MODEL_CALL_MARK = "no_model_call"
 export const LEDGER_CLAIM_TTL_SECONDS = 15 * 60
+/** How long a job that waits for a person (needs_answers, ready) keeps its claim. A person answers in days, not minutes. */
+export const LEDGER_PARKED_TTL_SECONDS = 7 * 24 * 60 * 60
 /** Extraction attempts one organisation may start inside the window (a person seldom needs more than a few workbooks an hour). */
 export const LEDGER_RATE_LIMIT = { maxClaims: 30, windowSeconds: 60 * 60 } as const
+
+export const JOB_STATES = ["received", "reading", "needs_answers", "ready", "created", "rejected"] as const
+export type JobState = (typeof JOB_STATES)[number]
+export type ParkedState = "needs_answers" | "ready"
 
 export type LedgerClaim =
   | { kind: "claimed"; claimId: string }
   | { kind: "duplicate"; projectId: string }
+  | { kind: "resume"; claimId: string; state: ParkedState; result: unknown }
   | { kind: "in_progress" }
   | { kind: "rate_limited"; retryAfterSeconds: number }
 
-/** `modelCalled` false means the attempt ended before any model call, so it does not count against the organisation's limit. Default true. */
-export type LedgerReleaseOptions = { modelCalled?: boolean }
+/** What a refused job keeps in job_result. */
+export type LedgerRejection = { code: string; message: string; issues?: string[] }
+
+/**
+ * `modelCalled` false means the attempt ended before any model call, so it does not count against the organisation's limit. Default
+ * true. `rejection` is stored as the job's result and its state becomes rejected.
+ */
+export type LedgerReleaseOptions = { modelCalled?: boolean; rejection?: LedgerRejection }
 
 export type ProjectSourceLedger = {
   claim(input: { contentSha256: string; fileName: string; byteSize: number }): Promise<LedgerClaim>
   attach(claimId: string, projectId: string): Promise<void>
   release(claimId: string, options?: LedgerReleaseOptions): Promise<void>
+  /** Records the job's state and, when given, its result. A live row only. */
+  setState(claimId: string, state: JobState, result?: unknown): Promise<void>
+  /**
+   * Takes a parked job (needs_answers, ready) to finish it: true when this call moved it to reading, false when it was not parked any
+   * more (another request took it, or it was finished). Two submits that both saw the job parked cannot both finish it.
+   */
+  takeParked(claimId: string): Promise<boolean>
 }
 
 function sha256Hex(bytes: Uint8Array | string): string {
@@ -937,6 +1219,10 @@ export function projectSourceLedgerKey(contentSha256: string): string {
   return sha256Hex(`${LEDGER_ORIGIN_REF}:${contentSha256}`)
 }
 
+function isParked(state: string | null | undefined): state is ParkedState {
+  return state === "needs_answers" || state === "ready"
+}
+
 /** Claim, on an open tenant transaction. Exported so the ledger can be run against real Postgres in a test. */
 export async function claimProjectSourceWithDb(
   db: TenantDb,
@@ -944,19 +1230,32 @@ export async function claimProjectSourceWithDb(
 ): Promise<LedgerClaim> {
   const key = projectSourceLedgerKey(args.contentSha256)
   for (let attempt = 0; attempt < 3; attempt++) {
-    // Who holds the key, if anybody. Age is compared in SQL (the database clock, timestamptz), not in JavaScript.
+    // Who holds the key, if anybody. Age is compared in SQL (the database clock, timestamptz), not in JavaScript. A job that was
+    // just claimed is stale after LEDGER_CLAIM_TTL_SECONDS from its claim; one that is reading, after the same time from when it
+    // started reading (a parked job finished long after it was claimed is not old for that); a parked one after
+    // LEDGER_PARKED_TTL_SECONDS from when it was parked.
     const [existing] = await db
       .select({
         id: sourceObject.id,
         linkedEntityId: sourceObject.linkedEntityId,
-        stale: sql<boolean>`${sourceObject.createdAt} < now() - (interval '1 second' * ${LEDGER_CLAIM_TTL_SECONDS})`,
+        jobState: sourceObject.jobState,
+        jobResult: sourceObject.jobResult,
+        stale: sql<boolean>`case
+          when ${sourceObject.jobState} in ('needs_answers', 'ready')
+            then ${sourceObject.updatedAt} < now() - (interval '1 second' * ${LEDGER_PARKED_TTL_SECONDS})
+          when ${sourceObject.jobState} = 'reading'
+            then ${sourceObject.updatedAt} < now() - (interval '1 second' * ${LEDGER_CLAIM_TTL_SECONDS})
+          else ${sourceObject.createdAt} < now() - (interval '1 second' * ${LEDGER_CLAIM_TTL_SECONDS}) end`,
       })
       .from(sourceObject)
       .where(and(eq(sourceObject.orgId, args.orgId), eq(sourceObject.sha256, key), isNull(sourceObject.deletedAt)))
       .limit(1)
     if (existing) {
       if (existing.linkedEntityId) return { kind: "duplicate", projectId: existing.linkedEntityId }
-      if (!existing.stale) return { kind: "in_progress" }
+      if (!existing.stale) {
+        if (isParked(existing.jobState)) return { kind: "resume", claimId: existing.id, state: existing.jobState, result: existing.jobResult }
+        return { kind: "in_progress" }
+      }
       // A claim that never reached a project and is older than the ttl: free the key, then claim it below.
       await db
         .update(sourceObject)
@@ -1000,6 +1299,7 @@ export async function claimProjectSourceWithDb(
         linkedEntityType: "project",
         linkedEntityId: null,
         extractStatus: "SKIPPED_UNSUPPORTED",
+        jobState: "received",
         createdById: args.actorId,
         docUid: createId(),
       })
@@ -1022,13 +1322,36 @@ export async function attachProjectSourceWithDb(db: TenantDb, claimId: string, p
 
 /**
  * Frees the key of a claim that never reached a project. A claim already linked to a project is left alone. With
- * `modelCalled: false` the row is also marked (LEDGER_NO_MODEL_CALL_MARK) so that the rate limit does not count it.
+ * `modelCalled: false` the row is also marked (LEDGER_NO_MODEL_CALL_MARK) so that the rate limit does not count it. With
+ * `rejection` the row's state becomes rejected and its result the refusal, so the reason can still be read.
  */
 export async function releaseProjectSourceWithDb(db: TenantDb, claimId: string, options: LedgerReleaseOptions = {}): Promise<void> {
   await db
     .update(sourceObject)
-    .set({ deletedAt: sql`now()`, ...(options.modelCalled === false ? { extractError: LEDGER_NO_MODEL_CALL_MARK } : {}) })
+    .set({
+      deletedAt: sql`now()`,
+      ...(options.modelCalled === false ? { extractError: LEDGER_NO_MODEL_CALL_MARK } : {}),
+      ...(options.rejection ? { jobState: "rejected", jobResult: options.rejection } : {}),
+    })
     .where(and(eq(sourceObject.id, claimId), isNull(sourceObject.linkedEntityId), isNull(sourceObject.deletedAt)))
+}
+
+/** The job's state, and its result when one is given. A row that was released is not changed. */
+export async function setProjectSourceStateWithDb(db: TenantDb, claimId: string, state: JobState, result?: unknown): Promise<void> {
+  await db
+    .update(sourceObject)
+    .set({ jobState: state, ...(result !== undefined ? { jobResult: result } : {}), updatedAt: sql`now()` })
+    .where(and(eq(sourceObject.id, claimId), isNull(sourceObject.deletedAt)))
+}
+
+/** Moves a parked job to reading, once: true for the one call that changed it, false for any other (nothing is left parked to take). */
+export async function takeParkedProjectSourceWithDb(db: TenantDb, claimId: string): Promise<boolean> {
+  const taken = await db
+    .update(sourceObject)
+    .set({ jobState: "reading", updatedAt: sql`now()` })
+    .where(and(eq(sourceObject.id, claimId), isNull(sourceObject.deletedAt), isNull(sourceObject.linkedEntityId), inArray(sourceObject.jobState, ["needs_answers", "ready"])))
+    .returning({ id: sourceObject.id })
+  return taken.length === 1
 }
 
 /** The ledger the route uses: each step is its own tenant transaction, none opened inside another. */
@@ -1038,7 +1361,92 @@ export function createDbProjectSourceLedger(ctx: { orgId: string; actorId: strin
     claim: (input) => withTenantContext(tenant, (db) => claimProjectSourceWithDb(db, { orgId: ctx.orgId, actorId: ctx.actorId, ...input })),
     attach: (claimId, projectId) => withTenantContext(tenant, (db) => attachProjectSourceWithDb(db, claimId, projectId)),
     release: (claimId, options) => withTenantContext(tenant, (db) => releaseProjectSourceWithDb(db, claimId, options)),
+    setState: (claimId, state, result) => withTenantContext(tenant, (db) => setProjectSourceStateWithDb(db, claimId, state, result)),
+    takeParked: (claimId) => withTenantContext(tenant, (db) => takeParkedProjectSourceWithDb(db, claimId)),
   }
+}
+
+// -------------------------------------------------------------------------------------------------------- reading a job
+
+/** What the route tells a person about a job. The stored lines are not in it (the BOQ shows them once created). */
+export type JobView = {
+  jobId: string
+  state: JobState
+  fileName: string | null
+  projectId: string | null
+  questions: ExtractionQuestion[]
+  reconciliation: Reconciliation | null
+  stats: ExtractionResult["stats"] | null
+  error: LedgerRejection | null
+  updatedAt: string
+}
+
+type JobRow = {
+  id: string
+  jobState: string | null
+  linkedEntityId: string | null
+  jobResult: unknown
+  displayName: string | null
+  deletedAt: Date | string | null
+  updatedAt: Date | string
+}
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v)
+}
+
+/** The state a row is in: its own job_state, or (a row written before 0646) created with a project, rejected when released, else received. */
+function jobStateOfRow(row: Pick<JobRow, "jobState" | "linkedEntityId" | "deletedAt">): JobState {
+  if ((JOB_STATES as readonly string[]).includes(row.jobState ?? "")) return row.jobState as JobState
+  return row.linkedEntityId ? "created" : row.deletedAt ? "rejected" : "received"
+}
+
+/** A ledger row as a JobView. Pure. A row written before job_state existed reads as created (has a project), rejected (released) or received. */
+export function jobViewFromRow(row: JobRow): JobView {
+  const state = jobStateOfRow(row)
+  const result = isObject(row.jobResult) ? row.jobResult : null
+  const stored = result && result.v === 1 ? (result as unknown as StoredExtraction) : null
+  const failed = state === "rejected" && result && typeof result.code === "string" ? (result as unknown as LedgerRejection) : null
+  const stats = stored?.stats ?? (result && isObject(result.stats) ? (result.stats as ExtractionResult["stats"]) : null)
+  return {
+    jobId: row.id,
+    state,
+    fileName: row.displayName,
+    projectId: row.linkedEntityId ?? (result && typeof result.projectId === "string" ? result.projectId : null),
+    questions: stored?.questions ?? [],
+    reconciliation: stored?.reconciliation ?? null,
+    stats,
+    error: failed ? { code: failed.code, message: failed.message, ...(failed.issues ? { issues: failed.issues } : {}) } : null,
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  }
+}
+
+/**
+ * The job of this organisation by its id (the claim id the route returned) or by the file's sha256, newest first. A released row is
+ * included: a rejected job is released and still has its reason. Null when there is none.
+ */
+export async function getProjectSourceJobWithDb(db: TenantDb, args: { orgId: string; jobId?: string; contentSha256?: string }): Promise<JobView | null> {
+  if (!args.jobId && !args.contentSha256) return null
+  const match = args.jobId ? eq(sourceObject.id, args.jobId) : eq(sourceObject.sha256, projectSourceLedgerKey(args.contentSha256!))
+  const [row] = await db
+    .select({
+      id: sourceObject.id,
+      jobState: sourceObject.jobState,
+      linkedEntityId: sourceObject.linkedEntityId,
+      jobResult: sourceObject.jobResult,
+      displayName: sourceObject.displayName,
+      deletedAt: sourceObject.deletedAt,
+      updatedAt: sourceObject.updatedAt,
+    })
+    .from(sourceObject)
+    .where(and(eq(sourceObject.orgId, args.orgId), eq(sourceObject.originRef, LEDGER_ORIGIN_REF), match))
+    .orderBy(sql`${sourceObject.createdAt} desc`)
+    .limit(1)
+  return row ? jobViewFromRow(row) : null
+}
+
+export function getProjectSourceJob(ctx: { orgId: string; actorId: string }, args: { jobId?: string; contentSha256?: string }): Promise<JobView | null> {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.actorId }, (db) => getProjectSourceJobWithDb(db, { orgId: ctx.orgId, ...args }))
 }
 
 // ------------------------------------------------------------------------------------------------------ the orchestration
@@ -1067,6 +1475,12 @@ export type CreateFromDocumentInput = {
   bytes: Uint8Array
   /** Replaces the project name the model found. */
   projectName?: string
+  /** The person has seen that the lines add up to less than the file prints and wants the BOQ as it is (never covers an excess). */
+  acknowledgeShortfall?: boolean
+  /** The person has seen the open questions and wants the project created without those lines; the questions stay on the job. */
+  acknowledgeQuestions?: boolean
+  /** "prepare" reads and checks the file and stops at ready or needs_answers; the default creates the project and the BOQ. */
+  mode?: "create" | "prepare"
 }
 
 export type CreateFromDocumentDeps<P extends { id: string }, B extends { id: string }> = {
@@ -1080,27 +1494,35 @@ export type CreateFromDocumentDeps<P extends { id: string }, B extends { id: str
 
 export type CreateFromDocumentResult<P, B> =
   | { duplicate: true; projectId: string }
-  | { duplicate: false; projectId: string; project: P; boq: B; extraction: ExtractionResult["stats"] }
+  /** Nothing was created: the job waits (needs_answers: open questions; ready: prepared, waiting for the create call). */
+  | { duplicate: false; pending: true; state: ParkedState; jobId: string; questions: ExtractionQuestion[]; reconciliation: Reconciliation; extraction: ExtractionResult["stats"] }
+  | {
+      duplicate: false
+      pending?: false
+      projectId: string
+      project: P
+      boq: B
+      extraction: ExtractionResult["stats"]
+      questions: ExtractionQuestion[]
+      reconciliation: Reconciliation
+    }
+
+/** How a job starts: the file is new (claimed), was created before (duplicate), or is parked and is finished from its stored result (resume). */
+export type ExtractionJobStart = { kind: "duplicate"; projectId: string } | { kind: "claimed"; claimId: string } | { kind: "resume"; claimId: string; state: ParkedState; result: unknown }
 
 /**
- * Register rows BR-507 and BR-508. Creates a project and its BOQ from a workbook, at most once per file: a second submit of the same
- * bytes (whatever the file is called) returns the first project's id and inserts nothing. Every failure before createProject()
- * throws ExtractionRejectedError and leaves no project, no BOQ and no claim behind; a failure of the BOQ insert after the project
- * exists throws ProjectCreatedWithoutBoqError (the project stays, and stays linked to the upload). If recording the project against
- * the upload fails (tried twice; the update is safe to repeat) it throws ProjectCreatedUnlinkedError: the project stays, the BOQ is
- * not attempted and the claim is kept, because freeing it would let the same file create a second project at once.
+ * The first half of createProjectFromDocument(): the checks that need no parser, then the claim. A second submit of a file that
+ * already has a project returns it (duplicate); one that is being processed, or an organisation over its hourly limit, is refused
+ * here. It reads nothing and calls no model, so a route may answer 202 straight after it and run the job with runExtractionJob().
  */
-export async function createProjectFromDocument<P extends { id: string }, B extends { id: string }>(
-  input: CreateFromDocumentInput,
-  deps: CreateFromDocumentDeps<P, B>,
-): Promise<CreateFromDocumentResult<P, B>> {
+export async function startExtractionJob(input: Pick<CreateFromDocumentInput, "fileName" | "bytes">, deps: { ledger: ProjectSourceLedger }): Promise<ExtractionJobStart> {
   assertWorkbookBytes(input.bytes)
   const claim = await deps.ledger.claim({
     contentSha256: sha256Hex(input.bytes),
     fileName: cleanCellText(input.fileName, 200),
     byteSize: input.bytes.byteLength,
   })
-  if (claim.kind === "duplicate") return { duplicate: true, projectId: claim.projectId }
+  if (claim.kind === "duplicate") return { kind: "duplicate", projectId: claim.projectId }
   if (claim.kind === "in_progress") {
     throw new ExtractionRejectedError("duplicate_in_progress", "This file is already being processed. Wait a minute and submit again to get its project")
   }
@@ -1112,22 +1534,110 @@ export async function createProjectFromDocument<P extends { id: string }, B exte
       claim.retryAfterSeconds,
     )
   }
+  return claim
+}
 
-  const release = async (modelCalled: boolean) => {
+/** The facts the file prints that have no column of their own yet, written under the description the model gave (2,000 characters at most). */
+function projectDescription(extracted: ExtractedProject): string | undefined {
+  const facts: string[] = []
+  if (extracted.client) facts.push(`Client: ${extracted.client}`)
+  if (extracted.currency) facts.push(`Currency: ${extracted.currency}`)
+  if (extracted.vat) facts.push(`VAT: ${extracted.vat.ratePercent}%`)
+  const terms = extracted.paymentTerms
+  if (terms?.summary) facts.push(`Payment terms: ${terms.summary}`)
+  else if (terms?.milestones && terms.milestones.length > 0) {
+    facts.push(`Payment milestones: ${terms.milestones.map((m) => `${m.label}${m.percent !== undefined ? ` ${m.percent}%` : ""}`).join("; ")}`)
+  }
+  if (facts.length === 0) return extracted.project.description
+  return [extracted.project.description, ...facts].filter((t): t is string => !!t).join("\n").slice(0, 2000)
+}
+
+/** A ledger write whose failure must not undo work already done (a state label after the project exists). */
+async function bestEffort(write: Promise<unknown>): Promise<void> {
+  try {
+    await write
+  } catch {
+    // The row's state is then one step behind; the project and the BOQ are what matter and they are recorded.
+  }
+}
+
+/**
+ * The extraction a job goes on with: for a parked job, what it stored (no model call); otherwise (a new file, or a stored result that
+ * can no longer be trusted) a fresh one. A parked job is TAKEN first, so of two submits that both saw it parked only one finishes it;
+ * if the stored answer is still not enough (for example a shortfall that is still not acknowledged) the job goes back to parked as it
+ * was, so a corrected submit finishes it. A fresh extraction that is refused releases the claim with the reason.
+ */
+async function obtainExtraction(
+  start: Exclude<ExtractionJobStart, { kind: "duplicate" }>,
+  input: CreateFromDocumentInput,
+  callEdge: EdgeCaller,
+  ledger: ProjectSourceLedger,
+  acknowledgedShortfall: boolean,
+  release: (modelCalled: boolean, err?: unknown) => Promise<void>,
+): Promise<ExtractionResult> {
+  const claimId = start.claimId
+  if (start.kind === "resume") {
+    if (!(await ledger.takeParked(claimId))) {
+      throw new ExtractionRejectedError("duplicate_in_progress", "This file is already being finished by another request. Wait a minute and submit again to get its project")
+    }
     try {
-      await deps.ledger.release(claim.claimId, { modelCalled })
+      const stored = await resumeExtraction(start.result, input.bytes, { acknowledgeShortfall: acknowledgedShortfall })
+      if (stored) return stored
+    } catch (err) {
+      await bestEffort(ledger.setState(claimId, start.state, start.result))
+      throw err
+    }
+  }
+  await bestEffort(ledger.setState(claimId, "reading"))
+  try {
+    return await extractProjectFromDocument(
+      { fileName: input.fileName, bytes: input.bytes, attribution: { orgId: input.orgId, userId: input.actorId, requestId: claimId } },
+      { callEdge },
+      { acknowledgeShortfall: acknowledgedShortfall },
+    )
+  } catch (err) {
+    // Only a refusal that says no model was reached is released as not counting; any other failure may have cost a model call.
+    await release(!(err instanceof ExtractionRejectedError && NO_MODEL_CALL_CODES.has(err.code)), err)
+    throw err
+  }
+}
+
+/**
+ * The second half of createProjectFromDocument(): everything after the claim. `start` is what startExtractionJob() returned (not a
+ * duplicate). Every failure before createProject() releases the claim (recording the refusal as the job's result) and throws
+ * ExtractionRejectedError, so nothing exists afterwards; the two failures that leave a project behind are described on
+ * createProjectFromDocument().
+ */
+export async function runExtractionJob<P extends { id: string }, B extends { id: string }>(
+  start: Exclude<ExtractionJobStart, { kind: "duplicate" }>,
+  input: CreateFromDocumentInput,
+  deps: CreateFromDocumentDeps<P, B>,
+): Promise<CreateFromDocumentResult<P, B>> {
+  const claimId = start.claimId
+  const release = async (modelCalled: boolean, err?: unknown) => {
+    try {
+      const rejection = err instanceof ExtractionRejectedError ? { code: err.code, message: err.message, ...(err.issues.length > 0 ? { issues: err.issues } : {}) } : undefined
+      await deps.ledger.release(claimId, { modelCalled, ...(rejection ? { rejection } : {}) })
     } catch {
       // The claim then frees itself after LEDGER_CLAIM_TTL_SECONDS; the original error is the one to report.
     }
   }
 
-  let result: ExtractionResult
-  try {
-    result = await extractProjectFromDocument({ fileName: input.fileName, bytes: input.bytes }, { callEdge: deps.callEdge })
-  } catch (err) {
-    // Only a refusal that says no model was reached is released as not counting; any other failure may have cost a model call.
-    await release(!(err instanceof ExtractionRejectedError && NO_MODEL_CALL_CODES.has(err.code)))
-    throw err
+  const storedAcknowledged = start.kind === "resume" && isObject(start.result) && start.result.acknowledgedShortfall === true
+  let acknowledgedShortfall = input.acknowledgeShortfall === true || storedAcknowledged
+
+  const result = await obtainExtraction(start, input, deps.callEdge, deps.ledger, acknowledgedShortfall, release)
+  acknowledgedShortfall = acknowledgedShortfall && result.reconciliation.status === "shortfall"
+
+  const pendingState: ParkedState | null = result.questions.length > 0 && input.acknowledgeQuestions !== true ? "needs_answers" : input.mode === "prepare" ? "ready" : null
+  if (pendingState) {
+    try {
+      await deps.ledger.setState(claimId, pendingState, { ...storedExtraction(result), acknowledgedShortfall })
+    } catch (err) {
+      await release(true)
+      throw err
+    }
+    return { duplicate: false, pending: true, state: pendingState, jobId: claimId, questions: result.questions, reconciliation: result.reconciliation, extraction: result.stats }
   }
 
   const { extracted } = result
@@ -1138,22 +1648,24 @@ export async function createProjectFromDocument<P extends { id: string }, B exte
       {
         productId: input.productId,
         name: input.projectName?.trim() || extracted.project.name,
-        description: extracted.project.description,
+        description: projectDescription(extracted),
         startDate: extracted.project.startDate,
         targetDate: extracted.project.targetDate,
       },
     )
   } catch (err) {
-    await release(true)
+    // A job that was parked keeps its stored extraction for the next try; a fresh one frees its claim.
+    if (start.kind === "resume") await bestEffort(deps.ledger.setState(claimId, start.state, start.result))
+    else await release(true)
     throw err
   }
 
   try {
-    await deps.ledger.attach(claim.claimId, project.id)
+    await deps.ledger.attach(claimId, project.id)
   } catch {
     // attach() is an update to a fixed value, so a repeat is safe. A second failure is a database fault: report the project.
     try {
-      await deps.ledger.attach(claim.claimId, project.id)
+      await deps.ledger.attach(claimId, project.id)
     } catch (err) {
       throw new ProjectCreatedUnlinkedError(project.id, err)
     }
@@ -1166,7 +1678,31 @@ export async function createProjectFromDocument<P extends { id: string }, B exte
       { projectId: project.id, title: extracted.boq.title, lineItems: toBoqLineItems(extracted) },
     )
   } catch (err) {
+    await bestEffort(deps.ledger.setState(claimId, "rejected", { code: "boq_create_failed", message: "The project was created but its BOQ could not be saved", projectId: project.id }))
     throw new ProjectCreatedWithoutBoqError(project.id, err)
   }
-  return { duplicate: false, projectId: project.id, project, boq, extraction: result.stats }
+  await bestEffort(deps.ledger.setState(claimId, "created", { projectId: project.id, boqId: boq.id, stats: result.stats, questions: result.questions.length }))
+  return { duplicate: false, projectId: project.id, project, boq, extraction: result.stats, questions: result.questions, reconciliation: result.reconciliation }
+}
+
+/**
+ * Register rows BR-507 and BR-508. Creates a project and its BOQ from a workbook, at most once per file: a second submit of the same
+ * bytes (whatever the file is called) returns the first project's id and inserts nothing. Every failure before createProject()
+ * throws ExtractionRejectedError and leaves no project, no BOQ and no claim behind; a failure of the BOQ insert after the project
+ * exists throws ProjectCreatedWithoutBoqError (the project stays, and stays linked to the upload). If recording the project against
+ * the upload fails (tried twice; the update is safe to repeat) it throws ProjectCreatedUnlinkedError: the project stays, the BOQ is
+ * not attempted and the claim is kept, because freeing it would let the same file create a second project at once.
+ *
+ * BUILD-002 WP-02 (AW-112, AW-114). When the extraction has open questions and the caller has not acknowledged them, nothing is
+ * created: the job is parked in needs_answers with the extraction stored, and the result says so (`pending`). The same applies to
+ * mode "prepare", which parks the job in ready. A second submit of the same file (with acknowledgeQuestions, or in the default mode)
+ * finishes the parked job from what it stored, with no second model call.
+ */
+export async function createProjectFromDocument<P extends { id: string }, B extends { id: string }>(
+  input: CreateFromDocumentInput,
+  deps: CreateFromDocumentDeps<P, B>,
+): Promise<CreateFromDocumentResult<P, B>> {
+  const start = await startExtractionJob(input, deps)
+  if (start.kind === "duplicate") return { duplicate: true, projectId: start.projectId }
+  return runExtractionJob(start, input, deps)
 }

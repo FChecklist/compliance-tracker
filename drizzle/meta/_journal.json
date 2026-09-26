@@ -3320,6 +3320,13 @@
       "when": 1790103500000,
       "tag": "0643_build002_record_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 476,
+      "version": "7",
+      "when": 1790108500000,
+      "tag": "0646_build002_source_object_job_state",
+      "breakpoints": true
     }
   ]
 }

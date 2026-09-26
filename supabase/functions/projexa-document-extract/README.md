@@ -30,6 +30,24 @@ Rows carry their real 1-based worksheet row number (blank rows are left out). Ce
 
 Every response carries `Cache-Control: no-store`. No CORS headers are sent: the caller is a server, not a browser.
 
+## The widened request and answer (BUILD-002 WP-02, register rows AW-111 to AW-115)
+
+The route now reads the workbook with its line breaks and cells up to 2 000 characters (the terms and notes cells of a real bill workbook are 1 000 to 1 300), runs the deterministic reader (`src/lib/ingest/multisheet-bill-reader.ts`) first, and adds two optional keys to the body above:
+
+- `candidates`: `{ projectName, areas, lines, questions, totals }`, the lines, the questions and the printed totals the reader found. The prompt tells the model to return exactly those lines and to add only what the reader cannot: the client, the dates, the currency, the VAT, the payment terms (never a bank account), and questions. The caller refuses an answer whose lines are not those lines (`extraction_lines_diverge`), so a dropped, added or changed line never reaches a BOQ.
+- `part`: `{ index, of }`. A workbook that does not fit one request (200 000 characters) is sent in groups of sheets, at most 8, each with its own part number; a sheet that does not fit alone is refused, never cut.
+
+The answer keeps the first shape (`project`, `boq`) and may add `controlTotals`, `areas`, `client`, `currency`, `vat`, `paymentTerms` and `questions` (`OUTPUT_EXTRAS_EXAMPLE` in `handler.ts`; `document-extraction-schema.ts` is the schema). The caller also sends `x-projexa-org-id`, `x-projexa-user-id` and `x-projexa-request-id` on every call now, so a wired budget does not answer `400 attribution_required`.
+
+## What the owner does to switch a model on
+
+Nothing below is done, and none of it is done by an agent (a secret, a spend and a deploy are the owner's). Names only, no values:
+
+1. `PROJEXA_DOCUMENT_EXTRACT_SECRET`: at least 32 random characters, set as a function secret of this function AND as the same-named environment variable of the compliance-tracker server.
+2. The provider's key as a function secret. For the provider PMD-43 names (Groq, `openai/gpt-oss-120b`, already in the price table of `budget.ts`) the name to use is `GROQ_API_KEY` (the wiring of step 4 is to be written to read `Deno.env.get("GROQ_API_KEY")`; it does not exist yet). Another provider needs its own price row in `budget.ts` first (a model with no price is refused).
+3. Optional: `PROJEXA_EXTRACT_BUDGET_CAP_USD`, a plain number; 1.00 when unset (PMD-43).
+4. The PM then replaces `model: null` and `budget: null` in `index.ts` with the provider call and a `BudgetDeps` over the usage ledger (see Spend cap, Wiring), and deploys with `verify_jwt` false. The prompt, the parsing, the request splitting and the attribution headers need no change for that.
+
 ## Ceilings (COST_BUDGET.csv X-02)
 
 `maxRequestChars` 200 000 and `maxOutputChars` 80 000 are enforced here and are the same numbers `document-extraction-schema.ts` uses (`EDGE_REQUEST_MAX_CHARS`, `EDGE_OUTPUT_MAX_CHARS`); `src/lib/services/projexa-document-extract.test.ts` holds the two equal. A request or a reply over its ceiling is refused, not cut short. The per-call money ceiling for the model is the owner's to set together with the provider (BR-509); until a provider exists the ceiling in COST_BUDGET.csv is 0.00, so any real call would be a violation.
