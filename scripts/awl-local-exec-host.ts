@@ -5,6 +5,11 @@
 //
 //   bun run scripts/awl-local-exec-host.ts --dry                     an in-process database: the intent SQL (drizzle/0621 to 0630) on PGlite and the
 //                                                                      business side as the in-memory fake tenant database; nothing leaves the machine
+//   bun run scripts/awl-local-exec-host.ts --dry --seed persona[-empty] the persona world (BUILD-002 WP-14, scripts/verify/persona/persona-world.ts): the ZOOMIES
+//                                                                      project created the way one creates it, three people, decoy projects, session
+//                                                                      routes and the signed-in app routes (mint, links, revoke, confirm) wired to a local
+//                                                                      session check; still nothing leaves the machine. "persona-empty" leaves the
+//                                                                      ZOOMIES project out (way three: the AI fills a shell project)
 //   bun run scripts/awl-local-exec-host.ts --live --port 8787        the developer's real database (see below); needs the flag --live on purpose
 //
 // SETTINGS (never printed, never written to a file by this script)
@@ -21,6 +26,8 @@
 //     POST /dry/writes     {"on": true|false}                     the master switch (platform.ai_work_link_settings.writes_enabled) of the dry database
 //     POST /dry/record     {"link_url", "function", "params"}     records ONE action intent without running it -> {intent_id} (for the kill-switch drill)
 //     GET  /dry/state      the demo business tables and the intent rows, to read a write back
+//   --dry --seed persona adds (same bearer): POST /dry/session {"who"} a local session bearer for a person; POST /dry/role {"who","role"};
+//     POST /dry/advance {"ms"} moves the clock of the signed-in routes (the per-person brakes) forward; GET /dry/ids, GET /dry/links (the links table, no token or hash), GET /dry/roles, and POST /dry/writes as above.
 //
 // WHAT THIS IS NOT: the deployed function. It proves the code; only the live run after the owner's steps proves app_runtime under row-level security.
 import { mock } from "bun:test"
@@ -70,8 +77,14 @@ async function main() {
     setWrites: (on: boolean) => Promise<void>
     record: (token: string, fn: string, params: unknown) => Promise<string>
   } = null
+  let persona: null | Awaited<ReturnType<typeof import("./verify/persona/persona-world").buildWorld>> = null
 
-  if (dry) {
+  if (dry && (opt("--seed") === "persona" || opt("--seed") === "persona-empty")) {
+    const { buildWorld } = await import("./verify/persona/persona-world")
+    persona = await buildWorld({ createZoomies: opt("--seed") === "persona" })
+    rpc = persona.rpc as Rpc
+    console.log(`awl-local-exec-host: dry: persona world ready (the ZOOMIES project created through the reader, the contract and createProject/createBoq; writes switch ON in this process only)`)
+  } else if (dry) {
     // business side: the in-memory fake tenant database, in place of withTenantContext
     const fake = await import("@/lib/pipeline/fake-tenant-db")
     const fixture = await import("@/lib/services/__test-helpers__/awl-exec-fixture")
@@ -129,7 +142,14 @@ async function main() {
     rpc,
     secret,
     dbConfigured: dry ? true : Boolean(process.env.APP_RUNTIME_DATABASE_URL),
-    run: runLinkIntent,
+    run: persona
+      ? async (c: Parameters<typeof runLinkIntent>[0]) => {
+          await persona!.pull() // a shell project the link side made is known to the business side before the change runs
+          const out = await runLinkIntent(c)
+          await persona!.mirror() // the link side reads what the business side now holds
+          return out
+        }
+      : runLinkIntent,
     health: dry ? async () => ({ db_role: "dry-run (no database role)" }) : linkExecHealth,
   }
   const awlConfig = { ...configFromEnv(() => undefined), functionBase: `${origin}/functions/v1/ai-work-link`, confirmHost: "localhost", execPresent: true }
@@ -142,7 +162,37 @@ async function main() {
     async fetch(req) {
       const path = new URL(req.url).pathname
       if (path.startsWith("/functions/v1/ai-work-link-exec")) return handleExec(req, execDeps)
-      if (path.startsWith("/functions/v1/ai-work-link")) return handleAwl(req, { config: awlConfig, rpc, exec })
+      if (path.startsWith("/functions/v1/ai-work-link")) return handleAwl(req, { config: awlConfig, rpc, exec, ...(persona ? { session: persona.verify, now: persona.clock.now } : {}) })
+      if (persona && path.startsWith("/dry/")) {
+        if (!authorised(req)) return new Response("unauthorised", { status: 401 })
+        const body = req.method === "POST" ? ((await req.json().catch(() => ({}))) as Record<string, any>) : {}
+        if (path === "/dry/session" && req.method === "POST") return Response.json({ session: persona.sessionFor(body.who) })
+        if (path === "/dry/role" && req.method === "POST") {
+          await persona.setRole(body.who, String(body.role))
+          return Response.json({ who: body.who, role: await persona.roleOf(body.who) })
+        }
+        if (path === "/dry/writes" && req.method === "POST") {
+          await persona.setWrites(body.on === true)
+          return Response.json({ writes_enabled: body.on === true })
+        }
+        if (path === "/dry/advance" && req.method === "POST") {
+          persona.clock.advance(Number(body.ms) || 0)
+          return Response.json({ now: persona.clock.now() })
+        }
+        if (path === "/dry/ids" && req.method === "GET") return Response.json(persona.ids)
+        if (path === "/dry/roles" && req.method === "GET") {
+          return Response.json(Object.fromEntries(await Promise.all((["sumeet", "maya", "vic", "other"] as const).map(async (k) => [k, await persona!.roleOf(k)]))))
+        }
+        if (path === "/dry/links" && req.method === "GET") {
+          const r = await persona.db.query("select id, user_id, project_id, revoked_at, expires_at from platform.user_ai_links order by created_at")
+          return Response.json({ links: r.rows })
+        }
+        if (path === "/dry/state" && req.method === "GET") {
+          const intents = await persona.db.query("select id, kind, function_id, status, submission_id, result, failure from platform.ai_work_link_intent order by created_at")
+          return Response.json({ intents: intents.rows, tables: persona.store().tables })
+        }
+        return new Response("not found", { status: 404 })
+      }
       if (dryState && path.startsWith("/dry/")) {
         if (!authorised(req)) return new Response("unauthorised", { status: 401 })
         if (path === "/dry/mint" && req.method === "POST") {
