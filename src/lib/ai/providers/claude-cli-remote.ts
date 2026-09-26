@@ -89,6 +89,15 @@ async function callBridgeJson<T>(systemPrompt: string, userMessage: string, expe
   return data as T;
 }
 
+/**
+ * PROJEXA-BUILD-002 WP-11: the bridge's JSON answer as text, for the internal AI's extraction call (internal-model-gateway.ts). The
+ * bridge parses the CLI's reply itself, so the object it returns is written back out as JSON for the caller to validate like any other
+ * model reply. Same tunnel, same secret, same identity gate before it (internal-ai-policy.ts).
+ */
+export async function claudeCliRemoteComplete(systemPrompt: string, userMessage: string): Promise<string> {
+  return JSON.stringify(await callBridgeJson<unknown>(systemPrompt, userMessage, []));
+}
+
 export const claudeCliRemoteProvider: AiProvider = {
   async classify(segments: string[], candidateFunctions: string[], context: ClassifyContext): Promise<ClassificationResult[]> {
     if (segments.length === 0) return [];
