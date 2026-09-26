@@ -177,7 +177,6 @@ function run(name: string, o: { hash?: string; config?: Record<string, string>; 
   }
   const document = { getElementById: (id: string) => els.get(id) ?? null, createElement: () => new El() }
   const history = { replaceState: (_a: unknown, _b: string, url: string) => { replaced.push(url); location.hash = "" } }
-  // eslint-disable-next-line no-new-func
   new Function("document", "location", "history", "crypto", "fetch", "atob", "TextDecoder", inlineScript(src))(document, location, history, crypto, fakeFetch, atob, TextDecoder)
   const $ = (id: string) => els.get(id)!
   return { $, sent, replaced, location, shownCode: () => $("shown-code").textContent }
