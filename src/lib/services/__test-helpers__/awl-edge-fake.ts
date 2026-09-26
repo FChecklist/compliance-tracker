@@ -281,7 +281,7 @@ export function req(path: string, init: { method?: string; headers?: Record<stri
 
 /** The manifest block of a manual, parsed exactly as the conformance harness does. */
 export function manifestOf(markdown: string): Record<string, any> {
-  const m = /```json ai-link-manifest[ \t]*\r?\n(.*?)\r?\n```/s.exec(markdown)
+  const m = /```json ai-link-manifest[ \t]*\r?\n([\s\S]*?)\r?\n```/.exec(markdown)
   if (!m) throw new Error("no manifest block")
   return JSON.parse(m[1])
 }

@@ -204,7 +204,7 @@ describe("addresses: path mode, header mode, tokens", () => {
 
   test("header mode with no token, or a malformed one, is 404 and never 401", async () => {
     const { run, fake } = setup()
-    for (const headers of [{}, { "link-token": "nope" }, { authorization: "Bearer not.a.pxa.token" }]) {
+    for (const headers of [{}, { "link-token": "nope" }, { authorization: "Bearer not.a.pxa.token" }] as Array<Record<string, string>>) {
       const r = await run("/header/context", { headers })
       expect(r.status).toBe(404)
       expect(r.headers.get("www-authenticate")).toBeNull()
@@ -811,6 +811,10 @@ describe("the token never reaches an error body or a log line", () => {
       const r = await run(path, init)
       const body = await r.text()
       expect(r.status).toBeGreaterThanOrEqual(400)
+      // every 4xx and 5xx body on a link route has the section 4.3 shape: {error: string, status: the HTTP status}
+      const shape = JSON.parse(body)
+      expect(typeof shape.error).toBe("string")
+      expect(shape.status).toBe(r.status)
       expect(body).not.toContain(t.slice(4, 30))
       expect(body).not.toContain(TOKENS.unknown.slice(4, 30))
       expect(body).not.toContain(TOKENS.revoked.slice(4, 30))

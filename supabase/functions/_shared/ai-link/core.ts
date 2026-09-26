@@ -246,7 +246,6 @@ export function redactToken(text: string): string {
  * run of three or more backticks replaced with two apostrophes so the text cannot close the fence, and the text capped.
  */
 export function cleanText(text: string, max: number = LIMITS.textMax): string {
-  // eslint-disable-next-line no-control-regex
   let out = text.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").replace(/`{3,}/g, "''")
   if (out.length > max) {
     out = out.slice(0, max)
