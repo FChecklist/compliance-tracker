@@ -39,10 +39,11 @@ mock.module("@/lib/services/memory-service", () => ({ ...realMemoryService, crea
 let runSubmission: typeof import("./run-submission").runSubmission;
 let submitForVerdict: typeof import("./run-submission").submitForVerdict;
 let runDirectTask: typeof import("./run-submission").runDirectTask;
+let confirmSubmission: typeof import("./run-submission").confirmSubmission;
 let effectiveLevel1: typeof import("./run-submission").effectiveLevel1;
 let isFromAiLink: typeof import("./run-submission").isFromAiLink;
 beforeAll(async () => {
-  ({ runSubmission, submitForVerdict, runDirectTask, effectiveLevel1, isFromAiLink } = await import("./run-submission"));
+  ({ runSubmission, submitForVerdict, runDirectTask, confirmSubmission, effectiveLevel1, isFromAiLink } = await import("./run-submission"));
 });
 
 let silenced: Array<{ mockRestore: () => void }> = [];
@@ -143,6 +144,50 @@ describe("the proposal, verdict and confirm behind a link never run the internal
 
     await submitForVerdict(base);
     expect(runLevel1Spy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("confirmSubmission: the confirm step of a link is a link write", () => {
+  const TODAY = "2026-09-25";
+  const stored = () => {
+    store.tables.submissions = [{ id: "sub_1", orgId: FAKE_ORG, projectId: FAKE_PROJECT_A, mode: "Projects", rawInput: "mark asha present", userId: FAKE_USER }];
+    store.phraseMapRow = { functionId: "record_attendance", fixedParams: { rosterId: "roster_a", date: TODAY }, promotedAt: new Date() };
+  };
+
+  test("with aiLinkId: the proposal makes no model call and the write's memory is marked ai_link with the link id", async () => {
+    stored();
+
+    const outcome = await confirmSubmission({ orgId: FAKE_ORG, userId: FAKE_USER, submissionId: "sub_1", role: "manager", actorUserId: FAKE_USER, aiLinkId: LINK_ID });
+
+    expect(outcome.ok).toBe(true);
+    expect(runLevel1Spy).not.toHaveBeenCalled();
+    expect(store.tables.construction_attendance.map((r) => r.rosterId)).toEqual(["roster_a"]);
+    expect(createMemoryRecordSpy.mock.calls[0][2]).toMatchObject({ sourceType: "ai_link", sourceId: LINK_ID });
+  });
+
+  test("a confirm whose words no longer resolve is refused not_proposed, and a link never asks the model to try again", async () => {
+    stored();
+    store.phraseMapRow = null;
+
+    const linked = await confirmSubmission({ orgId: FAKE_ORG, userId: FAKE_USER, submissionId: "sub_1", role: "manager", aiLinkId: LINK_ID });
+    expect(linked.ok === false && linked.reason).toBe("not_proposed");
+    expect(runLevel1Spy).not.toHaveBeenCalled();
+
+    // REGRESSION: the session path does ask (and, with the spy answering nothing, is refused the same way).
+    const session = await confirmSubmission({ orgId: FAKE_ORG, userId: FAKE_USER, submissionId: "sub_1", role: "manager" });
+    expect(session.ok === false && session.reason).toBe("not_proposed");
+    expect(runLevel1Spy).toHaveBeenCalledTimes(1);
+    expect(store.tables.construction_attendance ?? []).toEqual([]);
+  });
+
+  test("REGRESSION: without a link the same confirm writes the same row and its memory is source_type 'task'", async () => {
+    stored();
+
+    const outcome = await confirmSubmission({ orgId: FAKE_ORG, userId: FAKE_USER, submissionId: "sub_1", role: "manager", actorUserId: FAKE_USER });
+
+    expect(outcome.ok).toBe(true);
+    expect(store.tables.construction_attendance.map((r) => r.rosterId)).toEqual(["roster_a"]);
+    expect(createMemoryRecordSpy.mock.calls[0][2]).toMatchObject({ sourceType: "task" });
   });
 });
 

@@ -215,6 +215,57 @@ describe("the memory a link write leaves is marked ai_link", () => {
     expect(store.tables.submissions.map((r) => r.rawInput)).toEqual(["attended"]);
   });
 
+  test("the write's own free-text parameters are cleaned before the task is minted, and a link's params reach the task row cleaned", async () => {
+    await runDirectTask({
+      orgId: FAKE_ORG,
+      userId: FAKE_USER,
+      mode: "Projects",
+      projectId: FAKE_PROJECT_A,
+      functionId: "record_attendance",
+      params: { rosterId: "roster_a", date: "2026-09-25", remarks: `on site${cp(0x202e)} early` },
+      role: "manager",
+      aiLinkId: "link_9",
+    });
+
+    const params = store.tables.pipeline_tasks[0].params as Record<string, unknown>;
+    expect(params.remarks).toBe("on site early");
+    expect(params.rosterId).toBe("roster_a");
+  });
+
+  test("a write WITHOUT a link keeps its params exactly as sent (the rules are for links only)", async () => {
+    await runDirectTask({
+      orgId: FAKE_ORG,
+      userId: FAKE_USER,
+      mode: "Projects",
+      projectId: FAKE_PROJECT_A,
+      functionId: "record_attendance",
+      params: { rosterId: "roster_a", date: "2026-09-25", remarks: `on site${cp(0x202e)} early` },
+      role: "manager",
+    });
+
+    expect((store.tables.pipeline_tasks[0].params as Record<string, unknown>).remarks).toBe(`on site${cp(0x202e)} early`);
+    expect(createMemoryRecordSpy.mock.calls[0][2]).toMatchObject({ sourceType: "task" });
+  });
+
+  test("the memory content of a link write is cleaned and capped on its own, even for a value that is not a free-text parameter", async () => {
+    await runDirectTask({
+      orgId: FAKE_ORG,
+      userId: FAKE_USER,
+      mode: "Projects",
+      projectId: FAKE_PROJECT_A,
+      functionId: "record_attendance",
+      params: { rosterId: "roster_a", date: "2026-09-25", shiftCode: `A${cp(0x202e)}B`, extra: "q".repeat(5000) },
+      role: "manager",
+      aiLinkId: "link_9",
+    });
+
+    const content = (createMemoryRecordSpy.mock.calls[0][2] as { content: string }).content;
+    expect(content).toContain("shiftCode=");
+    expect(content).not.toContain(cp(0x202e));
+    expect(content.length).toBeLessThanOrEqual(AI_LINK_TEXT_MAX);
+    expect(content.endsWith("...")).toBe(true);
+  });
+
   test("only 'ai_link' counts as a link source", () => {
     expect(isAiLinkSource("ai_link")).toBe(true);
     for (const other of ["task", "chat", "AI_LINK", "", null, undefined]) expect(isAiLinkSource(other as string | null | undefined)).toBe(false);
