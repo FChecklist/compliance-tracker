@@ -41,7 +41,11 @@ Relative to the link base `B` (`F/<token>`) or the header-mode base `F/header` (
 | `POST /functions/{fn}`, `POST /actions` | scope is checked (403), then 503 "not switched on yet" (no Edge executor) |
 | `POST /drafts` | scope is checked (403), then 501 "written in a later unit" |
 | `POST /drafts/{id}/confirm` | 401 no or bad session, 403 not the draft's person, 409 wrong or reused code, 410 expired, 429 over 10 a minute per person, 503 writes off or any failure, 200 confirmed (U-47b) |
-| `/mint`, `/links`, `/warning`, `/drafts/{id}/preview` | 401 with no session, 501 with one (a later unit) |
+| `POST /mint` | signed-in person; fresh session (issued within 15 minutes, else 401 `SESSION_STALE`); 201 with the link and token, shown once; 404 a project the person cannot read; 403 level or function above their rank; 429 caps (10 an hour, 30 a day; 5 a minute brake) (BUILD-002 WP-08) |
+| `GET /links[?project=]`, `POST /links/{id}/revoke` | the person's own links (no token, no hash); revoke by the link's person or an org admin |
+| `GET` or `POST /warning?level=&project=` | the warning sentence, true for the current state: it promises direct entries only when writes are switched on |
+| `POST /new-project` | "New project with my AI": a shell project named "New project (AI setup)" and a level 0 link for the same person in one transaction; rank 2 and above; fresh session; 5 a day |
+| `/drafts/{id}/preview` | 401 with no session, 501 with one (a later unit) |
 | `OPTIONS` | 204 preflight; `PUT`, `PATCH`, `DELETE` 405 |
 
 Order of checks: query-string token 400, token shape 404, call log 503, rate limit 429, link 410, scope 403, body 400/413/422, availability 503. The call log is written before anything is answered; if it fails nothing is read.
