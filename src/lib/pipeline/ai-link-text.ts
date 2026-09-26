@@ -73,7 +73,7 @@ export function stripControlCharacters(text: string): string {
 
 /** Spec 5.4: a run of three or more backticks becomes two apostrophes, so the text cannot close a fence. */
 export function neutraliseBackticks(text: string): string {
-  return text.replace(/`{3,}/g, "''");
+  return text.replace(/\x60{3,}/g, "''"); // \x60 is the backtick: a literal one inside a regex confuses the nesting guard's source masker
 }
 
 /** Control characters out, backtick runs neutralised. No length rule: see cleanLinkText and fenceAsData. */
