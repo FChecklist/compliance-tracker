@@ -30,9 +30,10 @@ pages=0
 vercel=0
 codes=0
 
+# -L: Cloudflare Pages answers /x.html with a 308 to /x (clean URLs); the page that is served after that one hop is what a person's browser shows.
 for page in ai-inbox.html ai-confirm.html; do
   url="$SCHEME://$AWL_CONFIRM_HOST/$page"
-  code="$(awl_norm_code "$(curl -s -D "$TMP/h" -o "$TMP/b" --max-time "$AWL_CURL_TIMEOUT" -w '%{http_code}' "$url" 2>/dev/null || true)")"
+  code="$(awl_norm_code "$(curl -s -L --max-redirs 2 -D "$TMP/h" -o "$TMP/b" --max-time "$AWL_CURL_TIMEOUT" -w '%{http_code}' "$url" 2>/dev/null || true)")"
   if [ "$code" != "200" ]; then awl_say "FAIL $page answered $code (want 200)"; continue; fi
   pages=$((pages + 1))
   if tr -d '\r' < "$TMP/h" | grep -qi '^x-vercel-id:'; then vercel=$((vercel + 1)); awl_say "FAIL $page carries an x-vercel-id header (it is served by Vercel)"; fi
