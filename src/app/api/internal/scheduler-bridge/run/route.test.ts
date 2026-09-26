@@ -91,6 +91,19 @@ mock.module("@/lib/pipeline/executor", () => ({
   },
 }))
 
+// BUILD-002 WP-13: the scan_connected_folder job is loaded on first use by scheduled-jobs.ts. It is replaced here by a recorder, so this
+// file tests the bridge's side of a job (who it runs as, what is kept, what is audited) and not the scan, which has its own tests.
+type JobCtx = Parameters<typeof import("@/lib/pipeline/scan-connected-folder-job").runScanConnectedFolderJob>[0]
+type JobReport = Awaited<ReturnType<typeof import("@/lib/pipeline/scan-connected-folder-job").runScanConnectedFolderJob>>
+const jobCalls: JobCtx[] = []
+let jobBehaviour: (ctx: JobCtx) => Promise<JobReport> = async () => ({ ok: true, counts: { listed: 0 } })
+mock.module("@/lib/pipeline/scan-connected-folder-job", () => ({
+  runScanConnectedFolderJob: async (ctx: JobCtx) => {
+    jobCalls.push(ctx)
+    return jobBehaviour(ctx)
+  },
+}))
+
 const { POST, ...routeModule } = await import("./route")
 const { runDueSchedules } = await import("@/lib/pipeline/scheduler-bridge")
 
@@ -101,6 +114,8 @@ async function reset() {
     await pglite.query("INSERT INTO compliance.users (id, name, email, password_hash, role, org_id) VALUES ($1, $2, $3, 'x', $4, $5)", [u.id, u.name, u.email, u.role, u.org])
   }
   execCalls.length = 0
+  jobCalls.length = 0
+  jobBehaviour = async () => ({ ok: true, counts: { listed: 0 } })
   tenantCalls.length = 0
   execBehaviour = okRead
   process.env.SCHEDULER_BRIDGE_INTERNAL_SECRET = SECRET
@@ -697,5 +712,74 @@ describe("across a mixed run", () => {
     for (const t of execCalls) expect([OWNER.id, OWNER_B.id]).toContain(t.userId)
     expect(JSON.stringify(execCalls)).not.toContain(API_KEY_ID)
     expect(JSON.stringify(rows)).not.toContain(API_KEY_ID)
+  })
+})
+
+// ─── a scheduled job (BUILD-002 WP-13, AW-605) ─────────────────────────────
+describe("a schedule that names a scheduled job", () => {
+  const SCAN = "scan_connected_folder"
+  const scanParams = { source: "drive", folderId: "1AbCdEfGhIj", productId: "product-1" }
+
+  test("runs as the owner with the owner's role read now, keeps only the numbers and a stop word, and audits one row", async () => {
+    await addSchedule("j-1", { fn: SCAN, params: scanParams, owner: MEMBER.id, cadence: "*/15 * * * *" })
+    jobBehaviour = async () => ({ ok: true, counts: { listed: 3, proposed: 2, skippedType: 1 }, stopped: "limit" })
+    const { status, body } = await run()
+
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ checked: 1, claimed: 1, jobsRun: 1, readsRun: 0, proposed: 0, failed: 0 })
+    expect(body.results).toEqual([{ scheduleId: "j-1", outcome: "job_ok" }])
+    // The job got the organisation, the schedule, the owner's id and CURRENT role, the schedule's params and a deadline. No key.
+    expect(jobCalls).toHaveLength(1)
+    expect(jobCalls[0]).toMatchObject({ orgId: ORG_A, scheduleId: "j-1", owner: { id: MEMBER.id, role: "member" }, params: scanParams })
+    expect(jobCalls[0].deadlineAt).toBeGreaterThan(Date.now())
+    expect(Object.keys(jobCalls[0]).sort()).toEqual(["deadlineAt", "orgId", "owner", "params", "scheduleId"])
+    // Not a registry function: the executor is never asked.
+    expect(execCalls).toEqual([])
+    expect(await submissions()).toEqual([])
+
+    const row = await schedule("j-1")
+    expect(row.is_active).toBe(true)
+    expect(row.next_run_at.getTime()).toBeGreaterThan(new Date(body.ranAt).getTime())
+    expect(row.last_result).toEqual({ trigger: "scheduler_bridge", ranAt: body.ranAt, outcome: "job_ok", functionId: SCAN, counts: { listed: 3, proposed: 2, skippedType: 1 }, stopped: "limit" })
+    const rows = await audits("j-1")
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ action: "pipeline_schedule.run", user_id: MEMBER.id, api_key_id: null, surface: "s1_one_page_ai_prepared", actor_role: "member" })
+    expect(JSON.parse(rows[0].details!)).toEqual({ trigger: "scheduler_bridge", scheduleId: "j-1", functionId: SCAN, outcome: "job_ok", counts: { listed: 3, proposed: 2, skippedType: 1 }, stopped: "limit" })
+  })
+
+  test("a job that refuses is a failed run with its code and reason and nothing else; the schedule stays active", async () => {
+    await addSchedule("j-2", { fn: SCAN, params: scanParams, owner: MEMBER.id })
+    jobBehaviour = async () => ({ ok: false, code: "NOT_PERMITTED", reason: "role_below_member" })
+    const { body } = await run()
+    expect(body.results).toEqual([{ scheduleId: "j-2", outcome: "failed" }])
+    expect(body).toMatchObject({ failed: 1, jobsRun: 0 })
+    expect((await schedule("j-2")).last_result).toEqual({ trigger: "scheduler_bridge", ranAt: body.ranAt, outcome: "failed", functionId: SCAN, failureCode: "NOT_PERMITTED", reason: "role_below_member" })
+    expect((await schedule("j-2")).is_active).toBe(true)
+    expect(JSON.parse((await audits("j-2"))[0].details!)).toMatchObject({ outcome: "failed", failureCode: "NOT_PERMITTED", reason: "role_below_member" })
+  })
+
+  test("a job that throws is a failed run with INTERNAL_ERROR and no message, still one audit row", async () => {
+    await addSchedule("j-3", { fn: SCAN, params: scanParams, owner: MEMBER.id })
+    jobBehaviour = async () => {
+      throw new Error("SECRET-FILE-NAME.xlsx exploded")
+    }
+    const { body, text } = await run()
+    expect(body.results).toEqual([{ scheduleId: "j-3", outcome: "failed" }])
+    expect(text).not.toContain("SECRET-FILE-NAME")
+    const row = await schedule("j-3")
+    expect(row.last_result).toMatchObject({ outcome: "failed", failureCode: "INTERNAL_ERROR" })
+    expect(JSON.stringify(row.last_result)).not.toContain("SECRET-FILE-NAME")
+    const rows = await audits("j-3")
+    expect(rows).toHaveLength(1)
+    expect(rows[0].details).not.toContain("SECRET-FILE-NAME")
+  })
+
+  test("a job whose owner has left is not run: the schedule is deactivated as any other schedule is", async () => {
+    await addSchedule("j-4", { fn: SCAN, params: scanParams, owner: MEMBER.id })
+    await pglite.query("UPDATE compliance.users SET is_active = false WHERE id = $1", [MEMBER.id])
+    const { body } = await run()
+    expect(body.results).toEqual([{ scheduleId: "j-4", outcome: "owner_not_active" }])
+    expect(jobCalls).toEqual([])
+    expect((await schedule("j-4")).is_active).toBe(false)
   })
 })

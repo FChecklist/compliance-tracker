@@ -39,6 +39,8 @@ The function also uses the platform-injected `SUPABASE_URL` and `SUPABASE_SERVIC
 3. A write function is never run: one proposal row is stored (`compliance.submissions`, `selected_chain` with `source: "scheduler_bridge"`) for the approval list. A schedule keeps at most one waiting proposal: while its earlier proposal is still `in_progress`, a due tick stores nothing and the run is recorded as `already_pending` (the schedule stays active and moves to its next slot). A read function runs through the executor registry with the owner as `userId` and `actorUserId` and the owner's role.
 4. Writes one `compliance.audit_logs` row per claimed run, a run that fails included: `user_id` the owner, `api_key_id` null, `surface` `s1_one_page_ai_prepared`, `details` JSON with `trigger: "scheduler_bridge"`. The one row with no `user_id` is a run whose owner row is gone or could not be read: it names the bridge itself (`actor_role` `system`).
 
+A schedule may also name a **job** that is not a registry function (`src/lib/pipeline/scheduled-jobs.ts`; BUILD-002 WP-13, `scan_connected_folder`, the way-5 pull of a connected mailbox or Drive folder). The bridge runs it itself as the owner, it is reachable from nothing else, it records proposals and creates no business record, and only its counts are kept in `last_result` and the audit row. Owner steps: `ai-os/projexa-build-002/OWNER_WAY5_STEPS.md`.
+
 No model is asked at any point: the schedule already names its function.
 
 ## Files

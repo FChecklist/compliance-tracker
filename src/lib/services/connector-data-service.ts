@@ -74,7 +74,7 @@ function clampMaxResults(requested: number | undefined): number {
 // (verified by reading both route handlers), so this cannot hit the
 // nested-withTenantContext class of bug documented elsewhere in this
 // codebase (R74/R75's *WithDb precedent).
-async function runGatedRead(
+export async function runGatedRead(
   ctx: ConnectorContext,
   toolkit: ConnectorToolkit,
   actionSlug: string,

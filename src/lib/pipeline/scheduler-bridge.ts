@@ -28,7 +28,11 @@
 //        is the owner's role (the construction money figures are redacted against it), and the call carries no API key. Reads
 //        run unattended (PMD-05). Only a summary of the result is kept (its shape and size), never the body: last_result is
 //        readable by the whole organisation and a manager-owned read can hold figures other roles may not see.
-//        NO MODEL IS EVER ASKED. The schedule already names its function, so no words are resolved. proposeSubmission() and
+//        a JOB (scheduled-jobs.ts: today scan_connected_folder, the way-5 pull of a connected mailbox or Drive folder) is work the
+//        bridge does itself for the owner. It is in no registry and reachable from nothing else. It reads the source, records a
+//        proposal per file for a person to approve, and creates no business record. Only its numbers are kept (last_result and the
+//        audit row hold counts and a stop word, never a file name or content).
+//        NO MODEL IS EVER ASKED to resolve words. The schedule already names its function, so no words are resolved. proposeSubmission() and
 //        runSubmission() resolve words to a function and may reach Level 1; a job that fires every five minutes must not (PMD-40).
 //   4. AUDIT. One compliance.audit_logs row per claimed run: user_id is the owner, api_key_id is null, surface is
 //      s1_one_page_ai_prepared, details is JSON with trigger "scheduler_bridge" (BR-517 reads exactly that).
@@ -42,10 +46,10 @@
 // reads it and presses Approve on the approval list, which is surface 1 of ai-os/projexa-build-001/FOUR_SURFACE_CONTRACT.md. No
 // other surface fits: s2 is a screen the person fills, s3 is the person's own AI calling in, s4 is inbound mail.
 //
-// DEPENDENCY ON U-29 (feat/build-001-u29-approvals, not on main when this was written): the approval list shows a stored proposal
-// only when readPreparedChain() accepts its source. Add "scheduler_bridge" to PREPARED_SOURCES in prepared-proposals.ts; until
-// then a scheduler proposal is stored and audited but not listed. The list also approves only the functions in
-// S1_APPROVABLE_FUNCTION_IDS (create_boq today), so a proposal for another write function waits for that list to widen.
+// THE APPROVAL LIST (U-29): it shows a stored proposal only when readPreparedChain() accepts its source, and "scheduler_bridge" is in
+// PREPARED_SOURCES since BUILD-002 WP-13. The list approves only the functions in S1_APPROVABLE_FUNCTION_IDS (create_boq today), so a
+// proposal for another write function waits for that list to widen. The proposals of a folder scan have no project yet: they are
+// listed organisation-wide by listSchedulerProposals() (services/folder-watch-store.ts).
 //
 // CROSS-ORGANISATION ACCESS. The due read and the claim go through the plain db client (the table owner, which bypasses RLS, as
 // every cross-organisation cron route does); the owner lookup does too. Everything a run writes for an organisation (the proposal,
@@ -60,6 +64,7 @@ import { missingParamsFor } from "./dry-run"
 import { executeTask, functionWrites, hasExecutor } from "./executor"
 import { functionLabel, functionSpec } from "./function-registry"
 import { nextCronRun } from "./cron-next"
+import { isScheduledJob, runScheduledJob } from "./scheduled-jobs"
 
 /** details.trigger of every audit row a run writes, and the source of every proposal it stores. */
 export const SCHEDULER_BRIDGE_TRIGGER = "scheduler_bridge" as const
@@ -87,6 +92,7 @@ export type BridgeOutcome =
   | "proposed"
   | "already_pending"
   | "read_ok"
+  | "job_ok"
   | "failed"
   | "owner_not_active"
   | "invalid_cadence"
@@ -102,6 +108,8 @@ export type BridgeSummary = {
   /** write schedules that stored nothing because their earlier proposal is still waiting for a person */
   alreadyPending: number
   readsRun: number
+  /** scheduled jobs (scheduled-jobs.ts) that ran to their end or to a stop word */
+  jobsRun: number
   failed: number
   /** owner not an active user of the organisation, or a cadence that cannot be read: deactivated, not run */
   skipped: number
@@ -120,10 +128,11 @@ type RunOutcome = Exclude<BridgeOutcome, "claimed_elsewhere">
 type RunReport = { outcome: RunOutcome; detail: Record<string, unknown>; deactivate?: boolean }
 
 /** Which BridgeSummary counter a claimed run's outcome adds to. */
-const SUMMARY_COUNTER: Record<RunOutcome, "proposed" | "alreadyPending" | "readsRun" | "failed" | "skipped"> = {
+const SUMMARY_COUNTER: Record<RunOutcome, "proposed" | "alreadyPending" | "readsRun" | "jobsRun" | "failed" | "skipped"> = {
   proposed: "proposed",
   already_pending: "alreadyPending",
   read_ok: "readsRun",
+  job_ok: "jobsRun",
   failed: "failed",
   owner_not_active: "skipped",
   invalid_cadence: "skipped",
@@ -250,7 +259,22 @@ async function storeProposal(owner: OwnerRow, schedule: ScheduleRow, params: Rec
   })
 }
 
-async function runClaimed(schedule: ScheduleRow, owner: OwnerRow | undefined): Promise<RunReport> {
+/** Runs a scheduled job as the owner (see scheduled-jobs.ts). Its numbers are kept; nothing else of what it saw is. */
+async function runJob(schedule: ScheduleRow, owner: OwnerRow, deadlineAt: number): Promise<RunReport> {
+  const params = isPlainObject(schedule.params) ? schedule.params : {}
+  const report = await runScheduledJob(schedule.functionId, {
+    orgId: schedule.orgId,
+    scheduleId: schedule.id,
+    // Read now, from compliance.users, never taken from the schedule row or a key.
+    owner: { id: owner.id, role: owner.role },
+    params,
+    deadlineAt,
+  })
+  if (report.ok) return { outcome: "job_ok", detail: { counts: report.counts, ...(report.stopped ? { stopped: report.stopped } : {}) } }
+  return { outcome: "failed", detail: { failureCode: report.code, reason: report.reason, ...(report.counts ? { counts: report.counts } : {}) } }
+}
+
+async function runClaimed(schedule: ScheduleRow, owner: OwnerRow | undefined, deadlineAt: number): Promise<RunReport> {
   const problem = ownerProblem(owner, schedule.orgId)
   if (problem || !owner) {
     const report: RunReport = { outcome: "owner_not_active", detail: { reason: problem ?? "owner_missing" }, deactivate: true }
@@ -258,6 +282,7 @@ async function runClaimed(schedule: ScheduleRow, owner: OwnerRow | undefined): P
   }
 
   const functionId = schedule.functionId
+  if (isScheduledJob(functionId)) return auditOnly(owner, schedule, await runJob(schedule, owner, deadlineAt))
   if (!functionSpec(functionId) || !hasExecutor(functionId)) {
     return auditOnly(owner, schedule, { outcome: "failed", detail: { failureCode: "FUNCTION_NOT_AVAILABLE" } })
   }
@@ -306,7 +331,7 @@ async function loadOwner(ownerUserId: string): Promise<OwnerRow | undefined> {
  * run" must hold for a run that fails as much as for one that succeeds. When the throw came from the owner read itself there is no
  * person to name (the row goes out as the bridge's own, see auditRun) and the detail says why.
  */
-async function runOneClaimed(schedule: ScheduleRow, cadenceReadable: boolean): Promise<RunReport> {
+async function runOneClaimed(schedule: ScheduleRow, cadenceReadable: boolean, deadlineAt: number): Promise<RunReport> {
   let owner: OwnerRow | undefined
   let ownerRead = false
   try {
@@ -316,7 +341,7 @@ async function runOneClaimed(schedule: ScheduleRow, cadenceReadable: boolean): P
       const skipped: RunReport = { outcome: "invalid_cadence", detail: { reason: "cadence_not_readable" }, deactivate: true }
       return await auditOnly(owner, schedule, skipped)
     }
-    return await runClaimed(schedule, owner)
+    return await runClaimed(schedule, owner, deadlineAt)
   } catch (error) {
     // The claim already moved next_run_at on, so a failure here is recorded once and not retried at the next tick.
     console.error(`scheduler-bridge: schedule ${schedule.id} failed:`, error)
@@ -350,7 +375,7 @@ export async function runDueSchedules(input: RunDueInput = {}): Promise<BridgeSu
     .orderBy(asc(pipelineSchedules.nextRunAt), asc(pipelineSchedules.id))
     .limit(batchSize)
 
-  const summary: BridgeSummary = { ranAt: now.toISOString(), checked: due.length, claimed: 0, proposed: 0, alreadyPending: 0, readsRun: 0, failed: 0, skipped: 0, deferred: 0, results: [] }
+  const summary: BridgeSummary = { ranAt: now.toISOString(), checked: due.length, claimed: 0, proposed: 0, alreadyPending: 0, readsRun: 0, jobsRun: 0, failed: 0, skipped: 0, deferred: 0, results: [] }
 
   for (const [index, schedule] of due.entries()) {
     if (Date.now() - startedAt >= timeBudgetMs) {
@@ -371,7 +396,7 @@ export async function runDueSchedules(input: RunDueInput = {}): Promise<BridgeSu
     }
     summary.claimed++
 
-    const report = await runOneClaimed(schedule, next !== null)
+    const report = await runOneClaimed(schedule, next !== null, startedAt + timeBudgetMs)
 
     try {
       await finish(schedule, now, report)
