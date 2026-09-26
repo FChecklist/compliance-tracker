@@ -94,7 +94,8 @@ describe("the committed outputs are current", () => {
     const io = fsIo(ROOT)
     for (const f of [FUNCTIONS_JSON, KINDS_JSON, CURRENT_SEED_MIGRATION]) expect(io.exists(f)).toBe(true)
     expect(FUNCTIONS_JSON).toBe("supabase/functions/ai-work-link/function-registry.generated.json")
-    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0644_build002_awl_seed_project_boq.sql")
+    // BUILD-002 WP-06 moved the current seed migration from 0628 (applied live once, never edited again) to 0643, which adds 20 record kinds
+    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0643_build002_record_kinds.sql")
   })
 
   test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are the 15, and none of the five bad ones", () => {
@@ -254,8 +255,10 @@ describe("it survives what other units do to function-registry.ts", () => {
 describe("the record kinds", () => {
   const kinds = buildKindRows()
 
-  test("there are the 13 kinds of spec section 6.2, and the spec's money columns are marked", () => {
-    expect(kinds.map((k) => k.kind)).toEqual(["project", "boqs", "boq_lines", "activities", "progress", "tasks", "meetings", "documents", "roster", "attendance", "timesheets", "pipeline_tasks", "people"])
+  test("there are the 13 kinds of spec section 6.2 and the 20 of BUILD-002 WP-06, and the spec's money columns are marked", () => {
+    expect(kinds.map((k) => k.kind).slice(0, 13)).toEqual(["project", "boqs", "boq_lines", "activities", "progress", "tasks", "meetings", "documents", "roster", "attendance", "timesheets", "pipeline_tasks", "people"])
+    expect(kinds.map((k) => k.kind).slice(13)).toEqual(["rfis", "submittals", "punch_list", "change_orders", "site_diaries", "site_instructions", "milestones", "progress_claims", "interim_bills", "materials", "material_receipts", "material_issues", "kpi_entries", "expenses", "drawings", "permits", "meeting_minutes", "wiki_pages", "ffe_items", "schedule_baselines"])
+    expect(kinds).toHaveLength(33)
     const money = Object.fromEntries(kinds.map((k) => [k.kind, k.money_columns]))
     expect(money.project).toEqual(["project_value", "vat_rate_percent", "retention_percent"])
     expect(money.boqs).toEqual(["contract_value_override"])

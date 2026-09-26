@@ -53,7 +53,10 @@
       "material_amount",
       "manpower_amount",
       "rate_project",
-      "rate_contract"
+      "rate_contract",
+      "vendor_id",
+      "overhead_percent",
+      "profit_percent"
     ],
     "filters": {
       "fields": {
@@ -103,6 +106,14 @@
           ]
         },
         "budget_percentage": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "breakdown_percentage": {
           "type": "numeric",
           "ops": [
             "eq",
@@ -497,6 +508,859 @@
       },
       "sort": [
         "name"
+      ]
+    }
+  },
+  {
+    "kind": "rfis",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "ball_in_court": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "assigned_to_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "due_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "number": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "number",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "submittals",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "type": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "due_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "number": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "number",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "punch_list",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "priority": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "trade": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "assigned_to_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "due_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "number": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "number",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "change_orders",
+    "money_columns": [
+      "cost_impact"
+    ],
+    "filters": {
+      "fields": {
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "trade": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "number": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "cost_impact": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "schedule_impact_days": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "number",
+        "created_at",
+        "cost_impact",
+        "schedule_impact_days"
+      ]
+    }
+  },
+  {
+    "kind": "site_diaries",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "diary_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "diary_date",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "site_instructions",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "issue_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "si_number": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "cost_impact": {
+          "type": "boolean",
+          "ops": [
+            "eq"
+          ]
+        },
+        "time_impact": {
+          "type": "boolean",
+          "ops": [
+            "eq"
+          ]
+        }
+      },
+      "sort": [
+        "si_number",
+        "issue_date",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "milestones",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "target_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "name",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "progress_claims",
+    "money_columns": [
+      "retention_percent",
+      "customer_id",
+      "interim_bill_id"
+    ],
+    "filters": {
+      "fields": {
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "boq_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "scheduled_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "retention_percent": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "customer_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        }
+      },
+      "sort": [
+        "scheduled_date",
+        "created_at",
+        "retention_percent"
+      ]
+    }
+  },
+  {
+    "kind": "interim_bills",
+    "money_columns": [
+      "retention_percent",
+      "gross_amount",
+      "retention_amount",
+      "net_payable",
+      "retention_released_amount",
+      "sales_invoice_id"
+    ],
+    "filters": {
+      "fields": {
+        "boq_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "bill_number": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "bill_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "gross_amount": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "net_payable": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "bill_number",
+        "bill_date",
+        "created_at",
+        "gross_amount",
+        "net_payable"
+      ]
+    }
+  },
+  {
+    "kind": "materials",
+    "money_columns": [
+      "unit_cost"
+    ],
+    "filters": {
+      "fields": {
+        "name": {
+          "type": "text",
+          "ops": [
+            "eq"
+          ]
+        },
+        "is_active": {
+          "type": "boolean",
+          "ops": [
+            "eq"
+          ]
+        },
+        "unit_cost": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "name",
+        "created_at",
+        "unit_cost"
+      ]
+    }
+  },
+  {
+    "kind": "material_receipts",
+    "money_columns": [
+      "unit_cost",
+      "vendor_id"
+    ],
+    "filters": {
+      "fields": {
+        "material_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "received_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "quantity": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "unit_cost": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "vendor_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        }
+      },
+      "sort": [
+        "received_date",
+        "created_at",
+        "quantity"
+      ]
+    }
+  },
+  {
+    "kind": "material_issues",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "material_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "boq_line_item_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "issued_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "quantity": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "issued_date",
+        "created_at",
+        "quantity"
+      ]
+    }
+  },
+  {
+    "kind": "kpi_entries",
+    "money_columns": [
+      "target_value",
+      "actual_value"
+    ],
+    "filters": {
+      "fields": {
+        "kpi_definition_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "metric_name": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "period": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "approval_status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "actual_value": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "created_at",
+        "period",
+        "actual_value"
+      ]
+    }
+  },
+  {
+    "kind": "expenses",
+    "money_columns": [
+      "amount",
+      "description"
+    ],
+    "filters": {
+      "fields": {
+        "expense_head": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "expense_date": {
+          "type": "date",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "is_rework": {
+          "type": "boolean",
+          "ops": [
+            "eq"
+          ]
+        },
+        "amount": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "expense_date",
+        "created_at",
+        "amount"
+      ]
+    }
+  },
+  {
+    "kind": "drawings",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "drawing_no": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "revision": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "drawing_status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "discipline": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "category": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        }
+      },
+      "sort": [
+        "name",
+        "created_at",
+        "version_number"
+      ]
+    }
+  },
+  {
+    "kind": "permits",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "permit_number": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "permit_authority": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "expiry_date": {
+          "type": "timestamptz",
+          "ops": [
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "name",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "meeting_minutes",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "meeting_type": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "scheduled_at": {
+          "type": "timestamptz",
+          "ops": [
+            "gt",
+            "lt"
+          ]
+        }
+      },
+      "sort": [
+        "scheduled_at",
+        "created_at"
+      ]
+    }
+  },
+  {
+    "kind": "wiki_pages",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "slug": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "title": {
+          "type": "text",
+          "ops": [
+            "eq"
+          ]
+        }
+      },
+      "sort": [
+        "slug",
+        "title",
+        "updated_at"
+      ]
+    }
+  },
+  {
+    "kind": "ffe_items",
+    "money_columns": [
+      "unit_cost",
+      "unit_price",
+      "vendor_id"
+    ],
+    "filters": {
+      "fields": {
+        "status": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "category": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "room_or_area": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        },
+        "unit_cost": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "unit_price": {
+          "type": "numeric",
+          "ops": [
+            "eq",
+            "gt",
+            "lt"
+          ]
+        },
+        "vendor_id": {
+          "type": "text",
+          "ops": [
+            "eq",
+            "in"
+          ]
+        }
+      },
+      "sort": [
+        "item_name",
+        "created_at",
+        "unit_cost",
+        "unit_price"
+      ]
+    }
+  },
+  {
+    "kind": "schedule_baselines",
+    "money_columns": [],
+    "filters": {
+      "fields": {
+        "name": {
+          "type": "text",
+          "ops": [
+            "eq"
+          ]
+        }
+      },
+      "sort": [
+        "name",
+        "created_at"
       ]
     }
   }

@@ -548,6 +548,7 @@ describe("records: paging, formats, money", () => {
     const { run, fake } = setup({ leaksMoney: true, rowsPerKind: 3 })
     let sawMoney = 0
     for (const k of RECORD_KINDS) {
+      fake.state.clock += 61_000 // 33 kinds and their refusals are more than the 120 calls a minute one link may make: a minute passes per kind
       const r = await run(at(TOKENS.member, `/records/${k.kind}?limit=200`), { headers: JSONH })
       expect(r.status).toBe(200)
       const page = await r.json()
@@ -565,6 +566,7 @@ describe("records: paging, formats, money", () => {
     const before = fake.names().filter((n) => n === "ai_work_link_records").length
     let refused = 0
     for (const k of RECORD_KINDS) {
+      fake.state.clock += 61_000
       for (const col of k.money_columns) {
         for (const qs of [`${col}_gt=0`, `sort=${col}`, `sort=-${col}`]) {
           const r = await run(at(TOKENS.member, `/records/${k.kind}?${qs}`), { headers: JSONH })

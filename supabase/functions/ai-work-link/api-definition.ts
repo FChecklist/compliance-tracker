@@ -4,7 +4,8 @@
 // test 5.5) by construction. PURE: no Deno global. The DPDP function keeps the same shape in supabase/functions/dpdp-ai-link/api-definition.ts.
 //
 // Two generated files feed it, and this file only reads them (scripts/gen-ai-link-registry.* writes them; CI checks they are current):
-//   record-kinds.generated.json      the 13 record kinds of section 6.2: money columns and the filter and sort allow-list of section 6.6
+//   record-kinds.generated.json      the record kinds (13 of section 6.2, and 20 more from BUILD-002 WP-06): money columns and the filter
+//                                    and sort allow-list of section 6.6
 //   function-registry.generated.json the function registry: which functions any link may carry (15 of 33) and their parameters
 import RECORD_KINDS_JSON from "./record-kinds.generated.json" with { type: "json" }
 import FUNCTION_REGISTRY_JSON from "./function-registry.generated.json" with { type: "json" }
@@ -33,12 +34,32 @@ export const KIND_SUMMARY: Record<string, string> = {
   progress: "daily work-progress entries",
   tasks: "tasks (issues) with status, priority and due date",
   meetings: "meetings",
-  documents: "documents linked to the project",
+  documents: "documents linked to the project, with drawing and permit fields in metadata",
   roster: "the labour roster",
   attendance: "daily attendance",
   timesheets: "time entries",
   pipeline_tasks: "recorded pipeline tasks",
-  people: "the project lead and team",
+  people: "the project lead and team, with each person's project role",
+  rfis: "requests for information: question, answer, status, who has it",
+  submittals: "submittals: spec section, type, review status and comments",
+  punch_list: "punch list items: trade, priority, status, assignee",
+  change_orders: "change orders: status, schedule impact, cost impact",
+  site_diaries: "daily site diary: weather, work done, labour count",
+  site_instructions: "site instructions issued to a contractor",
+  milestones: "project milestones and target dates",
+  progress_claims: "progress claims: status and dates",
+  interim_bills: "interim bills: gross, retention, net payable",
+  materials: "site materials and unit cost",
+  material_receipts: "material receipts: quantity, cost, vendor",
+  material_issues: "material issued to the site or a BOQ line",
+  kpi_entries: "KPI entries for this project: actual against target",
+  expenses: "expense entries: head, date, amount",
+  drawings: "drawing register: number, revision, status, discipline",
+  permits: "permits: number, authority, issue and expiry dates",
+  meeting_minutes: "meeting minutes and agenda",
+  wiki_pages: "wiki pages of the project",
+  ffe_items: "interior furniture, fixtures and equipment items",
+  schedule_baselines: "captured schedule baselines",
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

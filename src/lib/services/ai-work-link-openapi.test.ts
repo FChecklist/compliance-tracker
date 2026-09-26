@@ -81,9 +81,9 @@ describe("OpenAPI 3.0.3", () => {
     }
   })
 
-  test("every one of the 13 record kinds has its own path, with exactly its own filters and sort list", () => {
+  test("every one of the 33 record kinds (13 of BUILD-001, 20 of BUILD-002 WP-06) has its own path, with exactly its own filters and sort list", () => {
     const d = buildOpenApi({ base: BASE, mode: "path" }) as Doc
-    expect(KIND_NAMES).toHaveLength(13)
+    expect(KIND_NAMES).toHaveLength(33)
     expect(d.paths["/records/{kind}"].get.parameters.find((p: any) => p.name === "kind").schema.enum).toEqual([...KIND_NAMES])
     for (const k of RECORD_KINDS) {
       const op = d.paths[`/records/${k.kind}`]?.get

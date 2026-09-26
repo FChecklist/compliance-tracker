@@ -139,9 +139,12 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
   const { base, ctx, functions, config } = input
   const manifest = buildManifest(input)
   const av = availabilityOf({ ctx, config })
+  // One address pattern for every kind, and one short line each. The full address of each kind is in the manifest (section H), so the
+  // manual does not print it a second time: with 33 kinds the second copy alone was about 4 KB of the 20,000-byte budget.
   const readLines = [
     `- Context: ${base}/context`,
-    ...KIND_NAMES.map((k) => `- ${k} (${KIND_SUMMARY[k] ?? k}): ${manifest.urls.records[k]}`),
+    `- Records: ${base}/records/<kind>?limit=${LIMITS.keysetDefault} (one record: ${base}/records/<kind>/<id>). The kinds and what each holds:`,
+    ...KIND_NAMES.map((k) => `  - ${k}: ${KIND_SUMMARY[k] ?? k}`),
     `- Functions: ${base}/functions`,
     `- History: ${base}/history`,
   ]
