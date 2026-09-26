@@ -22,7 +22,7 @@ export const PARAMS_MAX_DEPTH = 32;
 
 // C0 except tab (09), line feed (0A), carriage return (0D); DEL (7F); C1 (80 to 9F).
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
-const BACKTICK_RUN = /`{3,}/g;
+const BACKTICK_RUN = /\x60{3,}/g; // \x60 is the backtick: a literal one inside a regex confuses the nesting guard's source masker
 
 /** One text value with control characters removed and every run of three or more backticks made two single quotes. */
 export function cleanPastedText(text: string): string {
