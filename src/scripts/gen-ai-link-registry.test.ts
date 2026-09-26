@@ -52,6 +52,13 @@ const B002_ON_LINKS: Record<string, [number, number]> = {
   update_project: [2, 2],
   create_activity: [1, 2],
 }
+// BUILD-002 WP-05c and WP-05d (AW-303, AW-304): coverage waves 3 and 4. function -> [function link level, minimum role rank].
+const B002_W34_ON_LINKS: Record<string, [number, number]> = {
+  create_rfi: [1, 2], answer_rfi: [2, 2], close_rfi: [1, 2], create_submittal: [1, 2], review_submittal: [2, 3],
+  create_punch_list_item: [1, 2], mark_punch_item_ready: [1, 2], verify_punch_item_closed: [2, 3], create_site_diary: [1, 2],
+  create_progress_category: [1, 2], update_progress_entry: [1, 2], get_daily_progress_report: [0, 2], record_attendance_batch: [1, 2],
+  update_roster_entry: [2, 2], record_material_issue: [1, 2], create_material: [2, 2], void_material_receipt: [2, 3], get_material_cost_report: [0, 3],
+}
 const B002_EXCLUDED = ["create_project"]
 // BUILD-002 WP-05a waves 1 and 2 (AW-301, AW-302): function -> [function link level, minimum role rank]. create_boq of wave 2 is in B002_ON_LINKS.
 const B002_WAVE_1_2_ON_LINKS: Record<string, [number, number]> = {
@@ -75,7 +82,7 @@ const B002_WAVE_1_2_ON_LINKS: Record<string, [number, number]> = {
   list_billing_claims: [0, 3],
   get_billing_due_queue: [0, 3],
 }
-const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS }
+const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS }
 /** How many functions are on links in all: every list above, so a wave that adds its own list changes one line, not a number. */
 const ON_LINKS_COUNT = Object.keys(ALL_ON_LINKS).length
 // spec 9.1: the 17 excluded (the register row AWL-S03 names the first five)
@@ -118,8 +125,7 @@ describe("the committed outputs are current", () => {
     const io = fsIo(ROOT)
     for (const f of [FUNCTIONS_JSON, KINDS_JSON, CURRENT_SEED_MIGRATION]) expect(io.exists(f)).toBe(true)
     expect(FUNCTIONS_JSON).toBe("supabase/functions/ai-work-link/function-registry.generated.json")
-    // BUILD-002 WP-06 moved the current seed migration from 0628 (applied live once, never edited again) to 0643 (20 record kinds), and WP-05a waves 1 and 2 to 0650 (19 more functions on links)
-    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0650_build002_awl_seed_coverage_waves_1_2.sql")
+    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0647_build002_awl_seed_waves_3_4.sql")
   })
 
   test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are every function reviewed onto links, and none of the five bad ones", () => {
@@ -131,11 +137,11 @@ describe("the committed outputs are current", () => {
   })
 })
 
-describe("exactly the spec's 10 functions and the five BUILD-002 adds are on links", () => {
+describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 37 of coverage waves 1 to 4 are on links", () => {
   const rows = buildFunctionRows(ALL_FUNCTION_SPECS)
   const on = rows.filter((r) => r.link_level !== null)
 
-  test("the on-link functions are the spec's 10, the five BUILD-002 adds and the 19 of waves 1 and 2, at the written levels and minimum ranks", () => {
+  test("the on-link functions are the spec's 10, the five BUILD-002 adds, the 19 of waves 1 and 2 and the 18 of waves 3 and 4, at the written levels and minimum ranks", () => {
     expect(on.length).toBe(ON_LINKS_COUNT)
     expect(on.map((r) => r.function_id).sort()).toEqual(Object.keys(ALL_ON_LINKS).sort())
     for (const r of on) {
@@ -146,8 +152,9 @@ describe("exactly the spec's 10 functions and the five BUILD-002 adds are on lin
     expect(on.filter((r) => r.kind === "read").every((r) => r.link_level === 0)).toBe(true)
     expect(on.filter((r) => r.kind === "write").every((r) => r.link_level === 1 || r.link_level === 2)).toBe(true)
     expect(on.filter((r) => r.link_level === 2).map((r) => r.function_id).sort()).toEqual([
-      "add_boq_lines", "add_roster_entry", "apply_boq_import", "create_boq", "create_boq_revision", "create_change_order", "create_site_instruction",
-      "seal_boq", "update_line_item_budget", "update_project",
+      "add_boq_lines", "add_roster_entry", "answer_rfi", "apply_boq_import", "create_boq", "create_boq_revision", "create_change_order",
+      "create_material", "create_site_instruction", "review_submittal", "seal_boq", "update_line_item_budget", "update_project",
+      "update_roster_entry", "verify_punch_item_closed", "void_material_receipt",
     ])
   })
 
@@ -199,8 +206,9 @@ describe("exactly the spec's 10 functions and the five BUILD-002 adds are on lin
     // waves 1 and 2 add the ids of a schedule filter and task (statusId, assigneeId, assigneeIds, typeId, predecessorId), a milestone, a change order,
     // a stored document and its parent BOQ, and a vendor; the /Ids?$/ rule of the generator also reads a list of ids (assigneeIds)
     expect([...idParams].sort()).toEqual([
-      "assigneeId", "assigneeIds", "boqId", "boqLineItemId", "categoryId", "changeOrderId", "clientId", "documentId", "issueId", "milestoneId",
-      "parentBoqId", "predecessorId", "rosterId", "sourceChangeOrderId", "statusId", "typeId", "vendorId",
+      "activityId", "assignedToId", "assigneeId", "assigneeIds", "boqId", "boqLineItemId", "categoryId", "changeOrderId", "clientId", "documentId",
+      "entryId", "issueId", "itemId", "materialId", "milestoneId", "parentBoqId", "parentCategoryId", "predecessorId", "receiptId", "rfiId",
+      "rosterId", "sourceChangeOrderId", "statusId", "submittalId", "typeId", "vendorId",
     ])
     expect(on.find((r) => r.function_id === "record_work_progress")!.id_params).toEqual(["boqLineItemId"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params.map((p) => p.name)).toEqual(["projectId", "itemCode", "percent"])
@@ -210,10 +218,11 @@ describe("exactly the spec's 10 functions and the five BUILD-002 adds are on lin
   test("rows are sorted by id, and money-sensitive functions are the reads of dashboard, budget and KPIs plus the draft-only writes", () => {
     expect(rows.map((r) => r.function_id)).toEqual([...rows.map((r) => r.function_id)].sort())
     expect(on.filter((r) => r.money_sensitive).map((r) => r.function_id).sort()).toEqual([
-      "add_boq_lines", "add_roster_entry", "apply_boq_import", "create_boq", "create_boq_revision", "create_change_order", "get_billing_due_queue",
-      "get_boq_line_items", "get_change_order", "get_construction_budget_status", "get_construction_kpi_status", "get_construction_project_dashboard",
-      "get_designer_timesheet_report", "get_manpower_cost_report", "get_project_analysis", "list_billing_claims", "list_change_orders",
-      "preview_boq_import", "run_named_report", "seal_boq", "update_line_item_budget", "update_project",
+      "add_boq_lines", "add_roster_entry", "apply_boq_import", "create_boq", "create_boq_revision", "create_change_order", "create_material",
+      "get_billing_due_queue", "get_boq_line_items", "get_change_order", "get_construction_budget_status", "get_construction_kpi_status",
+      "get_construction_project_dashboard", "get_designer_timesheet_report", "get_manpower_cost_report", "get_material_cost_report",
+      "get_project_analysis", "list_billing_claims", "list_change_orders", "preview_boq_import", "record_attendance_batch", "run_named_report",
+      "seal_boq", "update_line_item_budget", "update_progress_entry", "update_project", "update_roster_entry", "void_material_receipt",
     ])
   })
 })

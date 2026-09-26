@@ -918,6 +918,335 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       primaryLabel: "Create project",
     },
   },
+
+  // ---- PROJEXA-BUILD-002 WP-05c (wave 3): RFIs, submittals, punch list, site diary ---------
+  //
+  // Each entry wraps the service function the matching PROJEXA route calls
+  // (construction-field-workflow-service.ts, construction-site-diary-service.ts); the executors are in
+  // src/lib/pipeline/executors/field-records.ts and site-diary.ts. An id parameter (rfiId, submittalId,
+  // itemId, assignedToId) is declared as a required or optional parameter and not as a card field, so a
+  // link declares it and the executor holds it to the task's own project.
+  {
+    functionId: "create_rfi",
+    label: "New RFI",
+    module: "rfis",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "subject", label: "Subject", code: "TITLE_REQUIRED", field: "value" },
+      { name: "question", label: "Question", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    optionalParams: ["assignedToId"],
+    card: {
+      fields: [
+        { key: "subject", label: "Subject", type: "text", required: true },
+        { key: "question", label: "Question", type: "text", required: true },
+        { key: "dueDate", label: "Due date", type: "date", required: false },
+        { key: "ballInCourt", label: "With", type: "select", required: false, default: "architect" },
+      ],
+      primaryLabel: "Save RFI",
+    },
+  },
+  {
+    functionId: "answer_rfi",
+    label: "Answer an RFI",
+    module: "rfis",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "rfiId", label: "RFI", code: "VALUE_REQUIRED", field: "value" },
+      { name: "answer", label: "Answer", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [{ key: "answer", label: "Answer", type: "text", required: true }],
+      primaryLabel: "Save answer",
+    },
+  },
+  {
+    functionId: "close_rfi",
+    label: "Close an RFI",
+    module: "rfis",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "rfiId", label: "RFI", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], primaryLabel: "Close RFI" },
+  },
+  {
+    functionId: "create_submittal",
+    label: "New submittal",
+    module: "submittals",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "title", label: "Title", code: "TITLE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: true },
+        { key: "specSection", label: "Spec section", type: "text", required: false },
+        { key: "type", label: "Type", type: "select", required: false, default: "shop_drawing" },
+        { key: "dueDate", label: "Due date", type: "date", required: false },
+      ],
+      primaryLabel: "Save submittal",
+    },
+  },
+  {
+    functionId: "review_submittal",
+    label: "Review a submittal",
+    module: "submittals",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "submittalId", label: "Submittal", code: "VALUE_REQUIRED", field: "value" },
+      { name: "status", label: "Decision", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "status", label: "Decision", type: "text", required: true },
+        { key: "comments", label: "Comments", type: "text", required: false },
+      ],
+      primaryLabel: "Save review",
+    },
+  },
+  {
+    functionId: "create_punch_list_item",
+    label: "New punch list item",
+    module: "punch_list",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "description", label: "Description", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    optionalParams: ["assignedToId"],
+    card: {
+      fields: [
+        { key: "description", label: "Description", type: "text", required: true },
+        { key: "location", label: "Location", type: "text", required: false },
+        { key: "trade", label: "Trade", type: "text", required: false },
+        { key: "priority", label: "Priority", type: "select", required: false, default: "medium" },
+        { key: "dueDate", label: "Due date", type: "date", required: false },
+      ],
+      primaryLabel: "Save punch list item",
+    },
+  },
+  {
+    functionId: "mark_punch_item_ready",
+    label: "Mark a punch list item ready",
+    module: "punch_list",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "itemId", label: "Punch list item", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], primaryLabel: "Mark ready" },
+  },
+  {
+    functionId: "verify_punch_item_closed",
+    label: "Verify a punch list item closed",
+    module: "punch_list",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "itemId", label: "Punch list item", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], primaryLabel: "Verify closed" },
+  },
+  {
+    functionId: "create_site_diary",
+    label: "New site diary entry",
+    module: "site_diary",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "diaryDate", label: "Diary date", code: "DATE_REQUIRED", field: "date" },
+    ],
+    card: {
+      fields: [
+        { key: "diaryDate", label: "Diary date", type: "date", required: true },
+        { key: "weather", label: "Weather", type: "text", required: false },
+        { key: "workDone", label: "Work done", type: "text", required: false },
+        { key: "visitors", label: "Visitors", type: "text", required: false },
+        { key: "issues", label: "Issues", type: "text", required: false },
+        { key: "instructions", label: "Instructions", type: "text", required: false },
+        { key: "materialReceived", label: "Material received", type: "text", required: false },
+        { key: "labourCount", label: "Labour count", type: "number", required: false },
+        { key: "remarks", label: "Remarks", type: "text", required: false },
+      ],
+      primaryLabel: "Save diary entry",
+    },
+  },
+
+  // ---- PROJEXA-BUILD-002 WP-05d (wave 4): progress, attendance, roster, materials --------------
+  //
+  // The executors are in src/lib/pipeline/executors/progress.ts, labour.ts and materials.ts. create_activity
+  // (wave 4 in the coverage list) is WP-07's and is above; it is not repeated here.
+  {
+    functionId: "create_progress_category",
+    label: "New work category",
+    module: "work_progress",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "name", label: "Name", code: "TITLE_REQUIRED" },
+    ],
+    optionalParams: ["parentCategoryId"],
+    card: {
+      fields: [{ key: "name", label: "Name", type: "text", required: true }],
+      primaryLabel: "Save category",
+    },
+  },
+  {
+    functionId: "update_progress_entry",
+    label: "Correct a progress entry",
+    module: "work_progress",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "entryId", label: "Progress entry", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    optionalParams: ["activityId", "boqLineItemId"],
+    card: {
+      fields: [
+        { key: "quantityDone", label: "Quantity done", type: "number", required: false },
+        { key: "percentComplete", label: "Percent complete", type: "percent", unit: "%", required: false },
+        { key: "entryDate", label: "Date", type: "date", required: false },
+        { key: "remarks", label: "Remarks", type: "text", required: false },
+      ],
+      primaryLabel: "Save correction",
+    },
+  },
+  readSpecNeeding("get_daily_progress_report", "View the daily progress report", "work_progress", true, [
+    { name: "date", label: "Date", code: "DATE_REQUIRED", field: "date" },
+  ]),
+  {
+    functionId: "record_attendance_batch",
+    label: "Mark attendance for a sheet",
+    module: "manpower",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "date", label: "Date", code: "DATE_REQUIRED" },
+      { name: "entries", label: "Workers", code: "WORKER_REQUIRED", field: "worker" },
+    ],
+    card: {
+      fields: [{ key: "date", label: "Date", type: "date", required: true }],
+      primaryLabel: "Save attendance sheet",
+    },
+  },
+  {
+    functionId: "update_roster_entry",
+    label: "Change a worker",
+    module: "manpower",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "rosterId", label: "Worker", code: "WORKER_REQUIRED", field: "worker" },
+    ],
+    optionalParams: ["isActive"],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: false },
+        { key: "trade", label: "Trade", type: "text", required: false },
+        { key: "dailyRate", label: "Daily rate", type: "number", required: false },
+        { key: "skillLevel", label: "Skill level", type: "text", required: false },
+      ],
+      primaryLabel: "Save worker",
+    },
+  },
+  {
+    functionId: "record_material_issue",
+    label: "Issue material from site stock",
+    module: "materials",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "materialId", label: "Material", code: "MATERIAL_REQUIRED", field: "material" },
+      { name: "quantity", label: "Quantity", code: "QUANTITY_REQUIRED", field: "value" },
+      { name: "issuedDate", label: "Issue date", code: "DATE_REQUIRED", field: "date" },
+    ],
+    optionalParams: ["boqLineItemId"],
+    card: {
+      fields: [
+        { key: "materialId", label: "Material", type: "select", required: true, picker: "material" },
+        { key: "quantity", label: "Quantity", type: "number", required: true },
+        { key: "issuedDate", label: "Date", type: "date", required: true },
+        { key: "issuedTo", label: "Issued to", type: "text", required: false },
+        { key: "note", label: "Note", type: "text", required: false },
+      ],
+      primaryLabel: "Save issue",
+    },
+  },
+  {
+    functionId: "create_material",
+    label: "New material",
+    module: "materials",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "name", label: "Name", code: "TITLE_REQUIRED" },
+      { name: "unit", label: "Unit", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: true },
+        { key: "unit", label: "Unit", type: "text", required: true },
+        { key: "spec", label: "Specification", type: "text", required: false },
+        { key: "unitCost", label: "Unit cost", type: "number", required: false },
+        { key: "reorderLevel", label: "Reorder level", type: "number", required: false },
+      ],
+      primaryLabel: "Save material",
+    },
+  },
+  {
+    functionId: "void_material_receipt",
+    label: "Void a material receipt",
+    module: "materials",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "receiptId", label: "Receipt", code: "VALUE_REQUIRED", field: "value" },
+      { name: "reason", label: "Reason", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [{ key: "reason", label: "Reason", type: "text", required: true }],
+      primaryLabel: "Void receipt",
+    },
+  },
+  { ...readSpec("get_material_cost_report", "View the material cost report", "materials", true), optionalParams: ["from", "to", "groupBy"] },
 ];
 
 const SPECS: Readonly<Record<string, FunctionSpec>> = Object.fromEntries(SPEC_LIST.map((s) => [s.functionId, s]));

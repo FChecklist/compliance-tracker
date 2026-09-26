@@ -44,6 +44,7 @@ import { functionSpec, requiredParamSatisfied, WRITE_FUNCTION_IDS as REGISTERED_
 import { executeCreateProject, executeUpdateProject } from "./executors/project";
 import { executeAddBoqLines, executeSealBoq, withholdBoqMoney } from "./executors/boq-payload";
 import { ensureDefaultActivity, executeCreateActivity } from "./executors/activity";
+import { WAVE_3_4_EXECUTORS } from "./executors/coverage-waves-3-4";
 import { createBoqLedgerHooks } from "@/lib/services/construction-boq-payload-service";
 import { executeCreateProjectFromDocument } from "./executors/extraction";
 
@@ -1889,6 +1890,8 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   apply_boq_import: executeApplyBoqImport,
   // PROJEXA-BUILD-002 WP-02: a NEW project and its BOQ from a stored workbook (executors/extraction.ts). On no project link.
   create_project_from_document: (task) => executeCreateProjectFromDocument(task),
+  // PROJEXA-BUILD-002 WP-05c/WP-05d: coverage waves 3 and 4 (RFIs, submittals, punch list, site diary; progress, attendance, materials).
+  ...WAVE_3_4_EXECUTORS,
 };
 
 /**

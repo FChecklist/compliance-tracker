@@ -314,15 +314,16 @@ describe("detail rows of BR-523 that need no deployed function (BR-581, BR-583 a
   const REGISTRY = REGISTRY_JSON as unknown as Reg[]
   const onLinks = REGISTRY.filter((f) => f.link_level !== null)
 
-  // BUILD-002 WP-03/04/07 added five functions to the spec's ten (create_boq, add_boq_lines, seal_boq, update_project, create_activity), and WP-05a
-  // waves 1 and 2 added 19 more, so the count is 34 from this commit; scripts/gen-ai-link-registry.data.ts is the one place it changes.
-  test("BR-581: exactly 34 functions are offered on links (the spec's 10, BUILD-002's five and the 19 of WP-05a waves 1 and 2), a manager sees all 34, a member only what its rank allows, none offered twice", async () => {
+  // BUILD-002 WP-03/04/07 added five functions to the spec's ten (create_boq, add_boq_lines, seal_boq, update_project, create_activity), WP-05a
+  // waves 1 and 2 added 19 more and WP-05c/WP-05d the eighteen of coverage waves 3 and 4, so the count is 52 from this commit;
+  // scripts/gen-ai-link-registry.data.ts is the one place it changes.
+  test("BR-581: exactly 52 functions are offered on links (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2 and the 18 of waves 3 and 4), a manager sees all 52, a member only what its rank allows, none offered twice", async () => {
     const edge = startEdge({ writesEnabled: true })
-    expect(onLinks).toHaveLength(34)
+    expect(onLinks).toHaveLength(52)
     const allowed = async (token: string) => ((await (await fetch(edge.link(token) + "/context", { headers: { accept: "application/json" } })).json()) as { allowed_functions: string[] }).allowed_functions
     const manager = await allowed(TOKENS.manager)
     expect(sorted(manager)).toEqual(sorted(onLinks.map((f) => f.function_id)))
-    expect(new Set(manager).size).toBe(34)
+    expect(new Set(manager).size).toBe(52)
     const member = await allowed(TOKENS.member)
     expect(sorted(member)).toEqual(sorted(onLinks.filter((f) => f.min_role_rank <= 2).map((f) => f.function_id)))
     expect(member).not.toContain("get_construction_budget_status")

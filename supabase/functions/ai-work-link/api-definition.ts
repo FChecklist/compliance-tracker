@@ -33,6 +33,8 @@ export const PLAIN_KINDS: ReadonlySet<string> = new Set([
   "rfis", "submittals", "punch_list", "change_orders", "site_diaries", "site_instructions", "milestones", "progress_claims",
   "interim_bills", "materials", "material_receipts", "material_issues", "kpi_entries", "expenses", "drawings", "permits",
   "meeting_minutes", "wiki_pages", "ffe_items", "schedule_baselines",
+  // BUILD-002 WP-05b: the manual lost 400 bytes of room to the catalogue of 52 functions, so these self-describing kinds join the one-line list.
+  "activities", "meetings", "roster", "attendance", "timesheets", "tasks", "project", "people", "progress",
 ])
 
 /** One line per kind, for the manual and the OpenAPI document. */
@@ -95,7 +97,7 @@ export type RegistryFunction = {
 
 const REGISTRY = FUNCTION_REGISTRY_JSON as unknown as RegistryFunction[]
 
-/** The functions any link may carry (link_level is not null): 34 of the 52 reviewed (the spec's 10, BUILD-002's five and the 19 of WP-05a waves 1 and 2). */
+/** The functions any link may carry (link_level is not null): 52 of the 70 reviewed (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2 and the 18 of waves 3 and 4). */
 export const LINK_FUNCTIONS: ReadonlyArray<RegistryFunction> = REGISTRY.filter((f) => f.link_level !== null)
 
 export function functionDef(id: string): RegistryFunction | null {
@@ -155,6 +157,26 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   update_line_item_budget: { boqLineItemId: "<id from records/boq_lines>", budgetPercentage: 70 },
   list_billing_claims: {},
   get_billing_due_queue: {},
+  // BUILD-002 WP-05c wave 3: RFIs, submittals, punch list and site diary
+  create_rfi: { subject: "Beam depth at grid C4", question: "Please confirm the beam depth.", dueDate: "2026-10-01" },
+  answer_rfi: { rfiId: "<id from records/rfis>", answer: "Use 450 mm, as drawing S-12." },
+  close_rfi: { rfiId: "<id from records/rfis>" },
+  create_submittal: { title: "Tile sample, lobby", specSection: "09 30 00", dueDate: "2026-10-05" },
+  review_submittal: { submittalId: "<id from records/submittals>", status: "approved", comments: "Approved for the lobby only." },
+  create_punch_list_item: { description: "Chipped skirting, corridor 2", location: "Level 2 corridor", trade: "Joinery" },
+  mark_punch_item_ready: { itemId: "<id from records/punch_list>" },
+  verify_punch_item_closed: { itemId: "<id from records/punch_list>" },
+  create_site_diary: { diaryDate: "2026-09-20", weather: "Hot, 41 C", workDone: "Screed, level 2", labourCount: 12 },
+  // BUILD-002 WP-05d wave 4: progress, attendance, roster and materials
+  create_progress_category: { name: "Ceilings" },
+  update_progress_entry: { entryId: "<id from records/progress>", quantityDone: 3, percentComplete: 30 },
+  get_daily_progress_report: { date: "2026-09-01" },
+  record_attendance_batch: { date: "2026-09-20", entries: [{ rosterId: "<id from records/roster>", status: "present" }] },
+  update_roster_entry: { rosterId: "<id from records/roster>", trade: "Carpenter", dailyRate: 850 },
+  record_material_issue: { materialId: "<id from records/materials>", quantity: 10, issuedDate: "2026-09-20", issuedTo: "Falcon gang 3" },
+  create_material: { name: "Sand, fine", unit: "cum", spec: "Zone II", unitCost: 1800 },
+  void_material_receipt: { receiptId: "<id from records/material_receipts>", reason: "Wrong quantity keyed" },
+  get_material_cost_report: { from: "2026-09-01", to: "2026-09-30", groupBy: "vendor" },
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
