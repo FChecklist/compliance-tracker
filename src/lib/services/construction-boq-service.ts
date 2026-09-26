@@ -372,7 +372,7 @@ export function validateLineItemInputs(items: BoqLineItemInput[]): void {
  * can now trust a 201 absolutely: either every line item the caller sent is
  * stored, or there is no BOQ and an error says how many went missing.
  */
-async function assertLineItemsPersisted(db: TenantDb, boqId: string, expected: number): Promise<void> {
+export async function assertLineItemsPersisted(db: TenantDb, boqId: string, expected: number): Promise<void> {
   const stored = await db.query.constructionBoqLineItems.findMany({
     where: eq(constructionBoqLineItems.boqId, boqId),
     columns: { id: true },
@@ -401,7 +401,7 @@ export function normalizeCategory(category: string | null | undefined): string |
   return trimmed === "" ? null : trimmed
 }
 
-async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
+export async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
   if (items.length === 0) return
   const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
 
@@ -1646,7 +1646,19 @@ export async function updateLineItemMoneyFields(
   })
 }
 
-export async function createBoq(ctx: BoqContext, input: BoqInput) {
+/**
+ * BUILD-002 WP-04: two optional steps that run INSIDE createBoq's own transaction, so a caller that
+ * needs to record something with the BOQ (a retry key) commits or rolls back with it. Neither is
+ * used by the routes.
+ */
+export type CreateBoqHooks = {
+  /** Runs first, after the project is known. A non-null BOQ id short-circuits: that BOQ is returned and nothing is written. */
+  findExisting?: (db: TenantDb) => Promise<string | null>
+  /** Runs last, with the new BOQ's id. A throw rolls the BOQ back with it. */
+  afterCreate?: (db: TenantDb, boqId: string) => Promise<void>
+}
+
+export async function createBoq(ctx: BoqContext, input: BoqInput, hooks?: CreateBoqHooks) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
   if (!input.projectId) throw new ServiceError("projectId is required", 400)
@@ -1658,6 +1670,9 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
     const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
     if (!project) throw new ServiceError("Project not found", 404)
 
+    const existingId = hooks?.findExisting ? await hooks.findExisting(db) : null
+    if (existingId) return getBoqRow(db, existingId)
+
     const [boq] = await db.insert(constructionBoqs).values({
       orgId: ctx.orgId, projectId: input.projectId, version: 1, title, createdById: ctx.userId,
     }).returning()
@@ -1665,6 +1680,7 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
     const lineItems = input.lineItems || []
     await insertLineItems(db, ctx.orgId, boq.id, lineItems)
     await assertLineItemsPersisted(db, boq.id, lineItems.length)
+    if (hooks?.afterCreate) await hooks.afterCreate(db, boq.id)
     return getBoqRow(db, boq.id)
   }).then((row) => {
     bustProjectDashboardCache(ctx.orgId, row.projectId)

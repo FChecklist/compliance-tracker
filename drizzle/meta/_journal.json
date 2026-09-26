@@ -3292,6 +3292,13 @@
       "when": 1790100500000,
       "tag": "0631_build001_awl_mint_for",
       "breakpoints": true
+    },
+    {
+      "idx": 472,
+      "version": "7",
+      "when": 1790102000000,
+      "tag": "0644_build002_awl_seed_project_boq",
+      "breakpoints": true
     }
   ]
 }

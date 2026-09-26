@@ -5,10 +5,10 @@
 //
 // Two generated files feed it, and this file only reads them (scripts/gen-ai-link-registry.* writes them; CI checks they are current):
 //   record-kinds.generated.json      the 13 record kinds of section 6.2: money columns and the filter and sort allow-list of section 6.6
-//   function-registry.generated.json the function registry: which functions any link may carry (10 of 27) and their parameters
+//   function-registry.generated.json the function registry: which functions any link may carry (15 of 33) and their parameters
 import RECORD_KINDS_JSON from "./record-kinds.generated.json" with { type: "json" }
 import FUNCTION_REGISTRY_JSON from "./function-registry.generated.json" with { type: "json" }
-import type { Format, KindDef } from "../_shared/ai-link/core.ts"
+import { LIMITS, type Format, type KindDef } from "../_shared/ai-link/core.ts"
 
 export const API_VERSION = "2026-09-26"
 export const PRODUCT = "projexa"
@@ -58,16 +58,32 @@ export type RegistryFunction = {
   required_params: Array<{ name: string; label: string; any_of: string[] }>
   id_params: string[]
   text_params: string[]
+  /** Only present when the function may take a body larger than LIMITS.bodyMaxBytes (BUILD-002 WP-04); read it through bodyLimitFor(). */
+  body_max_bytes?: number
 }
 
 const REGISTRY = FUNCTION_REGISTRY_JSON as unknown as RegistryFunction[]
 
-/** The functions any link may carry (link_level is not null): 10 of the 27. */
+/** The functions any link may carry (link_level is not null): 15 of the 33 reviewed (the spec's 10 and BUILD-002's five). */
 export const LINK_FUNCTIONS: ReadonlyArray<RegistryFunction> = REGISTRY.filter((f) => f.link_level !== null)
 
 export function functionDef(id: string): RegistryFunction | null {
   return LINK_FUNCTIONS.find((f) => f.function_id === id) ?? null
 }
+
+/**
+ * The most bytes a call to this function may carry: the function's own `body_max_bytes` from the generated
+ * policy, else LIMITS.bodyMaxBytes. The policy is data (scripts/gen-ai-link-registry.data.ts), so raising the
+ * limit of a function is a reviewed change to that file and the regenerated JSON, never a list in the handler.
+ * An id that is not on the link's functions gets the default.
+ */
+export function bodyLimitFor(id: unknown): number {
+  const cap = typeof id === "string" ? functionDef(id)?.body_max_bytes : undefined
+  return typeof cap === "number" && cap > LIMITS.bodyMaxBytes ? Math.min(cap, LIMITS.bodyMaxBytesCeiling) : LIMITS.bodyMaxBytes
+}
+
+/** "8 KB" or "64 KB": a byte limit as the messages and the manual write it. */
+export const kb = (bytes: number): string => `${Math.round(bytes / 1024)} KB`
 
 /** A working example of each function's parameters. Placeholders in angle brackets name where a real id comes from. */
 export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
@@ -81,6 +97,12 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   create_document: { name: "Site plan", category: "drawing", externalUrl: "https://example.com/site-plan.pdf" },
   add_roster_entry: { name: "A. Worker", dailyRate: 800 },
   create_boq_revision: { boqId: "<id from records/boqs>", title: "Revision 2" },
+  // BUILD-002: a BOQ is made empty, filled 25 lines at a time and sealed. A line's category starts with its area ("Play Area / Joinery"), which is what seal_boq sums by.
+  create_boq: { title: "Zoomies BOQ", idempotency_key: "zoomies-2026-09-26-a" },
+  add_boq_lines: { boqId: "<id from create_boq>", batchNo: 1, lines: [{ itemCode: "PLAY-1.01", description: "Play structure", unit: "nos", quantity: 10, rate: 65000, category: "Play Area / Joinery" }] },
+  seal_boq: { boqId: "<id from create_boq>", controlTotals: { areas: { "Play Area": 1343445, "Vet Area": 252835 }, grand: 1596280 }, expectedLineCount: 71 },
+  update_project: { name: "Zoomies Dubai", startDate: "2026-10-01", targetDate: "2026-12-15" },
+  create_activity: { name: "Slab casting", unit: "cum" },
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -196,7 +218,7 @@ export const ERRORS: ReadonlyArray<{ status: number; meaning: string }> = [
   { status: 404, meaning: "No such path, or a record that is not in this project." },
   { status: 405, meaning: "Wrong method for the path (a GET never runs a function)." },
   { status: 410, meaning: "This link has expired or was revoked. Ask the person for a new one." },
-  { status: 413, meaning: "The body is over 8 KB." },
+  { status: 413, meaning: "The body is over its limit (8 KB; the manual names the functions that take more)." },
   { status: 422, meaning: "The change is not valid yet: `missing` names what to add." },
   { status: 429, meaning: "Over the rate limit (120 calls a minute per link). Wait a minute." },
   { status: 501, meaning: "Written in a later unit." },

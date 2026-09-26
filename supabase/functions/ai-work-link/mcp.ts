@@ -16,7 +16,7 @@
 // ORIGIN (section 4.2): valid means no Origin header, or any https:// origin. Anything else is 403 with a JSON-RPC error that has no id.
 // TOOLS come from api-definition.ts TOOLS, the list the OpenAPI document and the manual describe: advertised is implemented.
 import { LIMITS, cleanText, redactToken } from "../_shared/ai-link/core.ts"
-import { MCP_INSTRUCTIONS, MCP_LEGACY, MCP_MODERN, MCP_SUPPORTED, TOOLS, toolDef } from "./api-definition.ts"
+import { MCP_INSTRUCTIONS, MCP_LEGACY, MCP_MODERN, MCP_SUPPORTED, TOOLS, bodyLimitFor, toolDef } from "./api-definition.ts"
 import { AwlError, type Proposal, type CheckResult, type RecordsPage, type SearchHit } from "./reads.ts"
 
 const META_VERSION = "io.modelcontextprotocol/protocolVersion"
@@ -210,19 +210,31 @@ async function dispatch(msg: Record<string, unknown>, headers: McpInput["headers
   }
 }
 
+/** The body limit of one JSON-RPC message: the function's own for check_change and propose_change, else 8 KB; a batch gets 8 KB. */
+function messageBodyLimit(message: unknown): number {
+  const m = asObject(message)
+  const params = asObject(m.params)
+  if (m.method !== "tools/call" || (params.name !== "check_change" && params.name !== "propose_change")) return LIMITS.bodyMaxBytes
+  return bodyLimitFor(asObject(params.arguments).function)
+}
+
 /**
  * One POST to the MCP endpoint. The Origin rule and the body limit come first, then the JSON-RPC parse, then the era. A batch (a JSON
  * array) is served for the legacy era only. Notifications are 202 with no body.
  */
 export async function handleMcp(input: McpInput, reads: McpReads): Promise<McpResponse> {
   if (!originAllowed(input.headers.get("origin"))) return { status: 403, body: rpcError(undefined, -32600, "Origin not allowed") }
-  if (new TextEncoder().encode(input.bodyText).length > LIMITS.bodyMaxBytes) return { status: 413, body: rpcError(null, -32600, "Request body is over 8 KB") }
+  const size = new TextEncoder().encode(input.bodyText).length
+  if (size > LIMITS.bodyMaxBytesCeiling) return { status: 413, body: rpcError(null, -32600, "Request body is over 64 KB") }
   let parsed: unknown
   try {
     parsed = JSON.parse(input.bodyText || "null")
   } catch {
+    if (size > LIMITS.bodyMaxBytes) return { status: 413, body: rpcError(null, -32600, "Request body is over 8 KB") }
     return { status: 400, body: rpcError(null, -32700, "Parse error") }
   }
+  // Over 8 KB only for a single check_change or propose_change that names a function whose policy allows a larger body.
+  if (size > LIMITS.bodyMaxBytes && size > messageBodyLimit(parsed)) return { status: 413, body: rpcError(null, -32600, "Request body is over its limit") }
   if (Array.isArray(parsed)) {
     if (parsed.length === 0) return { status: 400, body: rpcError(null, -32600, "Invalid Request") }
     if (parsed.some((m) => typeof asObject(asObject(asObject(m).params)._meta)[META_VERSION] === "string")) {

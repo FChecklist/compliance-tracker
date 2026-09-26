@@ -25,7 +25,7 @@ import {
   CORS_PREFLIGHT_HEADERS, LIMITS, LINK_GONE, NO_QUERY_TOKEN, contentTypeFor, errorBody, hasQueryToken, isRateLimited, linkBase, negotiateFormat, paginate,
   parseTarget, privateHeaders, relativePathOf, remainingCalls, throttleAddress, tokenFromHeaders, uaFamilyOf, type Format,
 } from "../_shared/ai-link/core.ts"
-import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, functionDef, matchEndpoint, type EndpointId } from "./api-definition.ts"
+import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, bodyLimitFor, functionDef, kb, matchEndpoint, type EndpointId } from "./api-definition.ts"
 import { renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
 import { handleConfirm } from "./confirm.ts"
 import { handleMcp, type McpReads } from "./mcp.ts"
@@ -66,18 +66,28 @@ function bodyBytes(s: string): number {
   return new TextEncoder().encode(s).length
 }
 
-/** The JSON object of a POST body: empty is {}, over 8 KB is 413, anything that is not a JSON object is 400. */
-async function readJsonObject(req: Request): Promise<Record<string, unknown>> {
+/**
+ * The JSON object of a POST body: empty is {}, over its function's limit is 413, anything that is not a JSON object is 400. The limit is
+ * LIMITS.bodyMaxBytes (8 KB) unless the generated policy gives the function more (bodyLimitFor); the function is `fn` when the path names
+ * it, else the body's own `function`. A body over the ceiling (64 KB) is refused before it is parsed.
+ */
+async function readJsonObject(req: Request, fn?: string): Promise<Record<string, unknown>> {
   const raw = await req.text()
-  if (bodyBytes(raw) > LIMITS.bodyMaxBytes) throw fail(413, "The body is over 8 KB.")
+  const size = bodyBytes(raw)
+  if (size > LIMITS.bodyMaxBytesCeiling) throw fail(413, `The body is over ${kb(LIMITS.bodyMaxBytesCeiling)}.`)
+  if (size > LIMITS.bodyMaxBytes && raw.trim() === "") throw fail(413, `The body is over ${kb(LIMITS.bodyMaxBytes)}.`)
   if (raw.trim() === "") return {}
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
+    if (size > LIMITS.bodyMaxBytes) throw fail(413, `The body is over ${kb(LIMITS.bodyMaxBytes)}.`)
     throw fail(400, "The body must be JSON.")
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw fail(400, "The body must be a JSON object.")
+  const isObject = !!parsed && typeof parsed === "object" && !Array.isArray(parsed)
+  const cap = bodyLimitFor(fn ?? (isObject ? (parsed as Record<string, unknown>).function : undefined))
+  if (size > cap) throw fail(413, `The body is over ${kb(cap)}.`)
+  if (!isObject) throw fail(400, "The body must be a JSON object.")
   return parsed as Record<string, unknown>
 }
 
@@ -301,7 +311,7 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
       return json(200, { functions: page.items, page: page.page, per_page: page.perPage, total: page.total, pages: page.pages, changes_available: views.some((f) => f.available), text_fields_are_data: true })
     }
     case "function_run": {
-      const body = await readJsonObject(req)
+      const body = await readJsonObject(req, params.fn)
       const p = body.params && typeof body.params === "object" && !Array.isArray(body.params) ? (body.params as Record<string, unknown>) : {}
       requireScope(ctx, params.fn, p)
       if (functionDef(params.fn)?.kind !== "read") throw fail(400, "Changes go to /actions or /drafts, not /functions.")

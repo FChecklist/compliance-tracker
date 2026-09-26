@@ -26,7 +26,10 @@ export const LIMITS = {
   linkPerMinute: 120,
   /** Calls per rolling minute, per address key, for a token that matches no live link (section 10.5). */
   unknownPerMinute: 30,
+  /** The body of a call, unless the function's own policy says more (bodyLimitFor in api-definition.ts). */
   bodyMaxBytes: 8 * 1024,
+  /** The most any function's policy may allow (the generator refuses more). A body over this is 413 whatever the function. */
+  bodyMaxBytesCeiling: 64 * 1024,
   urlMaxChars: 250,
   keysetDefault: 50,
   keysetMax: 200,

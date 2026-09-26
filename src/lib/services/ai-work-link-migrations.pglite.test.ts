@@ -358,7 +358,11 @@ describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base
     expect(read("drizzle/0628_build001_awl_seed.sql")).toContain(`-- registry version ${version}`)
   })
 
-  test("the seeded rows are exactly the generated JSON, row by row (the seed and the Edge Function's registry cannot differ)", async () => {
+  // BUILD-002: 0628 is the frozen first seed; the generated JSON is the CURRENT registry, which is 0644's block (0628 plus six rows). So the
+  // comparison applies 0644 on top of 0628 first, and puts the 0628 state back afterwards with 0628's own idempotent file (it deletes the
+  // rows it does not name and upserts its own), so the tests after this one see the state they always saw.
+  test("the seeded rows, after 0644, are exactly the generated JSON, row by row (the seed and the Edge Function's registry cannot differ)", async () => {
+    await db.exec(forwardSql("0644_build002_awl_seed_project_boq"))
     type FnJson = { function_id: string; product: string; kind: string; link_level: number | null; money_sensitive: boolean; min_role_rank: number; excluded_reason: string | null; text_params: string[] }
     type KindJson = { kind: string; money_columns: string[]; filters: unknown }
     const fnJson = (JSON.parse(read("supabase/functions/ai-work-link/function-registry.generated.json")) as FnJson[]).map((f) => ({
@@ -369,6 +373,11 @@ describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base
     const kindJson = JSON.parse(read("supabase/functions/ai-work-link/record-kinds.generated.json")) as KindJson[]
     const kindRows = (await db.query<KindJson>("select kind, money_columns, filters from platform.ai_work_link_record_kinds")).rows
     expect([...kindRows].sort((a, b) => (a.kind < b.kind ? -1 : 1))).toEqual([...kindJson].sort((a, b) => (a.kind < b.kind ? -1 : 1)))
+    const version = (await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v
+    expect(read("drizzle/0644_build002_awl_seed_project_boq.sql")).toContain(`-- registry version ${version}`)
+    // back to the 0628 seed
+    await db.exec(forwardSql("0628_build001_awl_seed"))
+    expect((await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_functions")).n).toBe(27)
   })
 
   test("the function table refuses a function that is both on a link and excluded, and one that is neither", async () => {

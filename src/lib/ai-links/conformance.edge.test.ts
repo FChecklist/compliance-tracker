@@ -307,13 +307,15 @@ describe("detail rows of BR-523 that need no deployed function (BR-581, BR-583 a
   const REGISTRY = REGISTRY_JSON as unknown as Reg[]
   const onLinks = REGISTRY.filter((f) => f.link_level !== null)
 
-  test("BR-581: exactly 10 functions are offered on links, a manager sees all 10, a member only what its rank allows, none offered twice", async () => {
+  // BUILD-002 WP-03/04/07 added five functions to the spec's ten (create_boq, add_boq_lines, seal_boq, update_project, create_activity), so the count
+  // is 15 from this commit; scripts/gen-ai-link-registry.data.ts is the one place it changes.
+  test("BR-581: exactly 15 functions are offered on links (the spec's 10 and BUILD-002's five), a manager sees all 15, a member only what its rank allows, none offered twice", async () => {
     const edge = startEdge({ writesEnabled: true })
-    expect(onLinks).toHaveLength(10)
+    expect(onLinks).toHaveLength(15)
     const allowed = async (token: string) => ((await (await fetch(edge.link(token) + "/context", { headers: { accept: "application/json" } })).json()) as { allowed_functions: string[] }).allowed_functions
     const manager = await allowed(TOKENS.manager)
     expect(sorted(manager)).toEqual(sorted(onLinks.map((f) => f.function_id)))
-    expect(new Set(manager).size).toBe(10)
+    expect(new Set(manager).size).toBe(15)
     const member = await allowed(TOKENS.member)
     expect(sorted(member)).toEqual(sorted(onLinks.filter((f) => f.min_role_rank <= 2).map((f) => f.function_id)))
     expect(member).not.toContain("get_construction_budget_status")

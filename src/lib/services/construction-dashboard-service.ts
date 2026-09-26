@@ -25,7 +25,7 @@
 // ProgressEntries was already unused before this change (pre-existing dead
 // import, confirmed by diffing against origin/main before removing it here
 // rather than leaving it to look related to this pass).
-import { projects, products, users, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
+import { projects, products, users, constructionBoqs, constructionBoqLineItems, clients } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 // isNull dropped alongside the BOQ chain's old isNull(constructionBoqLineItems.parentLineItemId) -- now `cbli.parent_line_item_id IS NULL` in raw SQL.
 import { and, eq, inArray, sql } from "drizzle-orm"
@@ -93,7 +93,17 @@ export async function listProjectsForSelection(ctx: { orgId: string }): Promise<
   )
 }
 
-export type ProjectInput = { productId: string; name: string; description?: string; clientId?: string; startDate?: string; targetDate?: string }
+// BUILD-002 WP-03: `status` lets the "New project with my AI" flow create the placeholder shell as
+// 'planning' (src/lib/project-shell.ts); absent, the column default ('active') applies exactly as before.
+export type ProjectInput = {
+  productId: string
+  name: string
+  description?: string
+  clientId?: string
+  startDate?: string
+  targetDate?: string
+  status?: "planning" | "active"
+}
 
 // Closes the one real gap found in a 2026-07-18 production-readiness pass:
 // every other PROJEXA entity (RFIs, submittals, punch list, ...) has a real
@@ -128,7 +138,86 @@ export async function createProject(ctx: { orgId: string; userId: string; isReal
       startDate: input.startDate || null,
       targetDate: input.targetDate || null,
       leadUserId: ctx.isRealUser ? ctx.userId : null,
+      ...(input.status ? { status: input.status } : {}),
     }).returning()
+    return row
+  })
+}
+
+// BUILD-002 WP-03: the project's own fields, changed by an AI (update_project) or a person. Before this
+// only updateProjectValue() existed, so nothing could rename a project or move its dates. Every field is
+// optional and only the fields present are written; an empty patch is refused (not silently a no-op) so a
+// misspelled key cannot report success while changing nothing. A rename is what ends a shell
+// (src/lib/project-shell.ts): the row stays 'planning' until a person moves it.
+export type ProjectPatch = {
+  name?: string
+  description?: string | null
+  clientId?: string | null
+  startDate?: string | null
+  targetDate?: string | null
+  projectValue?: number | null
+  vatRatePercent?: number
+  retentionPercent?: number
+}
+
+const PROJECT_PATCH_KEYS = ["name", "description", "clientId", "startDate", "targetDate", "projectValue", "vatRatePercent", "retentionPercent"] as const
+
+const isoDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
+
+/** Refuses a patch that names nothing or names a value the columns cannot hold, before a transaction opens. */
+function validateProjectPatch(patch: ProjectPatch): void {
+  if (PROJECT_PATCH_KEYS.every((k) => patch[k] === undefined)) throw new ServiceError("Nothing to update: send at least one of " + PROJECT_PATCH_KEYS.join(", "), 400)
+  if (patch.name !== undefined && (typeof patch.name !== "string" || patch.name.trim() === "")) throw new ServiceError("name cannot be empty", 400)
+  for (const key of ["startDate", "targetDate"] as const) {
+    const v = patch[key]
+    if (v !== undefined && v !== null && (typeof v !== "string" || !isoDate(v))) throw new ServiceError(`${key} must be a date written YYYY-MM-DD`, 400)
+  }
+  validateProjectNumbers(patch)
+}
+
+function validateProjectNumbers(patch: ProjectPatch): void {
+  const value = patch.projectValue
+  if (value !== undefined && value !== null && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) {
+    throw new ServiceError("projectValue must be a non-negative number or null", 400)
+  }
+  for (const key of ["vatRatePercent", "retentionPercent"] as const) {
+    const v = patch[key]
+    if (v !== undefined && (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 100)) throw new ServiceError(`${key} must be a number from 0 to 100`, 400)
+  }
+}
+
+/** The columns of a validated patch, only for the fields it names. */
+function projectPatchColumns(patch: ProjectPatch) {
+  return {
+    ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+    ...(patch.description !== undefined ? { description: patch.description === null ? null : patch.description.trim() || null } : {}),
+    ...(patch.clientId !== undefined ? { clientId: patch.clientId || null } : {}),
+    ...(patch.startDate !== undefined ? { startDate: patch.startDate || null } : {}),
+    ...(patch.targetDate !== undefined ? { targetDate: patch.targetDate || null } : {}),
+    ...(patch.projectValue !== undefined ? { projectValue: patch.projectValue === null ? null : String(patch.projectValue) } : {}),
+    ...(patch.vatRatePercent !== undefined ? { vatRatePercent: String(patch.vatRatePercent) } : {}),
+    ...(patch.retentionPercent !== undefined ? { retentionPercent: String(patch.retentionPercent) } : {}),
+  }
+}
+
+export async function updateProjectDetails(ctx: { orgId: string; userId?: string }, projectId: string, patch: ProjectPatch) {
+  validateProjectPatch(patch)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+    if (!project) throw new ServiceError("Project not found", 404)
+    if (patch.clientId) {
+      const client = await db.query.clients.findFirst({ where: and(eq(clients.id, patch.clientId), eq(clients.orgId, ctx.orgId)) })
+      if (!client) throw new ServiceError("Client not found for this organisation", 404)
+    }
+    const startDate = patch.startDate !== undefined ? patch.startDate : project.startDate
+    const targetDate = patch.targetDate !== undefined ? patch.targetDate : project.targetDate
+    if (startDate && targetDate && targetDate < startDate) throw new ServiceError("targetDate cannot be before startDate", 400)
+
+    const [row] = await db.update(projects)
+      .set({ ...projectPatchColumns(patch), updatedAt: new Date() })
+      .where(and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)))
+      .returning()
     return row
   })
 }

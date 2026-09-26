@@ -8,7 +8,7 @@
 // `pxa_` text at all, because an AI that cannot open URLs gets them pasted in and the token would land in that vendor's history.
 // FENCING. Every value from project data (person, project) sits inside a fenced data block cleaned by core.ts (section 5.4).
 import { DATA_CLOSING, LIMITS, cleanDeep, cleanText, fenceRows } from "../_shared/ai-link/core.ts"
-import { API_VERSION, ERRORS, KIND_NAMES, KIND_SUMMARY, PRODUCT } from "./api-definition.ts"
+import { API_VERSION, ERRORS, KIND_NAMES, KIND_SUMMARY, LINK_FUNCTIONS, PRODUCT, kb } from "./api-definition.ts"
 import type { AwlConfig, FunctionView, LinkCtx, RecordsPage } from "./reads.ts"
 
 export type ManualInput = {
@@ -114,6 +114,17 @@ function whoBlock(ctx: LinkCtx): string {
   }])
 }
 
+/** "" or " (64 KB for add_boq_lines, create_boq and seal_boq)": the functions whose policy gives a larger body, read from the generated registry. */
+function bodyLimitNote(): string {
+  const bySize = new Map<number, string[]>()
+  for (const f of LINK_FUNCTIONS) {
+    if (typeof f.body_max_bytes === "number" && f.body_max_bytes > LIMITS.bodyMaxBytes) bySize.set(f.body_max_bytes, [...(bySize.get(f.body_max_bytes) ?? []), f.function_id])
+  }
+  if (bySize.size === 0) return ""
+  const parts = [...bySize.entries()].sort((a, b) => a[0] - b[0]).map(([bytes, names]) => `${kb(bytes)} for ${names.sort().join(", ")}`)
+  return ` (${parts.join("; ")})`
+}
+
 function functionTable(functions: FunctionView[]): string {
   if (functions.length === 0) return "No function is on this link."
   const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.kind} | ${f.level} | ${f.available ? "yes" : "not yet"} | ${f.required.join(", ") || "none"} | ${JSON.stringify(f.example_params)} |`)
@@ -175,7 +186,7 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
         "| Status | Meaning |", "| --- | --- |",
         ...ERRORS.map((e) => `| ${e.status} | ${e.meaning} |`),
         "",
-        `Limits: ${LIMITS.linkPerMinute} calls a minute per link; a body of at most 8 KB; a record page of 1 to ${LIMITS.keysetMax} rows. Every call, including a GET, adds one call-log row; it moves no business counter.`,
+        `Limits: ${LIMITS.linkPerMinute} calls a minute per link; a body of at most ${kb(LIMITS.bodyMaxBytes)}${bodyLimitNote()}; a record page of 1 to ${LIMITS.keysetMax} rows. Every call, including a GET, adds one call-log row; it moves no business counter.`,
       ].join("\n"),
     },
     { id: "H", title: "Manifest", body: "```json ai-link-manifest\n" + JSON.stringify(manifest) + "\n```" },
