@@ -8,7 +8,7 @@
 // `pxa_` text at all, because an AI that cannot open URLs gets them pasted in and the token would land in that vendor's history.
 // FENCING. Every value from project data (person, project) sits inside a fenced data block cleaned by core.ts (section 5.4).
 import { DATA_CLOSING, LIMITS, cleanDeep, cleanText, fenceRows } from "../_shared/ai-link/core.ts"
-import { API_VERSION, ERRORS, KIND_NAMES, KIND_SUMMARY, LINK_FUNCTIONS, PRODUCT, kb } from "./api-definition.ts"
+import { API_VERSION, ERRORS, KIND_NAMES, KIND_SUMMARY, LINK_FUNCTIONS, PLAIN_KINDS, PRODUCT, kb } from "./api-definition.ts"
 import { availabilityOf, availableWord, levelNote, type AwlConfig, type FunctionView, type LinkCtx, type RecordsPage } from "./reads.ts"
 
 export type ManualInput = {
@@ -144,7 +144,8 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
   const readLines = [
     `- Context: ${base}/context`,
     `- Records: ${base}/records/<kind>?limit=${LIMITS.keysetDefault} (one record: ${base}/records/<kind>/<id>). The kinds and what each holds:`,
-    ...KIND_NAMES.map((k) => `  - ${k}: ${KIND_SUMMARY[k] ?? k}`),
+    ...KIND_NAMES.filter((k) => !PLAIN_KINDS.has(k)).map((k) => `  - ${k}: ${KIND_SUMMARY[k] ?? k}`),
+    `  - and, named for what they hold: ${KIND_NAMES.filter((k) => PLAIN_KINDS.has(k)).join(", ")}`,
     `- Functions: ${base}/functions`,
     `- History: ${base}/history`,
   ]

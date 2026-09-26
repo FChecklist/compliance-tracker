@@ -25,6 +25,16 @@ export function kindDef(name: string): KindDef | null {
   return RECORD_KINDS.find((k) => k.kind === name) ?? null
 }
 
+/**
+ * Kinds whose name says what they hold (BUILD-002 WP-06). The manual lists them on one line, without their summary, to stay under its
+ * 20,000-byte budget; the OpenAPI document and the MCP tools still use their KIND_SUMMARY line.
+ */
+export const PLAIN_KINDS: ReadonlySet<string> = new Set([
+  "rfis", "submittals", "punch_list", "change_orders", "site_diaries", "site_instructions", "milestones", "progress_claims",
+  "interim_bills", "materials", "material_receipts", "material_issues", "kpi_entries", "expenses", "drawings", "permits",
+  "meeting_minutes", "wiki_pages", "ffe_items", "schedule_baselines",
+])
+
 /** One line per kind, for the manual and the OpenAPI document. */
 export const KIND_SUMMARY: Record<string, string> = {
   project: "the project itself",
@@ -34,32 +44,32 @@ export const KIND_SUMMARY: Record<string, string> = {
   progress: "daily work-progress entries",
   tasks: "tasks (issues) with status, priority and due date",
   meetings: "meetings",
-  documents: "documents linked to the project, with drawing and permit fields in metadata",
+  documents: "documents, with drawing and permit fields",
   roster: "the labour roster",
   attendance: "daily attendance",
   timesheets: "time entries",
   pipeline_tasks: "recorded pipeline tasks",
-  people: "the project lead and team, with each person's project role",
-  rfis: "requests for information: question, answer, status, who has it",
-  submittals: "submittals: spec section, type, review status and comments",
-  punch_list: "punch list items: trade, priority, status, assignee",
-  change_orders: "change orders: status, schedule impact, cost impact",
-  site_diaries: "daily site diary: weather, work done, labour count",
-  site_instructions: "site instructions issued to a contractor",
-  milestones: "project milestones and target dates",
-  progress_claims: "progress claims: status and dates",
-  interim_bills: "interim bills: gross, retention, net payable",
-  materials: "site materials and unit cost",
-  material_receipts: "material receipts: quantity, cost, vendor",
-  material_issues: "material issued to the site or a BOQ line",
-  kpi_entries: "KPI entries for this project: actual against target",
-  expenses: "expense entries: head, date, amount",
-  drawings: "drawing register: number, revision, status, discipline",
-  permits: "permits: number, authority, issue and expiry dates",
-  meeting_minutes: "meeting minutes and agenda",
-  wiki_pages: "wiki pages of the project",
-  ffe_items: "interior furniture, fixtures and equipment items",
-  schedule_baselines: "captured schedule baselines",
+  people: "the project lead and team, with roles",
+  rfis: "requests for information",
+  submittals: "submittals and their review",
+  punch_list: "punch list items",
+  change_orders: "change orders",
+  site_diaries: "daily site diary",
+  site_instructions: "site instructions",
+  milestones: "milestones",
+  progress_claims: "progress claims",
+  interim_bills: "interim bills",
+  materials: "site materials",
+  material_receipts: "material receipts",
+  material_issues: "material issues",
+  kpi_entries: "KPI entries",
+  expenses: "expense entries",
+  drawings: "drawing register",
+  permits: "permits",
+  meeting_minutes: "meeting minutes",
+  wiki_pages: "wiki pages",
+  ffe_items: "furniture, fixtures, equipment",
+  schedule_baselines: "schedule baselines",
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

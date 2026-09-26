@@ -21,7 +21,7 @@ import { downSql, failure, forwardSql, one, read } from "./__test-helpers__/awl-
 import { A2, B, BASE_PEOPLE_SQL, BW, RECORDS_MIGRATION, S, createRecordsDb, insert, mintLink, pgRpc } from "./__test-helpers__/awl-records-v2-db"
 import { LIMITS } from "../../../supabase/functions/_shared/ai-link/core"
 import { handleAwl } from "../../../supabase/functions/ai-work-link/handler"
-import { KIND_NAMES, KIND_SUMMARY, RECORD_KINDS, TOOLS } from "../../../supabase/functions/ai-work-link/api-definition"
+import { KIND_NAMES, KIND_SUMMARY, PLAIN_KINDS, RECORD_KINDS, TOOLS } from "../../../supabase/functions/ai-work-link/api-definition"
 import { buildOpenApi } from "../../../supabase/functions/ai-work-link/openapi"
 import { F, TOKENS, makeFake, manifestOf, req, testConfig } from "./__test-helpers__/awl-edge-fake"
 
@@ -540,14 +540,15 @@ describe("SQL on PGlite: the three extended kinds", () => {
 
 // ------------------------------------------------------------------------------------------------------------------ the migration
 describe("drizzle/0643: journal, grants, and the down file", () => {
-  test("the journal names the file after 0628 with a `when` of 1790100000000 + 500000 x 14", () => {
+  test("the journal names the file with a `when` of 1790103500000, above the 0644, 0629 and 0630 entries it is applied after", () => {
     const j = JSON.parse(read("drizzle/meta/_journal.json")) as { entries: Array<{ idx: number; when: number; tag: string }> }
     const e = j.entries.find((x) => x.tag === FORWARD)!
-    expect(e.when).toBe(1790100000000 + 500000 * 14)
-    const prev = j.entries[j.entries.indexOf(e) - 1]
-    expect(prev.tag).toBe("0628_build001_awl_seed")
-    expect(e.when).toBeGreaterThan(prev.when)
-    expect(e.idx).toBe(prev.idx + 1)
+    expect(e.when).toBe(1790103500000)
+    for (const tag of ["0628_build001_awl_seed", "0644_build002_awl_seed_project_boq", "0629_build001_awl_execution_sql", "0630_build001_awl_submissions_via"]) {
+      expect(e.when).toBeGreaterThan(j.entries.find((x) => x.tag === tag)!.when)
+      expect(e.idx).toBeGreaterThan(j.entries.find((x) => x.tag === tag)!.idx)
+    }
+    expect(new Set(j.entries.map((x) => x.idx)).size).toBe(j.entries.length)
   })
 
   test("the core stays owner-only (nobody can run it with a forged link context) and the two public functions are service_role only", async () => {
@@ -715,9 +716,10 @@ describe("the Edge handler serves the new kinds without per-kind code (fake data
     for (const t of [TOKENS.manager, TOKENS.member, TOKENS.viewer]) {
       const md = await (await run(`/${t}/manual.md`)).text()
       sizes.push(enc.encode(md).length)
-      // section C names every kind on its own line, section H (the manifest) holds each kind's full address
-      for (const k of KIND_NAMES) expect(md).toContain(`
-  - ${k}: `)
+      // section C names every kind (with its summary, or on the "named for what they hold" line), section H (the manifest) holds each kind's full address
+      const sectionC = md.slice(md.indexOf("## C."), md.indexOf("## D."))
+      for (const k of KIND_NAMES) expect(PLAIN_KINDS.has(k) ? sectionC.includes(k) : sectionC.includes(`
+  - ${k}: `)).toBe(true)
       const manifest = manifestOf(md)
       for (const k of KIND_NAMES) expect(manifest.urls.records[k]).toBe(`${F}/${t}/records/${k}?limit=${LIMITS.keysetDefault}`)
       expect(md).toContain(`${F}/${t}/records/<kind>?limit=${LIMITS.keysetDefault}`)
