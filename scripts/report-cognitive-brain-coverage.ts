@@ -51,7 +51,7 @@
 //      files -- no DB needed for that half either way.
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 import { sql } from "drizzle-orm"
 import { db } from "../src/lib/db"
 import { computeCoverageStats as computeUmrCoverageStats, type CoverageStats as UmrCoverageStats } from "./audit-asset-registry"
