@@ -617,12 +617,13 @@ expect_neg "job is not named Secret Scanning" 1 env WORKFLOW_FILE="$WORK/sentine
 expect_neg "pr mode without --yes writes nothing and stops" 2 bash "$V/secret-scan-selftest.sh" --mode pr
 
 echo "== BR-121 cron-placement.sh"
-CRON_LINE="CRON_PLACEMENT_OK vercel_rows=29 bad_enum=0"
+# One Vercel row is left after BUILD-001 U-41 removed 28 crons from vercel.json (the other 28 rows read `formerly vercel.json cron ...`).
+CRON_LINE="CRON_PLACEMENT_OK vercel_rows=1 bad_enum=0"
 CRON_ENV=(env CT_VERCEL_JSON="$FX/ct_vercel.json" PX_VERCEL_JSON="$FX/px_vercel.json")
 expect_pos "real file, vercel.json fixtures" "$CRON_LINE" "${CRON_ENV[@]}" PKG_DIR="$POS" bash "$V/cron-placement.sh"
 expect_neg "a classification outside the enum" 1 "${CRON_ENV[@]}" PKG_DIR="$(mkneg cron_bad cron_bad_value)" bash "$V/cron-placement.sh"
 expect_neg "a suffixed value" 1 "${CRON_ENV[@]}" PKG_DIR="$(mkneg cron_suffix cron_suffix)" bash "$V/cron-placement.sh"
-expect_neg "a Vercel cron row removed (29 rows)" 1 "${CRON_ENV[@]}" PKG_DIR="$(mkneg cron_drop cron_drop_row)" bash "$V/cron-placement.sh"
+expect_neg "the only Vercel cron row removed" 1 "${CRON_ENV[@]}" PKG_DIR="$(mkneg cron_drop cron_drop_row)" bash "$V/cron-placement.sh"
 expect_neg "no PG_CRON or EDGE_FN_VIA_PG_CRON row" 1 "${CRON_ENV[@]}" PKG_DIR="$(mkneg cron_none cron_no_placed)" bash "$V/cron-placement.sh"
 expect_neg "projexa vercel.json has a cron with no row" 1 env CT_VERCEL_JSON="$FX/ct_vercel.json" PX_VERCEL_JSON="$(mkfx px_extra px_extra_cron)/px_vercel.json" PKG_DIR="$POS" bash "$V/cron-placement.sh"
 expect_neg "a row is not a cron in vercel.json" 1 env CT_VERCEL_JSON="$(mkfx ct_dropc ct_drop_cron)/ct_vercel.json" PX_VERCEL_JSON="$FX/px_vercel.json" PKG_DIR="$POS" bash "$V/cron-placement.sh"

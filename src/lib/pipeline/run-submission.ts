@@ -25,7 +25,9 @@ import { type ResolutionSource, classifySegment, classifySubmission, normaliseFo
 import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
-import { runLevel1, refusalAsUnresolved, level1RefusalCode, type Level1Context, type Level1LaneOutcome, type Level1Outcome } from "./level1";
+import { runLevel1, refusalAsUnresolved, level1RefusalCode, level1OffRunner, type Level1Context, type Level1LaneOutcome, type Level1Outcome } from "./level1";
+import { AI_LINK_SOURCE, AI_LINK_TEXT_MAX, applyLinkTextRules, boundedLinkText, cleanLinkText } from "./ai-link-text";
+import { functionSpec } from "./function-registry";
 import { makePhraseFuzzyRepo, type PhraseFuzzyRepo } from "./phrase-fuzzy";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
@@ -203,6 +205,23 @@ export type RunSubmissionInput = {
    */
   level1?: "internal" | "off";
   /**
+   * PROJEXA-BUILD-001 U-43 / U-46c (BR-287, spec 9.7 C-1 and C-2): the AI work
+   * link this submission came through. Setting it means the caller's own AI is
+   * Level 1, so the internal model is NEVER asked (effectiveLevel1 below turns
+   * it into level1 "off" whatever `level1` says), the free text is held to the
+   * link text rules (2,000 characters, control characters removed), and the
+   * memory a completed write leaves is marked source_type 'ai_link' so it is
+   * fenced as data when our own AI reads it later. Omitted or null is every
+   * session and app caller's behaviour, unchanged.
+   */
+  aiLinkId?: string | null;
+  /**
+   * The channel the submission came through, for provenance. 'ai_link' is
+   * implied by `aiLinkId`; it can also be set alone by a caller that has no link
+   * row to name. Anything else (omitted) is the session/app path.
+   */
+  via?: SubmissionVia | null;
+  /**
    * PROJEXA-BUILD-001 U-18 / U-19 (BR-210, BR-213, BR-288): the one project a
    * project-scoped credential -- a PROJEXA work link, a project_ai API key --
    * may act on. When set, the submission runs on that project: a `projectId`
@@ -225,6 +244,66 @@ function pinToProjectScope<T extends { projectId?: string | null; projectScope?:
   const check = assertProjectInScope({ projectId: scope }, input.projectId);
   if (!check.ok) throw new ServiceError(check.message, check.status);
   return { ...input, projectId: scope };
+}
+
+/** The channels a submission can be marked with. Only the AI work link is one today; the session/app path carries none. */
+export type SubmissionVia = "ai_link";
+
+/**
+ * PROJEXA-BUILD-001 U-46c (BR-287, BR-583): did this call come through an AI
+ * work link? The single test every link rule below branches on -- the Level 1
+ * switch, the text rules and the memory mark -- so they cannot disagree about it.
+ */
+export function isFromAiLink(input: { via?: SubmissionVia | null; aiLinkId?: string | null }): boolean {
+  return input.via === 'ai_link' || Boolean(input.aiLinkId);
+}
+
+/**
+ * PROJEXA-BUILD-001 U-43 (BR-287): the Level 1 mode a call really runs in. A
+ * link call is always "off" -- the owner's directive is that the internal AI is
+ * not used when the user has pasted the AI Work link -- whatever `level1` was
+ * passed; every other caller keeps the mode it asked for (default "internal").
+ */
+export function effectiveLevel1(input: { level1?: "internal" | "off"; via?: SubmissionVia | null; aiLinkId?: string | null }): "internal" | "off" {
+  return isFromAiLink(input) ? "off" : (input.level1 ?? "internal");
+}
+
+/** Spec 9.11: a free-text value over the cap is refused with 422 TEXT_TOO_LONG before anything is written, never cut short. */
+function refuseTextTooLong(field: string): never {
+  throw new ServiceError(`TEXT_TOO_LONG: ${field} is longer than ${AI_LINK_TEXT_MAX} characters`, 422, { code: "TEXT_TOO_LONG" });
+}
+
+/** A link's raw sentence is cleaned and capped; any other caller's is returned as it was. */
+function withLinkRawInput<T extends { rawInput: string; via?: SubmissionVia | null; aiLinkId?: string | null }>(input: T): T {
+  if (!isFromAiLink(input)) return input;
+  const cleaned = cleanLinkText(input.rawInput);
+  if (!cleaned.ok) refuseTextTooLong("rawInput");
+  return { ...input, rawInput: cleaned.text };
+}
+
+/**
+ * A link's write parameters and note, cleaned; the first free-text value over
+ * the cap refuses the whole call (422 TEXT_TOO_LONG). "Free text" is the
+ * parameter names spec 9.11 lists plus the `text` fields of the function's own
+ * card in function-registry.ts. Any other caller's input is returned untouched.
+ */
+function withLinkText<T extends { functionId: string; params?: Record<string, unknown>; note?: string; via?: SubmissionVia | null; aiLinkId?: string | null }>(input: T): T {
+  if (!isFromAiLink(input)) return input;
+  const cardTextFields = (functionSpec(input.functionId)?.card?.fields ?? []).filter((f) => f.type === "text").map((f) => f.key);
+  const rules = applyLinkTextRules(input.params ?? {}, cardTextFields);
+  if (!rules.ok) refuseTextTooLong(rules.field);
+  let note = input.note;
+  if (note !== undefined) {
+    const cleanedNote = cleanLinkText(note);
+    if (!cleanedNote.ok) refuseTextTooLong("note");
+    note = cleanedNote.text;
+  }
+  return { ...input, params: rules.params, ...(note !== undefined ? { note } : {}) };
+}
+
+/** The provenance the one-line submission log carries, so a link submission is recognisable in the logs. Empty for every other caller. */
+function linkLogSuffix(input: { via?: SubmissionVia | null; aiLinkId?: string | null }): string {
+  return isFromAiLink(input) ? ` via=${AI_LINK_SOURCE} ai_link_id=${input.aiLinkId ?? "-"}` : "";
 }
 
 export type TaskOutcome = {
@@ -357,6 +436,13 @@ async function captureTaskResultMemory(
   segmentText: string,
   params: Record<string, unknown>
 ): Promise<void> {
+  // PROJEXA-BUILD-001 U-46c (BR-583, spec 9.11 / audit A-16): a write made
+  // through an AI work link leaves a memory MARKED as link-written
+  // (source_type 'ai_link', the link id as source_id), with its content cleaned
+  // and capped, because the text in it was authored by the caller's AI. The
+  // read side fences every row with this mark as data (chat-service.ts
+  // formatMemoryBlock); an unmarked row would reach our model as instructions.
+  const fromLink = isFromAiLink(input);
   try {
     await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
       createMemoryRecord(db, input.orgId, {
@@ -377,10 +463,13 @@ async function captureTaskResultMemory(
         projectId: input.projectId ?? null,
         userId: input.userId,
         memoryType: "TASK_RESULT",
-        content: buildTaskResultMemoryContent(functionId, segmentText, params),
+        content: fromLink
+          ? boundedLinkText(buildTaskResultMemoryContent(functionId, segmentText, params))
+          : buildTaskResultMemoryContent(functionId, segmentText, params),
         provenanceType: "DATABASE_CONFIRMED",
         lifecycleState: "ACTIVE",
-        sourceType: "task",
+        sourceType: fromLink ? AI_LINK_SOURCE : "task",
+        ...(fromLink ? { sourceId: input.aiLinkId ?? null, metadata: { via: AI_LINK_SOURCE, aiLinkId: input.aiLinkId ?? null } } : {}),
       })
     );
   } catch (err) {
@@ -433,7 +522,8 @@ function l0ToResolution(r: L0Result): ResolvedFunction | null {
 
 export async function runSubmission(submitted: RunSubmissionInput): Promise<RunSubmissionResult> {
   // U-18: before anything is written, including the submissions row.
-  const input = pinToProjectScope(submitted);
+  // U-46c: and a link's raw sentence is cleaned (or refused) at the same point.
+  const input = withLinkRawInput(pinToProjectScope(submitted));
   modelCallCount = 0;
   const { segments: segs, flagged } = segment(input.rawInput);
   if (segs.length === 0) {
@@ -706,7 +796,8 @@ export async function runSubmission(submitted: RunSubmissionInput): Promise<RunS
   console.info(
     `[pipeline] submission=${submissionId} segments=${segs.length} resolved=${resolvedCount} l0_hits=${l0Hits} ` +
       `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${modelCallCount} tasks=${tasks.length} gaps=${gaps.length} status=${status} classification=${classification} ` +
-      `level1=${tally.outcome}`
+      `level1=${tally.outcome}` +
+      linkLogSuffix(input)
   );
 
   return {
@@ -760,11 +851,16 @@ export type RunDirectTaskInput = {
   actorUserId?: string | null;
   /** U-18 / U-19 -- see RunSubmissionInput.projectScope. A pill's params.projectId is held to it by validate(). */
   projectScope?: string | null;
+  /** U-46c (BR-287, BR-583) -- see RunSubmissionInput.aiLinkId: the link this write came through. Its free text is cleaned and capped, and the memory it leaves is marked 'ai_link'. */
+  aiLinkId?: string | null;
+  /** U-46c -- see RunSubmissionInput.via. */
+  via?: SubmissionVia | null;
 };
 
 export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunSubmissionResult> {
   // U-18: before anything is written, including the submissions row.
-  const input = pinToProjectScope(submitted);
+  // U-46c (BR-583): and, for a link call, before the free text is written.
+  const input = withLinkText(pinToProjectScope(submitted));
   const params = input.params ?? {};
   const base: RunSubmissionInput = {
     orgId: input.orgId,
@@ -775,6 +871,8 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
     role: input.role,
     actorUserId: input.actorUserId ?? null,
     projectScope: input.projectScope ?? null,
+    aiLinkId: input.aiLinkId ?? null,
+    via: input.via ?? null,
   };
 
   const submissionId =
@@ -881,8 +979,25 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
     });
   }
 
+  // BUILD-001 U-29 fix round 1: once executeTask() has succeeded the record exists, so an error in the bookkeeping that
+  // follows (the task row, the pill and chain history, the submission's own status) is logged and does not abort the
+  // call. Thrown here it reaches the caller after the write, and a caller that retries on an error then writes twice.
+  // A run that failed keeps the old behaviour: nothing was written, and the error surfaces.
+  const afterRun = async (what: string, run: () => Promise<unknown>): Promise<void> => {
+    if (!outcome.success) {
+      await run();
+      return;
+    }
+    try {
+      await run();
+    } catch (error) {
+      console.error(`[pipeline] submission=${submissionId} task=${taskId} ${what} failed after the write (not aborting):`, error);
+    }
+  };
+
   if (outcome.success) {
-    await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
+    const executed = outcome.result;
+    await afterRun("task update", () => updateTask(input.orgId, taskId, "done", executed, undefined));
     // R65 Part C Phase 3: task memory, same as runSubmission()'s own
     // execution loop above -- WRITE tasks only.
     if (functionWrites(input.functionId)) {
@@ -893,16 +1008,19 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
     await updateTask(input.orgId, taskId, statusForFailure(outcome.failure), undefined, outcome.failure);
   }
 
-  await recordPillUse(base, input.functionId, derived);
-  await recordChainHistory(base, input.functionId, derived, outcome.success ? "ok" : "failed");
+  await afterRun("pill use", () => recordPillUse(base, input.functionId, derived));
+  await afterRun("chain history", () => recordChainHistory(base, input.functionId, derived, outcome.success ? "ok" : "failed"));
 
   const status = outcome.success ? "done" : "failed";
-  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.update(submissions).set({ status, classification, selectedChain: derived as unknown as object }).where(eq(submissions.id, submissionId))
+  await afterRun("submission status", () =>
+    withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+      db.update(submissions).set({ status, classification, selectedChain: derived as unknown as object }).where(eq(submissions.id, submissionId))
+    )
   );
 
   console.info(
-    `[pipeline] submission=${submissionId} source=pill function=${input.functionId} model_calls=0 status=${status} classification=${classification}`
+    `[pipeline] submission=${submissionId} source=pill function=${input.functionId} model_calls=0 status=${status} classification=${classification}` +
+      linkLogSuffix(input)
   );
 
   return {
@@ -1144,13 +1262,7 @@ function level1Context(input: RunSubmissionInput): Level1Context {
  * tally, instead of a throw that took the whole submission down with it.
  */
 function level1RunnerFor(input: RunSubmissionInput, tally: Level1Tally): (texts: string[], ctx: Level1Context) => Promise<Level1Outcome> {
-  if (input.level1 === "off") {
-    return async (texts) => ({
-      resolutions: texts.map(() => null),
-      reasons: texts.map(() => "Level 1 is off for this caller"),
-      modelCalls: 0,
-    });
-  }
+  if (effectiveLevel1(input) === "off") return level1OffRunner();
   return refusalAsUnresolved(runLevel1, (error) => {
     tally.outcome = "refused";
     tally.refusalKind = error.kind;
@@ -1411,7 +1523,9 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
 export async function proposeSubmission(submitted: RunSubmissionInput): Promise<DryRunResult> {
   const input = pinToProjectScope(submitted);
   const deps = await makeDryRunDeps(input);
-  return dryRun({ ...input, candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
+  // U-46c: the dry run honours the same switch, so a link's proposal (and the
+  // verdict and confirm that follow it) never asks the internal model either.
+  return dryRun({ ...input, level1: effectiveLevel1(input), candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
 }
 
 // ─── R67 B-07: THE VERDICT, AND THE CONFIRM THAT FOLLOWS IT ───────────────
@@ -1440,7 +1554,7 @@ function submissionStatusForVerdict(v: SubmissionVerdictResult): "chat" | "in_pr
 }
 
 export async function submitForVerdict(submitted: RunSubmissionInput): Promise<SubmitVerdictResult> {
-  const input = pinToProjectScope(submitted);
+  const input = withLinkRawInput(pinToProjectScope(submitted));
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
     const [row] = await db
       .insert(submissions)
@@ -1535,6 +1649,10 @@ export type ConfirmSubmissionInput = {
   level1PersonId?: string | null;
   /** U-18 / U-19 -- see RunSubmissionInput.projectScope. A stored submission of another project is refused (403). */
   projectScope?: string | null;
+  /** U-46c (BR-287) -- see RunSubmissionInput.aiLinkId. The re-derived proposal makes no model call, and the write is marked as a link's. */
+  aiLinkId?: string | null;
+  /** U-46c -- see RunSubmissionInput.via. */
+  via?: SubmissionVia | null;
 };
 
 export type ConfirmSubmissionOutcome =
@@ -1589,6 +1707,8 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
     role: input.role,
     level1PersonId: input.level1PersonId ?? null,
     projectScope: input.projectScope ?? null,
+    aiLinkId: input.aiLinkId ?? null,
+    via: input.via ?? null,
   });
 
   const proposal = await proposeSubmission(base);
@@ -1624,6 +1744,8 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
     actorUserId: input.actorUserId ?? null,
     existingSubmissionId: row.id,
     projectScope: input.projectScope ?? null,
+    aiLinkId: input.aiLinkId ?? null,
+    via: input.via ?? null,
   });
   return { ok: true, result };
 }

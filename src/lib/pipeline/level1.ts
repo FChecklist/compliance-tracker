@@ -239,3 +239,20 @@ export function refusalAsUnresolved(
     }
   };
 }
+
+/**
+ * PROJEXA-BUILD-001 U-43 / U-46c (BR-287): the Level 1 step of a caller that
+ * must never reach the internal model -- the AI work link, whose own AI is
+ * Level 1. It calls no model and consults no provider: every text that reaches
+ * it comes back unresolved with zero model calls, so each caller turns it into
+ * the gap a Level 1 "no function" answer already produces. Shared by
+ * run-submission.ts and dry-run.ts so the two cannot disagree on what "off"
+ * means.
+ */
+export function level1OffRunner(): (texts: string[], ctx: Level1Context) => Promise<Level1Outcome> {
+  return async (texts) => ({
+    resolutions: texts.map(() => null),
+    reasons: texts.map(() => "Level 1 is off for this caller"),
+    modelCalls: 0,
+  });
+}

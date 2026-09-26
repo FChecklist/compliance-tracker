@@ -12426,6 +12426,28 @@ export const inboundEmailAttachments = complianceSchemaDB.table('inbound_email_a
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// PROJEXA-BUILD-001 U-40 (BR-515): one AI-run schedule -- a registry function run as its owner on a cron cadence by the scheduler
+// bridge (src/lib/pipeline/scheduler-bridge.ts, woken by the pg_cron job projexa-scheduler-bridge through the Edge Function of
+// the same name). drizzle/0642_build001_pipeline_schedules.sql creates the table with RLS in the pattern of reportSchedules
+// (app_runtime by organisation, service_role bypass). ownerUserId is the person the schedule acts as (never an API key);
+// nextRunAt is moved on by the bridge when it claims the schedule; lastResult is a summary and a code, never the function's
+// result body. Every timestamp is timestamptz. Nothing writes this table yet except the bridge: the routes that create and edit
+// schedules belong to a later unit.
+export const pipelineSchedules = complianceSchemaDB.table('pipeline_schedules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ownerUserId: text('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  functionId: text('function_id').notNull(), // a registry function id (pipeline/function-registry.ts)
+  params: jsonb('params').notNull().default({}), // a JSON object (CHECK pipeline_schedules_params_check)
+  cadence: text('cadence').notNull(), // five-field cron expression, UTC (pipeline/cron-next.ts)
+  nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull(),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  lastResult: jsonb('last_result'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // GAP-06 (tree4-unified/30-gap-backlog.yaml): "Build a genuine draft-then-
 // approve Communication Governance flow." Composes 3 existing mechanisms
 // per the gap's own workflow -- an org-aware LLM drafting call (the same
