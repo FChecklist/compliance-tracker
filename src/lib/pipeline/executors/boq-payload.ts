@@ -36,6 +36,8 @@ import { badRequest, created, missingRequiredParam, notPermitted, num, pickProje
 export const BOQ_MONEY_KEYS: ReadonlySet<string> = new Set([
   "rate", "amount", "materialCost", "labourCost", "equipmentCost", "budgetPercentage", "vendorAmount", "materialAmount",
   "manpowerAmount", "rateProject", "rateContract", "contractValueOverride",
+  // the cost breakdown behind a rate, money for the `boq_lines` record kind since drizzle/0643 (BUILD-002 WP-06, AW-321)
+  "vendorId", "overheadPercent", "profitPercent",
   // computed on read by construction-boq-service.ts's withComputedRate() and getBoqRow()
   "computedRate", "computedBudget", "contractValue", "moneyView", "costCoverage",
 ]);

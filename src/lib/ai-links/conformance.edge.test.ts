@@ -69,7 +69,11 @@ afterAll(() => {
 })
 
 type EdgeOptions = FakeOptions & {
-  /** Fake database time runs `scale` times faster than real time (the rate-limit script waits for a minute to pass). */
+  /**
+   * Fake database time runs `scale` times faster than real time (the rate-limit script waits for a minute to pass). The default is 60,
+   * so that the harness, which paces itself under the 120 calls a minute a link may make (ai_link_conformance.py, PACE), only waits a
+   * second of real time for a minute of the fake database's: with 33 record kinds one run makes more than 120 calls to one link.
+   */
   scale?: number
   /** Lets a test change one response, to prove the harness notices (never used in a passing run). */
   tamper?: (res: Response, req: Request) => Response
@@ -81,6 +85,7 @@ function startEdge(opts: EdgeOptions = {}): Edge {
   const fake = makeFake(opts)
   const t0 = Date.now()
   const clock0 = fake.state.clock
+  const scale = opts.scale ?? 60
   const holder: { config: AwlConfig } = { config: testConfig() }
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -88,7 +93,7 @@ function startEdge(opts: EdgeOptions = {}): Edge {
     async fetch(req) {
       const pathname = new URL(req.url).pathname
       if (pathname !== PATH && !pathname.startsWith(PATH + "/")) return new Response("not found", { status: 404 })
-      if (opts.scale) fake.state.clock = clock0 + (Date.now() - t0) * opts.scale
+      fake.state.clock = clock0 + (Date.now() - t0) * scale
       const res = await handleAwl(req, { rpc: fake.rpc, config: holder.config, log: () => {} })
       return opts.tamper ? opts.tamper(res, req) : res
     },
@@ -122,9 +127,11 @@ function run(cmd: string, args: string[], env: Record<string, string> = {}, time
   })
 }
 
+// one real second of pacing window is one fake minute at the default scale of startEdge
+const HARNESS_PACE = { AWL_HARNESS_WINDOW_SECONDS: "1" }
 type Harness = Ran & { passed: string[]; failed: string[] }
 async function harness(args: string[]): Promise<Harness> {
-  const r = await run(PY, [HARNESS, ...args])
+  const r = await run(PY, [HARNESS, ...args], HARNESS_PACE)
   const lines = r.out.split("\n")
   const ids = (prefix: string) => lines.filter((l) => l.startsWith(prefix)).map((l) => l.split(" ")[1])
   return { ...r, passed: ids("PASS "), failed: ids("FAIL ") }
@@ -177,7 +184,7 @@ describe("the BR-229 harness against the real Edge handler (BR-523, BR-490)", ()
       AWL_LINK: edge.link(TOKENS.manager), AWL_LINK_B: edge.link(TOKENS.otherProject), AWL_LINK_M: edge.link(TOKENS.member),
       AWL_LINK_REVOKED: edge.link(TOKENS.revoked), AWL_LINK_DEMOTED: edge.link(TOKENS.viewer),
     }
-    const r = await run("bash", ["scripts/verify/awl-harness.sh", "readonly"], env)
+    const r = await run("bash", ["scripts/verify/awl-harness.sh", "readonly"], { ...env, ...HARNESS_PACE })
     expect(r.code).toBe(0)
     expect(r.out).toContain("RESULT: 23 passed, 0 failed")
     expect(r.out).toContain("PASS BR-280")

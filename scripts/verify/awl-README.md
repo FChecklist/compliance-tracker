@@ -25,6 +25,13 @@ handler runs under bun in `src/lib/ai-links/conformance.edge.test.ts` (BR-523). 
 | BR-499 | `bash scripts/verify/awl-largest-page.sh` | yes | live-only for the largest project |
 | BR-523 | `bun test --isolate src/lib/ai-links/conformance.edge.test.ts` | yes | no |
 
+## Pacing
+
+A link may make 120 calls a minute, and a full harness run makes more than that against link A (H24 reads one address per record kind). The
+harness therefore keeps itself under the limit: at most 100 calls to one link in any 60 seconds, and one wait-and-retry on a 429. A full run
+against a live deployment takes a few minutes for that reason. `AWL_HARNESS_MAX_CALLS` and `AWL_HARNESS_WINDOW_SECONDS` change the two
+numbers; a test that runs the handler on a faster clock shortens the window.
+
 ## Variables
 
 Set them in the shell that runs the command. To keep a token out of shell history, read it without echo: `read -rs AWL_TOKEN; export AWL_TOKEN`.
