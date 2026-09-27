@@ -1,0 +1,2 @@
+requirement_id,function_ids,way,note
+R-C12,submit_timesheet,link_draft_l2,"submit_timesheet: sends the person's own draft time entry of this project for review (level 2, member rank), so an entry recorded through a link reaches the manager's queue; the person confirms it signed in and it approves nothing (approve_timesheet stays the manager's own draft). Found by the WP-14 persona run and closed by the persona-findings fix; tests in executor-submit-timesheet.test.ts."
