@@ -26,19 +26,18 @@ const run = (model: ModelCall) => extractProjectFromDocument({ fileName: "SMD ZO
 const total = (r: Awaited<ReturnType<typeof run>>) => r.extracted.boq.lineItems.reduce((s, l) => s + Number(l.quantity) * Number(l.rate), 0)
 
 describe("restateCandidateLines through the real service", () => {
-  test("a model that changes a description, a rate and a unit still gives the reader's lines: 53 lines, AED 1,596,280", async () => {
+  test("a model that reformats one description still gives the reader's line, text and all: 53 lines, AED 1,596,280", async () => {
     const honest = await run(carefulHumanModel)
-    const result = await run(
-      sloppy((out) => {
-        out.boq.lineItems[51].description = "Something the model made up"
-        out.boq.lineItems[3].rate = 999_999
-        out.boq.lineItems[7].unit = "kg"
-        out.boq.lineItems[9].category = "Play Area - Elsewhere"
-      }),
-    )
+    const result = await run(sloppy((out) => (out.boq.lineItems[51].description = "  Something   the model reformatted  ")))
     expect(result.extracted.boq.lineItems).toEqual(honest.extracted.boq.lineItems)
     expect(result.stats.lines).toBe(53)
     expect(Math.round(total(result) * 100) / 100).toBe(1_596_280)
+  })
+
+  test("a changed rate, quantity, unit or category is still refused: restating touches description only", async () => {
+    await expect(run(sloppy((out) => (out.boq.lineItems[3].rate = 999_999)))).rejects.toMatchObject({ code: "extraction_lines_diverge" })
+    await expect(run(sloppy((out) => (out.boq.lineItems[7].unit = "kg")))).rejects.toMatchObject({ code: "extraction_lines_diverge" })
+    await expect(run(sloppy((out) => (out.boq.lineItems[3].quantity += 1)))).rejects.toMatchObject({ code: "extraction_lines_diverge" })
   })
 
   test("an ADDED line and a DROPPED line are still refused", async () => {

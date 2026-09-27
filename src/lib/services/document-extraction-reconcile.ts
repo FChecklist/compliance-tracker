@@ -169,11 +169,13 @@ export function checkAgainstCandidates(extracted: ExtractedProject, candidates: 
 }
 
 /**
- * The lines a program already read from the file are written as that program read them, not as the model repeated them. A model told to "return exactly those lines"
- * still changes one now and then (found on the first live run of the real ZOOMIES file: a lump-sum line's description came back different), and refusing the whole file
- * for that protects nothing: what is written is the reader's line either way. Only a line that IS a candidate (same item code) is restated, from the candidate's own
- * item code, description, unit, quantity, rate, category and source; a line that is not one, or a candidate the model dropped, is left for checkAgainstCandidates() to
- * refuse, so a model can neither add nor lose a line. The model's other keys on a line (parentItemCode, breakdownPercentage) stay. Nothing is changed in place.
+ * The lines a program already read from the file are written as that program read them, not as the model repeated them -- for the ONE field that is free text with no
+ * money in it: the description. A model told to "return exactly those lines" still reformats a description now and then (found on the first live run of the real
+ * ZOOMIES file: a lump-sum line's description came back different in whitespace only), and refusing the whole file for that protects nothing, because what is WRITTEN
+ * is the reader's own text either way. Quantity, rate, unit, category and source are deliberately NEVER restated here: those are exactly what checkAgainstCandidates()
+ * exists to catch a model changing (a quietly altered rate is a real risk; a quietly reformatted sentence is not), so they still go through it unchanged, and a real
+ * change to any of them is still extraction_lines_diverge. Only a line that IS a candidate (same item code) is touched; a line that is not one, or a candidate the model
+ * dropped, is left for checkAgainstCandidates() to refuse, so a model can neither add nor lose a line by this path. Nothing is changed in place.
  */
 export function restateCandidateLines(extracted: ExtractedProject, candidates: Candidates): ExtractedProject {
   const want = new Map(candidates.lines.map((c) => [c.itemCode.toLowerCase(), c]))
@@ -184,7 +186,7 @@ export function restateCandidateLines(extracted: ExtractedProject, candidates: C
       lineItems: extracted.boq.lineItems.map((line) => {
         const c = want.get((line.itemCode ?? "").toLowerCase())
         if (!c) return line
-        return { ...line, itemCode: c.itemCode, description: c.description, unit: c.unit, quantity: c.quantity, rate: c.rate, category: c.category, source: { sheet: c.source.sheet, row: c.source.row } }
+        return { ...line, description: c.description }
       }),
     },
   }
