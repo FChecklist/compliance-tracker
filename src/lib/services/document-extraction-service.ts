@@ -103,6 +103,7 @@ import {
   buildCandidates,
   candidatesForSheets,
   checkAgainstCandidates,
+  restateCandidateLines,
   checkProjectName,
   computeReconciliation,
   cutCellQuestions,
@@ -1076,7 +1077,9 @@ export async function extractProjectFromDocument(
     const attribution = input.attribution
       ? { ...input.attribution, ...(input.attribution.requestId && requests.length > 1 ? { requestId: `${input.attribution.requestId}-p${index + 1}` } : {}) }
       : undefined
-    const answer = validateExtractionOutput(readEdgeOutput(await deps.callEdge(request.body, attribution)), digest, { minLines: requests.length > 1 ? 0 : 1 })
+    const validated = validateExtractionOutput(readEdgeOutput(await deps.callEdge(request.body, attribution)), digest, { minLines: requests.length > 1 ? 0 : 1 })
+    // the lines the file's own reading found are written as it read them; an added or dropped line is still refused below
+    const answer = request.candidates ? restateCandidateLines(validated, request.candidates) : validated
     if (request.candidates) {
       const problems = checkAgainstCandidates(answer, request.candidates)
       if (problems.length > 0) {

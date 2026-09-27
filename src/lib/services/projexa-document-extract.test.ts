@@ -138,13 +138,20 @@ describe("no model is configured (BR-509 is the owner's decision)", () => {
     }
   })
 
-  test("index.ts wires no provider: the model is null and the credential is the shared secret from the environment", () => {
+  test("index.ts wires no credential of its own: the caller secret, the Groq key and the service key are read from the environment, and no address or key is written in it", () => {
     const index = source("index.ts")
-    expect(index).toMatch(/model:\s*null/)
     expect(index).toContain("Deno.env.get(\"PROJEXA_DOCUMENT_EXTRACT_SECRET\")")
+    expect(index).toContain("Deno.env.get(\"OPENROUTER_API_KEY\")")
+    expect(index).toContain("Deno.env.get(\"GROQ_API_KEY\")")
     expect(index).toContain("bearerMatches(")
-    expect(index.match(/^import /gm)).toHaveLength(1)
+    expect(index.match(/^import .*$/gm)).toEqual([
+      'import { createClient } from "npm:@supabase/supabase-js@2"',
+      'import { attributionFromHeaders, DEFAULT_BUDGET_CAP_USD, parseCapUsd } from "./budget.ts"',
+      'import { bearerMatches, handleProjexaDocumentExtract } from "./handler.ts"',
+      'import { GROQ_MODEL, GROQ_PROVIDER, OPENROUTER_PROVIDER, groqModel, ledgerOver, openRouterModel } from "./wiring.ts"',
+    ])
     expect(index).not.toContain("https://")
+    expect(index).not.toMatch(/sk-|gsk_|eyJ/)
   })
 
   test("handler.ts imports only ./budget.ts, and budget.ts has no import, so both run under Deno and under bun unchanged", () => {
