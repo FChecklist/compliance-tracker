@@ -30,7 +30,8 @@ import { mintLink, openWriteDb, rpcFor, setWrites, type J } from "./__test-helpe
 setDefaultTimeout(60_000)
 
 const F = "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/ai-work-link"
-const base: AwlConfig = { ...configFromEnv(() => undefined), confirmHost: "inbox-test.pages.dev" }
+// "base" is the link WITHOUT the exec function on purpose (the deployed constant is true since 2026-09-27, so it is set to false here)
+const base: AwlConfig = { ...configFromEnv(() => undefined), confirmHost: "inbox-test.pages.dev", execPresent: false }
 const withExec: AwlConfig = { ...base, execPresent: true }
 
 let db: PGlite
@@ -228,6 +229,6 @@ describe("one switch", () => {
     for (const f of ["config.ts", "handler.ts", "reads.ts", "drafts.ts", "manual.ts", "render.ts", "mcp.ts", "confirm.ts", "index.ts"]) {
       expect(`${f} ${readFileSync(new URL(f, dir), "utf8").includes("executorEnabled")}`).toBe(`${f} false`)
     }
-    expect(readFileSync(new URL("config.ts", dir), "utf8")).toContain("export const EXEC_FUNCTION_PRESENT = false")
+    expect(readFileSync(new URL("config.ts", dir), "utf8")).toContain("export const EXEC_FUNCTION_PRESENT = true")
   })
 })
