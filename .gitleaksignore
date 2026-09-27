@@ -30,3 +30,13 @@
 # just PM/agent judgment.
 954fe0e8d3c6fe865740157712bb0d12c83ca24a:src/lib/webhooks/resend-svix-signature.test.ts:generic-api-key:12
 954fe0e8d3c6fe865740157712bb0d12c83ca24a:src/app/api/webhooks/resend-inbound/route.test.ts:generic-api-key:22
+
+# Narrowly-scoped exception, owner-approved directly, 2026-09-27 (this session's own chat: the owner told the agent
+# "Complete it, you have all the owners approval. dont ask me, take decision and complete" for this exact BUILD-002
+# AW-901/AW-902 work). Same false-positive class as the two exceptions above: a Supabase PUBLISHABLE key
+# (sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8) for PROJEXA's own project (evpckeuxgvahguwsaeul), embedded on
+# purpose in a static client-side page (ai-confirm.html) that has no server and no session of its own -- the key is
+# DESIGNED to be public (RLS-protected, not secrecy-protected), the same reasoning .gitleaks.toml's header already
+# gives for the anon-key exception. gitleaks' generic-api-key rule flags it purely on shape/entropy; it is not a
+# service_role key, a database password or any other real credential. Not a new secret, not a real leak.
+821e54885d83fa0f368166e1852ac7421cdc3142:projexa-link-pages/ai-confirm.html:generic-api-key:55
