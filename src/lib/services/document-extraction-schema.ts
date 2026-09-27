@@ -384,13 +384,44 @@ export function checkAreaRules(extracted: ExtractedProject): string[] {
 }
 
 /**
+ * The optional top-level keys of the widened contract (client, currency, vat, paymentTerms, areas, questions, controlTotals). A model that is told the shape often puts
+ * one of them inside a neighbour (found on the first live run of the real ZOOMIES file, 2026-09-27: `vat` inside `controlTotals`, `client` inside `project`).
+ */
+const RELOCATABLE_KEYS = ["client", "currency", "vat", "paymentTerms", "areas", "questions", "controlTotals"] as const
+const RELOCATION_CONTAINERS = ["project", "boq", "controlTotals"] as const
+/** A key that BELONGS inside its container is never moved: controlTotals.areas is the per-area totals, not the list of areas. */
+const BELONGS_INSIDE: Record<(typeof RELOCATION_CONTAINERS)[number], readonly string[]> = { project: [], boq: [], controlTotals: ["areas"] }
+
+/**
+ * Moves a KNOWN optional key that sits inside project, boq or controlTotals up to the top level, where the schema expects it. It moves nothing else: an unknown key
+ * stays where it is and the strict schema still refuses it; a value already at the top level is never replaced; the input is not changed. The moved value is then
+ * checked by exactly the same schema as any other, so this widens nothing that a write can reach.
+ */
+export function relocateMisplacedKeys(raw: unknown): unknown {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return raw
+  const top: Record<string, unknown> = { ...(raw as Record<string, unknown>) }
+  for (const container of RELOCATION_CONTAINERS) {
+    const inner = top[container]
+    if (typeof inner !== "object" || inner === null || Array.isArray(inner)) continue
+    const copy: Record<string, unknown> = { ...(inner as Record<string, unknown>) }
+    for (const key of RELOCATABLE_KEYS) {
+      if (key === container || BELONGS_INSIDE[container].includes(key) || !(key in copy)) continue
+      if (!(key in top)) top[key] = copy[key]
+      delete copy[key]
+    }
+    top[container] = copy
+  }
+  return top
+}
+
+/**
  * The one gate between a model's output and anything that writes. Returns the parsed output, or throws
  * ExtractionRejectedError: extraction_schema_invalid when the shape is wrong (including an unexpected key),
  * extraction_not_grounded when a line or a question cites a sheet and row that the uploaded file does not have, or a control total
  * or VAT figure is not a figure the file prints, extraction_areas_invalid when the area rules of checkAreaRules() do not hold.
  */
 export function validateExtractionOutput(raw: unknown, digest: WorkbookDigest, options: { minLines?: number } = {}): ExtractedProject {
-  const parsed = (options.minLines === undefined || options.minLines === 1 ? extractionOutputSchema : buildOutputSchema(options.minLines)).safeParse(raw)
+  const parsed = (options.minLines === undefined || options.minLines === 1 ? extractionOutputSchema : buildOutputSchema(options.minLines)).safeParse(relocateMisplacedKeys(raw))
   if (!parsed.success) {
     throw new ExtractionRejectedError(
       "extraction_schema_invalid",

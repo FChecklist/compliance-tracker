@@ -502,10 +502,14 @@ describe("price and wiring parity", () => {
     expect(readme).toContain("1.00")
   })
 
-  test("index.ts still wires no model, so no call can be made before a ledger-backed budget is wired with it", () => {
+  test("index.ts wires the model only when OPENROUTER_API_KEY or GROQ_API_KEY is set, and always through a ledger-backed budget that is null when there is no service client (BUILD-002 AW-902)", () => {
     const index = source("index.ts")
-    expect(index).toMatch(/model:\s*null/)
-    expect(index).toMatch(/budget:\s*null/)
+    expect(index).toMatch(/model:\s*OPENROUTER_API_KEY\s*\?\s*openRouterModel\(OPENROUTER_API_KEY\)\s*:\s*GROQ_API_KEY\s*\?\s*groqModel\(GROQ_API_KEY\)\s*:\s*null/)
+    expect(index).toMatch(/budget:\s*client\s*\?/)
+    expect(index).toMatch(/:\s*null,\s*\}\),\s*\)/)
+    expect(index).toContain("ledger: ledgerOver(")
+    expect(index).toContain("parseCapUsd(")
+    expect(index).toContain("resolveAttribution")
   })
 
   test("no credential, key or URL is in the budget code", () => {

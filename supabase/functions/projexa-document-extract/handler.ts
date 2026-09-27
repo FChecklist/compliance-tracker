@@ -115,6 +115,7 @@ export const SYSTEM_PROMPT = [
   "12. Never copy bank account details, IBAN or SWIFT codes, phone numbers or e-mail addresses into any key. Keep the payment milestones and leave the account out.",
   "13. If something is missing or unclear, add an item to questions (kind, sheet, row, text) instead of guessing. kind is one of no_rate, packed_cell, packed_sheet, bad_quantity, lump_sum, unknown_bill, missing_information, unclear.",
   "14. When the data has a `part` key ({index, of}), it holds only some of the sheets of the file. Return lines for those sheets only, and leave out a key that the sheets you were given do not carry.",
+  "15. controlTotals has exactly two keys: grand and areas. VAT, currency, client and payment terms are never inside controlTotals: each is its own key beside project and boq, as in OPTIONAL KEYS below.",
   "",
   "SHAPE",
   JSON.stringify(OUTPUT_SHAPE_EXAMPLE, null, 2),
