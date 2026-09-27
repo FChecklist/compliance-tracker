@@ -2,7 +2,7 @@
 
 Every status in `ACCEPTANCE_REGISTER.csv` comes from a real run of the row's own `verify_command`, in a clean checkout of main (`f0018c11`), one row after another. A row is `pass` only when the command exits 0 and its output matches `expected_output`. Nothing was set by hand.
 
-## Result: 57 of 64 rows pass, 7 do not
+## Result: 58 of 64 rows pass, 6 do not
 
 | Group | Rows | Status |
 | --- | --- | --- |
@@ -12,12 +12,11 @@ Every status in `ACCEPTANCE_REGISTER.csv` comes from a real run of the row's own
 | WP-03/04 project and BOQ functions | AW-201 to AW-205 | pass |
 | WP-05 coverage waves 1 to 9, exceptions | AW-301 to AW-312 | pass |
 | WP-06 record kinds, WP-07 work functions | AW-321, AW-322, AW-331 | pass |
-| WP-08 mint dialog (unit tests) | AW-401 to AW-404, AW-406 | pass |
+| WP-08 mint dialog (unit tests and the browser test) | AW-401 to AW-406 | pass |
 | WP-09 execution function and owner kit | AW-501 to AW-511 | pass |
 | Ways 1, 2, 3, 4, 5 | AW-601, AW-602, AW-603, AW-604, AW-605 | pass (way 1 added the same day, see below) |
 | Persona runs (dry) | AW-701, AW-702, AW-703 | pass |
-| **All ways reconcile to 1,596,280** | AW-606 | **pending** (no script: ways 1, 2 and 5 do not yet all assert the 1,596,280 total and per-line attribution the way ways 3 and 4 do) |
-| **Mint dialog in a browser** | AW-405 | **pending** (Playwright, not yet run; the way-1 run showed it is possible with about 1.5 GB free) |
+| **All ways reconcile to 1,596,280** | AW-606 | **pending, partial**: ways 1, 2, 3 and 4 reconcile (`ways-reconcile.sh` exits 3); way 5 creates no project, so it cannot until an approve action exists for a scanned proposal (owner decision D-1, plus the owner's Drive or mailbox connection) |
 | Owner-blocked | AW-901 to AW-905 | pending, by design: they need the owner's switch-on, secrets, DNS or a live run |
 
 ## Built during the close because a row named something that did not exist
@@ -48,3 +47,9 @@ Unchanged, see `OWNER_SWITCH_ON_GUIDE.md`, `OWNER_EMAIL_CHECKLIST.md` and `OWNER
 `scripts/verify/way1-zoomies.sh` runs two halves and both must pass. The database half (89 tests) runs the real from-document route and importer on in-process Postgres and re-reads the ZOOMIES project, its 53 lines and AED 1,596,280 from the tables. The screen half runs projexa's `e2e/upload-proposals.spec.ts` with Playwright against a local PROJEXA server, with the page's `/api` calls answered in the browser. Neither half touches the live database or Vercel, the same standard as ways 3 to 5.
 
 The first browser run of that spec failed: it expected "Choose a file and a product to continue." but the page preselects a lone product, and the spec's stub returns exactly one. WP-10 had merged without a browser run. The spec was corrected in FChecklist/projexa#328 (the page was right); the rerun passes 3 of 3. That PR's CI had one flaky unit test and one Google Fonts fetch failure, each passing on rerun.
+
+## Mint dialog in a browser (AW-405) and the cross-way reconcile (AW-606)
+
+AW-405 ran the same way as AW-601 (`projexa-playwright.sh e2e/ai-link-mint.spec.ts` against a local PROJEXA on main): the screen test passed in 21.9 s. The file's second test, the live one, is skipped in the local config by design; it needs a live session and is part of AW-903.
+
+AW-606 got `src/lib/services/ways-reconcile.pglite.test.ts` and `scripts/verify/ways-reconcile.sh`. The test drives the upload route, the internal chat orchestrator (on the real service, ledger, project and BOQ writers) and the email-job approval on real Postgres, and reads back from the tables: 1 project, 1 BOQ, 53 lines, AED 1,596,280, the same lines in each way, the BOQ's creator and the project's lead a real user. It fails when the BOQ is attributed to someone else and when one rate is changed (both checked). The script adds way 3 (AW-603) and way 5 (AW-605) and exits 3 (partial) because way 5 ends in a parked proposal and creates no project. The row stays pending on purpose; the gap is in the product (no approve action for a scanned proposal), not in the check.
