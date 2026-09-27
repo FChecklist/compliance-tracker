@@ -47,6 +47,16 @@ describe("GET /api/v1/projexa/scheduler-proposals", () => {
     expect(listCalls).toEqual([])
   })
 
+  test("a folder proposal carries its approve action; a proposal of another function does not", async () => {
+    listBehaviour = async () => [
+      { id: "s1", waitingOn: "approval", folder: { jobId: "j1", fileName: "a.xlsx" } },
+      { id: "s2", waitingOn: "other", folder: null },
+    ]
+    const body = (await (await GET(request())).json()) as { proposals: Array<Record<string, unknown>> }
+    expect(body.proposals[0].approve).toMatchObject({ method: "POST", path: "/api/v1/projexa/scheduler-proposals/s1/approve" })
+    expect(body.proposals[1].approve).toBeUndefined()
+  })
+
   test("a viewer is refused", async () => {
     identity = user("viewer")
     expect((await GET(request())).status).toBe(403)

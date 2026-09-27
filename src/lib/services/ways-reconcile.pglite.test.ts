@@ -7,15 +7,16 @@
 //          with the REAL ledger, createProject and createBoq (only the stored-file read is a stand-in that hands over the bytes)
 //   way 4  the file arrived by email: the parked job is approved by its id through the same route
 //
+//   way 5  a scheduler scans a connected folder, then the schedule's owner APPROVES the proposal: the file is fetched again from the
+//          source, its hash is checked, and the parked job is finished by the same createProjectFromDocument path (folder-watch-approve.ts)
+//
 // Way 3 (an external AI through the link) is run by scripts/verify/way3-zoomies.sh and re-reads the same figures from its own tables.
-// Way 5 (a scheduler scanning a folder) ends in a parked proposal by design and creates no project, so it has no project to reconcile
-// (WP-13, AW-605; an approve action for it is the owner's decision D-1). ways-reconcile.sh says so and runs both.
 //
 // WHAT IS PROVEN, each figure read back from the tables of real Postgres (PGlite), not from a response body:
 //   1. after each way: 1 project, 1 BOQ, 53 lines, the lines add up to AED 1,596,280 (sum of quantity x rate);
 //   2. attribution: the project's lead and the BOQ's creator are the acting person, and that person is a real row of compliance.users;
 //      any created_by-style column on a line is filled with a real person too;
-//   3. across ways: the three BOQs hold the same 53 lines (item code, unit, quantity, rate), and each way used the model once.
+//   3. across ways: the four BOQs hold the same 53 lines (item code, unit, quantity, rate), and each way used the model once.
 //
 // Run: bun test --isolate src/lib/services/ways-reconcile.pglite.test.ts
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test"
@@ -25,6 +26,8 @@ import * as realAuthGuard from "@/lib/supabase/auth-guard"
 import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 import { insertProduct, insertUser } from "@/lib/services/__test-helpers__/document-extraction-pglite"
 import { createEmailIntakePglite, insertAttachment } from "@/lib/services/__test-helpers__/email-intake-pglite"
+import { SUBMISSIONS_SQL } from "@/lib/services/__test-helpers__/submissions-pglite"
+import { fakeFolder } from "@/lib/services/__test-helpers__/fake-folder-source"
 import { SHARED_SECRET, edgeDeps } from "@/lib/services/__test-helpers__/document-extraction-fixtures"
 import { carefulHumanModel } from "@/lib/services/__test-helpers__/zoomies-standin-model"
 import { zoomiesWorkbook } from "@/lib/services/__test-helpers__/zoomies-workbook"
@@ -47,6 +50,12 @@ const METERED: InternalAiRoute = { allowed: true, kind: "metered", provider: "op
 let h: Awaited<ReturnType<typeof createEmailIntakePglite>>
 let POST: (request: never) => Promise<Response>
 let prepareEmailProposals: typeof import("@/lib/services/email-attachment-intake").prepareEmailProposals
+let scanService: typeof import("@/lib/services/folder-watch-service")
+let folderStore: typeof import("@/lib/services/folder-watch-store")
+let extraction: typeof import("@/lib/services/document-extraction-service")
+let folderApprove: typeof import("@/lib/services/folder-watch-approve")
+let dashboard: typeof import("@/lib/services/construction-dashboard-service")
+let boqService: typeof import("@/lib/services/construction-boq-service")
 const seen = { modelCalls: 0 }
 
 let depth = 0
@@ -71,6 +80,7 @@ const counted: ModelCall = async (req) => {
 
 beforeAll(async () => {
   h = await createEmailIntakePglite()
+  await h.pg.exec(SUBMISSIONS_SQL)
   await insertProduct(h, { id: PRODUCT, org_id: ORG })
   await insertUser(h, { id: PERSON, org_id: ORG })
 
@@ -94,6 +104,12 @@ beforeAll(async () => {
   const route = await import("@/app/api/v1/projexa/projects/from-document/route")
   POST = route.POST as unknown as typeof POST
   prepareEmailProposals = (await import("@/lib/services/email-attachment-intake")).prepareEmailProposals
+  scanService = await import("@/lib/services/folder-watch-service")
+  folderStore = await import("@/lib/services/folder-watch-store")
+  extraction = await import("@/lib/services/document-extraction-service")
+  folderApprove = await import("@/lib/services/folder-watch-approve")
+  dashboard = await import("@/lib/services/construction-dashboard-service")
+  boqService = await import("@/lib/services/construction-boq-service")
 }, 60_000)
 
 afterAll(async () => {
@@ -107,7 +123,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await h.pg.exec(
-    "truncate compliance.projects, compliance.construction_boqs, compliance.construction_boq_line_items, compliance.source_object, compliance.inbound_email_attachments",
+    "truncate compliance.projects, compliance.construction_boqs, compliance.construction_boq_line_items, compliance.source_object, compliance.inbound_email_attachments, compliance.submissions",
   )
   seen.modelCalls = 0
   depth = 0
@@ -164,7 +180,7 @@ function postJob(fields: Record<string, string>) {
   return new Request("http://localhost/api/v1/projexa/projects/from-document", { method: "POST", body: form }) as never
 }
 
-describe("AW-606: three ways, one project", () => {
+describe("AW-606: four ways in one database, one project", () => {
   test("way 1, upload: the file is read, the questions are acknowledged, and the tables hold 53 lines adding up to AED 1,596,280, attributed to the person", async () => {
     const parked = await POST(postFile({}))
     expect(parked.status).toBe(200)
@@ -226,12 +242,40 @@ describe("AW-606: three ways, one project", () => {
     expectReconciled((results.way4 = await snapshot()))
   })
 
-  test("the three ways left the same 53 lines: item code, unit, quantity and rate all equal", () => {
-    expect(Object.keys(results).sort()).toEqual(["way1", "way2", "way4"])
+  test("way 5, scheduled folder scan: the scan parks a proposal and makes nothing; the owner's approval fetches the file again and the tables hold the same figures, attributed to the person", async () => {
+    const folder = fakeFolder([{ id: "file-zoomies", name: "SMD ZOOMIES.xlsx", bytes: ZOOMIES, modifiedAt: new Date(Date.UTC(2026, 8, 27, 10, 10, 0)) }], { kind: "drive" })
+    const ctx = { orgId: ORG, actorId: PERSON }
+    const callEdge = extraction.createEdgeExtractCaller({ baseUrl: BASE_URL, secret: SHARED_SECRET })
+    const scanned = await scanService.scanConnectedFolder(
+      { ...ctx, scheduleId: "schedule-1", productId: PRODUCT, folderKey: "folder-1" },
+      { source: folder.source, cursors: folderStore.createDbCursorStore(ctx), proposals: folderStore.createDbProposalStore(ctx), ledger: extraction.createDbProjectSourceLedger(ctx), callEdge },
+    )
+    expect(scanned.counts.proposed).toBe(1)
+    expect(await count("projects")).toBe(0)
+    expect(await count("construction_boqs")).toBe(0)
+    const [proposal] = await rows("select id from compliance.submissions")
+
+    const approved = await folderApprove.approveFolderProposal(
+      { orgId: ORG, person: { id: PERSON }, proposalId: String(proposal.id), acknowledgeQuestions: true },
+      {
+        callEdge,
+        ledger: extraction.createDbProjectSourceLedger(ctx),
+        createProject: dashboard.createProject as never,
+        createBoq: boqService.createBoq as never,
+        openSource: async () => folder.source,
+      },
+    )
+    expect(approved).toMatchObject({ ok: true, duplicate: false })
+    expect(folder.calls.download).toBe(2) // the scan's, and the approval's own fetch: nothing was kept between them
+    expectReconciled((results.way5 = await snapshot()))
+  })
+
+  test("the four ways left the same 53 lines: item code, unit, quantity and rate all equal", () => {
+    expect(Object.keys(results).sort()).toEqual(["way1", "way2", "way4", "way5"])
     expect(results.way1.lines).toHaveLength(53)
-    expect(results.way2.lines).toEqual(results.way1.lines)
-    expect(results.way4.lines).toEqual(results.way1.lines)
-    expect(results.way2.total).toBe(results.way1.total)
-    expect(results.way4.total).toBe(results.way1.total)
+    for (const way of ["way2", "way4", "way5"]) {
+      expect(results[way].lines).toEqual(results.way1.lines)
+      expect(results[way].total).toBe(results.way1.total)
+    }
   })
 })
