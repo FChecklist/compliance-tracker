@@ -180,3 +180,13 @@ export function createMailboxSource(read: ConnectorRead, options: { label?: stri
     },
   }
 }
+
+/**
+ * The source a stored proposal came from, opened with the acting person's OWN active connection (the approval of a folder proposal
+ * fetches the file again; see folder-watch-approve.ts). `folderKey` is what the scan stored: a Drive folder id, or a mailbox label
+ * (or "inbox"). Only a download is made through it, so a mailbox label is not needed and is not passed.
+ */
+export async function openFolderSource(ctx: ConnectorContext, source: { kind: "mailbox" | "drive"; folderKey: string }): Promise<FolderSource> {
+  const read = await openConnectorRead(ctx, source.kind === "mailbox" ? "gmail" : "googledrive")
+  return source.kind === "mailbox" ? createMailboxSource(read) : createDriveFolderSource(read, { folderId: source.folderKey })
+}
