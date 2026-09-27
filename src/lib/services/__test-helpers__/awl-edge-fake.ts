@@ -318,9 +318,12 @@ export function makeFake(opts: FakeOptions = {}): Fake {
   return { rpc, calls, logRows, intents, links, state, names: () => calls.map((c) => c.name) }
 }
 
-/** The settings a test runs with: the defaults of config.ts, plus a realistic confirm host. */
+/**
+ * The settings a test runs with: the defaults of config.ts, plus a realistic confirm host. The exec function is OFF unless a test says `execPresent: true`,
+ * whatever the deployed constant is (true since the switch-on, 2026-09-27): the tests that mean "with the executor" ask for it.
+ */
 export function testConfig(over: Partial<AwlConfig> = {}): AwlConfig {
-  return { ...configFromEnv(() => undefined), confirmHost: "inbox-test.pages.dev", ...over }
+  return { ...configFromEnv(() => undefined), confirmHost: "inbox-test.pages.dev", execPresent: false, ...over }
 }
 
 export function url(path: string): string {

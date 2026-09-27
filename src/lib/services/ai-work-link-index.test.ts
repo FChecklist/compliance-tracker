@@ -128,13 +128,13 @@ describe("index.ts wiring", () => {
 describe("configFromEnv", () => {
   const cfg = (env: Record<string, string>) => configFromEnv((n) => env[n])
 
-  test("with nothing set: the fixed project host, a confirm host that never resolves, the app origin, one shared throttle bucket, no executor", () => {
+  test("with nothing set: the fixed project host, a confirm host that never resolves, the app origin, one shared throttle bucket, the executor present (the deployed constant)", () => {
     expect(cfg({})).toEqual({
       functionBase: `${DEFAULT_SUPABASE_URL}${FUNCTION_PATH}`,
       confirmHost: DEFAULT_CONFIRM_HOST,
       appBase: DEFAULT_APP_BASE,
       addressPosition: null,
-      execPresent: false,
+      execPresent: true,
     })
     expect(DEFAULT_CONFIRM_HOST.endsWith(".invalid")).toBe(true)
     expect(DEFAULT_SUPABASE_URL).toBe("https://pcrjmlpuqsbocqfwoxod.supabase.co")
@@ -155,8 +155,8 @@ describe("configFromEnv", () => {
     expect(cfg({ AWL_CLIENT_ADDR_POSITION: "1" }).addressPosition).toBe(1)
     expect(cfg({ AWL_CLIENT_ADDR_POSITION: "3" }).addressPosition).toBe(3)
     for (const bad of ["0", "-1", "abc", "9", "1.5", "10", ""]) expect(cfg({ AWL_CLIENT_ADDR_POSITION: bad }).addressPosition).toBeNull()
-    // no setting can say the exec function is present in this unit (a later unit changes the constant when it is deployed)
-    expect(cfg({ AWL_EXECUTOR_ENABLED: "true", EXECUTOR_ENABLED: "1", AWL_EXEC_PRESENT: "true" }).execPresent).toBe(false)
+    // no setting can change whether the exec function is present: it is the constant in config.ts (true since the switch-on, 2026-09-27), and no environment value turns it off or on
+    expect(cfg({ AWL_EXECUTOR_ENABLED: "false", EXECUTOR_ENABLED: "0", AWL_EXEC_PRESENT: "false" }).execPresent).toBe(true)
   })
 
   test("jwt.ts: verify_jwt is false and the PROJEXA settings match projexa-read's", () => {

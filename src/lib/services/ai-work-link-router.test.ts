@@ -649,7 +649,7 @@ describe("check and propose: dry runs that record nothing", () => {
     expect((await chk({ itemCode: "EX-01", percent: 10, remarks: "x".repeat(2001) })).problems[0]).toContain("TEXT_TOO_LONG")
     expect(await chk({}, "get_construction_project_dashboard")).toMatchObject({ valid: true })
     // writes on but the exec function not there: a valid change still cannot run directly
-    const noExec = setup({ writesEnabled: true })
+    const noExec = setup({ writesEnabled: true }, { execPresent: false })
     const notYet = await (await noExec.run(at(TOKENS.manager, "/check"), { method: "POST", body: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } } })).json()
     expect(notYet.will_execute_directly).toBe(false)
     const on = setup({ writesEnabled: true }, { execPresent: true })

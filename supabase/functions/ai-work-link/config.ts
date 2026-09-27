@@ -24,11 +24,11 @@ export const DEFAULT_CONFIRM_HOST = "confirm-host-not-set.invalid"
 export const DEFAULT_APP_BASE = "https://projexa-ai.com"
 export const FUNCTION_PATH = "/functions/v1/ai-work-link"
 /**
- * The ai-work-link-exec function is not deployed yet (BUILD-002 WP-09a and WP-09b build the write path with the switch OFF). Flipping this to true is
- * the ONLY Edge code change once the exec function is deployed and the owner has set AWL_EXEC_INTERNAL_SECRET on both functions (index.ts builds the
- * exec client from it). Steps and rollback: ai-os/projexa-build-002/OWNER_SWITCH_ON_GUIDE.md.
+ * The ai-work-link-exec function is deployed and answers AWL_EXEC_READY db_role=app_runtime (2026-09-27, switch-on guide steps 3 to 5a), so this is true. It is NOT
+ * the whole switch: a change runs only when this AND the SQL flag writes_enabled are true (reads.ts availabilityOf), and writes_enabled is turned on by the
+ * prepared migration 0645 alone. Steps and rollback: ai-os/projexa-build-002/OWNER_SWITCH_ON_GUIDE.md.
  */
-export const EXEC_FUNCTION_PRESENT = false
+export const EXEC_FUNCTION_PRESENT = true
 
 const HOST_RE = /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/i
 
