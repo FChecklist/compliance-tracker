@@ -4525,6 +4525,12 @@ active:
       only (arjun.mehta CEO account), no real credentials touched.
 
 recently_completed:
+  - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch feat/dpdp-editions-complete) -- WO-DPDP-015: Monday digest timeout fixed and self-healing; /dpdp-firm and /dpdp-institution completed end to end (self-serve organisation, every role tested live) [DONE on merge of its PR]"
+    claimed_at: "2026-09-28 (this session)"
+    completed_at: "2026-09-28 (this session)"
+    claim: |
+      SCOPE: drizzle/0654 (LIVE: applied 2026-09-28, ledger id 485) -- six missing indexes on dpdp.obligation / dpdp.membership (the Monday digest cause: the all-organisation build ran past the API role's 8 s limit), dpdp.timer_run + dpdp_timer_org_ids / _start_run / _finish_run / _monday_done, pg_cron dpdp-monday-retry (01:30, 03:30, 06:30 UTC Mondays, only when the week has no complete run), dpdp_create_my_org (a signed-in visitor opens their own firm or school), and dpdp_my_page no longer returns every job and every assignee's email to plain staff (found by the new test; dpdp__rows_for_membership, the AI link's row builder, untouched). supabase/functions/dpdp-monday-email (LIVE v9: one organisation at a time, run log). dpdp-app/ (Open-your-organisation screen, edition kept from the landing page, the two landings' and the root's links now open /app/ instead of the Next.js login, mock + unit + Playwright editions-signup spec, scripts/live-smoke.mjs, OPERATIONS.md), .github/workflows/dpdp-live-smoke.yml, src/lib/services/dpdp-editions-roles.test.ts (both editions x every role on the real database, one rolled-back transaction, leaves nothing behind), two older tests that had read another person's job id from a staff member's page.
+      NOT touched: the Next.js /dpdp pages other than #1941's, dpdp-app/drafts (unpublished, owner's lawyer-review gate), Vercel settings or deployments, DNS, any secret.
   - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch fix/dpdp-hide-internal-ai-work) -- DPDP: the in-app (internal) AI link and AI proposals surfaces switched off; external AI work link and email verified [DONE on merge of its PR]"
     claimed_at: "2026-09-28 (this session)"
     completed_at: "2026-09-28 (this session)"

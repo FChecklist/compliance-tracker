@@ -1,0 +1,32 @@
+# WO-DPDP-015: the deployed DPDP site checked from the outside, every day and after every deploy of dpdp-app.
+# No credentials, no database, no Vercel: GET requests against app.veridian-aios.com and the two public Edge Function
+# addresses (plus one POST that must be refused). A red run is the alarm -- GitHub emails the repository's watchers.
+# The same script runs by hand: node dpdp-app/scripts/live-smoke.mjs
+name: DPDP live smoke
+
+on:
+  schedule:
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["dpdp-app deploy (Cloudflare Pages only)"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: dpdp-app/scripts/live-smoke.mjs against the deployed site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Give a fresh Cloudflare deploy a minute to be served everywhere
+        if: ${{ github.event_name == 'workflow_run' }}
+        run: sleep 60
+      - name: node dpdp-app/scripts/live-smoke.mjs
+        run: node dpdp-app/scripts/live-smoke.mjs

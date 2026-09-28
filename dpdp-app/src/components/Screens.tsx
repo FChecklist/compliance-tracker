@@ -119,12 +119,62 @@ export function Loading() {
   )
 }
 
-export function NoMembership({ email, onSignOut }: { email: string | null; onSignOut: () => void }) {
+/**
+ * A signed-in visitor with no organisation yet (WO-DPDP-015). The landing
+ * pages' "Start free" lands here: name the organisation, say which edition,
+ * and the visitor becomes its owner with the library's jobs opened. Someone
+ * who was invited by an owner is told what to ask for instead.
+ */
+export function OpenOrganisation({
+  email, initialEdition, busy, error, onCreate, onSignOut,
+}: {
+  email: string | null
+  initialEdition: "firm" | "institution" | null
+  busy: boolean
+  error: string | null
+  onCreate: (name: string, product: "firm" | "institution") => void
+  onSignOut: () => void
+}) {
+  const [name, setName] = useState("")
+  const [product, setProduct] = useState<"firm" | "institution" | null>(initialEdition)
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    if (!product) return
+    onCreate(name.trim(), product)
+  }
+  const optionStyle = { borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" } as const
   return (
-    <Card icon="🙈" title="This email isn't a member of any organisation yet">
-      <p style={{ ...lead, maxWidth: "44ch" }}>
-        {email ? <><b>{email}</b> hasn&rsquo;t been named on any DPDP job. </> : null}
-        Ask the owner of your organisation to add you, then open the link they send.
+    <Card icon="🏛️" title="Open your organisation">
+      <p style={lead}>
+        {email ? <><b>{email}</b> isn&rsquo;t on any DPDP job yet. </> : null}
+        Tell us who you are and your file of DPDP jobs opens straight away, with you as its owner.
+      </p>
+      <form onSubmit={submit} className="flex flex-col gap-3 items-stretch text-left">
+        <label htmlFor="org-name" style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)" }}>Organisation name</label>
+        <input
+          id="org-name" name="org-name" type="text" required maxLength={120} autoComplete="organization" autoFocus
+          value={name} onChange={(e) => setName(e.target.value)} disabled={busy}
+          className="rounded-xl border px-3.5 py-3"
+          style={{ borderColor: "var(--dpdp-line)", fontSize: 15, color: "var(--dpdp-ink)", background: "#fff" }}
+        />
+        <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
+          <legend style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)", padding: 0, marginBottom: 6 }}>What kind of organisation is it?</legend>
+          <label className="flex gap-2 items-center rounded-xl border px-3.5 py-3 cursor-pointer" style={optionStyle}>
+            <input type="radio" name="edition" value="firm" required checked={product === "firm"} onChange={() => setProduct("firm")} disabled={busy} />
+            A company, firm or NGO
+          </label>
+          <label className="flex gap-2 items-center rounded-xl border px-3.5 py-3 cursor-pointer" style={optionStyle}>
+            <input type="radio" name="edition" value="institution" required checked={product === "institution"} onChange={() => setProduct("institution")} disabled={busy} />
+            A school or institution
+          </label>
+        </fieldset>
+        <button type="submit" disabled={busy || !product} className="font-bold text-white" style={{ ...primaryButton, opacity: busy || !product ? 0.6 : 1 }}>
+          {busy ? "Opening…" : "Open my organisation"}
+        </button>
+        <InlineError message={error} />
+      </form>
+      <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "18px auto 4px", maxWidth: "44ch" }}>
+        Invited by someone else? Ask the owner of your organisation to name this email on a job, then open the link they send.
       </p>
       <button type="button" onClick={onSignOut} style={linkButton}>Use a different email</button>
     </Card>

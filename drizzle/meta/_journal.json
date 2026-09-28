@@ -3376,6 +3376,13 @@
       "when": 1790112000000,
       "tag": "0653_build002_token_usage_ledger_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 484,
+      "version": "7",
+      "when": 1790125000000,
+      "tag": "0654_dpdp_wo015_digest_indexes_self_signup",
+      "breakpoints": true
     }
   ]
 }

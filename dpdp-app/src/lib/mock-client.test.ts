@@ -265,3 +265,40 @@ describe("dpdp_ai_action_undo (`/app/#undo=mock-action.mock-undo`)", () => {
     expect(wrongToken.error?.message).toBe("This undo link is not valid")
   })
 })
+
+describe("dpdp_create_my_org (drizzle/0654: a visitor opens their own organisation)", () => {
+  test("a stranger has no page; naming a firm opens their own, owned by them, with the firm library and no CA named", async () => {
+    const c = createMockClient("visitor")
+    const before = await c.rpc("dpdp_my_page")
+    expect(before.error?.message).toContain("Not a member of this organisation")
+    const made = await c.rpc("dpdp_create_my_org", { p_name: "Mehta Traders", p_product: "firm" })
+    expect(made.error).toBeNull()
+    expect(made.data).toMatchObject({ ok: true, jobs: LIBRARY.firm.length, existing: false })
+    const p = (await c.rpc("dpdp_my_page")).data as MyPagePayload
+    expect(p.org.name).toBe("Mehta Traders")
+    expect(p.viewer).toMatchObject({ email: "visitor@example.test", kind: "owner", firstVisitSeenAt: null })
+    expect(p.rows).toHaveLength(LIBRARY.firm.length)
+    expect(p.rows.some((r) => r.by === MOCK_PARTNER)).toBe(false)
+  })
+
+  test("a school gets the school library", async () => {
+    const c = createMockClient("visitor")
+    const made = await c.rpc("dpdp_create_my_org", { p_name: "St Anne's", p_product: "institution" })
+    expect((made.data as { jobs: number }).jobs).toBe(LIBRARY.institution.length)
+    expect(((await c.rpc("dpdp_my_page")).data as MyPagePayload).org.product).toBe("institution")
+  })
+
+  test("a double call returns the same organisation, not a second one", async () => {
+    const c = createMockClient("visitor")
+    await c.rpc("dpdp_create_my_org", { p_name: "Once Ltd", p_product: "firm" })
+    const again = await c.rpc("dpdp_create_my_org", { p_name: "Once Ltd", p_product: "firm" })
+    expect(again.data).toMatchObject({ ok: true, existing: true, jobs: 0 })
+  })
+
+  test("an empty name, a 121-character name and an unknown edition are refused", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_create_my_org", { p_name: "   ", p_product: "firm" })).error?.message).toContain("name is required")
+    expect((await c.rpc("dpdp_create_my_org", { p_name: "X".repeat(121), p_product: "firm" })).error?.message).toContain("too long")
+    expect((await c.rpc("dpdp_create_my_org", { p_name: "Ok", p_product: "hospital" })).error?.message).toContain("product must be")
+  })
+})

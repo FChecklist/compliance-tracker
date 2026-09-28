@@ -3,7 +3,7 @@ import type { DpdpClient, RpcError } from "./client"
 import type {
   AiActionUndoPayload, AiDraftConfirmPayload, AiDraftPreviewPayload, AiLinkListItem, AiLinkPayload, AiLinkWarning, AiWorkLinkCreated,
   AreaAssignmentWire, AreaPayload, CaClientWire, ConfirmSetupPayload,
-  CreateClientPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
+  CreateClientPayload, CreateMyOrgPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
   OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, SharePressPayload, UnsubscribeResult,
 } from "./rpc-types"
 import { SITE_ORIGIN } from "./site-origin.mjs"
@@ -113,6 +113,13 @@ export async function createClientOrg(client: DpdpClient, name: string, product:
   const { data, error } = await client.rpc("dpdp_create_client_org", { p_name: name, p_product: product, p_owner_email: ownerEmail?.trim() || null })
   if (error) throw new RpcFailure(error)
   return data as CreateClientPayload
+}
+
+/** "Open my organisation": a signed-in visitor with no organisation opens their own and becomes its owner (drizzle/0654). */
+export async function createMyOrg(client: DpdpClient, name: string, product: "firm" | "institution"): Promise<CreateMyOrgPayload> {
+  const { data, error } = await client.rpc("dpdp_create_my_org", { p_name: name, p_product: product })
+  if (error) throw new RpcFailure(error)
+  return data as CreateMyOrgPayload
 }
 
 /** Who set this org up, and whether its owner has confirmed -- decides the owner's first screen. */

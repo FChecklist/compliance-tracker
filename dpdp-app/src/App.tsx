@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createDpdpClient, type DpdpClient } from "./lib/client"
 import {
   RpcFailure, acknowledgeWelcome, answerGroup, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
-  fetchOrgSetup, flagNotMe, markDone, ownerConfirmSetup, readDraftFragment, readUndoFragment, viewerContext,
+  createMyOrg, fetchOrgSetup, flagNotMe, markDone, ownerConfirmSetup, readDraftFragment, readUndoFragment, viewerContext,
   type Area, type CaClient, type DraftFragment, type MyPage, type UndoFragment,
 } from "./lib/api"
 import type { OrgSetupPayload } from "./lib/rpc-types"
-import { readLanding, recallEmail, rememberEmail, type Landing } from "./lib/landing"
+import { readLanding, recallEdition, recallEmail, rememberEmail, type Landing } from "./lib/landing"
 import { OnePageView } from "./components/onepage/OnePageView"
 import { FirstVisitWizard } from "./components/onepage/FirstVisitWizard"
 import { RoleWelcome } from "./components/onepage/RoleWelcome"
@@ -18,7 +18,7 @@ import { OwnerReview } from "./components/OwnerReview"
 import { AiWorkLink } from "./components/AiWorkLink"
 import { DraftConfirm } from "./components/DraftConfirm"
 import { AiUndoConfirm } from "./components/AiUndoConfirm"
-import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, NoMembership, SignIn, type ResendState } from "./components/Screens"
+import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type ResendState } from "./components/Screens"
 import { BrandLine } from "./components/BrandLine"
 import { shareRoleFor } from "./lib/brand"
 
@@ -37,7 +37,7 @@ type Phase =
   | { name: "check-your-email"; email: string; resend: ResendState; error: string | null }
   | { name: "loading" }
   | { name: "app"; page: MyPage; clients: CaClient[] }
-  | { name: "no-membership" }
+  | { name: "no-membership"; busy: boolean; error: string | null }
   | { name: "error"; message: string }
 
 const SIGNED_OUT: Phase = { name: "signed-out", busy: false, error: null }
@@ -100,7 +100,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       // (e.g. the function isn't deployed yet) -- those are shown as real
       // errors rather than mis-labelled as a membership problem.
       const isPostgrest = e instanceof RpcFailure && !!e.code?.startsWith("PGRST")
-      if (e instanceof RpcFailure && !isPostgrest) setPhase({ name: "no-membership" })
+      if (e instanceof RpcFailure && !isPostgrest) setPhase({ name: "no-membership", busy: false, error: null })
       else setPhase({ name: "error", message: e instanceof Error ? e.message : String(e) })
     }
   }, [client])
@@ -182,6 +182,19 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
     setPhase(SIGNED_OUT)
   }
 
+  // WO-DPDP-015: a visitor with no organisation opens their own (the landing
+  // pages' "Start free"); load() then finds the new owner membership.
+  async function openMyOrg(name: string, product: "firm" | "institution") {
+    setPhase({ name: "no-membership", busy: true, error: null })
+    try {
+      await createMyOrg(client, name, product)
+    } catch (e) {
+      setPhase({ name: "no-membership", busy: false, error: e instanceof Error ? e.message : String(e) })
+      return
+    }
+    await load()
+  }
+
   // "Open" on the CA clients table: the static app's switchDpdpActiveOrg --
   // the next dpdp_my_page read is for THAT org (the caller must be a member
   // of it; the RPC refuses otherwise and the error screen says so).
@@ -207,7 +220,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       screen = <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} />
       break
     case "no-membership":
-      screen = <NoMembership email={email} onSignOut={signOut} />
+      screen = <OpenOrganisation email={email} initialEdition={landing.edition ?? recallEdition()} busy={phase.busy} error={phase.error} onCreate={openMyOrg} onSignOut={signOut} />
       break
     case "error":
       screen = <ErrorScreen message={phase.message} onRetry={load} onSignOut={signOut} />
