@@ -1,6 +1,6 @@
 # dpdp-app/e2e -- the browser tests
 
-Four specs, one config (`../playwright.config.ts`), one CI job
+Five specs, one config (`../playwright.config.ts`), one CI job
 (`.github/workflows/dpdp-app-ci.yml`, `dpdp-app-e2e`) that runs every
 `*.spec.ts` here against the BUILT site in mock mode:
 
@@ -9,6 +9,7 @@ Four specs, one config (`../playwright.config.ts`), one CI job
 | `agent-by-role.spec.ts` | WO-DPDP-012 §6 -- an assistant can drive the public site by accessible names alone, up to the email step (this file's own sections below) |
 | `step5-by-role.spec.ts` | WO-DPDP-011 Step 5 -- the remaining WO-010 screens, by role |
 | `acceptance-70.spec.ts` | WO-DPDP-011 Step 6 -- the spec's 70 acceptance checks (`LAW-01..18`, `FIRST-01..28`, `ROLES-01..24`), one test each; the derivation table is `ACCEPTANCE-70.md` |
+| `editions-signup.spec.ts` | WO-DPDP-015 -- both edition landings end to end: "Start free" opens `/app/` with the edition chosen, a stranger is asked to open their organisation, becomes its owner, and lands on their own first visit; no link anywhere to the old Next.js login |
 | `brand-share-leak.spec.ts` | WO-DPDP-014 §2/§3 -- the brand line on every private page (`/app/` in every phase, `/act/`, `/unsubscribe/`, `/p/`), in flow and not pinned; the share ask on decision-makers only; and the private-page leak test: `navigator.share` / clipboard are stubbed before load, Share is pressed as every decision-maker role on both the share-sheet and the panel path, and everything captured must be `https://veridian-aios.com/` plus at most `?ref=<code>` -- never a `#` fragment, token or private path |
 
 All four share one rule: every locator is `getByRole` / `getByLabel` /
@@ -54,10 +55,9 @@ the last step of the public journey.
 
 Two honest limits:
 
-- The landings' "Start free →" links point at the Next.js login host for now
-  (see the nav comment in `dpdp-firm/index.html`), so the journey navigates to
-  `/app/` directly rather than following that link. When the link is switched
-  to `/app/`, the spec should follow it instead.
+- The landings' "Start free →" links now open `/app/?edition=firm|institution`
+  (WO-DPDP-015; `editions-signup.spec.ts` follows them). This spec still
+  navigates to `/app/` directly, which is the same page.
 - Rate limiting (the WO's alternative to CAPTCHA) is Supabase Auth's own OTP
   limit, server-side. This spec proves the absence of a CAPTCHA, not the
   presence of the limit.

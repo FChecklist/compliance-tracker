@@ -11,7 +11,7 @@
       deliberately NOT here: the penalty-exposure calculator (it needs script
       and is a separate decision) and the email-capture forms (they POST to a
       Next.js-only API) -- their "Start free →" buttons became plain links
-      (to the Next.js login, see the nav comment). scripts/check-public-surface.mjs
+      (to /app/, see the nav comment). scripts/check-public-surface.mjs
       proves the rest after every build.
     -->
     <title>VERIDIAN · VERy INDIAN — DPDP Act Compliance for Businesses</title>
@@ -165,9 +165,9 @@
         <div class="wordmark">VERIDIAN<span class="wordmark-sub">VERy INDIAN</span></div>
         <div class="nav-actions">
           <span class="nav-due">Compliance due 13 May 2027</span>
-          <!-- "Start free" and "Sign in" point at the Next.js login for now: new-org onboarding is not on this static host yet (WO-DPDP-011 later step); switch to /app/ once it is. -->
-          <a class="btn btn-sm" href="https://veridian-aios.com/dpdp/login">Start free →</a>
-          <a class="nav-signin" href="https://veridian-aios.com/dpdp/login">Sign in</a>
+          <!-- "Start free" opens /app/ with the edition chosen here: a visitor with no organisation is asked to open theirs (WO-DPDP-015, drizzle/0654); "Sign in" is the same page. -->
+          <a class="btn btn-sm" href="/app/?edition=firm">Start free →</a>
+          <a class="nav-signin" href="/app/">Sign in</a>
         </div>
       </div>
     </header>
@@ -180,7 +180,7 @@
           <span class="grad-text">not just your DPDP policy.</span>
         </h1>
         <p class="hero-sub">Built for a company, NGO, trading firm or a CA/CS/audit practice's own file.</p>
-        <p class="hero-cta"><a class="btn" href="https://veridian-aios.com/dpdp/login">Start free →</a></p>
+        <p class="hero-cta"><a class="btn" href="/app/?edition=firm">Start free →</a></p>
       </section>
 
       <div class="band">
@@ -370,7 +370,7 @@
         <section class="section cta">
           <h2 class="section-title">Start with what you hold</h2>
           <p class="section-sub">One email. No card. Fifteen minutes.</p>
-          <p class="cta-action"><a class="btn" href="https://veridian-aios.com/dpdp/login">Start free →</a></p>
+          <p class="cta-action"><a class="btn" href="/app/?edition=firm">Start free →</a></p>
         </section>
       </div>
     </main>

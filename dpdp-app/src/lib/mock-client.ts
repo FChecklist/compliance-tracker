@@ -1,5 +1,6 @@
 import type { AuthListener, AuthSession, DpdpClient, RpcResult } from "./client"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
+import { recallEdition } from "./landing"
 import type {
   AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire,
   OrgSetupPayload, ShareRoleWire, ViewerKind,
@@ -59,7 +60,7 @@ export const MOCK_UNDO_ACTION = { actionId: "mock-action", undoToken: "mock-undo
 export const MOCK_REFERRAL_CODE = "MOCK1234"
 export const SHARE_ROLE_LABEL: Record<ShareRoleWire, string> = { owner: "Owner", partner: "CA partner", manager: "CA manager" }
 
-export const MOCK_SCENARIOS = ["owner", "owner-live", "client-owner", "partner", "manager", "go", "coord", "staff", "hr", "member", "member2", "member3"] as const
+export const MOCK_SCENARIOS = ["owner", "owner-live", "client-owner", "partner", "manager", "go", "coord", "staff", "hr", "member", "member2", "member3", "visitor"] as const
 export type MockScenario = (typeof MOCK_SCENARIOS)[number]
 export function isMockScenario(s: string | null | undefined): s is MockScenario {
   return !!s && (MOCK_SCENARIOS as readonly string[]).includes(s)
@@ -211,6 +212,8 @@ type OrgState = {
   history: HistoryEntryWire[]; setUpBy: { membershipId: string; email: string } | null; ownerConfirmedAt: string | null
   viewers: Record<string, ViewerFlags>
   aiWorkLinks: AiWorkLinkRecord[]
+  /** Set by dpdp_create_my_org: this org was opened by the visitor themselves (a double click returns it again). */
+  createdByVisitor?: boolean
 }
 type State = {
   signedInAs: string | null
@@ -536,7 +539,9 @@ export function createMockClient(scenario?: string): DpdpClient {
         // A persona (or the home org's owner) signs in as themself. Anyone
         // else becomes the home org's owner, as before: the owner's rows
         // and flags move to the new address.
-        if (!PERSONAS[me] && me !== org.ownerEmail) {
+        // EXCEPT a visitor who chose an edition on a landing page (WO-DPDP-015): like the real product,
+        // an address no organisation knows is a stranger there, and is asked to open its own.
+        if (!PERSONAS[me] && me !== org.ownerEmail && !recallEdition()) {
           const previous = org.ownerEmail
           for (const r of org.rows) if (r.by === previous) r.by = me
           if (org.viewers[previous]) { org.viewers[me] = org.viewers[previous]; delete org.viewers[previous] }
@@ -720,6 +725,27 @@ export function createMockClient(scenario?: string): DpdpClient {
             out.push({ org: { id: org.id, name: org.name, product: org.product }, caSub, done: live.filter((r) => r.yes).length, total: live.length, whereItIs: whereItIs(org), dataLocations: 0, ownerConfirmedAt: org.ownerConfirmedAt, setUpByMe: org.setUpBy?.email === me })
           }
           return ok(out)
+        }
+        // --- WO-DPDP-015 (drizzle/0654): a signed-in visitor opens their own organisation ---
+        case "dpdp_create_my_org": {
+          const name = String(args?.p_name ?? "").trim()
+          const product = String(args?.p_product ?? "")
+          if (!name) return fail("An organisation name is required")
+          if (name.length > 120) return fail("The organisation name is too long (120 characters at most)")
+          if (product !== "firm" && product !== "institution") return fail("product must be 'firm' or 'institution'")
+          const existing = home()
+          if (existing.ownerEmail === me && existing.name === name && existing.product === product && existing.createdByVisitor) {
+            return ok({ ok: true, orgId: existing.id, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "org", membershipId: `m-${existing.id}-${me}`, jobs: 0, existing: true })
+          }
+          // The visitor's own organisation replaces the demo world: their page is the home org, owned by them,
+          // with no CA named on the sign-off chain (nobody has been invited yet).
+          const org = makeOrg(HOME_ORG, name, product, { owner: me })
+          org.createdByVisitor = true
+          state.orgs[HOME_ORG] = org
+          log(org, "organisation_created", `Organisation "${name}" created`)
+          log(org, "obligation_assigned", `${org.rows.length} jobs opened from library 0.2-wo010`, null, "system")
+          save(state)
+          return ok({ ok: true, orgId: HOME_ORG, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "org", membershipId: `m-${HOME_ORG}-${me}`, jobs: org.rows.length, existing: false })
         }
         case "dpdp_create_client_org": {
           const name = String(args?.p_name ?? "").trim()

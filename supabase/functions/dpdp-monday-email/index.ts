@@ -57,8 +57,19 @@ type Summary = {
   dry_run: number
   failed: number
   skipped: number
+  /** Organisations the run went through (monday only). */
+  orgs: number
+  /** True when the time budget ran out before every organisation was done: the retry job continues it. */
+  partial: boolean
   details: Array<{ membershipId: string; to: string; kind: string; status: string; error?: string }>
 }
+
+/** Keep the response (and the pg_net row that stores it) small: every failure, at most this many other lines. */
+const MAX_DETAIL_LINES = 150
+/** Organisations built and delivered at once. Each build is one small call; none can run past the API statement limit. */
+const ORG_CONCURRENCY = 4
+/** Stop starting new organisations after this long; the request itself may run to 300 s (pg_cron timeout). */
+const TIME_BUDGET_MS = 110_000
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -212,10 +223,43 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
   }
 }
 
+/**
+ * One organisation at a time (2026-09-28): the all-organisation build ran past
+ * the API role's 8 s statement limit and took the whole Monday run down with
+ * it (HTTP 500, pg_cron still "succeeded"). Here a failure in one organisation
+ * is counted and the others carry on; the caller marks the run not-ok and the
+ * retry job (drizzle/0654) goes again -- safe, a digest is unique per week.
+ */
 async function runMonday(sb: SupabaseClient, now: Date, orgId: string | null, dryRun: boolean): Promise<Summary> {
-  const summary: Summary = { job: "monday", dryRun, digests: 0, sent: 0, dry_run: 0, failed: 0, skipped: 0, details: [] }
-  const digests = await rpc<Digest[]>(sb, "dpdp_timer_build_monday_digests", { p_now: now.toISOString(), p_org_id: orgId })
-  summary.digests = digests.length
+  const summary: Summary = { job: "monday", dryRun, digests: 0, sent: 0, dry_run: 0, failed: 0, skipped: 0, orgs: 0, partial: false, details: [] }
+  const orgIds = orgId ? [orgId] : await rpc<string[]>(sb, "dpdp_timer_org_ids", { p_now: now.toISOString() })
+  summary.orgs = orgIds.length
+  const deadline = Date.now() + TIME_BUDGET_MS
+  const queue = [...orgIds]
+  const worker = async () => {
+    for (;;) {
+      if (Date.now() > deadline) { if (queue.length) summary.partial = true; return }
+      const id = queue.shift()
+      if (!id) return
+      try {
+        const digests = await rpc<Digest[]>(sb, "dpdp_timer_build_monday_digests", { p_now: now.toISOString(), p_org_id: id })
+        await deliverDigests(sb, digests, dryRun, summary)
+      } catch (e) {
+        summary.failed++
+        summary.details.push({ membershipId: "", to: "", kind: "monday_digest", status: "failed", error: `org ${id}: ${e instanceof Error ? e.message : String(e)}` })
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(ORG_CONCURRENCY, Math.max(1, orgIds.length)) }, worker))
+  if (summary.details.length > MAX_DETAIL_LINES) {
+    const failures = summary.details.filter((d) => d.status === "failed")
+    summary.details = [...failures, ...summary.details.filter((d) => d.status !== "failed")].slice(0, Math.max(MAX_DETAIL_LINES, failures.length))
+  }
+  return summary
+}
+
+async function deliverDigests(sb: SupabaseClient, digests: Digest[], dryRun: boolean, summary: Summary): Promise<void> {
+  summary.digests += digests.length
   for (const raw of digests) {
     if (raw.alreadySentThisWeek) { summary.skipped++; summary.details.push({ membershipId: raw.membershipId, to: raw.email, kind: "monday_digest", status: "skipped-already-sent" }); continue }
     const kind: "monday_digest" | "statutory" = raw.statutoryOnly ? "statutory" : "monday_digest"
@@ -233,11 +277,10 @@ async function runMonday(sb: SupabaseClient, now: Date, orgId: string | null, dr
       render: (links) => renderDigest(digest, links, kind),
     }, dryRun, summary)
   }
-  return summary
 }
 
 async function runLegalClocks(sb: SupabaseClient, now: Date, orgId: string | null, dryRun: boolean): Promise<Summary> {
-  const summary: Summary = { job: "legal_clocks", dryRun, digests: 0, sent: 0, dry_run: 0, failed: 0, skipped: 0, details: [] }
+  const summary: Summary = { job: "legal_clocks", dryRun, digests: 0, sent: 0, dry_run: 0, failed: 0, skipped: 0, orgs: 0, partial: false, details: [] }
   const clocks = await rpc<LegalClocks>(sb, "dpdp_timer_legal_clocks", { p_now: now.toISOString(), p_org_id: orgId })
   for (const leak of clocks.leaks) {
     for (const r of leak.recipients as LegalRecipient[]) {
@@ -295,12 +338,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json({ error: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing" }, 500)
 
   const sb = serviceClient()
+  if (body.job !== "monday" && body.job !== "legal_clocks") return json({ error: "unknown job; expected 'monday' or 'legal_clocks'" }, 400)
+  // A run for ONE organisation (a test, a manual re-send) is never logged: it must not mark the week done.
+  // The log write is best-effort -- it can never stop the run itself.
+  let runId: string | null = null
+  if (!orgId) {
+    try { runId = await rpc<string>(sb, "dpdp_timer_start_run", { p_job: body.job, p_now: now.toISOString() }) } catch (e) { console.error("start_run failed:", e) }
+  }
+  const finish = async (s: Summary | null, error: string | null) => {
+    if (!runId) return
+    try {
+      await rpc(sb, "dpdp_timer_finish_run", {
+        p_id: runId, p_ok: !error && !!s && s.failed === 0 && !s.partial, p_partial: !!s?.partial, p_orgs: s?.orgs ?? 0, p_digests: s?.digests ?? 0,
+        p_sent: s?.sent ?? 0, p_dry_run: s?.dry_run ?? 0, p_failed: s?.failed ?? 0, p_skipped: s?.skipped ?? 0, p_error: error,
+      })
+    } catch (e) { console.error("finish_run failed:", e) }
+  }
   try {
-    if (body.job === "monday") return json(await runMonday(sb, now, orgId, dryRun))
-    if (body.job === "legal_clocks") return json(await runLegalClocks(sb, now, orgId, dryRun))
-    return json({ error: "unknown job; expected 'monday' or 'legal_clocks'" }, 400)
+    const summary = body.job === "monday" ? await runMonday(sb, now, orgId, dryRun) : await runLegalClocks(sb, now, orgId, dryRun)
+    await finish(summary, null)
+    return json(summary)
   } catch (e) {
     console.error("run failed:", e)
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500)
+    const message = e instanceof Error ? e.message : String(e)
+    await finish(null, message)
+    return json({ error: message }, 500)
   }
 })

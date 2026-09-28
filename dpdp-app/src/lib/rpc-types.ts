@@ -57,6 +57,9 @@ export type CaClientWire = {
 /** dpdp_create_client_org: the new client org, its slug, how many jobs opened, the owner's membership if one was named. */
 export type CreateClientPayload = { ok: true; orgId: string; slug: string; jobs: number; ownerMembershipId: string | null }
 
+/** dpdp_create_my_org (drizzle/0654): a visitor's own new organisation; existing=true when a double click returned the one just made. */
+export type CreateMyOrgPayload = { ok: true; orgId: string; slug: string; membershipId: string; jobs: number; existing: boolean }
+
 /** dpdp_org_setup: who set this org up (null when the owner did), and whether the owner has confirmed. */
 export type OrgSetupPayload = { orgId: string; setUpBy: { membershipId: string; email: string | null } | null; ownerConfirmedAt: string | null }
 

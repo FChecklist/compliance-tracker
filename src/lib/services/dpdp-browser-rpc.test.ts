@@ -155,8 +155,12 @@ d("WO-DPDP-011 Step 2: browser RPCs", () => {
     const page = await myPage(staff.email)
     expect(page.viewer.kind).toBe("staff")
     expect(page.rows.some((r) => r.by === staff.email)).toBe(true)
-    const notMine = page.rows.find((r) => r.by !== staff.email && !r.isGroup && !r.yes && !r.na)
+    // Someone else's job: found through the OWNER's page. A staff member is not shown it (drizzle/0654 --
+    // this test used to read the id from the staff member's own page, which was the leak).
+    const notMine = (await myPage(owner.email)).rows.find((r) => r.by !== staff.email && !r.isGroup && !r.yes && !r.na)
     expect(notMine).toBeDefined()
+    expect(page.rows.some((r) => r.id === notMine!.id)).toBe(false)
+    expect(page.rows.every((r) => !r.by || r.by === staff.email || r.isGroup || r.by === "a colleague")).toBe(true)
     msg = ""
     try { await markDone(staff.email, notMine!.id) } catch (e) { msg = message(e) }
     expect(msg).toContain("Not your job")

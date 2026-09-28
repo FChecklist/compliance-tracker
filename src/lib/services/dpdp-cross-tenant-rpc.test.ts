@@ -134,8 +134,11 @@ d("WO-DPDP-011 §3: cross-tenant calls that must fail", () => {
     const page = await asEmail(member.email, async (tx) => (await tx<{ page: Page }[]>`select public.dpdp_my_page() as page`)[0].page)
     expect(page.viewer.kind).not.toBe("owner")
     expect(page.rows.some((r) => r.isGroup && r.viewerIsGroupMember)).toBe(true)
-    const nonGroup = page.rows.find((r) => !r.isGroup && r.by !== member.email && !r.yes && !r.na)
+    // The job that is not theirs comes from the OWNER's page: the member is not shown it (drizzle/0654).
+    const ownerPage = await asEmail(a.owner.email, async (tx) => (await tx<{ page: Page }[]>`select public.dpdp_my_page() as page`)[0].page)
+    const nonGroup = ownerPage.rows.find((r) => !r.isGroup && r.by !== member.email && !r.yes && !r.na)
     expect(nonGroup).toBeDefined()
+    expect(page.rows.some((r) => r.id === nonGroup!.id)).toBe(false)
     expect(await refusal(member.email, (tx) => tx`select public.dpdp_mark_done(${nonGroup!.id})`)).toMatch(/Not your job/)
     expect(await stateOf(a.org.id, nonGroup!.id)).toBe("open")
   }, 240_000) // two full org builds per test; the pooler runs slowly when other DB-gated suites are in flight
