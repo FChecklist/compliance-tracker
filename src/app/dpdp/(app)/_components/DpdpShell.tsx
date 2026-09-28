@@ -12,7 +12,11 @@ type NavGroup = { label: string; items: NavItem[] }
 // one unified fiduciary-style menu. `capabilities` is an org's set (an org
 // can hold more than one, e.g. a CA firm that also processes for a
 // client), so groups add per capability rather than picking one branch.
-function navFor(level: "owner" | "staff", capabilities: string[], caClientCount: number): NavGroup[] {
+// `internalAi` is the server-decided DPDP_INTERNAL_AI_ENABLED switch (src/lib/
+// dpdp-internal-ai.ts): off means the in-app "AI Link" entry is not in the
+// menu at all, and its page 404s; the external AI work link is made from the
+// static app, not from this menu.
+export function navFor(level: "owner" | "staff", capabilities: string[], caClientCount: number, internalAi = false): NavGroup[] {
   const isAdvisor = capabilities.includes("advisor")
   const isProcessor = capabilities.includes("processor")
   const isAuditor = capabilities.includes("auditor")
@@ -75,7 +79,7 @@ function navFor(level: "owner" | "staff", capabilities: string[], caClientCount:
     label: "Always",
     items: [
       { href: "/dpdp/record", label: "Everything that happened" },
-      { href: "/dpdp/ai-link", label: "🤖 AI Link" },
+      ...(internalAi ? [{ href: "/dpdp/ai-link", label: "🤖 AI Link" }] : []),
       { href: "/dpdp/outbox", label: "Emails sent" },
       { href: "/dpdp/edge", label: "If something goes wrong" },
       { href: "/dpdp/refer", label: "🎁 Refer and earn" },
@@ -84,10 +88,10 @@ function navFor(level: "owner" | "staff", capabilities: string[], caClientCount:
   return groups
 }
 
-export function DpdpShell({ orgName, level, capabilities, caClientCount = 0, children }: { orgName: string; level: "owner" | "staff"; capabilities: string[]; caClientCount?: number; children: React.ReactNode }) {
+export function DpdpShell({ orgName, level, capabilities, caClientCount = 0, internalAi = false, children }: { orgName: string; level: "owner" | "staff"; capabilities: string[]; caClientCount?: number; internalAi?: boolean; children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const groups = navFor(level, capabilities, caClientCount)
+  const groups = navFor(level, capabilities, caClientCount, internalAi)
 
   async function logout() {
     await dpdpFetch("/api/dpdp/auth/logout", { method: "POST" })
