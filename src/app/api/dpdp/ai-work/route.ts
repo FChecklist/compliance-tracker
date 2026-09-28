@@ -9,8 +9,10 @@ import { withDpdpContext } from "@/lib/db/tenant-scoped"
 import { requireDpdpSession } from "@/lib/services/dpdp-session"
 import { dpdpErrorResponse } from "@/lib/services/dpdp-route-helpers"
 import { recordAiProposal, type ProposedLine } from "@/lib/services/dpdp-ai-link-service"
+import { dpdpInternalAiEnabled, dpdpInternalAiOffResponse } from "@/lib/dpdp-internal-ai"
 
 export async function GET() {
+  if (!dpdpInternalAiEnabled()) return dpdpInternalAiOffResponse()
   const result = await requireDpdpSession()
   if ("response" in result) return result.response
   try {
@@ -30,6 +32,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!dpdpInternalAiEnabled()) return dpdpInternalAiOffResponse()
   const result = await requireDpdpSession()
   if ("response" in result) return result.response
   try {

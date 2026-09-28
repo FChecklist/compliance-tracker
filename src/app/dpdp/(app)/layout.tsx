@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm"
 import { db, dpdpOrganisation } from "@/lib/db"
 import { listCaClientOrgs } from "@/lib/services/dpdp-organisation-service"
 import { DpdpShell } from "./_components/DpdpShell"
+import { dpdpInternalAiEnabled } from "@/lib/dpdp-internal-ai"
 import type { Metadata } from "next"
 
 // WO-DPDP-012 §2: everything under (app) is the signed-in one-page app --
@@ -22,7 +23,7 @@ export default async function DpdpAppLayout({ children }: { children: React.Reac
   ])
 
   return (
-    <DpdpShell orgName={org?.name ?? "Your organisation"} level={ctx.level} capabilities={ctx.capabilities} caClientCount={caClients.length}>
+    <DpdpShell orgName={org?.name ?? "Your organisation"} level={ctx.level} capabilities={ctx.capabilities} caClientCount={caClients.length} internalAi={dpdpInternalAiEnabled()}>
       {children}
     </DpdpShell>
   )

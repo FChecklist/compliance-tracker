@@ -4525,6 +4525,13 @@ active:
       only (arjun.mehta CEO account), no real credentials touched.
 
 recently_completed:
+  - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch fix/dpdp-hide-internal-ai-work) -- DPDP: the in-app (internal) AI link and AI proposals surfaces switched off; external AI work link and email verified [DONE on merge of its PR]"
+    claimed_at: "2026-09-28 (this session)"
+    completed_at: "2026-09-28 (this session)"
+    claim: |
+      SCOPE: src/lib/dpdp-internal-ai.ts (new switch, DPDP_INTERNAL_AI_ENABLED, default off), the five routes src/app/api/dpdp/ai-link, ai-work (x3), ai/[token] (each answers 404 before any session check when off), src/app/dpdp/(app)/ai-link and ai-work (page.tsx is now a server wrapper that 404s when off; the old client code moved unchanged to AiLinkClient.tsx / AiWorkClient.tsx), DpdpShell.tsx + layout.tsx (menu entry only when on), src/app/api/dpdp/internal-ai-off.test.ts (7 tests, falsifiability checked), this entry.
+      Owner instruction 2026-09-28: the DPDP work flow is email plus the EXTERNAL AI work link (app.veridian-aios.com/ai/<token>, dpdp-ai-link Edge Function); the internal AI work link option is not to be available. Live data at the time: dpdp.ai_link_read 0 rows and dpdp.ai_proposal 0 rows, so nothing in use was cut.
+      NOT touched: the dpdp-ai-link Edge Function, dpdp-app/ (the static app and its Copy-AI-link screen), any dpdp.* table or RPC, Vercel settings or deployments, DNS, any secret.
   - session_label: "claude-code (interactive, isolated worktree nifty-ardinghelli-56ca62, branch fix/domain-drift-check-http-status) -- domain-drift-check workflow reported an invalid Vercel token as drift [DONE on merge of PR 1882; moved here inside that same PR so the claim state lands atomically with the merge]"
     claimed_at: "25-Sep-2026 (this session)"
     completed_at: "25-Sep-2026 (this session)"

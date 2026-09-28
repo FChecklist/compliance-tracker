@@ -3,8 +3,10 @@
 // point is that any AI chatbox can read it directly, no parsing.
 import { NextRequest, NextResponse } from "next/server"
 import { resolveAiLinkSnapshot } from "@/lib/services/dpdp-ai-link-service"
+import { dpdpInternalAiEnabled, dpdpInternalAiOffResponse } from "@/lib/dpdp-internal-ai"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  if (!dpdpInternalAiEnabled()) return new NextResponse("This link is not valid or has expired.", { status: 404 })
   try {
     const { token } = await params
     const snapshot = await resolveAiLinkSnapshot(token, request.headers.get("user-agent"), request.headers.get("x-forwarded-for"))
