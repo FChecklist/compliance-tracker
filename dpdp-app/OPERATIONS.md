@@ -9,7 +9,7 @@ Nothing here needs a person on a Monday. This page says what runs by itself, how
 | Monday digest emails (one per active member) | pg_cron `dpdp-monday-digest` → Edge Function `dpdp-monday-email` | Mon 00:30 UTC (06:00 IST) | `dpdp-monday-retry` tries again at 01:30, 03:30 and 06:30 UTC, but only if this week has no complete run |
 | Leak-clock / rights-clock reminders | pg_cron `dpdp-legal-clocks` | daily 03:30 UTC | the next day's run |
 | Public site + external AI work link check | GitHub `DPDP live smoke` | daily 05:15 UTC and after every site deploy | the run turns red; GitHub emails the watchers |
-| The site itself | GitHub `dpdp-app deploy` → Cloudflare Pages | every merge that touches `dpdp-app/` | the deploy run turns red |
+| The site itself (`veridian-aios.com`, `www`, `app.`) | GitHub `dpdp-app deploy` → Cloudflare Pages, one project `veridian-dpdp-app` | every merge that touches `dpdp-app/` | the deploy run turns red |
 
 The Monday run goes through one organisation at a time, so one slow or broken organisation cannot stop the others. Every run writes one row to `dpdp.timer_run` (`ok`, `partial`, counts, error). A digest is unique per person per week, so running it again never sends anyone a second copy.
 
@@ -44,3 +44,7 @@ Addresses on reserved test domains (`*.test`, `example.*`, `*.invalid`, `localho
 ## Switches
 
 - `DPDP_INTERNAL_AI_ENABLED=1` (Next.js app only) brings back the older in-app AI pages. Off by default; the external AI work link is the DPDP way.
+
+## Where the website lives (since 2026-09-28)
+
+`veridian-aios.com`, `www.veridian-aios.com` and `app.veridian-aios.com` are all served by the one Cloudflare Pages project `veridian-dpdp-app` (free plan, no server). The domain's DNS is on Cloudflare (zone `veridian-aios.com`, free plan); the registration (renewal 14 July each year) is still held at Vercel, which only stores the registration and the two Cloudflare nameservers `dina.ns.cloudflare.com` / `toby.ns.cloudflare.com`. Vercel does not serve any page for this domain and is not needed for it. Email-sending records for Resend live in the same Cloudflare zone under `send.veridian-aios.com`. If a page ever shows a Vercel "DEPLOYMENT_PAUSED" 503 again, the nameservers at the registrar have been changed back: set them to the two above.
