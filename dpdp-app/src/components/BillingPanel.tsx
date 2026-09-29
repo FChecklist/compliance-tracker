@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
-import { declarePayment, myBilling } from "@/lib/api"
+import { declarePayment, myBilling, uploadPaymentProof } from "@/lib/api"
 import type { BillingStatusPayload } from "@/lib/rpc-types"
+
+// Where to actually send the money -- swap these for the real values the
+// moment the Owner shares them (bank/UPI details + a QR code image at
+// public/payment-qr.png; WhatsApp number). Until then the email address is
+// real and already works -- that channel needs nothing to swap.
+const PAY_UPI_ID = "veridian@upi (ask the Owner for the real UPI ID)"
+const PAY_BANK = { accountName: "VERIDIAN (bank details pending)", accountNumber: "-- pending --", ifsc: "-- pending --" }
+const PAY_QR_IMAGE = "/payment-qr.png"
+const PAY_WHATSAPP_NUMBER = "" // e.g. "919999999999" -- wa.me link is hidden until this is set
+const PAY_EMAIL = "raajat.agarwal@gmail.com"
 
 // WO-DPDP-016 §7-8: the billing widget, lower-left of the owner's own page
 // (Owner instruction, this session). Owner-only -- App.tsx only renders
@@ -33,6 +43,9 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
   const [open, setOpen] = useState(false)
   const [billing, setBilling] = useState<BillingStatusPayload | null | undefined>(undefined)
   const [chosen, setChosen] = useState<"month" | "year">("year")
+  const [reference, setReference] = useState("")
+  const [note, setNote] = useState("")
+  const [proofFile, setProofFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,7 +65,8 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
     setError(null)
     try {
       const amount = chosen === "year" ? YEARLY_PAISE : MONTHLY_PAISE
-      await declarePayment(client, chosen, amount, orgId)
+      const proofPath = proofFile ? (await uploadPaymentProof(client, orgId, proofFile)) ?? undefined : undefined
+      await declarePayment(client, chosen, amount, orgId, { reference: reference.trim(), note: note.trim(), proofPath })
       setBilling(await myBilling(client, orgId))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -60,6 +74,10 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
       setBusy(false)
     }
   }
+
+  const amountDue = chosen === "year" ? YEARLY_PAISE : MONTHLY_PAISE
+  const waMessage = encodeURIComponent(`VERIDIAN payment -- org ${orgId}, ${formatRupees(amountDue)} (${chosen}ly). Reference: ${reference || "(see attached)"}`)
+  const mailBody = encodeURIComponent(`Org: ${orgId}\nAmount: ${formatRupees(amountDue)} (${chosen}ly)\nReference: ${reference || "(attached separately)"}\n\n(attach your payment screenshot to this email)`)
 
   const trialDays = billing.state === "trial" ? daysLeft(billing.trialEndsAt) : null
   const pillLabel = billing.state === "active"
@@ -101,6 +119,8 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
                 {billing.selfDeclaredAmountPaise != null && `${formatRupees(billing.selfDeclaredAmountPaise)} (${billing.selfDeclaredInterval === "year" ? "yearly" : "monthly"}), `}
                 We usually confirm within 48 hours once we've seen the payment. Your account keeps working exactly as before in the meantime.
               </p>
+              {billing.selfDeclaredReference && <p style={{ margin: "6px 0 0", fontSize: 12 }}>Reference: {billing.selfDeclaredReference}</p>}
+              {billing.selfDeclaredProofPath && <p style={{ margin: "2px 0 0", fontSize: 12 }}>Screenshot attached.</p>}
             </>
           ) : (
             <>
@@ -116,10 +136,42 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
                   <input type="radio" name="dpdp-plan" checked={chosen === "month"} onChange={() => setChosen("month")} /> Monthly -- {formatRupees(MONTHLY_PAISE)}
                 </label>
               </div>
-              <p style={{ margin: "0 0 10px", fontSize: 12.5 }}>We'll send payment details separately. Once you've paid, tell us here:</p>
-              <button type="button" onClick={pay} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
-                {busy ? "Saving…" : "I've paid"}
-              </button>
+              <div style={{ background: "var(--dpdp-bg2, #f6f5fb)", borderRadius: 10, padding: "10px 12px", margin: "0 0 10px", fontSize: 12.5 }}>
+                <p style={{ margin: "0 0 6px", fontWeight: 600, color: "var(--dpdp-ink)" }}>Pay by UPI or bank transfer</p>
+                <img src={PAY_QR_IMAGE} alt="UPI QR code" style={{ width: 96, height: 96, borderRadius: 8, marginBottom: 6 }}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }} />
+                <p style={{ margin: "0 0 2px" }}>UPI: <strong>{PAY_UPI_ID}</strong></p>
+                <p style={{ margin: 0 }}>Bank: {PAY_BANK.accountName}, A/C {PAY_BANK.accountNumber}, IFSC {PAY_BANK.ifsc}</p>
+              </div>
+              <label style={{ display: "block", margin: "0 0 6px" }}>
+                Reference / UTR number (optional, helps us match it faster)
+                <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. 12-digit UTR"
+                  style={{ display: "block", width: "100%", marginTop: 3, padding: "6px 8px", borderRadius: 8, border: "1px solid var(--dpdp-line)", fontSize: 13 }} />
+              </label>
+              <label style={{ display: "block", margin: "0 0 6px" }}>
+                Screenshot of the payment (optional)
+                <input type="file" accept="image/*" onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+                  style={{ display: "block", width: "100%", marginTop: 3, fontSize: 12.5 }} />
+              </label>
+              <label style={{ display: "block", margin: "0 0 10px" }}>
+                Anything else we should know? (optional)
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
+                  style={{ display: "block", width: "100%", marginTop: 3, padding: "6px 8px", borderRadius: 8, border: "1px solid var(--dpdp-line)", fontSize: 13, resize: "vertical" }} />
+              </label>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <button type="button" onClick={pay} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
+                  {busy ? "Saving…" : "I've paid"}
+                </button>
+                {PAY_WHATSAPP_NUMBER && (
+                  <a href={`https://wa.me/${PAY_WHATSAPP_NUMBER}?text=${waMessage}`} target="_blank" rel="noreferrer"
+                    style={{ alignSelf: "center", fontSize: 12.5, color: "var(--dpdp-v)", textDecoration: "underline" }}>
+                    or send on WhatsApp
+                  </a>
+                )}
+              </div>
+              <p style={{ margin: 0, fontSize: 12 }}>
+                Prefer email? <a href={`mailto:${PAY_EMAIL}?subject=${encodeURIComponent("VERIDIAN payment -- " + orgId)}&body=${mailBody}`} style={{ color: "var(--dpdp-v)" }}>{PAY_EMAIL}</a> -- attach your screenshot there.
+              </p>
             </>
           )}
           {error && <p role="alert" style={{ margin: "10px 0 0", color: "var(--dpdp-r)", fontWeight: 600 }}>{error}</p>}
