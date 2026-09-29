@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createDpdpClient, type DpdpClient } from "./lib/client"
 import {
   RpcFailure, acknowledgeWelcome, answerGroup, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
-  createMyOrg, fetchOrgSetup, flagNotMe, markDone, ownerConfirmSetup, readDraftFragment, readUndoFragment, viewerContext,
+  createMyOrg, fetchOrgSetup, flagNotMe, joinOrgViaInvite, markDone, ownerConfirmSetup, readDraftFragment, readUndoFragment, viewerContext,
   type Area, type CaClient, type DraftFragment, type MyPage, type UndoFragment,
 } from "./lib/api"
 import type { OrgSetupPayload } from "./lib/rpc-types"
-import { readLanding, recallEdition, recallEmail, recallReferral, rememberEmail, type Landing } from "./lib/landing"
+import { clearJoin, readLanding, recallEdition, recallEmail, recallJoin, recallReferral, rememberEmail, type Landing } from "./lib/landing"
 import { OnePageView } from "./components/onepage/OnePageView"
 import { FirstVisitWizard } from "./components/onepage/FirstVisitWizard"
 import { RoleWelcome } from "./components/onepage/RoleWelcome"
@@ -87,6 +87,24 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   const load = useCallback(async () => {
     // Keep the page on screen during a refetch; only a first load blanks it.
     setPhase((p) => (p.name === "app" ? p : { name: "loading" }))
+    // WO-DPDP-016 Step 2: a colleague who arrived on an invite link (?join=,
+    // remembered on this device by landing.ts the same way a referral code
+    // is) is joined to that organisation BEFORE the page is fetched, so
+    // dpdp_my_page finds the new membership as their newest one and shows
+    // that org straight away -- no separate "join" screen needed. Attempted
+    // once: clearJoin() makes every later call here (a refetch, opening a
+    // different client) a silent no-op. Best-effort, like the referral
+    // code's own landing-page handling: a stale/typo'd code must never
+    // block a person who is signing in for a completely unrelated reason.
+    const pendingJoin = landing.joinCode ?? recallJoin()
+    if (pendingJoin) {
+      clearJoin()
+      try {
+        await joinOrgViaInvite(client, pendingJoin)
+      } catch {
+        // invalid/expired/already-used code: nothing to recover, load() carries on as normal
+      }
+    }
     try {
       // The client list is a cross-org fact about the PERSON, read alongside
       // the page so the shell can show "My clients (N)" without a second
@@ -104,7 +122,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       if (e instanceof RpcFailure && !isPostgrest) setPhase({ name: "no-membership", busy: false, error: null })
       else setPhase({ name: "error", message: e instanceof Error ? e.message : String(e) })
     }
-  }, [client])
+  }, [client, landing.joinCode])
 
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {

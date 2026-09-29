@@ -4,7 +4,7 @@ import type {
   AiActionUndoPayload, AiDraftConfirmPayload, AiDraftPreviewPayload, AiLinkListItem, AiLinkPayload, AiLinkWarning, AiWorkLinkCreated,
   AreaAssignmentWire, AreaPayload, BillingStatusPayload, CaClientWire, ConfirmSetupPayload,
   CreateClientPayload, CreateMyOrgPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
-  OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
+  JoinOrgResult, OrgInviteLinkPayload, OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
 } from "./rpc-types"
 import { SITE_ORIGIN } from "./site-origin.mjs"
 
@@ -296,6 +296,26 @@ export async function myReferralSummary(client: DpdpClient, orgId?: string | nul
   const { data, error } = await client.rpc("dpdp_my_referral_summary", orgId ? { p_org_id: orgId } : undefined)
   if (error) throw new RpcFailure(error)
   return data as ReferralSummaryPayload
+}
+
+// ---------------------------------------------------------------------
+// WO-DPDP-016 Step 2: invite a colleague into MY organisation (drizzle/
+// 0657) -- separate from the referral code above, which refers an entirely
+// different firm for the revenue-share programme.
+// ---------------------------------------------------------------------
+
+/** Any member's own evergreen join code for `?join=` on the public site (lazily issued, same shape as the referral code). */
+export async function myOrgInviteLink(client: DpdpClient, orgId?: string | null): Promise<OrgInviteLinkPayload> {
+  const { data, error } = await client.rpc("dpdp_my_org_invite_link", orgId ? { p_org_id: orgId } : undefined)
+  if (error) throw new RpcFailure(error)
+  return data as OrgInviteLinkPayload
+}
+
+/** Redeems a `?join=` code: adds the CALLER to that code's organisation as staff. Idempotent if they already belong to it. */
+export async function joinOrgViaInvite(client: DpdpClient, code: string): Promise<JoinOrgResult> {
+  const { data, error } = await client.rpc("dpdp_join_org_via_invite", { p_code: code })
+  if (error) throw new RpcFailure(error)
+  return data as JoinOrgResult
 }
 
 // ---------------------------------------------------------------------

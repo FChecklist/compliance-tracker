@@ -76,6 +76,16 @@ export type Digest = {
    * existed never starts showing the banner by surprise.
    */
   subscriptionState?: "trial" | "awaiting_confirmation" | "active"
+  /**
+   * WO-DPDP-016 Step 2: this person's own referral code / this org's own
+   * invite code, from dpdp.build_monday_digests' new LEFT JOINs (drizzle/
+   * 0657) -- null until dpdp_timer_ensure_link_codes has run for this org
+   * at least once (index.ts calls it right before building the digest).
+   * Optional so an older fixture/caller degrades to the bare, unpersonalised
+   * public-site link rather than breaking.
+   */
+  referralCode?: string | null
+  inviteCode?: string | null
   weekKey: string // IYYY-Wnn (IST)
   today: string // YYYY-MM-DD (IST)
   unsubscribed: boolean
@@ -112,7 +122,17 @@ export type EmailKind = "monday_digest" | "escalation" | "leak_clock" | "rights_
 export const BRAND_LINE_FULL = "VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India."
 export const BRAND_LINE_SHORT = "VERIDIAN · VERy INDIAN · For India, by India"
 export const SHARE_ASK = "Know a firm that needs this? Share VERIDIAN"
+export const INVITE_ASK = "Bring a colleague onto your team? Invite them to VERIDIAN"
 export const PUBLIC_SITE = "https://veridian-aios.com/"
+
+/** `?ref=`/`?join=` on the public site, or the bare site when there is no code yet (an older fixture, or dpdp_timer_ensure_link_codes hasn't reached this org). */
+function personalLink(code: string | null | undefined, param: "ref" | "join"): string {
+  return code ? `${PUBLIC_SITE}?${param}=${encodeURIComponent(code)}` : PUBLIC_SITE
+}
+
+function displayUrl(url: string): string {
+  return url.replace(/^https:\/\//, "").replace(/\/$/, "")
+}
 
 /** WO-014 §3's table, for the email: owner/principal, CA partner, CA manager. */
 export function isDecisionMaker(digest: Pick<Digest, "level" | "caSub">): boolean {
@@ -311,18 +331,26 @@ function preheader(text: string): string {
   return `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#fff;opacity:0;">${esc(text)}</div>`
 }
 
-/** WO-014 §4/§5: the footer lines -- brand line always; share ask only when `shareAsk` (a Monday digest to a decision-maker). */
-function brandFooterHtml(shareAsk: boolean): string {
-  const ask = shareAsk
-    ? `<p style="color:#94A3B8;font-size:12px;margin:4px 0 0;">${esc(SHARE_ASK)}: <a href="${esc(PUBLIC_SITE)}" style="color:#94A3B8;">${esc(PUBLIC_SITE.replace(/^https:\/\//, "").replace(/\/$/, ""))}</a></p>`
-    : ""
-  return `<p style="color:#94A3B8;font-size:12px;margin:0 0 4px;">${esc(BRAND_LINE_FULL)}</p>${ask}`
+/**
+ * WO-014 §4/§5, widened by WO-016 §1 (every signed-in person, not just a
+ * decision-maker) and by WO-016 Step 2 (invite a colleague, not just refer
+ * a stranger firm): brand line always; the invite + refer asks only when
+ * `shareAsk` (a Monday digest, never a statutory-only or legal-clock one).
+ */
+function brandFooterHtml(shareAsk: boolean, referralCode?: string | null, inviteCode?: string | null): string {
+  if (!shareAsk) return `<p style="color:#94A3B8;font-size:12px;margin:0 0 4px;">${esc(BRAND_LINE_FULL)}</p>`
+  const inviteUrl = personalLink(inviteCode, "join")
+  const referUrl = personalLink(referralCode, "ref")
+  return `<p style="color:#94A3B8;font-size:12px;margin:0 0 4px;">${esc(BRAND_LINE_FULL)}</p>
+    <p style="color:#94A3B8;font-size:12px;margin:4px 0 0;">${esc(INVITE_ASK)}: <a href="${esc(inviteUrl)}" style="color:#94A3B8;">${esc(displayUrl(inviteUrl))}</a></p>
+    <p style="color:#94A3B8;font-size:12px;margin:4px 0 0;">${esc(SHARE_ASK)}: <a href="${esc(referUrl)}" style="color:#94A3B8;">${esc(displayUrl(referUrl))}</a></p>`
 }
-function brandFooterText(shareAsk: boolean): string[] {
-  return shareAsk ? [BRAND_LINE_FULL, `${SHARE_ASK}: ${PUBLIC_SITE}`] : [BRAND_LINE_FULL]
+function brandFooterText(shareAsk: boolean, referralCode?: string | null, inviteCode?: string | null): string[] {
+  if (!shareAsk) return [BRAND_LINE_FULL]
+  return [BRAND_LINE_FULL, `${INVITE_ASK}: ${personalLink(inviteCode, "join")}`, `${SHARE_ASK}: ${personalLink(referralCode, "ref")}`]
 }
 
-function shell(title: string, bodyHtml: string, links: RenderLinks, kind: EmailKind, preview: string, shareAsk = false): string {
+function shell(title: string, bodyHtml: string, links: RenderLinks, kind: EmailKind, preview: string, shareAsk = false, referralCode?: string | null, inviteCode?: string | null): string {
   const signIn = links.signIn ?? PLACEHOLDER.signIn
   const unsubscribe = links.unsubscribeUrl ?? PLACEHOLDER.unsubscribe
   const legal = kind === "leak_clock" || kind === "rights_clock"
@@ -343,14 +371,14 @@ ${preheader(preview)}
     </div>
   </div>
   <div style="background:#F8FAFC;padding:14px 24px;border-top:1px solid #E2E8F0;">
-    ${brandFooterHtml(shareAsk && !legal)}
+    ${brandFooterHtml(shareAsk && !legal, referralCode, inviteCode)}
     <p style="color:#94A3B8;font-size:12px;margin:4px 0 0;">VERIDIAN AI — One Portal. One Truth. · ${footerUnsub}</p>
   </div>
 </div>
 </body></html>`
 }
 
-function textShell(title: string, bodyText: string, links: RenderLinks, kind: EmailKind, shareAsk = false): string {
+function textShell(title: string, bodyText: string, links: RenderLinks, kind: EmailKind, shareAsk = false, referralCode?: string | null, inviteCode?: string | null): string {
   const signIn = links.signIn ?? PLACEHOLDER.signIn
   const unsubscribe = links.unsubscribeUrl ?? PLACEHOLDER.unsubscribe
   const legal = kind === "leak_clock" || kind === "rights_clock"
@@ -368,7 +396,7 @@ function textShell(title: string, bodyText: string, links: RenderLinks, kind: Em
     SIGN_IN_COPY,
     `Or go to ${links.appHome} and press "Send me a new link".`,
     ``,
-    ...brandFooterText(shareAsk && !legal),
+    ...brandFooterText(shareAsk && !legal, referralCode, inviteCode),
     footer,
   ].join("\n")
 }
@@ -383,11 +411,16 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   const others = jobs.filter((j) => !j.isMine)
   const subject = subjectFor(digest, kind)
   const weekOf = longDate(digest.today)
+  // WO-DPDP-016 Step 2 (Owner feedback): lead every real Monday digest with
+  // why this matters and how little it costs, before the per-audience
+  // sentence -- never for the statutory-only view, which is already a bare,
+  // must-do list and stays that way.
+  const urgency = "DPDP is the law, and the penalties for getting it wrong are steep. The good news: most weeks, this takes under 5 minutes."
   const intro = kind === "statutory"
     ? `You have stopped the weekly email, so this only lists what today's law already requires of you at ${digest.orgName}.`
     : digest.level === "owner"
-      ? `Here is where ${digest.orgName} stands on DPDP for the week of ${weekOf}. Late jobs are at the top, in red. Everyone with a job has had their own email; nothing here needs you unless it is escalated to you below.`
-      : `Here are your DPDP jobs at ${digest.orgName} for the week of ${weekOf}. Late ones are at the top, in red. When a job is done, press the green button — that is all.`
+      ? `${urgency} Here is where ${digest.orgName} stands on DPDP for the week of ${weekOf}. Late jobs are at the top, in red. Everyone with a job has had their own email; nothing here needs you unless it is escalated to you below.`
+      : `${urgency} Here are your DPDP jobs at ${digest.orgName} for the week of ${weekOf}. Late ones are at the top, in red. When a job is done, press the green button — that is all.`
 
   const htmlParts: string[] = []
   const textParts: string[] = []
@@ -405,6 +438,30 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
 
   htmlParts.push(`<p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(intro)}</p>`)
   textParts.push(intro, "")
+
+  // WO-DPDP-016 Step 2: the three ways to actually do this, spelled out --
+  // never for the statutory-only view (nothing to "do" there but read the
+  // list). Option 1/2 both point at the SAME "Open my page" sign-in link
+  // rendered below by shell()/textShell() -- Option 1 is what to do once
+  // there (the already-shipped AI work link, WO-DPDP-013), Option 2 is
+  // doing it by hand; Option 3 is the buttons under each job, right here.
+  if (kind !== "statutory") {
+    htmlParts.push(
+      `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Three ways to do this</h2>` +
+      `<div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
+      `<p style="margin:0 0 6px;"><strong>Option 1 — Let an AI do it.</strong> Open your page below, then copy your AI work link and paste it into any AI you use (ChatGPT, Claude, Gemini, Grok, DeepSeek, and so on) — it can read your DPDP jobs and act for you, within the limits you set.</p>` +
+      `<p style="margin:0 0 6px;"><strong>Option 2 — Do it yourself.</strong> Open your page below and go through it yourself — most weeks, a couple of minutes.</p>` +
+      `<p style="margin:0;"><strong>Option 3 — Do it right here.</strong> Use the buttons under your jobs below, in this email.</p>` +
+      `</div>`,
+    )
+    textParts.push(
+      "THREE WAYS TO DO THIS",
+      "Option 1 -- Let an AI do it. Open your page below, then copy your AI work link and paste it into any AI you use (ChatGPT, Claude, Gemini, Grok, DeepSeek, and so on) -- it can read your DPDP jobs and act for you, within the limits you set.",
+      "Option 2 -- Do it yourself. Open your page below and go through it yourself -- most weeks, a couple of minutes.",
+      "Option 3 -- Do it right here. Use the buttons under your jobs below, in this email.",
+      "",
+    )
+  }
 
   if (mine.length) {
     htmlParts.push(`<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Your jobs (${mine.length})</h2>`)
@@ -434,13 +491,15 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   }
 
   const title = digest.level === "owner" ? `${digest.orgName} — DPDP this week` : "Your DPDP jobs this week"
-  // WO-014 §4: the share ask only in the Monday digest (not the statutory-
-  // only one an unsubscribed person gets) and only to a decision-maker.
-  const shareAsk = kind === "monday_digest" && isDecisionMaker(digest)
+  // WO-014 §4, widened by WO-016 §1: the invite + refer asks reach every
+  // signed-in person in a real Monday digest now, not just a decision-maker
+  // (isDecisionMaker is kept, exported, for callers that still care who a
+  // "decision-maker" is -- it no longer gates this footer).
+  const shareAsk = kind === "monday_digest"
   return {
     subject,
-    html: shell(title, htmlParts.join("\n"), links, kind, subject, shareAsk),
-    text: textShell(title, textParts.join("\n"), links, kind, shareAsk),
+    html: shell(title, htmlParts.join("\n"), links, kind, subject, shareAsk, digest.referralCode, digest.inviteCode),
+    text: textShell(title, textParts.join("\n"), links, kind, shareAsk, digest.referralCode, digest.inviteCode),
   }
 }
 

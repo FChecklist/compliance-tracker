@@ -3397,6 +3397,13 @@
       "when": 1790471000000,
       "tag": "0656_dpdp_wo016_monday_billing_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 487,
+      "version": "7",
+      "when": 1790472000000,
+      "tag": "0657_dpdp_wo016_step2_invite_and_link_personalization",
+      "breakpoints": true
     }
   ]
 }

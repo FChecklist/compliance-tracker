@@ -343,6 +343,54 @@ describe("WO-DPDP-016 §1: the share ask widens from decision-makers-only to eve
   })
 })
 
+describe("WO-DPDP-016 Step 2: invite a colleague into my organisation (drizzle/0657)", () => {
+  test("any member can get the org's invite link, and it is the same code every time", async () => {
+    const owner = createMockClient("owner-live")
+    const first = (await owner.rpc("dpdp_my_org_invite_link")).data as { code: string }
+    const second = (await owner.rpc("dpdp_my_org_invite_link")).data as { code: string }
+    expect(first.code).toBe(second.code)
+    const staff = createMockClient("staff")
+    expect(((await staff.rpc("dpdp_my_org_invite_link")).data as { code: string }).code).toBe(first.code)
+  })
+
+  test("a non-member is refused an invite link, same as the referral code", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_my_org_invite_link")).error?.message).toContain("Not a member")
+  })
+
+  test("a visitor who was NOT a member can redeem the code and becomes staff", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_my_page")).error).not.toBeNull() // not a member yet
+
+    const { code } = (await createMockClient("owner-live").rpc("dpdp_my_org_invite_link")).data as { code: string }
+    const joined = await c.rpc("dpdp_join_org_via_invite", { p_code: code.toLowerCase() }) // case-insensitive, like ?ref=
+    expect(joined.error).toBeNull()
+    expect(joined.data).toMatchObject({ ok: true, alreadyMember: false })
+
+    const page = (await c.rpc("dpdp_my_page")).data as { viewer: { kind: string } }
+    expect(page.viewer.kind).toBe("staff")
+
+    const history = (await c.rpc("dpdp_org_history")).data as { kind: string; summary: string }[]
+    expect(history.filter((h) => h.kind === "membership_joined" && h.summary.includes("joined via an invite link")).length).toBe(1)
+  })
+
+  test("redeeming the same code twice is idempotent -- no duplicate history entry", async () => {
+    const c = createMockClient("visitor")
+    const { code } = (await createMockClient("owner-live").rpc("dpdp_my_org_invite_link")).data as { code: string }
+    await c.rpc("dpdp_join_org_via_invite", { p_code: code })
+    const second = await c.rpc("dpdp_join_org_via_invite", { p_code: code })
+    expect(second.data).toMatchObject({ ok: true, alreadyMember: true })
+    const history = (await c.rpc("dpdp_org_history")).data as { kind: string }[]
+    expect(history.filter((h) => h.kind === "membership_joined").length).toBe(1)
+  })
+
+  test("an unknown code is refused, and a blank one is refused before any lookup", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_join_org_via_invite", { p_code: "NOTREAL1" })).error?.message).toContain("not valid")
+    expect((await c.rpc("dpdp_join_org_via_invite", { p_code: "  " })).error?.message).toContain("required")
+  })
+})
+
 describe("WO-DPDP-016 §7-8: billing status and self-declared payment (drizzle/0655)", () => {
   test("declaring a payment moves trial -> awaiting_confirmation, and changes nothing else visible", async () => {
     const c = createMockClient("owner-live")

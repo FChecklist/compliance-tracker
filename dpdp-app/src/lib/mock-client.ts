@@ -58,6 +58,10 @@ export const MOCK_UNDO_ACTION = { actionId: "mock-action", undoToken: "mock-undo
 // the real code's alphabet -- no 0/O/1/I), and the share_press event's
 // role labels, exactly as drizzle/0611 writes them.
 export const MOCK_REFERRAL_CODE = "MOCK1234"
+// WO-DPDP-016 Step 2: HOME_ORG's own evergreen invite code -- a fixed
+// per-org code, same simplification as the referral code above (proves the
+// shape, not a real multi-org code registry).
+export const MOCK_INVITE_CODE = "JOIN5678"
 export const SHARE_ROLE_LABEL: Record<ShareRoleWire, string> = { owner: "Owner", partner: "CA partner", manager: "CA manager", member: "Member" }
 
 export const MOCK_SCENARIOS = ["owner", "owner-live", "client-owner", "partner", "manager", "go", "coord", "staff", "hr", "member", "member2", "member3", "visitor"] as const
@@ -214,6 +218,8 @@ type OrgState = {
   aiWorkLinks: AiWorkLinkRecord[]
   /** Set by dpdp_create_my_org: this org was opened by the visitor themselves (a double click returns it again). */
   createdByVisitor?: boolean
+  /** WO-DPDP-016 Step 2: emails that joined via dpdp_join_org_via_invite -- treated as staff by viewerIn, same as a real 'invited' membership. */
+  invitedMembers: string[]
   // WO-DPDP-016 §7-8: billing status (drizzle/0655's dpdp.subscription).
   // Every org gets one at creation; access never depends on any of it.
   billing: {
@@ -278,7 +284,7 @@ function makeOrg(id: string, name: string, product: "firm" | "institution", o: M
   for (const e of o.seenBy ?? []) viewers[e] = { firstVisitSeenAt: daysFromNow(-1), saidNotMeAt: null }
   return {
     id, name, product, ownerEmail: o.owner, client: o.client ?? false, rows, groupMembers: [...(o.group ?? [])], groupAnswers: {},
-    history: [], setUpBy: o.setUpBy ?? null, ownerConfirmedAt: o.ownerConfirmedAt ?? null, viewers, aiWorkLinks: [],
+    history: [], setUpBy: o.setUpBy ?? null, ownerConfirmedAt: o.ownerConfirmedAt ?? null, viewers, aiWorkLinks: [], invitedMembers: [],
     billing: { state: "trial", interval: null, trialEndsAt: daysFromNow(30), selfDeclaredAt: null, selfDeclaredInterval: null, selfDeclaredAmountPaise: null, lastConfirmedAt: null },
   }
 }
@@ -425,6 +431,10 @@ export function createMockClient(scenario?: string): DpdpClient {
     if (me === org.ownerEmail) return { kind: "owner", caSub: null }
     const caRow = org.rows.find((r) => (r.area === "CAMGR" || r.area === "CAPARTNER") && r.by === me)
     if (caRow) return { kind: "ca", caSub: caRow.area === "CAMGR" ? "manager" : "partner" }
+    // WO-DPDP-016 Step 2: someone who redeemed this org's invite link --
+    // real membership (level 'staff', joined_via 'invited'), checked before
+    // the HOME_ORG-only persona table below so it also works for CLIENT_ORG.
+    if (org.invitedMembers.includes(me)) return { kind: "staff", caSub: null }
     if (org.id !== HOME_ORG) return null
     return PERSONAS[me] ?? null
   }
@@ -927,6 +937,25 @@ export function createMockClient(scenario?: string): DpdpClient {
           // anything from -- this proves the shape, not the arithmetic
           // (which is a Postgres-side unit, dpdp_record_confirmed_payment).
           return ok({ code: MOCK_REFERRAL_CODE, referredCount: 0, totalEarnedPaise: 0, pendingPaise: 0, paidPaise: 0 })
+        }
+        // --- WO-DPDP-016 Step 2 (drizzle/0657) ---
+        case "dpdp_my_org_invite_link": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          return ok({ code: MOCK_INVITE_CODE })
+        }
+        case "dpdp_join_org_via_invite": {
+          const code = String(args?.p_code ?? "").trim().toUpperCase()
+          if (!code) return fail("An invite link is required")
+          if (code !== MOCK_INVITE_CODE) return fail("That invite link is not valid")
+          const org = home()
+          const already = viewerIn(org, me) !== null
+          if (!already) {
+            org.invitedMembers.push(me)
+            log(org, "membership_joined", `${me} joined via an invite link`, "invited", me)
+            save(state)
+          }
+          return ok({ ok: true, orgId: org.id, membershipId: `m-${org.id}-${me}`, alreadyMember: already })
         }
         // --- WO-DPDP-016 §7-8 (drizzle/0655) ---
         case "dpdp_my_billing": {

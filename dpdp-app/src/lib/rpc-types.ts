@@ -164,6 +164,12 @@ export type ReferralSummaryPayload = {
   paidPaise: number
 }
 
+/** dpdp_my_org_invite_link (drizzle/0657): this org's evergreen join code -- one per organisation, made on first ask, any member. */
+export type OrgInviteLinkPayload = { code: string }
+
+/** dpdp_join_org_via_invite (drizzle/0657): redeems a `?join=` code, adding the caller to that code's organisation as staff. alreadyMember is true when they belonged to it already (idempotent, not an error). */
+export type JoinOrgResult = { ok: true; orgId: string; membershipId: string; alreadyMember: boolean }
+
 /** dpdp_my_billing (drizzle/0655), owner-only: trial | awaiting_confirmation | active. selfDeclared* is the owner's own unverified claim; lastConfirmedAt is the only fact the Owner has actually verified. Access never depends on any of this. */
 export type BillingStatusPayload = {
   orgId: string
