@@ -17,6 +17,7 @@ import { CaPartnerFirstVisit } from "./components/CaPartnerFirstVisit"
 import { OwnerReview } from "./components/OwnerReview"
 import { AiWorkLink } from "./components/AiWorkLink"
 import { BillingPanel } from "./components/BillingPanel"
+import { OwnerPaymentAdmin } from "./components/OwnerPaymentAdmin"
 import { DraftConfirm } from "./components/DraftConfirm"
 import { AiUndoConfirm } from "./components/AiUndoConfirm"
 import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type ResendState } from "./components/Screens"
@@ -357,6 +358,8 @@ function Page({
       {body}
       {/* WO-DPDP-016 §7: lower-left, owner-only -- the component itself checks the role via dpdp_my_billing's own 42501. */}
       {viewer.kind === "owner" && <BillingPanel client={client} orgId={org.id} />}
+      {/* Payment confirmation flow follow-on: lower-right, VERIDIAN's own team only -- the component checks dpdp__is_platform_admin() itself, unrelated to viewer.kind here. */}
+      <OwnerPaymentAdmin client={client} />
     </div>
   )
 }

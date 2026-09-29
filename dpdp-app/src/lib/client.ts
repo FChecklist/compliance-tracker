@@ -17,6 +17,10 @@ export interface DpdpClient {
     signOut(): Promise<{ error: { message: string } | null }>
   }
   rpc(fn: string, args?: Record<string, unknown>): PromiseLike<RpcResult>
+  /** Payment proof upload (WO-DPDP-016 follow-on). Any signed-in person may upload; only the Owner may read one back (enforced by storage policy, not here). */
+  uploadPaymentProof(orgId: string, file: File): Promise<{ path: string | null; error: string | null }>
+  /** For calling an authenticated Edge Function (dpdp-invoice-email) -- the caller's own access token, or null if signed out. */
+  accessToken(): Promise<string | null>
 }
 
 export const IS_MOCK = import.meta.env.VITE_MOCK === "1"
@@ -43,5 +47,15 @@ export function createDpdpClient(): DpdpClient {
   return {
     auth: supabase.auth,
     rpc: (fn, args) => supabase.rpc(fn, args),
+    async uploadPaymentProof(orgId, file) {
+      const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png"
+      const path = `${orgId}/${crypto.randomUUID()}.${ext}`
+      const { error } = await supabase.storage.from("dpdp-payment-proofs").upload(path, file, { contentType: file.type || undefined })
+      return { path: error ? null : path, error: error ? error.message : null }
+    },
+    async accessToken() {
+      const { data } = await supabase.auth.getSession()
+      return data.session ? (data.session as unknown as { access_token: string }).access_token : null
+    },
   }
 }

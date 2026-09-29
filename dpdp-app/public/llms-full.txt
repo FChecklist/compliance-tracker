@@ -6,7 +6,7 @@ A plain note first: no major search engine has confirmed that it reads llms.txt 
 
 This is the visible text of every public page of https://app.veridian-aios.com, taken from the pages themselves. The signed-in app on the same host is private and is not described here.
 
-## Digital Personal Data Protection Act Compliance — https://app.veridian-aios.com/
+## DPDP and Digital Data Compliance — https://app.veridian-aios.com/
 
 VERIDIAN VERy INDIAN
 ### The DPDP Act asks every organisation for four things

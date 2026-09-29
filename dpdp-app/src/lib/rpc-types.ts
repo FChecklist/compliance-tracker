@@ -180,5 +180,29 @@ export type BillingStatusPayload = {
   selfDeclaredAt: string | null
   selfDeclaredInterval: "month" | "year" | null
   selfDeclaredAmountPaise: number | null
+  selfDeclaredReference: string | null
+  selfDeclaredProofPath: string | null
+  selfDeclaredNote: string | null
   lastConfirmedAt: string | null
 }
+
+// Payment confirmation flow (drizzle/0658), the Owner-only front door onto
+// dpdp_record_confirmed_payment. dpdp__is_platform_admin gates all three.
+
+/** dpdp_owner_pending_claims: every organisation currently awaiting confirmation, oldest first. */
+export type PendingClaimWire = {
+  orgId: string
+  orgName: string
+  product: "firm" | "institution"
+  interval: "month" | "year" | null
+  amountPaise: number | null
+  reference: string | null
+  proofPath: string | null
+  note: string | null
+  declaredAt: string | null
+  ownerEmail: string | null
+}
+
+/** dpdp_owner_approve_payment: mirrors dpdp_record_confirmed_payment's own return shape. */
+export type ApprovePaymentResult = { ok: true; paymentId: string; commissionId: string | null; commissionAmountPaise: number | null }
+export type RejectPaymentResult = { ok: true; state: "trial" }
