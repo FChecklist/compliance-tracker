@@ -1,4 +1,4 @@
--- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-09-29 -- "is it possible we use only dpdp@veridian-aios.com from gmail ... and externally and internally multiple email IDs uses dpdp@veridian-aios.com and do the work" (the single-mailbox project). Authorizes the GRANT/REVOKE/SECURITY DEFINER statements below; nothing here is applied to a live database by the session that wrote it.
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-09-29 -- "is it possible we use only dpdp@veridian-aios.com from gmail ... and externally and internally multiple email IDs uses dpdp@veridian-aios.com and do the work" (the single-mailbox project). Authorizes the GRANT/REVOKE/SECURITY DEFINER statements below; applied to the live database on 2026-09-29 by the session that wrote it, under this instruction, via the Supabase Management API.
 --
 -- DPDP single mailbox -- the mail log. The public shows ONE address,
 -- dpdp@veridian-aios.com. Everything the platform sends carries a
