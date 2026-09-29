@@ -4524,47 +4524,74 @@ active:
       pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
       only (arjun.mehta CEO account), no real credentials touched.
 
-  - session_label: "claude-code (interactive, Claude Desktop, PROJEXA Vercel cost work order session [742e4b]) -- (1) AI work link UI: a prominent, one-click 'AI work link' + a new Projects tab in PROJEXA's assistant panel; (2) merge-to-one-server planning for projexa-ai.com [IN PROGRESS]"
-    claimed_at: "2026-09-29T00:00Z (this session; exact time approximate, no system clock read)"
+  - session_label: "claude-code (interactive, Claude Desktop, PROJEXA Vercel cost work order session [742e4b]) -- PROJEXA server-merge, ALL PHASES, owner directive 2026-09-29 ('start Phase 0 and complete all phases, dont stop to ask me, complete everything') [IN PROGRESS]"
+    claimed_at: "2026-09-29T (this session, real execution starting)"
     claim: |
-      PART 1 -- ACTIVELY RUNNING as a background Workflow (2 worktree-isolated
-      agents: implement, then an independent verify/audit agent), repo
-      C:\ct\projexa ONLY, branch feat/ai-work-link-ui-and-projects-tab (new,
-      not yet pushed at claim time). Files: src/components/shell/
-      LeftScreenCompletion.tsx (adds a "projects" LeftViewId, first in
-      LEFT_VIEWS, before "modules" -- the other 6 owner-specified views
-      unchanged), src/components/shell/M24Shell.tsx (wires the new view the
-      same way "reports" is wired), src/components/ai-link/
-      AiWorkLinkButtons.tsx + AiWorkLinkDialog.tsx (one-click mint+copy with
-      an inline confirmation naming ChatGPT/Gemini/Claude/Grok/DeepSeek/Z.ai,
-      "Change access or expiry" still opens the existing level/duration
-      dialog unchanged), src/components/ProjectsListClient.tsx (adds a
-      per-row "Copy AI work link" action + a "New project with my AI"
-      button), plus each file's matching *.test.tsx. NOT touching
-      compliance-tracker at all for this part. No PR opened yet as of this
-      claim (will open one, on green tests/typecheck, once the workflow
-      reports back).
+      PART 1 (AI work link UI + Projects tab in PROJEXA) is DONE -- merged as
+      FChecklist/projexa#329. Moved to recently_completed once this entry's
+      real work is underway.
 
-      PART 2 -- PLANNING DONE, WRITTEN UP, EXECUTION NOT STARTED. Full
-      decision + phased plan: ai-os/PROJEXA_SERVER_MERGE_PLAN.md (this
-      commit). Summary: fold PROJEXA's ~186 page.tsx files INTO
-      compliance-tracker's Next.js app (287 route.ts files under
-      src/app/api/v1/projexa/ already hold 100% of the business logic
-      PROJEXA calls over HTTP today -- zero backend rewrite needed, only a
-      UI/routing port), rather than porting that logic into PROJEXA.
-      Confirmed via cross-session coordination with the DPDP session
-      (2026-09-29): DPDP's Cloudflare app talks directly to Supabase and has
-      zero runtime dependency on compliance-tracker's Next.js app, so that
-      app's only remaining reason to exist is being PROJEXA's backend --
-      exactly the dependency this plan removes. See the plan doc for the
-      phase breakdown (Phase 0 proof-of-concept on one page, Phase 1 bulk UI
-      port, Phase 2 auth reconciliation, Phase 3 retirement) and the two
-      open questions left for the owner. When real editing starts, this
-      entry will be updated with the actual file/directory scope before the
-      first file is touched, and it will never include vercel.json,
-      src/lib/vercel-lockdown.test.ts, or ai-os/DOMAIN_OWNERSHIP.yaml in
-      either repo (owner wants this done on local + git + Supabase, not
-      Vercel).
+      PART 2 -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md, now executing all 4
+      phases per owner instruction, no further check-ins. Real inventory
+      done (Explore agent, PowerShell Get-ChildItem -Recurse, not a shell
+      glob) BEFORE starting, which narrowed the plan doc's own ~186-file
+      estimate:
+        - 178 real page.tsx files under C:\ct\projexa\src\app\(app)\**, 40
+          module directories.
+        - 17 of those modules were ALREADY ported into compliance-tracker's
+          own src/app/(app)/ tree by an earlier, differently-named initiative
+          (Sumeet-modules gap-closure / Wave 6, 2026-08-29..09-01): change-
+          orders, design-studio, drawings, expenses, ffe, floor-plans,
+          labour, materials, mood-boards, permits, punch-list, rfis,
+          schedule, scope, site-diary, submittals, work-progress. These need
+          a parity diff against PROJEXA's current *Client.tsx, not a fresh
+          port.
+        - 24 modules are genuinely new territory (no compliance-tracker page
+          at all yet): accounting, analysis, billing-milestones, budgets,
+          copilot, customers, employees, finance, grc, inventory, invoices,
+          kpis, meetings, moms, payroll, procurement, projects, purchase-
+          orders, quotations, sales, sales-orders, vendors, wiki, workspace.
+        - 7 top-level segments collide with a DIFFERENT existing compliance-
+          tracker feature of the same name (dashboard, documents, hr,
+          knowledge-base, reports, settings, recruitment) -- decided (this
+          session, no owner check-in per instruction): give PROJEXA's version
+          a distinct physical path under src/app/(app)/_projexa/<name>/, and
+          add host-branching middleware that rewrites projexa-ai.com traffic
+          from the clean /<name> URL to /_projexa/<name> internally, leaving
+          compliance-tracker's own /<name> untouched for every other host.
+        - @fchecklist/veridian-ui-kit version drift found (compliance-tracker
+          pinned to tag v0.7.0, PROJEXA pinned to a newer commit SHA with API
+          differences, e.g. a MiddleColumnToggle type PROJEXA's AppSidebar
+          imports that compliance-tracker's does not) -- reconciling as part
+          of Phase 1, bumping compliance-tracker to PROJEXA's SHA (or later)
+          since PROJEXA's UI is what's being folded in.
+
+      File scope: C:\ct\ct's src/app/(app)/** (new pages + the 7 _projexa/**
+      shadow pages), src/middleware.ts (host-branching), src/components/**
+      (porting PROJEXA's shell/*, screens/*, workspace/*, veri-chat/*, and
+      the ~150 flat *Client.tsx files), package.json (ui-kit version bump),
+      plus (Phase 2) a real Supabase Auth user migration from evpckeuxgvahguwsaeul
+      into pcrjmlpuqsbocqfwoxod and retirement of src/lib/supabase/api-key-auth.ts's
+      PROJEXA callers, plus (Phase 3) archival of any confirmed-dead non-DPDP/
+      non-PROJEXA compliance-tracker pages. Reading, not necessarily changing,
+      FChecklist/projexa (source of truth for what's being ported; Phase 3 may
+      eventually remove ported pages there once cutover happens).
+
+      NOT touching, this session, per the plan's own explicit scope and the
+      owner's prior instruction (Rule/AGENTS.md, R76 lockdown): any Vercel
+      deploy/unpause/config change, any DNS change, vercel.json in either
+      repo, src/lib/vercel-lockdown.test.ts, ai-os/DOMAIN_OWNERSHIP.yaml. The
+      actual go-live cutover (DNS pointing projexa-ai.com at the merged app,
+      archiving the standalone PROJEXA repo) stays gated on a separate,
+      explicit owner go-live decision -- this session builds and merges
+      everything up to that line, on local + git + Supabase + GitHub CI only.
+      Also not touching the DPDP session's claim (dpdp.subscription/
+      dpdp.payment/BillingPanel.tsx, feat/dpdp-payment-confirmation).
+
+      Work happens across multiple isolated worktrees under
+      C:\ct\ct-worktrees\projexa-merge-*, one branch/PR per phase-batch, each
+      going through this repo's normal CI before merge (Amendment 001:
+      autonomous merge on green required checks, no owner approval needed).
 
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
