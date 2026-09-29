@@ -40,6 +40,13 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, PROJEXA server-merge session; worktree C:/ct/ct/.claude/worktrees/agent-a1a35a08a954477cf (reused, node_modules junctioned to the main C:/ct/ct checkout rather than a fresh bun install, per the RAM constraint), branch feat/projexa-merge-invoices) -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md: port PROJEXA's Invoices module (list/detail/create, credit-notes list/detail/create, AR aging tab) into compliance-tracker as native src/app/(app)/invoices/** pages, calling the already-live /api/v1/projexa/sales-invoices*, /api/v1/projexa/credit-notes*, /api/v1/projexa/ar-aging, /api/v1/projexa/accounts, /api/v1/projexa/customers routes directly (route.ts files read and verified field-for-field before writing any page). New top-level route (no /invoices or erp/*invoice* page existed before this), so no shadow-routing collision. [IN PROGRESS]"
+    claimed_at: "2026-09-29T (this session)"
+    claim: |
+      Building src/app/(app)/invoices/page.tsx (tabs: invoices/credit-notes/
+      aging, URL-synced per the employees/page.tsx precedent), [id]/page.tsx,
+      new/page.tsx, credit-notes/[id]/page.tsx, credit-notes/new/page.tsx.
+      No other active claim in this file overlaps this module.
   - session_label: "claude-code (interactive, PROJEXA server-merge session; worktree C:/ct/ct/.claude/worktrees/agent-ad3461d67be0cb199, branch feat/projexa-merge-purchase-orders) -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md: port PROJEXA's Purchase Orders module into compliance-tracker [IN PROGRESS]"
     claimed_at: "2026-09-29T (this session)"
     claim: |
