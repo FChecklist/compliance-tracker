@@ -183,6 +183,8 @@ export default function ApplicationDetailPage() {
 
   if (loading) return <p className="text-sm text-ct-muted">Loading...</p>;
 
+  const nextStages = application ? (VALID_TRANSITIONS[application.stage] ?? []) : [];
+
   return (
     <div className="space-y-4">
       <Link href="/px/recruitment?tab=pipeline" className="inline-flex items-center gap-1 text-xs text-ct-muted hover:text-ct-navy">
@@ -193,10 +195,6 @@ export default function ApplicationDetailPage() {
         <p role="alert" className="text-sm text-ct-error">{loadError ?? "Application not found."}</p>
       ) : (
         <>
-          {(() => {
-            const nextStages = VALID_TRANSITIONS[application.stage] ?? [];
-            return (
-              <>
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-2">
                     <h1 className="text-2xl font-heading text-ct-navy">{candidate?.name ?? "—"} — {jobOpening?.title ?? "—"}</h1>
@@ -335,9 +333,6 @@ export default function ApplicationDetailPage() {
                 {application.hiredEmployeeProfileId && (
                   <p className="text-xs text-ct-success">Linked to employee profile {application.hiredEmployeeProfileId}.</p>
                 )}
-              </>
-            );
-          })()}
         </>
       )}
     </div>
