@@ -4843,6 +4843,15 @@ active:
       precedent as purchase-orders vs erp/procurement coexistence). No
       collision with any existing compliance-tracker top-level page.
 
+      PROGRESS UPDATE (2026-09-29, continued): quotations merged (#1975) --
+      11 of 24 genuinely-new modules now done. Found a bonus real route not
+      in the original inventory: POST /api/v1/projexa/quotations/[id]/convert
+      (quotation -> sales order), now wired into the quotations detail page.
+      Now claiming "sales-orders" (PROJEXA's src/app/(app)/sales-orders/**
+      -- list, [id] detail, new). Real backend confirmed live:
+      /api/v1/projexa/sales-orders (+ [id]). No collision with any existing
+      compliance-tracker top-level page.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
