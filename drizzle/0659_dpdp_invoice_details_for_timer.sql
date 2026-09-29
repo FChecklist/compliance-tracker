@@ -1,3 +1,7 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-09-29 -- see
+-- drizzle/0658's own citation line; this file is part of the same
+-- payment-confirmation work it authorizes.
+--
 -- Payment confirmation flow, part 2: one small service_role-only lookup
 -- so the new dpdp-invoice-email Edge Function (invoked right after
 -- dpdp_owner_approve_payment succeeds) can build an invoice without

@@ -1,3 +1,7 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-09-29 -- see
+-- drizzle/0658's own citation line; this file is part of the same
+-- payment-confirmation work it authorizes.
+--
 -- Payment confirmation flow, part 4 -- two things the invoice function
 -- (0659) needs that weren't there yet: 'invoice' as a real dpdp.email_send
 -- kind (0606 only ever anticipated the five Monday-timer kinds), and the

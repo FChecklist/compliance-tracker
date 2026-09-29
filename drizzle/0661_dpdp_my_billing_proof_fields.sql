@@ -1,3 +1,7 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-09-29 -- see
+-- drizzle/0658's own citation line; this file is part of the same
+-- payment-confirmation work it authorizes.
+--
 -- Payment confirmation flow, part 5 -- dpdp_my_billing (the org owner's
 -- own read of their billing state) was never widened when 0658 added the
 -- proof columns, so the owner's own panel could not show back what they

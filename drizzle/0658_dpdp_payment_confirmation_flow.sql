@@ -1,3 +1,10 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-09-29 -- asked
+-- directly for "the whole payment process" (bank/UPI/QR, proof, owner
+-- review/approve, invoice) to be built end to end, under this session's
+-- standing autonomy directive ("you take all decisions, dont ask me, i
+-- am non technical, i want completion"). Authorizes the GRANT/REVOKE/
+-- DROP POLICY/SECURITY DEFINER statements below and in 0659-0661.
+--
 -- WO-DPDP-016 follow-on -- manual payment confirmation, end to end
 -- (Owner instruction, this session, 2026-09-29): dpdp_declare_payment
 -- already let an org owner say "I've paid" (drizzle/0655), and
