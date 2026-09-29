@@ -88,6 +88,7 @@ import {
   CircleDollarSign,
   Box,
   LayoutGrid,
+  FolderKanban,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -244,6 +245,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
         { label: t("sections.constructionDesign.items.changeOrders"), href: "/change-orders", icon: FileSignature },
         { label: t("sections.constructionDesign.items.workProgress"), href: "/work-progress", icon: Activity },
         { label: t("sections.constructionDesign.items.dashboard"), href: "/construction-dashboard", icon: Gauge },
+        // PROJEXA server-merge Phase 0 (ai-os/PROJEXA_SERVER_MERGE_PLAN.md):
+        // proof-of-concept port of PROJEXA's Projects list -- same
+        // /api/v1/projexa/dashboard read as construction-dashboard above,
+        // reused directly (no HTTP hop, no new backend route).
+        { label: t("sections.constructionDesign.items.projects"), href: "/projects", icon: FolderKanban },
       ],
     },
     // THE FIRM AI OS practice-management layer (Wave 108 build, wired to
