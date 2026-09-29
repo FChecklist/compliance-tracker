@@ -16,6 +16,16 @@
 #   1. BEFORE selecting a gap/task from ai-os/MASTER-TRACKER.yaml (or any
 #      other source) to work on: `git pull origin main` this file fresh,
 #      read every entry under `active:` below, and do NOT start work on a
+  - session_label: "claude-code (interactive PM session; worktree C:/ct/wt-dpdp-mail, branch feat/dpdp-single-mailbox) -- DPDP single mailbox dpdp@veridian-aios.com [IN PROGRESS]"
+    claimed_at: "2026-09-29T (this session)"
+    claim: |
+      One published address dpdp@veridian-aios.com with internal mail classification
+      (Monday reply / sales / sales chain / invoice / grievance / data request / partner).
+      Files: supabase/functions/dpdp-inbound-mail/** (new), supabase/functions/_shared/mail-*.ts (new),
+      supabase/functions/dpdp-monday-email/** and dpdp-invoice-email/** (Reply-To, subject prefix, tags),
+      workers/dpdp-inbound-mail/** (new Cloudflare Email Worker), a new dpdp mail-log migration,
+      dpdp-app public contact copy (grievance@/partners@ -> dpdp@) and dpdp-app/OPERATIONS.md.
+      No overlap with the PROJEXA purchase-orders claim above.
 #      gap/file-area another entry already claims, unless that entry's
 #      `claimed_at` is more than 4 hours stale with no matching open PR
 #      (check `gh pr list`) -- treat a stale claim as abandoned, not binding.
