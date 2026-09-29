@@ -15,6 +15,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/bcm",
   "/board",
   "/board-evaluation",
+  "/budgets",
   "/cap-table",
   "/capability-improvements",
   "/capability-registry",
