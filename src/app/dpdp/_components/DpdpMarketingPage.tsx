@@ -403,8 +403,10 @@ export function DpdpMarketingPage({ edition = "firm" }: { edition?: DpdpEdition 
           Your DPDP proof — not just your DPDP policy. People move on. The proof stays.
         </p>
         <p className="mt-4 text-xs text-[#9D94C4]">
-          Grievance Officer: <b className="text-white">grievance@veridian-aios.com</b> &nbsp;·&nbsp; Partners:{" "}
-          <b className="text-white">partners@veridian-aios.com</b>
+          Write to <b className="text-white">dpdp@veridian-aios.com</b> and put the topic in the subject: Grievance, Data request, Sales or Partner
+        </p>
+        <p className="mt-1 text-xs text-[#9D94C4]">
+          Grievance Officer: <b className="text-white">dpdp@veridian-aios.com</b> (subject: Grievance)
         </p>
         <p className="mt-2 text-xs text-[#9D94C4]">
           🏠 Stored in India &nbsp;·&nbsp; 🔑 no passwords &nbsp;·&nbsp; 🗄️ we never keep your documents

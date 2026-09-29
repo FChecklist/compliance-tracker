@@ -3432,6 +3432,13 @@
       "when": 1790476000000,
       "tag": "0661_dpdp_my_billing_proof_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 492,
+      "version": "7",
+      "when": 1790477000000,
+      "tag": "0662_dpdp_single_mailbox_mail_log",
+      "breakpoints": true
     }
   ]
 }

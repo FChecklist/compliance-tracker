@@ -616,7 +616,8 @@ export function landingHi(edition) {
         h2: "फ़ुटर",
         blocks: [
           { type: "p", text: "VERIDIAN · VERy INDIAN — आपका DPDP प्रमाण — सिर्फ़ आपकी DPDP नीति नहीं। लोग आगे बढ़ जाते हैं। प्रमाण रहता है।" },
-          { type: "p", text: "शिकायत अधिकारी: grievance@veridian-aios.com · पार्टनर: partners@veridian-aios.com" },
+          { type: "p", text: "dpdp@veridian-aios.com पर लिखें और विषय (subject) में बताएँ कि बात किस बारे में है: शिकायत (Grievance), डेटा अनुरोध (Data request), बिक्री (Sales) या पार्टनर (Partner)" },
+          { type: "p", text: "शिकायत अधिकारी: dpdp@veridian-aios.com (विषय: Grievance)" },
           { type: "p", text: "🏠 भारत में संग्रहीत · 🔑 कोई पासवर्ड नहीं · 🗄️ हम आपके दस्तावेज़ कभी नहीं रखते" },
           { type: "p", cls: "note", text: "हम कोई लॉ फ़र्म नहीं हैं और यह कानूनी सलाह नहीं है। भारत में कोई DPDP प्रमाणन नहीं है और हम ऐसा कोई प्रमाणन नहीं देते। दंड के आँकड़े अधिनियम की ऊपरी सीमाएँ हैं, जिन्हें बोर्ड धारा 33 के अंतर्गत तय करता है।" },
         ],

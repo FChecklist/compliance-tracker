@@ -102,7 +102,9 @@ _VERIDIAN · VERy INDIAN · स्कूलों के लिए एक स्
 
 VERIDIAN · VERy INDIAN — आपका DPDP प्रमाण — सिर्फ़ आपकी DPDP नीति नहीं। लोग आगे बढ़ जाते हैं। प्रमाण रहता है।
 
-शिकायत अधिकारी: grievance@veridian-aios.com · पार्टनर: partners@veridian-aios.com
+dpdp@veridian-aios.com पर लिखें और विषय (subject) में बताएँ कि बात किस बारे में है: शिकायत (Grievance), डेटा अनुरोध (Data request), बिक्री (Sales) या पार्टनर (Partner)
+
+शिकायत अधिकारी: dpdp@veridian-aios.com (विषय: Grievance)
 
 🏠 भारत में संग्रहीत · 🔑 कोई पासवर्ड नहीं · 🗄️ हम आपके दस्तावेज़ कभी नहीं रखते
 

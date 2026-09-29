@@ -18,7 +18,7 @@ import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
-import { loadFacts, loadProof, publicFacts, pageTitle, getPath } from "./facts.mjs"
+import { contactSentence, grievanceOfficerLine, loadFacts, loadProof, publicFacts, pageTitle, getPath, subjectTopicsClause } from "./facts.mjs"
 import { FACTS, HIDDEN_PAGES, PUBLIC_PAGES } from "./public-surface.mjs"
 import { buildOutputs } from "../../scripts/generate-public-facts.mjs"
 
@@ -130,8 +130,8 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
       "company.legal_name",
       "company.cin",
       "company.registered_office",
-      "contact.grievance_officer_email",
-      "contact.partners_email",
+      "contact.contact_email",
+      "contact.subject_topics",
       "ai_work_link_public_sentence",
     ])
   })
@@ -216,6 +216,86 @@ describe("the generator (scripts/generate-public-facts.mjs)", () => {
       expect(html).toContain(`<h1`) // the owner's h1 is still the page's h1
       expect(html.match(/<h1\b/g)).toHaveLength(1)
     }
+  })
+})
+
+describe("the single published address (owner decision, 2026-09-29): dpdp@veridian-aios.com and nothing else", () => {
+  const facts = loadFacts()
+  const ADDRESS = "dpdp@veridian-aios.com"
+  const RETIRED = [/grievance@veridian-aios\.com/i, /partners@veridian-aios\.com/i]
+
+  // Everything a visitor, a crawler or an assistant can be shown: the public
+  // and hidden page sources, the four fact files, and the Next.js edition
+  // landing's footer (the same copy on veridian-aios.com/dpdp). The Hindi
+  // landing drafts are unpublished and are checked in drafts.test.ts, the
+  // one test file the "nothing in src/ references the drafts" wall exempts.
+  const PUBLISHED = [
+    ...[...PUBLIC_PAGES, ...HIDDEN_PAGES].map((p) => p.source),
+    "public/llms.txt",
+    "public/llms-full.txt",
+    "public/for-ai.md",
+    "public/facts.json",
+    "../src/app/dpdp/_components/DpdpMarketingPage.tsx",
+  ]
+
+  test("contact block: one address, the four subject topics, the owner's approval date recorded, the two old fields gone", () => {
+    expect(facts.contact.contact_email).toBe(ADDRESS)
+    expect(facts.contact.subject_topics).toEqual(["Grievance", "Data request", "Sales", "Partner"])
+    expect(facts.contact.address_approved_on).toBe("2026-09-29")
+    expect(facts.contact).not.toHaveProperty("grievance_officer_email")
+    expect(facts.contact).not.toHaveProperty("partners_email")
+    // The block's wording is still not owner-signed-off word for word; the approval is of the ADDRESS.
+    expect(facts.contact.owner_approved).toBe(false)
+  })
+
+  test("the sentence every surface carries is built from the facts file, in the owner's words", () => {
+    expect(subjectTopicsClause(facts)).toBe("and put the topic in the subject: Grievance, Data request, Sales or Partner")
+    expect(contactSentence(facts)).toBe(`Write to ${ADDRESS} and put the topic in the subject: Grievance, Data request, Sales or Partner`)
+    expect(grievanceOfficerLine(facts)).toBe(`Grievance Officer: ${ADDRESS} (subject: Grievance)`)
+  })
+
+  test("no published surface names grievance@ or partners@ any more, and every one names dpdp@", () => {
+    for (const rel of PUBLISHED) {
+      const body = read(rel)
+      for (const re of RETIRED) expect(body, `${rel} still names a retired address (${re})`).not.toMatch(re)
+      // The root chooser and /proof/ carry the address in their JSON-LD Organization node.
+      expect(body, `${rel} does not name ${ADDRESS}`).toContain(ADDRESS)
+    }
+  })
+
+  test("the facts file itself never spells out a retired address (its comment names them without the domain)", () => {
+    const yaml = read("data/veridian-facts.yaml")
+    for (const re of RETIRED) expect(yaml).not.toMatch(re)
+  })
+
+  test("every page's JSON-LD Organization has one ContactPoint per topic, all at the single address, Grievance Officer first", () => {
+    for (const p of [...PUBLIC_PAGES, ...HIDDEN_PAGES]) {
+      const source = p.source
+      const m = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(read(source))
+      const graph = JSON.parse(m![1])["@graph"] as Array<{ "@type": string; contactPoint?: Array<{ contactType: string; email: string }> }>
+      const org = graph.find((n) => n["@type"] === "Organization")!
+      expect(org.contactPoint!.map((c) => c.contactType), source).toEqual(["Grievance Officer", "Data request", "Sales", "Partner"])
+      for (const c of org.contactPoint!) expect(c.email, source).toBe(ADDRESS)
+    }
+  })
+
+  test("the two hand-kept landing footers say what the generated footers say (same sentence, same Grievance Officer line)", () => {
+    for (const path of ["/dpdp-firm/", "/dpdp-institution/"]) {
+      const page = PUBLIC_PAGES.find((p) => p.path === path)!
+      const html = read(page.source)
+      expect(html, page.source).toContain(`Write to <b class="white">${ADDRESS}</b> ${subjectTopicsClause(facts)}`)
+      expect(html, page.source).toContain(`Grievance Officer: <b class="white">${ADDRESS}</b> (subject: Grievance)`)
+    }
+    // ...and the generated footer on /about/ is the same two lines.
+    const about = read("about/index.html")
+    expect(about).toContain(`Write to <b class="white">${ADDRESS}</b> ${subjectTopicsClause(facts)}`)
+    expect(about).toContain(`Grievance Officer: <b class="white">${ADDRESS}</b> (subject: Grievance)`)
+  })
+
+  test("the Next.js edition landing (veridian-aios.com/dpdp) carries the same footer copy as this app's landings", () => {
+    const tsx = read("../src/app/dpdp/_components/DpdpMarketingPage.tsx")
+    expect(tsx).toContain(`Write to <b className="text-white">${ADDRESS}</b> ${subjectTopicsClause(facts)}`)
+    expect(tsx).toContain(`Grievance Officer: <b className="text-white">${ADDRESS}</b> (subject: Grievance)`)
   })
 })
 

@@ -62,8 +62,8 @@ Registered office: B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, In
 
 ## Contact
 
-- Grievance Officer: grievance@veridian-aios.com
-- Partners: partners@veridian-aios.com
+- Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
+- Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 
 ## Pages
 

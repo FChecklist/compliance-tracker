@@ -11,9 +11,11 @@ import { describe, expect, test } from "bun:test"
 import {
   BRAND_LINE_FULL, BRAND_LINE_SHORT, INVITE_ASK, PUBLIC_SITE, SHARE_ASK, isDecisionMaker,
   computeEscalation, domainOfFrom, escalationLines, isDeliverableAddress, isEmpty, listUnsubscribeHeaders, longDate, PLACEHOLDER,
-  renderDigest, renderLeakClock, renderRightsClock, sortJobs, statutorySubset, subjectFor,
+  renderDigest, renderLeakClock, renderRightsClock, sortJobs, statutorySubset, subjectFor, unsubscribeMailto,
   type Digest, type DigestJob, type RenderLinks,
 } from "../../../supabase/functions/dpdp-monday-email/render"
+// The single-mailbox address grammar the List-Unsubscribe mailto is built from.
+import { parseRecipient } from "../../../supabase/functions/_shared/mail-taxonomy"
 // WO-DPDP-014: the private app's own copy of the three lines -- plain TS,
 // no imports, so it loads straight across the tree here.
 import * as appBrand from "../../../dpdp-app/src/lib/brand"
@@ -327,14 +329,37 @@ describe("legal clocks and RFC 8058 headers", () => {
     expect(renderRightsClock({ ...item, daysLeft: -2 }, recipient, live).subject).toContain("past its 90-day limit")
   })
   test("List-Unsubscribe pair and from-domain parsing", () => {
-    expect(listUnsubscribeHeaders("https://f/u?t=1", "unsubscribe@send.veridian-aios.com?subject=unsubscribe%201")).toEqual({
-      "List-Unsubscribe": "<https://f/u?t=1>, <mailto:unsubscribe@send.veridian-aios.com?subject=unsubscribe%201>",
+    // Single-mailbox era (2026-09-29): the mailto is a dpdp+dsr.<ref>@veridian-aios.com
+    // address (see the unsubscribeMailto test below), never the old unsubscribe@send.… one.
+    const mailto = "dpdp+dsr.k3f9x2ab7q@veridian-aios.com?subject=unsubscribe"
+    expect(listUnsubscribeHeaders("https://f/u?t=1", mailto)).toEqual({
+      "List-Unsubscribe": `<https://f/u?t=1>, <mailto:${mailto}>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     })
     expect(listUnsubscribeHeaders("https://f/u?t=1", null)["List-Unsubscribe"]).toBe("<https://f/u?t=1>")
+    expect(domainOfFrom("VERIDIAN AI DPDP <dpdp@veridian-aios.com>")).toBe("veridian-aios.com")
+    expect(domainOfFrom("dpdp@veridian-aios.com")).toBe("veridian-aios.com")
+    // Still generic: it reports whatever domain it is given, which is what lets the Edge
+    // Function warn when a stale DPDP_EMAIL_FROM secret names the old subdomain.
     expect(domainOfFrom("VERIDIAN AI DPDP <dpdp@send.veridian-aios.com>")).toBe("send.veridian-aios.com")
-    expect(domainOfFrom("dpdp@send.veridian-aios.com")).toBe("send.veridian-aios.com")
     expect(domainOfFrom("nonsense")).toBeNull()
+  })
+
+  test("unsubscribeMailto: one address, classified as a data request, same ref, no token, no old subdomain", () => {
+    const ref = "k3f9x2ab7q"
+    const mailto = unsubscribeMailto(ref)
+    expect(mailto).toBe("dpdp+dsr.k3f9x2ab7q@veridian-aios.com?subject=unsubscribe")
+    expect(mailto).not.toContain("send.veridian-aios.com")
+    expect(mailto).not.toMatch(/^unsubscribe@/)
+    // The address part (before ?) reads back, through the shared grammar, as a data
+    // request tied to this ref -- the inbound classifier's highest-confidence signal.
+    const parsed = parseRecipient(mailto.split("?")[0])
+    expect(parsed).toEqual({ ours: true, cls: "data_request", ref })
+    // Composed into the real header it stays a valid mailto: URI inside angle brackets.
+    const header = listUnsubscribeHeaders("https://f/u?t=1", mailto)["List-Unsubscribe"]
+    expect(header).toBe(`<https://f/u?t=1>, <mailto:${mailto}>`)
+    // A malformed ref is a programming error, not something to send out.
+    expect(() => unsubscribeMailto("not-a-ref")).toThrow()
   })
 
   test("reserved/test addresses are never deliverable; real ones are", () => {

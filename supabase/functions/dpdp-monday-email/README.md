@@ -43,10 +43,19 @@ yourself) plus Vault:
   `dpdp_timer_secret` the cron reads. So step 1 alone is enough; nothing
   needs `supabase secrets set`.
 * `APP_ORIGIN` defaults to `https://app.veridian-aios.com`.
-* `DPDP_EMAIL_FROM` defaults to `VERIDIAN AI DPDP <dpdp@send.veridian-aios.com>`.
+* `DPDP_EMAIL_FROM` defaults to `VERIDIAN AI DPDP <dpdp@veridian-aios.com>` — the
+  one public address (see "The one public mailbox" below). **If this secret is
+  already set to the old `…@send.veridian-aios.com` value it overrides the new
+  default, and mail keeps going out from the old subdomain: delete the secret
+  (or set it to the value above).** The function logs a warning at start-up
+  whenever the configured From is not on `veridian-aios.com`.
 * `RESEND_API_KEY` absent = **dry run** (unchanged). Set it only once Resend's
   domain is verified, via the dashboard (Edge Functions → Secrets) or
   `supabase secrets set RESEND_API_KEY='re_...'` from a machine with a CLI token.
+  **`veridian-aios.com` itself (not only `send.veridian-aios.com`) must be a
+  verified sending domain in Resend** before the new From works; until it is,
+  Resend refuses every send with a "domain is not verified" error and each row
+  is marked `failed` (nothing is lost, the retry job goes again).
 
 Other optional overrides: `DPDP_FUNCTION_URL` (defaults to
 `$SUPABASE_URL/functions/v1/dpdp-monday-email`), `DPDP_ACTION_PATH` (default
@@ -62,7 +71,11 @@ supabase functions deploy dpdp-monday-email --no-verify-jwt
 ```
 
 (Via the Supabase MCP `deploy_edge_function`: pass `verify_jwt: false` and
-both files, `index.ts` + `render.ts`.)
+the function's files, `index.ts` + `render.ts`, **plus the two shared files it
+now imports by relative path: `../_shared/mail-taxonomy.ts` and
+`../_shared/mail-outbound.ts`.** The CLI bundles those automatically; the MCP
+does not, so leaving them out fails the deploy on the import. The same two
+shared files are needed by `dpdp-invoice-email`.)
 
 ### 4. Apply the migrations
 
@@ -111,6 +124,44 @@ select jobname, status, return_message, start_time from cron.job_run_details
 select id, status_code, error_msg from net._http_response order by id desc limit 5;
 ```
 
+## The one public mailbox (outbound)
+
+The public shows one address, `dpdp@veridian-aios.com`. Everything this function
+(and `dpdp-invoice-email`) sends is built by `../_shared/mail-outbound.ts` on the
+grammar in `../_shared/mail-taxonomy.ts`:
+
+| What | Value |
+| --- | --- |
+| From | `VERIDIAN AI DPDP <dpdp@veridian-aios.com>` (`DPDP_EMAIL_FROM` overrides) |
+| Reply-To | `dpdp+mon.<ref>@veridian-aios.com` (Monday digest, statutory view and both legal-clock notices, all class `monday`); `dpdp+inv.<ref>@…` for the invoice |
+| Subject | `[VERIDIAN DPDP · Monday] …` / `[VERIDIAN DPDP · Invoice] …`, added once, never stacked. `render.ts` still returns the plain subject; the prefix is added at send time |
+| Headers | `X-Veridian-Class`, `X-Veridian-Ref`, plus `List-Unsubscribe` / `List-Unsubscribe-Post` (Monday) |
+| List-Unsubscribe mailto | `mailto:dpdp+dsr.<ref>@veridian-aios.com?subject=unsubscribe` — same `ref` as the Reply-To, class `data_request`. The RFC 8058 https one-click POST beside it is unchanged |
+| Log | one `dpdp.mail_outbound` row per sent message, via `public.dpdp_mail_log_outbound(p_ref, p_class, p_to_addr, p_subject, p_provider_message_id, p_membership_id, p_org_id)` |
+
+`ref` is 10 characters, fresh for every message. Cloudflare Email Routing
+delivers every `dpdp+anything@` to the one `dpdp@` rule, so a reply that loses
+its `+tag` is still received (the inbound classifier then falls back to thread
+and keyword rules).
+
+**The log is best-effort by design.** It is written right after Resend accepts
+the message and before the `sent` mark; it never throws and waits at most 4 s
+(`LOG_TIMEOUT_MS`). If `public.dpdp_mail_log_outbound` does not exist yet
+(another migration creates it), sends still go out, the log call warns
+(`… (the email WAS sent; …)`) and returns, and replies are still classified from
+the class/ref in the Reply-To address. What is lost is only the lookup from a
+`ref` to the membership/organisation. A failed send is not logged.
+
+Limits worth knowing: `provider_message_id` is Resend's `id`, not the RFC 5322
+Message-ID a mail client quotes in `In-Reply-To`, so the `ref` in the Reply-To
+address is the dependable link. An unsubscribe **by email** becomes a
+data-request ticket a person works; only the https one-click POST is applied
+automatically.
+
+Tests: `bun test --isolate src/lib/services/dpdp-mail-outbound.test.ts src/lib/services/dpdp-timer-render.test.ts`
+(the first loads both real `index.ts` files under bun with a stubbed `Deno`,
+a mocked supabase client and a stubbed `fetch`).
+
 ## What the static app (`dpdp-app/`, other agents) needs to provide
 
 * `/act/#<token>` — the one-click confirmation page (WO-011 §2.3). On load
@@ -121,7 +172,8 @@ select id, status_code, error_msg from net._http_response order by id desc limit
 * `/unsubscribe/#<token>` — call `rpc('dpdp_unsubscribe', { p_token })` on
   the button press. The `List-Unsubscribe` header's https URL is this
   function's `?action=unsubscribe&t=<token>` (a POST target, RFC 8058); a
-  human GET on it is 302'd to this page.
+  human GET on it is 302'd to this page. (Its mailto half now goes to the one
+  public mailbox as a data request — see "The one public mailbox" above.)
 * `/app/` — the signed-in page, and the "Send me a new link" button the
   email points at when its 24-hour link has expired.
 

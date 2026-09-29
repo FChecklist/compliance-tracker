@@ -1,0 +1,43 @@
+# dpdp-inbound-mail -- Cloudflare Email Worker for dpdp@veridian-aios.com.
+# See README.md for what it does, how to deploy it, and how to point Email
+# Routing at it.
+#
+# NO SECRET LIVES IN THIS FILE. The one secret, DPDP_INBOUND_SECRET, is set with
+#   wrangler secret put DPDP_INBOUND_SECRET
+# (or in the dashboard: Workers & Pages -> dpdp-inbound-mail -> Settings ->
+# Variables and Secrets -> Add -> type "Secret"). It must equal the
+# DPDP_INBOUND_SECRET function secret of the dpdp-inbound-mail Edge Function.
+#
+# The two plain vars below are not secrets (a function URL and an email
+# address that is already in this repo's AGENTS.md). They are declared here,
+# not only in the dashboard, because "wrangler deploy" replaces the Worker's
+# dashboard-set vars with the ones in this file.
+name = "dpdp-inbound-mail"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# This Worker only handles incoming mail. It has no fetch() handler, so there
+# is nothing useful to serve on a workers.dev address.
+workers_dev = false
+preview_urls = false
+
+[vars]
+# Full https URL of the Supabase Edge Function that classifies and tickets the
+# mail. The Worker refuses to send the bearer secret anywhere that is not
+# https (plain http is tolerated for localhost only, for "wrangler dev").
+DPDP_INBOUND_URL = "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/dpdp-inbound-mail"
+
+# Where the untouched original goes if ANYTHING fails. Must be a VERIFIED
+# destination address in Cloudflare Email Routing (dashboard -> veridian-aios.com
+# -> Email -> Email Routing -> Destination addresses), or the fallback itself
+# fails and the mail is refused instead of saved.
+FALLBACK_FORWARD_TO = "raajat.agarwal@gmail.com"
+
+# Optional tuning. Leave these out unless the numbers below need to change.
+# POST_TIMEOUT_MS = "8000"      # wait this long for the Edge Function (max 25000)
+# MAX_RAW_BYTES   = "1048576"   # read at most this much of a mail (4096 .. 8388608)
+
+# Structured logs (event names and reason codes only, never mail content) so a
+# fallback forward can be seen with "wrangler tail" or in the dashboard.
+[observability]
+enabled = true

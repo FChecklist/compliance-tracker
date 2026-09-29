@@ -9,6 +9,15 @@
 // numbers (14/30 days, halved to 7/15 for a job required by today's law)
 // and used as a fallback only when a job arrives without its `escalation`
 // object.
+//
+// The only imports are the two PURE shared modules (no Deno, no network):
+// mail-taxonomy.ts for the dpdp+<tag>.<ref>@ address grammar (used by
+// unsubscribeMailto) and mail-outbound.ts for domainOfFrom, re-exported below
+// so existing importers keep working and there is one implementation.
+import { replyToAddress } from "../_shared/mail-taxonomy.ts"
+import { domainOfFrom } from "../_shared/mail-outbound.ts"
+
+export { domainOfFrom }
 
 export type Escalation = {
   red: boolean
@@ -584,10 +593,19 @@ export function listUnsubscribeHeaders(httpsUrl: string, mailto: string | null):
   }
 }
 
-/** "dpdp@send.veridian-aios.com" or "Name <dpdp@send.veridian-aios.com>" -> "send.veridian-aios.com". */
-export function domainOfFrom(from: string): string | null {
-  const m = /<([^>]+)>/.exec(from)
-  const addr = (m ? m[1] : from).trim()
-  const at = addr.lastIndexOf("@")
-  return at === -1 ? null : addr.slice(at + 1)
+/**
+ * The mailto half of List-Unsubscribe: a fresh message to the ONE public
+ * mailbox, addressed dpdp+dsr.<ref>@veridian-aios.com so the inbound
+ * classifier reads it as a data request (a legal-clock class -- ticketed and
+ * acknowledged, never dropped) from the address alone, and `ref` (the SAME ref
+ * as this email's Reply-To) finds the membership it came from. The old mailto
+ * put the one-click token in the subject; that is deliberately gone -- the ref
+ * does the finding, and a live credential has no business in a mail header.
+ *
+ * Honest limit: an unsubscribe BY EMAIL is answered by a person working the
+ * ticket, not applied automatically. The RFC 8058 https POST in the same
+ * header (listUnsubscribeHeaders) is the automatic path and is untouched.
+ */
+export function unsubscribeMailto(ref: string): string {
+  return `${replyToAddress("data_request", ref)}?subject=unsubscribe`
 }
