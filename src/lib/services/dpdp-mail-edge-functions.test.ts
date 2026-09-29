@@ -4,17 +4,19 @@
 // THE GAP THIS CLOSES. bunfig.toml sets the test root to src/, so the bare
 // `bun test --isolate` that .github/workflows/ci.yml runs never discovers a
 // *.test.ts under supabase/functions/. The three that guard the mailbox's
-// contract (the taxonomy, the classifier, the request handler) therefore ran
+// contract (the taxonomy, the classifier, the request handler, and the Resend
+// inbound adapter: signature, recipient policy, reconcile) therefore ran
 // only when someone typed their path -- and a red one blocked nothing. This
 // file makes them part of the bare run.
 //
-// HOW. The three `import "...test"` lines below load those files as modules.
+// HOW. The four `import "...test"` lines below load those files as modules.
 // Each of them calls describe()/test() while it loads, and bun registers those
 // calls in the file that is currently loading, which is THIS one -- so under
 // `bun test --isolate src/lib/services/dpdp-mail-edge-functions.test.ts` the
 // report lists every one of their tests as part of this file (35 taxonomy +
-// 395 classifier + 92 handler = 522 at the time of writing, plus the 26 tests
-// written below = 548; the numbers move as those files grow). A plain static
+// 548 classifier + 108 handler + 105 Resend adapter = 796 at the time of
+// writing, plus the 26 tests written below = 822; the numbers move as those
+// files grow). A plain static
 // import is enough; nothing needs to be called from inside a test case, and
 // --isolate does not change that. Precedent for edge-function code tested from
 // src/: dpdp-timer-render.test.ts. (The test files use only bun:test and
@@ -42,10 +44,11 @@ import { describe, expect, spyOn, test } from "bun:test"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative, sep } from "node:path"
 
-// --- the three test files, registered here (see the header) -------------------------------------------------
+// --- the four test files, registered here (see the header) --------------------------------------------------
 import "../../../supabase/functions/_shared/mail-taxonomy.test"
 import "../../../supabase/functions/dpdp-inbound-mail/classify.test"
 import "../../../supabase/functions/dpdp-inbound-mail/handler.test"
+import "../../../supabase/functions/dpdp-inbound-mail/resend-inbound.test"
 
 import { classify } from "../../../supabase/functions/dpdp-inbound-mail/classify"
 import { DEFAULT_LEGAL_RESPONSE_DAYS } from "../../../supabase/functions/dpdp-inbound-mail/handler"

@@ -19,12 +19,13 @@
 //      duplicate or a refused insert consumes no number;
 //   4. dpdp_mail_insert_inbound stores every column it is given (re-read), computes due_at from the caller's day count, truncates to the
 //      column caps, tolerates a blank sender and a malformed ref, refuses an unknown class and an absurd day count, and is idempotent per
-//      (sender, Message-ID) case-insensitively while a different sender or a missing Message-ID gets its own ticket;
+//      (sender, Message-ID, content) case-insensitively while a different sender or a missing Message-ID gets its own ticket, and the
+//      same sender's same Message-ID with a DIFFERENT subject or excerpt is a new ticket, noted, whose own retry is a duplicate of it;
 //   5. ackDue: true only when wanted, not yet sent, fewer than 3 acknowledgements went to that sender in the last 24 hours AND fewer
 //      than 30 went to anyone in the last hour (ackLimit says which limit held it back; the ticket is still created either way);
 //      mark_ack / mark_notified set their time once, mark_ack moves open -> acknowledged and never reopens a closed ticket;
-//      dpdp_mail_close closes a ticket once (time and note set by the first call), is idempotent, never reopens, refuses every role
-//      but service_role and reports an unknown ticket;
+//      dpdp_mail_close closes a ticket once (FIRST CALL WINS: the time is the first call's; the note is the first non-blank one, and a
+//      later call may add a note only when none was stored), never reopens, refuses every role but service_role and reports an unknown ticket;
 //   6. dpdp_mail_log_outbound / dpdp_mail_lookup_outbound: normalised ids, a second call fills the provider id without erasing anything,
 //      a ref reused for a different class or recipient is refused and the row is unchanged, lookup prefers the ref over a message id and
 //      the newest of several message-id matches, and finds nothing rather than guessing;
@@ -112,7 +113,7 @@ async function execError(sql: string): Promise<{ message: string; code: string }
 
 type Inserted = {
   id: string; ticketNo: string; class: MailClass; status: string; dueAt: string | null; duplicate: boolean; ackDue: boolean
-  ackLimit: "sender" | "hourly" | null; operatorNotified: boolean
+  ackLimit: "sender" | "hourly" | null; operatorNotified: boolean; messageIdReused: boolean
 }
 let seq = 0
 const insert = (over: Record<string, unknown> = {}) =>
@@ -369,8 +370,9 @@ describe("dpdp_mail_insert_inbound", () => {
     expect(new Date(row.received_at as string).toISOString()).toBe("2032-05-04T10:00:00.000Z")
     expect(new Date(row.due_at as string).toISOString()).toBe("2032-08-02T10:00:00.000Z")
     expect(row.created_at).toBeTruthy()
-    expect(Object.keys(res).sort()).toEqual(["ackDue", "ackLimit", "class", "dueAt", "duplicate", "id", "operatorNotified", "status", "ticketNo"])
+    expect(Object.keys(res).sort()).toEqual(["ackDue", "ackLimit", "class", "dueAt", "duplicate", "id", "messageIdReused", "operatorNotified", "status", "ticketNo"])
     expect(res.ackLimit).toBeNull()
+    expect(res.messageIdReused).toBe(false)
   })
 
   test("4b. no day count means no due date; 1 and 3650 days are accepted; 0, -1 and 3651 are refused", async () => {
@@ -414,14 +416,14 @@ describe("dpdp_mail_insert_inbound", () => {
     expect((await inboundRow(nulls.ticketNo)).from_addr).toBe("(unknown sender)")
   })
 
-  test("4f. idempotent per (sender, Message-ID), sender compared case-insensitively; another sender, or no Message-ID, gets a new ticket", async () => {
-    const a = await insert({ p_class: "sales", p_from_addr: "Dup@Example.Test", p_message_id: "<dup@example.test>", p_subject: "first" })
-    const b = await insert({ p_class: "sales", p_from_addr: "dup@example.test", p_message_id: "<dup@example.test>", p_subject: "retry" })
-    expect(b).toMatchObject({ ticketNo: a.ticketNo, id: a.id, duplicate: true })
+  test("4f. idempotent per (sender, Message-ID, content), sender compared case-insensitively; another sender, or no Message-ID, gets a new ticket", async () => {
+    const a = await insert({ p_class: "sales", p_from_addr: "Dup@Example.Test", p_message_id: "<dup@example.test>", p_subject: "first", p_excerpt: "the same words" })
+    const b = await insert({ p_class: "sales", p_from_addr: "dup@example.test", p_message_id: "<dup@example.test>", p_subject: "first", p_excerpt: "the same words" })
+    expect(b).toMatchObject({ ticketNo: a.ticketNo, id: a.id, duplicate: true, messageIdReused: false })
     expect((await inboundRow(a.ticketNo)).subject).toBe("first")
-    // A retry may even arrive classified differently (a rule changed): it is still the same message.
-    const c = await insert({ p_class: "review", p_from_addr: "dup@example.test", p_message_id: "<dup@example.test>" })
-    expect(c).toMatchObject({ ticketNo: a.ticketNo, duplicate: true, class: "sales" })
+    // A retry may even arrive classified differently (a rule changed), or with other bookkeeping: it is still the same message.
+    const c = await insert({ p_class: "review", p_from_addr: "dup@example.test", p_message_id: "<dup@example.test>", p_subject: "first", p_excerpt: "the same words", p_classifier_reason: "other:rule", p_due_days: 30 })
+    expect(c).toMatchObject({ ticketNo: a.ticketNo, duplicate: true, class: "sales", messageIdReused: false })
     const other = await insert({ p_class: "sales", p_from_addr: "other@example.test", p_message_id: "<dup@example.test>" })
     expect(other.duplicate).toBe(false)
     expect(other.ticketNo).not.toBe(a.ticketNo)
@@ -437,6 +439,89 @@ describe("dpdp_mail_insert_inbound", () => {
     expect((await insert({ p_class: "support", p_from_addr: "told@example.test", p_message_id: "<told@example.test>" })).operatorNotified).toBe(false)
     await rpc("dpdp_mail_mark_notified", { p_ticket_no: a.ticketNo })
     expect((await insert({ p_class: "support", p_from_addr: "told@example.test", p_message_id: "<told@example.test>" })).operatorNotified).toBe(true)
+  })
+
+  // Owner decision (2026-09-29): a Message-ID is a claim by the SENDER. Reusing one for a message that says something else must not let a
+  // later request pass as a retry of an earlier, harmless one (a legal request that never got its ticket, clock or acknowledgement).
+  test("4h. the same sender's same Message-ID with DIFFERENT content is a new, noted ticket; a retry of either message is a duplicate of its own ticket", async () => {
+    const from = "reuse@example.test"
+    const mid = "<reuse@example.test>"
+    const one = { p_class: "sales", p_from_addr: from, p_message_id: mid, p_subject: "Pricing", p_excerpt: "how much is it?", p_classifier_reason: 'keyword:sales:"pricing"' }
+    const two = { p_class: "data_request", p_from_addr: "Reuse@Example.Test", p_message_id: mid, p_subject: "Pricing", p_excerpt: "Please delete my data.", p_classifier_reason: 'keyword:data_request:"delete my data"', p_due_days: 90, p_wants_ack: true }
+    const first = await insert(one)
+    expect(first).toMatchObject({ duplicate: false, messageIdReused: false })
+    const second = await insert(two)
+    expect(second).toMatchObject({ duplicate: false, messageIdReused: true, class: "data_request", ackDue: true })
+    expect(second.ticketNo).not.toBe(first.ticketNo)
+    expect(second.dueAt).toBeTruthy()
+
+    // re-read both rows: the second is a real ticket of its own, the first is untouched
+    const row2 = await inboundRow(second.ticketNo)
+    expect(row2).toMatchObject({ class: "data_request", subject: "Pricing", excerpt: "Please delete my data.", status: "open" })
+    expect(row2.classifier_reason).toBe('keyword:data_request:"delete my data"; same Message-ID, different content')
+    expect(row2.message_id).toMatch(/^<reuse@example\.test>#[0-9a-f]{32}$/)
+    expect(row2.due_at).toBeTruthy()
+    expect(await inboundRow(first.ticketNo)).toMatchObject({ class: "sales", message_id: mid, excerpt: "how much is it?", classifier_reason: 'keyword:sales:"pricing"', due_at: null })
+
+    // a retry of either one is a duplicate of ITS OWN ticket, and nothing new is created
+    const retry1 = await insert(one)
+    const retry2 = await insert(two)
+    expect(retry1).toMatchObject({ ticketNo: first.ticketNo, duplicate: true, messageIdReused: false })
+    expect(retry2).toMatchObject({ ticketNo: second.ticketNo, duplicate: true, messageIdReused: false, class: "data_request" })
+    expect(await scalar("count(*) from dpdp.mail_inbound where lower(from_addr) = 'reuse@example.test'")).toBe("2")
+
+    // a third, different message under the same id is a third ticket
+    const third = await insert({ ...one, p_excerpt: "and a third thing" })
+    expect(third).toMatchObject({ duplicate: false, messageIdReused: true })
+    expect(new Set([first.ticketNo, second.ticketNo, third.ticketNo]).size).toBe(3)
+    expect((await inboundRow(third.ticketNo)).classifier_reason).toBe('keyword:sales:"pricing"; same Message-ID, different content')
+
+    // exactly one ticket number per distinct message: no gap left by a retry
+    const n = (t: string) => Number(t.split("-")[2])
+    const next = await insert({ p_class: "data_request" })
+    expect(n(next.ticketNo)).toBe(n(second.ticketNo) + 1)
+  })
+
+  test("4i. a different subject alone, or a different excerpt alone, is different content; only a truncated-equal excerpt is the same", async () => {
+    const base = { p_class: "support", p_from_addr: "content@example.test", p_message_id: "<content@example.test>", p_subject: "Help", p_excerpt: "e".repeat(5000) }
+    const a = await insert(base)
+    expect((await insert({ ...base, p_subject: "Help please" })).messageIdReused).toBe(true)
+    expect((await insert({ ...base, p_excerpt: "f".repeat(5000) })).messageIdReused).toBe(true)
+    // the stored excerpt is cut at 4096 (and the subject at 500), so text that differs only beyond the cut is the same message
+    const beyond = await insert({ ...base, p_excerpt: "e".repeat(4096) + "z".repeat(904) })
+    expect(beyond).toMatchObject({ ticketNo: a.ticketNo, duplicate: true, messageIdReused: false })
+    const long = { ...base, p_message_id: "<content2@example.test>", p_subject: "s".repeat(700) }
+    const b = await insert(long)
+    expect(await insert({ ...long, p_subject: "s".repeat(500) + "t".repeat(200) })).toMatchObject({ ticketNo: b.ticketNo, duplicate: true })
+    // null is not the empty string: a message with no excerpt and one with an empty excerpt are different content
+    const n1 = await insert({ p_class: "support", p_from_addr: "nulls@example.test", p_message_id: "<n@example.test>", p_subject: "x", p_excerpt: null })
+    expect(await insert({ p_class: "support", p_from_addr: "nulls@example.test", p_message_id: "<n@example.test>", p_subject: "x", p_excerpt: null })).toMatchObject({ ticketNo: n1.ticketNo, duplicate: true })
+    expect((await insert({ p_class: "support", p_from_addr: "nulls@example.test", p_message_id: "<n@example.test>", p_subject: "x", p_excerpt: "" })).messageIdReused).toBe(true)
+  })
+
+  test("4j. the note survives a long or missing classifier reason: 500 characters at most, the note always last; a reason of 460+ characters loses its tail, not the note", async () => {
+    const note = "same Message-ID, different content"
+    const mid = "<longreason@example.test>"
+    await insert({ p_class: "review", p_from_addr: "lr@example.test", p_message_id: mid, p_subject: "one", p_classifier_reason: null })
+    const noReason = await insert({ p_class: "review", p_from_addr: "lr@example.test", p_message_id: mid, p_subject: "two", p_classifier_reason: null })
+    expect((await inboundRow(noReason.ticketNo)).classifier_reason).toBe(note)
+    const long = await insert({ p_class: "review", p_from_addr: "lr@example.test", p_message_id: mid, p_subject: "three", p_classifier_reason: "r".repeat(600) })
+    const reason = (await inboundRow(long.ticketNo)).classifier_reason as string
+    expect(reason.length).toBeLessThanOrEqual(500)
+    expect(reason.endsWith(`; ${note}`)).toBe(true)
+    expect(reason.startsWith("r".repeat(460))).toBe(true)
+  })
+
+  test("4k. the acknowledgement brakes still apply to the new ticket of a reused Message-ID", async () => {
+    const from = "brake@example.test"
+    for (let i = 0; i < 3; i++) {
+      const t = await insert({ p_class: "grievance", p_from_addr: from, p_message_id: null, p_wants_ack: true })
+      await rpc("dpdp_mail_mark_ack", { p_ticket_no: t.ticketNo })
+    }
+    const original = await insert({ p_class: "grievance", p_from_addr: from, p_message_id: "<brake@example.test>", p_subject: "a" })
+    const reused = await insert({ p_class: "grievance", p_from_addr: from, p_message_id: "<brake@example.test>", p_subject: "b", p_wants_ack: true })
+    expect(original.messageIdReused).toBe(false)
+    expect(reused).toMatchObject({ messageIdReused: true, duplicate: false, ackDue: false, ackLimit: "sender" })
   })
 })
 
@@ -584,6 +669,25 @@ describe("dpdp_mail_close", () => {
     expect(again).toMatchObject({ ok: true, status: "closed", alreadyClosed: true })
     expect(third).toMatchObject({ ok: true, alreadyClosed: true })
     expect(await inboundRow(t.ticketNo)).toEqual(before)
+  })
+
+  test("5g2. FIRST CALL WINS: a later call may ADD a note only when none was stored; once a note is stored no later call changes it, and the time never moves", async () => {
+    const t = await insert({ p_from_addr: "close2b@example.test" })
+    await close(t.ticketNo)
+    const first = await inboundRow(t.ticketNo)
+    expect(first.closed_note).toBeNull()
+    await pg.exec("SELECT pg_sleep(0.05)")
+    const blank = await close(t.ticketNo, "   ")
+    expect(blank).toMatchObject({ ok: true, alreadyClosed: true })
+    expect((await inboundRow(t.ticketNo)).closed_note).toBeNull()
+    const added = await close(t.ticketNo, "  Answered by phone.  ")
+    expect(added).toMatchObject({ ok: true, alreadyClosed: true })
+    const withNote = await inboundRow(t.ticketNo)
+    expect(withNote.closed_note).toBe("Answered by phone.")
+    expect(new Date(withNote.closed_at as string).getTime()).toBe(new Date(first.closed_at as string).getTime())
+    await close(t.ticketNo, "A different note")
+    await close(t.ticketNo)
+    expect(await inboundRow(t.ticketNo)).toEqual(withNote)
   })
 
   test("5h. no note, a blank note and a note over 1000 characters: null, null, cut to 1000", async () => {

@@ -8,31 +8,43 @@
 //
 //   0. self     the sender is our own mailbox -> auto (loop guard: an operator
 //               address that is itself dpdp@ would otherwise notify itself forever).
-//   1. machine  MACHINE-ONLY signals: a MAILER-DAEMON / postmaster sender, an empty
-//               Return-Path, a delivery-status / multipart-report / disposition-
-//               notification content type -> auto. Evaluated BEFORE the plus-tag and
-//               NEVER escalated: a bounce that quotes our mail (or a person's words
-//               inside it) is a bounce.
-//   2. headers  HEADER-BASED auto signals: Auto-Submitted other than "no", X-Autoreply
+//   1. machine  MACHINE-ONLY signals -> auto. A delivery-status / multipart-report /
+//               disposition-notification content type is one on its own. A MAILER-DAEMON /
+//               postmaster SENDER is one only TOGETHER WITH a second signal (such a content
+//               type, an empty Return-Path / envelope sender, Auto-Submitted, or an
+//               auto-reply / bounce style subject at the START of the subject): a mailbox
+//               NAME is not evidence, postmaster@ is a real, human-read address at a small
+//               firm, and a plain text mail from it that asks for something is an ordinary
+//               mail and is classified as one. An empty Return-Path / envelope sender is
+//               machine-only only together with a delivery-status content type or such a
+//               sender; on its own it is a HEADER-BASED signal (below). Evaluated BEFORE the
+//               plus-tag and NEVER escalated: a bounce that quotes our mail (or a person's
+//               words inside it) is a bounce.
+//   2. headers  HEADER-BASED auto signals: an empty Return-Path / envelope sender on its own,
+//               Auto-Submitted other than "no", X-Autoreply
 //               (and X-Autorespond), Precedence bulk / auto_reply / junk, an "out of
-//               office" / "automatic reply" style subject, and our own X-Veridian-Origin
+//               office" / "automatic reply" style subject (at the START of the subject
+//               only: behind Re: / Fwd: / an optional [tag]), and our own X-Veridian-Origin
 //               header but ONLY when a thread match corroborates it (anyone can type that
 //               header, so on its own it means nothing). Evaluated BEFORE the plus-tag,
 //               so a vacation reply to the Monday digest (which arrives at dpdp+mon.<ref>@)
 //               is auto and stops notifying the operator every Monday. These headers are
 //               chosen by the SENDER, though, so they cannot hide a legal request: if the
 //               unquoted text carries a data_request or grievance keyword the message is
-//               ESCALATED (below) instead of being filed as auto.
+//               ESCALATED (below) instead of being filed as auto. So is a message the
+//               Worker cut short whose readable text is too short to tell (truncated, below).
 //               One exception, on purpose: when the tag names a legal-clock class
 //               (grv / dsr / rev) and the message is NOT a reply to one of our own
-//               acknowledgements (an outbound row with a ticket number, or of a legal-clock
-//               class), the sender addressed a legal channel deliberately (the legacy
-//               grievance@ alias is rewritten to dpdp+grv@; the List-Unsubscribe mailto of
-//               a digest is dpdp+dsr.<ref>@, whose ref matches the MONDAY row), so the
-//               header does not divert it to auto; it is filed under the tag, the operator
-//               is told, and no acknowledgement is sent to a message that carries auto-mail
-//               headers. A reply to our own acknowledgement IS diverted: that is the
-//               auto-responder loop.
+//               acknowledgements (a matched outbound row that carries a ticket number: only
+//               an acknowledgement does), the sender addressed a legal channel deliberately
+//               (the legacy grievance@ alias is rewritten to dpdp+grv@; the List-Unsubscribe
+//               mailto of a digest is dpdp+dsr.<ref>@, whose ref matches the MONDAY row), so
+//               the header does not divert it to auto: it is filed under the tag, ticketed,
+//               the operator is told AND the sender is acknowledged (autoHeadersIgnored; the
+//               per-sender and hourly caps in dpdp_mail_insert_inbound still apply). A reply
+//               to our own acknowledgement IS diverted: that is the auto-responder loop, and
+//               the only one there is. An earlier outbound message of any OTHER kind (a
+//               digest, a statutory notice, an invoice) does not stop the tag standing alone.
 //   a. tag      the recipient's plus-tag names a class (highest confidence). A
 //               `sal` tag on a message that answers something we sent is the
 //               sales_chain class, not sales. An `aut` tag is IGNORED: anyone can
@@ -67,7 +79,9 @@
 // the quote (everything is quoted, or sits below an "On ... wrote:" line: a reply typed BELOW the original, as
 // Thunderbird does by default, or interleaved with it), the message is not read, so it cannot be told from an empty
 // reply; it becomes `review` (nothingAboveTheQuote), never the class of its tag. The same goes for a reply written in a
-// script the keyword rules have no words for (Bengali to Sinhala, Arabic / Urdu; UNREAD_SCRIPT): a person reads it.
+// script the keyword rules have no words for (Bengali to Sinhala, Arabic / Urdu; UNREAD_SCRIPT): a person reads it. And for
+// a message the Worker cut short (`truncated`) that leaves fewer than TRUNCATED_MIN_LETTERS readable letters of the
+// person's own text (or none): what was cut off may be the request, so it is `review` too (truncatedUnreadable).
 //
 // SAFETY RULE: nothing is silently dropped or demoted. `review` is a legal-clock class,
 // acknowledged and always notified; `auto` is the only class logged without a notice, so
@@ -103,6 +117,13 @@ export type ClassifyInput = {
   headers: Record<string, string>
   contentType?: string
   outbound?: OutboundMatch | null
+  /** The Worker read only part of a large message, so `text` may be incomplete (payload `truncated`). */
+  truncated?: boolean
+  /**
+   * The SMTP envelope sender was present and EMPTY (a null reverse-path, MAIL FROM:<>): what a mail system that must not be answered
+   * uses. The same fact as a `Return-Path: <>` header, for a transport that only reports the envelope; on its own a header-based signal.
+   */
+  nullSender?: boolean
 }
 
 export type ClassificationRule = "self" | "tag" | "thread" | "auto" | "keyword" | "escalation" | "default"
@@ -117,8 +138,8 @@ export type Classification = {
   tagRef: string | null
   /**
    * Every auto-mail signal present, machine-only and header-based, whatever class was chosen. Non-empty => never
-   * acknowledge, EXCEPT when `escalatedFrom` is set (a legal request is acknowledged whatever headers it carries;
-   * ackBlocker in handler.ts still refuses a header-flagged reply to our own acknowledgement).
+   * acknowledge, EXCEPT when `escalatedFrom` is set or `autoHeadersIgnored` is true (a legal request is acknowledged
+   * whatever headers it carries; ackBlocker in handler.ts still refuses a header-flagged reply to our own acknowledgement).
    */
   autoSignals: string[]
   /** A machine-only signal (a bounce, a delivery report) was present. Such a message is never escalated. (Named for the old "strong signal" it replaces.) */
@@ -128,16 +149,39 @@ export type Classification = {
    * signal had chosen first ("auto" for a header-based auto signal). null otherwise.
    */
   escalatedFrom: MailClass | null
+  /**
+   * True when header-based auto signals were present but a legal-clock TAG (grv / dsr / rev) that is not a reply to one of our own
+   * acknowledgements stood alone against them: the message is a real, ticketed legal channel and IS acknowledged (ackBlocker in
+   * handler.ts reads this). False whenever the headers were not overridden.
+   */
+  autoHeadersIgnored: boolean
 }
 
 // ---------------------------------------------------------------------------
 // Small parsers (exported: the handler and the tests use them).
 // ---------------------------------------------------------------------------
 
-/** "Asha <Asha@Example.org>" -> "asha@example.org"; "" when there is no address. */
+/**
+ * "Asha <Asha@Example.org>" -> "asha@example.org"; "" when there is no address.
+ *
+ * The address is the LAST `<...>` group: RFC 5322 puts the angle-addr after the display name, and a display name can hold angle brackets
+ * of its own inside quotes (`"x <victim@example.com>" <attacker@evil.example>`), so the first group would name a third party who
+ * would then receive our acknowledgement (review of 2026-09-30). Quotes and trailing commas are trimmed by hand: the regular
+ * expression this replaces (`["',;]+$`) was quadratic over a long run of commas.
+ */
 export function bareAddress(value: string): string {
-  const angle = /<([^<>]*)>/.exec(value)
-  const raw = (angle ? angle[1] : value).trim().replace(/^["']+|["',;]+$/g, "").toLowerCase()
+  let angle: RegExpExecArray | null = null
+  for (const re = /<([^<>]*)>/g; ; ) {
+    const m = re.exec(value)
+    if (!m) break
+    angle = m
+  }
+  const s = (angle ? angle[1] : value).trim()
+  let a = 0
+  let b = s.length
+  while (a < b && (s[a] === '"' || s[a] === "'")) a++
+  while (b > a && (s[b - 1] === '"' || s[b - 1] === "'" || s[b - 1] === "," || s[b - 1] === ";")) b--
+  const raw = s.slice(a, b).toLowerCase()
   return raw.includes("@") && !/\s/.test(raw) ? raw : ""
 }
 
@@ -169,8 +213,25 @@ export function extractMessageIds(values: Array<string | null | undefined>, max 
  * itself is dropped, so a person's own text on other lines is still read.
  */
 const OWN_BOILERPLATE: readonly RegExp[] = [
-  /stop these weekly emails/i,
+  // The unsubscribe footer, recognised by its TEMPLATE shape (text: "Stop these weekly emails (statutory notices continue): <url>"; HTML:
+  // "Stop these weekly emails — you will still get statutory notices."), NOT by the bare words: "Please stop these weekly emails" typed
+  // by a person is a withdrawal, and dropping that line hid it (found in the review of 2026-09-29, second pass: filed as a Monday reply).
+  /stop these weekly emails\s*(?:\(statutory notices continue\)\s*:|[—-]\s*you will still get statutory notices)/i,
   /this is a statutory notice; it is sent even if you have stopped/i,
+  // The Monday digest's own sentences (render.ts renderDigest): the urgency opener and the intro that ends "nothing here needs you unless it is
+  // escalated to you below" (the word a grievance rule reads), the "ESCALATED TO YOU AS OWNER (n)" heading and the "... escalates twice as fast"
+  // clauses under a late job. Job TITLES are the organisation's own data and cannot be recognised; the drift test uses neutral ones.
+  /dpdp is the law, and the penalties for getting it wrong are steep/i,
+  /nothing here needs you unless it is escalated to you below/i,
+  /so this only lists what today's law already requires of you/i,
+  /^escalated to you as (?:owner|dpdp coordinator)\s*\(\d+\)\s*$/i,
+  /\bescalates twice as fast\b/i,
+  // The two clock notices (renderLeakClock / renderRightsClock): "Still to do: tell the Data Protection Board and ...", the rights notice's
+  // "A erasure request (RR-7) received on 2026-07-01 has not been answered" (the kind is the word a data_request rule reads). Anchored to the
+  // template so a person's own "I will tell the Data Protection Board" is still read. (The closing "this notice repeats daily until it is"
+  // has no word a rule reads, so it is deliberately NOT listed: every pattern here is a way to hide a line, and none is added for nothing.)
+  /\bstill to do:\s*tell the /i,
+  /^a\s+[a-z][a-z -]{0,40}\s+request\s+\([^)]{1,60}\)\s+received on\s+\d{4}-\d{2}-\d{2}\s+has not been answered/i,
   /for india, by india|built for india's dpdp act/i,
   /one portal\.\s*one truth\./i,
   /know a firm that needs this|bring a colleague onto your team/i,
@@ -233,43 +294,54 @@ function headerValue(headers: Record<string, string>, name: string): string | un
 const AUTO_SENDER_LOCALS = new Set(["mailer-daemon", "postmaster"])
 
 // An auto-reply or bounce subject names itself at the START ("Automatic reply: ...", "Out of Office: ...", "Undeliverable: ...",
-// "Delivery Status Notification (Failure)"), possibly behind Re: / Fwd: / AW:. Anchored on purpose: the same words in the MIDDLE of
-// a person's subject ("Undelivered invoice - not received", "Support needed out of office hours", "Do you support auto-reply
-// templates?") are ordinary mail, and the subject is the one header a human types, so an unanchored match filed real enquiries as
-// `auto` (logged, nobody told) on the strength of three words (found in the review of the classifier, 2026-09-29).
+// "Delivery Status Notification (Failure)"), possibly behind Re: / Fwd: / AW: and a mail gateway's own "[External]"-style tag.
+// Anchored on purpose: the same words in the MIDDLE of a person's subject ("Undelivered invoice - not received", "Support needed out
+// of office hours", "Do you support auto-reply templates?") are ordinary mail, and the subject is the one header a human types, so an
+// unanchored match filed real enquiries as `auto` (logged, nobody told) on the strength of three words (found in the review of the
+// classifier, 2026-09-29). "Out of office hours ..." at the start is a person asking about opening hours, not a vacation reply.
 const AUTO_SUBJECT =
-  /^[\s[(*]*(?:(?:re|fwd?|aw|wg|sv|antw)\s*:\s*)*(?:out[\s-]of[\s-](?:the[\s-])?office|automatic(?:ally)?\s+repl(?:y|ies)|auto[\s-]?repl(?:y|ies)|autoreply|undeliver(?:able|ed\s+mail)|delivery\s+(?:status\s+notification|failure|has\s+failed)|mail\s+delivery\s+(?:failed|subsystem)|returned\s+mail|failure\s+notice|away\s+from\s+(?:the\s+)?office|automatische\s+antwort|abwesenheit|r[ée]ponse\s+automatique|respuesta\s+autom[aá]tica|risposta\s+automatica)\b/i
+  /^[\s[(*]*(?:(?:(?:re|fwd?|aw|wg|sv|antw)\s*:|\[[^\]\n]{1,60}\])\s*)*(?:out[\s-]of[\s-](?:the[\s-])?office(?!\s+hours?\b)|automatic(?:ally)?\s+reply|auto[\s-]?reply|undeliver(?:able|ed\s+mail)|delivery\s+(?:status\s+notification|failure|has\s+failed)|mail\s+delivery\s+(?:failed|subsystem)|returned\s+mail|failure\s+notice|away\s+from\s+(?:the\s+)?office|automatische\s+antwort|abwesenheit|r[ée]ponse\s+automatique|respuesta\s+autom[aá]tica|risposta\s+automatica)\b/i
 
 /**
  * `machine`: signals only a mail system produces (a bounce or delivery report). `header`: signals the SENDER chooses,
  * so a person can type them on a real request; see the header comment for why these escalate and `machine` does not.
  * `threadMatched` is true when the caller found an outbound message of ours that this one answers; only then does
  * our own X-Veridian-Origin header count.
+ *
+ * What is machine-only and what is not (owner decision, 2026-09-29): a delivery-status content type is machine-only on its own. A
+ * postmaster / mailer-daemon sender is machine-only ONLY together with a second signal (that content type, an empty Return-Path or
+ * envelope sender, Auto-Submitted, or an auto-reply / bounce style subject), and alone it is no signal at all. An empty Return-Path
+ * is machine-only together with a delivery-status content type or such a sender, and on its own a header-based signal. Auto-Submitted
+ * and the subject stay header-based in the list even when they are the second signal that confirms a sender.
  */
 export function autoSignals(
-  input: Pick<ClassifyInput, "senders" | "subject" | "headers" | "contentType"> & { threadMatched?: boolean },
+  input: Pick<ClassifyInput, "senders" | "subject" | "headers" | "contentType" | "nullSender"> & { threadMatched?: boolean },
 ): { machine: string[]; header: string[] } {
   const machine: string[] = []
   const header: string[] = []
   const h = input.headers
 
-  for (const s of input.senders) {
-    const local = bareAddress(s).split("@")[0]
-    if (AUTO_SENDER_LOCALS.has(local)) { machine.push(`sender ${local}`); break }
-  }
+  const daemonLocal = input.senders.map((s) => bareAddress(s).split("@")[0]).find((local) => AUTO_SENDER_LOCALS.has(local))
 
   const returnPath = headerValue(h, "return-path")
-  if (returnPath !== undefined && returnPath.trim().replace(/\s+/g, "") === "<>") machine.push("empty Return-Path")
+  const nullSender = input.nullSender === true || (returnPath !== undefined && returnPath.trim().replace(/\s+/g, "") === "<>")
 
   const contentType = (input.contentType ?? headerValue(h, "content-type") ?? "").toLowerCase()
-  if (/multipart\/report|message\/delivery-status|message\/disposition-notification/.test(contentType)) machine.push("delivery-status content type")
+  const deliveryStatus = /multipart\/report|message\/delivery-status|message\/disposition-notification/.test(contentType)
 
   // "Auto-Submitted != no", as specified: a present header whose first token is anything but "no" (an empty value included) is auto.
   const autoSubmitted = headerValue(h, "auto-submitted")
-  if (autoSubmitted !== undefined) {
-    const token = autoSubmitted.trim().toLowerCase().split(/[;\s]/)[0]
-    if (token !== "no") header.push(`Auto-Submitted=${token || "(empty)"}`)
-  }
+  const autoSubmittedToken = autoSubmitted === undefined ? null : autoSubmitted.trim().toLowerCase().split(/[;\s]/)[0]
+  const autoSubmittedSignal = autoSubmittedToken !== null && autoSubmittedToken !== "no"
+
+  const autoSubject = AUTO_SUBJECT.test(input.subject)
+
+  const daemon = daemonLocal !== undefined && (deliveryStatus || nullSender || autoSubmittedSignal || autoSubject)
+  if (daemon) machine.push(`sender ${daemonLocal}`)
+  if (nullSender) (daemon || deliveryStatus ? machine : header).push("empty Return-Path")
+  if (deliveryStatus) machine.push("delivery-status content type")
+
+  if (autoSubmittedSignal) header.push(`Auto-Submitted=${autoSubmittedToken || "(empty)"}`)
 
   for (const name of ["x-autoreply", "x-autorespond", "x-auto-reply"]) {
     if (headerValue(h, name) !== undefined) { header.push(name); break }
@@ -278,7 +350,7 @@ export function autoSignals(
   const precedence = headerValue(h, "precedence")?.trim().toLowerCase()
   if (precedence === "auto_reply" || precedence === "auto-reply" || precedence === "autoreply" || precedence === "bulk" || precedence === "junk") header.push(`Precedence=${precedence}`)
 
-  if (AUTO_SUBJECT.test(input.subject)) header.push("auto-reply style subject")
+  if (autoSubject) header.push("auto-reply style subject")
 
   // Our own header counts only when a message of ours is really being answered: without that, it is a header anyone can add.
   if (headerValue(h, "x-veridian-origin") !== undefined && input.threadMatched === true) header.push("x-veridian-origin (our own automatic mail, thread matched)")
@@ -559,11 +631,30 @@ const KEYWORD_RULES: ReadonlyArray<{ cls: MailClass; re: RegExp }> = [
   },
 ]
 
+/**
+ * A statement that there is NO complaint: "no complaints", "not a complaint", "nothing to complain about", "without any complaint".
+ * The grievance rule reads the stem `complain`, which these contain, so a satisfied "No complaints from our side, thanks" was raised
+ * to a grievance (a ticket, a due date, an acknowledgement, all for a thank-you). Only the negated PHRASE is blanked, so a second,
+ * real "I do have a complaint" in the same message still matches. Narrow on purpose: "no complaint redressal / handling / officer /
+ * mechanism" is a complaint ABOUT the missing channel and is left alone, and only complaints are guarded (not "no breach", "no
+ * response"), because those are the very words a person uses to report a failure. Runs on the lower-cased, apostrophe-normalised text.
+ */
+const NEGATED_COMPLAINT = new RegExp(
+  [
+    "\\bno\\s+(?:further\\s+|more\\s+|other\\s+|formal\\s+|major\\s+|pending\\s+)?complaints?\\b(?!\\s+(?:redress|handling|mechanism|officer|process|procedure|channel|address|resolution|has\\s+been|was|were))",
+    "(?:\\bnot|n't)\\s+(?:a|any|my)\\s+complaint\\b",
+    "(?:\\bnot|n't)\\s+complaining\\b",
+    "\\bnothing\\s+to\\s+complain\\b",
+    "\\bwithout\\s+(?:any\\s+)?complaints?\\b",
+  ].join("|"),
+  "g",
+)
+
 function keywordHaystack(subject: string, text: string): string {
   const body = stripQuoted(text).slice(0, KEYWORD_WINDOW_CHARS)
   // Typographic apostrophes become the plain one: an iPhone or an Android keyboard types "don’t" (U+2019) by default, which
   // the `don'?t` rules would otherwise never match (found in the review of the hardening pass, 2026-09-29).
-  return `${subject}\n${body}`.normalize("NFKC").toLowerCase().replace(/[\u2018\u2019\u201b\u2032\u02bc`]/g, "'")
+  return `${subject}\n${body}`.normalize("NFKC").toLowerCase().replace(/[\u2018\u2019\u201b\u2032\u02bc`]/g, "'").replace(NEGATED_COMPLAINT, " ")
 }
 
 /**
@@ -648,6 +739,25 @@ export function nothingAboveTheQuote(text: string): boolean {
   return HAS_CONTENT.test(text) && !HAS_CONTENT.test(stripQuoted(text))
 }
 
+/** A message the Worker cut short with fewer readable letters than this in the person's OWN text is not read (truncatedUnreadable). */
+export const TRUNCATED_MIN_LETTERS = 20
+
+/** Letters (and the combining marks Indic scripts write vowels with) in what the person wrote, quotes and our own boilerplate removed. */
+export function readableLetters(text: string): number {
+  return (stripQuoted(text).match(/[\p{L}\p{M}]/gu) ?? []).length
+}
+
+/**
+ * True when the Worker read only part of the message (`truncated`) and what it did read holds too little of the person's own text
+ * (none, or fewer than TRUNCATED_MIN_LETTERS letters) to tell what they want: the request may be exactly what was cut off. Such a
+ * message is `review`, never the class of its tag and never `auto`. A truncated message with real text is read as usual.
+ */
+export function truncatedUnreadable(input: Pick<ClassifyInput, "truncated" | "text">): boolean {
+  return input.truncated === true && readableLetters(input.text) < TRUNCATED_MIN_LETTERS
+}
+
+const TRUNCATED_REASON = "the message was cut short and too little of the person's own text was read to classify it"
+
 /**
  * Raises a non-legal class to data_request / grievance when the person's own words ask for one, and to `review` when there
  * are no words of theirs to read (nothingAboveTheQuote). Legal classes and auto pass through.
@@ -658,6 +768,9 @@ function escalate(c: Classification, input: ClassifyInput): Classification {
   if (!hit) {
     if (nothingAboveTheQuote(input.text)) {
       return { ...c, cls: "review", rule: "escalation", confidence: "low", escalatedFrom: c.cls, reason: `${c.reason}; nothing above the quoted original (a reply typed below it cannot be read safely)` }
+    }
+    if (truncatedUnreadable(input)) {
+      return { ...c, cls: "review", rule: "escalation", confidence: "low", escalatedFrom: c.cls, reason: `${c.reason}; ${TRUNCATED_REASON}` }
     }
     // The person wrote in a script the keyword rules cannot read (Tamil, Bengali, Gujarati, Urdu ...): a data request in it would
     // stay under the class of its tag, so a person reads it instead.
@@ -671,11 +784,11 @@ function escalate(c: Classification, input: ClassifyInput): Classification {
 
 export function classify(input: ClassifyInput): Classification {
   const senders = input.senders.map(bareAddress).filter(Boolean)
-  const sig = autoSignals({ senders, subject: input.subject, headers: input.headers, contentType: input.contentType, threadMatched: input.outbound != null })
+  const sig = autoSignals({ senders, subject: input.subject, headers: input.headers, contentType: input.contentType, nullSender: input.nullSender, threadMatched: input.outbound != null })
   const signals = [...sig.machine, ...sig.header]
 
   const { cls: tagCls, ref: tagRef } = readTag(input.recipients)
-  const base = { tagRef, autoSignals: signals, strongAuto: sig.machine.length > 0, escalatedFrom: null as MailClass | null }
+  const base = { tagRef, autoSignals: signals, strongAuto: sig.machine.length > 0, escalatedFrom: null as MailClass | null, autoHeadersIgnored: false }
   const outbound = input.outbound && input.outbound.cls !== "auto" ? input.outbound : null
   const note = tagCls === "auto" ? "; ignored auto tag" : ""
 
@@ -690,23 +803,30 @@ export function classify(input: ClassifyInput): Classification {
   }
 
   // 2. header-based auto signals, before the tag: a vacation reply to the Monday digest is auto. The sender chose these
-  //    headers, so a legal request in the text still wins (escalation). A deliberate legal tag with no earlier message of
-  //    ours behind it is not diverted (see the header comment).
-  // What is NOT let through is a reply to one of our own ACKNOWLEDGEMENTS (an outbound row with a ticket number, or of a
-  // legal-clock class, which only acknowledgements are): that is the auto-responder loop. A legal tag on a reply to any
-  // OTHER message of ours is the List-Unsubscribe mailto of a digest or a notice (dpdp+dsr.<ref>@, same ref as the Monday
-  // row): an automatic unsubscribe from a mail client, which may well carry Auto-Submitted / Precedence and no words at
-  // all, and must not be filed as `auto` (found in the review of the classifier, 2026-09-29: it was, silently).
-  const answersOurAcknowledgement = outbound !== null && (Boolean(outbound.ticketNo) || LEGAL_CLOCK_CLASSES.includes(outbound.cls))
+  //    headers, so a legal request in the text still wins (escalation), and so does a message too short to read after the
+  //    Worker cut it. A deliberate legal tag that is not a reply to our own acknowledgement is not diverted (see the header comment).
+  // What is NOT let through is a reply to one of our own ACKNOWLEDGEMENTS: an outbound row with a ticket number, which only an
+  // acknowledgement has. That is the auto-responder loop, and the only one. A legal tag on a reply to any OTHER message of ours (a
+  // digest, a statutory notice, an invoice) is the List-Unsubscribe mailto of a digest or a notice (dpdp+dsr.<ref>@, same ref as the
+  // Monday row): an automatic unsubscribe from a mail client, which may well carry Auto-Submitted / Precedence and no words at all,
+  // and must not be filed as `auto` (found in the review of the classifier, 2026-09-29: it was, silently) nor left unanswered
+  // (owner decision, same day: ticketed, the operator told AND the sender acknowledged; the caps in dpdp_mail_insert_inbound bound it).
+  // Read from input.outbound, not the filtered `outbound`: whatever class the matched row has, a ticket number makes it an acknowledgement.
+  const answersOurAcknowledgement = Boolean(input.outbound?.ticketNo)
   const legalTagStandsAlone = tagCls !== null && LEGAL_CLOCK_CLASSES.includes(tagCls) && !answersOurAcknowledgement
   if (sig.header.length > 0 && !legalTagStandsAlone) {
     const hit = matchEscalation(input.subject, input.text)
     if (hit) {
       return { ...base, cls: hit.cls, rule: "escalation", confidence: "medium", escalatedFrom: "auto", reason: `auto:${sig.header.join(", ")}; escalated keyword:${hit.cls}:"${hit.phrase}"${note}` }
     }
+    if (truncatedUnreadable(input)) {
+      return { ...base, cls: "review", rule: "escalation", confidence: "low", escalatedFrom: "auto", reason: `auto:${sig.header.join(", ")}; ${TRUNCATED_REASON}${note}` }
+    }
     return { ...base, cls: "auto", rule: "auto", confidence: "medium", reason: `auto:${sig.header.join(", ")}${note}` }
   }
+  // From here on a header signal can only be one a legal tag stood alone against (a non-legal tag, or no tag, was diverted above).
   const legalTagNote = sig.header.length > 0 ? `; auto-mail headers ignored for a legal tag that is not a reply to our own acknowledgement (${sig.header.join(", ")})` : ""
+  base.autoHeadersIgnored = sig.header.length > 0
 
   // a. tag
   if (tagCls && tagCls !== "auto") {

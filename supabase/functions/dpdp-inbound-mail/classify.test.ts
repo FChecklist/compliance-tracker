@@ -9,9 +9,9 @@
 // found by a bare `bun test`; name it): bun test --isolate supabase/functions/dpdp-inbound-mail/classify.test.ts
 import { describe, expect, test } from "bun:test"
 import { LEGAL_CLOCK_CLASSES, MAIL_CLASSES, MAILBOX, replyToAddress, type MailClass } from "../_shared/mail-taxonomy.ts"
-import { renderDigest, renderLeakClock, renderRightsClock, type Digest, type RenderLinks } from "../dpdp-monday-email/render.ts"
+import { renderDigest, renderLeakClock, renderRightsClock, type Digest, type DigestJob, type Rendered, type RenderLinks } from "../dpdp-monday-email/render.ts"
 import {
-  autoSignals, bareAddress, classify, extractMessageIds, matchEscalation, matchKeywords, normalizeMessageId, nothingAboveTheQuote, stripQuoted,
+  TRUNCATED_MIN_LETTERS, autoSignals, bareAddress, classify, extractMessageIds, matchEscalation, matchKeywords, normalizeMessageId, nothingAboveTheQuote, readableLetters, stripQuoted,
   type ClassifyInput, type OutboundMatch,
 } from "./classify.ts"
 
@@ -186,13 +186,20 @@ describe("self-sent mail (rule 0)", () => {
 })
 
 describe("auto mail 1: MACHINE-ONLY signals -> auto, before the tag, never escalated", () => {
+  // A delivery-status content type is machine-only on its own. A postmaster / mailer-daemon sender, and an empty Return-Path, are names and
+  // an envelope detail: they are machine-only only TOGETHER with a second signal (owner decision, 2026-09-29; see the next describe).
   const MACHINE: Array<[string, Partial<ClassifyInput>]> = [
-    ["MAILER-DAEMON sender", { senders: ["MAILER-DAEMON@mx.example.org"] }],
-    ["postmaster sender", { senders: ["Mail Delivery <postmaster@mx.example.org>"] }],
-    ["empty Return-Path", { headers: { "return-path": "<>" } }],
     ["multipart/report", { contentType: "multipart/report; report-type=delivery-status; boundary=abc" }],
     ["message/delivery-status via the header map", { headers: { "content-type": "message/delivery-status" } }],
     ["a read receipt (message/disposition-notification)", { contentType: "message/disposition-notification" }],
+    ["MAILER-DAEMON sender + a delivery-status content type", { senders: ["MAILER-DAEMON@mx.example.org"], contentType: "multipart/report; report-type=delivery-status" }],
+    ["postmaster sender + an empty Return-Path", { senders: ["Mail Delivery <postmaster@mx.example.org>"], headers: { "return-path": "<>" } }],
+    ["postmaster sender + an empty envelope sender (the transport only reports the envelope)", { senders: ["postmaster@mx.example.org"], nullSender: true }],
+    ["MAILER-DAEMON sender + Auto-Submitted", { senders: ["mailer-daemon@mx.example.org"], headers: { "auto-submitted": "auto-replied" } }],
+    ["MAILER-DAEMON sender + a bounce style subject at the start", { senders: ["mailer-daemon@mx.example.org"], subject: "Undeliverable: Your week" }],
+    ["postmaster sender + an auto-reply style subject behind Re: and a [tag]", { senders: ["postmaster@mx.example.org"], subject: "RE: [External] Out of Office: back Monday" }],
+    ["an empty Return-Path + a delivery-status content type", { headers: { "return-path": "<>" }, contentType: "multipart/report" }],
+    ["an empty Return-Path + a MAILER-DAEMON sender", { headers: { "return-path": "<>" }, senders: ["MAILER-DAEMON@mx.example.org"] }],
   ]
   for (const [name, over] of MACHINE) {
     test(name, () => {
@@ -209,7 +216,7 @@ describe("auto mail 1: MACHINE-ONLY signals -> auto, before the tag, never escal
   test("a machine signal beats the plus-tag, the thread and every keyword, and is NEVER escalated: a bounce quoting our mail is a bounce", () => {
     const quoting = "Delivery failed. The original message follows.\n\nPlease delete my data. This is a complaint.\n> Stop these weekly emails: https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=abc"
     for (const over of [{}, { recipients: [replyToAddress("grievance", REF)] }, { recipients: [replyToAddress("monday", REF)], outbound: outbound("monday") }, { outbound: outbound("data_request") }]) {
-      for (const bounce of [{ senders: ["MAILER-DAEMON@mx.example.org"] }, { headers: { "return-path": "<>" } }, { contentType: "multipart/report; report-type=delivery-status" }]) {
+      for (const bounce of [{ senders: ["MAILER-DAEMON@mx.example.org"] }, { senders: ["postmaster@mx.example.org"], headers: { "return-path": "<>" } }, { contentType: "multipart/report; report-type=delivery-status" }]) {
         const r = classify(mail({ ...over, ...bounce, subject: "Undelivered Mail Returned to Sender", text: quoting }))
         expect(r.cls).toBe("auto")
         expect(r.rule).toBe("auto")
@@ -227,6 +234,87 @@ describe("auto mail 1: MACHINE-ONLY signals -> auto, before the tag, never escal
 
   test("a non-empty Return-Path is not a bounce", () => {
     expect(classify(mail({ headers: { "return-path": "<asha@example.org>" } })).cls).toBe("review")
+  })
+})
+
+// Owner decision (2026-09-29): "postmaster" and "mailer-daemon" are mailbox NAMES. postmaster@ is a real, human-read address at a small
+// firm, so on its own it says nothing; it counts as machine-only only together with a second machine signal. An empty envelope sender is
+// a header-class signal on its own (a vacation reply or a list robot, both of which a legal request in the text overrides).
+describe("auto mail 1b: a postmaster / mailer-daemon name alone is not a machine signal; an empty envelope sender alone is only a header signal", () => {
+  const POSTMASTER = "postmaster@smallfirm.example"
+
+  test("a plain text mail from postmaster@ with a legal request is an ordinary mail: keyword-classified, not hidden, no auto signal at all", () => {
+    for (const [text, want] of [["Please delete my data.", "data_request"], ["This is a complaint about your service.", "grievance"]] as const) {
+      const r = classify(mail({ senders: [POSTMASTER], subject: "Request", text }))
+      expect(r.cls, text).toBe(want)
+      expect(r.rule).toBe("keyword")
+      expect(r.strongAuto).toBe(false)
+      expect(r.autoSignals).toEqual([])
+      expect(r.autoHeadersIgnored).toBe(false)
+    }
+    // ... also as a reply on a tagged thread, and to the legal tags
+    expect(classify(mail({ senders: [POSTMASTER], recipients: [replyToAddress("monday", REF)], text: "Please delete my data." })).cls).toBe("data_request")
+    expect(classify(mail({ senders: [POSTMASTER], recipients: [replyToAddress("grievance", REF)], text: "hello" })).cls).toBe("grievance")
+  })
+
+  test("the same for mailer-daemon@ on its own, and for either name when the only other thing is a signal that is not one of the four", () => {
+    expect(classify(mail({ senders: ["mailer-daemon@smallfirm.example"], text: "hello" })).cls).toBe("review")
+    expect(classify(mail({ senders: [POSTMASTER], text: "hello" })).strongAuto).toBe(false)
+    // Precedence: bulk is header-based but is not one of the second signals that confirm a sender: it is a header signal, so a legal request escalates
+    const bulk = classify(mail({ senders: [POSTMASTER], headers: { precedence: "bulk" }, text: "Please delete my data." }))
+    expect(bulk.cls).toBe("data_request")
+    expect(bulk.escalatedFrom).toBe("auto")
+    expect(bulk.strongAuto).toBe(false)
+    expect(autoSignals({ senders: [POSTMASTER], subject: "Hello", headers: { precedence: "bulk" } })).toEqual({ machine: [], header: ["Precedence=bulk"] })
+  })
+
+  test("with a second signal it IS machine-only and is never escalated, whatever it quotes or asks", () => {
+    const ask = "Please delete my data. This is a complaint."
+    const seconds: Array<Partial<ClassifyInput>> = [
+      { contentType: "multipart/report" }, { headers: { "return-path": "<>" } }, { nullSender: true }, { headers: { "auto-submitted": "auto-generated" } }, { subject: "Undeliverable: hello" },
+      { subject: "Fwd: [Ext] Delivery Status Notification (Failure)" },
+    ]
+    for (const over of seconds) {
+      const r = classify(mail({ senders: [POSTMASTER], text: ask, ...over }))
+      expect(r.cls, JSON.stringify(over)).toBe("auto")
+      expect(r.strongAuto).toBe(true)
+      expect(r.escalatedFrom).toBeNull()
+      expect(r.autoSignals.join(" ")).toContain("sender postmaster")
+    }
+  })
+
+  test("autoSignals reports which signals were machine-only and which stayed header-based", () => {
+    expect(autoSignals({ senders: [POSTMASTER], subject: "Hello", headers: {} })).toEqual({ machine: [], header: [] })
+    expect(autoSignals({ senders: [POSTMASTER], subject: "Hello", headers: { "auto-submitted": "auto-replied" } })).toEqual({ machine: ["sender postmaster"], header: ["Auto-Submitted=auto-replied"] })
+    expect(autoSignals({ senders: [POSTMASTER], subject: "Hello", headers: { "return-path": "<>" } })).toEqual({ machine: ["sender postmaster", "empty Return-Path"], header: [] })
+    expect(autoSignals({ senders: [], subject: "Hello", headers: {}, nullSender: true })).toEqual({ machine: [], header: ["empty Return-Path"] })
+    expect(autoSignals({ senders: [], subject: "Hello", headers: { "return-path": " < > " } })).toEqual({ machine: [], header: ["empty Return-Path"] })
+    expect(autoSignals({ senders: [], subject: "Hello", headers: {}, contentType: "multipart/report", nullSender: true })).toEqual({ machine: ["empty Return-Path", "delivery-status content type"], header: [] })
+  })
+
+  test("an empty envelope sender / Return-Path on its own is a HEADER-class signal: auto when nothing legal is asked, escalated when it is", () => {
+    for (const over of [{ nullSender: true }, { headers: { "return-path": "<>" } }]) {
+      const quiet = classify(mail({ subject: "Out of the blue", text: "Thanks for your time last week.", ...over }))
+      expect(quiet.cls).toBe("auto")
+      expect(quiet.rule).toBe("auto")
+      expect(quiet.strongAuto).toBe(false)
+      expect(quiet.autoSignals).toEqual(["empty Return-Path"])
+      expect(quiet.reason).toBe("auto:empty Return-Path")
+      const asks = classify(mail({ text: "Please delete my data.", ...over }))
+      expect(asks.cls).toBe("data_request")
+      expect(asks.rule).toBe("escalation")
+      expect(asks.escalatedFrom).toBe("auto")
+      expect(asks.strongAuto).toBe(false)
+      expect(asks.reason).toBe('auto:empty Return-Path; escalated keyword:data_request:"delete my data"')
+      // an ordinary sales enquiry with a null sender is auto (the header rule): only data_request and grievance rescue it
+      expect(classify(mail({ text: "What is your pricing?", ...over })).cls).toBe("auto")
+    }
+  })
+
+  test("a bounce-style subject on its own, with a null sender but no daemon name and no delivery-status type, is still header-class", () => {
+    const r = classify(mail({ subject: "Undeliverable: hello", headers: { "return-path": "<>" }, text: "Please delete my data." }))
+    expect(r.cls).toBe("data_request")
+    expect(r.strongAuto).toBe(false)
   })
 })
 
@@ -327,9 +415,13 @@ describe("auto mail 2: HEADER-BASED signals -> auto, before the tag, UNLESS the 
     })
   }
 
-  test("a MAILER-DAEMON sender with an ordinary subject is machine-generated", () => {
-    const r = classify(mail({ senders: ["mailer-daemon@googlemail.com"], subject: "Hello", text: "" }))
-    expect(r.strongAuto).toBe(true)
+  test("a MAILER-DAEMON sender with an ordinary subject and nothing else is NOT machine-generated (a name is not evidence); with Auto-Submitted it is", () => {
+    const alone = classify(mail({ senders: ["mailer-daemon@googlemail.com"], subject: "Hello", text: "" }))
+    expect(alone.strongAuto).toBe(false)
+    expect(alone.cls).toBe("review")
+    const confirmed = classify(mail({ senders: ["mailer-daemon@googlemail.com"], subject: "Hello", text: "", headers: { "auto-submitted": "auto-generated" } }))
+    expect(confirmed.strongAuto).toBe(true)
+    expect(confirmed.cls).toBe("auto")
   })
 
   test("a legal-clock tag with NO earlier message of ours behind it is not diverted to auto by a sender-chosen header (the legacy grievance@ alias)", () => {
@@ -338,11 +430,13 @@ describe("auto mail 2: HEADER-BASED signals -> auto, before the tag, UNLESS the 
       expect(r.cls).toBe(cls)
       expect(r.rule).toBe("tag")
       expect(r.autoSignals).toEqual(["Precedence=bulk"])
+      expect(r.autoHeadersIgnored).toBe(true)
       expect(r.reason).toContain("auto-mail headers ignored for a legal tag")
     }
-    // ... but a reply to something we sent (an acknowledgement) with the same header IS auto: that is the auto-responder loop.
-    const reply = classify(mail({ recipients: [replyToAddress("grievance", REF)], headers: { "auto-submitted": "auto-replied" }, outbound: outbound("grievance", { ref: REF, matchedBy: "ref" }), text: "I am on leave." }))
+    // ... but a reply to something we sent that IS an acknowledgement (its outbound row carries the ticket number) with the same header is auto: that is the auto-responder loop.
+    const reply = classify(mail({ recipients: [replyToAddress("grievance", REF)], headers: { "auto-submitted": "auto-replied" }, outbound: outbound("grievance", { ref: REF, matchedBy: "ref", ticketNo: "G-2026-0001" }), text: "I am on leave." }))
     expect(reply.cls).toBe("auto")
+    expect(reply.autoHeadersIgnored).toBe(false)
     // ... and a non-legal tag is diverted.
     expect(classify(mail({ recipients: [replyToAddress("invoice", REF)], headers: { precedence: "bulk" }, text: "Kindly resolve the pending matter." })).cls).toBe("auto")
   })
@@ -1030,7 +1124,7 @@ describe("review: a reply with nothing of the person's own above the quoted orig
     const quotedOnly = `${quotedDigest}\n\nsome answer`
     expect(classify(mail({ recipients: [replyToAddress("grievance", REF)], text: quotedOnly })).cls).toBe("grievance")
     expect(classify(mail({ recipients: MON, text: quotedOnly, headers: { "auto-submitted": "auto-replied" } })).cls).toBe("auto")
-    expect(classify(mail({ recipients: MON, text: quotedOnly, senders: ["mailer-daemon@example.org"] })).cls).toBe("auto")
+    expect(classify(mail({ recipients: MON, text: quotedOnly, senders: ["mailer-daemon@example.org"], headers: { "return-path": "<>" } })).cls).toBe("auto")
     expect(classify(mail({ recipients: MON, text: "" })).cls).toBe("monday")
   })
 
@@ -1065,14 +1159,49 @@ describe("review: an automatic List-Unsubscribe mailto (legal tag, ref of a Mond
       })
     }
   }
-  test("a reply to our OWN acknowledgement with the same headers is still auto (the auto-responder loop): by ticket number, and by the outbound row's legal class", () => {
+  test("a reply to our OWN acknowledgement with the same headers is still auto (the auto-responder loop): the matched outbound row carries a ticket number", () => {
     const headers = { "auto-submitted": "auto-replied" }
-    for (const over of [{ ticketNo: "G-2026-0001" }, {}]) {
-      const r = classify(mail({ recipients: [replyToAddress("grievance", REF)], subject: "", text: "", headers, outbound: outbound("grievance", { ref: REF, matchedBy: "ref", ...over }) }))
+    for (const cls of ["grievance", "data_request", "review"] as const) {
+      const r = classify(mail({ recipients: [replyToAddress(cls, REF)], subject: "", text: "", headers, outbound: outbound(cls, { ref: REF, matchedBy: "ref", ticketNo: "G-2026-0001" }) }))
       expect(r.cls).toBe("auto")
+      expect(r.autoHeadersIgnored).toBe(false)
     }
     // a ticket number alone (an acknowledgement row of any class) is enough to divert it
     expect(classify(mail({ recipients: DSR, text: "", headers, outbound: outbound("monday", { ref: REF, ticketNo: "D-2026-0001" }) })).cls).toBe("auto")
+  })
+  test("an outbound row that is NOT an acknowledgement (no ticket number) never stops a legal tag standing alone, whatever its class", () => {
+    const headers = { "auto-submitted": "auto-replied" }
+    // Only the ticket number makes an outbound row an acknowledgement. A row of a legal class without one (never produced by our senders) is not the loop.
+    for (const row of ["monday", "clock", "invoice", "sales", "grievance", "data_request", "review"] as const) {
+      for (const tag of ["grievance", "data_request", "review"] as const) {
+        const r = classify(mail({ recipients: [replyToAddress(tag, REF)], subject: "", text: "", headers, outbound: outbound(row, { ref: REF, matchedBy: "ref" }) }))
+        expect(r.cls, `${row} row, ${tag} tag`).toBe(tag)
+        expect(r.rule).toBe("tag")
+        expect(r.autoHeadersIgnored).toBe(true)
+      }
+    }
+  })
+  test("a legal tag with auto headers and NO words at all is a ticketed legal channel: the class stands, autoHeadersIgnored is set, and it is not escalated from anything", () => {
+    const headerSets: Array<Record<string, string>> = [{ "auto-submitted": "auto-generated" }, { precedence: "bulk" }, { "x-autoreply": "" }, { "auto-submitted": "auto-replied", precedence: "auto_reply" }]
+    for (const headers of headerSets) {
+      const r = classify(mail({ recipients: DSR, subject: "", text: "", headers }))
+      expect(r.cls).toBe("data_request")
+      expect(r.rule).toBe("tag")
+      expect(r.escalatedFrom).toBeNull()
+      expect(r.autoHeadersIgnored).toBe(true)
+      expect(r.strongAuto).toBe(false)
+    }
+    // without any auto header the flag stays false
+    expect(classify(mail({ recipients: DSR, subject: "", text: "" })).autoHeadersIgnored).toBe(false)
+    // and a NON-legal tag never sets it (it is diverted to auto instead)
+    const mon = classify(mail({ recipients: [replyToAddress("monday", REF)], text: "", headers: { precedence: "bulk" } }))
+    expect(mon.cls).toBe("auto")
+    expect(mon.autoHeadersIgnored).toBe(false)
+  })
+  test("a machine-only signal still beats a legal tag: a bounce is a bounce", () => {
+    const r = classify(mail({ recipients: DSR, text: "", contentType: "multipart/report", headers: { precedence: "bulk" } }))
+    expect(r.cls).toBe("auto")
+    expect(r.autoHeadersIgnored).toBe(false)
   })
   test("the same headers on a NON-legal tag are still diverted; words in the message still escalate", () => {
     const headers = { "auto-submitted": "auto-generated" }
@@ -1090,6 +1219,39 @@ describe("review: an auto-reply subject is recognised at the START of the subjec
     expect(classify(mail({ subject: "Support needed out of office hours", text: "Can we get help after 6pm?" })).cls).toBe("support")
     expect(classify(mail({ subject: "Do you support auto-reply templates? pricing?", text: "Interested in a demo." })).cls).toBe("sales")
     expect(classify(mail({ subject: "Our courier: delivery failure, need a receipt", text: "" })).autoSignals).toEqual([])
+  })
+  test("human subjects that merely contain or resemble the words are not auto, with or without a legal word in them", () => {
+    for (const [subject, text, want] of [
+      ["Undelivered invoice - not received", "We did not get the invoice email.", "invoice"],
+      ["Support needed out of office hours", "Can we get help after 6pm?", "support"],
+      ["Do you support auto-reply templates? pricing?", "Interested in a demo.", "sales"],
+      ["Out of office hours: can you call us?", "Need help with login.", "support"],
+      ["Out of the office hours support, please", "Need help with login.", "support"],
+      ["Auto-replies not working - help", "Our templates are not sending.", "support"],
+      ["Automatic replies for our helpdesk - pricing?", "Interested in a demo.", "sales"],
+      ["Mail delivery problem - help", "Emails do not arrive.", "support"],
+      ["Quick question about return mail for invoices", "please send a receipt", "invoice"],
+    ] as const) {
+      const r = classify(mail({ subject, text }))
+      expect(r.cls, subject).toBe(want)
+      expect(r.autoSignals, subject).toEqual([])
+      expect(r.strongAuto).toBe(false)
+    }
+    // ... and a subject that DOES open with the words but carries a legal one is a data request, not a bounce (a header-class signal never hides it)
+    const legal = classify(mail({ subject: "Undeliverable? please delete my data", text: "" }))
+    expect(legal.cls).toBe("data_request")
+    expect(legal.escalatedFrom).toBe("auto")
+    expect(legal.strongAuto).toBe(false)
+  })
+  test("an auto-reply / bounce subject is also recognised behind a gateway's [tag] and after Re: / Fwd: (anchored, not searched for)", () => {
+    for (const subject of ["[External] Out of Office: back Monday", "Re: [EXT] Automatic reply: hi", "FW: [SPAM?] Undeliverable: hi", "RE: RE: [Ext] Out-of-office"]) {
+      const r = classify(mail({ subject, text: "" }))
+      expect(r.cls, subject).toBe("auto")
+      expect(r.autoSignals, subject).toEqual(["auto-reply style subject"])
+    }
+    // The tag does not open the door to a search: the words must follow it directly.
+    expect(classify(mail({ subject: "[External] Question about Out of Office replies", text: "" })).autoSignals).toEqual([])
+    expect(classify(mail({ subject: "[Invoice] Undelivered invoice", text: "" })).autoSignals).toEqual([])
   })
   test("the real thing still is auto, also behind Re: / Fwd: / AW: and an opening bracket", () => {
     for (const subject of [
@@ -1167,6 +1329,222 @@ describe("review 2: more withdrawals, objections, rights requests and chasers, a
     ]) {
       const r = classify(mail({ recipients: MON, subject, text, outbound: outbound("monday", { ref: REF, matchedBy: "ref" }) }))
       expect(r.cls, text).toBe("monday")
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------
+// Third review of the classifier (owner decisions, 2026-09-29): a message the Worker cut short, our own words in a marker-less echo, and a
+// satisfied "no complaints".
+// ---------------------------------------------------------------------------------------------------------------
+describe("review 3: a message the Worker cut short with too little of the person's own text is a review", () => {
+  const MON = [replyToAddress("monday", REF)]
+  const tooShort = ["", "   ", "Ok thanks", "Hi,\n\nRegards,\nAsha", "> quoted\n> also quoted", "-----Original Message-----\nFrom: x\nunsubscribe", "12345 ----- !!!"]
+
+  test("readableLetters counts the person's own letters, in any script, and nothing else", () => {
+    expect(TRUNCATED_MIN_LETTERS).toBe(20)
+    expect(readableLetters("")).toBe(0)
+    expect(readableLetters("12345 ---- !!!")).toBe(0)
+    expect(readableLetters("> quoted words\nHello")).toBe(5)
+    expect(readableLetters("Hello, world")).toBe(10)
+    expect(readableLetters("Thanks.\n\nOn Mon, 28 Sep 2026 at 06:00, X <x@y.example> wrote:\nlots of quoted words here")).toBe(6)
+    expect(readableLetters("मेरा डेटा हटाएं")).toBeGreaterThanOrEqual(12) // combining vowel signs count: Indic words are not undercounted
+    expect(readableLetters("Stop these weekly emails (statutory notices continue): https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=abc")).toBe(0)
+  })
+
+  for (const text of tooShort) {
+    test(`truncated + ${JSON.stringify(text)} on a Monday reply is a review (legal-clock class), not a Monday reply`, () => {
+      const r = classify(mail({ recipients: MON, text, truncated: true }))
+      expect(r.cls).toBe("review")
+      expect(r.rule).toBe("escalation")
+      expect(r.escalatedFrom).toBe("monday")
+      expect(r.confidence).toBe("low")
+      expect(LEGAL_CLOCK_CLASSES.includes(r.cls)).toBe(true)
+    })
+  }
+
+  test("the reason says why, and keeps where the class came from", () => {
+    const r = classify(mail({ recipients: MON, text: "", truncated: true }))
+    expect(r.reason).toBe("tag:mon; the message was cut short and too little of the person's own text was read to classify it")
+    const byThread = classify(mail({ outbound: outbound("invoice", { ref: REF, matchedBy: "ref" }), text: "ok", truncated: true }))
+    expect(byThread.reason).toBe(`thread:invoice(ref:${REF}); the message was cut short and too little of the person's own text was read to classify it`)
+    expect(byThread.escalatedFrom).toBe("invoice")
+  })
+
+  test("without the flag the very same messages are unchanged", () => {
+    for (const text of ["", "Ok thanks", "> quoted\nHello"]) {
+      expect(classify(mail({ recipients: MON, text })).cls, text).toBe("monday")
+      expect(classify(mail({ recipients: MON, text, truncated: false })).cls, text).toBe("monday")
+    }
+  })
+
+  test("20 readable letters of the person's own text is enough to read; 19 is not", () => {
+    const nineteen = "abcdefghij klmnopqrs" // 19 letters
+    expect(readableLetters(nineteen)).toBe(19)
+    expect(classify(mail({ recipients: MON, text: nineteen, truncated: true })).cls).toBe("review")
+    expect(classify(mail({ recipients: MON, text: `${nineteen}t`, truncated: true })).cls).toBe("monday")
+    expect(classify(mail({ recipients: MON, text: "Thanks, noted, will revert next week.", truncated: true })).cls).toBe("monday")
+  })
+
+  test("a keyword hit in what WAS read still wins over the truncation rule: a data request stays a data request", () => {
+    const r = classify(mail({ recipients: MON, text: "Delete my data", truncated: true }))
+    expect(r.cls).toBe("data_request")
+    expect(r.escalatedFrom).toBe("monday")
+    expect(classify(mail({ text: "pricing?", truncated: true })).cls).toBe("review") // a non-legal keyword class is raised: 7 letters cannot be trusted
+    expect(classify(mail({ text: "pricing?", truncated: true })).escalatedFrom).toBe("sales")
+  })
+
+  test("it does not touch a legal class, a machine signal or our own mailbox", () => {
+    expect(classify(mail({ recipients: [replyToAddress("grievance", REF)], text: "", truncated: true })).cls).toBe("grievance")
+    expect(classify(mail({ recipients: [replyToAddress("grievance", REF)], text: "", truncated: true })).escalatedFrom).toBeNull()
+    expect(classify(mail({ recipients: MON, text: "", truncated: true, contentType: "multipart/report" })).cls).toBe("auto")
+    expect(classify(mail({ recipients: MON, text: "", truncated: true, senders: [MAILBOX] })).cls).toBe("auto")
+  })
+
+  test("nor a header-based auto signal that has real text behind it; with none it is a review, so a big message cannot hide a request behind a sender-chosen header", () => {
+    const headers = { "auto-submitted": "auto-replied" }
+    const empty = classify(mail({ recipients: MON, text: "", truncated: true, headers }))
+    expect(empty.cls).toBe("review")
+    expect(empty.rule).toBe("escalation")
+    expect(empty.escalatedFrom).toBe("auto")
+    expect(empty.autoSignals).toEqual(["Auto-Submitted=auto-replied"])
+    expect(empty.reason).toBe("auto:Auto-Submitted=auto-replied; the message was cut short and too little of the person's own text was read to classify it")
+    // untruncated, or truncated with a full vacation message: still auto
+    expect(classify(mail({ recipients: MON, text: "", headers })).cls).toBe("auto")
+    expect(classify(mail({ recipients: MON, text: "I am out of the office until the fifth of October.", truncated: true, headers })).cls).toBe("auto")
+  })
+
+  test("an untagged, unclassifiable message is a review anyway; the flag changes only the reason's route", () => {
+    expect(classify(mail({ text: "", truncated: true })).cls).toBe("review")
+  })
+})
+
+describe("review 3: our own words in a marker-less echo, in full, are boilerplate (drift test over the WHOLE rendered emails)", () => {
+  const MON = [replyToAddress("monday", REF)]
+  const links: RenderLinks = {
+    signIn: "https://x.supabase.co/auth/v1/verify?token=abc", actions: { ob1: { done: "https://app.veridian-aios.com/act/#t1", cannot: "https://app.veridian-aios.com/act/#t2", neverHadAny: "https://app.veridian-aios.com/act/#t3" } },
+    unsubscribeUrl: "https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=u1", appHome: "https://app.veridian-aios.com/app/",
+  }
+  const recipient = { membershipId: "m1", identityId: "i1", email: "owner@example.test", role: "owner" as const }
+  // Job TITLES are the organisation's own data ("Publish the grievance officer's details") and cannot be recognised as ours: neutral ones here.
+  const job = (over: Partial<DigestJob> = {}): DigestJob => ({
+    obligationId: "ob1", key: "k1", what: "Renew the registration certificate", part: 1, dueOn: "2026-09-25", daysLate: 0, late: false, requiredToday: false, isGroup: false,
+    groupLabel: null, assigneeEmail: "staff@example.test", isMine: true, stuck: false, outsideParty: false, ...over,
+  })
+  const digest = (over: Partial<Digest> = {}): Digest => ({
+    membershipId: "m1", identityId: "i1", orgId: "o1", orgName: "Acme & Co", orgProduct: "firm", email: "owner@example.test", level: "owner", roleKind: "owner",
+    referralCode: "ref1", inviteCode: "join1", weekKey: "2026-W39", today: "2026-09-21", unsubscribed: false, statutoryOnly: false, alreadySentThisWeek: false,
+    owners: [{ membershipId: "mo", email: "owner@example.test" }], coordinators: [{ membershipId: "mc", email: "coord@example.test" }], jobs: [], escalatedToMe: [], ...over,
+  })
+  const jobs: DigestJob[] = [
+    job({ daysLate: 3, late: true, requiredToday: true }),
+    job({ obligationId: "ob2", key: "k2", what: "Update the vendor list", daysLate: 20, late: true, isGroup: true, groupLabel: "the accounts team", assigneeEmail: null }),
+    job({ obligationId: "ob3", key: "k3", what: "Review the retention schedule", stuck: true, isMine: false }),
+    job({ obligationId: "ob4", key: "k4", what: "Confirm the processor list", daysLate: 9, late: true, outsideParty: true, isMine: false, assigneeEmail: "ca@firm.example" }),
+    job({ obligationId: "ob5", key: "k5", what: "Check the notice text", isMine: false }),
+  ]
+  const escalated = (["stuck", "late_owner", "outside_party_silent", "late_coordinator", null] as const).map((reason, i) => ({
+    obligationId: `e${i}`, what: "Renew the registration certificate", assigneeEmail: i % 2 ? null : "staff@example.test", daysLate: 4 + i, requiredToday: i % 2 === 0, stuck: reason === "stuck", outsideParty: reason === "outside_party_silent", reason,
+  }))
+
+  const leak = (hoursLeft: number, boardNotified: boolean, individualsNotified: boolean, scope: number | null): Rendered =>
+    renderLeakClock({ breachId: "b1", orgId: "o1", orgName: "Acme & Co", becameAwareAt: "2026-09-27T10:00:00Z", deadlineAt: "2026-09-30T10:00:00Z", hoursLeft, boardNotified, individualsNotified, scopePersonCount: scope, periodKey: "k", recipients: [recipient] }, recipient, links)
+  const rights = (kind: string, daysLeft: number): Rendered =>
+    renderRightsClock({ requestId: "r1", ref: "RR-7", kind, orgId: "o1", orgName: "Acme & Co", receivedAt: "2026-07-01T00:00:00Z", dueAt: "2026-09-29T00:00:00Z", daysLeft, periodKey: "k", recipients: [recipient] }, recipient, links)
+
+  const emails: Array<[string, Rendered]> = [
+    ["owner digest (jobs, escalations, billing banner)", renderDigest(digest({ jobs, escalatedToMe: escalated, subscriptionState: "trial" }), links, "monday_digest")],
+    ["owner digest with nothing escalated", renderDigest(digest({ jobs: [jobs[4]] }), links, "monday_digest")],
+    ["coordinator digest (escalated to you as coordinator)", renderDigest(digest({ level: "staff", roleKind: "coord", jobs, escalatedToMe: escalated }), links, "monday_digest")],
+    ["staff digest with nothing for them", renderDigest(digest({ level: "staff", roleKind: "staff", jobs: [] }), links, "monday_digest")],
+    ["statutory-only digest", renderDigest(digest({ jobs, escalatedToMe: escalated, statutoryOnly: true }), links, "statutory")],
+    ["leak clock (40 hours left, nobody told)", leak(40, false, false, 12)],
+    ["leak clock (overdue, board and people told)", leak(-4, true, true, null)],
+    ["leak clock (8 hours left, board told)", leak(8, true, false, 3)],
+    ...["erasure", "access", "correction", "grievance", "nomination"].flatMap((kind): Array<[string, Rendered]> =>
+      [20, -28].map((daysLeft): [string, Rendered] => [`rights clock ${kind} (${daysLeft} days)`, rights(kind, daysLeft)])),
+  ]
+
+  /** Lines that would still be read as the person's own words AND raise a data request or a grievance. */
+  const raisingLines = (text: string): string[] => stripQuoted(text).split("\n").filter((line) => matchKeywords("", line, ["data_request", "grievance"]) !== null)
+  /** One sentence per line (after a full stop or a semicolon). */
+  const perSentence = (text: string): string => text.replace(/([.;])[ \t]+(?=\S)/g, "$1\n")
+
+  test("there are emails of every kind in the corpus (so a renderer that stops producing one fails loudly here, not silently)", () => {
+    expect(emails.length).toBe(5 + 3 + 10)
+    const all = emails.map(([, e]) => e.text).join("\n")
+    for (const needle of ["escalated to you below", "ESCALATED TO YOU AS OWNER", "ESCALATED TO YOU AS DPDP COORDINATOR", "escalates twice as fast", "Data Protection Board", "erasure request", "this notice repeats daily until it is", "action=unsubscribe"]) {
+      expect(all, needle).toContain(needle)
+    }
+  })
+
+  for (const [name, email] of emails) {
+    test(`${name}: nothing in the whole text is read as a data request or a grievance once our own boilerplate is dropped`, () => {
+      expect(raisingLines(email.text)).toEqual([])
+      expect(matchEscalation("", email.text)).toBeNull()
+    })
+    test(`${name}: also with one sentence per line (an auto-responder that reflows the text leaves each sentence on a line of its own)`, () => {
+      // The long paragraphs of these emails are single lines; split, each sentence must be recognised by ITSELF, not by a neighbour on its line.
+      expect(raisingLines(perSentence(email.text))).toEqual([])
+    })
+    test(`${name}: echoed with no marker, on a Monday tag, it stays a Monday reply (no ticket, no due date, no acknowledgement)`, () => {
+      const r = classify(mail({ recipients: MON, text: `Thanks.\n${email.text}` }))
+      expect(r.cls).toBe("monday")
+      expect(r.escalatedFrom).toBeNull()
+      expect(classify(mail({ recipients: MON, text: `Thanks.\n${perSentence(email.text)}` })).cls).toBe("monday")
+    })
+  }
+
+  test("a person's own sentence that shares words with our boilerplate is still read", () => {
+    const own: Array<[string, MailClass]> = [
+      ["Hi\nPlease stop these weekly emails.\nThanks", "data_request"],
+      ["Please stop these weekly emails and delete my data", "data_request"],
+      ["I will tell the Data Protection Board about this.", "grievance"],
+      ["A erasure request was made by me and nobody answered.", "data_request"],
+      ["Still to do: nothing, but I want to complain to the Data Protection Board", "grievance"],
+      ["Your reply to my request escalates nothing. I will sue you.", "grievance"],
+    ]
+    for (const [text, want] of own) {
+      const r = classify(mail({ recipients: MON, text }))
+      expect(r.cls, text).toBe(want)
+    }
+  })
+
+  test("the template-shaped footer line is still dropped (text and HTML variants) so the digest's own unsubscribe link raises nothing", () => {
+    expect(matchKeywords("", "Stop these weekly emails (statutory notices continue): https://x.supabase.co/f?action=unsubscribe&t=1")).toBeNull()
+    expect(matchKeywords("", "VERIDIAN AI — One Portal. One Truth. · Stop these weekly emails — you will still get statutory notices.")).toBeNull()
+    expect(matchKeywords("", "Stop these weekly emails (statutory notices continue)")?.cls).toBe("data_request") // not the template: no colon and no link
+  })
+})
+
+describe("review 3: a negated complaint is not a grievance", () => {
+  const MON = [replyToAddress("monday", REF)]
+  const NEGATED = [
+    "No complaints from our side, thanks", "no complaint", "We have no complaints.", "There were no further complaints.", "no major complaint so far",
+    "This is not a complaint, just a question.", "It isn't a complaint", "It’s not a complaint", "I am not complaining", "Nothing to complain about", "Working fine without any complaint",
+    "Not my complaint, sorry",
+  ]
+  for (const text of NEGATED) {
+    test(`"${text}" raises nothing (a reply to the Monday digest stays a Monday reply; untagged it stays unclassified)`, () => {
+      expect(matchKeywords("", text, ["grievance"]), text).toBeNull()
+      expect(classify(mail({ recipients: MON, text })).cls, text).toBe("monday")
+      expect(classify(mail({ text })).cls, text).toBe("review")
+    })
+  }
+  test("only the negated phrase is blanked: a real complaint in the same message, or a data request, still raises", () => {
+    expect(classify(mail({ recipients: MON, text: "No complaints so far, but I have a complaint about billing." })).cls).toBe("grievance")
+    expect(classify(mail({ recipients: MON, text: "I have a complaint. Also, no complaints about the rest." })).cls).toBe("grievance")
+    expect(classify(mail({ recipients: MON, text: "No complaints, but please delete my data." })).cls).toBe("data_request")
+    expect(classify(mail({ recipients: MON, text: "Not a complaint: withdraw my consent." })).cls).toBe("data_request")
+  })
+  test("a complaint ABOUT a missing channel, or an unresolved one, is left alone", () => {
+    for (const text of ["There is no complaint redressal mechanism on your site.", "no complaint has been resolved", "You have no complaint handling process", "no complaint officer replied"]) {
+      expect(matchKeywords("", text, ["grievance"])?.cls, text).toBe("grievance")
+    }
+  })
+  test("every other grievance word is untouched: no response, breach, harassment ... still raise", () => {
+    for (const text of ["no response from you", "there was a data breach", "I am being harassed", "this is a grievance", "I wish to complain to the Board", "This is a complaint."]) {
+      expect(classify(mail({ recipients: MON, text })).cls, text).toBe("grievance")
     }
   })
 })

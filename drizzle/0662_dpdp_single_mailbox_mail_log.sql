@@ -121,7 +121,8 @@ create table if not exists dpdp.mail_inbound (
   -- Set once by public.dpdp_mail_close, together with status = 'closed'. Nothing
   -- in this file ever moves a ticket out of 'closed'.
   closed_at timestamptz,
-  -- Optional one-line reason an operator gave when closing (capped at 1000).
+  -- Optional one-line reason an operator gave when closing (capped at 1000). The first note stored WINS: it is set by the first close call that
+  -- carries a non-blank one, and no later call replaces it (see public.dpdp_mail_close).
   closed_note text,
   constraint mail_inbound_class_check check (class in (
     'monday', 'clock', 'sales', 'sales_chain', 'invoice', 'grievance', 'data_request', 'partner', 'support', 'auto', 'review'
@@ -131,8 +132,13 @@ create table if not exists dpdp.mail_inbound (
   constraint mail_inbound_closed_note_length_check check (closed_note is null or char_length(closed_note) <= 1000)
 );
 -- A delivery retried by the Worker must not become a second ticket: the same
--- sender's same Message-ID is one message. Keyed on the sender as well so one
--- party reusing another's Message-ID cannot stop that other party's mail.
+-- sender's same Message-ID AND the same content (subject + excerpt) is one message.
+-- Keyed on the sender as well so one party reusing another's Message-ID cannot
+-- stop that other party's mail. The same sender's same Message-ID with DIFFERENT
+-- content is a different message (a sender reusing an id, or trying to make a
+-- later request look like a retry of an earlier one): it gets its own ticket, stored
+-- under '<Message-ID>#<md5 of subject and excerpt>' so this index still holds and a
+-- retry of THAT message is still recognised (dpdp_mail_insert_inbound, section 5).
 create unique index if not exists dpdp_mail_inbound_sender_message_id_key
   on dpdp.mail_inbound (lower(from_addr), message_id) where message_id is not null;
 create index if not exists dpdp_mail_inbound_class_received_idx on dpdp.mail_inbound (class, received_at desc);
@@ -308,8 +314,13 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
--- 5. Inbound insert. Idempotent per (sender, Message-ID): a retried delivery
---    returns the existing ticket with duplicate = true. ackDue is true only
+-- 5. Inbound insert. Idempotent per (sender, Message-ID, content): a retried
+--    delivery returns the existing ticket with duplicate = true. When the sender's
+--    Message-ID matches a stored row but the subject or the excerpt DIFFERS, it is
+--    NOT a retry: the message gets a NEW ticket (duplicate = false, messageIdReused
+--    = true, message_id stored as '<id>#<md5>' so the unique index holds and a retry
+--    of this second message is a duplicate of it), and 'same Message-ID, different
+--    content' is appended to classifier_reason. ackDue is true only
 --    when the caller wants an acknowledgement sent, none has been sent for
 --    this ticket, fewer than 3 have gone to this sender in 24 hours (the
 --    stop for an auto-responder that answers our acknowledgement) AND fewer
@@ -348,6 +359,10 @@ declare
   v_at timestamptz := coalesce(p_received_at, now());
   v_from text := left(coalesce(nullif(btrim(p_from_addr), ''), '(unknown sender)'), 320);
   v_msgid text := left(nullif(btrim(p_message_id), ''), 998);
+  v_subject text := left(p_subject, 500);
+  v_excerpt text := left(p_excerpt, 4096);
+  v_reason text := left(p_classifier_reason, 500);
+  v_reused boolean := false;
   v_ref text := case when p_ref ~ '^[0-9abcdefghjkmnpqrstvwxyz]{10}$' then p_ref else null end;
   v_matched text := case when p_matched_outbound_ref ~ '^[0-9abcdefghjkmnpqrstvwxyz]{10}$' then p_matched_outbound_ref else null end;
   v_row dpdp.mail_inbound;
@@ -368,19 +383,32 @@ begin
 
   if v_msgid is not null then
     select * into v_row from dpdp.mail_inbound where lower(from_addr) = lower(v_from) and message_id = v_msgid;
-    v_dup := found;
+    if found then
+      if v_row.subject is not distinct from v_subject and v_row.excerpt is not distinct from v_excerpt then
+        v_dup := true;
+      else
+        -- Same sender, same Message-ID, different words: not a retry. Look for an earlier delivery of THIS variant (a retry of the second message).
+        v_msgid := v_msgid || '#' || md5(coalesce(v_subject, '') || chr(31) || coalesce(v_excerpt, ''));
+        select * into v_row from dpdp.mail_inbound where lower(from_addr) = lower(v_from) and message_id = v_msgid;
+        v_dup := found;
+        v_reused := not found;
+      end if;
+    end if;
   end if;
 
   if not v_dup then
+    if v_reused then
+      v_reason := left(coalesce(nullif(left(p_classifier_reason, 460), '') || '; ', '') || 'same Message-ID, different content', 500);
+    end if;
     begin
       insert into dpdp.mail_inbound (
         ticket_no, class, ref, from_addr, to_addr, subject, message_id, in_reply_to, references_hdr,
         received_at, due_at, excerpt, classifier_reason, matched_outbound_ref, raw_forwarded
       ) values (
-        dpdp.mail_next_ticket(p_class, v_at), p_class, v_ref, v_from, left(p_to_addr, 320), left(p_subject, 500),
+        dpdp.mail_next_ticket(p_class, v_at), p_class, v_ref, v_from, left(p_to_addr, 320), v_subject,
         v_msgid, left(p_in_reply_to, 998), left(p_references_hdr, 8000),
         v_at, case when p_due_days is null then null else v_at + make_interval(days => p_due_days) end,
-        left(p_excerpt, 4096), left(p_classifier_reason, 500), v_matched, coalesce(p_raw_forwarded, false)
+        v_excerpt, v_reason, v_matched, coalesce(p_raw_forwarded, false)
       ) returning * into v_row;
     exception when unique_violation then
       -- Lost a race with the same delivery: hand back the winner's ticket.
@@ -389,6 +417,7 @@ begin
         raise;
       end if;
       v_dup := true;
+      v_reused := false;
     end;
   end if;
 
@@ -413,6 +442,7 @@ begin
     'status', v_row.status,
     'dueAt', v_row.due_at,
     'duplicate', v_dup,
+    'messageIdReused', v_reused,
     'ackDue', v_ack_due,
     'ackLimit', v_ack_limit,
     'operatorNotified', v_row.operator_notified_at is not null
@@ -465,9 +495,13 @@ $$;
 
 -- ---------------------------------------------------------------------
 -- 7. Close. An operator marks a ticket done: status = 'closed', closed_at
---    = now(), and an optional short note (first 1000 characters). Idempotent:
---    the first call sets the time and the note, every later call changes
---    nothing and reports alreadyClosed = true. A ticket already closed by
+--    = now(), and an optional short note (first 1000 characters). FIRST CALL
+--    WINS: the first call sets the time; the note is set by the first call that
+--    carries a non-blank one and is never replaced afterwards. So a later call
+--    changes nothing EXCEPT that it may add a note when none was stored (a
+--    first call without a note, then one with a note, keeps the second's note;
+--    a third with another note changes nothing). Every call after the first
+--    reports alreadyClosed = true. A ticket already closed by
 --    hand (status set without a time) gets its time filled in. NOTHING here or
 --    anywhere else in this file moves a ticket out of 'closed': mark_ack
 --    leaves the status alone once it is not 'open', and a retried delivery of

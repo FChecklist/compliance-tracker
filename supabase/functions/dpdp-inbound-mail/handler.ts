@@ -29,9 +29,12 @@
 // someone else's words to a stranger). For a `review` message the subject carries no class label at all, so the
 // sender never sees our internal word "REVIEW". It is NEVER sent when the message carries an auto-mail signal (an
 // auto-responder answering an auto-responder is a loop) unless the classifier escalated it (a legal request is
-// acknowledged whatever headers the sender chose) -- and even then not to a header-flagged reply to our OWN
-// acknowledgement, which is how two auto-responders loop --, when the sender is our own mailbox or a no-reply
-// address, when the sender failed DMARC (backscatter to a forged address), when 3 have already gone to that
+// acknowledged whatever headers the sender chose) or a legal-clock TAG (grv / dsr / rev) stood alone against the headers
+// (autoHeadersIgnored: a List-Unsubscribe mailto or the grievance@ alias, which may carry Auto-Submitted and no words at all)
+// -- and even then not to a header-flagged reply to our OWN acknowledgement (its outbound row has a ticket number), which is
+// how two auto-responders loop and the only loop there is --, when the sender is our own mailbox or a no-reply / bounce
+// address (postmaster@ and mailer-daemon@ are NOT refused: without a second machine signal the classifier files them as
+// ordinary senders), when the sender failed DMARC (backscatter to a forged address), when 3 have already gone to that
 // sender in 24 hours, or when 30 have gone to anyone in the last hour (dpdp_mail_insert_inbound decides those
 // last two; the ticket is still created and the operator's notice then says to answer by hand). The
 // acknowledgement itself is stamped Auto-Submitted / X-Auto-Response-Suppress / X-Veridian-Origin, so a
@@ -94,6 +97,48 @@ export type InboundDeps = {
 }
 
 /**
+ * A per-message override for an adapter that knows more than the payload says (resend-inbound.ts: Resend accepts EVERY
+ * address at the domain, so what the message was addressed to changes how it is filed). It is a third argument of
+ * handleInbound, never a field of the JSON body, so a caller of the bearer route cannot set it.
+ */
+export type InboundPolicy = {
+  /** File the message under this class instead of the classifier's (see applyPolicy for the two things that are never overridden). */
+  forceClass?: MailClass
+  /** With forceClass: a message the classifier found a data request or grievance in, from the sender's own words, keeps that legal class. */
+  unlessLegal?: boolean
+  /** Why (stored in the ticket's classifier reason). */
+  reason?: string
+  /** Never acknowledge this message, whatever its class. */
+  noAck?: boolean
+  /** Extra lines for the operator's notice, right under its first line (for example who received it and what Resend reported). */
+  noticeLines?: string[]
+  /** The message's own received_at is from a clock we trust (Resend's), so the 48-hour clamp meant for the Worker's clock is skipped. */
+  trustReceivedAt?: boolean
+}
+
+/**
+ * Applies InboundPolicy.forceClass. Never overrides the loop guard (`self`: a message from our own mailbox stays `auto`),
+ * and with `unlessLegal` never demotes a data request or grievance that the classifier found in words the sender wrote,
+ * unless the message also carries auto-mail signals (bulk mail to a guessed address is not a request).
+ */
+export function applyPolicy(c: Classification, policy: InboundPolicy | undefined): Classification {
+  const force = policy?.forceClass
+  if (!policy || !force || c.rule === "self") return c
+  const keeps = policy.unlessLegal === true && (c.cls === "data_request" || c.cls === "grievance") && c.autoSignals.length === 0
+  const why = policy.reason ?? `forced:${force}`
+  if (keeps) return { ...c, reason: `${c.reason}; ${why} (kept: a legal request in the sender's own words)` }
+  return { ...c, cls: force, rule: force === "auto" ? "auto" : "tag", confidence: "high", escalatedFrom: null, reason: `${why}; the classifier said ${c.cls} (${c.reason})` }
+}
+
+/** Puts `lines` under the first line of a notice, before its summary block. */
+export function withNoticeLines(text: string, lines: string[] | undefined): string {
+  if (!lines || lines.length === 0) return text
+  const at = text.indexOf("\n\n")
+  const block = lines.join("\n")
+  return at < 0 ? `${text}\n\n${block}` : `${text.slice(0, at)}\n\n${block}${text.slice(at)}`
+}
+
+/**
  * DPDP_LEGAL_RESPONSE_DAYS: a whole number of days from 1 to 365, otherwise 90.
  * THE NUMBER IS THE OWNER'S AND COUNSEL'S TO CONFIRM. This code makes no legal assertion; it only turns the
  * configured number into a due date on the ticket so nothing sits unnoticed.
@@ -128,11 +173,18 @@ export type InboundMail = {
   hasAttachments: boolean
   /** The Worker read only part of a large message, so `text` may be incomplete. */
   truncated: boolean
+  /** The payload carried an envelope sender that is EMPTY (MAIL FROM:<>, a null reverse-path). See ClassifyInput.nullSender. */
+  nullSender: boolean
   /** The Worker's own clock (received_at), when it sent one that parses. See receivedAtOf. */
   workerReceivedAt: Date | null
 }
 
-const ADDRESS_RE = /[A-Za-z0-9._%+'\-]+@[A-Za-z0-9.\-]+/g
+// BOUNDED on purpose (review of 2026-09-30): `[..]+@` over a run of address characters with no "@" is quadratic (a 200 000-character
+// To / Cc header took 95 seconds), and a message that pins the CPU is a message that is never recorded. RFC 5321 caps a local part at 64
+// octets and a domain at 255, so nothing legitimate is cut. Each start position now costs at most ~64 steps: linear overall.
+const ADDRESS_RE = /[A-Za-z0-9._%+'\-]{1,64}@[A-Za-z0-9.\-]{1,255}/g
+/** Longest string addressesIn scans (one header or the whole list): far beyond any real recipient list. */
+const ADDRESS_SCAN_MAX_CHARS = 100_000
 
 function clean(value: string): string {
   // Postgres text cannot hold NUL; a message with one would fail to record and degrade to a raw forward.
@@ -152,10 +204,10 @@ function asText(value: unknown): string {
 
 function addressesIn(value: unknown): string[] {
   const out: string[] = []
-  const text = Array.isArray(value) ? value.map((v) => (typeof v === "string" ? v : "")).join(",") : typeof value === "string" ? value : ""
+  const text = (Array.isArray(value) ? value.slice(0, 1000).map((v) => (typeof v === "string" ? v : "")).join(",") : typeof value === "string" ? value : "").slice(0, ADDRESS_SCAN_MAX_CHARS)
   for (const m of text.match(ADDRESS_RE) ?? []) {
     const a = m.toLowerCase()
-    if (!out.includes(a)) out.push(a)
+    if (out.length < 500 && !out.includes(a)) out.push(a)
   }
   return out
 }
@@ -179,15 +231,60 @@ function readHeaders(value: unknown): Record<string, string> {
   return out
 }
 
-/** Text from an HTML-only message: scripts and styles dropped, line breaks kept, tags removed, common entities decoded. */
+/** Most HTML characters htmlToText reads, and the most text it produces: what follows can never matter (the ticket keeps 4096 characters). */
+const HTML_SCAN_MAX_CHARS = 2_000_000
+const HTML_OUTPUT_MAX_CHARS = 200_000
+
+/**
+ * Text from an HTML-only message: scripts and styles dropped, line breaks kept, tags removed, common entities decoded.
+ *
+ * LINEAR TIME (review of 2026-09-30). The version this replaces was three regular expressions, each quadratic on input a stranger
+ * can send: `<[^>]*>` over a run of "<" with no ">" (80 000 characters: 10 seconds), `<script...</script>` over a run of unclosed
+ * "<script>" tags, and `[ \t]+\n` over a long run of spaces (80 000 characters: 14 seconds). A message that pins the CPU is killed by
+ * the platform and never recorded, and Svix then retries it for a day. This one walks the string once with indexOf, remembers when a
+ * script / style block has no closer (so it never searches for it twice), stops at HTML_OUTPUT_MAX_CHARS, and trims lines by hand.
+ * Same output as before for well-formed HTML (handler.test.ts); an unterminated "<" is kept as text, as before.
+ */
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<br\s*\/?>|<\/(?:p|div|tr|li|h[1-6])>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
+  const src = html.length > HTML_SCAN_MAX_CHARS ? html.slice(0, HTML_SCAN_MAX_CHARS) : html
+  const n = src.length
+  // ASCII-only lower case: the same length as the original (String#toLowerCase can change it), so an index found in one is valid in the other.
+  const lower = src.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32))
+  const noCloser: Record<string, boolean> = Object.create(null)
+  let out = ""
+  let i = 0
+  while (i < n && out.length < HTML_OUTPUT_MAX_CHARS) {
+    const lt = src.indexOf("<", i)
+    if (lt === -1) { out += src.slice(i); break }
+    out += src.slice(i, lt)
+    // A "<" that cannot start a tag (followed by a space, a digit, "=", another "<", the end ...: "a < b", "<3") is text. The regular
+    // expressions this replaces treated it as the start of a tag running to the next ">", which swallowed the words in between (and
+    // any <script> opener in between, leaking the script's code into the text). "<" + letter, "/", "!" or "?" is a tag as before.
+    if (!/[A-Za-z/!?]/.test(src[lt + 1] ?? "")) { out += "<"; i = lt + 1; continue }
+    const gt = src.indexOf(">", lt + 1)
+    if (gt === -1) { out += src.slice(lt); break } // no ">" anywhere after: this "<" and everything after it is text, as it always was
+    const head = lower.slice(lt + 1, lt + 12)
+    const block = /^(script|style)(?![a-z0-9_])/.exec(head)
+    if (block && !noCloser[block[1]]) {
+      const close = lower.indexOf(`</${block[1]}>`, lt + 1 + block[1].length)
+      if (close === -1) noCloser[block[1]] = true // no closer anywhere after: an ordinary tag from now on, and never searched for again
+      else { out += " "; i = close + block[1].length + 3; continue }
+    }
+    // <br>, <br/>, </p> </div> </tr> </li> </h1>..</h6> end a line; every other tag is dropped whole (up to its first ">").
+    const inner = gt - lt - 1 <= 40 ? lower.slice(lt + 1, gt) : "" // only a short tag can be <br> or a closing block tag
+    if (/^br\s*\/?$/.test(inner) || /^\/(?:p|div|tr|li|h[1-6])$/.test(inner)) out += "\n"
+    i = gt + 1
+  }
+  const decoded = (out.length > HTML_OUTPUT_MAX_CHARS ? out.slice(0, HTML_OUTPUT_MAX_CHARS) : out)
     .replace(/&nbsp;/gi, " ").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, "&")
-    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n")
-    .trim()
+  // spaces and tabs before a line break go, by hand: `[ \t]+\n` is quadratic over a long run of spaces
+  const lines = decoded.split("\n")
+  for (let k = 0; k < lines.length - 1; k++) {
+    let end = lines[k].length
+    while (end > 0 && (lines[k][end - 1] === " " || lines[k][end - 1] === "\t")) end--
+    if (end < lines[k].length) lines[k] = lines[k].slice(0, end)
+  }
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim()
 }
 
 /**
@@ -259,8 +356,22 @@ export function parseInbound(raw: unknown): InboundMail | null {
     references: oneLine(pick("references")).slice(0, 8000) || oneLine(headers["references"] ?? "").slice(0, 8000) || null,
     hasAttachments: r.has_attachments === true || r.hasAttachments === true || (typeof r.attachmentCount === "number" && r.attachmentCount > 0),
     truncated: r.truncated === true,
+    nullSender: isNullSender(r),
     workerReceivedAt: Number.isFinite(workerTime) ? new Date(workerTime) : null,
   }
+}
+
+/**
+ * True when the payload carries an envelope sender (envelope_from / envelopeFrom / mailFrom) that is present and empty, or the null
+ * reverse-path "<>": what the Worker sends for a bounce or an auto-responder. An ABSENT field is not a null sender. The classifier treats
+ * it as a header-class auto signal (on its own it never hides a legal request); see autoSignals in classify.ts.
+ */
+function isNullSender(r: Record<string, unknown>): boolean {
+  for (const key of ["envelope_from", "envelopeFrom", "mailFrom"]) {
+    const v = r[key]
+    if (typeof v === "string") return v.replace(/\s+/g, "") === "" || v.replace(/\s+/g, "") === "<>"
+  }
+  return false
 }
 
 /** The Worker's clock is used for received_at (it saw the message first) unless it is more than 48 hours from ours. */
@@ -296,25 +407,30 @@ export function formatIst(d: Date): string {
 /**
  * Why an acknowledgement must NOT be sent to this sender, or null when it may.
  *
- * Auto-mail headers block it, except on a message the classifier ESCALATED to a legal class: those headers are
- * chosen by the sender, and the owner's rule is that a legal request is acknowledged whatever headers it carries.
- * The one thing that still blocks an escalated message is being a header-flagged reply to our OWN acknowledgement
- * (`outbound.ticketNo` is only ever set on an acknowledgement): the ticket already exists and answering an
- * auto-responder's answer is the loop. Bounces never reach here as a legal class.
+ * Auto-mail headers block it, except on a message the classifier ESCALATED to a legal class, and on one where a legal-clock TAG
+ * stood alone against them (`autoHeadersIgnored`: a List-Unsubscribe mailto or the grievance@ alias that carries Auto-Submitted /
+ * Precedence and no words): those headers are chosen by the sender, and the owner's rule is that a legal request is acknowledged
+ * whatever headers it carries. The one thing that still blocks such a message is being a header-flagged reply to our OWN
+ * acknowledgement (`outbound.ticketNo` is only ever set on an acknowledgement): the ticket already exists and answering an
+ * auto-responder's answer is the loop, and the only one. Bounces never reach here as a legal class.
+ *
+ * A postmaster@ / mailer-daemon@ sender is NOT refused here: the classifier files such a name as machine-generated only with a
+ * second machine signal, so a legal-class message that got this far from one is a real mail (postmaster@ is an ordinary, human-read
+ * mailbox at a small firm) and is acknowledged like any other. no-reply / bounce addresses still are refused.
  */
 export function ackBlocker(
   mail: InboundMail,
-  c: Pick<Classification, "autoSignals" | "escalatedFrom">,
+  c: Pick<Classification, "autoSignals" | "escalatedFrom"> & { autoHeadersIgnored?: boolean },
   outbound: Pick<OutboundMatch, "ticketNo"> | null = null,
 ): string | null {
   if (c.autoSignals.length > 0) {
-    if (c.escalatedFrom === null) return "the message carries auto-mail signals"
+    if (c.escalatedFrom === null && c.autoHeadersIgnored !== true) return "the message carries auto-mail signals"
     if (outbound?.ticketNo) return `an automatic reply to our own acknowledgement of ticket ${outbound.ticketNo} (the ticket already exists)`
   }
   const to = mail.replyAddress
   if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return "no usable sender address"
   if (parseRecipient(to).ours) return "the sender is our own mailbox"
-  if (/^(?:no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster|bounces?)(?:[+._-]|$)/.test(to.split("@")[0])) return "the sender is a no-reply address"
+  if (/^(?:no-?reply|do-?not-?reply|donotreply|bounces?)(?:[+._-]|$)/.test(to.split("@")[0])) return "the sender is a no-reply address"
   if (/\bdmarc=fail\b/i.test(mail.headers["authentication-results"] ?? "")) return "the sender failed DMARC (possible forged address)"
   return null
 }
@@ -362,7 +478,7 @@ function quote(text: string): string {
 }
 
 /** The operator's notice: a summary block, then the original message quoted. */
-export function renderNotification(mail: InboundMail, o: Outcome, outbound: OutboundMatch | null, receivedAt: Date): string {
+export function renderNotification(mail: InboundMail, o: Outcome, outbound: OutboundMatch | null, receivedAt: Date, policy?: InboundPolicy): string {
   const lines = [
     `A message reached ${MAILBOX}.`,
     "",
@@ -380,8 +496,11 @@ export function renderNotification(mail: InboundMail, o: Outcome, outbound: Outb
   if (mail.messageId) lines.push(`Message-ID:    ${mail.messageId}`)
   if (LEGAL_CLOCK_CLASSES.includes(o.cls)) lines.push(`Acknowledgement: ${o.ack}`)
   if (o.rawForwarded) lines.push("", "THE CLASSIFIER FAILED on this message. It was filed as REVIEW; read it yourself.")
-  if (mail.hasAttachments) lines.push("", "The message had attachments. They are not stored anywhere.")
-  if (mail.truncated) lines.push("", "The message was larger than the Worker reads; the text below may be incomplete.")
+  // An adapter that supplies its own notice lines (resend-inbound.ts: where the whole message and its attachments live, how much was cut)
+  // says it accurately, so the Worker-specific wording below is left out for it.
+  const adapterNotes = (policy?.noticeLines?.length ?? 0) > 0
+  if (mail.hasAttachments && !adapterNotes) lines.push("", "The message had attachments. They are not stored anywhere.")
+  if (mail.truncated && !adapterNotes) lines.push("", "The message was larger than the Worker reads; the text below may be incomplete.")
   lines.push("", "Reply to this email to answer the sender directly (Reply-To is set to them).", "", "----- original message -----", quote(mail.text.trim() || "(empty)"))
   return lines.join("\n")
 }
@@ -403,9 +522,14 @@ type InsertResult = {
   /** Which limit held the acknowledgement back: 3 per sender in 24 hours ("sender") or 30 to anyone in an hour ("hourly"). Absent from older databases. */
   ackLimit?: "sender" | "hourly" | null
   operatorNotified: boolean
+  /** The same sender reused a Message-ID for a message that says something else: it got its OWN ticket (duplicate is false). Absent from older databases. */
+  messageIdReused?: boolean
 }
 
-export async function handleInbound(req: Request, deps: InboundDeps): Promise<Response> {
+/** Appended to the stored classifier reason by dpdp_mail_insert_inbound (drizzle/0662) and shown in the operator's notice. Keep the two in step. */
+export const MESSAGE_ID_REUSED_NOTE = "same Message-ID, different content"
+
+export async function handleInbound(req: Request, deps: InboundDeps, policy?: InboundPolicy): Promise<Response> {
   const cfg = deps.config
   const log = deps.log ?? ((line: string) => console.log(line))
   const now = () => (deps.now ? deps.now() : new Date())
@@ -438,7 +562,7 @@ export async function handleInbound(req: Request, deps: InboundDeps): Promise<Re
   const mail = parseInbound(raw)
   if (!mail) return json({ ok: false, error: "empty or malformed message" }, 400)
 
-  const receivedAt = receivedAtOf(mail.workerReceivedAt, now())
+  const receivedAt = policy?.trustReceivedAt && mail.workerReceivedAt ? mail.workerReceivedAt : receivedAtOf(mail.workerReceivedAt, now())
   const call = async <T>(fn: string, args: Record<string, unknown>): Promise<T> => {
     const { data, error } = await deps.rpc(fn, args)
     if (error) throw new Error(`${fn}: ${error.message}`)
@@ -477,19 +601,22 @@ export async function handleInbound(req: Request, deps: InboundDeps): Promise<Re
       headers: mail.headers,
       contentType: mail.contentType,
       outbound,
+      truncated: mail.truncated,
+      nullSender: mail.nullSender,
     })
   } catch (e) {
     classifierFailed = true
     let signals: string[] = []
     try {
-      const s = autoSignals({ senders: mail.senders, subject: mail.subject, headers: mail.headers, contentType: mail.contentType, threadMatched: outbound !== null })
+      const s = autoSignals({ senders: mail.senders, subject: mail.subject, headers: mail.headers, contentType: mail.contentType, nullSender: mail.nullSender, threadMatched: outbound !== null })
       signals = [...s.machine, ...s.header]
     } catch { /* keep [] */ }
-    c = { cls: "review", rule: "default", confidence: "low", reason: `classifier-error:${message(e).slice(0, 120)}`, tagRef: tag.ref, autoSignals: signals, strongAuto: false, escalatedFrom: null }
+    c = { cls: "review", rule: "default", confidence: "low", reason: `classifier-error:${message(e).slice(0, 120)}`, tagRef: tag.ref, autoSignals: signals, strongAuto: false, escalatedFrom: null, autoHeadersIgnored: false }
   }
+  if (!classifierFailed) c = applyPolicy(c, policy) // a classifier that threw cannot justify demoting anything: it stays `review`
   const reason = `${c.reason}${lookupNote}`
   const legal = LEGAL_CLOCK_CLASSES.includes(c.cls)
-  const blocker = legal ? ackBlocker(mail, c, outbound) : "not a legal-clock class"
+  const blocker = legal ? (policy?.noAck ? "no acknowledgement for this address (recipient policy)" : ackBlocker(mail, c, outbound)) : "not a legal-clock class"
   const operatorEmail = cfg.operatorEmail.trim()
 
   // 3. Record. If this fails the message is forwarded raw instead: it is never dropped.
@@ -514,10 +641,10 @@ export async function handleInbound(req: Request, deps: InboundDeps): Promise<Re
     })
     if (!rec || typeof rec.ticketNo !== "string" || !rec.ticketNo) throw new Error("dpdp_mail_insert_inbound returned no ticket")
   } catch (e) {
-    return degradedForward(mail, c.cls, message(e), receivedAt, deps, log, operatorEmail)
+    return degradedForward(mail, c.cls, message(e), receivedAt, deps, log, operatorEmail, policy)
   }
 
-  const outcome: Outcome = { ticket: rec.ticketNo, cls: c.cls, reason, dueAt: rec.dueAt, ack: "not applicable", rawForwarded: classifierFailed, duplicate: rec.duplicate }
+  const outcome: Outcome = { ticket: rec.ticketNo, cls: c.cls, reason: rec.messageIdReused === true ? `${reason}; ${MESSAGE_ID_REUSED_NOTE}` : reason, dueAt: rec.dueAt, ack: "not applicable", rawForwarded: classifierFailed, duplicate: rec.duplicate }
 
   // 4. Acknowledge the sender (legal-clock classes), before the operator's notice so the notice can say how it went.
   let ackStatus = "not_applicable"
@@ -564,7 +691,7 @@ export async function handleInbound(req: Request, deps: InboundDeps): Promise<Re
           from: cfg.from,
           to: operatorEmail,
           subject,
-          text: renderNotification(mail, outcome, outbound, receivedAt),
+          text: withNoticeLines(renderNotification(mail, outcome, outbound, receivedAt, policy), policy?.noticeLines),
           replyTo: mail.replyAddress && parseRecipient(mail.replyAddress).ours === false ? mail.replyAddress : undefined,
           headers: { "X-Veridian-Class": c.cls, "X-Veridian-Ticket": rec.ticketNo, "X-Veridian-Origin": "inbound-notification", "Auto-Submitted": "auto-generated" },
           idempotencyKey: `dpdp-inbound-notify-${rec.ticketNo}`,
@@ -582,7 +709,7 @@ export async function handleInbound(req: Request, deps: InboundDeps): Promise<Re
     }
   }
 
-  log(JSON.stringify({ evt: "dpdp-inbound-mail", ticket: rec.ticketNo, class: c.cls, rule: c.rule, duplicate: rec.duplicate, ack: ackStatus, notified, dryRun: cfg.dryRun }))
+  log(JSON.stringify({ evt: "dpdp-inbound-mail", ticket: rec.ticketNo, class: c.cls, rule: c.rule, duplicate: rec.duplicate, messageIdReused: rec.messageIdReused === true, ack: ackStatus, notified, dryRun: cfg.dryRun }))
 
   const body = { ok: true, ticket: rec.ticketNo, class: c.cls, rule: c.rule, duplicate: rec.duplicate, dryRun: cfg.dryRun, ack: ackStatus, notified, degraded: false }
   if (notified === "failed" || notified === "no_operator_email") {
@@ -653,6 +780,7 @@ async function degradedForward(
   deps: InboundDeps,
   log: (line: string) => void,
   operatorEmail: string,
+  policy?: InboundPolicy,
 ): Promise<Response> {
   log(JSON.stringify({ evt: "dpdp-inbound-mail", error: "could not record the message", detail: error.slice(0, 200), class: cls }))
   if (deps.config.dryRun || !operatorEmail) {
@@ -673,7 +801,7 @@ async function degradedForward(
   if (mail.messageId) lines.push(`Message-ID:    ${mail.messageId}`)
   if (LEGAL_CLOCK_CLASSES.includes(cls)) lines.push("", "This may start a legal response clock. No acknowledgement was sent to the sender.")
   lines.push("", "----- original message -----", quote(mail.text.trim() || "(empty)"))
-  const text = lines.join("\n")
+  const text = withNoticeLines(lines.join("\n"), policy?.noticeLines)
   try {
     await deps.send({
       from: deps.config.from,

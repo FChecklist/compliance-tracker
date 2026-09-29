@@ -139,6 +139,21 @@ grammar in `../_shared/mail-taxonomy.ts`:
 | List-Unsubscribe mailto | `mailto:dpdp+dsr.<ref>@veridian-aios.com?subject=unsubscribe` — same `ref` as the Reply-To, class `data_request`. The RFC 8058 https one-click POST beside it is unchanged |
 | Log | one `dpdp.mail_outbound` row per sent message, via `public.dpdp_mail_log_outbound(p_ref, p_class, p_to_addr, p_subject, p_provider_message_id, p_membership_id, p_org_id)` |
 
+**Two different "legal clock" things -- do not confuse them.** The *notices* of the `legal_clocks` job (the
+72-hour data-leak clock, the 90-day rights clock) go out as class `clock`. `clock` is the class of the
+message WE send and of a plain reply to it; it is deliberately **not** one of the inbound
+legal-clock classes (`grievance`, `data_request`, `review`: `LEGAL_CLOCK_CLASSES` in
+`../_shared/mail-taxonomy.ts`), the ones that get a due date and an automatic acknowledgement,
+because a reply such as "done, thanks" does not itself start a response clock. It becomes one
+by what the person WRITES: a data request or a grievance in the reply is raised to `data_request` /
+`grievance` by the inbound classifier (whichever notice it answers, with or without the plus-tag), and
+a reply that leaves nothing of the person's own above the quote, or is cut short with almost no text,
+becomes `review`. The notices' own body lines ("Still to do: tell the Data Protection Board",
+"A erasure request (RR-7) received on ... has not been answered") are recognised there as OUR words, so
+an echo of a notice is not mistaken for a request;
+`supabase/functions/dpdp-inbound-mail/classify.test.ts` renders every notice in full to prove it (so a
+wording change in `render.ts` that adds a legal word fails that test, not silently a real reply).
+
 `ref` is 10 characters, fresh for every message. Cloudflare Email Routing
 delivers every `dpdp+anything@` to the one `dpdp@` rule, so a reply that loses
 its `+tag` is still received (the inbound classifier then falls back to thread

@@ -204,7 +204,9 @@ describe("logOutbound's arguments match the migration's dpdp_mail_log_outbound",
     const sent = await sentArgs()
     expect(sent.filter((k) => !known.includes(k))).toEqual([])
     expect(fn.params.filter((p) => !p.hasDefault && !sent.includes(p.name)).map((p) => p.name)).toEqual([])
-  })
+    // loadFunction() reads every .sql file in drizzle/ (hundreds of them) and, on a loaded machine or a cold disk cache, took longer than
+    // bun's 5-second default and failed a run for no reason of its own: an explicit generous timeout, below.
+  }, 30_000)
 
   test("the migration grants the function to service_role only", () => {
     const { sql } = loadFunction()
