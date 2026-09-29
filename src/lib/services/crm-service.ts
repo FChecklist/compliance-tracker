@@ -1753,9 +1753,10 @@ export async function deleteOpportunity(ctx: CrmContext, opportunityId: string) 
 }
 
 // Structured Lost Reason (Odoo reference: a configurable Lost Reasons
-// taxonomy, not free text -- see odoo-reverse-engineering/docs/crm/fields.md
+// taxonomy, not free text -- see ai-os/reference/odoo-crm-fields.md
 // "Marking a deal 'Lost' is backed by a structured Lost Reasons config
-// list... not a free-text field"). Org-configurable, not a hardcoded enum,
+// list... not a free-text field"; mirrored 2026-09-29 from the now-deleted
+// odoo-reverse-engineering repo). Org-configurable, not a hardcoded enum,
 // same rationale as this schema's other org-scoped lookup data.
 export async function createLostReason(ctx: CrmContext, reasonText: string) {
   await requireSalesEnabled(ctx.orgId)
