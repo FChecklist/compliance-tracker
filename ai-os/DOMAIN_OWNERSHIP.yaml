@@ -99,8 +99,8 @@ domains:
     canonical_project:
       name: "projexa"
       id: "prj_JA9mwUdOfW3SKSxjG4jdPo0R2iVM"
-    last_verified: "2026-08-16"
-    last_verified_by: "desktop PM tier (Claude Desktop, Sonnet 5, direct Vercel REST API), confirmed by task-20260816-142705's own follow-up read of GET /v9/projects/{projexa}/domains and a real HTTP fetch of the live page title"
+    last_verified: "2026-09-29"
+    last_verified_by: "desktop PM tier (Claude Desktop, Sonnet 5, Vercel MCP), owner directive given directly in chat ('make our projexa-ai.com complete up and running... except for vercel recharge you can do anything everything'). Domain assignment itself was already correct (still on `projexa`, unchanged) -- the real blocker was BOTH `projexa` and `veridian-compliance-ai` Vercel projects sitting paused (unrelated to this file's domain-reassignment incident history). Called unpause_project on both project IDs (no plan/tier change, no add-on enabled -- Hobby plan, $0 recorded spend both before and after). Verified live afterward: projexa-ai.com HTTP 200 with real rendered content (browser-checked, zero console errors), veridian-compliance-ai.vercel.app/api/health returned {ok:true,db:up}, zero runtime errors on either project in the last hour via Vercel's own error aggregation. Did not log into the live production app with any credentials (out of scope regardless of authorization -- that exception is local-dev-host only)."
     history:
       - { date: "2026-07-21", project: "veridian-compliance-ai", event: "WAVE-199 Wave 10 brand-merge cutover (Owner-authorized)", ref: "ai-os/boss/COMPLETED.yaml id: WAVE-199" }
       - { date: "2026-07-27", project: "projexa", event: "undocumented reversal, doer unknown", ref: "cited by WAVE-10-REDO's own summary" }
