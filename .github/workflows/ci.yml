@@ -208,6 +208,28 @@ jobs:
       # it can never happen. See the script's own header for the same
       # honest-limitation note.
       - run: node scripts/check-migration-collision.mjs --base origin/main
+  ddl-authorization-check:
+    name: DDL Authorization Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      # 2026-09-29: this repo's ai-os/CONSTITUTION.yaml SEC-06 claimed
+      # "Live production database DDL/DCL execution is gated at dispatch
+      # time" as ENFORCED, citing a mechanism (claude-control's
+      # scripts/ddl_authorization_check.py, wired into scripts/
+      # task-gateway.py's dispatch-time gate) that ran on the
+      # VERIDIAN-DEV Hetzner server. That server was permanently deleted
+      # 2026-08-25, and zero live invocation path for that mechanism has
+      # existed since. This job re-homes a real, deliberately narrower
+      # (destructive-DDL-only, Category-A-citation-only) version of that
+      # check as a PR-time gate on every new/changed drizzle/*.sql
+      # migration file -- see scripts/check-ddl-authorization.mjs's own
+      # header for the full scope/limitation reasoning. fetch-depth 0
+      # (same as migration-collision-check just above) so the script's
+      # git merge-base/diff against origin/main always resolves.
+      - run: node scripts/check-ddl-authorization.mjs --base origin/main
   route-error-handling-check:
     name: Route Error Handling Check
     runs-on: ubuntu-latest
