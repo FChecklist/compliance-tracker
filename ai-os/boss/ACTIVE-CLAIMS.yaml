@@ -4822,6 +4822,17 @@ active:
       top-level /employees path (no collision, plain new page, same house
       convention as the customers/vendors/kpis batch).
 
+      PROGRESS UPDATE (2026-09-29, continued): employees merged (#1971) --
+      9 of 24 genuinely-new modules now done. Now claiming "invoices"
+      (PROJEXA's src/app/(app)/invoices/** -- list, [id] detail, new,
+      credit-notes/[id], credit-notes/new). Real backend confirmed live and
+      distinct from any erp-owned page (no src/app/(app)/erp/*invoice* path
+      exists): /api/v1/projexa/sales-invoices (+ [id]/payments, [id]/submit,
+      [id]/cancel), /api/v1/projexa/credit-notes (+ [id]/submit), plus
+      supporting /api/v1/projexa/{dunning-list,ar-aging,tax-templates,
+      finance-dashboard,payment-proposal-list}. No collision, no shadow
+      routing needed.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
