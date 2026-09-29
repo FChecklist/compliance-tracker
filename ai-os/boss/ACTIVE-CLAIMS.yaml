@@ -4911,6 +4911,37 @@ active:
       warehouses}. No collision with any existing compliance-tracker
       top-level page.
 
+      PROGRESS UPDATE (2026-09-29/30, continued): sales (#1980), procurement
+      (#1981), the inventory claim doc (#1982), and inventory (#1983) all
+      merged -- 15 of 24 genuinely-new modules now done. Real, root-caused
+      incident in between: stacking several PRs' CI concurrently against the
+      live Supabase DB (pcrjmlpuqsbocqfwoxod) exhausted its connection pool
+      ("sorry, too many clients already", confirmed via query_logs -- zero
+      occurrences in the 9 hours before, then hundreds per 15-min bucket the
+      moment 5 PRs' CI ran at once), which failed all 4 required DB-touching
+      checks (Migration Integrity AR-12, Migration Schema Drift, Graph Drift,
+      Screen Definition Label) on unrelated PRs simultaneously, including on
+      main's own HEAD -- not a real code defect in any of those PRs. Fixed by
+      halting new pushes/agents, waiting for in-flight CI to drain (confirmed
+      via the live app's own health endpoint latency dropping from 31s to
+      sub-second), then re-running failed checks + repeated update-branch
+      cycles as each merge advanced main. Also surfaced (not fixed --
+      separate task, see [[ci-db-connection-pool-exhaustion-2026-09-29]] in
+      this session's memory) a likely root cause for the previously-open
+      "BOQ save timeout" mystery: a budget-vs-actual BOQ rollup query taking
+      16-46s per execution in the same window, which alone can exhaust a
+      small pool under concurrent load. #1982 hit the identical
+      merge=union-registry rebase pattern as #1978 -- same fix. Lesson
+      applied going forward: pace module PRs so no more than ~1-2 are
+      running CI at once, rather than stacking claim+module PRs across
+      several modules simultaneously. Now claiming "accounting" (PROJEXA's
+      src/app/(app)/accounting/** -- page.tsx overview,
+      companies/new, journal-entries/{[id],new}). Real backend confirmed
+      live: /api/v1/projexa/journal-entries, /api/v1/projexa/
+      asset-to-gl-reconciliation (erp-accounting-service.ts -- CLAUDE.md's
+      own High-Risk-Files list, read carefully). No collision with any
+      existing compliance-tracker top-level page.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
