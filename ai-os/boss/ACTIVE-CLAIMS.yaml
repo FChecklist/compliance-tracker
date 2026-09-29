@@ -4878,6 +4878,21 @@ active:
       route) -- check before duplicating, only build what's genuinely not
       already covered.
 
+      PROGRESS UPDATE (2026-09-29, continued): sales-orders merged (#1977) --
+      12 of 24 genuinely-new modules now done. Now claiming "sales"
+      (PROJEXA's src/app/(app)/sales/** -- page.tsx, leads/{page,[id],new},
+      opportunities/{page,[id],new}). NOT a duplicate of compliance-tracker's
+      native /crm despite similar naming -- confirmed native /crm calls a
+      completely different API namespace (/api/crm/leads,
+      /api/crm/opportunities, /api/crm/accounts, /api/crm/contacts --
+      compliance-tracker's own original, pre-PROJEXA product, per
+      CLAUDE.md's own note that pages outside construction_*/pms_*/erp_*/
+      dpdp_* may not be retired yet). PROJEXA's sales module is backed by
+      /api/v1/projexa/leads and /api/v1/projexa/opportunities -- a
+      genuinely separate, project-linked resource. Same coexistence
+      precedent as budgets vs erp/budgets and purchase-orders vs
+      erp/procurement.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
