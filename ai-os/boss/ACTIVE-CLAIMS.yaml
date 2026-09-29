@@ -4893,6 +4893,24 @@ active:
       precedent as budgets vs erp/budgets and purchase-orders vs
       erp/procurement.
 
+      PROGRESS UPDATE (2026-09-29, continued; hit and fixed a real merge
+      conflict on the "sales" claim doc PR #1978 -- resolved via
+      git rebase origin/main + force-with-lease push, same pattern as the
+      earlier #1961/#1964 ACTIVE-CLAIMS.yaml collision; this file has a
+      `merge=union-registry` .gitattributes driver that auto-resolves
+      locally even when GitHub's own mergeability check reports DIRTY,
+      since GitHub doesn't apply local merge drivers -- rebase+force-push
+      is the correct fix when that happens, not a sign of real data loss).
+      "sales" (PR #1980) and "procurement" (PR #1981) are both open with
+      native GitHub auto-merge enabled (this repo now has auto-merge
+      enabled at the repo level, gh pr merge --auto used going forward
+      instead of manual polling). Now claiming "inventory" (PROJEXA's
+      src/app/(app)/inventory/** -- overview, items/{[id],new},
+      stock-entries/new, warehouses/new). Real backend confirmed live:
+      /api/v1/projexa/inventory/{items,stock-balance,stock-entries,
+      warehouses}. No collision with any existing compliance-tracker
+      top-level page.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
