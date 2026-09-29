@@ -2,9 +2,9 @@ import type { GroupAnswerKind, ObligationRow, ViewerContext } from "@/lib/dpdp-o
 import type { DpdpClient, RpcError } from "./client"
 import type {
   AiActionUndoPayload, AiDraftConfirmPayload, AiDraftPreviewPayload, AiLinkListItem, AiLinkPayload, AiLinkWarning, AiWorkLinkCreated,
-  AreaAssignmentWire, AreaPayload, CaClientWire, ConfirmSetupPayload,
+  AreaAssignmentWire, AreaPayload, BillingStatusPayload, CaClientWire, ConfirmSetupPayload,
   CreateClientPayload, CreateMyOrgPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
-  OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, SharePressPayload, UnsubscribeResult,
+  OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
 } from "./rpc-types"
 import { SITE_ORIGIN } from "./site-origin.mjs"
 
@@ -115,9 +115,9 @@ export async function createClientOrg(client: DpdpClient, name: string, product:
   return data as CreateClientPayload
 }
 
-/** "Open my organisation": a signed-in visitor with no organisation opens their own and becomes its owner (drizzle/0654). */
-export async function createMyOrg(client: DpdpClient, name: string, product: "firm" | "institution"): Promise<CreateMyOrgPayload> {
-  const { data, error } = await client.rpc("dpdp_create_my_org", { p_name: name, p_product: product })
+/** "Open my organisation": a signed-in visitor with no organisation opens their own and becomes its owner (drizzle/0654). referralCode (WO-DPDP-016, drizzle/0655) is the ?ref=<code> this visitor arrived with, if any -- a bad/unknown code is ignored server-side, never fails the signup. */
+export async function createMyOrg(client: DpdpClient, name: string, product: "firm" | "institution", referralCode?: string | null): Promise<CreateMyOrgPayload> {
+  const { data, error } = await client.rpc("dpdp_create_my_org", { p_name: name, p_product: product, p_referral_code: referralCode?.trim() || null })
   if (error) throw new RpcFailure(error)
   return data as CreateMyOrgPayload
 }
@@ -283,6 +283,38 @@ export async function recordSharePress(client: DpdpClient, orgId?: string | null
   const { data, error } = await client.rpc("dpdp_record_share_press", orgId ? { p_org_id: orgId } : undefined)
   if (error) throw new RpcFailure(error)
   return data as SharePressPayload
+}
+
+// ---------------------------------------------------------------------
+// WO-DPDP-016 §5: "refer and earn" -- the referrer's own view of what
+// their code has earned (drizzle/0655). Any signed-in identity, matching
+// the same "every email" widening dpdp__share_role got.
+// ---------------------------------------------------------------------
+
+/** This person's own code (null if they've never pressed Share / asked for one yet) and what it has earned so far. */
+export async function myReferralSummary(client: DpdpClient, orgId?: string | null): Promise<ReferralSummaryPayload> {
+  const { data, error } = await client.rpc("dpdp_my_referral_summary", orgId ? { p_org_id: orgId } : undefined)
+  if (error) throw new RpcFailure(error)
+  return data as ReferralSummaryPayload
+}
+
+// ---------------------------------------------------------------------
+// WO-DPDP-016 §7-8: billing status for the owner's own page (drizzle/0655).
+// Owner-only; access never depends on any of this.
+// ---------------------------------------------------------------------
+
+/** trial | awaiting_confirmation | active, plus the trial deadline and whatever the owner has claimed/the Owner has actually confirmed. */
+export async function myBilling(client: DpdpClient, orgId?: string | null): Promise<BillingStatusPayload> {
+  const { data, error } = await client.rpc("dpdp_my_billing", orgId ? { p_org_id: orgId } : undefined)
+  if (error) throw new RpcFailure(error)
+  return data as BillingStatusPayload
+}
+
+/** "I've paid": a claim, not a fact -- moves the org to awaiting_confirmation. Changes no access anywhere; the Owner still has to confirm the money was actually seen. */
+export async function declarePayment(client: DpdpClient, interval: "month" | "year", amountPaise: number, orgId?: string | null): Promise<{ ok: true; state: "awaiting_confirmation" }> {
+  const { data, error } = await client.rpc("dpdp_declare_payment", { p_interval: interval, p_amount_paise: amountPaise, ...(orgId ? { p_org_id: orgId } : {}) })
+  if (error) throw new RpcFailure(error)
+  return data as { ok: true; state: "awaiting_confirmation" }
 }
 
 /** resolveConsentToken(): the parent consent page before any answer. */

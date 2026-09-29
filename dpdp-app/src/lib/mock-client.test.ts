@@ -301,4 +301,75 @@ describe("dpdp_create_my_org (drizzle/0654: a visitor opens their own organisati
     expect((await c.rpc("dpdp_create_my_org", { p_name: "X".repeat(121), p_product: "firm" })).error?.message).toContain("too long")
     expect((await c.rpc("dpdp_create_my_org", { p_name: "Ok", p_product: "hospital" })).error?.message).toContain("product must be")
   })
+
+  test("a ?ref= code travels through to org creation (WO-DPDP-016 §2: the real conflict-checking is a Postgres-side unit, drizzle/0655)", async () => {
+    const c = createMockClient("visitor")
+    const made = await c.rpc("dpdp_create_my_org", { p_name: "Referred Traders", p_product: "firm", p_referral_code: "ABCD1234" })
+    expect(made.error).toBeNull()
+    const history = (await c.rpc("dpdp_org_history")).data as { kind: string; summary: string }[]
+    expect(history.some((h) => h.kind === "referral_recorded" && h.summary.includes("ABCD1234"))).toBe(true)
+  })
+
+  test("a brand-new org starts on a 30-day trial", async () => {
+    const c = createMockClient("visitor")
+    await c.rpc("dpdp_create_my_org", { p_name: "Fresh Co", p_product: "firm" })
+    const billing = (await c.rpc("dpdp_my_billing")).data as { state: string; trialEndsAt: string }
+    expect(billing.state).toBe("trial")
+    const daysLeft = Math.round((new Date(billing.trialEndsAt).getTime() - Date.now()) / 86_400_000)
+    expect(daysLeft).toBeGreaterThanOrEqual(29)
+    expect(daysLeft).toBeLessThanOrEqual(30)
+  })
+})
+
+describe("WO-DPDP-016 §1: the share ask widens from decision-makers-only to every signed-in person", () => {
+  test("a plain staff member (scenario 'member', kind staff) now gets a code and role 'member', not a refusal", async () => {
+    const c = createMockClient("member")
+    const code = await c.rpc("dpdp_my_referral_code")
+    expect(code.error).toBeNull()
+    expect(code.data).toMatchObject({ role: "member" })
+    const press = await c.rpc("dpdp_record_share_press")
+    expect(press.error).toBeNull()
+    expect(press.data).toMatchObject({ ok: true, role: "member" })
+  })
+
+  test("the owner and a CA partner still keep their own named role, not 'member'", async () => {
+    expect(((await createMockClient("owner-live").rpc("dpdp_my_referral_code")).data as { role: string }).role).toBe("owner")
+    expect(((await createMockClient("partner").rpc("dpdp_my_referral_code")).data as { role: string }).role).toBe("partner")
+  })
+
+  test("a real stranger (not a member of anything) is still refused", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_my_referral_code")).error?.message).toContain("Not a member")
+  })
+})
+
+describe("WO-DPDP-016 §7-8: billing status and self-declared payment (drizzle/0655)", () => {
+  test("declaring a payment moves trial -> awaiting_confirmation, and changes nothing else visible", async () => {
+    const c = createMockClient("owner-live")
+    const before = (await c.rpc("dpdp_my_billing")).data as { state: string }
+    expect(before.state).toBe("trial")
+    const page1 = (await c.rpc("dpdp_my_page")).data as MyPagePayload
+
+    const declared = await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 999_900 })
+    expect(declared.error).toBeNull()
+    expect(declared.data).toEqual({ ok: true, state: "awaiting_confirmation" })
+
+    const after = (await c.rpc("dpdp_my_billing")).data as { state: string; interval: string; selfDeclaredAmountPaise: number; selfDeclaredInterval: string }
+    expect(after).toMatchObject({ state: "awaiting_confirmation", interval: "year", selfDeclaredAmountPaise: 999_900, selfDeclaredInterval: "year" })
+    // The Owner's own words, this session: "just an SLA label -- access never changes."
+    const page2 = (await c.rpc("dpdp_my_page")).data as MyPagePayload
+    expect(page2.rows).toEqual(page1.rows)
+  })
+
+  test("interval and amount are validated", async () => {
+    const c = createMockClient("owner-live")
+    expect((await c.rpc("dpdp_declare_payment", { p_interval: "week", p_amount_paise: 100 })).error?.message).toContain("interval must be")
+    expect((await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 0 })).error?.message).toContain("positive number")
+  })
+
+  test("only the owner can see or touch billing", async () => {
+    const c = createMockClient("member")
+    expect((await c.rpc("dpdp_my_billing")).error?.message).toContain("Only the owner")
+    expect((await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 999_900 })).error?.message).toContain("Only the owner")
+  })
 })

@@ -329,3 +329,27 @@ describe("legal clocks and RFC 8058 headers", () => {
     }
   })
 })
+
+describe("WO-DPDP-016 §9: the billing banner, before everything else", () => {
+  test("trial and awaiting_confirmation both get the banner, ahead of the intro", () => {
+    for (const state of ["trial", "awaiting_confirmation"] as const) {
+      const out = renderDigest(digest({ subscriptionState: state }), live)
+      expect(out.html).toContain("DPDP is important")
+      expect(out.text).toContain("DPDP IS IMPORTANT")
+      expect(out.html.indexOf("DPDP is important")).toBeLessThan(out.html.indexOf("Here are your DPDP jobs"))
+      expect(out.text.indexOf("DPDP IS IMPORTANT")).toBeLessThan(out.text.indexOf("Here are your DPDP jobs"))
+    }
+  })
+
+  test("active, and an older fixture with no subscriptionState at all, never show it", () => {
+    expect(renderDigest(digest({ subscriptionState: "active" }), live).html).not.toContain("DPDP is important")
+    expect(renderDigest(digest({}), live).html).not.toContain("DPDP is important")
+  })
+
+  test("the banner reaches every recipient, not just the owner -- and survives the statutory-only reduction", () => {
+    const ownerOut = renderDigest(digest({ subscriptionState: "trial", level: "owner", roleKind: "owner" }), live)
+    expect(ownerOut.html).toContain("DPDP is important")
+    const statutoryOut = renderDigest(digest({ subscriptionState: "trial" }), live, "statutory")
+    expect(statutoryOut.html).toContain("DPDP is important")
+  })
+})

@@ -68,6 +68,14 @@ export type Digest = {
    * no change here.
    */
   caSub?: "partner" | "manager" | null
+  /**
+   * WO-DPDP-016 §9: 'trial' | 'awaiting_confirmation' | 'active', from
+   * dpdp.subscription.state (drizzle/0655/0656) -- anything but 'active'
+   * gets the "complete the billing" banner. Optional and treated as
+   * 'active' when absent, so a caller/fixture built before this field
+   * existed never starts showing the banner by surprise.
+   */
+  subscriptionState?: "trial" | "awaiting_confirmation" | "active"
   weekKey: string // IYYY-Wnn (IST)
   today: string // YYYY-MM-DD (IST)
   unsubscribed: boolean
@@ -381,8 +389,22 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
       ? `Here is where ${digest.orgName} stands on DPDP for the week of ${weekOf}. Late jobs are at the top, in red. Everyone with a job has had their own email; nothing here needs you unless it is escalated to you below.`
       : `Here are your DPDP jobs at ${digest.orgName} for the week of ${weekOf}. Late ones are at the top, in red. When a job is done, press the green button — that is all.`
 
-  const htmlParts: string[] = [`<p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(intro)}</p>`]
-  const textParts: string[] = [intro, ""]
+  const htmlParts: string[] = []
+  const textParts: string[] = []
+
+  // WO-DPDP-016 §9: "DPDP is important -- complete the billing", ahead of
+  // everything else, for as long as the org's subscription isn't
+  // 'active' -- a nag, not a gate (§7-8: access never changes). Absent
+  // subscriptionState (an older fixture, or a caller that predates
+  // drizzle/0655/0656) is treated as active, i.e. no banner.
+  if (digest.subscriptionState && digest.subscriptionState !== "active") {
+    const banner = "DPDP is important — complete the billing."
+    htmlParts.push(`<p style="background:#FEF3C7;color:#92400E;font-weight:700;font-size:14px;line-height:1.5;margin:0 0 16px;padding:10px 14px;border-radius:8px;">${esc(banner)}</p>`)
+    textParts.push(banner.toUpperCase(), "")
+  }
+
+  htmlParts.push(`<p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(intro)}</p>`)
+  textParts.push(intro, "")
 
   if (mine.length) {
     htmlParts.push(`<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Your jobs (${mine.length})</h2>`)

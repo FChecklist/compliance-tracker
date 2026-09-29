@@ -6,7 +6,7 @@ import {
   type Area, type CaClient, type DraftFragment, type MyPage, type UndoFragment,
 } from "./lib/api"
 import type { OrgSetupPayload } from "./lib/rpc-types"
-import { readLanding, recallEdition, recallEmail, rememberEmail, type Landing } from "./lib/landing"
+import { readLanding, recallEdition, recallEmail, recallReferral, rememberEmail, type Landing } from "./lib/landing"
 import { OnePageView } from "./components/onepage/OnePageView"
 import { FirstVisitWizard } from "./components/onepage/FirstVisitWizard"
 import { RoleWelcome } from "./components/onepage/RoleWelcome"
@@ -16,6 +16,7 @@ import { CaClients, type NewClient } from "./components/CaClients"
 import { CaPartnerFirstVisit } from "./components/CaPartnerFirstVisit"
 import { OwnerReview } from "./components/OwnerReview"
 import { AiWorkLink } from "./components/AiWorkLink"
+import { BillingPanel } from "./components/BillingPanel"
 import { DraftConfirm } from "./components/DraftConfirm"
 import { AiUndoConfirm } from "./components/AiUndoConfirm"
 import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type ResendState } from "./components/Screens"
@@ -184,10 +185,13 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
 
   // WO-DPDP-015: a visitor with no organisation opens their own (the landing
   // pages' "Start free"); load() then finds the new owner membership.
+  // WO-DPDP-016: the referral code they arrived with (landing.ts's ?ref=,
+  // or one remembered from an earlier visit on this device) rides along --
+  // a bad/unknown code is ignored server-side, never blocks the signup.
   async function openMyOrg(name: string, product: "firm" | "institution") {
     setPhase({ name: "no-membership", busy: true, error: null })
     try {
-      await createMyOrg(client, name, product)
+      await createMyOrg(client, name, product, landing.referralCode ?? recallReferral())
     } catch (e) {
       setPhase({ name: "no-membership", busy: false, error: e instanceof Error ? e.message : String(e) })
       return
@@ -236,8 +240,9 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       break
   }
 
-  // WO-DPDP-014 §2/§3: the brand line above every phase of /app/; the share
-  // ask only once the page is loaded AND the viewer is a decision-maker.
+  // WO-DPDP-014 §2/§3, widened by WO-DPDP-016 §1: the brand line above
+  // every phase of /app/; the share ask once the page is loaded, for
+  // whichever viewer is signed in -- shareRoleFor never returns null now.
   const shareRole = phase.name === "app" ? shareRoleFor(phase.page.viewer) : null
   return (
     <>
@@ -332,6 +337,8 @@ function Page({
       {draft && <DraftConfirm client={client} draft={draft} onDone={refetch} onDismiss={onDraftDone} />}
       {undo && <AiUndoConfirm client={client} undo={undo} onDone={refetch} onDismiss={onUndoDone} />}
       {body}
+      {/* WO-DPDP-016 §7: lower-left, owner-only -- the component itself checks the role via dpdp_my_billing's own 42501. */}
+      {viewer.kind === "owner" && <BillingPanel client={client} orgId={org.id} />}
     </div>
   )
 }
