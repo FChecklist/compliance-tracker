@@ -210,12 +210,14 @@ export default function PxHrDashboardPage() {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* Employees module not yet ported as of this page -- expected at
-            /px/employees once that sibling module lands (same /hr-collision
-            reasoning: this repo has no native employee-directory equivalent
-            -- employeeCode/jobTitle/employmentType/leave -- to link to
-            instead; /users, /team and /departments are a different concept). */}
-        <Link href="/px/employees" className="block">
+        {/* Employees module (ai-os/PROJEXA_SERVER_MERGE_PLAN.md) landed as a
+            plain top-level /employees page, not /px/employees -- unlike this
+            page's own /hr collision, compliance-tracker had no pre-existing
+            /employees route to shadow-route around (confirmed before that
+            module's own page.tsx was written), so it lives at the same path
+            PROJEXA itself uses. This link previously pointed at a
+            placeholder /px/employees in anticipation of that module. */}
+        <Link href="/employees" className="block">
           <Card className="rounded-xl shadow-card bg-white transition-shadow hover:shadow-md">
             <CardContent className="p-4">
               <p className="font-medium text-ct-navy">Employee Directory</p>
