@@ -84,7 +84,14 @@ export function resolveBaseRef() {
 
 export function mergeBaseWith(ref) {
   try {
-    return execSync(`git merge-base HEAD ${ref} 2>/dev/null`, { encoding: "utf8" }).trim()
+    // stdio pipes stderr rather than an inline `2>/dev/null` redirect: the redirect is
+    // POSIX shell syntax that cmd.exe (Windows) cannot parse, which silently broke this
+    // whole check on Windows (falls into the catch below, then main()'s own git-diff
+    // catch, producing a false "OK: could not compute git diff -- skipping" pass even
+    // with real, unauthorized DROP TABLE staged) -- found via independent verification,
+    // reproduced directly on this laptop. CI itself runs on ubuntu-latest so this bug
+    // never affected the actual gate, only local Windows sanity-testing of it.
+    return execSync(`git merge-base HEAD ${ref}`, { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim()
   } catch {
     return "HEAD~1"
   }
@@ -141,9 +148,11 @@ export const MIN_DATED_NOTE_LENGTH = 25
 export function keIdExistsOnDisk(keId) {
   try {
     // ai-os/ is small enough (~tens of MB) to grep directly per check run.
+    // stdio pipes stderr instead of an inline `2>/dev/null` -- see mergeBaseWith's
+    // comment for why the shell-redirect form silently broke this on Windows.
     const out = execSync(
-      `git grep -l -- "${keId}" -- ai-os/ 2>/dev/null`,
-      { encoding: "utf8" }
+      `git grep -l -- "${keId}" -- ai-os/`,
+      { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
     ).trim()
     return out.length > 0
   } catch {
@@ -153,7 +162,7 @@ export function keIdExistsOnDisk(keId) {
 
 export function ownerDecisionsFileExists(filename) {
   try {
-    execSync(`git cat-file -e HEAD:ai-os/${filename} 2>/dev/null`)
+    execSync(`git cat-file -e HEAD:ai-os/${filename}`, { stdio: ["pipe", "pipe", "pipe"] })
     return true
   } catch {
     try {
@@ -197,13 +206,17 @@ function main() {
   // in a rollback script is still destructive DDL that can run against prod.
   let changedFiles = []
   try {
+    // stdio pipes stderr instead of an inline `2>/dev/null` -- see mergeBaseWith's
+    // comment above for why the shell-redirect form silently broke this on Windows
+    // (fell into this very catch block, producing a false-pass "skipping" exit 0
+    // even with real unauthorized DROP TABLE staged -- reproduced directly).
     const committed = execSync(
-      `git diff --name-only --diff-filter=d ${mergeBase} HEAD -- drizzle/ 2>/dev/null`,
-      { encoding: "utf8" }
+      `git diff --name-only --diff-filter=d ${mergeBase} HEAD -- drizzle/`,
+      { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
     ).trim()
     const untracked = execSync(
-      `git ls-files --others --exclude-standard -- drizzle/ 2>/dev/null`,
-      { encoding: "utf8" }
+      `git ls-files --others --exclude-standard -- drizzle/`,
+      { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
     ).trim()
     changedFiles = [...committed.split("\n"), ...untracked.split("\n")]
       .filter(Boolean)
