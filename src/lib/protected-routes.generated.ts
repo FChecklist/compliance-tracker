@@ -97,6 +97,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/rfis",
   "/risks",
   "/rpt",
+  "/sales",
   "/sales-hq",
   "/sales-orders",
   "/schedule",
