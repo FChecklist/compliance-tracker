@@ -58,6 +58,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/it-dr",
   "/knowledge-base",
   "/kpi-hub",
+  "/kpis",
   "/labour",
   "/leave-holiday",
   "/legal-matters",
