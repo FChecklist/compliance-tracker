@@ -4714,6 +4714,38 @@ active:
       going through this repo's normal CI before merge (Amendment 001:
       autonomous merge on green required checks, no owner approval needed).
 
+      PROGRESS UPDATE (2026-09-29, continuation after a compaction):
+        - Phase 1 batch 1 (px/hr, px/recruitment, px/settings) implemented +
+          independently verified PASS by a Workflow run; PRs #1954/#1955/#1956
+          open, all required CI checks green, merge cycle in progress (this
+          repo's recurring "PR goes BEHIND main between CI-green and merge"
+          pattern -- resolved each time via update-branch + re-wait, not a
+          real blocker).
+        - Phase 1 batch 2 (customers/vendors/meetings/kpis/wiki): the prior
+          session's background Workflow run (wf_579b9ef7-cfb) was killed
+          before it finished and left a 0-byte journal, but 4 of the 5
+          modules' implement stage had already committed and pushed real
+          branches before the kill -- recovered those (verified each diff by
+          hand: correct file layout, force-dynamic, no veridian-ui-kit
+          import) and opened PRs #1957 (customers), #1958 (vendors), #1959
+          (kpis), #1960 (wiki). "meetings" never got a branch at all -- still
+          needs a fresh implement pass, queued for the next batch.
+        - RAM: this laptop dropped to ~1.58GB free mid-session (this repo's
+          documented recurring constraint). Owner gave explicit, standing
+          authorization this session to close any other app/program to free
+          RAM for this work ("clear ram, use it only for your work, you can
+          close any app, program") -- closed Edge/Chrome/Teams/OneDrive/
+          M365Copilot/Windows-widget helper processes (NOT any other
+          `claude` process -- those are other sessions' real work per this
+          same file, left untouched), ran the existing
+          windows-dev-process-guard.ps1 -Cleanup (found zero orphans this
+          time). Recovered to ~3.1GB free. Treat this as a standing
+          allowance for THIS session on THIS machine when RAM is tight, not
+          a one-time act -- re-check before each new worktree-heavy batch and
+          repeat the same non-destructive close-then-cleanup sequence if
+          free RAM is again critically low, still never touching another
+          session's `claude` process or in-progress worktree.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
