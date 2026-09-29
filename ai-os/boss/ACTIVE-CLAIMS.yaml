@@ -4566,6 +4566,33 @@ active:
       either repo (owner wants this done on local + git + Supabase, not
       Vercel).
 
+  - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
+    claimed_at: "2026-09-29T (this session)"
+    claim: |
+      SCOPE (owner-decided background, already investigated before this claim):
+      ai-os/CONSTITUTION.yaml's SEC-06 has claimed status ENFORCED for a
+      DDL-authorization gate whose real mechanism (claude-control's
+      scripts/ddl_authorization_check.py wired into scripts/task-gateway.py's
+      dispatch-time gate on the now-permanently-deleted VERIDIAN-DEV Hetzner
+      server) has had zero live invocation path since that server was deleted
+      2026-08-25. Re-homing a real, deliberately narrower (destructive-DDL-only,
+      Category-A-citation-only) version of the check as a compliance-tracker CI
+      job, and correcting SEC-06's status/mechanism/gap fields to say so honestly.
+      Files this claim touches:
+        - scripts/check-ddl-authorization.mjs (new)
+        - scripts/check-ddl-authorization.test.ts (new)
+        - .github/workflows/ci.yml (one new job, mirroring "Migration Number
+          Collision Check")
+        - ai-os/CONSTITUTION.yaml (SEC-06 entry + changelog entry only)
+      NOT touching: any other SEC-* entry, any live Supabase object/migration,
+      Vercel, DNS, any secret/credential, claude-control repo itself, any
+      drizzle/ migration file. No merge to main -- opens a PR and leaves it for
+      review per the task's own instruction, even though Amendment 001 (memory:
+      amendment-001-governance-autonomy-2026-09-24) would otherwise allow
+      autonomous merge on green CI.
+      Commits are local to this worktree; PR opened via gh pr create, not merged
+      by this session.
+
 recently_completed:
   - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch feat/dpdp-editions-complete) -- WO-DPDP-015: Monday digest timeout fixed and self-healing; /dpdp-firm and /dpdp-institution completed end to end (self-serve organisation, every role tested live) [DONE on merge of its PR]"
     claimed_at: "2026-09-28 (this session)"
