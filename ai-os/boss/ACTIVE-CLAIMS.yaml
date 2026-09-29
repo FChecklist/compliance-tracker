@@ -4833,6 +4833,16 @@ active:
       finance-dashboard,payment-proposal-list}. No collision, no shadow
       routing needed.
 
+      PROGRESS UPDATE (2026-09-29, continued): invoices merged (#1973) --
+      10 of 24 genuinely-new modules now done. Now claiming "quotations"
+      (PROJEXA's src/app/(app)/quotations/** -- list, [id] detail, new).
+      Real backend confirmed live: /api/v1/projexa/quotations (+ [id],
+      [id]/revisions, [id]/pdf). Distinct from procurement/quotations
+      (a separate vendor-RFQ resource under /api/v1/projexa/procurement/
+      quotations -- different domain, not touched by this claim, same
+      precedent as purchase-orders vs erp/procurement coexistence). No
+      collision with any existing compliance-tracker top-level page.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
