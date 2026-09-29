@@ -114,5 +114,6 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/veri-todo",
   "/voice-tickets",
   "/whistleblower",
+  "/wiki",
   "/work-progress"
 ]
