@@ -4856,6 +4856,50 @@ active:
       Commits are local to this worktree; pushed to origin for the
       orchestrating session to open the PR -- not merged by this session.
 
+  - session_label: "claude-code (agent, isolated worktree C:/ct/ct/.claude/worktrees/agent-a7648b52722d52bfb, branch feat/projexa-merge-px-reports) -- PROJEXA server-merge, module \"reports\": port PROJEXA's Reports screen into compliance-tracker at src/app/(app)/px/reports/page.tsx [IN PROGRESS]"
+    claimed_at: "2026-09-29 (this session)"
+    claim: |
+      SCOPE (ai-os/PROJEXA_SERVER_MERGE_PLAN.md Phase 1, one page assigned by
+      the orchestrating session -- same pattern as the settings/dashboard/hr/
+      recruitment/documents px/ pages above and below). Checked this file and
+      `gh pr list` before starting: no other active claim or open PR touches
+      px/reports.
+      Overlap check done first, per the task's own instruction: grepped
+      src/app/(app) for any existing page calling
+      src/app/api/v1/projexa/reports/** -- none found. construction-dashboard/
+      page.tsx (the page a sibling session flagged as pre-existing overlap for
+      px/dashboard) does not call the reports API at all. This is a real gap,
+      not a duplicate.
+      Ports FChecklist/projexa's src/app/(app)/reports/page.tsx +
+      ReportsClient.tsx -- the "Project Reports" tab (all 24
+      REPORT_REGISTRY names via GET /api/v1/projexa/reports/[reportName],
+      rendered as the generic {columns,rows,totals,currency} table the route
+      already returns by default) and the "Full Catalog" tab (GET
+      /api/v1/projexa/reports/catalog + POST
+      /api/v1/projexa/reports/definitions/[id]/run). Also wires the PDF/CSV/
+      XLSX export buttons for the 3 exportable reports via GET
+      /api/v1/projexa/reports/[reportName]/export.
+      Deliberately NOT ported (documented in the page's own header comment):
+      Share-link creation (requires acting-person resolution and a separate
+      public token-view page this port does not add); per-report advanced
+      filters (category/vendor/boqId multi-selects) beyond the one required
+      param (weekStart) -- omitting them keeps each route's own documented
+      default (whole-project/whole-BOQ) behaviour; the bespoke ProjectStatusCard
+      KPI layout (rendered via the same generic table instead). PROJEXA's
+      separate `/analysis` module (Project 360 margin analysis via
+      boq-analysis, and portfolio/budget-vs-actual) is NOT part of this port --
+      confirmed by reading PROJEXA's own source that those live under a
+      different route (src/app/(app)/analysis/**), not src/app/(app)/reports/
+      -- so they belong to a future px/analysis port, not this one.
+      Files this claim touches: src/app/(app)/px/reports/page.tsx (new),
+      src/lib/protected-routes.generated.ts (regenerated), this file (claim
+      only).
+      NOT touching: src/proxy.ts (already handles this path's rewrite),
+      src/components/AppSidebar.tsx, messages/en.json, messages/hi.json (nav
+      wiring is a separate, later consolidation pass).
+      Commits are local to this worktree; opens its own PR per the task's
+      instruction.
+
 recently_completed:
   - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch feat/dpdp-editions-complete) -- WO-DPDP-015: Monday digest timeout fixed and self-healing; /dpdp-firm and /dpdp-institution completed end to end (self-serve organisation, every role tested live) [DONE on merge of its PR]"
     claimed_at: "2026-09-28 (this session)"
