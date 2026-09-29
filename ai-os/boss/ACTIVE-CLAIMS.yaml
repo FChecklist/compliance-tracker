@@ -4746,6 +4746,38 @@ active:
           free RAM is again critically low, still never touching another
           session's `claude` process or in-progress worktree.
 
+      GO-LIVE UPDATE (2026-09-29, fresh owner directive given directly in
+      chat: "you have all the rights, you are the project manager... make
+      our projexa-ai.com complete up and running... except for vercel
+      recharge you can do anything everything"): investigated live Vercel
+      state via the Vercel MCP before touching anything (per
+      ai-os/DOMAIN_OWNERSHIP.yaml's own rule to read it first). Found the
+      domain assignment itself was already correct and unchanged
+      (projexa-ai.com/www still on the `projexa` project, matching that
+      file's canonical record) -- the real reason the site wasn't reachable
+      was that BOTH `projexa` and `veridian-compliance-ai` (PROJEXA's own
+      data backend, called via /api/v1/projexa/*) Vercel projects were
+      paused. Called unpause_project on both (no plan/tier change, no
+      add-on enabled, team stays on Hobby, $0 recorded spend before and
+      after -- NOT a recharge). Verified live afterward: projexa-ai.com
+      returns real HTTP 200 content (browser-checked -- full marketing page
+      with live-looking demo widget data, zero console errors),
+      veridian-compliance-ai.vercel.app/api/health returns {ok:true,
+      db:up}, and Vercel's own runtime-error aggregation shows zero errors
+      on either project in the last hour. Did NOT log into the live
+      production app with any credentials to verify further -- that stays
+      off-limits regardless of how broad the delegated authority is (the
+      "test your own app" exception is local-dev-host only, never a real
+      production domain). Also did NOT touch: the dead VERCEL_ACCESS_TOKEN
+      GitHub secret behind domain-drift-check.yml's persistent red run
+      (explicitly documented elsewhere as an owner-only go-live to-do, and
+      no plaintext token was available to give it anyway), any Vercel plan/
+      billing change, any DNS record, or the Speed-Insights-Plus add-on
+      cost question from PROJEXA-COST-001 (toggling Vercel add-ons is
+      explicitly owner-sign-off-only per that work order; did not check its
+      current state this pass given time, flagging as worth a follow-up
+      check, not fixed or confirmed either way here).
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
