@@ -5,8 +5,9 @@
 -- machine-readable Reply-To (dpdp+<tag>.<ref>@, see
 -- supabase/functions/_shared/mail-taxonomy.ts) and every message that comes
 -- back is sorted into a class (Monday reply, sales, sales thread, invoice,
--- grievance, data request, partner, support, auto, review) by the
--- dpdp-inbound-mail Edge Function. This migration is the database half:
+-- grievance, data request, partner, support, auto, review, plus `clock` for a
+-- reply to a statutory notice we sent) by the dpdp-inbound-mail Edge Function.
+-- This migration is the database half:
 --
 --   dpdp.mail_outbound       one row per message the platform sent from the
 --                            mailbox: the ref that is in its Reply-To, its
@@ -19,8 +20,9 @@
 --                            (classifier_reason), the legal-response due date
 --                            for the classes that start a clock, and whether
 --                            the sender was acknowledged and the operator
---                            told. Text excerpt only (first 4096 characters);
---                            attachments are never stored.
+--                            told, and when (and, optionally, why) an
+--                            operator closed it. Text excerpt only (first 4096
+--                            characters); attachments are never stored.
 --   dpdp.mail_ticket_counter one counter per (class prefix, year): G-2026-0042.
 --
 -- WHERE THE LOGIC LIVES, AND WHY. dpdp.* is not exposed to PostgREST (only
@@ -39,13 +41,16 @@
 --     90); which number is right is the owner's and counsel's to confirm.
 --   * Not a store of attachments or of full mail bodies. excerpt is capped at
 --     4096 characters by a CHECK, and it still holds whatever personal data
---     the sender typed there: a retention rule for it is the owner's call and
---     nothing in this migration deletes anything.
+--     the sender typed there. HOW LONG a closed ticket's excerpt, subject and
+--     sender address are kept is the OWNER'S call (with counsel): this
+--     migration sets no retention period and nothing in it deletes or
+--     redacts anything, dpdp_mail_close included (it only marks a ticket
+--     closed). Decide the rule, then add a job for it.
 --   * Ticket numbers are race-safe (one row lock per (prefix, year)) and gap-
 --     free for successful inserts: the counter bump and the insert share one
 --     sub-transaction, so a duplicate that loses the race rolls its bump back.
 --
--- Additive only: three new tables, five new public functions and one internal
+-- Additive only: three new tables, six new public functions and one internal
 -- helper. No existing table, column or function is changed.
 
 -- ---------------------------------------------------------------------
@@ -72,7 +77,7 @@ create table if not exists dpdp.mail_outbound (
   ticket_no text,
   sent_at timestamptz not null default now(),
   constraint mail_outbound_class_check check (class in (
-    'monday', 'sales', 'sales_chain', 'invoice', 'grievance', 'data_request', 'partner', 'support', 'auto', 'review'
+    'monday', 'clock', 'sales', 'sales_chain', 'invoice', 'grievance', 'data_request', 'partner', 'support', 'auto', 'review'
   )),
   constraint mail_outbound_ref_check check (ref ~ '^[0-9abcdefghjkmnpqrstvwxyz]{10}$')
 );
@@ -113,11 +118,17 @@ create table if not exists dpdp.mail_inbound (
   raw_forwarded boolean not null default false,
   operator_notified_at timestamptz,
   created_at timestamptz not null default now(),
+  -- Set once by public.dpdp_mail_close, together with status = 'closed'. Nothing
+  -- in this file ever moves a ticket out of 'closed'.
+  closed_at timestamptz,
+  -- Optional one-line reason an operator gave when closing (capped at 1000).
+  closed_note text,
   constraint mail_inbound_class_check check (class in (
-    'monday', 'sales', 'sales_chain', 'invoice', 'grievance', 'data_request', 'partner', 'support', 'auto', 'review'
+    'monday', 'clock', 'sales', 'sales_chain', 'invoice', 'grievance', 'data_request', 'partner', 'support', 'auto', 'review'
   )),
   constraint mail_inbound_status_check check (status in ('open', 'acknowledged', 'closed')),
-  constraint mail_inbound_excerpt_length_check check (excerpt is null or char_length(excerpt) <= 4096)
+  constraint mail_inbound_excerpt_length_check check (excerpt is null or char_length(excerpt) <= 4096),
+  constraint mail_inbound_closed_note_length_check check (closed_note is null or char_length(closed_note) <= 1000)
 );
 -- A delivery retried by the Worker must not become a second ticket: the same
 -- sender's same Message-ID is one message. Keyed on the sender as well so one
@@ -129,6 +140,9 @@ create index if not exists dpdp_mail_inbound_due_idx
   on dpdp.mail_inbound (due_at) where due_at is not null and status <> 'closed';
 create index if not exists dpdp_mail_inbound_ack_idx
   on dpdp.mail_inbound (lower(from_addr), ack_sent_at) where ack_sent_at is not null;
+-- The overall acknowledgement brake (section 5) counts across every sender.
+create index if not exists dpdp_mail_inbound_ack_time_idx
+  on dpdp.mail_inbound (ack_sent_at) where ack_sent_at is not null;
 
 create table if not exists dpdp.mail_ticket_counter (
   prefix text not null,
@@ -163,6 +177,7 @@ grant select, insert, update, delete on dpdp.mail_outbound, dpdp.mail_inbound, d
 --    same clock dpdp.monday_week_key uses.
 --      G grievance   D data request   R review      S sales      T sales thread
 --      I invoice     M monday reply   P partner     H support    A auto
+--      K statutory notice (clock)
 -- ---------------------------------------------------------------------
 create or replace function dpdp.mail_next_ticket(p_class text, p_at timestamptz default now())
 returns text
@@ -182,6 +197,7 @@ begin
     when 'sales_chain' then 'T'
     when 'invoice' then 'I'
     when 'monday' then 'M'
+    when 'clock' then 'K'
     when 'partner' then 'P'
     when 'support' then 'H'
     when 'auto' then 'A'
@@ -231,7 +247,7 @@ begin
     raise exception 'Invalid mail ref' using errcode = '22023';
   end if;
   if p_class is null or p_class not in (
-    'monday', 'sales', 'sales_chain', 'invoice', 'grievance', 'data_request', 'partner', 'support', 'auto', 'review'
+    'monday', 'clock', 'sales', 'sales_chain', 'invoice', 'grievance', 'data_request', 'partner', 'support', 'auto', 'review'
   ) then
     raise exception 'Unknown mail class %', p_class using errcode = '22023';
   end if;
@@ -295,8 +311,16 @@ $$;
 -- 5. Inbound insert. Idempotent per (sender, Message-ID): a retried delivery
 --    returns the existing ticket with duplicate = true. ackDue is true only
 --    when the caller wants an acknowledgement sent, none has been sent for
---    this ticket, and fewer than 3 have gone to this sender in 24 hours (the
---    stop for an auto-responder that answers our acknowledgement).
+--    this ticket, fewer than 3 have gone to this sender in 24 hours (the
+--    stop for an auto-responder that answers our acknowledgement) AND fewer
+--    than 30 have gone to ANYONE in the last hour (the stop for a flood of
+--    forged sender addresses turning our acknowledgements into backscatter).
+--    When either limit holds the acknowledgement back, the ticket is still
+--    created and the operator is still told: only the automatic
+--    acknowledgement is skipped, and `ackLimit` says which limit it was
+--    ('sender' or 'hourly') so the notice can tell the operator to answer by
+--    hand. The hourly count is not serialised (two deliveries at the same
+--    instant can both read 29), so the cap is a brake, not an exact meter.
 --    p_due_days is passed by the caller: null = no legal clock for this class.
 -- ---------------------------------------------------------------------
 create or replace function public.dpdp_mail_insert_inbound(
@@ -329,10 +353,12 @@ declare
   v_row dpdp.mail_inbound;
   v_dup boolean := false;
   v_recent integer;
+  v_recent_all integer;
   v_ack_due boolean := false;
+  v_ack_limit text := null;
 begin
   if p_class is null or p_class not in (
-    'monday', 'sales', 'sales_chain', 'invoice', 'grievance', 'data_request', 'partner', 'support', 'auto', 'review'
+    'monday', 'clock', 'sales', 'sales_chain', 'invoice', 'grievance', 'data_request', 'partner', 'support', 'auto', 'review'
   ) then
     raise exception 'Unknown mail class %', p_class using errcode = '22023';
   end if;
@@ -369,7 +395,15 @@ begin
   if coalesce(p_wants_ack, false) and v_row.ack_sent_at is null then
     select count(*) into v_recent from dpdp.mail_inbound
     where lower(from_addr) = lower(v_from) and ack_sent_at > now() - interval '24 hours' and id <> v_row.id;
-    v_ack_due := v_recent < 3;
+    select count(*) into v_recent_all from dpdp.mail_inbound
+    where ack_sent_at > now() - interval '1 hour' and id <> v_row.id;
+    if v_recent >= 3 then
+      v_ack_limit := 'sender';
+    elsif v_recent_all >= 30 then
+      v_ack_limit := 'hourly';
+    else
+      v_ack_due := true;
+    end if;
   end if;
 
   return jsonb_build_object(
@@ -380,6 +414,7 @@ begin
     'dueAt', v_row.due_at,
     'duplicate', v_dup,
     'ackDue', v_ack_due,
+    'ackLimit', v_ack_limit,
     'operatorNotified', v_row.operator_notified_at is not null
   );
 end
@@ -429,7 +464,43 @@ end
 $$;
 
 -- ---------------------------------------------------------------------
--- 7. Grants. The helper: nobody. The public functions: service_role only.
+-- 7. Close. An operator marks a ticket done: status = 'closed', closed_at
+--    = now(), and an optional short note (first 1000 characters). Idempotent:
+--    the first call sets the time and the note, every later call changes
+--    nothing and reports alreadyClosed = true. A ticket already closed by
+--    hand (status set without a time) gets its time filled in. NOTHING here or
+--    anywhere else in this file moves a ticket out of 'closed': mark_ack
+--    leaves the status alone once it is not 'open', and a retried delivery of
+--    the same message returns the closed ticket as it is. An unknown ticket
+--    number answers { ok: false }, like the two marks above. This function does
+--    not delete or redact anything (see the retention note in the header).
+-- ---------------------------------------------------------------------
+create or replace function public.dpdp_mail_close(p_ticket_no text, p_note text default null)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_row dpdp.mail_inbound;
+  v_was_closed boolean;
+begin
+  select * into v_row from dpdp.mail_inbound where ticket_no = p_ticket_no for update;
+  if v_row.id is null then
+    return jsonb_build_object('ok', false);
+  end if;
+  v_was_closed := v_row.status = 'closed';
+  update dpdp.mail_inbound
+  set status = 'closed',
+      closed_at = coalesce(closed_at, now()),
+      closed_note = coalesce(closed_note, left(nullif(btrim(p_note), ''), 1000))
+  where id = v_row.id
+  returning * into v_row;
+  return jsonb_build_object('ok', true, 'status', v_row.status, 'closedAt', v_row.closed_at, 'alreadyClosed', v_was_closed);
+end
+$$;
+
+-- ---------------------------------------------------------------------
+-- 8. Grants. The helper: nobody. The public functions: service_role only.
 -- ---------------------------------------------------------------------
 revoke all on function dpdp.mail_next_ticket(text, timestamptz) from public, anon, authenticated, service_role;
 
@@ -438,9 +509,11 @@ revoke all on function public.dpdp_mail_lookup_outbound(text, text[]) from publi
 revoke all on function public.dpdp_mail_insert_inbound(text, text, text, text, timestamptz, integer, text, text, text, text, text, text, text, boolean, boolean) from public, anon, authenticated;
 revoke all on function public.dpdp_mail_mark_ack(text) from public, anon, authenticated;
 revoke all on function public.dpdp_mail_mark_notified(text) from public, anon, authenticated;
+revoke all on function public.dpdp_mail_close(text, text) from public, anon, authenticated;
 
 grant execute on function public.dpdp_mail_log_outbound(text, text, text, text, text, text, text, text, text) to service_role;
 grant execute on function public.dpdp_mail_lookup_outbound(text, text[]) to service_role;
 grant execute on function public.dpdp_mail_insert_inbound(text, text, text, text, timestamptz, integer, text, text, text, text, text, text, text, boolean, boolean) to service_role;
 grant execute on function public.dpdp_mail_mark_ack(text) to service_role;
 grant execute on function public.dpdp_mail_mark_notified(text) to service_role;
+grant execute on function public.dpdp_mail_close(text, text) to service_role;

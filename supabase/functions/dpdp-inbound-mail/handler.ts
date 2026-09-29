@@ -21,14 +21,21 @@
 // So a 2xx means "a person has been told, or the class is auto and the row exists"; anything else means
 // the Worker must not drop the message.
 //
-// ACKNOWLEDGEMENT (legal-clock classes only: grievance, data_request, review). It says the message was
-// received, gives the ticket number and says we will respond. It asserts nothing else: no deadline, no
-// statute, no promise. It is NEVER sent when the message carries an auto-mail signal (an auto-responder
-// answering an auto-responder is a loop), when the sender is our own mailbox or a no-reply address, when
-// the sender failed DMARC (backscatter to a forged address), or when 3 have already gone to that sender
-// in 24 hours (dpdp_mail_insert_inbound decides that last one). The acknowledgement itself is stamped
-// Auto-Submitted / X-Auto-Response-Suppress / X-Veridian-Origin, so a compliant responder will not answer it
-// and, if it is ever returned to us, the classifier treats it as auto.
+// ACKNOWLEDGEMENT (legal-clock classes only: grievance, data_request, review -- including a message the
+// classifier RAISED to grievance / data_request from a Monday reply, an invoice thread or an auto-reply header).
+// It says the message was received, gives the ticket number and says we will respond. It asserts nothing else:
+// no deadline, no statute, no promise, and it does NOT repeat anything the sender wrote (not even their subject:
+// the address it goes to is the unverified From, and an acknowledgement that echoes text is a way to make us send
+// someone else's words to a stranger). For a `review` message the subject carries no class label at all, so the
+// sender never sees our internal word "REVIEW". It is NEVER sent when the message carries an auto-mail signal (an
+// auto-responder answering an auto-responder is a loop) unless the classifier escalated it (a legal request is
+// acknowledged whatever headers the sender chose) -- and even then not to a header-flagged reply to our OWN
+// acknowledgement, which is how two auto-responders loop --, when the sender is our own mailbox or a no-reply
+// address, when the sender failed DMARC (backscatter to a forged address), when 3 have already gone to that
+// sender in 24 hours, or when 30 have gone to anyone in the last hour (dpdp_mail_insert_inbound decides those
+// last two; the ticket is still created and the operator's notice then says to answer by hand). The
+// acknowledgement itself is stamped Auto-Submitted / X-Auto-Response-Suppress / X-Veridian-Origin, so a
+// compliant responder will not answer it and, if it is ever returned to us, the classifier treats it as auto.
 //
 // DRY RUN: no RESEND_API_KEY. The message is still recorded; nothing is sent and nothing is marked sent. Because
 // nobody was told, the answer is 502 (never 2xx): the Worker reads a 2xx as "a person has been told" and would not
@@ -286,9 +293,24 @@ export function formatIst(d: Date): string {
   return `${new Date(d.getTime() + 5.5 * 3600_000).toISOString().slice(0, 16).replace("T", " ")} IST`
 }
 
-/** Why an acknowledgement must NOT be sent to this sender, or null when it may. */
-export function ackBlocker(mail: InboundMail, c: Pick<Classification, "autoSignals">): string | null {
-  if (c.autoSignals.length > 0) return "the message carries auto-mail signals"
+/**
+ * Why an acknowledgement must NOT be sent to this sender, or null when it may.
+ *
+ * Auto-mail headers block it, except on a message the classifier ESCALATED to a legal class: those headers are
+ * chosen by the sender, and the owner's rule is that a legal request is acknowledged whatever headers it carries.
+ * The one thing that still blocks an escalated message is being a header-flagged reply to our OWN acknowledgement
+ * (`outbound.ticketNo` is only ever set on an acknowledgement): the ticket already exists and answering an
+ * auto-responder's answer is the loop. Bounces never reach here as a legal class.
+ */
+export function ackBlocker(
+  mail: InboundMail,
+  c: Pick<Classification, "autoSignals" | "escalatedFrom">,
+  outbound: Pick<OutboundMatch, "ticketNo"> | null = null,
+): string | null {
+  if (c.autoSignals.length > 0) {
+    if (c.escalatedFrom === null) return "the message carries auto-mail signals"
+    if (outbound?.ticketNo) return `an automatic reply to our own acknowledgement of ticket ${outbound.ticketNo} (the ticket already exists)`
+  }
   const to = mail.replyAddress
   if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return "no usable sender address"
   if (parseRecipient(to).ours) return "the sender is our own mailbox"
@@ -297,22 +319,32 @@ export function ackBlocker(mail: InboundMail, c: Pick<Classification, "autoSigna
   return null
 }
 
-/** The acknowledgement text. It says received, ticket, will respond -- and nothing more. */
-export function renderAck(ticket: string, originalSubject: string, receivedAt: Date): string {
-  const subject = originalSubject.trim() || "(no subject)"
+/**
+ * The acknowledgement text. It says received, ticket, will respond -- and nothing more. Nothing the sender wrote is
+ * repeated in it (not the subject either), so it cannot be used to make us send someone else's words to a third party.
+ */
+export function renderAck(ticket: string, receivedAt: Date): string {
   return [
     "Hello,",
     "",
     "We received your message to VERIDIAN AI DPDP.",
     "",
     `Your ticket number is ${ticket}. Please quote it if you write to us again about this.`,
-    `Subject received: ${subject}`,
     `Received: ${formatIst(receivedAt)}`,
     "",
     "We will respond to you. This is an automatic acknowledgement; it is not a reply to what your message says.",
     "",
     "-- VERIDIAN AI DPDP",
   ].join("\n")
+}
+
+/**
+ * The acknowledgement's subject. `review` is our internal "could not classify" label, so the sender gets a neutral
+ * line with no class label instead of the word REVIEW; the other legal classes keep their label.
+ */
+export function ackSubject(cls: MailClass, ticket: string): string {
+  const line = `We received your message (ticket ${ticket})`
+  return cls === "review" ? `[VERIDIAN DPDP] ${line}` : withSubjectPrefix(cls, line)
 }
 
 type Outcome = {
@@ -366,7 +398,12 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-type InsertResult = { id: string; ticketNo: string; class: MailClass; status: string; dueAt: string | null; duplicate: boolean; ackDue: boolean; operatorNotified: boolean }
+type InsertResult = {
+  id: string; ticketNo: string; class: MailClass; status: string; dueAt: string | null; duplicate: boolean; ackDue: boolean
+  /** Which limit held the acknowledgement back: 3 per sender in 24 hours ("sender") or 30 to anyone in an hour ("hourly"). Absent from older databases. */
+  ackLimit?: "sender" | "hourly" | null
+  operatorNotified: boolean
+}
 
 export async function handleInbound(req: Request, deps: InboundDeps): Promise<Response> {
   const cfg = deps.config
@@ -445,14 +482,14 @@ export async function handleInbound(req: Request, deps: InboundDeps): Promise<Re
     classifierFailed = true
     let signals: string[] = []
     try {
-      const s = autoSignals({ senders: mail.senders, subject: mail.subject, headers: mail.headers, contentType: mail.contentType })
-      signals = [...s.strong, ...s.weak]
+      const s = autoSignals({ senders: mail.senders, subject: mail.subject, headers: mail.headers, contentType: mail.contentType, threadMatched: outbound !== null })
+      signals = [...s.machine, ...s.header]
     } catch { /* keep [] */ }
-    c = { cls: "review", rule: "default", confidence: "low", reason: `classifier-error:${message(e).slice(0, 120)}`, tagRef: tag.ref, autoSignals: signals, strongAuto: false }
+    c = { cls: "review", rule: "default", confidence: "low", reason: `classifier-error:${message(e).slice(0, 120)}`, tagRef: tag.ref, autoSignals: signals, strongAuto: false, escalatedFrom: null }
   }
   const reason = `${c.reason}${lookupNote}`
   const legal = LEGAL_CLOCK_CLASSES.includes(c.cls)
-  const blocker = legal ? ackBlocker(mail, c) : "not a legal-clock class"
+  const blocker = legal ? ackBlocker(mail, c, outbound) : "not a legal-clock class"
   const operatorEmail = cfg.operatorEmail.trim()
 
   // 3. Record. If this fails the message is forwarded raw instead: it is never dropped.
@@ -490,7 +527,11 @@ export async function handleInbound(req: Request, deps: InboundDeps): Promise<Re
       outcome.ack = `NOT sent -- ${blocker}`
     } else if (!rec.ackDue) {
       ackStatus = "skipped"
-      outcome.ack = "NOT sent -- already acknowledged, or this sender has reached the 24-hour limit"
+      outcome.ack = rec.ackLimit === "hourly"
+        ? "NOT sent -- the overall limit of 30 acknowledgements in one hour was reached; answer this sender by hand"
+        : rec.ackLimit === "sender"
+          ? "NOT sent -- this sender has reached the 24-hour limit of 3 acknowledgements; answer them by hand if needed"
+          : "NOT sent -- already acknowledged, or an acknowledgement limit was reached (per sender in 24 hours, or overall in one hour); answer by hand if needed"
     } else if (cfg.dryRun) {
       ackStatus = "dry_run"
       outcome.ack = "dry run -- would be sent"
@@ -564,7 +605,7 @@ async function sendAck(
   log: (line: string) => void,
 ): Promise<string> {
   const ref = newRef(deps.random)
-  const subject = withSubjectPrefix(cls, `We received your message (ticket ${ticket})`)
+  const subject = ackSubject(cls, ticket)
   const logArgs = { p_ref: ref, p_class: cls, p_to_addr: mail.replyAddress, p_subject: subject, p_ticket_no: ticket }
   let logged = true
   try {
@@ -587,7 +628,7 @@ async function sendAck(
     from: deps.config.from,
     to: mail.replyAddress,
     subject,
-    text: renderAck(ticket, mail.subject, receivedAt),
+    text: renderAck(ticket, receivedAt),
     replyTo: replyToAddress(cls, ref),
     headers,
     idempotencyKey: `dpdp-inbound-ack-${ticket}`,

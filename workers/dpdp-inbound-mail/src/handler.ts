@@ -36,15 +36,28 @@
 //     it is the reason the README makes verifying the fallback address a
 //     deploy step, and why the setup check sends a mail with a wrong secret.
 //
-// MAIL LARGER THAN THE READ CAP (MAX_RAW_BYTES, default 1 MiB) is not read to
-// the end: the head is parsed and ticketed with truncated=true, AND the full
-// original is forwarded to the operator, because the ticket only holds an
-// excerpt. That is an intentional double delivery for a rare case.
+// MAIL LARGER THAN THE READ CAP (MAX_RAW_BYTES, default 128 KiB = 131072) is
+// not read to the end: the head is parsed and ticketed with truncated=true, AND
+// the full original is forwarded natively to the operator, because the ticket
+// only holds an excerpt. That is an intentional double delivery for a rare
+// case. The cap is deliberately small: it is what keeps postal-mime inside the
+// free plan's CPU limit (see CPU BUDGET below), and nothing is lost by it --
+// the classifier only ever reads the first 4 KB of text, and a truncated mail
+// carries truncated=true so the function knows the excerpt may be incomplete.
+//
+// ROLE MAILBOXES (postmaster@, abuse@ -- RFC 2142). Every mail system may write
+// to these, so refusing them would be its own defect. They are accepted and
+// forwarded natively (message.forward) with X-Veridian-Fallback-Reason
+// "role_mailbox:<role>", and are NOT read, parsed or ticketed: they are
+// bounce diagnostics and abuse reports, not customer requests. If the forward
+// itself fails the handler throws, exactly as for the fallback (never lose a
+// mail). See ./recipient.ts for the exact-match rule.
 //
 // SECURITY
-//   * Recipient allowlist (./recipient.ts): dpdp@, dpdp+*@ and the two legacy
-//     aliases only. Everything else is refused at the SMTP level, which keeps
-//     catch-all spam out of the ticket queue.
+//   * Recipient allowlist (./recipient.ts): dpdp@, dpdp+*@, the two legacy
+//     aliases, and the two RFC 2142 role mailboxes (forwarded, not ticketed).
+//     Everything else is refused at the SMTP level, which keeps catch-all spam
+//     out of the ticket queue.
 //   * The bearer secret is only ever sent to an https URL (http is tolerated
 //     for localhost so "wrangler dev" works) and the response body is never
 //     read. Redirects are not followed, so a 3xx cannot carry the
@@ -53,12 +66,14 @@
 //     subject, address or header value. Mail content is personal data.
 //
 // CPU BUDGET (honest limitation): parsing runs inside the Worker's CPU limit,
-// which is 10 ms on the free Workers plan. Ordinary text enquiries are far
-// below that; a large HTML newsletter or a mail with a big attachment may not
-// be. The mail is then not lost -- the runtime fails the invocation and the
-// sender is told the delivery failed -- but the README says how to measure
-// CPU on real traffic and to lower MAX_RAW_BYTES (or move to the paid plan) if
-// it gets close.
+// which is 10 ms on the free Workers plan. postal-mime measured ~9 ms at
+// 256 KiB (local wall clock, not workerd CPU) and ~5 ms at 128 KiB, hence the
+// 128 KiB default cap. Ordinary text enquiries are far below that; a mail that
+// is mostly attachment is cut at the cap before parsing, so it costs the same
+// as a 128 KiB one. If the runtime still exceeds the limit the mail is not lost
+// -- the runtime fails the invocation and the sender is told the delivery
+// failed -- but the README says how to measure CPU on real traffic and to lower
+// MAX_RAW_BYTES (or move to the paid plan) if it gets close.
 
 import PostalMime from "postal-mime"
 import type { Email, PostalMimeOptions } from "postal-mime"
@@ -71,7 +86,8 @@ export type { Env, InboundEmailMessage, InboundMailPayload } from "./types.ts"
 
 const DEFAULT_TIMEOUT_MS = 8_000
 const MAX_TIMEOUT_MS = 25_000
-const DEFAULT_MAX_RAW_BYTES = 1024 * 1024
+/** Read cap when MAX_RAW_BYTES is unset. Mirrored in wrangler.toml; a test keeps the two equal. */
+export const DEFAULT_MAX_RAW_BYTES = 128 * 1024
 const MIN_MAX_RAW_BYTES = 4 * 1024
 const CEILING_MAX_RAW_BYTES = 8 * 1024 * 1024
 
@@ -275,6 +291,16 @@ export async function handleInbound(
   if (!recipient.accepted) {
     log("rejected_unknown_recipient")
     message.setReject("Unknown recipient")
+    return
+  }
+
+  if (recipient.route === "forward_only") {
+    // RFC 2142 role mailbox: hand the untouched original to the operator and
+    // stop. Nothing is read, parsed or ticketed, so this path cannot fail on a
+    // bad MIME or a down Edge Function; only the forward itself can fail, and
+    // then it throws (see forwardOriginal).
+    log("role_mailbox", { role: recipient.role ?? "" })
+    await forwardOriginal(message, env, `role_mailbox:${recipient.role ?? "unknown"}`, recipient.address)
     return
   }
 

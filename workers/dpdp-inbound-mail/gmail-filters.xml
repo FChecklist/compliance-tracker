@@ -1,0 +1,211 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--
+  Gmail filters for the operator's inbox (the address in DPDP_OPERATOR_EMAIL).
+
+  WHAT THIS IS. The dpdp-inbound-mail Edge Function emails the operator one notice
+  per incoming message, From dpdp@veridian-aios.com, with a subject that starts with
+  the class label and the ticket number, for example
+      [GRIEVANCE G-2026-0042] original subject
+  The subject formats come from supabase/functions/_shared/mail-taxonomy.ts
+  (notificationSubject and CLASS_LABEL). One filter below per class the operator is
+  told about, each applying one label, plus one for the classifier-failure notice.
+
+  WHAT THE FILTERS DO
+    * Apply the label DPDP/Grievance, DPDP/Data request, DPDP/Review, DPDP/Sales,
+      DPDP/Sales thread, DPDP/Invoice, DPDP/Monday replies, DPDP/Statutory,
+      DPDP/Partner or DPDP/Support.
+    * For the three legal-clock classes (GRIEVANCE, DATA REQUEST, REVIEW) also:
+      star it, mark it Important, and never send it to Spam.
+    * Never send it to Spam for every other class too. A notice From an address that
+      is also one of your Send-mail-as aliases is exactly the kind of mail Gmail is
+      quick to distrust, and a notice in Spam is a notice nobody reads.
+    * NOTHING here archives, mutes, deletes or marks anything as read: there is no
+      shouldArchive, shouldMarkAsRead, shouldTrash or forwardTo in this file, and a
+      test (src/lib/services/dpdp-mail-edge-functions.test.ts) fails if one appears.
+
+  LIMITS, STATED HONESTLY
+    * Gmail matches a subject by WORD anywhere in it, not by "starts with", and
+      ignores case and punctuation. So each filter also requires From
+      dpdp@veridian-aios.com, and a notice whose original subject happens to contain
+      another class word (for example "[Support H-2026-0002] invoice for partner")
+      gets that class label too, and one containing grievance, review or data request
+      is starred and marked Important as well. That only adds labels and stars; it
+      never hides anything.
+    * The Sales filter excludes the phrase "Sales thread" so the two Sales classes do
+      not both label the same notice.
+    * If DPDP_EMAIL_FROM is set to some other address the From condition stops
+      matching and these filters do nothing; change the From value below to match.
+    * Importing does not touch mail that is already in the inbox unless you tick
+      "Also apply filter to matching conversations" on the import screen.
+
+  HOW TO IMPORT (Gmail on the web, signed in as the operator)
+    Settings (gear) -> See all settings -> Filters and Blocked Addresses ->
+    Import filters -> Choose file (this file) -> Open file -> tick all -> Create
+    filters. Gmail creates any missing DPDP/... label; if it does not, create the
+    labels first under Settings -> Labels. Full walk-through:
+    dpdp-app/OPERATIONS.md, section "Single mailbox".
+-->
+<feed xmlns='http://www.w3.org/2005/Atom' xmlns:apps='http://schemas.google.com/apps/2006'>
+  <title>Mail Filters</title>
+  <id>tag:mail.google.com,2008:filters:dpdp-single-mailbox</id>
+  <updated>2026-09-29T00:00:00Z</updated>
+  <author>
+    <name>VERIDIAN AI DPDP</name>
+  </author>
+
+  <!-- Legal-clock class: GRIEVANCE. Starred, Important, never Spam, never archived. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [GRIEVANCE ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-grievance</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='GRIEVANCE'/>
+    <apps:property name='label' value='DPDP/Grievance'/>
+    <apps:property name='shouldStar' value='true'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- Legal-clock class: DATA REQUEST. Starred, Important, never Spam, never archived. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [DATA REQUEST ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-data-request</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='"DATA REQUEST"'/>
+    <apps:property name='label' value='DPDP/Data request'/>
+    <apps:property name='shouldStar' value='true'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- Legal-clock class: REVIEW (could not be classified, handled with grievance priority). Starred, Important, never Spam, never archived. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [REVIEW ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-review</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='REVIEW'/>
+    <apps:property name='label' value='DPDP/Review'/>
+    <apps:property name='shouldStar' value='true'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!--
+    The notice sent when the classifier itself threw: the message is filed as REVIEW
+    ("[CLASSIFIER FAILED R-2026-0007] original subject"), so it gets the same
+    treatment as REVIEW and the same label.
+  -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [CLASSIFIER FAILED ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-classifier-failed</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='"CLASSIFIER FAILED"'/>
+    <apps:property name='label' value='DPDP/Review'/>
+    <apps:property name='shouldStar' value='true'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- Sales enquiry. Labelled, never Spam, never archived. Excludes the Sales thread phrase. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [Sales ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-sales</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='Sales'/>
+    <apps:property name='doesNotHaveTheWord' value='subject:"Sales thread"'/>
+    <apps:property name='label' value='DPDP/Sales'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- A reply inside an outbound sales conversation. Labelled, never Spam, never archived. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [Sales thread ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-sales-thread</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='"Sales thread"'/>
+    <apps:property name='label' value='DPDP/Sales thread'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- A reply about an invoice we sent, or a payment proof. Labelled, never Spam, never archived. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [Invoice ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-invoice</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='Invoice'/>
+    <apps:property name='label' value='DPDP/Invoice'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- A reply to the Monday-morning digest. Labelled, never Spam, never archived. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [Monday ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-monday</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='Monday'/>
+    <apps:property name='label' value='DPDP/Monday replies'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- A reply to a statutory notice we sent (72-hour leak clock, rights clock). Labelled, never Spam, never archived. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [Statutory ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-statutory</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='Statutory'/>
+    <apps:property name='label' value='DPDP/Statutory'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- Partnership or reseller enquiry. Labelled, never Spam, never archived. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [Partner ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-partner</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='Partner'/>
+    <apps:property name='label' value='DPDP/Partner'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- Product help. Labelled, never Spam, never archived. -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [Support ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-support</id>
+    <updated>2026-09-29T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='Support'/>
+    <apps:property name='label' value='DPDP/Support'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+</feed>

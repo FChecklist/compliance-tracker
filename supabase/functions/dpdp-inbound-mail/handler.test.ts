@@ -4,8 +4,12 @@
 // src/lib/services/dpdp-single-mailbox-migration.pglite.test.ts) and a fake mail provider.
 //
 // What this proves: fail-closed auth before anything else runs; every class flows to the right ticket, due
-// date, acknowledgement and operator notice; the acknowledgement says received / ticket / will respond and
-// nothing more and is never sent to an auto-responder, to ourselves, to a no-reply or forged sender; a
+// date, acknowledgement and operator notice; a Monday reply or an invoice reply that carries a data request or
+// a grievance is raised to that legal class and acknowledged (also under sender-chosen auto headers, except a
+// header-flagged reply to our own acknowledgement), while a vacation reply to the digest stays auto and silent;
+// the acknowledgement says received / ticket / will respond and nothing more (it never repeats the sender's
+// subject, and a `review` one shows no REVIEW label) and is never sent to a bounce, to ourselves, to a no-reply
+// or forged sender, nor past the per-sender or the overall hourly limit; a
 // classifier throw, a failed outbound lookup, a database outage and a failed notice each degrade toward the
 // operator being told, never toward a lost message; a retried delivery neither double-tickets nor double-sends;
 // dry run records and sends nothing; no log line carries the secret or any text of the message.
@@ -15,8 +19,8 @@
 import { describe, expect, test } from "bun:test"
 import { MAILBOX, replyToAddress, type MailClass } from "../_shared/mail-taxonomy.ts"
 import {
-  DEFAULT_LEGAL_RESPONSE_DAYS, EXCERPT_CHARS, MAX_BODY_CHARS, ackBlocker, formatIst, handleInbound, htmlToText, parseInbound, parseLegalDays, renderAck,
-  receivedAtOf, secretMatches, type InboundConfig, type InboundDeps, type OutMessage, type Rpc,
+  DEFAULT_LEGAL_RESPONSE_DAYS, EXCERPT_CHARS, MAX_BODY_CHARS, ackBlocker, ackSubject, formatIst, handleInbound, htmlToText, parseInbound, parseLegalDays,
+  renderAck, receivedAtOf, secretMatches, type InboundConfig, type InboundDeps, type OutMessage, type Rpc,
 } from "./handler.ts"
 
 const SECRET = "test-secret-" + "x".repeat(24)
@@ -25,7 +29,7 @@ const REF = "k3f9x2ab7q"
 const NOW = new Date("2026-09-29T15:33:00Z") // 21:03 IST
 
 const PREFIX: Record<MailClass, string> = {
-  grievance: "G", data_request: "D", review: "R", sales: "S", sales_chain: "T", invoice: "I", monday: "M", partner: "P", support: "H", auto: "A",
+  grievance: "G", data_request: "D", review: "R", sales: "S", sales_chain: "T", invoice: "I", monday: "M", clock: "K", partner: "P", support: "H", auto: "A",
 }
 
 type OutboundRow = { ref: string; class: MailClass; ticketNo: string | null; providerId: string | null; headerId: string | null; to: string }
@@ -37,6 +41,8 @@ function harness(opts: {
   failRpc?: Record<string, Error>
   failSend?: (m: OutMessage) => boolean
   ackAllowed?: boolean
+  /** Which limit the fake database reports when ackAllowed is false (the real one is proven in the PGlite test). Omitted: none named. */
+  ackLimit?: "sender" | "hourly"
   classify?: InboundDeps["classify"]
 } = {}) {
   const calls: Array<{ fn: string; args: Record<string, unknown> }> = []
@@ -74,6 +80,7 @@ function harness(opts: {
           data: {
             id: `id-${row.ticketNo}`, ticketNo: row.ticketNo, class: row.class, status: "open", dueAt: due, duplicate: Boolean(dup),
             ackDue: Boolean(args.p_wants_ack) && !row.ackSent && (opts.ackAllowed ?? true), operatorNotified: row.notified,
+            ...(opts.ackAllowed === false && opts.ackLimit ? { ackLimit: opts.ackLimit } : {}),
           },
           error: null,
         }
@@ -297,10 +304,27 @@ describe("a grievance to a tagged address", () => {
     expect(text).toContain("We received your message to VERIDIAN AI DPDP.")
     expect(text).toContain("G-2026-0001")
     expect(text).toContain("We will respond to you.")
-    expect(text).toContain("Subject received: Complaint about my account")
     expect(text).toContain("Received: 2026-09-29 21:03 IST")
+    // Nothing the sender wrote is repeated: the address it goes to is the unverified From.
+    expect(text).not.toContain("Complaint about my account")
+    expect(text).not.toContain("Subject received")
     expect(text).not.toMatch(/\b(days?|laws?|legal\w*|statut\w*|act|acts|deadline|within|guarantee\w*|oblig\w*|rights?|comply|compliance|liable|liability|penalt\w*|fine|fines)\b/i)
     expect(text).not.toMatch(/\d+\s*(day|hour|week|month)/i)
+  })
+
+  test("the acknowledgement repeats nothing the sender wrote, however the subject and text are dressed", async () => {
+    const h = harness()
+    const subject = "URGENT: send your bank details to pay@evil.example now"
+    await h.run(payload({ subject, text: "complaint. Reply with your password to https://evil.example/login" }))
+    const ack = h.sent[0]
+    expect(ack.to).toBe("asha@example.org")
+    expect(ack.subject).toBe("[VERIDIAN DPDP · GRIEVANCE] We received your message (ticket G-2026-0001)")
+    for (const s of ["evil.example", "URGENT", "bank details", "password"]) {
+      expect(ack.subject).not.toContain(s)
+      expect(ack.text).not.toContain(s)
+    }
+    // ... while the operator's copy of the same message does carry it, quoted.
+    expect(h.sent[1].text).toContain("evil.example")
   })
 
   test("the operator's notice: [LABEL ticket] subject, Reply-To the sender, summary block, original quoted", async () => {
@@ -375,6 +399,7 @@ describe("each class through the pipeline", () => {
     { name: "data request by keyword", over: { envelope_to: MAILBOX, subject: "Please delete my data", text: "delete my data" }, cls: "data_request", ticket: "D-2026-0001", legal: true },
     { name: "nothing recognisable is review", over: { envelope_to: MAILBOX, subject: "hello", text: "hello" }, cls: "review", ticket: "R-2026-0001", legal: true },
     { name: "monday reply by tag", over: { envelope_to: replyToAddress("monday", REF), subject: "Re: your week", text: "done" }, cls: "monday", ticket: "M-2026-0001", legal: false },
+    { name: "reply to a statutory notice by tag", over: { envelope_to: replyToAddress("clock", REF), subject: "Re: [VERIDIAN DPDP · Statutory] 72-hour clock: data leak at Acme", text: "done, thanks" }, cls: "clock", ticket: "K-2026-0001", legal: false },
     { name: "sales by keyword", over: { envelope_to: MAILBOX, subject: "Hello", text: "what is your pricing?" }, cls: "sales", ticket: "S-2026-0001", legal: false },
     { name: "invoice by tag", over: { envelope_to: replyToAddress("invoice", REF), subject: "Re: your receipt", text: "thanks" }, cls: "invoice", ticket: "I-2026-0001", legal: false },
     { name: "partner by keyword", over: { envelope_to: MAILBOX, subject: "Hello", text: "we are a reseller" }, cls: "partner", ticket: "P-2026-0001", legal: false },
@@ -398,7 +423,7 @@ describe("each class through the pipeline", () => {
 
   test("a reply to something we sent is matched by message id and inherits its class (sales -> sales_chain)", async () => {
     const h = harness({ outbound: [{ ref: "m8n4p2qrs5", class: "sales", ticketNo: null, providerId: null, headerId: "sent-1@veridian-aios.com", to: "asha@example.org" }] })
-    const res = await h.run(payload({ envelope_to: MAILBOX, text: "sounds good", in_reply_to: "<Sent-1@Veridian-AIOS.com>", references: "<old@x> <Sent-1@Veridian-AIOS.com>" }))
+    const res = await h.run(payload({ envelope_to: MAILBOX, subject: "Re: our proposal", text: "sounds good", in_reply_to: "<Sent-1@Veridian-AIOS.com>", references: "<old@x> <Sent-1@Veridian-AIOS.com>" }))
     expect(await bodyOf(res)).toMatchObject({ ticket: "T-2026-0001", class: "sales_chain", rule: "thread" })
     expect(h.calls[0].fn).toBe("dpdp_mail_lookup_outbound")
     expect(h.calls[0].args).toEqual({ p_ref: null, p_message_ids: ["sent-1@veridian-aios.com", "old@x"] })
@@ -411,6 +436,145 @@ describe("each class through the pipeline", () => {
     await h.run(payload({ text: "any update?" }))
     expect(h.calls[1].args.p_matched_outbound_ref).toBe(REF)
     expect(h.sent.find((m) => m.to === OPERATOR)!.text).toContain("In reply to:   ticket G-2026-0007, our GRIEVANCE message (ref k3f9x2ab7q)")
+  })
+})
+
+describe("escalation: a legal request is ticketed, due-dated and acknowledged whichever mail it answers", () => {
+  const monday = (over: Record<string, unknown> = {}) => payload({ envelope_to: replyToAddress("monday", REF), subject: "Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week", message_id: "<esc-1@example.org>", ...over })
+
+  test("a Monday reply that says 'stop sending, delete my data' is a data_request: due date, acknowledgement, operator notice", async () => {
+    const h = harness()
+    const res = await h.run(monday({ text: "Please stop sending me these emails. Delete my data." }))
+    expect(res.status).toBe(200)
+    expect(await bodyOf(res)).toMatchObject({ ok: true, ticket: "D-2026-0001", class: "data_request", rule: "escalation", ack: "sent", notified: "sent" })
+    const insert = h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args
+    expect(insert).toMatchObject({ p_class: "data_request", p_due_days: 90, p_wants_ack: true, p_ref: REF })
+    expect(String(insert.p_classifier_reason)).toMatch(/^tag:mon; escalated keyword:data_request:"/)
+    const [ack, notice] = h.sent
+    expect(ack.to).toBe("asha@example.org")
+    expect(ack.subject).toBe("[VERIDIAN DPDP · DATA REQUEST] We received your message (ticket D-2026-0001)")
+    expect(ack.replyTo).toMatch(/^dpdp\+dsr\.[0-9abcdefghjkmnpqrstvwxyz]{10}@veridian-aios\.com$/)
+    expect(notice.to).toBe(OPERATOR)
+    expect(notice.subject).toBe("[DATA REQUEST D-2026-0001] [VERIDIAN DPDP · Monday] Acme: DPDP this week")
+    expect(notice.text).toContain('Class:         DATA REQUEST   (tag:mon; escalated keyword:data_request:"')
+    expect(notice.text).toContain("Respond by:    2026-12-28 21:03 IST")
+    expect(notice.text).toContain("Acknowledgement: sent to the sender")
+  })
+
+  test("a reply on an invoice thread that says 'I want to file a complaint' is a grievance, matched to the invoice it answers", async () => {
+    const h = harness({ outbound: [{ ref: "m8n4p2qrs5", class: "invoice", ticketNo: null, providerId: "prov-inv-1", headerId: null, to: "asha@example.org" }] })
+    const res = await h.run(payload({
+      envelope_to: MAILBOX, subject: "Re: [VERIDIAN DPDP · Invoice] Your VERIDIAN receipt", message_id: "<esc-2@example.org>",
+      in_reply_to: "<prov-inv-1>", text: "I want to file a complaint about misuse of my data.",
+    }))
+    expect(await bodyOf(res)).toMatchObject({ ticket: "G-2026-0001", class: "grievance", rule: "escalation", ack: "sent", notified: "sent" })
+    const insert = h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args
+    expect(insert).toMatchObject({ p_class: "grievance", p_due_days: 90, p_wants_ack: true, p_matched_outbound_ref: "m8n4p2qrs5" })
+    expect(String(insert.p_classifier_reason)).toBe('thread:invoice(message_id:m8n4p2qrs5); escalated keyword:grievance:"complain"')
+    expect(h.sent[0].subject).toBe("[VERIDIAN DPDP · GRIEVANCE] We received your message (ticket G-2026-0001)")
+  })
+
+  test("a plain 'thanks for the invoice' stays an invoice reply: no due date, no acknowledgement", async () => {
+    const h = harness({ outbound: [{ ref: "m8n4p2qrs5", class: "invoice", ticketNo: null, providerId: "prov-inv-1", headerId: null, to: "asha@example.org" }] })
+    const res = await h.run(payload({ envelope_to: MAILBOX, subject: "Re: [VERIDIAN DPDP · Invoice] Your VERIDIAN receipt", in_reply_to: "<prov-inv-1>", text: "Thanks for the invoice, received." }))
+    expect(await bodyOf(res)).toMatchObject({ ticket: "I-2026-0001", class: "invoice", rule: "thread", ack: "not_applicable", notified: "sent" })
+    expect(h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args).toMatchObject({ p_due_days: null, p_wants_ack: false })
+    expect(h.sent.map((m) => m.to)).toEqual([OPERATOR])
+  })
+
+  test("a reply to a statutory notice (class clock) is ticketed K-, notified, not acknowledged; a complaint in it is raised", async () => {
+    const outbound = [{ ref: REF, class: "clock" as MailClass, ticketNo: null, providerId: null, headerId: null, to: "asha@example.org" }]
+    const thanks = harness({ outbound })
+    expect(await bodyOf(await thanks.run(payload({ envelope_to: replyToAddress("clock", REF), subject: "Re: [VERIDIAN DPDP · Statutory] 72-hour clock: data leak at Acme - tell the Data Protection Board", text: "Done, thanks." }))))
+      .toMatchObject({ ticket: "K-2026-0001", class: "clock", ack: "not_applicable", notified: "sent" })
+    expect(thanks.sent.map((m) => m.to)).toEqual([OPERATOR])
+    expect(thanks.sent[0].subject).toBe("[Statutory K-2026-0001] [VERIDIAN DPDP · Statutory] 72-hour clock: data leak at Acme - tell the Data Protection Board")
+    expect(thanks.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args).toMatchObject({ p_class: "clock", p_due_days: null, p_wants_ack: false })
+
+    const angry = harness({ outbound })
+    expect(await bodyOf(await angry.run(payload({ envelope_to: replyToAddress("clock", REF), subject: "Re: [VERIDIAN DPDP · Statutory] 72-hour clock: data leak at Acme", text: "This is a complaint: nobody told me." }))))
+      .toMatchObject({ ticket: "G-2026-0001", class: "grievance", ack: "sent" })
+  })
+
+  test("a vacation reply to the Monday digest that QUOTES it (footer and all) stays auto: recorded, nobody emailed, no acknowledgement", async () => {
+    const h = harness()
+    const quoted = [
+      "I am out of the office until 5 October.",
+      "",
+      "On Mon, 28 Sep 2026 at 06:00, VERIDIAN AI DPDP <dpdp@veridian-aios.com> wrote:",
+      "> Acme: DPDP this week — 3 open jobs, 1 escalated to you",
+      "> Late 7 days or more — your DPDP coordinator has been copied.",
+      "> Stop these weekly emails (statutory notices continue): https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=abc",
+    ].join("\n")
+    const res = await h.run(monday({ subject: "Automatic reply: [VERIDIAN DPDP · Monday] Acme: DPDP this week — 3 open jobs, 1 escalated to you", headers: { "auto-submitted": "auto-replied" }, auto_submitted: "auto-replied", text: quoted }))
+    expect(await bodyOf(res)).toMatchObject({ ok: true, class: "auto", rule: "auto", ticket: "A-2026-0001", ack: "not_applicable", notified: "skipped_auto" })
+    expect(h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args).toMatchObject({ p_class: "auto", p_due_days: null, p_wants_ack: false })
+    expect(h.sent).toEqual([])
+  })
+
+  test("the SAME auto header on a real 'delete my data' is a data_request, ACKNOWLEDGED (sender-chosen headers do not hide a legal request), operator told", async () => {
+    const h = harness()
+    const res = await h.run(monday({ subject: "Automatic reply: [VERIDIAN DPDP · Monday] Acme: DPDP this week", headers: { "auto-submitted": "auto-replied" }, auto_submitted: "auto-replied", text: "Please delete my data." }))
+    expect(await bodyOf(res)).toMatchObject({ ticket: "D-2026-0001", class: "data_request", rule: "escalation", ack: "sent", notified: "sent" })
+    expect(h.sent.map((m) => m.to)).toEqual(["asha@example.org", OPERATOR])
+    expect(h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args).toMatchObject({ p_wants_ack: true, p_due_days: 90 })
+    expect(String(h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args.p_classifier_reason)).toMatch(/^auto:Auto-Submitted=auto-replied, auto-reply style subject; escalated keyword:data_request:/)
+    // Our own acknowledgement is still stamped so a compliant responder will not answer it.
+    expect(h.sent[0].headers).toMatchObject({ "Auto-Submitted": "auto-replied", "X-Auto-Response-Suppress": "All", "X-Veridian-Origin": "acknowledgement" })
+  })
+
+  test("LOOP GUARD: a header-flagged reply to our OWN acknowledgement that mentions a complaint is ticketed and reported, but NOT acknowledged again", async () => {
+    const h = harness({ outbound: [{ ref: REF, class: "grievance", ticketNo: "G-2026-0007", providerId: "resend-x", headerId: null, to: "asha@example.org" }] })
+    const res = await h.run(payload({ subject: "Automatic reply: We received your message", headers: { "auto-submitted": "auto-replied" }, auto_submitted: "auto-replied", text: "Your complaint has been registered as ticket 4411." }))
+    expect(await bodyOf(res)).toMatchObject({ class: "grievance", rule: "escalation", ack: "skipped", notified: "sent" })
+    expect(h.sent.map((m) => m.to)).toEqual([OPERATOR])
+    expect(h.sent[0].text).toContain("Acknowledgement: NOT sent -- an automatic reply to our own acknowledgement of ticket G-2026-0007")
+    expect(h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args.p_wants_ack).toBe(false)
+    // The same reply with no legal words is auto: nobody emailed at all.
+    const quiet = harness({ outbound: [{ ref: REF, class: "grievance", ticketNo: "G-2026-0007", providerId: "resend-x", headerId: null, to: "asha@example.org" }] })
+    expect(await bodyOf(await quiet.run(payload({ subject: "Automatic reply: We received your message", headers: { "auto-submitted": "auto-replied" }, auto_submitted: "auto-replied", text: "I am on leave." }))))
+      .toMatchObject({ class: "auto", notified: "skipped_auto" })
+    expect(quiet.sent).toEqual([])
+  })
+
+  test("X-Veridian-Origin without a thread match is only a header anyone can type: the message is read, not hidden", async () => {
+    const h = harness()
+    const res = await h.run(payload({ envelope_to: MAILBOX, subject: "hello", text: "hello", headers: { "x-veridian-origin": "acknowledgement" } }))
+    expect(await bodyOf(res)).toMatchObject({ class: "review", notified: "sent" })
+    expect(h.sent.some((m) => m.to === OPERATOR)).toBe(true)
+  })
+
+  test("a bounce that quotes our mail and someone's 'delete my data' stays auto: never escalated, nobody emailed", async () => {
+    const h = harness()
+    const res = await h.run(payload({
+      envelope_from: "", header_from: "Mail Delivery Subsystem <mailer-daemon@googlemail.com>", from_address: "mailer-daemon@googlemail.com", from_name: "Mail Delivery Subsystem",
+      envelope_to: replyToAddress("grievance", REF), subject: "Delivery Status Notification (Failure)", content_type: "multipart/report; report-type=delivery-status",
+      text: "550 user unknown\n\nPlease delete my data. This is a complaint.", message_id: "<bounce-2@googlemail.com>",
+    }))
+    expect(await bodyOf(res)).toMatchObject({ class: "auto", notified: "skipped_auto", ack: "not_applicable" })
+    expect(h.sent).toEqual([])
+    expect(String(h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args.p_classifier_reason)).not.toContain("escalated keyword")
+  })
+})
+
+describe("the acknowledgement of a review message shows no REVIEW label", () => {
+  test("ackSubject: review is neutral, every other class keeps its label", () => {
+    expect(ackSubject("review", "R-2026-0001")).toBe("[VERIDIAN DPDP] We received your message (ticket R-2026-0001)")
+    expect(ackSubject("grievance", "G-2026-0001")).toBe("[VERIDIAN DPDP · GRIEVANCE] We received your message (ticket G-2026-0001)")
+    expect(ackSubject("data_request", "D-2026-0001")).toBe("[VERIDIAN DPDP · DATA REQUEST] We received your message (ticket D-2026-0001)")
+  })
+  test("through the pipeline: an unclassifiable message is acknowledged as '[VERIDIAN DPDP] We received your message (ticket R-...)', the operator's notice still says REVIEW", async () => {
+    const h = harness()
+    await h.run(payload({ envelope_to: MAILBOX, subject: "hello", text: "hello" }))
+    const [ack, notice] = h.sent
+    expect(ack.to).toBe("asha@example.org")
+    expect(ack.subject).toBe("[VERIDIAN DPDP] We received your message (ticket R-2026-0001)")
+    expect(ack.subject).not.toMatch(/review/i)
+    expect(ack.text).not.toMatch(/review/i)
+    expect(notice.subject).toBe("[REVIEW R-2026-0001] hello")
+    // The class is still on the Reply-To tag and the headers, so a reply to it is filed as review.
+    expect(ack.replyTo).toMatch(/^dpdp\+rev\./)
+    expect(ack.headers["X-Veridian-Class"]).toBe("review")
   })
 })
 
@@ -434,7 +598,7 @@ describe("auto mail: logged, never announced, never acknowledged", () => {
     expect(await bodyOf(res)).toMatchObject({ class: "auto", notified: "skipped_auto" })
     expect(h.sent).toEqual([])
   })
-  test("a grievance-tagged out-of-office is still reported to the operator but is NOT acknowledged (no reply loop)", async () => {
+  test("a grievance-TAGGED message with auto headers and no earlier message of ours behind it is still reported to the operator but is NOT acknowledged (no reply loop)", async () => {
     const h = harness()
     const res = await h.run(payload({ message_id: "<ooo@example.org>", headers: { "auto-submitted": "auto-replied" }, text: "I am out of office" }))
     expect(await bodyOf(res)).toMatchObject({ class: "grievance", ack: "skipped", notified: "sent" })
@@ -443,13 +607,22 @@ describe("auto mail: logged, never announced, never acknowledged", () => {
     expect(h.sent[0].text).toContain("Acknowledgement: NOT sent -- the message carries auto-mail signals")
     expect(h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args.p_wants_ack).toBe(false)
   })
+  test("an automatic List-Unsubscribe mailto (dpdp+dsr.<ref>@ carrying the ref of a MONDAY row, with auto headers and no words) is a data_request the operator is told about, not auto", async () => {
+    const h = harness({ outbound: [{ ref: REF, class: "monday", ticketNo: null, providerId: null, headerId: null, to: "asha@example.org" }] })
+    const res = await h.run(payload({ envelope_to: replyToAddress("data_request", REF), message_id: "<unsub@example.org>", subject: "", text: "", headers: { "auto-submitted": "auto-generated", precedence: "bulk" } }))
+    expect(await bodyOf(res)).toMatchObject({ ok: true, class: "data_request", rule: "tag", notified: "sent", ack: "skipped" })
+    const insert = h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args
+    expect(insert).toMatchObject({ p_class: "data_request", p_due_days: 90, p_wants_ack: false, p_matched_outbound_ref: REF })
+    expect(h.sent.length).toBe(1)
+    expect(h.sent[0].to).toBe(OPERATOR)
+    expect(h.sent[0].subject).toContain("DATA REQUEST")
+  })
 })
 
 describe("who is never acknowledged", () => {
   const BLOCKED: Array<[string, Record<string, unknown>, string]> = [
     ["a no-reply address", { ...sender("no-reply@vendor.example") }, "no-reply"],
     ["a donotreply address", { ...sender("donotreply@vendor.example") }, "no-reply"],
-    ["a postmaster address (a strong auto signal)", { ...sender("postmaster@vendor.example") }, "auto-mail signals"],
     ["our own mailbox as the header From with a different envelope", { header_from: `Us <${MAILBOX}>`, from_address: MAILBOX, from_name: "Us" }, "our own mailbox"],
     ["no sender at all", { ...sender(""), header_from: "" }, "no usable sender"],
     ["a sender that failed DMARC", { headers: { "authentication-results": "mx.example; dmarc=fail header.from=example.org" } }, "DMARC"],
@@ -469,16 +642,49 @@ describe("who is never acknowledged", () => {
       expect(h.sent[0].text).toContain(fragment)
     })
   }
-  test("a sender past the 24-hour limit (the database says ackDue=false) is recorded and reported, not acknowledged", async () => {
+  test("a postmaster sender is a bounce (machine-generated): auto, recorded, nobody emailed", async () => {
+    const h = harness()
+    const res = await h.run(payload({ ...sender("postmaster@vendor.example") }))
+    expect(await bodyOf(res)).toMatchObject({ class: "auto", notified: "skipped_auto", ack: "not_applicable" })
+    expect(h.sent).toEqual([])
+  })
+  test("a database that holds the acknowledgement back (ackDue=false) still gets the ticket and the operator's notice, and the notice says to answer by hand", async () => {
     const h = harness({ ackAllowed: false })
     const res = await h.run(payload())
-    expect(await bodyOf(res)).toMatchObject({ ack: "skipped", notified: "sent" })
+    expect(await bodyOf(res)).toMatchObject({ ticket: "G-2026-0001", ack: "skipped", notified: "sent" })
     expect(h.sent.map((m) => m.to)).toEqual([OPERATOR])
-    expect(h.sent[0].text).toContain("24-hour limit")
+    expect(h.sent[0].text).toContain("Acknowledgement: NOT sent -- already acknowledged, or an acknowledgement limit was reached")
+    expect(h.sent[0].text).toContain("answer by hand")
+  })
+  test("the per-sender limit (3 in 24 hours) and the overall hourly limit (30) are each named in the notice", async () => {
+    const sender = harness({ ackAllowed: false, ackLimit: "sender" })
+    await sender.run(payload())
+    expect(sender.sent.map((m) => m.to)).toEqual([OPERATOR])
+    expect(sender.sent[0].text).toContain("Acknowledgement: NOT sent -- this sender has reached the 24-hour limit of 3 acknowledgements")
+    const hourly = harness({ ackAllowed: false, ackLimit: "hourly" })
+    const res = await hourly.run(payload({ envelope_to: MAILBOX, subject: "Please delete my data", text: "delete my data" }))
+    expect(await bodyOf(res)).toMatchObject({ ticket: "D-2026-0001", class: "data_request", ack: "skipped", notified: "sent" })
+    expect(hourly.sent.map((m) => m.to)).toEqual([OPERATOR])
+    expect(hourly.sent[0].text).toContain("Acknowledgement: NOT sent -- the overall limit of 30 acknowledgements in one hour was reached; answer this sender by hand")
+    // The ticket is still due-dated: the clock runs whether or not an acknowledgement went out.
+    expect(hourly.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args.p_due_days).toBe(90)
+    expect(hourly.sent[0].text).toContain("Respond by:")
   })
   test("ackBlocker is null for an ordinary sender", () => {
     const mail = parseInbound(payload())!
-    expect(ackBlocker(mail, { autoSignals: [] })).toBeNull()
+    expect(ackBlocker(mail, { autoSignals: [], escalatedFrom: null })).toBeNull()
+  })
+  test("ackBlocker: auto-mail signals block a message that was not escalated; an escalated one is acknowledged unless it answers our own acknowledgement", () => {
+    const mail = parseInbound(payload())!
+    expect(ackBlocker(mail, { autoSignals: ["Precedence=bulk"], escalatedFrom: null })).toContain("auto-mail signals")
+    expect(ackBlocker(mail, { autoSignals: ["Precedence=bulk"], escalatedFrom: "auto" })).toBeNull()
+    expect(ackBlocker(mail, { autoSignals: ["Precedence=bulk"], escalatedFrom: "auto" }, { ticketNo: null })).toBeNull()
+    expect(ackBlocker(mail, { autoSignals: ["Precedence=bulk"], escalatedFrom: "auto" }, { ticketNo: "G-2026-0007" })).toContain("our own acknowledgement of ticket G-2026-0007")
+    // No auto headers at all: a reply to an acknowledgement is an ordinary follow-up and is acknowledged.
+    expect(ackBlocker(mail, { autoSignals: [], escalatedFrom: "monday" }, { ticketNo: "G-2026-0007" })).toBeNull()
+    // The structural blockers apply to an escalated message too.
+    const noreply = parseInbound(payload({ ...sender("no-reply@vendor.example") }))!
+    expect(ackBlocker(noreply, { autoSignals: [], escalatedFrom: "monday" })).toContain("no-reply")
   })
 })
 
@@ -769,8 +975,11 @@ describe("parseLegalDays and formatIst", () => {
     expect(formatIst(new Date("2026-09-29T15:33:00Z"))).toBe("2026-09-29 21:03 IST")
     expect(formatIst(new Date("2026-12-31T20:00:00Z"))).toBe("2027-01-01 01:30 IST")
   })
-  test("renderAck names the ticket and a missing subject", () => {
-    expect(renderAck("D-2026-0002", "  ", NOW)).toContain("Subject received: (no subject)")
-    expect(renderAck("D-2026-0002", "x", NOW)).toContain("D-2026-0002")
+  test("renderAck names the ticket and the time, and takes nothing the sender wrote", () => {
+    const text = renderAck("D-2026-0002", NOW)
+    expect(text).toContain("D-2026-0002")
+    expect(text).toContain("Received: 2026-09-29 21:03 IST")
+    expect(text).not.toContain("Subject")
+    expect(renderAck.length).toBe(2) // (ticket, receivedAt): there is no parameter through which text could get in
   })
 })

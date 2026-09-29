@@ -16,6 +16,7 @@
 
 export type MailClass =
   | "monday" //       a reply to the Monday-morning digest
+  | "clock" //        a reply to a statutory notice we sent (72-hour leak clock, 90-day rights clock)
   | "sales" //        a new sales enquiry (no prior outbound)
   | "sales_chain" //  a reply inside an outbound sales conversation
   | "invoice" //      a reply about an invoice we sent
@@ -27,25 +28,32 @@ export type MailClass =
   | "review" //       could not be classified: handled with grievance priority
 
 export const MAIL_CLASSES: readonly MailClass[] = [
-  "monday", "sales", "sales_chain", "invoice", "grievance", "data_request", "partner", "support", "auto", "review",
+  "monday", "clock", "sales", "sales_chain", "invoice", "grievance", "data_request", "partner", "support", "auto", "review",
 ]
 
 /** Short, stable tag that goes in the address: dpdp+<tag>.<ref>@. Never rename. */
 export const CLASS_TAG: Record<MailClass, string> = {
-  monday: "mon", sales: "sal", sales_chain: "sch", invoice: "inv", grievance: "grv",
+  monday: "mon", clock: "clk", sales: "sal", sales_chain: "sch", invoice: "inv", grievance: "grv",
   data_request: "dsr", partner: "prt", support: "sup", auto: "aut", review: "rev",
 }
 
 /** Human label used in subject prefixes and the operator notification. */
 export const CLASS_LABEL: Record<MailClass, string> = {
-  monday: "Monday", sales: "Sales", sales_chain: "Sales thread", invoice: "Invoice", grievance: "GRIEVANCE",
+  monday: "Monday", clock: "Statutory", sales: "Sales", sales_chain: "Sales thread", invoice: "Invoice", grievance: "GRIEVANCE",
   data_request: "DATA REQUEST", partner: "Partner", support: "Support", auto: "Auto", review: "REVIEW",
 }
 
-/** Classes that start a legal response clock: never auto-archived, always acknowledged. */
+/**
+ * Classes that start a legal response clock: never auto-archived, always acknowledged.
+ *
+ * `clock` is deliberately NOT here. It labels a statutory notice WE sent (the 72-hour leak clock, the
+ * 90-day rights clock); a reply to one is not itself a request that starts a clock. If the reply's own
+ * words contain a data-subject request or a grievance, the classifier raises it to `data_request` /
+ * `grievance` by keyword (classify.ts, "escalation"), whatever tag or thread it arrived on.
+ */
 export const LEGAL_CLOCK_CLASSES: readonly MailClass[] = ["grievance", "data_request", "review"]
 
-/** Classes the operator is told about by email. `auto` is logged only. */
+/** Classes the operator is told about by email (`clock` included). `auto` is logged only. */
 export const NOTIFY_CLASSES: readonly MailClass[] = MAIL_CLASSES.filter((c) => c !== "auto")
 
 export const MAILBOX_LOCAL = "dpdp"

@@ -12,15 +12,19 @@
 //   1. before 0662 none of the objects exist; after it: three tables with the columns of the design, RLS on, the service_role bypass
 //      policy and no policy for anyone else, and CHECKs whose class list and ref alphabet are the ones mail-taxonomy.ts defines;
 //   2. anon, authenticated and PUBLIC hold no privilege on any of the three tables and cannot execute any public.dpdp_mail_* function
-//      (a real call as each role is refused); service_role holds the four table privileges and EXECUTE on the five functions; the internal
-//      ticket helper is executable by nobody; all six functions are SECURITY DEFINER with an empty search_path;
-//   3. ticket numbers: the right prefix for all ten classes, sequential per class and independent across classes, per IST calendar year
-//      (the boundary is 18:30 UTC), growing past 9999 instead of truncating, and a duplicate or a refused insert consumes no number;
+//      (a real call as each role is refused); service_role holds the four table privileges and EXECUTE on the six functions; the internal
+//      ticket helper is executable by nobody; all seven functions are SECURITY DEFINER with an empty search_path;
+//   3. ticket numbers: the right prefix for all eleven classes (K for the statutory-notice class `clock`), sequential per class and
+//      independent across classes, per IST calendar year (the boundary is 18:30 UTC), growing past 9999 instead of truncating, and a
+//      duplicate or a refused insert consumes no number;
 //   4. dpdp_mail_insert_inbound stores every column it is given (re-read), computes due_at from the caller's day count, truncates to the
 //      column caps, tolerates a blank sender and a malformed ref, refuses an unknown class and an absurd day count, and is idempotent per
 //      (sender, Message-ID) case-insensitively while a different sender or a missing Message-ID gets its own ticket;
-//   5. ackDue: true only when wanted, not yet sent, and fewer than 3 acknowledgements went to that sender in the last 24 hours;
+//   5. ackDue: true only when wanted, not yet sent, fewer than 3 acknowledgements went to that sender in the last 24 hours AND fewer
+//      than 30 went to anyone in the last hour (ackLimit says which limit held it back; the ticket is still created either way);
 //      mark_ack / mark_notified set their time once, mark_ack moves open -> acknowledged and never reopens a closed ticket;
+//      dpdp_mail_close closes a ticket once (time and note set by the first call), is idempotent, never reopens, refuses every role
+//      but service_role and reports an unknown ticket;
 //   6. dpdp_mail_log_outbound / dpdp_mail_lookup_outbound: normalised ids, a second call fills the provider id without erasing anything,
 //      a ref reused for a different class or recipient is refused and the row is unchanged, lookup prefers the ref over a message id and
 //      the newest of several message-id matches, and finds nothing rather than guessing;
@@ -56,7 +60,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authen
 
 const TABLES = ["mail_outbound", "mail_inbound", "mail_ticket_counter"] as const
 const PUBLIC_FNS = [
-  "dpdp_mail_log_outbound", "dpdp_mail_lookup_outbound", "dpdp_mail_insert_inbound", "dpdp_mail_mark_ack", "dpdp_mail_mark_notified",
+  "dpdp_mail_log_outbound", "dpdp_mail_lookup_outbound", "dpdp_mail_insert_inbound", "dpdp_mail_mark_ack", "dpdp_mail_mark_notified", "dpdp_mail_close",
 ] as const
 
 let pg: PGlite
@@ -106,7 +110,10 @@ async function execError(sql: string): Promise<{ message: string; code: string }
   throw new Error("expected this SQL to fail")
 }
 
-type Inserted = { id: string; ticketNo: string; class: MailClass; status: string; dueAt: string | null; duplicate: boolean; ackDue: boolean; operatorNotified: boolean }
+type Inserted = {
+  id: string; ticketNo: string; class: MailClass; status: string; dueAt: string | null; duplicate: boolean; ackDue: boolean
+  ackLimit: "sender" | "hourly" | null; operatorNotified: boolean
+}
 let seq = 0
 const insert = (over: Record<string, unknown> = {}) =>
   rpc<Inserted>("dpdp_mail_insert_inbound", {
@@ -143,6 +150,7 @@ describe("drizzle/0662 single-mailbox mail log on an empty dpdp schema (PGlite)"
       "in_reply_to:text:YES", "references_hdr:text:YES", "received_at:timestamp with time zone:NO", "due_at:timestamp with time zone:YES", "status:text:NO",
       "ack_sent_at:timestamp with time zone:YES", "excerpt:text:YES", "classifier_reason:text:YES", "matched_outbound_ref:text:YES", "raw_forwarded:boolean:NO",
       "operator_notified_at:timestamp with time zone:YES", "created_at:timestamp with time zone:NO",
+      "closed_at:timestamp with time zone:YES", "closed_note:text:YES",
     ])
     expect(await cols("mail_outbound")).toEqual([
       "id:text:NO", "ref:text:NO", "class:text:NO", "org_id:text:YES", "membership_id:text:YES", "provider_message_id:text:YES", "message_id_header:text:YES",
@@ -178,11 +186,14 @@ describe("drizzle/0662 single-mailbox mail log on an empty dpdp schema (PGlite)"
     await pg.exec("DELETE FROM dpdp.mail_outbound")
   })
 
-  test("1d. the row CHECKs refuse an unknown class, an unknown status and an excerpt over 4096 characters", async () => {
+  test("1d. the row CHECKs refuse an unknown class, an unknown status, an excerpt over 4096 characters and a close note over 1000", async () => {
     const base = "INSERT INTO dpdp.mail_inbound (ticket_no, class, from_addr"
     expect((await execError(`${base}) VALUES ('X-1', 'spam', 'a@b.test')`)).message).toContain("mail_inbound_class_check")
     expect((await execError(`${base}, status) VALUES ('X-2', 'review', 'a@b.test', 'deleted')`)).message).toContain("mail_inbound_status_check")
     expect((await execError(`${base}, excerpt) VALUES ('X-3', 'review', 'a@b.test', repeat('x', 4097))`)).message).toContain("mail_inbound_excerpt_length_check")
+    expect((await execError(`${base}, closed_note) VALUES ('X-5', 'review', 'a@b.test', repeat('x', 1001))`)).message).toContain("mail_inbound_closed_note_length_check")
+    await pg.exec(`${base}, closed_note) VALUES ('X-6', 'clock', 'a@b.test', repeat('x', 1000))`)
+    await pg.exec("DELETE FROM dpdp.mail_inbound WHERE ticket_no = 'X-6'")
     await pg.exec(`${base}, excerpt) VALUES ('X-4', 'review', 'a@b.test', repeat('x', 4096))`)
     expect((await execError(`${base}) VALUES ('X-4', 'review', 'c@d.test')`)).message).toContain("duplicate key")
     await pg.exec("DELETE FROM dpdp.mail_inbound")
@@ -228,7 +239,7 @@ describe("drizzle/0662 single-mailbox mail log on an empty dpdp schema (PGlite)"
     }
   })
 
-  test("2d. the five public functions: SECURITY DEFINER, empty search_path, EXECUTE for service_role only", async () => {
+  test("2d. the six public functions: SECURITY DEFINER, empty search_path, EXECUTE for service_role only", async () => {
     for (const fn of PUBLIC_FNS) {
       const meta = await rows<{ prosecdef: boolean; config: string | null }>(
         "select p.prosecdef, array_to_string(p.proconfig, ',') config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = $1", [fn],
@@ -270,6 +281,7 @@ describe("drizzle/0662 single-mailbox mail log on an empty dpdp schema (PGlite)"
       ["dpdp_mail_insert_inbound", { p_class: "review", p_from_addr: "a@b.test", p_subject: "s", p_message_id: "<x@y>" }],
       ["dpdp_mail_mark_ack", { p_ticket_no: "R-2026-0001" }],
       ["dpdp_mail_mark_notified", { p_ticket_no: "R-2026-0001" }],
+      ["dpdp_mail_close", { p_ticket_no: "R-2026-0001", p_note: "not yours to close" }],
     ]
     for (const role of ["anon", "authenticated", "app_runtime"]) {
       for (const [fn, args] of calls) {
@@ -283,7 +295,7 @@ describe("drizzle/0662 single-mailbox mail log on an empty dpdp schema (PGlite)"
 
 describe("ticket numbers", () => {
   const PREFIX: Record<MailClass, string> = {
-    grievance: "G", data_request: "D", review: "R", sales: "S", sales_chain: "T", invoice: "I", monday: "M", partner: "P", support: "H", auto: "A",
+    grievance: "G", data_request: "D", review: "R", sales: "S", sales_chain: "T", invoice: "I", monday: "M", clock: "K", partner: "P", support: "H", auto: "A",
   }
   test("3a. every class gets its own prefix and its own counter: first ticket is P-<year>-0001, second 0002", async () => {
     const year = new Date().getUTCFullYear()
@@ -295,8 +307,9 @@ describe("ticket numbers", () => {
       expect(b.ticketNo).toBe(`${PREFIX[cls]}-${year}-0002`)
       expect((await inboundRow(a.ticketNo)).class).toBe(cls)
     }
-    expect(new Set(MAIL_CLASSES.map((c) => PREFIX[c])).size).toBe(10)
-    expect(await scalar("count(*) from dpdp.mail_ticket_counter")).toBe("10")
+    expect(new Set(MAIL_CLASSES.map((c) => PREFIX[c])).size).toBe(11)
+    expect(PREFIX.clock).toBe("K")
+    expect(await scalar("count(*) from dpdp.mail_ticket_counter")).toBe("11")
   })
 
   test("3b. the year is the IST calendar year: 18:29:59 UTC on 31 Dec is still the old year, 18:30:00 UTC is the new one", async () => {
@@ -356,7 +369,8 @@ describe("dpdp_mail_insert_inbound", () => {
     expect(new Date(row.received_at as string).toISOString()).toBe("2032-05-04T10:00:00.000Z")
     expect(new Date(row.due_at as string).toISOString()).toBe("2032-08-02T10:00:00.000Z")
     expect(row.created_at).toBeTruthy()
-    expect(Object.keys(res).sort()).toEqual(["ackDue", "class", "dueAt", "duplicate", "id", "operatorNotified", "status", "ticketNo"])
+    expect(Object.keys(res).sort()).toEqual(["ackDue", "ackLimit", "class", "dueAt", "duplicate", "id", "operatorNotified", "status", "ticketNo"])
+    expect(res.ackLimit).toBeNull()
   })
 
   test("4b. no day count means no due date; 1 and 3650 days are accepted; 0, -1 and 3651 are refused", async () => {
@@ -484,6 +498,7 @@ describe("acknowledgement bookkeeping", () => {
     // Three acknowledged in the last 24h: a fourth message is recorded, but not to be acknowledged.
     const fourth = await insert({ p_from_addr: sender, p_message_id: "<f4@x>", p_wants_ack: true })
     expect(fourth.ackDue).toBe(false)
+    expect(fourth.ackLimit).toBe("sender")
     // The same limit holds regardless of the sender's letter case.
     expect((await insert({ p_from_addr: "FLOOD@Example.Test", p_message_id: "<f5@x>", p_wants_ack: true })).ackDue).toBe(false)
     // Another sender is unaffected.
@@ -492,6 +507,133 @@ describe("acknowledgement bookkeeping", () => {
     await pg.exec(`UPDATE dpdp.mail_inbound SET ack_sent_at = now() - interval '25 hours' WHERE lower(from_addr) = 'flood@example.test' AND ack_sent_at IS NOT NULL`)
     expect((await insert({ p_from_addr: sender, p_message_id: "<f6@x>", p_wants_ack: true })).ackDue).toBe(true)
     expect(first.ticketNo).toBeTruthy()
+  })
+
+  test("5e. a global brake: once 30 acknowledgements went to ANYONE in the last hour, ackDue is false and ackLimit is 'hourly' -- the ticket is still created", async () => {
+    // Earlier tests left acknowledged rows behind; push them out of the window so this test counts only its own.
+    await pg.exec("UPDATE dpdp.mail_inbound SET ack_sent_at = now() - interval '3 hours' WHERE ack_sent_at IS NOT NULL")
+    const ackOne = async (n: number) => {
+      const t = await insert({ p_from_addr: `hourly${n}@example.test`, p_message_id: `<h${n}@x>`, p_wants_ack: true })
+      expect(t.ackDue).toBe(true)
+      await rpc("dpdp_mail_mark_ack", { p_ticket_no: t.ticketNo })
+    }
+    // 29 acknowledgements to 29 different senders: one more is still allowed.
+    for (let n = 1; n <= 29; n++) await ackOne(n)
+    const at29 = await insert({ p_from_addr: "hourly-n30@example.test", p_message_id: "<h30@x>", p_wants_ack: true })
+    expect(at29).toMatchObject({ ackDue: true, ackLimit: null })
+    await rpc("dpdp_mail_mark_ack", { p_ticket_no: at29.ticketNo })
+
+    // The 30th is on record: the 31st sender, a stranger with no history, is not to be acknowledged.
+    const over = await insert({ p_class: "data_request", p_from_addr: "stranger@example.test", p_message_id: "<h31@x>", p_wants_ack: true, p_due_days: 90 })
+    expect(over).toMatchObject({ ackDue: false, ackLimit: "hourly", class: "data_request", duplicate: false, operatorNotified: false })
+    // ... but the message is recorded, ticketed, due-dated and open, so the operator can still be told and can answer by hand.
+    expect(await inboundRow(over.ticketNo)).toMatchObject({ class: "data_request", status: "open", from_addr: "stranger@example.test", ack_sent_at: null })
+    expect((await inboundRow(over.ticketNo)).due_at).toBeTruthy()
+    // A retried delivery of the same message is still that one ticket, still held back.
+    expect(await insert({ p_class: "data_request", p_from_addr: "stranger@example.test", p_message_id: "<h31@x>", p_wants_ack: true, p_due_days: 90 })).toMatchObject({ ticketNo: over.ticketNo, duplicate: true, ackDue: false, ackLimit: "hourly" })
+    // A message that did not ask for an acknowledgement has no limit to report.
+    expect(await insert({ p_from_addr: "quiet@example.test", p_message_id: "<h32@x>", p_wants_ack: false })).toMatchObject({ ackDue: false, ackLimit: null })
+
+    // The per-sender limit is reported as such when both hold.
+    const flood = "hourly1@example.test"
+    for (let i = 0; i < 2; i++) {
+      const t = await insert({ p_from_addr: flood, p_message_id: `<again${i}@x>`, p_wants_ack: true })
+      await pg.exec(`UPDATE dpdp.mail_inbound SET ack_sent_at = now() WHERE ticket_no = '${t.ticketNo}'`)
+    }
+    expect((await insert({ p_from_addr: flood, p_message_id: "<again9@x>", p_wants_ack: true })).ackLimit).toBe("sender")
+
+    // Acknowledgements older than an hour stop counting: everything is allowed again.
+    await pg.exec("UPDATE dpdp.mail_inbound SET ack_sent_at = now() - interval '61 minutes' WHERE ack_sent_at IS NOT NULL")
+    expect(await insert({ p_from_addr: "stranger2@example.test", p_message_id: "<h33@x>", p_wants_ack: true })).toMatchObject({ ackDue: true, ackLimit: null })
+    // Exactly at the edge, counted from scratch: 29 acknowledgements inside the window are under the brake, the 30th puts it over.
+    await pg.exec("UPDATE dpdp.mail_inbound SET ack_sent_at = NULL")
+    await pg.exec("INSERT INTO dpdp.mail_inbound (ticket_no, class, from_addr, ack_sent_at) SELECT 'Z-' || g, 'review', 'bulk' || g || '@example.test', now() - interval '5 minutes' FROM generate_series(1, 29) g")
+    expect(await scalar("count(*) from dpdp.mail_inbound where ack_sent_at > now() - interval '1 hour'")).toBe("29")
+    expect(await insert({ p_from_addr: "edge1@example.test", p_message_id: "<e1@x>", p_wants_ack: true })).toMatchObject({ ackDue: true, ackLimit: null })
+    await pg.exec("INSERT INTO dpdp.mail_inbound (ticket_no, class, from_addr, ack_sent_at) VALUES ('Z-30', 'review', 'bulk30@example.test', now() - interval '59 minutes')")
+    expect(await scalar("count(*) from dpdp.mail_inbound where ack_sent_at > now() - interval '1 hour'")).toBe("30")
+    expect(await insert({ p_from_addr: "edge2@example.test", p_message_id: "<e2@x>", p_wants_ack: true })).toMatchObject({ ackDue: false, ackLimit: "hourly" })
+    await pg.exec("DELETE FROM dpdp.mail_inbound WHERE ticket_no LIKE 'Z-%'")
+  })
+})
+
+describe("dpdp_mail_close", () => {
+  const close = (ticket: string, note?: string | null) => rpc<{ ok: boolean; status?: string; closedAt?: string; alreadyClosed?: boolean }>("dpdp_mail_close", note === undefined ? { p_ticket_no: ticket } : { p_ticket_no: ticket, p_note: note })
+
+  test("5f. closes an open ticket: status closed, closed_at set, note stored -- re-read from the table", async () => {
+    const t = await insert({ p_class: "grievance", p_from_addr: "close1@example.test", p_due_days: 90 })
+    expect((await inboundRow(t.ticketNo)).status).toBe("open")
+    const res = await close(t.ticketNo, "  Answered by phone on 30 Sep.  ")
+    expect(res).toMatchObject({ ok: true, status: "closed", alreadyClosed: false })
+    expect(res.closedAt).toBeTruthy()
+    const row = await inboundRow(t.ticketNo)
+    expect(row).toMatchObject({ status: "closed", closed_note: "Answered by phone on 30 Sep." })
+    expect(new Date(row.closed_at as string).getTime()).toBe(new Date(res.closedAt as string).getTime())
+    // Everything else about the ticket is untouched: the due date, the sender, the class.
+    expect(row).toMatchObject({ class: "grievance", from_addr: "close1@example.test" })
+    expect(row.due_at).toBeTruthy()
+  })
+
+  test("5g. idempotent: a second and third call change nothing (time and note stay the first call's) and say alreadyClosed", async () => {
+    const t = await insert({ p_from_addr: "close2@example.test" })
+    await close(t.ticketNo, "first note")
+    const before = await inboundRow(t.ticketNo)
+    await pg.exec("SELECT pg_sleep(0.05)")
+    const again = await close(t.ticketNo, "second note")
+    const third = await close(t.ticketNo)
+    expect(again).toMatchObject({ ok: true, status: "closed", alreadyClosed: true })
+    expect(third).toMatchObject({ ok: true, alreadyClosed: true })
+    expect(await inboundRow(t.ticketNo)).toEqual(before)
+  })
+
+  test("5h. no note, a blank note and a note over 1000 characters: null, null, cut to 1000", async () => {
+    const a = await insert({ p_from_addr: "close3@example.test" })
+    await close(a.ticketNo)
+    expect((await inboundRow(a.ticketNo)).closed_note).toBeNull()
+    const b = await insert({ p_from_addr: "close4@example.test" })
+    await close(b.ticketNo, "   ")
+    expect((await inboundRow(b.ticketNo)).closed_note).toBeNull()
+    const c = await insert({ p_from_addr: "close5@example.test" })
+    await close(c.ticketNo, "n".repeat(2500))
+    expect(((await inboundRow(c.ticketNo)).closed_note as string).length).toBe(1000)
+  })
+
+  test("5i. never reopens: a mark_ack, a retried delivery, a second insert and a late close all leave it closed", async () => {
+    const t = await insert({ p_class: "data_request", p_from_addr: "close6@example.test", p_message_id: "<close6@x>", p_wants_ack: true })
+    await close(t.ticketNo, "done")
+    const closedAt = (await inboundRow(t.ticketNo)).closed_at as string
+    await rpc("dpdp_mail_mark_ack", { p_ticket_no: t.ticketNo })
+    expect((await inboundRow(t.ticketNo)).status).toBe("closed")
+    const retry = await insert({ p_class: "data_request", p_from_addr: "close6@example.test", p_message_id: "<close6@x>", p_wants_ack: true })
+    expect(retry).toMatchObject({ ticketNo: t.ticketNo, duplicate: true, status: "closed" })
+    await rpc("dpdp_mail_mark_notified", { p_ticket_no: t.ticketNo })
+    const row = await inboundRow(t.ticketNo)
+    expect(row.status).toBe("closed")
+    expect(new Date(row.closed_at as string).getTime()).toBe(new Date(closedAt).getTime())
+  })
+
+  test("5j. a ticket closed by hand (status set, no time) gets its time filled in; an unknown ticket answers ok:false and writes nothing", async () => {
+    const t = await insert({ p_from_addr: "close7@example.test" })
+    await pg.exec(`UPDATE dpdp.mail_inbound SET status = 'closed' WHERE ticket_no = '${t.ticketNo}'`)
+    expect((await inboundRow(t.ticketNo)).closed_at).toBeNull()
+    expect(await close(t.ticketNo, "by hand")).toMatchObject({ ok: true, alreadyClosed: true })
+    const row = await inboundRow(t.ticketNo)
+    expect(row.closed_at).toBeTruthy()
+    expect(row.closed_note).toBe("by hand")
+
+    const before = await scalar("count(*) from dpdp.mail_inbound where status = 'closed'")
+    expect(await close("G-1999-0001", "x")).toEqual({ ok: false })
+    expect(await close("", "x")).toEqual({ ok: false })
+    expect(await scalar("count(*) from dpdp.mail_inbound where status = 'closed'")).toBe(before)
+  })
+
+  test("5k. only service_role may call it: anon, authenticated and app_runtime are refused and the ticket stays open", async () => {
+    const t = await insert({ p_from_addr: "close8@example.test" })
+    for (const role of ["anon", "authenticated", "app_runtime"]) {
+      const e = await rpcError("dpdp_mail_close", { p_ticket_no: t.ticketNo, p_note: "hijack" }, role)
+      expect(e.message).toContain("permission denied for function")
+    }
+    expect(await inboundRow(t.ticketNo)).toMatchObject({ status: "open", closed_at: null, closed_note: null })
   })
 })
 
@@ -529,6 +671,14 @@ describe("dpdp_mail_log_outbound and dpdp_mail_lookup_outbound", () => {
       expect(e.message).toContain("already used by a different message")
     }
     expect(await outboundRow(r)).toMatchObject({ class: "invoice", to_addr: "one@example.test", provider_message_id: "orig-id" })
+  })
+
+  test("6a2. the statutory-notice class is a valid outbound class and round-trips through the lookup", async () => {
+    const r = ref()
+    await rpc("dpdp_mail_log_outbound", { p_ref: r, p_class: "clock", p_to_addr: "owner@example.test", p_subject: "[VERIDIAN DPDP · Statutory] 72-hour clock", p_provider_message_id: "prov-clk-1" })
+    expect(await outboundRow(r)).toMatchObject({ class: "clock", to_addr: "owner@example.test" })
+    expect(await rpc("dpdp_mail_lookup_outbound", { p_ref: r })).toMatchObject({ ref: r, class: "clock", matchedBy: "ref" })
+    expect(await rpc("dpdp_mail_lookup_outbound", { p_message_ids: ["prov-clk-1"] })).toMatchObject({ ref: r, class: "clock", matchedBy: "message_id" })
   })
 
   test("6c. a bad ref, an unknown class or an empty recipient is refused", async () => {

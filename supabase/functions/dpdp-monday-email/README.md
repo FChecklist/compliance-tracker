@@ -133,8 +133,8 @@ grammar in `../_shared/mail-taxonomy.ts`:
 | What | Value |
 | --- | --- |
 | From | `VERIDIAN AI DPDP <dpdp@veridian-aios.com>` (`DPDP_EMAIL_FROM` overrides) |
-| Reply-To | `dpdp+mon.<ref>@veridian-aios.com` (Monday digest, statutory view and both legal-clock notices, all class `monday`); `dpdp+inv.<ref>@…` for the invoice |
-| Subject | `[VERIDIAN DPDP · Monday] …` / `[VERIDIAN DPDP · Invoice] …`, added once, never stacked. `render.ts` still returns the plain subject; the prefix is added at send time |
+| Reply-To | `dpdp+mon.<ref>@veridian-aios.com` (Monday digest and its statutory-only view, class `monday`); `dpdp+clk.<ref>@veridian-aios.com` (the 72-hour leak-clock and 90-day rights-clock notices, class `clock`, chosen by `mailClassOf` in `index.ts`); `dpdp+inv.<ref>@…` for the invoice |
+| Subject | `[VERIDIAN DPDP · Monday] …` / `[VERIDIAN DPDP · Statutory] …` (the two legal-clock notices) / `[VERIDIAN DPDP · Invoice] …`, added once, never stacked. `render.ts` still returns the plain subject; the prefix is added at send time |
 | Headers | `X-Veridian-Class`, `X-Veridian-Ref`, plus `List-Unsubscribe` / `List-Unsubscribe-Post` (Monday) |
 | List-Unsubscribe mailto | `mailto:dpdp+dsr.<ref>@veridian-aios.com?subject=unsubscribe` — same `ref` as the Reply-To, class `data_request`. The RFC 8058 https one-click POST beside it is unchanged |
 | Log | one `dpdp.mail_outbound` row per sent message, via `public.dpdp_mail_log_outbound(p_ref, p_class, p_to_addr, p_subject, p_provider_message_id, p_membership_id, p_org_id)` |

@@ -22,39 +22,67 @@ person -> dpdp@ / dpdp+<tag>.<ref>@
 | `handler.ts` | The request handler (auth, parse, pipeline, emails). Database and mail provider are injected. |
 | `index.ts` | Deno wiring only: `Deno.serve`, the service-role client, Resend. |
 | `classify.test.ts`, `handler.test.ts` | Offline proof (see "Tests"). |
-| `../../../drizzle/0662_dpdp_single_mailbox_mail_log.sql` | The mail log: `dpdp.mail_outbound`, `dpdp.mail_inbound`, ticket counter, `public.dpdp_mail_*` (service_role only). |
+| `../../../drizzle/0662_dpdp_single_mailbox_mail_log.sql` | The mail log: `dpdp.mail_outbound`, `dpdp.mail_inbound`, ticket counter, `public.dpdp_mail_*` incl. `dpdp_mail_close` (service_role only). |
 
 ## The classes
 
 | Class | Ticket | Legal clock + acknowledged | Operator emailed | How it is reached |
 | --- | --- | --- | --- | --- |
-| `grievance` | `G-2026-0042` | yes | yes | tag `grv`, thread, or keyword |
-| `data_request` | `D-...` | yes | yes | tag `dsr`, thread, or keyword |
+| `grievance` | `G-2026-0042` | yes | yes | tag `grv`, thread, keyword, or **escalation** |
+| `data_request` | `D-...` | yes | yes | tag `dsr`, thread, keyword, or **escalation** |
 | `review` | `R-...` | yes | yes | tag `rev`, thread, or **the default when nothing matched** |
 | `monday` | `M-...` | no | yes | tag `mon` or thread (a reply to the Monday digest) |
+| `clock` | `K-...` | no | yes | tag `clk` or thread (a reply to a **statutory notice we sent**: the 72-hour leak clock or the 90-day rights clock, `[VERIDIAN DPDP · Statutory]`) |
 | `sales` | `S-...` | no | yes | tag `sal`, or keyword |
 | `sales_chain` | `T-...` | no | yes | tag `sch`, or a reply to something we sent as `sales` |
 | `invoice` | `I-...` | no | yes | tag `inv`, thread, or keyword |
 | `partner` | `P-...` | no | yes | tag `prt`, or keyword |
 | `support` | `H-...` | no | yes | tag `sup`, or keyword |
-| `auto` | `A-...` | no | **no (logged only)** | our own mailbox as sender, strong auto-mail signals, or weak ones with nothing to read |
+| `auto` | `A-...` | no | **no (logged only)** | our own mailbox as sender, a machine signal, or an auto header with nothing legal in the text |
 
-First match wins, in this order: (0) sender is our own mailbox -> `auto`; (a) the
-recipient's plus-tag; (b) In-Reply-To / References carries a Message-ID we sent
-(`sales` -> `sales_chain`); (c) auto mail; (d) keywords on the subject and the first
-4096 characters of the text, quoted lines removed, English and Hindi/Hinglish, in
-the order data_request, grievance, invoice, partner, sales, support; (e) `review`.
+First match wins, in this order: (0) sender is our own mailbox -> `auto`; (1) **machine-only**
+signals (a MAILER-DAEMON / postmaster sender, an empty Return-Path, a delivery-status /
+multipart-report / disposition-notification content type) -> `auto`, before the plus-tag, **never
+escalated**; (2) **header-based** auto signals (`Auto-Submitted` other than `no`, `X-Autoreply` /
+`X-Autorespond`, `Precedence: bulk | auto_reply | junk`, an "out of office" / "automatic reply"
+style subject, and our own `X-Veridian-Origin` **only when a thread match corroborates it**) ->
+`auto`, also before the plus-tag, so a vacation reply to the Monday digest stops notifying the
+operator every Monday, **unless** the text carries a data request or a grievance (escalation,
+below); (a) the recipient's plus-tag; (b) In-Reply-To / References carries a Message-ID we sent
+(`sales` -> `sales_chain`); (d) keywords on the subject and the first 4096 characters of the text,
+quoted lines removed, English and Hindi/Hinglish, in the order data_request, grievance, invoice,
+partner, sales, support; (e) `review`.
 
-**The safety rule** (the owner's core requirement): `auto` is the only class logged
-without telling the operator, so it is hard to reach. An `aut` tag in the address is
-*ignored* (anyone can type it). Strong auto signals (MAILER-DAEMON / postmaster
-sender, empty Return-Path, `Auto-Submitted` other than `no`, `X-Autoreply`,
-`Precedence: auto_reply`, a delivery-status / multipart-report content type, our own
-`X-Veridian-Origin`) always mean auto. Weak ones (`Precedence: bulk|junk`,
-`X-Auto-Response-Suppress`, an "out of office" style subject) mean auto only when no
-keyword rule matches. Rules (a) and (b) run before (c), as specified, so an
-out-of-office answering a Monday email lands as `monday`, with its auto signals listed
-in the notice and **no acknowledgement sent to it**.
+**Escalation** (the owner's rule: a legal request never misses its clock or its acknowledgement,
+whatever tag, thread or headers it arrives with). After a, b or d, if the class is not a legal-clock
+class (grievance, data_request, review), and for a header-based auto signal, **only** the
+`data_request` and `grievance` keyword rules are run over what the person actually wrote: the body
+with quoted lines (`>`), everything after an `On ... wrote:` line (also when wrapped over two
+lines), `-----Original Message-----` / forwarded-message lines, Outlook `From: / Sent: / To: /
+Subject:` blocks and **our own footer boilerplate** removed, plus the subject unless it carries our
+own `[VERIDIAN DPDP` prefix (our subjects contain words such as "escalated to you" and "Data
+Protection Board", and a reply echoes them). A hit raises the class and keeps the origin in the
+stored reason: `tag:mon; escalated keyword:data_request:"delete my data"`,
+`auto:Auto-Submitted=auto-replied; escalated keyword:grievance:"complain"`. So a Monday reply
+saying "Please stop sending me these emails. Delete my data." is a `data_request`, an invoice-thread
+"I want to file a complaint about misuse of my data" is a `grievance`, "thanks for the invoice"
+stays `invoice`, and a vacation reply that merely quotes the digest (whose footer says
+"unsubscribe") stays `auto`. A raised message gets a due date, an acknowledgement and the operator
+notice like any other legal-clock ticket.
+
+**The safety rule** (the owner's core requirement): `auto` is the only class logged without telling
+the operator, so it is hard to reach. An `aut` tag in the address is *ignored* (anyone can type it).
+The machine-only signals end in `auto` because a bounce is a bounce (but see the limitation below:
+they can be forged). The header-based signals are chosen by the *sender*, so they can never hide a
+legal request. One deliberate exception in the other direction: when the tag names a legal class
+(`grv` / `dsr` / `rev`, which includes the legacy `grievance@` alias the Worker rewrites to
+`dpdp+grv@`, or the `List-Unsubscribe` mailto of a digest or notice, `dpdp+dsr.<ref>@`, whose ref
+matches a Monday or statutory row) and the message is **not a reply to one of our own
+acknowledgements** (an outbound row with a ticket number, or of a legal-clock class), an auto header
+does not divert the message to `auto`: it is filed under the tag, the operator is told, and (because
+it carries auto headers) no acknowledgement is sent. A header-flagged reply to our own
+acknowledgement IS diverted to `auto`: that is the auto-responder loop. `X-Auto-Response-Suppress` is **not** an auto signal: it is a
+hint the sender sets about how others should answer them, not proof that the mail is automatic.
 
 ## Secrets (function secrets, Supabase dashboard -> Edge Functions -> Secrets)
 
@@ -127,17 +155,27 @@ message; it carries `{ ok, ticket, class, rule, duplicate, dryRun, ack, notified
 
 ## What gets emailed
 
-* **Acknowledgement to the sender** (grievance, data_request, review only). From
-  `DPDP_EMAIL_FROM`, `Reply-To` `dpdp+<tag>.<new ref>@`, subject
-  `[VERIDIAN DPDP · GRIEVANCE] We received your message (ticket G-2026-0042)`. It says
-  the message was received, gives the ticket number, and says we will respond. It asserts
-  nothing legal (no deadline, no statute). It is logged in `dpdp.mail_outbound` with the
-  ticket, so a reply to it lands on the same class and is tied to the ticket. Sent with
-  `Auto-Submitted: auto-replied`, `X-Auto-Response-Suppress: All`, `X-Veridian-Origin:
-  acknowledgement`. **Never** sent when: the message carries any auto-mail signal; the
-  sender is our own mailbox, a `no-reply` / `postmaster` / `mailer-daemon` / `bounce`
-  address, or has no usable address; the sender failed DMARC in `Authentication-Results`;
-  or 3 acknowledgements already went to that sender in 24 hours.
+* **Acknowledgement to the sender** (grievance, data_request, review only, including a
+  message raised to one of them by the escalation). From `DPDP_EMAIL_FROM`, `Reply-To`
+  `dpdp+<tag>.<new ref>@`, subject
+  `[VERIDIAN DPDP · GRIEVANCE] We received your message (ticket G-2026-0042)`; for a `review`
+  message the subject carries **no class label**, so the sender never sees our internal word:
+  `[VERIDIAN DPDP] We received your message (ticket R-2026-0001)`. It says the message was
+  received, gives the ticket number and the time, and says we will respond. It asserts nothing
+  legal (no deadline, no statute) and **repeats nothing the sender wrote, not even their
+  subject** (the address it goes to is the unverified From, so an echo would let anyone make us
+  send their words to a stranger). It is logged in `dpdp.mail_outbound` with the ticket, so a
+  reply to it lands on the same class and is tied to the ticket. Sent with `Auto-Submitted:
+  auto-replied`, `X-Auto-Response-Suppress: All`, `X-Veridian-Origin: acknowledgement`.
+  **Never** sent when: the message carries auto-mail signals and was *not* escalated (an
+  escalated message is acknowledged whatever headers the sender chose, except a header-flagged
+  reply to **our own acknowledgement**, which is how two auto-responders loop; the ticket
+  already exists); the sender is our own mailbox, a `no-reply` / `postmaster` / `mailer-daemon` /
+  `bounce` address, or has no usable address; the sender failed DMARC in `Authentication-Results`;
+  3 acknowledgements already went to that sender in 24 hours; or **30 acknowledgements have gone
+  to anyone in the last hour** (a global brake against a flood of forged senders). When a limit
+  holds the acknowledgement back the ticket is still created and due-dated and the operator is
+  still told; the notice then says which limit it was and to answer by hand.
 * **Operator notice** (every class but auto). To `DPDP_OPERATOR_EMAIL`, subject
   `[GRIEVANCE G-2026-0042] original subject`, `Reply-To` the original sender (replying
   answers the sender directly, from the operator's own address), a summary block (class
@@ -145,6 +183,22 @@ message; it carries `{ ok, ticket, class, rule, duplicate, dryRun, ack, notified
   the original message quoted. Sent with `Idempotency-Key` so a retried delivery cannot
   send it twice.
 * **Raw forward** (database down): the message itself, subject `[CLASS UNRECORDED] ...`.
+
+## Closing a ticket, and retention
+
+`public.dpdp_mail_close(p_ticket_no text, p_note text default null)` (service_role only, SECURITY
+DEFINER, like its siblings) sets `status = 'closed'`, `closed_at = now()` and an optional note
+(first 1000 characters, `closed_note`). It is idempotent (the first call sets the time and note,
+later calls change nothing and answer `alreadyClosed: true`), answers `{ ok: false }` for an unknown
+ticket, and **never reopens**: nothing else in the schema moves a ticket out of `closed`. Nothing
+in this function calls it; an operator closes a ticket by hand, for example with the service-role
+client: `await client.rpc("dpdp_mail_close", { p_ticket_no: "G-2026-0042", p_note: "Answered by phone" })`.
+
+**Retention is the owner's call, with counsel.** `dpdp.mail_inbound.excerpt` (first 4096
+characters of the text), `subject` and `from_addr` hold whatever personal data the sender typed,
+and nothing here sets a period or deletes or redacts anything, `dpdp_mail_close` included. Decide
+how long a closed ticket's excerpt, subject and sender address are kept (and whether the ticket
+row itself is kept as the record that a request was received and answered), then add a job for it.
 
 ## Dry run
 
@@ -193,7 +247,8 @@ test files that live beside the function (nor `../_shared/mail-taxonomy.test.ts`
 bun test --isolate ./supabase/functions/dpdp-inbound-mail/classify.test.ts
 bun test --isolate ./supabase/functions/dpdp-inbound-mail/handler.test.ts
 bun test --isolate ./supabase/functions/_shared/mail-taxonomy.test.ts
-bun test --isolate src/lib/services/dpdp-single-mailbox-migration.pglite.test.ts   # PGlite: real Postgres, no database needed
+bun test --isolate src/lib/services/dpdp-single-mailbox-migration.pglite.test.ts   # PGlite: real Postgres, no database needed (incl. the 30/hour cap and dpdp_mail_close)
+bun test --isolate src/lib/services/dpdp-mail-outbound.test.ts   # the digest / invoice / statutory-notice senders: class, Reply-To, prefix, log rows
 (cd workers/dpdp-inbound-mail && bun test)   # incl. pipeline.test.ts: Worker -> this function -> drizzle/0662 on PGlite
 ```
 
@@ -205,15 +260,52 @@ bun test --isolate src/lib/services/dpdp-single-mailbox-migration.pglite.test.ts
 * The classifier is keyword rules, not understanding. It is deliberately over-inclusive for
   the legal-clock classes and falls back to `review`; expect false positives to the operator
   rather than misses. A message written only in another language is `review`.
+* **The machine-only signals are forgeable.** A MAILER-DAEMON/postmaster From, an empty
+  Return-Path and a `multipart/report` content type are set by whoever sends the message, and
+  the design (owner's decision) files such a message as `auto` without escalation, so a hostile
+  sender could hide a request that way. It is still recorded with an `A-` ticket, just not
+  emailed to the operator; someone should look at the `auto` tickets now and then.
+* **A human enquiry that carries a bulk / auto header is `auto`.** Only `data_request` and
+  `grievance` keywords rescue a message under a header-based auto signal, so a sales, invoice,
+  partner or support enquiry sent with `Precedence: bulk` (some CRMs and mailing systems add it)
+  is recorded as `auto` and not emailed to the operator. An "out of office" / "automatic reply" /
+  "undeliverable" style subject counts as a signal only at the START of the subject (behind
+  `Re:` / `Fwd:` / `AW:`), so "Undelivered invoice" or "support out of office hours" is read like any
+  other mail.
+* **Keyword coverage is finite.** A withdrawal or a grievance worded in a way none of the rules
+  knows, sent as a reply to the Monday digest, a statutory notice, an invoice or a sales thread,
+  stays under that class: the operator is still emailed (with the class label in the subject), but
+  there is no D- / G- ticket, due date or acknowledgement. The lists were widened in two review
+  passes (2026-09-29), and a reply in a script the rules cannot read (Tamil, Bengali, Gujarati,
+  Urdu ...) becomes `review`; Marathi, other Latin-script languages and anything else are only as
+  good as the lists. The structural alternative, if the owner wants a hard guarantee, is to file
+  every reply to a broadcast (`monday`, `clock`) that is more than a bare thanks as `review`.
+* **An unmarked echo of our own mail is read.** An auto-responder or a mobile client that pastes
+  our digest or notice with no `>` and no `On ... wrote:` puts our own words in front of the
+  keyword rules (the digest intro says "escalated to you", the leak-clock notice "Data Protection
+  Board", the rights-clock notice "erasure"). Only the footers are recognised as ours, so such a
+  reply is raised to grievance / data_request: a false ticket, the safe direction.
+* **Bottom-posting is not read, but it is not filed under the tag either.** Everything after an
+  `On ... wrote:` / Original Message / Outlook header-block marker is dropped, so an answer typed
+  *below* the quoted original is not searched for keywords (reading the quote would put our own
+  words into every reply). When that leaves NOTHING of the person's own above the quote (Thunderbird
+  replies below the quote by default), the message becomes `review` (`nothingAboveTheQuote`: ticket,
+  due date, acknowledgement, starred notice) instead of the class of its tag. The remaining miss: a
+  bottom-posted reply with a line of the person's own above the quote ("Hi,", "Thanks") is still
+  filed under its tag, because that line is all the classifier can read. The Worker also sends only
+  the first 4 KB of text, so an answer that starts beyond it is never seen.
 * Sender identity is only as good as the mail path: SPF/DKIM/DMARC are Cloudflare's and the
   sender's. The Worker forwards `Authentication-Results`, so a `dmarc=fail` message is not
   acknowledged; but if Cloudflare does not add that header (unverified), or the forged message
   passes, it gets an acknowledgement sent to the forged address ("backscatter"). The
-  3-per-24-hours limit per address bounds it per address, not overall.
+  3-per-24-hours limit per address bounds it per address, and the overall 30-per-hour brake
+  bounds it in total (at the price that a real request arriving during a flood is ticketed and
+  reported but not acknowledged; the operator's notice then says to answer by hand).
 * A follow-up from a person on an existing thread is a NEW ticket that names the earlier
   one (`In reply to: ticket ...`) only when the earlier message was an acknowledgement or
   another outbound mail we logged; tickets are not merged.
 * Ticket numbers are race-safe by construction (one row lock per class and year) but the
   offline test uses one connection; exercise two simultaneous deliveries once on a real database.
-* `status` can be `closed` but nothing in this function closes a ticket; that is a manual
-  update for now.
+  The hourly acknowledgement cap (30) reads a count without a lock, so two deliveries at the same
+  instant can both pass at 29: it is a brake, not an exact meter.
+* Nothing in this function closes a ticket; an operator calls `dpdp_mail_close` (see above).

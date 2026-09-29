@@ -31,19 +31,19 @@ describe("constants", () => {
     expect(MAILBOX).toBe("dpdp@veridian-aios.com")
     expect(MAILBOX).toBe(`${MAILBOX_LOCAL}@${MAILBOX_DOMAIN}`)
   })
-  test("ten classes, each with a unique three-letter lower-case tag and a non-empty label", () => {
-    expect(MAIL_CLASSES.length).toBe(10)
-    expect(new Set(MAIL_CLASSES).size).toBe(10)
+  test("eleven classes, each with a unique three-letter lower-case tag and a non-empty label", () => {
+    expect(MAIL_CLASSES.length).toBe(11)
+    expect(new Set(MAIL_CLASSES).size).toBe(11)
     const tags = MAIL_CLASSES.map((c) => CLASS_TAG[c])
-    expect(new Set(tags).size).toBe(10)
+    expect(new Set(tags).size).toBe(11)
     for (const t of tags) expect(t).toMatch(/^[a-z]{3}$/)
     const labels = MAIL_CLASSES.map((c) => CLASS_LABEL[c])
-    expect(new Set(labels).size).toBe(10)
+    expect(new Set(labels).size).toBe(11)
     for (const l of labels) expect(l.trim().length).toBeGreaterThan(0)
   })
   test("the tags are frozen: they are in every address ever sent, so a rename would orphan replies", () => {
     expect(CLASS_TAG).toEqual({
-      monday: "mon", sales: "sal", sales_chain: "sch", invoice: "inv", grievance: "grv",
+      monday: "mon", clock: "clk", sales: "sal", sales_chain: "sch", invoice: "inv", grievance: "grv",
       data_request: "dsr", partner: "prt", support: "sup", auto: "aut", review: "rev",
     })
   })
@@ -52,6 +52,13 @@ describe("constants", () => {
     expect([...NOTIFY_CLASSES].sort()).toEqual(MAIL_CLASSES.filter((c) => c !== "auto").sort())
     expect(NOTIFY_CLASSES).not.toContain("auto")
     for (const c of LEGAL_CLOCK_CLASSES) expect(NOTIFY_CLASSES).toContain(c)
+  })
+  test("clock (a statutory notice WE sent): tag clk, label Statutory, notified, and NOT a legal-clock class -- a reply is escalated by keyword instead", () => {
+    expect(MAIL_CLASSES).toContain("clock")
+    expect(CLASS_TAG.clock).toBe("clk")
+    expect(CLASS_LABEL.clock).toBe("Statutory")
+    expect(NOTIFY_CLASSES).toContain("clock")
+    expect(LEGAL_CLOCK_CLASSES).not.toContain("clock")
   })
 })
 
@@ -201,6 +208,12 @@ describe("subject prefix", () => {
     expect(withSubjectPrefix("support", "  Help needed \n")).toBe("[VERIDIAN DPDP · Support] Help needed")
     expect(withSubjectPrefix("support", `  ${withSubjectPrefix("support", "x")}  `)).toBe("[VERIDIAN DPDP · Support] x")
   })
+  test("the statutory-notice class reads [VERIDIAN DPDP · Statutory]", () => {
+    expect(subjectPrefix("clock")).toBe("[VERIDIAN DPDP · Statutory] ")
+    expect(withSubjectPrefix("clock", "72-hour clock: data leak at Acme")).toBe("[VERIDIAN DPDP · Statutory] 72-hour clock: data leak at Acme")
+    expect(replyToAddress("clock", REF)).toBe(`dpdp+clk.${REF}@veridian-aios.com`)
+    expect(parseRecipient(`dpdp+clk.${REF}@veridian-aios.com`)).toEqual({ ours: true, cls: "clock", ref: REF })
+  })
   test("an empty subject still gets the prefix", () => {
     expect(withSubjectPrefix("monday", "")).toBe("[VERIDIAN DPDP · Monday] ")
   })
@@ -227,6 +240,7 @@ describe("notificationSubject", () => {
     expect(notificationSubject("grievance", "G-2026-0042", "my complaint")).toBe("[GRIEVANCE G-2026-0042] my complaint")
     expect(notificationSubject("data_request", "D-2026-0001", "Delete my data")).toBe("[DATA REQUEST D-2026-0001] Delete my data")
     expect(notificationSubject("sales_chain", "T-2026-0007", "Quote")).toBe("[Sales thread T-2026-0007] Quote")
+    expect(notificationSubject("clock", "K-2026-0001", "Re: 72-hour clock")).toBe("[Statutory K-2026-0001] 72-hour clock")
   })
   test("one leading Re: / Fwd: / Fw: is removed, in any case", () => {
     expect(notificationSubject("grievance", "G-1", "Re: my complaint")).toBe("[GRIEVANCE G-1] my complaint")

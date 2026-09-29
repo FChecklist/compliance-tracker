@@ -26,20 +26,30 @@ so a mail must not vanish because a service was down.
 | Config missing, or URL is not https | Original forwarded to `FALLBACK_FORWARD_TO`. |
 | Message stream error, parse error, or a parse that produced no sender/subject/Message-ID | Original forwarded. |
 | Network error, timeout (`POST_TIMEOUT_MS`), any non-2xx (4xx, 5xx, 3xx) | Original forwarded. |
-| Mail larger than `MAX_RAW_BYTES` | The head is parsed and ticketed with `truncated: true`, **and** the full original is forwarded (the ticket only holds an excerpt). |
+| Mail larger than `MAX_RAW_BYTES` (default **131072** = 128 KiB) | The head is parsed and ticketed with `truncated: true`, **and** the full original is forwarded natively (the ticket only holds an excerpt). |
 | The forward itself fails (`FALLBACK_FORWARD_TO` unset or not a verified destination) | The handler **throws**, so the mail is not accepted as delivered. Last resort; avoid it by doing the "verify the fallback" step below. |
-| Recipient is not `dpdp@`, `dpdp+*@`, `grievance@` or `partners@` | Refused at SMTP level (`setReject("Unknown recipient")`). Keeps catch-all spam out of the ticket queue. |
+| Recipient is `postmaster@` or `abuse@` (RFC 2142 role mailboxes) | **Accepted, forwarded natively to `FALLBACK_FORWARD_TO`, not read, not parsed, not ticketed.** Every mail system is entitled to write to these two (bounce diagnostics, spam and abuse reports); refusing them would be a defect of its own. The forward carries `X-Veridian-Fallback-Reason: role_mailbox:postmaster` (or `:abuse`). If that forward fails the handler throws, like any other last resort. Exact names only: `postmaster+x@`, `abuse@send.veridian-aios.com` and the like are refused. |
+| Recipient is anything else (not `dpdp@`, `dpdp+*@`, `grievance@`, `partners@`, `postmaster@`, `abuse@`) | Refused at SMTP level (`setReject("Unknown recipient")`). Keeps catch-all spam out of the ticket queue. |
 
 A forwarded original carries two extra headers: `X-Veridian-Fallback-Reason` (why ticketing
 was bypassed, e.g. `post_http_500`, `post_timeout`, `config_missing`, `parse_unusable`,
-`oversize_full_copy`) and `X-Veridian-Envelope-To` (the address it was really sent to).
+`oversize_full_copy`, or `role_mailbox:postmaster` / `role_mailbox:abuse` for the two RFC 2142
+role mailboxes, which are forwarded on purpose rather than because something failed) and
+`X-Veridian-Envelope-To` (the address it was really sent to).
 
 Two consequences to know about, both chosen over losing mail:
 
 * **Duplicates are possible.** If the Edge Function did the work but its reply was lost, the
   Worker cannot know, forwards, and the operator sees the mail twice. `message_id` is in the
   payload so the function can de-duplicate the ticket side.
-* **Oversized mail is delivered twice** (ticket excerpt + full forward). Rare by design.
+* **Oversized mail is delivered twice** (ticket excerpt + full forward). Rare by design:
+  anything over 128 KiB, in practice a mail that carries a scan or a photo.
+* **A grievance or data request sent to `postmaster@` / `abuse@` is not ticketed** and gets no
+  automatic acknowledgement or clock: it is only forwarded to the operator's inbox. Those two
+  addresses are not published for the public, so this is judged acceptable, but it is a real
+  gap in the "nothing misses its clock" rule. Someone reading the forwarded copy has to forward
+  it to `dpdp@` to start a ticket. (Routing them through the ticketing path as `review` instead
+  is a small change in `src/recipient.ts` if the owner prefers it.)
 
 The legacy published addresses keep working: `grievance@` is treated as `dpdp+grv@` and
 `partners@` as `dpdp+prt@` (tags come from the shared taxonomy), so the classifier's
@@ -106,7 +116,7 @@ Set in [`wrangler.toml`](wrangler.toml) (`[vars]`) unless noted. **No secret is 
 | `DPDP_INBOUND_SECRET` | **secret** | yes | Shared bearer secret. Must equal the Edge Function's own `DPDP_INBOUND_SECRET` function secret. Set with `wrangler secret put`, never in `wrangler.toml`. The Edge Function must be deployed with `--no-verify-jwt`: this is a shared secret, not a Supabase JWT, and the gateway would otherwise answer 401 before the function runs, so every mail would take the fallback path. |
 | `FALLBACK_FORWARD_TO` | var | yes | Where the original goes if anything fails. Set to `raajat.agarwal@gmail.com`. Must be a **verified destination address** in Email Routing. |
 | `POST_TIMEOUT_MS` | var | no | How long to wait for the Edge Function. Default `8000`, max `25000`. |
-| `MAX_RAW_BYTES` | var | no | Read at most this much of a mail. Default `1048576` (1 MiB), range `4096`-`8388608`. |
+| `MAX_RAW_BYTES` | var | no | Read at most this much of a mail. Default **`131072`** (128 KiB), range `4096`-`8388608`. `wrangler.toml` sets it explicitly to the same number, and a test keeps that file and the code default equal. Larger mail is still ticketed (truncated) and forwarded in full, never dropped. |
 
 Generate the shared secret once and put the **same value** on both sides:
 
@@ -163,11 +173,16 @@ Cloudflare dashboard -> `veridian-aios.com` -> **Email** -> **Email Routing**.
    everyday human addresses (`rajat@`, `hello@`, ...): each of those needs its own explicit
    Email Routing rule to a verified destination BEFORE the switch, because this Worker refuses
    every address it does not own (see the table above) and a catch-all pointed at it would
-   bounce them.
+   bounce them. (`postmaster@` and `abuse@` are the exception: the Worker accepts and forwards
+   them, see step 3.)
 2. **Destination addresses** -> add `raajat.agarwal@gmail.com` and click the verification link
    Cloudflare emails to it. **This is what the fallback forward depends on.**
 3. **Routing rules** -> **Create address**: custom address `dpdp`, action **Send to a Worker**,
-   destination `dpdp-inbound-mail`. Save.
+   destination `dpdp-inbound-mail`. Save. Do the same for `postmaster` and `abuse` (RFC 2142
+   asks every domain to be reachable there): each is a rule with action **Send to a Worker**,
+   destination `dpdp-inbound-mail`. The Worker forwards those two to `FALLBACK_FORWARD_TO`
+   without ticketing them. (A `postmaster`/`abuse` rule that forwards straight to a mailbox is
+   fine too; only the catch-all decides whether the Worker sees them.)
 4. **Catch-all address: leave it OFF unless step 3 of "Verify after deploy" shows it is needed.**
    Email Routing is documented to support plus-addressing (RFC 5233), so `dpdp+<tag>.<ref>@`
    should already match the `dpdp` rule (not verified from here). Only if that test mail does
@@ -194,6 +209,9 @@ through Resend) is a separate task.
 4. Send to `grievance@veridian-aios.com`: must arrive as `envelope_to = dpdp+grv@...`.
 5. Send to `sales@veridian-aios.com` (or any random address): the sender must get a bounce
    saying "Unknown recipient" and nothing must be ticketed.
+   Send to `postmaster@veridian-aios.com` and `abuse@veridian-aios.com`: both must land in
+   `raajat.agarwal@gmail.com` with `X-Veridian-Fallback-Reason: role_mailbox:...`, no bounce, and
+   `wrangler tail` must show `role_mailbox` and `forwarded_to_fallback` (no `ticketed`).
 6. **Fallback drill (do not skip):** `bunx wrangler secret put DPDP_INBOUND_SECRET` with a
    deliberately wrong value, send a mail, and confirm it lands in `raajat.agarwal@gmail.com`
    (check spam) with `X-Veridian-Fallback-Reason: post_http_401`. Then put the right secret
@@ -201,14 +219,15 @@ through Resend) is a separate task.
    after the message stream has been read, on the real runtime.
 7. Dashboard -> Worker -> Metrics: look at CPU time per invocation on real traffic (see the
    CPU note below).
-8. **Attachment drill (do not skip):** send a mail with a ~300 KB attachment (a scanned ID is
-   what a data-erasure request typically carries) and a ~2 MB one. Expect the first to be
-   ticketed with no CPU error in `wrangler tail`; expect the second to be ticketed with
-   `truncated: true` AND a complete copy (attachment included) in `raajat.agarwal@gmail.com`
-   with `X-Veridian-Fallback-Reason: oversize_full_copy`. Not verified on the real runtime:
-   that `forward()` still delivers the whole message after the read stream was cancelled at
-   the cap. If the copy is incomplete, or the free plan reports "exceeded CPU", lower
-   `MAX_RAW_BYTES` (see the CPU note) or move to the paid plan.
+8. **Attachment drill (do not skip):** send a mail with a ~60 KB attachment (under the 128 KiB
+   cap), one with a ~300 KB attachment (a scanned ID is what a data-erasure request typically
+   carries) and one with a ~2 MB attachment. Expect the first to be ticketed with
+   `truncated: false` and no CPU error in `wrangler tail`; expect the second and third to be
+   ticketed with `truncated: true` AND a complete copy (attachment included) in
+   `raajat.agarwal@gmail.com` with `X-Veridian-Fallback-Reason: oversize_full_copy`. Not verified
+   on the real runtime: that `forward()` still delivers the whole message after the read stream
+   was cancelled at the cap. If the copy is incomplete, or the free plan reports "exceeded CPU"
+   even at 128 KiB, lower `MAX_RAW_BYTES` further (see the CPU note) or move to the paid plan.
 
 ### Local run with the real workerd runtime (no Cloudflare account, no live services)
 
@@ -245,11 +264,13 @@ run these tests; run them from this directory.
 `handler.test.ts` uses a hand-built mock of `ForwardableEmailMessage` (real `ReadableStream`,
 recorders for `forward()` / `setReject()`) and really parses the MIME with postal-mime; only
 `fetch` and the clock are replaced. It covers: the happy path and the exact request made;
-plus-tagged and legacy-alias recipients; unknown recipients refused; Edge Function 5xx / 4xx /
-3xx; network error; timeout (with and without an abort-aware `fetch`); missing config and
+plus-tagged and legacy-alias recipients; unknown recipients refused; the RFC 2142 role mailboxes
+(`postmaster@`, `abuse@`) forwarded untouched, unread and unticketed, and their lookalikes refused;
+Edge Function 5xx / 4xx / 3xx; network error; timeout (with and without an abort-aware `fetch`); missing config and
 insecure URL; malformed MIME and a throwing parser; a stream that errors mid-read; a refused
 annotated forward retried bare; a failing fallback throwing; oversized mail (read is capped and
-cancelled, ticketed as truncated, forwarded in full); and that logs never contain mail
+cancelled, ticketed as truncated, forwarded in full; the 128 KiB default, its equality with
+`wrangler.toml`, and an erasure request carrying a 300 KB scan); and that logs never contain mail
 content or the secret. `text.test.ts` covers the html-to-text, whitespace and UTF-8 cap
 helpers, including hostile inputs.
 
@@ -274,9 +295,12 @@ post-deploy checks.
   head and the first 4 KB of text are used anyway) or move to the paid plan. Review-time
   measurement, local `bun` wall clock on a warm desktop (NOT workerd CPU time): a 114-byte mail
   parses in ~1 ms; a mail with an attachment read up to the cap takes ~3 ms at 64 KiB, ~5 ms at
-  128 KiB, ~9 ms at 256 KiB and ~40 ms at the default 1 MiB (~16 ms for a 300 KiB attachment
-  read whole). Against a 10 ms budget the default 1 MiB cap is therefore unlikely to be safe
-  for attachment-carrying mail on the free plan; `MAX_RAW_BYTES = "131072"` would be.
+  128 KiB, ~9 ms at 256 KiB and ~40 ms at 1 MiB (~16 ms for a 300 KiB attachment read whole).
+  Against a 10 ms budget the old 1 MiB default was therefore unlikely to be safe for
+  attachment-carrying mail on the free plan, so **the default cap is now 131072 (128 KiB)**, in
+  both `src/handler.ts` and `wrangler.toml`. The cost of the small cap is only that a larger mail
+  is ticketed from its head (`truncated: true`, the first 4 KB of text) and delivered a second
+  time in full; nothing is lost. The free-plan figure has not been measured inside workerd.
 * **A failed last-resort forward** makes the handler throw. Cloudflare then reports a failure
   to the sending server instead of success; the exact SMTP code is Cloudflare's and was not
   verified here.
@@ -294,9 +318,10 @@ post-deploy checks.
 |---|---|
 | `src/index.ts` | The `export default { email }` the runtime calls. Nothing else is exported from the Worker module. |
 | `src/handler.ts` | `handleInbound`: recipient check, capped read, parse, POST, fallback. Long header comment explains the failure policy. |
-| `src/recipient.ts` | Recipient allowlist and legacy-alias rewrite, built on the shared taxonomy. |
+| `src/recipient.ts` | Recipient allowlist, legacy-alias rewrite and the `forward_only` RFC 2142 role mailboxes, built on the shared taxonomy. |
 | `src/payload.ts` | Builds the JSON payload from the parsed mail. |
 | `src/text.ts` | Body -> 4 KB excerpt (linear html stripper, UTF-8-safe cap). |
 | `src/types.ts` | Message/Env types and the `InboundMailPayload` wire contract. |
-| `wrangler.toml` | Worker name, entry point, non-secret vars, logging. |
+| `wrangler.toml` | Worker name, entry point, non-secret vars (including `MAX_RAW_BYTES = "131072"`), logging. |
+| `gmail-filters.xml` | Not part of the Worker: a Gmail "Import filters" file for the operator's inbox (labels `DPDP/...`, stars the legal-clock notices, never archives anything). How to import it, and the Send-mail-as set-up: `dpdp-app/OPERATIONS.md`, section "Single mailbox". Checked against the taxonomy by `src/lib/services/dpdp-mail-edge-functions.test.ts` at the repo root. |
 | `package.json`, `bun.lock`, `tsconfig.json` | Standalone package (postal-mime; wrangler, typescript, @types/bun for dev). |

@@ -33,9 +33,18 @@ DPDP_INBOUND_URL = "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/dpdp-i
 # fails and the mail is refused instead of saved.
 FALLBACK_FORWARD_TO = "raajat.agarwal@gmail.com"
 
-# Optional tuning. Leave these out unless the numbers below need to change.
+# Read at most this much of a mail (bytes; accepted range 4096 .. 8388608).
+# 131072 = 128 KiB, the same as the built-in default in src/handler.ts (a test
+# keeps the two equal). It is small on purpose: postal-mime measured ~9 ms at
+# 256 KiB and ~5 ms at 128 KiB (local wall clock, not workerd CPU) against the
+# free plan's 10 ms CPU limit, and the classifier only ever uses the first
+# 4 KB of text. A larger mail is NOT dropped: the head is ticketed with
+# truncated=true AND the whole original is forwarded natively to
+# FALLBACK_FORWARD_TO. Raise it only on the paid plan.
+MAX_RAW_BYTES = "131072"
+
+# Optional tuning. Leave this out unless the number below needs to change.
 # POST_TIMEOUT_MS = "8000"      # wait this long for the Edge Function (max 25000)
-# MAX_RAW_BYTES   = "1048576"   # read at most this much of a mail (4096 .. 8388608)
 
 # Structured logs (event names and reason codes only, never mail content) so a
 # fallback forward can be seen with "wrangler tail" or in the dashboard.

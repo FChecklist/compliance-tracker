@@ -12,11 +12,13 @@
 // README's "wrangler dev" and post-deploy checks cover that.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
 
 import { isValidRef, parseRecipient } from "../../../supabase/functions/_shared/mail-taxonomy.ts"
-import { handleInbound, readCapped } from "./handler.ts"
+import { DEFAULT_MAX_RAW_BYTES, handleInbound, readCapped } from "./handler.ts"
 import type { Deps, Env, InboundEmailMessage, InboundMailPayload } from "./handler.ts"
 import worker from "./index.ts"
+import { FORWARD_ONLY_ROLES, resolveRecipient } from "./recipient.ts"
 
 const SECRET = "test-secret-not-real"
 const ENV: Env = {
@@ -398,6 +400,11 @@ describe("recipient handling", () => {
     "xdpdp@veridian-aios.com",
     "grievance+x@veridian-aios.com",
     "grievance@evil.example",
+    "postmaster+x@veridian-aios.com",
+    "abuse+x@veridian-aios.com",
+    "postmaster@evil.example",
+    "abuse@send.veridian-aios.com",
+    "postmasters@veridian-aios.com",
     "not-an-address",
     "",
   ])("unknown recipient %p is refused at the SMTP level, not ticketed, not forwarded", async (to) => {
@@ -417,6 +424,93 @@ describe("recipient handling", () => {
     await handleInbound(msg, ENV, deps(fetch))
     expect(msg.rejected).toHaveLength(0)
     expect(calls).toHaveLength(1)
+  })
+})
+
+// ---------- RFC 2142 role mailboxes: accepted, forwarded natively, never ticketed ----------
+
+describe("role mailboxes (postmaster@, abuse@)", () => {
+  test("the allowlist is exactly the two RFC 2142 names this Worker was asked to take", () => {
+    expect([...FORWARD_ONLY_ROLES].sort()).toEqual(["abuse", "postmaster"])
+  })
+
+  test.each([
+    ["postmaster@veridian-aios.com", "postmaster"],
+    ["abuse@veridian-aios.com", "abuse"],
+    ["Postmaster@VERIDIAN-AIOS.COM", "postmaster"],
+    ["<abuse@veridian-aios.com>", "abuse"],
+  ])("%s is forwarded to the operator untouched, not read, not ticketed, not refused", async (to, role) => {
+    const msg = mockMessage({ raw: mime({ to, subject: "Undelivered Mail Returned to Sender" }), to })
+    const { fetch, calls } = recordingFetch()
+    await handleInbound(msg, ENV, deps(fetch))
+    expect(msg.rejected).toHaveLength(0)
+    expect(calls).toHaveLength(0)
+    expect(msg.tally.pulled).toBe(0)
+    expect(msg.forwarded).toHaveLength(1)
+    expect(msg.forwarded[0].to).toBe("operator@example.com")
+    expect(msg.forwarded[0].headers?.get("X-Veridian-Fallback-Reason")).toBe(`role_mailbox:${role}`)
+    expect(msg.forwarded[0].headers?.get("X-Veridian-Envelope-To")).toBe(to.toLowerCase().replace(/^<|>$/g, ""))
+  })
+
+  test("it needs no Edge Function configuration and does not care that the function is down", async () => {
+    const to = "postmaster@veridian-aios.com"
+    const noConfig = mockMessage({ raw: mime({ to }), to })
+    await handleInbound(noConfig, { FALLBACK_FORWARD_TO: "operator@example.com" }, deps(recordingFetch().fetch))
+    expect(noConfig.forwarded).toHaveLength(1)
+
+    const down = mockMessage({ raw: mime({ to }), to })
+    const { fetch, calls } = recordingFetch(500)
+    await handleInbound(down, ENV, deps(fetch))
+    expect(calls).toHaveLength(0)
+    expect(down.forwarded).toHaveLength(1)
+  })
+
+  test("a bounce (empty envelope sender) and unparseable bytes are still forwarded, since nothing is parsed", async () => {
+    const to = "abuse@veridian-aios.com"
+    const junk = new Uint8Array(2000).map((_, i) => (i * 37) % 256)
+    const msg = mockMessage({ raw: junk, to, from: "" })
+    await handleInbound(msg, ENV, deps(recordingFetch().fetch))
+    expect(msg.rejected).toHaveLength(0)
+    expect(msg.forwarded).toHaveLength(1)
+  })
+
+  test("an oversized abuse report is forwarded exactly once (no second 'oversize' copy)", async () => {
+    const to = "abuse@veridian-aios.com"
+    const msg = mockMessage({ raw: mime({ to, body: "x".repeat(400_000) }), to })
+    await handleInbound(msg, ENV, deps(recordingFetch().fetch))
+    expect(msg.tally.pulled).toBe(0)
+    expect(msg.forwarded).toHaveLength(1)
+  })
+
+  test("if the forward fails the handler throws, so the mail is not silently accepted", async () => {
+    const to = "postmaster@veridian-aios.com"
+    const msg = mockMessage({
+      raw: mime({ to }),
+      to,
+      forwardImpl: async () => {
+        throw new Error("destination address not verified")
+      },
+    })
+    await expect(handleInbound(msg, ENV, deps(recordingFetch().fetch))).rejects.toThrow("destination address not verified")
+    expect(msg.rejected).toHaveLength(0)
+  })
+
+  test("with no FALLBACK_FORWARD_TO the handler throws rather than accept and lose the mail", async () => {
+    const to = "abuse@veridian-aios.com"
+    const msg = mockMessage({ raw: mime({ to }), to })
+    await expect(handleInbound(msg, { ...ENV, FALLBACK_FORWARD_TO: "" }, deps(recordingFetch().fetch))).rejects.toThrow(
+      "FALLBACK_FORWARD_TO",
+    )
+    expect(msg.rejected).toHaveLength(0)
+  })
+
+  test("resolveRecipient marks the two roles forward_only and every ticketed address as ticket", () => {
+    expect(resolveRecipient("postmaster@veridian-aios.com")).toMatchObject({ accepted: true, route: "forward_only", role: "postmaster" })
+    expect(resolveRecipient("ABUSE@veridian-aios.com")).toMatchObject({ accepted: true, route: "forward_only", role: "abuse" })
+    expect(resolveRecipient("dpdp@veridian-aios.com")).toMatchObject({ accepted: true, route: "ticket", role: null })
+    expect(resolveRecipient("dpdp+grv.k3f9x2ab7q@veridian-aios.com")).toMatchObject({ accepted: true, route: "ticket" })
+    expect(resolveRecipient("grievance@veridian-aios.com")).toMatchObject({ accepted: true, route: "ticket", legacyAlias: "grievance" })
+    expect(resolveRecipient("postmaster+x@veridian-aios.com")).toEqual({ accepted: false })
   })
 })
 
@@ -609,7 +703,7 @@ describe("oversized mail", () => {
     await handleInbound(msg, ENV, deps(fetch))
 
     expect(msg.rawSize).toBeGreaterThan(3 * 1024 * 1024)
-    expect(msg.tally.pulled).toBeLessThanOrEqual(1024 * 1024 + 65536)
+    expect(msg.tally.pulled).toBeLessThanOrEqual(DEFAULT_MAX_RAW_BYTES + 65536)
     expect(msg.tally.cancelled).toBe(true)
     expect(calls).toHaveLength(1)
     const p = payloadOf(calls[0])
@@ -617,6 +711,48 @@ describe("oversized mail", () => {
     expect(p.raw_size).toBe(msg.rawSize)
     expect(p.subject).toBe("Big one")
     expect(p.text).toContain("body text before the attachment")
+    expect(msg.forwarded).toHaveLength(1)
+    expect(msg.forwarded[0].headers?.get("X-Veridian-Fallback-Reason")).toBe("oversize_full_copy")
+  })
+
+  test("the default read cap is 131072 bytes, and wrangler.toml states the same number", () => {
+    expect(DEFAULT_MAX_RAW_BYTES).toBe(131072)
+    const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8")
+    const line = toml.split(/\r?\n/).find((l) => /^\s*MAX_RAW_BYTES\s*=/.test(l))
+    expect(line).toBeDefined()
+    expect(Number(/"(\d+)"/.exec(line!)?.[1])).toBe(DEFAULT_MAX_RAW_BYTES)
+  })
+
+  test("with no MAX_RAW_BYTES set, a 100 KiB mail is read whole and a 200 KiB mail is cut at the cap", async () => {
+    const small = mockMessage({ raw: bigMime(100 * 1024), chunkSize: 16384 })
+    const smallFetch = recordingFetch()
+    await handleInbound(small, ENV, deps(smallFetch.fetch))
+    expect(payloadOf(smallFetch.calls[0]).truncated).toBe(false)
+    expect(small.forwarded).toHaveLength(0)
+
+    const large = mockMessage({ raw: bigMime(200 * 1024), chunkSize: 16384 })
+    const largeFetch = recordingFetch()
+    await handleInbound(large, ENV, deps(largeFetch.fetch))
+    expect(large.tally.pulled).toBeLessThanOrEqual(131072 + 16384)
+    expect(large.tally.cancelled).toBe(true)
+    expect(payloadOf(largeFetch.calls[0]).truncated).toBe(true)
+    expect(large.forwarded).toHaveLength(1)
+    expect(large.forwarded[0].headers?.get("X-Veridian-Fallback-Reason")).toBe("oversize_full_copy")
+  })
+
+  test("an erasure request that carries a 300 KB scan keeps its words in the ticket AND is forwarded in full", async () => {
+    // The words come first (as every mail client writes them), the scanned ID after. The head is what gets ticketed.
+    const raw = bigMime(300 * 1024).replace(
+      "This is the body text before the attachment.",
+      "Please erase all of my personal data. My ID is attached.",
+    )
+    const msg = mockMessage({ raw, chunkSize: 16384 })
+    const { fetch, calls } = recordingFetch()
+    await handleInbound(msg, ENV, deps(fetch))
+    const p = payloadOf(calls[0])
+    expect(p.truncated).toBe(true)
+    expect(p.has_attachments).toBe(true)
+    expect(p.text).toContain("Please erase all of my personal data")
     expect(msg.forwarded).toHaveLength(1)
     expect(msg.forwarded[0].headers?.get("X-Veridian-Fallback-Reason")).toBe("oversize_full_copy")
   })
@@ -683,6 +819,9 @@ describe("logging", () => {
     await handleInbound(failMsg, ENV, deps(recordingFetch(500).fetch))
     const rejectMsg = mockMessage({ raw, to: "sentinel.probe@veridian-aios.com" })
     await handleInbound(rejectMsg, ENV, deps(recordingFetch().fetch))
+    const roleMsg = mockMessage({ raw, from: "sentinel.sender@example.org", to: "postmaster@veridian-aios.com" })
+    await handleInbound(roleMsg, ENV, deps(recordingFetch().fetch))
+    expect(roleMsg.forwarded).toHaveLength(1)
 
     const all = logs.join("\n")
     expect(all.length).toBeGreaterThan(0)

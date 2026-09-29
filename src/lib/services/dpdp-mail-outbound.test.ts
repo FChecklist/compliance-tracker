@@ -6,7 +6,9 @@
 //   1. The pure helpers (From resolution, envelope, Resend body, uuid guard).
 //   2. logOutbound against a fake RPC client -- above all that it can NEVER
 //      throw or hang a send, whatever the database does.
-//   3. The REAL index.ts of each function, loaded under bun with a stubbed
+//   3. (dpdp-monday-email sends the weekly digest as class monday and the two legal_clocks notices, the 72-hour
+//      leak clock and the 90-day rights clock, as class clock: "[VERIDIAN DPDP · Statutory]", dpdp+clk.<ref>@.)
+//      The REAL index.ts of each function, loaded under bun with a stubbed
 //      Deno global, a mocked npm:@supabase/supabase-js@2 and a stubbed fetch,
 //      then driven through its real handler. This is the proof that what
 //      actually goes to Resend carries From/Reply-To/subject prefix/headers,
@@ -445,6 +447,19 @@ describe("dpdp-monday-email, driven through its real handler", () => {
     expect(order("dpdp_mail_log_outbound")).toBeLessThan(order("dpdp_timer_mark_email_send_result"))
   })
 
+  test("the weekly digest stays class monday, including the statutory-only view sent to someone who stopped the weekly email", async () => {
+    resetWorld(); wire()
+    rpcHandlers.dpdp_timer_build_monday_digests = () => ({ data: [{ ...digest, statutoryOnly: true, jobs: digest.jobs.map((j) => ({ ...j, requiredToday: true })) }] })
+    await post({ job: "monday" })
+    expect(fetchCalls).toHaveLength(1)
+    const sent = fetchCalls[0].body
+    const ref = sent.headers["X-Veridian-Ref"]
+    expect(sent.headers["X-Veridian-Class"]).toBe("monday")
+    expect(sent.reply_to).toBe(`dpdp+mon.${ref}@veridian-aios.com`)
+    expect(sent.subject.startsWith("[VERIDIAN DPDP · Monday] ")).toBe(true)
+    expect(callsTo("dpdp_mail_log_outbound")[0].args.p_class).toBe("monday")
+  })
+
   test("every message gets its own ref", async () => {
     resetWorld(); wire()
     const second = { ...digest, membershipId: "1a1b1c1d1e1f10111213141516171819", email: "second@client-org.in" }
@@ -494,5 +509,92 @@ describe("dpdp-monday-email, driven through its real handler", () => {
     expect(await res.json()).toMatchObject({ sent: 0, failed: 1 })
     expect(callsTo("dpdp_timer_mark_email_send_result")[0].args).toMatchObject({ p_status: "failed" })
     expect(callsTo("dpdp_mail_log_outbound")).toHaveLength(0)
+  })
+})
+
+describe("dpdp-monday-email legal_clocks job: the statutory notices go out as class clock, not monday", () => {
+  const owner = { membershipId: MEMBERSHIP_ID, identityId: "ident3", email: "owner@client-org.in", role: "owner" }
+  const leak = {
+    breachId: "b1", orgId: ORG_ID, orgName: "Acme & Co", becameAwareAt: "2026-09-27T10:00:00Z", deadlineAt: "2026-09-30T10:00:00Z", hoursLeft: 40,
+    boardNotified: false, individualsNotified: false, scopePersonCount: 12, periodKey: "leak:b1:2026-09-29", recipients: [owner],
+  }
+  const rights = {
+    requestId: "r1", ref: "RR-7", kind: "erasure", orgId: ORG_ID, orgName: "Acme & Co", receivedAt: "2026-07-01T00:00:00Z", dueAt: "2026-09-29T00:00:00Z",
+    daysLeft: 20, periodKey: "rights:r1:2026-09-29", recipients: [{ ...owner, membershipId: "1a1b1c1d1e1f10111213141516171819", identityId: "ident4", email: "coordinator@client-org.in", role: "coordinator" }],
+  }
+  function wire(clocks: { leaks: unknown[]; rights: unknown[] }) {
+    rpcHandlers = {
+      dpdp_timer_start_run: () => ({ data: "run2" }),
+      dpdp_timer_finish_run: () => ({ data: null }),
+      dpdp_timer_legal_clocks: () => ({ data: { day: "2026-09-29", ...clocks } }),
+      dpdp_timer_record_email_send: () => ({ data: { id: "row9", unsubscribeToken: "b".repeat(32), duplicate: false } }),
+      dpdp_timer_mark_email_send_result: () => ({ data: null }),
+      dpdp_mail_log_outbound: () => ({ data: null }),
+    }
+  }
+  const post = (body: unknown) => handlers.monday!(new Request("https://proj.supabase.co/functions/v1/dpdp-monday-email", {
+    method: "POST", headers: { Authorization: `Bearer ${envMap.DPDP_TIMER_SECRET}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
+  }))
+
+  test("a 72-hour leak clock and a 90-day rights clock are each sent as clock: Statutory prefix, dpdp+clk Reply-To, X-Veridian-Class, and logged as clock", async () => {
+    resetWorld(); wire({ leaks: [leak], rights: [rights] })
+    const res = await post({ job: "legal_clocks" })
+    expect(await res.json()).toMatchObject({ job: "legal_clocks", sent: 2, failed: 0 })
+    expect(fetchCalls).toHaveLength(2)
+    for (const call of fetchCalls) {
+      const sent = call.body
+      const ref = sent.headers["X-Veridian-Ref"]
+      expect(isValidRef(ref)).toBe(true)
+      expect(sent.headers["X-Veridian-Class"]).toBe("clock")
+      expect(sent.reply_to).toBe(`dpdp+clk.${ref}@veridian-aios.com`)
+      expect(parseRecipient(sent.reply_to)).toEqual({ ours: true, cls: "clock", ref })
+      expect(sent.subject.startsWith("[VERIDIAN DPDP · Statutory] ")).toBe(true)
+      expect(sent.subject.split("[VERIDIAN DPDP").length).toBe(2)
+      expect(sent.from).toBe("VERIDIAN AI DPDP <dpdp@veridian-aios.com>")
+    }
+    expect(fetchCalls[0].body.subject).toContain("72-hour clock: data leak at Acme & Co")
+    expect(fetchCalls[1].body.subject).toContain("Rights request RR-7 at Acme & Co")
+
+    // The recorded (queued) subject is the prefixed one, and each send is logged once under class clock.
+    expect(callsTo("dpdp_timer_record_email_send").map((c) => c.args.p_subject)).toEqual(fetchCalls.map((c) => c.body.subject))
+    const logs = callsTo("dpdp_mail_log_outbound")
+    expect(logs).toHaveLength(2)
+    expect(logs.map((l) => l.args.p_class)).toEqual(["clock", "clock"])
+    expect(logs.map((l) => l.args.p_ref).sort()).toEqual(fetchCalls.map((c) => c.body.headers["X-Veridian-Ref"]).sort())
+    expect(logs.map((l) => l.args.p_to_addr)).toEqual(["owner@client-org.in", "coordinator@client-org.in"])
+  })
+
+  test("the List-Unsubscribe mailto on a clock notice is still the data-request address on the SAME ref (a reply and an unsubscribe both find this send)", async () => {
+    resetWorld(); wire({ leaks: [leak], rights: [] })
+    await post({ job: "legal_clocks" })
+    const sent = fetchCalls[0].body
+    const ref = sent.headers["X-Veridian-Ref"]
+    expect(sent.headers["List-Unsubscribe"]).toContain(`<mailto:dpdp+dsr.${ref}@veridian-aios.com?subject=unsubscribe>`)
+    expect(sent.reply_to).toBe(`dpdp+clk.${ref}@veridian-aios.com`)
+  })
+
+  test("dry run: the recorded subject carries the Statutory prefix, nothing is sent or logged", async () => {
+    resetWorld(); wire({ leaks: [leak], rights: [rights] })
+    const res = await post({ job: "legal_clocks", dryRun: true })
+    expect(await res.json()).toMatchObject({ dryRun: true, dry_run: 2, sent: 0 })
+    const recorded = callsTo("dpdp_timer_record_email_send")
+    expect(recorded).toHaveLength(2)
+    for (const r of recorded) {
+      expect(r.args.p_status).toBe("dry_run")
+      expect(r.args.p_subject.startsWith("[VERIDIAN DPDP · Statutory] ")).toBe(true)
+    }
+    expect(fetchCalls).toHaveLength(0)
+    expect(callsTo("dpdp_mail_log_outbound")).toHaveLength(0)
+  })
+
+  test("a failing log write cannot fail or undo a delivered statutory notice", async () => {
+    resetWorld(); wire({ leaks: [leak], rights: [] })
+    rpcHandlers.dpdp_mail_log_outbound = () => ({ error: { message: "permission denied for function dpdp_mail_log_outbound" } })
+    const warn = spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const res = await post({ job: "legal_clocks" })
+      expect(await res.json()).toMatchObject({ sent: 1, failed: 0 })
+      expect(callsTo("dpdp_timer_mark_email_send_result")[0].args).toMatchObject({ p_status: "sent" })
+    } finally { warn.mockRestore() }
   })
 })

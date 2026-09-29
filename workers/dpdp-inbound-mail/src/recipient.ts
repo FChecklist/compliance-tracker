@@ -15,6 +15,17 @@
 //   * partners@veridian-aios.com               the single-mailbox decision;
 //                                              still printed in old emails
 //                                              and pages, so still answered
+//   * postmaster@veridian-aios.com             RFC 2142 role mailboxes. Every
+//   * abuse@veridian-aios.com                  mail system on the internet is
+//                                              entitled to write to these two
+//                                              (bounce diagnostics, spam and
+//                                              abuse reports), so refusing
+//                                              them at the SMTP level would
+//                                              be a compliance defect of its
+//                                              own. They are NOT ticketed: the
+//                                              route is "forward_only" and the
+//                                              handler hands the untouched
+//                                              original to FALLBACK_FORWARD_TO.
 //
 // The two legacy aliases are rewritten to dpdp+grv@ / dpdp+prt@ before the
 // payload is built, so the Edge Function's classifier (which reads the class
@@ -34,6 +45,14 @@ import {
   parseRecipient,
 } from "../../../supabase/functions/_shared/mail-taxonomy.ts"
 
+/**
+ * RFC 2142 role mailboxes we accept but do not ticket. Exact local part only:
+ * postmaster+x@ and abuse+x@ are not role mailboxes and are refused like any
+ * other unknown address (nobody publishes those, so a plus-tagged one is a
+ * probe, not a person).
+ */
+export const FORWARD_ONLY_ROLES: readonly string[] = ["postmaster", "abuse"]
+
 /** local-part of a legacy alias -> the plus-tagged address it is treated as. */
 export const LEGACY_ALIASES: Readonly<Record<string, string>> = {
   grievance: `${MAILBOX_LOCAL}+${CLASS_TAG.grievance}@${MAILBOX_DOMAIN}`,
@@ -43,12 +62,20 @@ export const LEGACY_ALIASES: Readonly<Record<string, string>> = {
 export type RecipientDecision =
   | {
       accepted: true
+      /**
+       * "ticket": parse, classify, ticket (the normal path).
+       * "forward_only": an RFC 2142 role mailbox; forward the untouched original
+       * to the operator and do nothing else.
+       */
+      route: "ticket" | "forward_only"
       /** Address to hand to the classifier: lower-cased, legacy aliases rewritten. */
       address: string
       /** Address as it arrived: lower-cased, brackets removed. */
       raw: string
       /** "grievance" | "partners" when a legacy alias was rewritten, else null. */
       legacyAlias: string | null
+      /** "postmaster" | "abuse" when route is "forward_only", else null. */
+      role: string | null
     }
   | { accepted: false }
 
@@ -60,13 +87,18 @@ export function resolveRecipient(envelopeTo: string): RecipientDecision {
   const raw = envelopeTo.trim().toLowerCase().replace(/^<|>$/g, "")
   if (raw.length === 0 || raw.length > MAX_ADDRESS_LENGTH) return { accepted: false }
 
-  if (parseRecipient(raw).ours) return { accepted: true, address: raw, raw, legacyAlias: null }
+  if (parseRecipient(raw).ours) {
+    return { accepted: true, route: "ticket", address: raw, raw, legacyAlias: null, role: null }
+  }
 
   const at = raw.lastIndexOf("@")
   if (at > 0 && raw.slice(at + 1) === MAILBOX_DOMAIN) {
     const local = raw.slice(0, at)
     const rewritten = Object.hasOwn(LEGACY_ALIASES, local) ? LEGACY_ALIASES[local] : undefined
-    if (rewritten) return { accepted: true, address: rewritten, raw, legacyAlias: local }
+    if (rewritten) return { accepted: true, route: "ticket", address: rewritten, raw, legacyAlias: local, role: null }
+    if (FORWARD_ONLY_ROLES.includes(local)) {
+      return { accepted: true, route: "forward_only", address: raw, raw, legacyAlias: null, role: local }
+    }
   }
   return { accepted: false }
 }

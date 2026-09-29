@@ -38,7 +38,7 @@ export interface Env {
   FALLBACK_FORWARD_TO?: string
   /** Wall-clock limit for the Edge Function call, milliseconds. Default 8000. */
   POST_TIMEOUT_MS?: string | number
-  /** Read at most this many bytes of the raw message. Default 1 MiB. */
+  /** Read at most this many bytes of the raw message. Default 131072 (128 KiB). */
   MAX_RAW_BYTES?: string | number
 }
 

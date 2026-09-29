@@ -43,11 +43,15 @@
 // it answers. That log write is best-effort: it can never fail or delay a
 // send past a few seconds (see logOutbound).
 //
-// One class for the whole function: the digest, the statutory-only view and the
-// two legal-clock notices all go out as class "monday". The taxonomy has no
-// separate class for a statutory notice, so a reply to a 72-hour-clock email is
-// tagged monday like a reply to the digest -- the inbound side still notifies
-// the operator either way.
+// TWO CLASSES. The weekly digest (and its statutory-only view for someone who has
+// stopped the weekly email) goes out as class "monday". The two notices of the
+// legal_clocks job -- the 72-hour data-leak clock and the 90-day rights clock --
+// go out as class "clock" ("[VERIDIAN DPDP · Statutory]", Reply-To
+// dpdp+clk.<ref>@), so a reply to one is filed as a reply to a statutory notice
+// (ticket K-...) and not mistaken for a reply to the weekly digest. A reply that
+// itself carries a data request or a grievance is raised to that class by the
+// inbound classifier whichever of the two it answers. mailClassOf() below is
+// the one place that maps a delivery to its class.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import {
   type ActionLinks, type Digest, type LegalClocks, type LegalRecipient, type RenderLinks, type Rendered,
@@ -62,7 +66,6 @@ const SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY")
 const TIMER_SECRET = env("DPDP_TIMER_SECRET")
 const RESEND_API_KEY = env("RESEND_API_KEY")
 const EMAIL_FROM = resolveFrom(env("DPDP_EMAIL_FROM"))
-const MAIL_CLASS: MailClass = "monday"
 // A stale DPDP_EMAIL_FROM secret naming the old send. subdomain would silently override the new default.
 const SENDER_WARNING = foreignSenderWarning(EMAIL_FROM)
 if (SENDER_WARNING) console.warn(SENDER_WARNING)
@@ -167,6 +170,15 @@ async function sendViaResend(to: string, rendered: Rendered, out: OutboundEnvelo
 
 type RecordResult = { id: string | null; unsubscribeToken?: string; duplicate: boolean }
 
+/**
+ * The mail class a delivery goes out as. The legal-clock notices (kind leak_clock / rights_clock, which only the
+ * legal_clocks job produces) are "clock"; everything else -- the weekly digest and its statutory-only subset -- is
+ * "monday".
+ */
+function mailClassOf(kind: Deliverable["kind"]): MailClass {
+  return kind === "leak_clock" || kind === "rights_clock" ? "clock" : "monday"
+}
+
 type Deliverable = {
   orgId: string
   membershipId: string
@@ -186,6 +198,7 @@ type Deliverable = {
  * stop the rest of the run.
  */
 async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summary: Summary): Promise<void> {
+  const cls = mailClassOf(d.kind)
   const placeholders: RenderLinks = { signIn: null, actions: null, unsubscribeUrl: null, appHome: `${APP_ORIGIN}/app/` }
   const base = { p_org_id: d.orgId, p_membership_id: d.membershipId, p_identity_id: d.identityId, p_obligation_ids: d.obligationIds, p_kind: d.kind, p_period_key: d.periodKey, p_to_email: d.to }
 
@@ -193,7 +206,7 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
     try {
       const preview = d.render(placeholders)
       // The recorded subject is the one the recipient would see, prefix included.
-      const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: withSubjectPrefix(MAIL_CLASS, preview.subject), p_status: "dry_run", p_body_text: preview.text })
+      const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: withSubjectPrefix(cls, preview.subject), p_status: "dry_run", p_body_text: preview.text })
       if (rec.duplicate) { summary.skipped++; summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "skipped-duplicate" }); return }
       summary.dry_run++
       summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "dry_run" })
@@ -215,7 +228,7 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
   let rowId: string | null = null
   try {
     const preview = d.render(placeholders)
-    const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: withSubjectPrefix(MAIL_CLASS, preview.subject), p_status: "queued" })
+    const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: withSubjectPrefix(cls, preview.subject), p_status: "queued" })
     if (rec.duplicate || !rec.id) { summary.skipped++; summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "skipped-duplicate" }); return }
     rowId = rec.id
 
@@ -230,11 +243,11 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
     }
     const unsub = unsubscribeUrl(rec.unsubscribeToken ?? "")
     const rendered = d.render({ signIn, actions, unsubscribeUrl: unsub, appHome: `${APP_ORIGIN}/app/` })
-    // One ref per message. It goes in BOTH the Reply-To (class monday) and the
-    // List-Unsubscribe mailto (class data_request), so either reply finds this
-    // send. RFC 8058's https one-click POST stays as it was.
+    // One ref per message. It goes in BOTH the Reply-To (class monday, or clock for a
+    // legal-clock notice) and the List-Unsubscribe mailto (class data_request), so
+    // either reply finds this send. RFC 8058's https one-click POST stays as it was.
     const ref = newRef()
-    const out = buildOutbound(MAIL_CLASS, rendered.subject, {
+    const out = buildOutbound(cls, rendered.subject, {
       from: EMAIL_FROM,
       ref,
       headers: listUnsubscribeHeaders(unsub, unsubscribeMailto(ref)),
@@ -242,7 +255,7 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
     const messageId = await sendViaResend(d.to, rendered, out)
     // The message has left. Log it for reply-tracing BEFORE the bookkeeping below can
     // throw, and never let the log affect the send (best-effort, bounded wait, never throws).
-    await logOutbound(sb, { ref, cls: MAIL_CLASS, to: d.to, subject: out.subject, providerMessageId: messageId || null, membershipId: d.membershipId, orgId: d.orgId })
+    await logOutbound(sb, { ref, cls, to: d.to, subject: out.subject, providerMessageId: messageId || null, membershipId: d.membershipId, orgId: d.orgId })
     await rpc(sb, "dpdp_timer_mark_email_send_result", { p_id: rowId, p_status: "sent", p_resend_message_id: messageId || null, p_error: null })
     summary.sent++
     summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "sent" })

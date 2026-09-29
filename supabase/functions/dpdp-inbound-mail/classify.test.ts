@@ -1,14 +1,17 @@
 /// <reference types="bun-types" />
 // Offline proof of classify.ts (the DPDP single-mailbox inbound classifier): every class, every rule
-// ordering the design fixes, the auto-mail headers, Hindi / Hinglish samples, thread inheritance and
-// the never-drop default. No database, no network, no clock: classify() is pure.
+// ordering the design fixes (machine signals and auto headers BEFORE the plus-tag), the escalation of a
+// non-legal class to data_request / grievance by what the person wrote, the auto-mail headers, Hindi /
+// Hinglish samples, thread inheritance and the never-drop default. No database, no network, no clock:
+// classify() is pure.
 //
 // Run (bunfig.toml sets the test root to src/, so this file, which lives beside the function, is not
 // found by a bare `bun test`; name it): bun test --isolate supabase/functions/dpdp-inbound-mail/classify.test.ts
 import { describe, expect, test } from "bun:test"
-import { MAIL_CLASSES, MAILBOX, replyToAddress, type MailClass } from "../_shared/mail-taxonomy.ts"
+import { LEGAL_CLOCK_CLASSES, MAIL_CLASSES, MAILBOX, replyToAddress, type MailClass } from "../_shared/mail-taxonomy.ts"
+import { renderDigest, renderLeakClock, renderRightsClock, type Digest, type RenderLinks } from "../dpdp-monday-email/render.ts"
 import {
-  autoSignals, bareAddress, classify, extractMessageIds, matchKeywords, normalizeMessageId, stripQuoted,
+  autoSignals, bareAddress, classify, extractMessageIds, matchEscalation, matchKeywords, normalizeMessageId, nothingAboveTheQuote, stripQuoted,
   type ClassifyInput, type OutboundMatch,
 } from "./classify.ts"
 
@@ -29,7 +32,7 @@ const outbound = (cls: MailClass, over: Partial<OutboundMatch> = {}): OutboundMa
 
 describe("recipient plus-tag (rule a)", () => {
   const TAGGED: Array<[MailClass, MailClass]> = [
-    ["monday", "monday"], ["sales", "sales"], ["sales_chain", "sales_chain"], ["invoice", "invoice"],
+    ["monday", "monday"], ["clock", "clock"], ["sales", "sales"], ["sales_chain", "sales_chain"], ["invoice", "invoice"],
     ["grievance", "grievance"], ["data_request", "data_request"], ["partner", "partner"], ["support", "support"], ["review", "review"],
   ]
   for (const [tag, want] of TAGGED) {
@@ -59,10 +62,18 @@ describe("recipient plus-tag (rule a)", () => {
     expect(r.cls).toBe("partner")
   })
 
-  test("a tag beats every keyword rule", () => {
-    const r = classify(mail({ recipients: [replyToAddress("invoice", REF)], subject: "Please delete my data", text: "I want to withdraw consent. This is a complaint." }))
-    expect(r.cls).toBe("invoice")
+  test("a tag beats every NON-legal keyword rule (sales, partner, support, invoice)", () => {
+    const r = classify(mail({ recipients: [replyToAddress("monday", REF)], subject: "Re: your week", text: "What is your pricing? We could partner. I need help with login." }))
+    expect(r.cls).toBe("monday")
     expect(r.rule).toBe("tag")
+    expect(r.escalatedFrom).toBeNull()
+  })
+
+  test("a tag does NOT beat a data request or a grievance in the person's own words: it is escalated (see the escalation tests)", () => {
+    const r = classify(mail({ recipients: [replyToAddress("invoice", REF)], subject: "Please delete my data", text: "I want to withdraw consent. This is a complaint." }))
+    expect(r.cls).toBe("data_request")
+    expect(r.rule).toBe("escalation")
+    expect(r.escalatedFrom).toBe("invoice")
   })
 
   test("a tag beats a thread match", () => {
@@ -101,7 +112,7 @@ describe("recipient plus-tag (rule a)", () => {
     expect(bare.cls).toBe("review")
   })
 
-  test("an aut tag together with a strong auto signal is auto", () => {
+  test("an aut tag together with an auto header is auto", () => {
     const r = classify(mail({ recipients: [replyToAddress("auto", REF)], headers: { "auto-submitted": "auto-replied" } }))
     expect(r.cls).toBe("auto")
   })
@@ -109,7 +120,7 @@ describe("recipient plus-tag (rule a)", () => {
 
 describe("thread match (rule b)", () => {
   const INHERIT: Array<[MailClass, MailClass]> = [
-    ["monday", "monday"], ["sales", "sales_chain"], ["sales_chain", "sales_chain"], ["invoice", "invoice"],
+    ["monday", "monday"], ["clock", "clock"], ["sales", "sales_chain"], ["sales_chain", "sales_chain"], ["invoice", "invoice"],
     ["grievance", "grievance"], ["data_request", "data_request"], ["partner", "partner"], ["support", "support"], ["review", "review"],
   ]
   for (const [out, want] of INHERIT) {
@@ -125,15 +136,23 @@ describe("thread match (rule b)", () => {
     expect(classify(mail({ outbound: outbound("sales") })).reason).toContain("sales->sales_chain")
   })
 
-  test("a thread match beats keywords", () => {
-    const r = classify(mail({ outbound: outbound("monday"), text: "please delete my data, this is a complaint" }))
+  test("a thread match beats every NON-legal keyword rule", () => {
+    const r = classify(mail({ outbound: outbound("monday"), text: "what is your pricing? we could partner, and I need help with login" }))
     expect(r.cls).toBe("monday")
+    expect(r.rule).toBe("thread")
   })
 
-  test("a thread match beats auto-mail headers, but the signals are still reported", () => {
+  test("a thread match does NOT beat a data request or a grievance in the person's own words: it is escalated", () => {
+    const r = classify(mail({ outbound: outbound("monday"), text: "please delete my data, this is a complaint" }))
+    expect(r.cls).toBe("data_request")
+    expect(r.escalatedFrom).toBe("monday")
+  })
+
+  test("auto-mail headers beat a thread match (a vacation reply to a Monday email is auto), and the signals are reported", () => {
     const r = classify(mail({ outbound: outbound("monday"), headers: { "auto-submitted": "auto-replied" }, subject: "Automatic reply: Monday" }))
-    expect(r.cls).toBe("monday")
-    expect(r.strongAuto).toBe(true)
+    expect(r.cls).toBe("auto")
+    expect(r.rule).toBe("auto")
+    expect(r.strongAuto).toBe(false)
     expect(r.autoSignals.join(" ")).toContain("Auto-Submitted=auto-replied")
   })
 
@@ -166,34 +185,107 @@ describe("self-sent mail (rule 0)", () => {
   })
 })
 
-describe("auto mail (rule c): strong signals always mean auto", () => {
-  const STRONG: Array<[string, Partial<ClassifyInput>]> = [
+describe("auto mail 1: MACHINE-ONLY signals -> auto, before the tag, never escalated", () => {
+  const MACHINE: Array<[string, Partial<ClassifyInput>]> = [
     ["MAILER-DAEMON sender", { senders: ["MAILER-DAEMON@mx.example.org"] }],
     ["postmaster sender", { senders: ["Mail Delivery <postmaster@mx.example.org>"] }],
     ["empty Return-Path", { headers: { "return-path": "<>" } }],
+    ["multipart/report", { contentType: "multipart/report; report-type=delivery-status; boundary=abc" }],
+    ["message/delivery-status via the header map", { headers: { "content-type": "message/delivery-status" } }],
+    ["a read receipt (message/disposition-notification)", { contentType: "message/disposition-notification" }],
+  ]
+  for (const [name, over] of MACHINE) {
+    test(name, () => {
+      const r = classify(mail(over))
+      expect(r.cls).toBe("auto")
+      expect(r.rule).toBe("auto")
+      expect(r.confidence).toBe("high")
+      expect(r.strongAuto).toBe(true)
+      expect(r.escalatedFrom).toBeNull()
+      expect(r.autoSignals.length).toBeGreaterThan(0)
+    })
+  }
+
+  test("a machine signal beats the plus-tag, the thread and every keyword, and is NEVER escalated: a bounce quoting our mail is a bounce", () => {
+    const quoting = "Delivery failed. The original message follows.\n\nPlease delete my data. This is a complaint.\n> Stop these weekly emails: https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=abc"
+    for (const over of [{}, { recipients: [replyToAddress("grievance", REF)] }, { recipients: [replyToAddress("monday", REF)], outbound: outbound("monday") }, { outbound: outbound("data_request") }]) {
+      for (const bounce of [{ senders: ["MAILER-DAEMON@mx.example.org"] }, { headers: { "return-path": "<>" } }, { contentType: "multipart/report; report-type=delivery-status" }]) {
+        const r = classify(mail({ ...over, ...bounce, subject: "Undelivered Mail Returned to Sender", text: quoting }))
+        expect(r.cls).toBe("auto")
+        expect(r.rule).toBe("auto")
+        expect(r.escalatedFrom).toBeNull()
+        expect(r.reason).not.toContain("escalated keyword")
+      }
+    }
+  })
+
+  test("a delivery-status report on an aut tag is still a bounce, and says the tag was ignored", () => {
+    const r = classify(mail({ recipients: [replyToAddress("auto", REF)], headers: { "return-path": "<>" } }))
+    expect(r.cls).toBe("auto")
+    expect(r.reason).toContain("ignored auto tag")
+  })
+
+  test("a non-empty Return-Path is not a bounce", () => {
+    expect(classify(mail({ headers: { "return-path": "<asha@example.org>" } })).cls).toBe("review")
+  })
+})
+
+describe("auto mail 2: HEADER-BASED signals -> auto, before the tag, UNLESS the person's own words are a legal request", () => {
+  const HEADERS: Array<[string, Partial<ClassifyInput>]> = [
     ["Auto-Submitted: auto-replied", { headers: { "auto-submitted": "auto-replied" } }],
     ["Auto-Submitted: auto-generated", { headers: { "auto-submitted": "auto-generated" } }],
     ["Auto-Submitted: auto-notified; with a comment", { headers: { "auto-submitted": "auto-notified; owner-email=x@y.z" } }],
     ["X-Autoreply", { headers: { "x-autoreply": "yes" } }],
     ["X-Autorespond", { headers: { "x-autorespond": "1" } }],
     ["Precedence: auto_reply", { headers: { precedence: "auto_reply" } }],
-    ["multipart/report", { contentType: "multipart/report; report-type=delivery-status; boundary=abc" }],
-    ["message/delivery-status via the header map", { headers: { "content-type": "message/delivery-status" } }],
-    ["our own X-Veridian-Origin", { headers: { "x-veridian-origin": "inbound-notification" } }],
+    ["Precedence: bulk", { headers: { precedence: "bulk" } }],
+    ["Precedence: junk", { headers: { precedence: "junk" } }],
+    ["an out-of-office subject", { subject: "Out of Office: back Monday" }],
+    ["an automatic-reply subject", { subject: "Automatic reply: Your message" }],
   ]
-  for (const [name, over] of STRONG) {
+  for (const [name, over] of HEADERS) {
     test(name, () => {
-      const r = classify(mail(over))
+      const r = classify(mail({ text: "I am away until 5 October.", ...over }))
       expect(r.cls).toBe("auto")
       expect(r.rule).toBe("auto")
-      expect(r.strongAuto).toBe(true)
+      expect(r.confidence).toBe("medium")
+      expect(r.strongAuto).toBe(false)
+      expect(r.escalatedFrom).toBeNull()
       expect(r.autoSignals.length).toBeGreaterThan(0)
     })
   }
 
-  test("a strong signal beats every keyword: an out-of-office quoting our unsubscribe text is not a data request", () => {
-    const r = classify(mail({ headers: { "auto-submitted": "auto-replied" }, text: "I am away. To unsubscribe from these emails, delete my data, withdraw consent." }))
+  test("evaluated BEFORE the plus-tag: a vacation reply to the Monday digest is auto, not a Monday reply", () => {
+    const r = classify(mail({ recipients: [replyToAddress("monday", REF)], headers: { "auto-submitted": "auto-replied" }, subject: "Automatic reply: Your week", text: "I am on leave." }))
     expect(r.cls).toBe("auto")
+    expect(r.rule).toBe("auto")
+    expect(r.tagRef).toBe(REF)
+  })
+
+  test("the SAME header on a real 'delete my data' is escalated to a data_request, and the origin is kept in the reason", () => {
+    const r = classify(mail({ recipients: [replyToAddress("monday", REF)], headers: { "auto-submitted": "auto-replied" }, subject: "Automatic reply: Your week", text: "Please delete my data." }))
+    expect(r.cls).toBe("data_request")
+    expect(r.rule).toBe("escalation")
+    expect(r.escalatedFrom).toBe("auto")
+    expect(r.reason).toBe('auto:Auto-Submitted=auto-replied, auto-reply style subject; escalated keyword:data_request:"delete my data"')
+    expect(r.autoSignals.length).toBe(2) // still reported: the handler needs them for the loop guard
+  })
+
+  test("and a grievance under the same header is a grievance; a data request wins over a grievance", () => {
+    expect(classify(mail({ headers: { precedence: "bulk" }, text: "This is my third complaint." })).cls).toBe("grievance")
+    expect(classify(mail({ headers: { precedence: "bulk" }, text: "This is a complaint. Delete my data." })).cls).toBe("data_request")
+  })
+
+  test("only data_request and grievance can escalate: a sales, invoice, partner or support keyword under an auto header stays auto", () => {
+    for (const text of ["What is your pricing?", "Where is my invoice?", "We would like to partner with you", "I need help with login"]) {
+      expect(classify(mail({ headers: { precedence: "bulk" }, text })).cls).toBe("auto")
+    }
+  })
+
+  test("an out-of-office subject with a real request in the body is read, not dropped", () => {
+    const r = classify(mail({ subject: "Automatic reply: hello", text: "Actually please erase my account." }))
+    expect(r.cls).toBe("data_request")
+    expect(r.escalatedFrom).toBe("auto")
   })
 
   test("Auto-Submitted: no is not an auto signal", () => {
@@ -210,40 +302,15 @@ describe("auto mail (rule c): strong signals always mean auto", () => {
     expect(classify(mail({ headers: { "auto-submitted": "no; reason=x" } })).cls).toBe("review")
   })
 
-  test("presence alone is the signal for X-Autoreply and X-Veridian-Origin: an empty value counts", () => {
+  test("presence alone is the signal for X-Autoreply: an empty value counts", () => {
     expect(classify(mail({ headers: { "x-autoreply": "" } })).cls).toBe("auto")
-    expect(classify(mail({ headers: { "x-veridian-origin": "" } })).cls).toBe("auto")
-    expect(classify(mail({ headers: { "x-auto-response-suppress": "" } })).cls).toBe("auto") // weak, nothing else to read
   })
 
-  test("a non-empty Return-Path is not a bounce", () => {
-    expect(classify(mail({ headers: { "return-path": "<asha@example.org>" } })).cls).toBe("review")
-  })
-})
-
-describe("auto mail (rule c): weak signals mean auto only when no keyword rule matches", () => {
-  test("Precedence: bulk with nothing to read is auto (medium confidence)", () => {
-    const r = classify(mail({ headers: { precedence: "bulk" } }))
-    expect(r.cls).toBe("auto")
-    expect(r.confidence).toBe("medium")
-    expect(r.strongAuto).toBe(false)
-  })
-  test("Precedence: junk", () => {
-    expect(classify(mail({ headers: { precedence: "junk" } })).cls).toBe("auto")
-  })
-  test("X-Auto-Response-Suppress alone", () => {
-    expect(classify(mail({ headers: { "x-auto-response-suppress": "All" } })).cls).toBe("auto")
-  })
-  test("bulk plus a data-request keyword is still a data request", () => {
-    const r = classify(mail({ headers: { precedence: "bulk" }, text: "Please delete my data." }))
-    expect(r.cls).toBe("data_request")
-    expect(r.reason).toContain("weak auto signal overridden")
-  })
-  test("X-Auto-Response-Suppress plus a grievance keyword is a grievance", () => {
+  test("X-Auto-Response-Suppress is NOT an auto signal: it says how others should answer the sender, not that the message is automatic", () => {
+    const r = classify(mail({ headers: { "x-auto-response-suppress": "All" } }))
+    expect(r.cls).toBe("review")
+    expect(r.autoSignals).toEqual([])
     expect(classify(mail({ headers: { "x-auto-response-suppress": "DR, OOF" }, text: "This is my third complaint." })).cls).toBe("grievance")
-  })
-  test("bulk plus a sales keyword is sales (any keyword class blocks the demotion)", () => {
-    expect(classify(mail({ headers: { precedence: "bulk" }, text: "What is your pricing?" })).cls).toBe("sales")
   })
 
   const SUBJECTS = [
@@ -253,30 +320,63 @@ describe("auto mail (rule c): weak signals mean auto only when no keyword rule m
     "Automatische Antwort: Abwesend", "Réponse automatique : absent", "Respuesta automática: fuera de la oficina",
   ]
   for (const subject of SUBJECTS) {
-    test(`subject "${subject}" with no keyword is auto`, () => {
+    test(`subject "${subject}" with nothing to read is auto`, () => {
       const r = classify(mail({ subject, text: "" }))
       expect(r.cls).toBe("auto")
       expect(r.strongAuto).toBe(false)
     })
   }
-  test("an out-of-office subject with a real request in the body is read, not dropped", () => {
-    const r = classify(mail({ subject: "Automatic reply: hello", text: "Actually please erase my account." }))
-    expect(r.cls).toBe("data_request")
-  })
-  test("a MAILER-DAEMON sender with an ordinary subject is strong auto", () => {
+
+  test("a MAILER-DAEMON sender with an ordinary subject is machine-generated", () => {
     const r = classify(mail({ senders: ["mailer-daemon@googlemail.com"], subject: "Hello", text: "" }))
     expect(r.strongAuto).toBe(true)
+  })
+
+  test("a legal-clock tag with NO earlier message of ours behind it is not diverted to auto by a sender-chosen header (the legacy grievance@ alias)", () => {
+    for (const cls of ["grievance", "data_request", "review"] as const) {
+      const r = classify(mail({ recipients: [replyToAddress(cls, REF)], headers: { precedence: "bulk" }, text: "Kindly resolve the pending matter." }))
+      expect(r.cls).toBe(cls)
+      expect(r.rule).toBe("tag")
+      expect(r.autoSignals).toEqual(["Precedence=bulk"])
+      expect(r.reason).toContain("auto-mail headers ignored for a legal tag")
+    }
+    // ... but a reply to something we sent (an acknowledgement) with the same header IS auto: that is the auto-responder loop.
+    const reply = classify(mail({ recipients: [replyToAddress("grievance", REF)], headers: { "auto-submitted": "auto-replied" }, outbound: outbound("grievance", { ref: REF, matchedBy: "ref" }), text: "I am on leave." }))
+    expect(reply.cls).toBe("auto")
+    // ... and a non-legal tag is diverted.
+    expect(classify(mail({ recipients: [replyToAddress("invoice", REF)], headers: { precedence: "bulk" }, text: "Kindly resolve the pending matter." })).cls).toBe("auto")
+  })
+
+  test("our own X-Veridian-Origin header counts ONLY when a thread match corroborates it; anyone can type it", () => {
+    const alone = classify(mail({ headers: { "x-veridian-origin": "acknowledgement" }, text: "hello" }))
+    expect(alone.cls).toBe("review")
+    expect(alone.autoSignals).toEqual([])
+    expect(classify(mail({ headers: { "x-veridian-origin": "" }, text: "hello" })).cls).toBe("review")
+    const corroborated = classify(mail({ headers: { "x-veridian-origin": "acknowledgement" }, outbound: outbound("grievance", { ticketNo: "G-2026-0001" }), text: "thanks" }))
+    expect(corroborated.cls).toBe("auto")
+    expect(corroborated.autoSignals.join(" ")).toContain("x-veridian-origin")
+    // corroborated by a message-id match or by the tag ref alike, but still sender-controlled: a legal request in the text escalates.
+    const withRequest = classify(mail({ headers: { "x-veridian-origin": "" }, outbound: outbound("invoice"), text: "Please delete my data." }))
+    expect(withRequest.cls).toBe("data_request")
+    // an outbound row that is itself class auto is not a corroboration we inherit from, but it is still a thread match
+    expect(classify(mail({ headers: { "x-veridian-origin": "" }, outbound: outbound("auto"), text: "hi" })).cls).toBe("auto")
   })
 })
 
 describe("autoSignals()", () => {
-  test("reports strong and weak separately", () => {
-    const s = autoSignals({ senders: ["postmaster@x.example"], subject: "Out of office", headers: { precedence: "bulk", "auto-submitted": "auto-generated" } })
-    expect(s.strong.length).toBe(2)
-    expect(s.weak.length).toBe(2)
+  test("reports machine-only and header-based signals separately", () => {
+    const s = autoSignals({ senders: ["postmaster@x.example"], subject: "Out of office", headers: { precedence: "bulk", "auto-submitted": "auto-generated", "return-path": "<>" } })
+    expect(s.machine).toEqual(["sender postmaster", "empty Return-Path"])
+    expect(s.header).toEqual(["Auto-Submitted=auto-generated", "Precedence=bulk", "auto-reply style subject"])
   })
   test("nothing for an ordinary human message", () => {
-    expect(autoSignals({ senders: ["asha@example.org"], subject: "Question", headers: { "content-type": "text/plain" } })).toEqual({ strong: [], weak: [] })
+    expect(autoSignals({ senders: ["asha@example.org"], subject: "Question", headers: { "content-type": "text/plain" } })).toEqual({ machine: [], header: [] })
+  })
+  test("x-veridian-origin is a header signal only with threadMatched", () => {
+    const h = { "x-veridian-origin": "acknowledgement" }
+    expect(autoSignals({ senders: [], subject: "s", headers: h })).toEqual({ machine: [], header: [] })
+    expect(autoSignals({ senders: [], subject: "s", headers: h, threadMatched: false })).toEqual({ machine: [], header: [] })
+    expect(autoSignals({ senders: [], subject: "s", headers: h, threadMatched: true }).header.length).toBe(1)
   })
 })
 
@@ -431,11 +531,75 @@ describe("what the keyword rules read", () => {
     expect(classify(mail({ text: "ok\n---------- Forwarded message ----------\nunsubscribe" })).cls).toBe("review")
     expect(classify(mail({ text: "ok\n________________________________\nunsubscribe" })).cls).toBe("review")
   })
+  test("an Outlook 'From: / Sent: / To: / Subject:' header block ends what the person wrote", () => {
+    const body = "Thanks, noted.\n\nFrom: VERIDIAN AI DPDP <dpdp@veridian-aios.com>\nSent: Monday, September 28, 2026 6:00 AM\nTo: asha@example.org\nSubject: Acme: DPDP this week - 1 escalated to you\n\nStop these weekly emails: unsubscribe"
+    expect(classify(mail({ text: body })).cls).toBe("review")
+    expect(stripQuoted(body)).toBe("Thanks, noted.\n")
+    // A single 'From:' line is not a header block.
+    expect(classify(mail({ text: "From: Asha\nPlease delete my data." })).cls).toBe("data_request")
+    // Two lines are not enough either (a person's own contact details).
+    expect(classify(mail({ text: "From: Asha\nTo: Veridian\nPlease delete my data." })).cls).toBe("data_request")
+  })
+  test("a Gmail attribution wrapped over two lines still ends what the person wrote", () => {
+    const body = "Yes.\n\nOn Mon, 28 Sep 2026 at 06:00, VERIDIAN AI DPDP <\ndpdp@veridian-aios.com> wrote:\nEscalated to you. Unsubscribe here."
+    expect(classify(mail({ text: body })).cls).toBe("review")
+    expect(stripQuoted("On Monday I will call.\nSecond line.")).toBe("On Monday I will call.\nSecond line.")
+  })
+  test("our own footer boilerplate is not read even when nothing marks it as quoted; the person's other lines are", () => {
+    const echoed = [
+      "Stop these weekly emails (statutory notices continue): https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=abc123",
+      "This is a statutory notice; it is sent even if you have stopped the weekly email.",
+      "VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India.",
+      "Know a firm that needs this? Share VERIDIAN: https://veridian-aios.com/?ref=xyz",
+      "We received your message to VERIDIAN AI DPDP.",
+      "This is an automatic acknowledgement; it is not a reply to what your message says.",
+      "-- VERIDIAN AI DPDP",
+    ].join("\n")
+    expect(classify(mail({ text: `Thanks for the update.\n${echoed}` })).cls).toBe("review")
+    expect(classify(mail({ text: `${echoed}\nPlease delete my data.` })).cls).toBe("data_request")
+  })
+  // DRIFT GUARD for OWN_BOILERPLATE. classify.ts recognises our footer lines by their wording; render.ts owns that wording. This renders
+  // the REAL emails and demands that every line from "Open my page" to the end (sign-in copy, brand line, share/invite asks, the
+  // unsubscribe / statutory footer) is dropped, so a footer reworded in render.ts without touching classify.ts fails here rather than
+  // quietly turning every marker-less echo of a digest into a data request.
+  test("the footer of every real email we render (digest, statutory-only digest, leak clock, rights clock) is recognised as our own boilerplate", () => {
+    const links: RenderLinks = {
+      signIn: "https://x.supabase.co/auth/v1/verify?token=abc",
+      actions: null,
+      unsubscribeUrl: "https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=u1",
+      appHome: "https://app.veridian-aios.com/app/",
+    }
+    const digest: Digest = {
+      membershipId: "m1", identityId: "i1", orgId: "o1", orgName: "Acme & Co", orgProduct: "firm", email: "staff@example.test", level: "owner", roleKind: "owner",
+      referralCode: "ref1", inviteCode: "join1", weekKey: "2026-W39", today: "2026-09-21", unsubscribed: false, statutoryOnly: false, alreadySentThisWeek: false,
+      owners: [{ membershipId: "mo", email: "owner@example.test" }], coordinators: [], jobs: [], escalatedToMe: [],
+    }
+    const recipient = { membershipId: "m1", identityId: "i1", email: "owner@example.test", role: "owner" as const }
+    const texts = [
+      renderDigest(digest, links, "monday_digest").text,
+      renderDigest(digest, links, "statutory").text,
+      renderLeakClock({ breachId: "b1", orgId: "o1", orgName: "Acme & Co", becameAwareAt: "2026-09-27T10:00:00Z", deadlineAt: "2026-09-30T10:00:00Z", hoursLeft: 40, boardNotified: false, individualsNotified: false, scopePersonCount: 12, periodKey: "k", recipients: [recipient] }, recipient, links).text,
+      renderRightsClock({ requestId: "r1", ref: "RR-7", kind: "erasure", orgId: "o1", orgName: "Acme & Co", receivedAt: "2026-07-01T00:00:00Z", dueAt: "2026-09-29T00:00:00Z", daysLeft: 20, periodKey: "k", recipients: [recipient] }, recipient, links).text,
+    ]
+    const footerOf = (text: string): string => {
+      const lines = text.split("\n")
+      const from = lines.findIndex((l) => l.startsWith("Open my page:"))
+      expect(from).toBeGreaterThan(0)
+      return lines.slice(from).join("\n")
+    }
+    for (const text of texts) expect(stripQuoted(footerOf(text)).trim()).toBe("")
+    // The digest footer really carries the wording that would otherwise hit the data_request rule (the unsubscribe URL); with the
+    // boilerplate line dropped the keyword rules find nothing in it.
+    expect(footerOf(texts[0])).toContain("action=unsubscribe")
+    expect(matchKeywords("", footerOf(texts[0]))).toBeNull()
+  })
   test("an inline (interleaved) answer is read", () => {
     expect(classify(mail({ text: "> Do you want the demo?\nYes, please delete my data first." })).cls).toBe("data_request")
   })
   test("only the first 4096 characters are read", () => {
-    const filler = "lorem ipsum ".repeat(400).slice(0, 4090)
+    // Exactly 4096: the word starts beyond the window. (It used to be 4090, which left "unsub" inside it, a prefix that the
+    // `unsub` withdrawal rule, added in the hardening review, rightly reads as a word.)
+    const filler = "lorem ipsum ".repeat(400).slice(0, 4096)
     expect(classify(mail({ text: `${filler} unsubscribe` })).cls).toBe("review")
     expect(classify(mail({ text: `unsubscribe ${filler}` })).cls).toBe("data_request")
     expect(matchKeywords("", `${filler}     unsubscribe`)).toBeNull()
@@ -466,7 +630,7 @@ describe("the default (rule e) and the never-drop invariant", () => {
   })
 
   // A deterministic pseudo-random walk over messages built from ordinary vocabulary and NO auto signal:
-  // none of them may come out as auto. Auto is reachable only through self / strong / weak-with-no-keyword.
+  // none of them may come out as auto. Auto is reachable only through self / a machine signal / an auto header with no data request or grievance in the text.
   function rng(seed: number) {
     return () => {
       seed |= 0; seed = (seed + 0x6d2b79f5) | 0
@@ -479,23 +643,24 @@ describe("the default (rule e) and the never-drop invariant", () => {
     "hello", "thanks", "regards", "please", "kindly", "reply", "team", "monday", "week", "digest", "unsubscribe", "delete my data", "complaint", "invoice", "partner",
     "pricing", "help", "message", "मदद", "शिकायत", "shikayat", "out", "office", "automatic", "delivered", "the", "a", "of", "and", "asap", "urgent", "नमस्ते",
   ]
-  test("200 random messages with no auto signal are never auto", () => {
+  test("200 random messages with no auto header are never auto", () => {
     const next = rng(20260929)
     for (let n = 0; n < 200; n++) {
       const words = Array.from({ length: 1 + Math.floor(next() * 30) }, () => VOCAB[Math.floor(next() * VOCAB.length)])
       const r = classify(mail({ subject: words.slice(0, 4).join(" "), text: words.join(" ") }))
-      // Subject words can spell an out-of-office; that is the weak signal, and it needs an empty keyword result.
+      // Subject words can spell an out-of-office; that is a header-based signal, and it needs the text to carry no data request or grievance.
       if (r.cls === "auto") {
         expect(r.rule).toBe("auto")
         expect(r.strongAuto).toBe(false)
-        expect(matchKeywords(words.slice(0, 4).join(" "), words.join(" "))).toBeNull()
+        // ... and only when nothing in it is a data request or a grievance (those escalate).
+        expect(matchEscalation(words.slice(0, 4).join(" "), words.join(" "))).toBeNull()
       }
     }
   })
   test("every class the classifier can return is a real MailClass, and each is reachable", () => {
     const seen = new Set<MailClass>()
     const samples: Partial<ClassifyInput>[] = [
-      { recipients: [replyToAddress("monday", REF)] }, { recipients: [replyToAddress("sales", REF)] }, { recipients: [replyToAddress("sales_chain", REF)] },
+      { recipients: [replyToAddress("monday", REF)] }, { recipients: [replyToAddress("clock", REF)] }, { recipients: [replyToAddress("sales", REF)] }, { recipients: [replyToAddress("sales_chain", REF)] },
       { recipients: [replyToAddress("invoice", REF)] }, { recipients: [replyToAddress("grievance", REF)] }, { recipients: [replyToAddress("data_request", REF)] },
       { recipients: [replyToAddress("partner", REF)] }, { recipients: [replyToAddress("support", REF)] }, { headers: { "auto-submitted": "auto-replied" } },
       {},
@@ -508,6 +673,139 @@ describe("the default (rule e) and the never-drop invariant", () => {
     const a = classify(input)
     const b = classify(input)
     expect(a).toEqual(b)
+  })
+})
+
+describe("escalation: a non-legal class is raised to data_request / grievance by the person's own words", () => {
+  const NON_LEGAL: MailClass[] = ["monday", "clock", "sales", "sales_chain", "invoice", "partner", "support"]
+
+  test("the specified cases: mon-tagged 'stop sending, delete my data' -> data_request; invoice-thread complaint -> grievance; a plain thanks stays invoice", () => {
+    const stop = classify(mail({ recipients: [replyToAddress("monday", REF)], subject: "Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week", text: "Please stop sending me these emails. Delete my data." }))
+    expect(stop.cls).toBe("data_request")
+    expect(stop.rule).toBe("escalation")
+    expect(stop.escalatedFrom).toBe("monday")
+    expect(stop.confidence).toBe("medium")
+    expect(stop.tagRef).toBe(REF)
+    expect(stop.reason.startsWith('tag:mon; escalated keyword:data_request:"')).toBe(true)
+
+    const complaint = classify(mail({ outbound: outbound("invoice", { ref: REF, matchedBy: "ref" }), subject: "Re: [VERIDIAN DPDP · Invoice] Your receipt", text: "I want to file a complaint about misuse of my data." }))
+    expect(complaint.cls).toBe("grievance")
+    expect(complaint.escalatedFrom).toBe("invoice")
+    expect(complaint.reason).toBe(`thread:invoice(ref:${REF}); escalated keyword:grievance:"complain"`)
+
+    const thanks = classify(mail({ outbound: outbound("invoice", { ref: REF, matchedBy: "ref" }), subject: "Re: [VERIDIAN DPDP · Invoice] Your receipt", text: "Thanks for the invoice, received." }))
+    expect(thanks.cls).toBe("invoice")
+    expect(thanks.rule).toBe("thread")
+    expect(thanks.escalatedFrom).toBeNull()
+    expect(thanks.reason).toBe(`thread:invoice(ref:${REF})`)
+  })
+
+  for (const cls of NON_LEGAL) {
+    test(`by tag: a ${cls} reply that says 'delete my data' is a data_request; 'this is a complaint' a grievance; both, a data_request`, () => {
+      const to = [replyToAddress(cls, REF)]
+      const want: MailClass = cls
+      expect(classify(mail({ recipients: to, text: "ok" })).cls).toBe(want)
+      const dsr = classify(mail({ recipients: to, text: "Please delete my data." }))
+      expect(dsr.cls).toBe("data_request")
+      expect(dsr.escalatedFrom).toBe(want)
+      const grv = classify(mail({ recipients: to, text: "This is a complaint." }))
+      expect(grv.cls).toBe("grievance")
+      expect(grv.escalatedFrom).toBe(want)
+      expect(classify(mail({ recipients: to, text: "This is a complaint. Also delete my data." })).cls).toBe("data_request")
+    })
+    test(`by thread: a reply to our ${cls} message that says 'withdraw my consent' is a data_request`, () => {
+      const r = classify(mail({ outbound: outbound(cls), text: "I withdraw my consent." }))
+      expect(r.cls).toBe("data_request")
+      expect(r.rule).toBe("escalation")
+      expect(r.reason).toContain("thread:")
+    })
+  }
+
+  test("a reply to a statutory notice (the clock class): thanks stays clock, a complaint or a data request is raised", () => {
+    const to = [replyToAddress("clock", REF)]
+    expect(classify(mail({ recipients: to, subject: "Re: [VERIDIAN DPDP · Statutory] 72-hour clock: data leak at Acme - tell the Data Protection Board", text: "Done, thanks." })).cls).toBe("clock")
+    expect(classify(mail({ recipients: to, text: "I have a grievance about how this was handled." })).cls).toBe("grievance")
+    expect(classify(mail({ recipients: to, text: "Remove me from your list, please." })).cls).toBe("data_request")
+  })
+
+  test("a legal class is never changed: grievance stays grievance even with 'delete my data'; data_request stays data_request; review stays review", () => {
+    for (const cls of ["grievance", "data_request", "review"] as const) {
+      const r = classify(mail({ recipients: [replyToAddress(cls, REF)], text: "delete my data. this is a complaint." }))
+      expect(r.cls).toBe(cls)
+      expect(r.rule).toBe("tag")
+      expect(r.escalatedFrom).toBeNull()
+    }
+    expect(classify(mail({ outbound: outbound("grievance"), text: "delete my data" })).cls).toBe("grievance")
+  })
+
+  test("quoted text, the attribution and everything after it are not the person's words: our digest quoted back is not a request", () => {
+    const quoted = [
+      "Thanks.",
+      "",
+      "On Mon, 28 Sep 2026 at 06:00, VERIDIAN AI DPDP <dpdp@veridian-aios.com> wrote:",
+      "> Acme: DPDP this week - 1 escalated to you",
+      "> Late by 3 days. This job escalates twice as fast.",
+      "> Stop these weekly emails (statutory notices continue): https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=abc",
+    ].join("\n")
+    const r = classify(mail({ recipients: [replyToAddress("monday", REF)], text: quoted }))
+    expect(r.cls).toBe("monday")
+    expect(r.escalatedFrom).toBeNull()
+    // The same words as the person's own, above the marker, do escalate.
+    expect(classify(mail({ recipients: [replyToAddress("monday", REF)], text: `Please unsubscribe me.\n\n${quoted}` })).cls).toBe("data_request")
+  })
+
+  test("our own subject echoed in a reply is not read (it says 'escalated to you' and 'Data Protection Board'); a subject the person wrote is", () => {
+    const echoes = [
+      "Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week — 3 open jobs, 1 escalated to you",
+      "RE: [VERIDIAN DPDP · Statutory] 72-hour clock: data leak at Acme — tell the Data Protection Board",
+      "Re: [VERIDIAN DPDP · Statutory] OVERDUE Rights request RR-1 at Acme — past its 90-day limit",
+    ]
+    for (const subject of echoes) {
+      const r = classify(mail({ recipients: [replyToAddress("monday", REF)], subject, text: "Noted, thanks." }))
+      expect(r.cls).toBe("monday")
+      expect(r.escalatedFrom).toBeNull()
+    }
+    const own = classify(mail({ recipients: [replyToAddress("monday", REF)], subject: "Delete my data", text: "" }))
+    expect(own.cls).toBe("data_request")
+    expect(own.escalatedFrom).toBe("monday")
+    expect(matchEscalation("[VERIDIAN DPDP · Monday] 1 escalated to you", "thanks")).toBeNull()
+    expect(matchEscalation("escalated to you", "thanks")?.cls).toBe("grievance")
+  })
+
+  test("the escalation runs ONLY the data_request and grievance rules, in that order", () => {
+    expect(matchEscalation("", "what is your pricing? need help with my invoice, partner?")).toBeNull()
+    expect(matchEscalation("", "I have a complaint. Please delete my data.")?.cls).toBe("data_request")
+    expect(matchEscalation("", "I have a complaint.")?.cls).toBe("grievance")
+    expect(matchKeywords("", "what is your pricing?", ["data_request", "grievance"])).toBeNull()
+    expect(matchKeywords("", "what is your pricing?")?.cls).toBe("sales")
+  })
+
+  test("only the first 4096 characters of what was written are read, as for the keyword rules", () => {
+    const filler = "lorem ipsum ".repeat(400).slice(0, 4096)
+    expect(classify(mail({ recipients: [replyToAddress("monday", REF)], text: `${filler} unsubscribe` })).cls).toBe("monday")
+    expect(classify(mail({ recipients: [replyToAddress("monday", REF)], text: `unsubscribe ${filler}` })).cls).toBe("data_request")
+  })
+
+  test("a Hindi / Hinglish request escalates too", () => {
+    expect(classify(mail({ recipients: [replyToAddress("monday", REF)], text: "मेरा डेटा हटाएं" })).cls).toBe("data_request")
+    expect(classify(mail({ outbound: outbound("invoice"), text: "meri shikayat hai" })).cls).toBe("grievance")
+  })
+
+  test("the reason keeps the origin and stays short: no message text beyond the matched phrase", () => {
+    const r = classify(mail({ recipients: [replyToAddress("invoice", REF)], text: `${"x ".repeat(80)}please DELETE   my   data now ${"y ".repeat(80)}` }))
+    expect(r.reason).toBe('tag:inv; escalated keyword:data_request:"delete my data"')
+  })
+
+  test("the sales+outbound rewrite escalates from sales_chain", () => {
+    const r = classify(mail({ recipients: [replyToAddress("sales", REF)], outbound: outbound("sales", { ref: REF, matchedBy: "ref" }), text: "I want to withdraw consent" }))
+    expect(r.cls).toBe("data_request")
+    expect(r.escalatedFrom).toBe("sales_chain")
+    expect(r.reason).toContain("sales_chain")
+  })
+
+  test("escalation is deterministic and does not mutate its input", () => {
+    const input = Object.freeze(mail({ recipients: Object.freeze([replyToAddress("monday", REF)]) as unknown as string[], headers: Object.freeze({ precedence: "bulk" }) as Record<string, string>, text: "delete my data" }))
+    expect(classify(input)).toEqual(classify(input))
   })
 })
 
@@ -536,5 +834,339 @@ describe("parsers", () => {
   test("stripQuoted keeps unquoted lines and stops at a reply marker", () => {
     expect(stripQuoted("a\n> b\nc\nOn Tue, 1 Sep 2026, X <x@y.z> wrote:\nd")).toBe("a\nc")
     expect(stripQuoted("a\r\n> b\r\nc")).toBe("a\nc")
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------
+// Added in the adversarial review of the hardening pass (2026-09-29). Every case below was run through the REAL classify()
+// before the fix and came out as `monday` / `clock` (or `review` by luck, untagged): a consent withdrawal or a rights
+// request that is not a legal-clock class misses its clock. The owner's rule: nothing is demoted, a legal request never
+// misses its clock. The ones that were already `data_request` / `grievance` stay so.
+// ---------------------------------------------------------------------------------------------------------------
+describe("review: withdrawals and requests as people really type them, on the two channels they arrive on", () => {
+  const MON = [replyToAddress("monday", REF)]
+  const CLK = [replyToAddress("clock", REF)]
+  const digestSubject = "Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week - 1 escalated to you"
+
+  const DATA_REQUESTS = [
+    "Stop.", "STOP", "stop!", "Please stop", "please stop these", "Stop the emails", "stop it now",
+    "No more emails please", "no more newsletters", "Please don't send me these anymore", "Don't send me any more mails", "do not email us again",
+    "I do not wish to receive further communication", "I don't want to receive these", "I never subscribed to this", "I did not sign up for this",
+    "Unsub", "cancel my subscription", "Please cancel the newsletter",
+    "close my account and delete everything", "I want my account closed: deactivate my account", "data deletion request", "account removal please",
+    "Send me all the data you have on me", "What is the information you hold about me?", "Do you hold my data? Tell me.", "I want my data back",
+    "Update my phone number in your records", "Please correct my name in your records", "Kindly do not share my data with third parties",
+    "I object to the processing of my data", "Nominate my brother as my nominee under the DPDP Act",
+    "I no longer wish to receive this", "Kindly discontinue these mails", "I don’t want these emails", "कृपया माझा डेटा हटवा.",
+    "mail band karo", "ye email sab band kijiye", "mujhe ye mail nahi chahiye", "mujhe mera data chahiye",
+    "मुझे ये मेल नहीं चाहिए", "ये ईमेल बंद करो", "मुझे मेरा डेटा चाहिए", "मेरी अनुमति वापस", "मुझे मेरी जानकारी चाहिए",
+  ]
+  const GRIEVANCES = [
+    "You have ignored my earlier request", "You are ignoring me", "This is the third time I am writing", "It is my 2nd reminder", "Still no answer from you",
+    "I will approach the court", "I am going to file a case", "my personal data was leaked because of you", "someone hacked my data",
+    "Aapne meri baat nahi suni", "aapne mujhe ignore kiya", "reply nahi aaya", "मैं उपभोक्ता न्यायालय जाऊँगा", "आपने मेरा अनुरोध अनदेखा कर दिया", "मेरा डेटा लीक हो गया",
+    "I will sue you", "My lawyer will contact you", "I am reporting this to the DPB and MeitY", "I will go to the cyber crime police",
+  ]
+
+  for (const text of DATA_REQUESTS) {
+    test(`data request: "${text}" (untagged, and as a reply to the Monday digest and to a statutory notice)`, () => {
+      expect(classify(mail({ text })).cls).toBe("data_request")
+      const mon = classify(mail({ recipients: MON, subject: digestSubject, text, outbound: outbound("monday", { ref: REF, matchedBy: "ref" }) }))
+      expect(mon.cls).toBe("data_request")
+      expect(mon.escalatedFrom).toBe("monday")
+      const clk = classify(mail({ recipients: CLK, subject: "Re: [VERIDIAN DPDP · Statutory] 72-hour clock", text }))
+      expect(clk.cls).toBe("data_request")
+      expect(clk.escalatedFrom).toBe("clock")
+    })
+  }
+  for (const text of GRIEVANCES) {
+    test(`grievance: "${text}" (as a reply to the Monday digest and to a statutory notice)`, () => {
+      for (const to of [MON, CLK]) {
+        const r = classify(mail({ recipients: to, text }))
+        expect(r.cls).toBe("grievance")
+        expect(r.rule).toBe("escalation")
+      }
+    })
+  }
+
+  test("ordinary replies are not raised: thanks, a visit, non-stop, a signature", () => {
+    for (const text of [
+      "Thanks, noted.", "Can you stop by our office on Monday?", "Will stop by tomorrow", "Non-stop support, well done.", "Thanks for the update, we do not send invoices by post.",
+      "Regards,\nAsha\nHead of Sales", "Yes, done.", "Received, will review this week.",
+      "How do I stop this error from appearing on the report page?", "The second time this week the job list looked right. Good.",
+      "We keep our data in Excel; please send the records you have for FY24.", "We will close our accounts on 31 March.", "Our nominee director will sign.",
+      "I have not signed up yet.", "Hamara email band ho gaya hai", "मेरा ईमेल बंद हो गया है", "Please stop the app from crashing, I cannot open the page.",
+    ]) {
+      const r = classify(mail({ recipients: MON, subject: digestSubject, text }))
+      expect(r.cls, text).toBe("monday")
+      expect(r.escalatedFrom, text).toBeNull()
+    }
+    // Untagged, "stop by" is not a withdrawal either: it stays the safe default.
+    expect(classify(mail({ text: "Can you stop by our office on Monday?" })).cls).toBe("review")
+  })
+
+  test("a phone keyboard types don’t with a typographic apostrophe (U+2019): it is the same as don't", () => {
+    for (const text of [
+      "Please don’t email me again", "Don’t send me these emails", "I don’t want to receive these", "I didn’t subscribe to this", "PLEASE DON’T CONTACT ME",
+      "Don`t contact me", "do not contact me", "Don‘t contact me",
+    ]) {
+      const r = classify(mail({ recipients: MON, subject: digestSubject, text }))
+      expect(r.cls, text).toBe("data_request")
+      expect(r.escalatedFrom, text).toBe("monday")
+    }
+    expect(classify(mail({ recipients: MON, subject: digestSubject, text: "you haven’t replied to my request" })).cls).toBe("grievance")
+    expect(classify(mail({ recipients: MON, subject: digestSubject, text: "Sorry, I haven’t replied earlier, thanks" })).cls).toBe("monday")
+    // ... and a support word with one still reads as support
+    expect(classify(mail({ text: "I can’t log in" })).cls).toBe("support")
+  })
+
+  test("a withdrawal typed into the subject of a reply that keeps our prefix is read; our own words in that subject are not", () => {
+    const own = "[VERIDIAN DPDP · Monday] Acme: DPDP this week - 1 escalated to you"
+    for (const subject of [`Re: ${own} UNSUBSCRIBE`, "Re: [VERIDIAN DPDP · Monday] Unsubscribe", "Re: [VERIDIAN DPDP · Monday] DELETE MY DATA", `Re: ${own} - please stop`]) {
+      const r = classify(mail({ recipients: MON, subject, text: "" }))
+      expect(r.cls, subject).toBe("data_request")
+      expect(r.escalatedFrom, subject).toBe("monday")
+    }
+    expect(classify(mail({ recipients: MON, subject: `Re: ${own}`, text: "Noted, thanks." })).cls).toBe("monday")
+    // A grievance word typed into an echoed subject is NOT read (ours says "escalated" and "Data Protection Board"); one in the body is.
+    expect(classify(mail({ recipients: MON, subject: "Re: [VERIDIAN DPDP · Monday] complaint", text: "Noted." })).cls).toBe("monday")
+    expect(classify(mail({ recipients: MON, subject: "Re: [VERIDIAN DPDP · Monday] x", text: "This is a complaint." })).cls).toBe("grievance")
+    expect(matchEscalation("[VERIDIAN DPDP · Monday] x", "a complaint. Delete my data.")?.cls).toBe("data_request")
+  })
+
+  test("none of the subjects we really send contains a data_request word (the rules that are run on an echoed subject)", () => {
+    const links: RenderLinks = { signIn: null, actions: null, unsubscribeUrl: "https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=u1", appHome: "https://app.veridian-aios.com/app/" }
+    const recipient = { membershipId: "m1", identityId: "i1", email: "owner@example.test", role: "owner" as const }
+    const digest: Digest = {
+      membershipId: "m1", identityId: "i1", orgId: "o1", orgName: "Acme & Co", orgProduct: "firm", email: "staff@example.test", level: "owner", roleKind: "owner",
+      referralCode: "ref1", inviteCode: "join1", weekKey: "2026-W39", today: "2026-09-21", unsubscribed: false, statutoryOnly: false, alreadySentThisWeek: false,
+      owners: [{ membershipId: "mo", email: "owner@example.test" }], coordinators: [], jobs: [], escalatedToMe: [],
+    }
+    const subjects = [
+      renderDigest(digest, links, "monday_digest").subject, renderDigest(digest, links, "statutory").subject, renderDigest(digest, links, "escalation").subject,
+      renderLeakClock({ breachId: "b1", orgId: "o1", orgName: "Acme & Co", becameAwareAt: "2026-09-27T10:00:00Z", deadlineAt: "2026-09-30T10:00:00Z", hoursLeft: 40, boardNotified: false, individualsNotified: false, scopePersonCount: 12, periodKey: "k", recipients: [recipient] }, recipient, links).subject,
+      renderLeakClock({ breachId: "b1", orgId: "o1", orgName: "Acme & Co", becameAwareAt: "2026-09-27T10:00:00Z", deadlineAt: "2026-09-26T10:00:00Z", hoursLeft: -4, boardNotified: false, individualsNotified: false, scopePersonCount: 12, periodKey: "k", recipients: [recipient] }, recipient, links).subject,
+      renderRightsClock({ requestId: "r1", ref: "RR-7", kind: "erasure", orgId: "o1", orgName: "Acme & Co", receivedAt: "2026-07-01T00:00:00Z", dueAt: "2026-09-29T00:00:00Z", daysLeft: 20, periodKey: "k", recipients: [recipient] }, recipient, links).subject,
+      renderRightsClock({ requestId: "r1", ref: "RR-7", kind: "erasure", orgId: "o1", orgName: "Acme & Co", receivedAt: "2026-07-01T00:00:00Z", dueAt: "2026-09-01T00:00:00Z", daysLeft: -28, periodKey: "k", recipients: [recipient] }, recipient, links).subject,
+      "Your VERIDIAN receipt -- Acme & Co (Rs 9,999)",
+    ]
+    expect(subjects.length).toBe(8)
+    for (const s of subjects) {
+      expect(matchKeywords(`[VERIDIAN DPDP · Monday] ${s}`, "", ["data_request"]), s).toBeNull()
+      const r = classify(mail({ recipients: MON, subject: `Re: [VERIDIAN DPDP · Monday] ${s}`, text: "Noted, thanks." }))
+      expect(r.cls, s).toBe("monday")
+    }
+  })
+
+  test("a reply in a script the keyword rules cannot read is a review, never the class of its tag; Hindi and Marathi are read", () => {
+    for (const text of ["என் தரவை நீக்கவும்", "আমার তথ্য মুছে ফেলুন", "મારો ડેટા કાઢી નાખો", "میرا ڈیٹا حذف کریں", "ధన్యవాదాలు"]) {
+      for (const recipients of [MON, [replyToAddress("clock", REF)]]) {
+        const r = classify(mail({ recipients, text }))
+        expect(r.cls, text).toBe("review")
+        expect(r.reason, text).toContain("written in a script the classifier has no keywords for")
+      }
+    }
+    expect(classify(mail({ text: "என் தரவை நீக்கவும்" })).cls).toBe("review")
+    expect(classify(mail({ recipients: MON, text: "धन्यवाद, मिल गया।" })).cls).toBe("monday")
+    expect(classify(mail({ recipients: MON, text: "कृपया माझा डेटा हटवा" })).cls).toBe("data_request")
+    expect(classify(mail({ recipients: MON, text: "Thanks.\n> என் தரவை நீக்கவும்" })).cls).toBe("monday")
+  })
+
+  test("a billing remark about the invoice is not a withdrawal: 'don't send me the invoice again' stays on the invoice thread", () => {
+    const inv = (text: string) => classify(mail({ recipients: [replyToAddress("invoice", REF)], outbound: outbound("invoice", { ref: REF, matchedBy: "ref" }), text }))
+    expect(inv("Don't send me the invoice again, I already paid.").cls).toBe("invoice")
+    expect(inv("Please do not send me these invoices anymore.").cls).toBe("data_request")
+  })
+
+  test("`stop` counts as a line of its own, not as a syllable: 'bus stop', 'stopped working' and 'stop by' do not", () => {
+    for (const text of ["the bus stop is near", "the login stopped working", "please stop by", "unstoppable"]) {
+      expect(matchEscalation("", text), text).toBeNull()
+    }
+    expect(matchEscalation("", "Hello\nstop\nThanks")?.cls).toBe("data_request")
+    expect(matchEscalation("Stop", "")?.cls).toBe("data_request")
+  })
+})
+
+describe("review: a reply with nothing of the person's own above the quoted original is not filed under its tag", () => {
+  const MON = [replyToAddress("monday", REF)]
+  const attribution = "On Mon, 28 Sep 2026 at 06:00, VERIDIAN AI DPDP <dpdp@veridian-aios.com> wrote:"
+  const quotedDigest = [attribution, "> Acme: DPDP this week - 1 escalated to you", "> Stop these weekly emails (statutory notices continue): https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=abc"].join("\n")
+
+  test("nothingAboveTheQuote: true only when there is text and none of it is the person's", () => {
+    expect(nothingAboveTheQuote(`${quotedDigest}\n\nPlease delete my data.`)).toBe(true)
+    expect(nothingAboveTheQuote("> quoted\n> also quoted")).toBe(true)
+    expect(nothingAboveTheQuote("-----Original Message-----\nFrom: x\nunsubscribe")).toBe(true)
+    expect(nothingAboveTheQuote("Thanks.\n\n" + quotedDigest)).toBe(false)
+    expect(nothingAboveTheQuote("")).toBe(false)
+    expect(nothingAboveTheQuote("   \n\n ")).toBe(false)
+    expect(nothingAboveTheQuote("... ---")).toBe(false)
+    expect(nothingAboveTheQuote("👍")).toBe(false)
+    expect(nothingAboveTheQuote("धन्यवाद")).toBe(false)
+  })
+
+  test("a bottom-posted request under the quoted digest (Thunderbird's default) is a review, not a Monday reply", () => {
+    const r = classify(mail({ recipients: MON, subject: "Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week", text: `${quotedDigest}\n\nPlease delete my data.` }))
+    expect(r.cls).toBe("review")
+    expect(r.rule).toBe("escalation")
+    expect(r.escalatedFrom).toBe("monday")
+    expect(r.confidence).toBe("low")
+    expect(r.reason).toBe("tag:mon; nothing above the quoted original (a reply typed below it cannot be read safely)")
+  })
+
+  test("an answer interleaved under the quoted lines, with nothing above, is a review too", () => {
+    const text = `${attribution}\n> Stop these weekly emails\nYes, stop these and remove me from your list\n> Data Protection Board`
+    expect(classify(mail({ recipients: MON, text })).cls).toBe("review")
+    expect(classify(mail({ outbound: outbound("invoice"), text })).cls).toBe("review")
+    expect(classify(mail({ recipients: [replyToAddress("clock", REF)], text })).cls).toBe("review")
+  })
+
+  test("a quoted-only forward is a review; the same words with a line of the person's own above stay under the tag", () => {
+    expect(classify(mail({ text: "-----Original Message-----\nFrom: A\nSent: x\nTo: B\nSubject: Invoice INV-42\n\nPay now", subject: "Fwd: Invoice INV-42" })).cls).toBe("review")
+    expect(classify(mail({ recipients: MON, text: "FYI\n" + quotedDigest })).cls).toBe("monday")
+    expect(classify(mail({ recipients: MON, text: "Ok" })).cls).toBe("monday")
+  })
+
+  test("it changes nothing for the other paths: a legal tag, an auto reply, a bounce, an empty mail", () => {
+    const quotedOnly = `${quotedDigest}\n\nsome answer`
+    expect(classify(mail({ recipients: [replyToAddress("grievance", REF)], text: quotedOnly })).cls).toBe("grievance")
+    expect(classify(mail({ recipients: MON, text: quotedOnly, headers: { "auto-submitted": "auto-replied" } })).cls).toBe("auto")
+    expect(classify(mail({ recipients: MON, text: quotedOnly, senders: ["mailer-daemon@example.org"] })).cls).toBe("auto")
+    expect(classify(mail({ recipients: MON, text: "" })).cls).toBe("monday")
+  })
+
+  test("a review of this kind is a legal-clock class: it gets a ticket with a due date and an acknowledgement", () => {
+    const r = classify(mail({ recipients: MON, text: `${quotedDigest}\n\nstop` }))
+    expect(LEGAL_CLOCK_CLASSES.includes(r.cls)).toBe(true)
+    expect(r.strongAuto).toBe(false)
+    expect(r.autoSignals).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------
+// Added in the adversarial review of the classifier (2026-09-29, second reviewer). The List-Unsubscribe mailto of every digest
+// and notice is dpdp+dsr.<ref>@ with the SAME ref as the Monday / statutory row, so the lookup matches a Monday or clock row, not an
+// acknowledgement. A mail client that adds Auto-Submitted / Precedence to that automatic unsubscribe, with no words in it, was filed
+// as `auto` (logged, nobody told): a consent withdrawal that missed its clock without a trace.
+// ---------------------------------------------------------------------------------------------------------------
+describe("review: an automatic List-Unsubscribe mailto (legal tag, ref of a Monday / statutory row) is never hidden by an auto header", () => {
+  const DSR = [replyToAddress("data_request", REF)]
+  for (const [label, headers] of [
+    ["Auto-Submitted: auto-generated", { "auto-submitted": "auto-generated" }],
+    ["Precedence: bulk", { precedence: "bulk" }],
+    ["X-Autoreply present", { "x-autoreply": "yes" }],
+  ] as const) {
+    for (const row of ["monday", "clock"] as const) {
+      test(`${label}, empty subject and body, matched to a ${row} row: data_request under its tag, operator told`, () => {
+        const r = classify(mail({ recipients: DSR, subject: "", text: "", headers, outbound: outbound(row, { ref: REF, matchedBy: "ref" }) }))
+        expect(r.cls).toBe("data_request")
+        expect(r.rule).toBe("tag")
+        expect(r.autoSignals.length).toBeGreaterThan(0)
+        expect(r.reason).toContain("auto-mail headers ignored for a legal tag that is not a reply to our own acknowledgement")
+      })
+    }
+  }
+  test("a reply to our OWN acknowledgement with the same headers is still auto (the auto-responder loop): by ticket number, and by the outbound row's legal class", () => {
+    const headers = { "auto-submitted": "auto-replied" }
+    for (const over of [{ ticketNo: "G-2026-0001" }, {}]) {
+      const r = classify(mail({ recipients: [replyToAddress("grievance", REF)], subject: "", text: "", headers, outbound: outbound("grievance", { ref: REF, matchedBy: "ref", ...over }) }))
+      expect(r.cls).toBe("auto")
+    }
+    // a ticket number alone (an acknowledgement row of any class) is enough to divert it
+    expect(classify(mail({ recipients: DSR, text: "", headers, outbound: outbound("monday", { ref: REF, ticketNo: "D-2026-0001" }) })).cls).toBe("auto")
+  })
+  test("the same headers on a NON-legal tag are still diverted; words in the message still escalate", () => {
+    const headers = { "auto-submitted": "auto-generated" }
+    expect(classify(mail({ recipients: [replyToAddress("monday", REF)], text: "", headers, outbound: outbound("monday", { ref: REF, matchedBy: "ref" }) })).cls).toBe("auto")
+    expect(classify(mail({ recipients: [replyToAddress("monday", REF)], text: "Please delete my data.", headers, outbound: outbound("monday", { ref: REF, matchedBy: "ref" }) })).cls).toBe("data_request")
+  })
+})
+
+describe("review: an auto-reply subject is recognised at the START of the subject, not by three words in the middle of a person's", () => {
+  test("ordinary mail whose subject merely contains the words is read, not filed as auto", () => {
+    const inv = { recipients: [replyToAddress("invoice", REF)], outbound: outbound("invoice", { ref: REF, matchedBy: "ref" }) }
+    const undelivered = classify(mail({ ...inv, subject: "Re: Undelivered invoice - not received", text: "We did not get the invoice email." }))
+    expect(undelivered.cls).toBe("invoice")
+    expect(undelivered.autoSignals).toEqual([])
+    expect(classify(mail({ subject: "Support needed out of office hours", text: "Can we get help after 6pm?" })).cls).toBe("support")
+    expect(classify(mail({ subject: "Do you support auto-reply templates? pricing?", text: "Interested in a demo." })).cls).toBe("sales")
+    expect(classify(mail({ subject: "Our courier: delivery failure, need a receipt", text: "" })).autoSignals).toEqual([])
+  })
+  test("the real thing still is auto, also behind Re: / Fwd: / AW: and an opening bracket", () => {
+    for (const subject of [
+      "Re: Automatic reply: Your message", "Fwd: Out of Office: back Monday", "AW: Automatische Antwort: Abwesend", "[Auto-Reply] Your message",
+      "  Undeliverable: [VERIDIAN DPDP · Monday] Your week", "Undelivered Mail Returned to Sender", "Automatic reply: Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week",
+    ]) {
+      const r = classify(mail({ subject, text: "" }))
+      expect(r.cls, subject).toBe("auto")
+      expect(r.autoSignals, subject).toContain("auto-reply style subject")
+    }
+  })
+  test("words that would be a request still escalate an auto-reply subject", () => {
+    expect(classify(mail({ subject: "Automatic reply: thanks", text: "Please delete my data." })).cls).toBe("data_request")
+  })
+})
+
+describe("review: the class LABEL in the subject of our own acknowledgement is not a request", () => {
+  // withSubjectPrefix(cls, ...) gives "[VERIDIAN DPDP · DATA REQUEST] ..." for an acknowledgement of a data request: two of the words the
+  // data_request rules look for. Replies to it echo that subject.
+  const ackSubject = (cls: MailClass) => `[VERIDIAN DPDP · ${cls === "data_request" ? "DATA REQUEST" : cls === "grievance" ? "GRIEVANCE" : "REVIEW"}] We received your message (ticket X-2026-0001)`
+  for (const cls of ["data_request", "grievance", "review"] as const) {
+    test(`an out-of-office reply to our ${cls} acknowledgement stays auto (nobody is told, no new ticket clock)`, () => {
+      const r = classify(mail({
+        recipients: [replyToAddress(cls, REF)], senders: ["ravi@corp.example"], subject: `Automatic reply: ${ackSubject(cls)}`, text: "I am out of office until 5 October.",
+        headers: { "auto-submitted": "auto-replied" }, outbound: outbound(cls, { ref: REF, matchedBy: "ref", ticketNo: "X-2026-0001" }),
+      }))
+      expect(r.cls).toBe("auto")
+      expect(r.escalatedFrom).toBeNull()
+    })
+    test(`matchEscalation over an echoed ${cls} acknowledgement subject with nothing typed finds nothing`, () => {
+      expect(matchEscalation(`Re: ${ackSubject(cls)}`, "")).toBeNull()
+    })
+  }
+  test("what a person types after the label is still read, in the subject of a reply", () => {
+    expect(matchEscalation("Re: [VERIDIAN DPDP · DATA REQUEST] We received your message (ticket D-2026-0001) - please delete my data", "")?.cls).toBe("data_request")
+    expect(matchEscalation("Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week - Unsubscribe", "")?.cls).toBe("data_request")
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------
+// Second review of the classifier (2026-09-29). Every phrase below was run through the REAL classify() as a reply to the Monday digest
+// and stayed `monday` (no D- / G- ticket, no due date, no acknowledgement). A benign corpus must stay where it was.
+// ---------------------------------------------------------------------------------------------------------------
+describe("review 2: more withdrawals, objections, rights requests and chasers, as people type them", () => {
+  const MON = [replyToAddress("monday", REF)]
+  const subject = "Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week"
+  const DATA_REQUESTS = [
+    "I do not consent to this.", "I don't consent to this", "You added me without my consent", "Do not use my data for marketing.", "Stop using my personal data.",
+    "Please do not process my data any further.", "Cease processing my information.", "Please remove my name.", "Kindly remove my number from your system.",
+    "Remove my email id from the list", "Kindly unlist me", "Leave me alone.", "Please take my email off the mailing list", "Not interested, don't contact again.",
+    "Never contact me again", "Don't call anymore", "I would like to exercise my rights under the DPDP Act.", "I am exercising my data rights",
+    "mera email hata do", "mera number hata dijiye", "मेरा नंबर हटा दीजिए", "मेरा ईमेल सूची से निकाल दें", "कृपया मुझे मेल न भेजें", "आगे से मेल मत भेजिए",
+    "नमस्ते, कृपया इसे बंद करें", "मुझे ये नहीं चाहिए",
+  ]
+  const GRIEVANCES = ["This is unacceptable, I will take this further", "That was completely unacceptable", "Where is my response?", "No action taken on my earlier email", "No steps have been taken"]
+  for (const text of DATA_REQUESTS) {
+    test(`data request: "${text}"`, () => {
+      const r = classify(mail({ recipients: MON, subject, text, outbound: outbound("monday", { ref: REF, matchedBy: "ref" }) }))
+      expect(r.cls).toBe("data_request")
+      expect(r.escalatedFrom).toBe("monday")
+    })
+  }
+  for (const text of GRIEVANCES) {
+    test(`grievance: "${text}"`, () => {
+      expect(classify(mail({ recipients: MON, subject, text })).cls).toBe("grievance")
+    })
+  }
+  test("ordinary replies stay a Monday reply", () => {
+    for (const text of [
+      "Thanks, received.", "Ok noted", "Will check and revert", "धन्यवाद", "We do not use spreadsheets any more, only your app.", "We don't share screens in review calls.",
+      "Please remove the duplicate entry from the job list.", "We will stop using paper registers from April.", "No action needed from your side.", "No action required, all done.",
+      "The price is high for a small firm? Kindly share a quote.", "Call me tomorrow, any time works.",
+      "Our name and number are in the footer.", "It takes a further two days to finish.", "Where is my login page? I found it.",
+      "The auditor will exercise judgement on this.", "I consent to the terms, thanks.",
+    ]) {
+      const r = classify(mail({ recipients: MON, subject, text, outbound: outbound("monday", { ref: REF, matchedBy: "ref" }) }))
+      expect(r.cls, text).toBe("monday")
+    }
   })
 })

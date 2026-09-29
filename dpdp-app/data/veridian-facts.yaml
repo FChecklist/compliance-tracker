@@ -178,7 +178,7 @@ storage:
     provider: Resend
     provider_country: United States
     sentence: Email is sent through Resend, a US company, so the content of every email passes through a US company's service.
-    source: Resend, sending domain send.veridian-aios.com (provisioned in Resend's ap-northeast-1 region) -- verified 2026-09-22
+    source: Resend, sending identity dpdp@veridian-aios.com (Resend domain veridian-aios.com; the previous subdomain send.veridian-aios.com was provisioned in Resend's ap-northeast-1 region -- verified 2026-09-22; the new domain's region has not been re-checked)
   website:
     provider: Cloudflare Pages
     sentence: The public website is served by Cloudflare Pages, a global content delivery network.

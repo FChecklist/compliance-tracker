@@ -688,7 +688,7 @@ function vTasks(rows){
 function vEmail(rows){
  var r=R(),o=O(),lr=live(rows),mine=lr.filter(function(x){return x.by===myId()&&!x.yes&&!blocked(o,x)});
  return secHead('📧 Your Monday email','exactly what arrives — pressing Yes in it updates the list above','sEmail')+
- '<div class="mail"><div class="mh">VERIDIAN &lt;dpdp@send.veridian-aios.com&gt; → '+esc(meName())+'<b>DPDP · '+esc(o.name)+' · week of '+fmt(mon())+'</b></div><div class="mb">'+
+ '<div class="mail"><div class="mh">VERIDIAN AI DPDP &lt;dpdp@veridian-aios.com&gt; → '+esc(meName())+'<b>DPDP · '+esc(o.name)+' · week of '+fmt(mon())+'</b></div><div class="mb">'+
  '<div class="mrow"><div><b>'+lr.filter(function(x){return x.yes}).length+' of '+lr.length+' done</b><span class="sm">'+lr.filter(function(x){return !x.yes&&x.due<0}).length+' late · '+lr.filter(function(x){return !x.by}).length+' with nobody named</span></div></div>'+
  mine.map(function(x){return '<div class="mrow"><div><b>'+esc(x.what)+'</b><span class="sm">yours · due '+fmt(day(x.due))+'</span></div><button class="act" data-yes="'+x.id+'" data-via="email">Yes, done</button></div>'}).join('')+
  '<div class="sm" style="margin-top:8px">Reply <b>WEEKLY</b> or <b>DAILY</b> to change how often. There is no off switch — a legal duty with a date does not stop.</div></div></div></div>';
