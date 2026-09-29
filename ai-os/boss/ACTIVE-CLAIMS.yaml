@@ -4524,6 +4524,48 @@ active:
       pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
       only (arjun.mehta CEO account), no real credentials touched.
 
+  - session_label: "claude-code (interactive, Claude Desktop, PROJEXA Vercel cost work order session [742e4b]) -- (1) AI work link UI: a prominent, one-click 'AI work link' + a new Projects tab in PROJEXA's assistant panel; (2) merge-to-one-server planning for projexa-ai.com [IN PROGRESS]"
+    claimed_at: "2026-09-29T00:00Z (this session; exact time approximate, no system clock read)"
+    claim: |
+      PART 1 -- ACTIVELY RUNNING as a background Workflow (2 worktree-isolated
+      agents: implement, then an independent verify/audit agent), repo
+      C:\ct\projexa ONLY, branch feat/ai-work-link-ui-and-projects-tab (new,
+      not yet pushed at claim time). Files: src/components/shell/
+      LeftScreenCompletion.tsx (adds a "projects" LeftViewId, first in
+      LEFT_VIEWS, before "modules" -- the other 6 owner-specified views
+      unchanged), src/components/shell/M24Shell.tsx (wires the new view the
+      same way "reports" is wired), src/components/ai-link/
+      AiWorkLinkButtons.tsx + AiWorkLinkDialog.tsx (one-click mint+copy with
+      an inline confirmation naming ChatGPT/Gemini/Claude/Grok/DeepSeek/Z.ai,
+      "Change access or expiry" still opens the existing level/duration
+      dialog unchanged), src/components/ProjectsListClient.tsx (adds a
+      per-row "Copy AI work link" action + a "New project with my AI"
+      button), plus each file's matching *.test.tsx. NOT touching
+      compliance-tracker at all for this part. No PR opened yet as of this
+      claim (will open one, on green tests/typecheck, once the workflow
+      reports back).
+
+      PART 2 -- PLANNING DONE, WRITTEN UP, EXECUTION NOT STARTED. Full
+      decision + phased plan: ai-os/PROJEXA_SERVER_MERGE_PLAN.md (this
+      commit). Summary: fold PROJEXA's ~186 page.tsx files INTO
+      compliance-tracker's Next.js app (287 route.ts files under
+      src/app/api/v1/projexa/ already hold 100% of the business logic
+      PROJEXA calls over HTTP today -- zero backend rewrite needed, only a
+      UI/routing port), rather than porting that logic into PROJEXA.
+      Confirmed via cross-session coordination with the DPDP session
+      (2026-09-29): DPDP's Cloudflare app talks directly to Supabase and has
+      zero runtime dependency on compliance-tracker's Next.js app, so that
+      app's only remaining reason to exist is being PROJEXA's backend --
+      exactly the dependency this plan removes. See the plan doc for the
+      phase breakdown (Phase 0 proof-of-concept on one page, Phase 1 bulk UI
+      port, Phase 2 auth reconciliation, Phase 3 retirement) and the two
+      open questions left for the owner. When real editing starts, this
+      entry will be updated with the actual file/directory scope before the
+      first file is touched, and it will never include vercel.json,
+      src/lib/vercel-lockdown.test.ts, or ai-os/DOMAIN_OWNERSHIP.yaml in
+      either repo (owner wants this done on local + git + Supabase, not
+      Vercel).
+
 recently_completed:
   - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch feat/dpdp-editions-complete) -- WO-DPDP-015: Monday digest timeout fixed and self-healing; /dpdp-firm and /dpdp-institution completed end to end (self-serve organisation, every role tested live) [DONE on merge of its PR]"
     claimed_at: "2026-09-28 (this session)"
