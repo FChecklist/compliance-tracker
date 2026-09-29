@@ -229,6 +229,9 @@ type OrgState = {
     selfDeclaredAt: string | null
     selfDeclaredInterval: "month" | "year" | null
     selfDeclaredAmountPaise: number | null
+    selfDeclaredReference: string | null
+    selfDeclaredProofPath: string | null
+    selfDeclaredNote: string | null
     lastConfirmedAt: string | null
   }
 }
@@ -285,7 +288,10 @@ function makeOrg(id: string, name: string, product: "firm" | "institution", o: M
   return {
     id, name, product, ownerEmail: o.owner, client: o.client ?? false, rows, groupMembers: [...(o.group ?? [])], groupAnswers: {},
     history: [], setUpBy: o.setUpBy ?? null, ownerConfirmedAt: o.ownerConfirmedAt ?? null, viewers, aiWorkLinks: [], invitedMembers: [],
-    billing: { state: "trial", interval: null, trialEndsAt: daysFromNow(30), selfDeclaredAt: null, selfDeclaredInterval: null, selfDeclaredAmountPaise: null, lastConfirmedAt: null },
+    billing: {
+      state: "trial", interval: null, trialEndsAt: daysFromNow(30), selfDeclaredAt: null, selfDeclaredInterval: null, selfDeclaredAmountPaise: null,
+      selfDeclaredReference: null, selfDeclaredProofPath: null, selfDeclaredNote: null, lastConfirmedAt: null,
+    },
   }
 }
 
@@ -590,6 +596,14 @@ export function createMockClient(scenario?: string): DpdpClient {
         emit("SIGNED_OUT")
         return { error: null }
       },
+    },
+    async uploadPaymentProof(orgId, file) {
+      // No real storage in mock mode -- a fake path is enough to preview
+      // the "proof attached" state in BillingPanel/OwnerPaymentAdmin.
+      return { path: `${orgId}/mock-${file.name}`, error: null }
+    },
+    async accessToken() {
+      return state.signedInAs ? "mock-access-token" : null
     },
     async rpc(fn, args) {
       const viaToken = tokenRpc(fn, args)
@@ -965,7 +979,9 @@ export function createMockClient(scenario?: string): DpdpClient {
           const b = org.billing
           return ok({
             orgId: org.id, product: org.product, state: b.state, trialEndsAt: b.trialEndsAt, interval: b.interval,
-            selfDeclaredAt: b.selfDeclaredAt, selfDeclaredInterval: b.selfDeclaredInterval, selfDeclaredAmountPaise: b.selfDeclaredAmountPaise, lastConfirmedAt: b.lastConfirmedAt,
+            selfDeclaredAt: b.selfDeclaredAt, selfDeclaredInterval: b.selfDeclaredInterval, selfDeclaredAmountPaise: b.selfDeclaredAmountPaise,
+            selfDeclaredReference: b.selfDeclaredReference, selfDeclaredProofPath: b.selfDeclaredProofPath, selfDeclaredNote: b.selfDeclaredNote,
+            lastConfirmedAt: b.lastConfirmedAt,
           })
         }
         case "dpdp_declare_payment": {
@@ -981,9 +997,54 @@ export function createMockClient(scenario?: string): DpdpClient {
           org.billing.selfDeclaredAt = new Date().toISOString()
           org.billing.selfDeclaredInterval = interval
           org.billing.selfDeclaredAmountPaise = amount
+          org.billing.selfDeclaredReference = (args?.p_reference as string | null) ?? null
+          org.billing.selfDeclaredProofPath = (args?.p_proof_path as string | null) ?? null
+          org.billing.selfDeclaredNote = (args?.p_note as string | null) ?? null
           log(org, "payment_declared", `Owner said they paid Rs ${(amount / 100).toLocaleString("en-IN")} (${interval}ly) -- awaiting confirmation`)
           save(state)
           return ok({ ok: true, state: "awaiting_confirmation" })
+        }
+        // --- WO-DPDP-016 follow-on: manual payment confirmation (mock preview) ---
+        // In mock mode ONLY, the "owner" scenario's own persona (owner@example.test)
+        // doubles as VERIDIAN's own platform admin, so the review screen can be
+        // previewed without a second identity -- the real dpdp.platform_admin
+        // table is a genuinely separate allowlist, unrelated to any org's owner.
+        case "dpdp__is_platform_admin":
+          return ok(me === MOCK_OWNER)
+        case "dpdp_owner_pending_claims": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          const claims = Object.values(state.orgs)
+            .filter((o) => o.billing.state === "awaiting_confirmation")
+            .map((o) => ({
+              orgId: o.id, orgName: o.name, product: o.product, interval: o.billing.interval, amountPaise: o.billing.selfDeclaredAmountPaise,
+              reference: o.billing.selfDeclaredReference, proofPath: o.billing.selfDeclaredProofPath, note: o.billing.selfDeclaredNote,
+              declaredAt: o.billing.selfDeclaredAt, ownerEmail: o.ownerEmail,
+            }))
+          return ok(claims)
+        }
+        case "dpdp_owner_approve_payment": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          const org = orgOf(args?.p_org_id)
+          if (!org) return fail("No such organisation")
+          if (org.billing.state !== "awaiting_confirmation") return fail("This organisation has no payment awaiting confirmation")
+          org.billing.state = "active"
+          org.billing.lastConfirmedAt = new Date().toISOString()
+          const paymentId = `mock-payment-${org.id}`
+          log(org, "payment_confirmed", `Payment confirmed: Rs ${((org.billing.selfDeclaredAmountPaise ?? 0) / 100).toLocaleString("en-IN")} (${org.product}, ${org.billing.interval}ly)`)
+          save(state)
+          return ok({ ok: true, paymentId, commissionId: null, commissionAmountPaise: null })
+        }
+        case "dpdp_owner_reject_payment": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          const org = orgOf(args?.p_org_id)
+          if (!org) return fail("No such organisation")
+          if (org.billing.state !== "awaiting_confirmation") return fail("This organisation has no payment awaiting confirmation")
+          org.billing.state = "trial"
+          org.billing.selfDeclaredAt = null; org.billing.selfDeclaredInterval = null; org.billing.selfDeclaredAmountPaise = null
+          org.billing.selfDeclaredReference = null; org.billing.selfDeclaredProofPath = null; org.billing.selfDeclaredNote = null
+          log(org, "payment_rejected", "Payment claim could not be confirmed")
+          save(state)
+          return ok({ ok: true, state: "trial" })
         }
         default:
           return fail(`Unknown RPC ${fn}`)
