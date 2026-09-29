@@ -40,6 +40,36 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, Claude Desktop, DPDP session; worktree C:/ct/ct-worktrees/dpdp-payment-confirmation, branch feat/dpdp-payment-confirmation) -- WO-DPDP-016 follow-on: manual payment confirmation flow (owner instruction, this session, 2026-09-29: publish bank/UPI+QR, let the org owner attach proof (reference + screenshot) to the existing self-declare 'I've paid' claim, give the Owner an in-app approve screen instead of raw SQL, auto-send an invoice on approval) [IN PROGRESS]"
+    claimed_at: "2026-09-29T09:00Z (this session)"
+    claim: |
+      Checked ai-os/boss/ACTIVE-CLAIMS.yaml (this file) and the live peer-session
+      list before starting: no other active entry touches dpdp.subscription /
+      dpdp.payment / dpdp_declare_payment / dpdp_record_confirmed_payment /
+      BillingPanel.tsx, and no currently-running peer session (checked via the
+      desktop app's own session list) is working on DPDP. Every PROJEXA-side
+      claim in this file already explicitly excludes dpdp_*/dpdp-* objects.
+      Files this claim will touch:
+        - a new drizzle/06xx migration: proof fields on dpdp.subscription's
+          self-declare columns (reference/UTR text, proof image path), a new
+          app_runtime-callable RPC pair (list pending claims / approve one,
+          identity-gated to the Owner's own email) wrapping the existing
+          service_role-only dpdp_record_confirmed_payment so the Owner no
+          longer needs raw SQL to confirm a payment
+        - a Supabase Storage bucket for payment-proof screenshots (private,
+          owner-readable) + its policy
+        - dpdp-app/src/components/BillingPanel.tsx (bank/UPI/QR display,
+          reference + screenshot on the "I've paid" form, WhatsApp/email
+          quick-send links) and a new owner-only admin review page
+        - an invoice email template, sent through the existing Resend path
+          (supabase/functions/dpdp-monday-email's send helper, or a small
+          sibling function) on approval
+      NOT touching: any PROJEXA/compliance-tracker object outside dpdp-app and
+      dpdp_* Supabase functions/migrations, Vercel, DNS, Cloudflare Pages
+      config, any other org's real payment data (only test identities used
+      for verification, per the same testing conventions as WO-DPDP-016).
+      Commits are local to this worktree; will open a PR and merge on green CI
+      per Amendment 001 (autonomous merge), same as WO-DPDP-016.
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session; BUILD-002 AI work completion; clean docs worktree C:/ct/ct-claims-update, build worktrees under C:/ct/ct-worktrees/)"
     claimed_at: "2026-09-26T15:00Z (this session)"
     claim: |
