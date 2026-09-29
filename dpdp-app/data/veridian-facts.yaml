@@ -227,7 +227,7 @@ ai_work_link_public_sentence: Users can give their own AI assistant a private, t
 pages:
   owner_approved: false
   "/":
-    name: Digital Personal Data Protection Act Compliance
+    name: DPDP and Digital Data Compliance
     summary: "the root chooser — \"I do this for clients\", \"I do this for us\", or running a school instead"
     audience: CA, CS, audit and legal firms, their clients, and schools and institutions
   "/dpdp-firm/":
