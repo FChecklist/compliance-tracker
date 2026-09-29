@@ -12,10 +12,12 @@ import { ShareVeridian } from "./ShareVeridian"
 // scrolls away above the pinned section links.
 //
 // `share` is the ONLY way the share ask appears: /app/ passes it once the
-// page has loaded and the viewer is a decision-maker (shareRoleFor in
-// src/lib/brand.ts); the token pages never pass it, so a parent, a staff
-// member on a one-click link or an unsubscribing address never sees
-// "Share VERIDIAN".
+// page has loaded, for every signed-in viewer now (WO-DPDP-016 §1 widened
+// shareRoleFor in src/lib/brand.ts from decision-makers-only to everyone,
+// "member" being the default role); the token pages still never pass it,
+// so a parent, a staff member on a one-click link or an unsubscribing
+// address never sees "Share VERIDIAN" -- only someone actually signed into
+// /app/ does.
 export function BrandLine({ share }: { share?: { client: DpdpClient; orgId: string; role: ShareRole } | null }) {
   return (
     <div className="dpdp-onepage dpdp-brandline" role="region" aria-label="VERIDIAN brand line">

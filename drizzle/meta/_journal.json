@@ -3383,6 +3383,27 @@
       "when": 1790125000000,
       "tag": "0654_dpdp_wo015_digest_indexes_self_signup",
       "breakpoints": true
+    },
+    {
+      "idx": 485,
+      "version": "7",
+      "when": 1790470000000,
+      "tag": "0655_dpdp_wo016_refer_and_earn",
+      "breakpoints": true
+    },
+    {
+      "idx": 486,
+      "version": "7",
+      "when": 1790471000000,
+      "tag": "0656_dpdp_wo016_monday_billing_banner",
+      "breakpoints": true
+    },
+    {
+      "idx": 487,
+      "version": "7",
+      "when": 1790472000000,
+      "tag": "0657_dpdp_wo016_step2_invite_and_link_personalization",
+      "breakpoints": true
     }
   ]
 }

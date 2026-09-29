@@ -301,4 +301,123 @@ describe("dpdp_create_my_org (drizzle/0654: a visitor opens their own organisati
     expect((await c.rpc("dpdp_create_my_org", { p_name: "X".repeat(121), p_product: "firm" })).error?.message).toContain("too long")
     expect((await c.rpc("dpdp_create_my_org", { p_name: "Ok", p_product: "hospital" })).error?.message).toContain("product must be")
   })
+
+  test("a ?ref= code travels through to org creation (WO-DPDP-016 §2: the real conflict-checking is a Postgres-side unit, drizzle/0655)", async () => {
+    const c = createMockClient("visitor")
+    const made = await c.rpc("dpdp_create_my_org", { p_name: "Referred Traders", p_product: "firm", p_referral_code: "ABCD1234" })
+    expect(made.error).toBeNull()
+    const history = (await c.rpc("dpdp_org_history")).data as { kind: string; summary: string }[]
+    expect(history.some((h) => h.kind === "referral_recorded" && h.summary.includes("ABCD1234"))).toBe(true)
+  })
+
+  test("a brand-new org starts on a 30-day trial", async () => {
+    const c = createMockClient("visitor")
+    await c.rpc("dpdp_create_my_org", { p_name: "Fresh Co", p_product: "firm" })
+    const billing = (await c.rpc("dpdp_my_billing")).data as { state: string; trialEndsAt: string }
+    expect(billing.state).toBe("trial")
+    const daysLeft = Math.round((new Date(billing.trialEndsAt).getTime() - Date.now()) / 86_400_000)
+    expect(daysLeft).toBeGreaterThanOrEqual(29)
+    expect(daysLeft).toBeLessThanOrEqual(30)
+  })
+})
+
+describe("WO-DPDP-016 §1: the share ask widens from decision-makers-only to every signed-in person", () => {
+  test("a plain staff member (scenario 'member', kind staff) now gets a code and role 'member', not a refusal", async () => {
+    const c = createMockClient("member")
+    const code = await c.rpc("dpdp_my_referral_code")
+    expect(code.error).toBeNull()
+    expect(code.data).toMatchObject({ role: "member" })
+    const press = await c.rpc("dpdp_record_share_press")
+    expect(press.error).toBeNull()
+    expect(press.data).toMatchObject({ ok: true, role: "member" })
+  })
+
+  test("the owner and a CA partner still keep their own named role, not 'member'", async () => {
+    expect(((await createMockClient("owner-live").rpc("dpdp_my_referral_code")).data as { role: string }).role).toBe("owner")
+    expect(((await createMockClient("partner").rpc("dpdp_my_referral_code")).data as { role: string }).role).toBe("partner")
+  })
+
+  test("a real stranger (not a member of anything) is still refused", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_my_referral_code")).error?.message).toContain("Not a member")
+  })
+})
+
+describe("WO-DPDP-016 Step 2: invite a colleague into my organisation (drizzle/0657)", () => {
+  test("any member can get the org's invite link, and it is the same code every time", async () => {
+    const owner = createMockClient("owner-live")
+    const first = (await owner.rpc("dpdp_my_org_invite_link")).data as { code: string }
+    const second = (await owner.rpc("dpdp_my_org_invite_link")).data as { code: string }
+    expect(first.code).toBe(second.code)
+    const staff = createMockClient("staff")
+    expect(((await staff.rpc("dpdp_my_org_invite_link")).data as { code: string }).code).toBe(first.code)
+  })
+
+  test("a non-member is refused an invite link, same as the referral code", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_my_org_invite_link")).error?.message).toContain("Not a member")
+  })
+
+  test("a visitor who was NOT a member can redeem the code and becomes staff", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_my_page")).error).not.toBeNull() // not a member yet
+
+    const { code } = (await createMockClient("owner-live").rpc("dpdp_my_org_invite_link")).data as { code: string }
+    const joined = await c.rpc("dpdp_join_org_via_invite", { p_code: code.toLowerCase() }) // case-insensitive, like ?ref=
+    expect(joined.error).toBeNull()
+    expect(joined.data).toMatchObject({ ok: true, alreadyMember: false })
+
+    const page = (await c.rpc("dpdp_my_page")).data as { viewer: { kind: string } }
+    expect(page.viewer.kind).toBe("staff")
+
+    const history = (await c.rpc("dpdp_org_history")).data as { kind: string; summary: string }[]
+    expect(history.filter((h) => h.kind === "membership_joined" && h.summary.includes("joined via an invite link")).length).toBe(1)
+  })
+
+  test("redeeming the same code twice is idempotent -- no duplicate history entry", async () => {
+    const c = createMockClient("visitor")
+    const { code } = (await createMockClient("owner-live").rpc("dpdp_my_org_invite_link")).data as { code: string }
+    await c.rpc("dpdp_join_org_via_invite", { p_code: code })
+    const second = await c.rpc("dpdp_join_org_via_invite", { p_code: code })
+    expect(second.data).toMatchObject({ ok: true, alreadyMember: true })
+    const history = (await c.rpc("dpdp_org_history")).data as { kind: string }[]
+    expect(history.filter((h) => h.kind === "membership_joined").length).toBe(1)
+  })
+
+  test("an unknown code is refused, and a blank one is refused before any lookup", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_join_org_via_invite", { p_code: "NOTREAL1" })).error?.message).toContain("not valid")
+    expect((await c.rpc("dpdp_join_org_via_invite", { p_code: "  " })).error?.message).toContain("required")
+  })
+})
+
+describe("WO-DPDP-016 §7-8: billing status and self-declared payment (drizzle/0655)", () => {
+  test("declaring a payment moves trial -> awaiting_confirmation, and changes nothing else visible", async () => {
+    const c = createMockClient("owner-live")
+    const before = (await c.rpc("dpdp_my_billing")).data as { state: string }
+    expect(before.state).toBe("trial")
+    const page1 = (await c.rpc("dpdp_my_page")).data as MyPagePayload
+
+    const declared = await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 999_900 })
+    expect(declared.error).toBeNull()
+    expect(declared.data).toEqual({ ok: true, state: "awaiting_confirmation" })
+
+    const after = (await c.rpc("dpdp_my_billing")).data as { state: string; interval: string; selfDeclaredAmountPaise: number; selfDeclaredInterval: string }
+    expect(after).toMatchObject({ state: "awaiting_confirmation", interval: "year", selfDeclaredAmountPaise: 999_900, selfDeclaredInterval: "year" })
+    // The Owner's own words, this session: "just an SLA label -- access never changes."
+    const page2 = (await c.rpc("dpdp_my_page")).data as MyPagePayload
+    expect(page2.rows).toEqual(page1.rows)
+  })
+
+  test("interval and amount are validated", async () => {
+    const c = createMockClient("owner-live")
+    expect((await c.rpc("dpdp_declare_payment", { p_interval: "week", p_amount_paise: 100 })).error?.message).toContain("interval must be")
+    expect((await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 0 })).error?.message).toContain("positive number")
+  })
+
+  test("only the owner can see or touch billing", async () => {
+    const c = createMockClient("member")
+    expect((await c.rpc("dpdp_my_billing")).error?.message).toContain("Only the owner")
+    expect((await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 999_900 })).error?.message).toContain("Only the owner")
+  })
 })

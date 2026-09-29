@@ -11,6 +11,10 @@ export type Landing = {
   emailHint: string | null
   /** ?edition=firm|institution from a landing page's "Start free": which organisation the visitor is here to open. */
   edition: Edition | null
+  /** ?ref=<code> from someone's share link (WO-DPDP-016): which referral this visitor arrived through, if any. */
+  referralCode: string | null
+  /** ?join=<code> from a colleague's invite link (WO-DPDP-016 Step 2): which organisation this visitor is here to join, if any. */
+  joinCode: string | null
   linkError: { expired: boolean; description: string | null } | null
 }
 
@@ -30,6 +34,19 @@ function parse(): Landing {
   const emailHint = query.get("email")?.trim().toLowerCase() || null
   const editionParam = query.get("edition")
   const edition: Edition | null = editionParam === "firm" || editionParam === "institution" ? editionParam : null
+  // ?ref=<code>: same unambiguous 8-char alphabet dpdp_my_referral_code
+  // generates (ABCDEFGHJKLMNPQRSTUVWXYZ23456789) -- loosely bounded here
+  // (4-16 alphanumerics) since the RPC that actually resolves it is the
+  // one source of truth for whether a code is real; this is just "does it
+  // look like a code, worth remembering" so a stray ?ref= from an unrelated
+  // link never gets carried around.
+  const refParam = query.get("ref")
+  const referralCode = refParam && /^[A-Za-z0-9]{4,16}$/.test(refParam) ? refParam : null
+  // ?join=<code> (WO-DPDP-016 Step 2): the same "looks like a code, worth
+  // remembering" bound as ?ref= -- dpdp_join_org_via_invite is the one
+  // source of truth for whether it actually resolves to an organisation.
+  const joinParam = query.get("join")
+  const joinCode = joinParam && /^[A-Za-z0-9]{4,16}$/.test(joinParam) ? joinParam : null
   const hasToken = hash.has("access_token")
   const errorParams = hash.has("error") || hash.has("error_code") ? hash : query.has("error") || query.has("error_code") ? query : null
   const linkError = !hasToken && errorParams
@@ -37,16 +54,20 @@ function parse(): Landing {
     : null
 
   if (edition) rememberEdition(edition)
-  if (emailHint || edition || linkError) {
+  if (referralCode) rememberReferral(referralCode)
+  if (joinCode) rememberJoin(joinCode)
+  if (emailHint || edition || referralCode || joinCode || linkError) {
     query.delete("email")
     query.delete("edition")
+    query.delete("ref")
+    query.delete("join")
     if (linkError) {
       if (errorParams === hash) url.hash = ""
       else for (const k of ["error", "error_code", "error_description"]) query.delete(k)
     }
     window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash)
   }
-  return { emailHint, edition, linkError }
+  return { emailHint, edition, referralCode, joinCode, linkError }
 }
 
 // The edition a visitor chose on a landing page. The magic link they open
@@ -68,6 +89,61 @@ export function recallEdition(): Edition | null {
     return v === "firm" || v === "institution" ? v : null
   } catch {
     return null
+  }
+}
+
+// The referral code a visitor arrived with (WO-DPDP-016), kept the same way
+// as the edition: the magic link they open later lands on a bare /app/ (no
+// query), so it must survive on this device between "Start free" and the
+// moment dpdp_create_my_org actually runs.
+const REFERRAL_KEY = "dpdp-referral"
+
+export function rememberReferral(code: string): void {
+  try {
+    localStorage.setItem(REFERRAL_KEY, code)
+  } catch {
+    // a convenience, never a requirement: signup still works without it
+  }
+}
+
+export function recallReferral(): string | null {
+  try {
+    const v = localStorage.getItem(REFERRAL_KEY)
+    return v && /^[A-Za-z0-9]{4,16}$/.test(v) ? v : null
+  } catch {
+    return null
+  }
+}
+
+// The invite code a visitor arrived with (WO-DPDP-016 Step 2), kept the
+// same way as the referral code -- the magic link lands on a bare /app/, so
+// it must survive between "here's your invite link" and the moment the
+// visitor is actually signed in and dpdp_join_org_via_invite can run.
+const JOIN_KEY = "dpdp-join"
+
+export function rememberJoin(code: string): void {
+  try {
+    localStorage.setItem(JOIN_KEY, code)
+  } catch {
+    // a convenience, never a requirement: they can still be named in manually
+  }
+}
+
+export function recallJoin(): string | null {
+  try {
+    const v = localStorage.getItem(JOIN_KEY)
+    return v && /^[A-Za-z0-9]{4,16}$/.test(v) ? v : null
+  } catch {
+    return null
+  }
+}
+
+/** Attempted once (success or a definitive bad-code failure) -- never retried forever on every load. */
+export function clearJoin(): void {
+  try {
+    localStorage.removeItem(JOIN_KEY)
+  } catch {
+    // nothing to clean up if storage never worked in the first place
   }
 }
 

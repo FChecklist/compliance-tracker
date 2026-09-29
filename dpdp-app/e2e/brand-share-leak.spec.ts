@@ -25,8 +25,8 @@ import { BRAND_LINE_FULL, BRAND_LINE_SHORT, PUBLIC_SITE, SHARE_ASK } from "../sr
 const SHARE_URL = /^https:\/\/veridian-aios\.com\/(\?ref=[A-Za-z0-9]{4,16})?$/
 const MOCK_CODE = "MOCK1234" // src/lib/mock-client.ts MOCK_REFERRAL_CODE
 
-// Roles that see the share ask (WO-014 §3): owner/principal, CA partner,
-// CA manager -- as the mock scenarios that sign each one in.
+// Named roles: owner/principal, CA partner, CA manager -- as the mock
+// scenarios that sign each one in.
 const DECISION_MAKERS: Array<{ scenario: string; role: string }> = [
   { scenario: "owner", role: "owner (first visit, wizard)" },
   { scenario: "owner-live", role: "owner (set-up org)" },
@@ -34,8 +34,13 @@ const DECISION_MAKERS: Array<{ scenario: string; role: string }> = [
   { scenario: "partner", role: "CA partner" },
   { scenario: "manager", role: "CA manager" },
 ]
-// Roles that must NOT: coordinator, Grievance Officer, staff (incl. HR,
-// vendor-ish "web@vendor.test" is a staff persona too), group members.
+// WO-DPDP-016 §1 widened the share ask from decision-makers-only to every
+// signed-in member -- coordinator, Grievance Officer, staff (incl. HR,
+// vendor-ish "web@vendor.test" is a staff persona too), group members all
+// get role "member" (dpdp__share_role / shareRoleFor) and see it too now.
+// Named NEVER for historical continuity with WO-014 §3's original rule,
+// which this file enforced until the widening -- these roles are no longer
+// excluded, and the leak-test loop below now runs for them as well.
 const NEVER: Array<{ scenario: string; role: string }> = [
   { scenario: "coord", role: "DPDP coordinator" },
   { scenario: "go", role: "Grievance Officer" },
@@ -91,7 +96,7 @@ async function sharePressEvents(page: Page, orgId: string): Promise<Array<{ kind
 async function assertPressRecorded(page: Page, orgId: string) {
   const events = await sharePressEvents(page, orgId)
   expect(events).toHaveLength(1)
-  expect(events[0].summary).toMatch(/^(Owner|CA partner|CA manager) pressed Share$/)
+  expect(events[0].summary).toMatch(/^(Owner|CA partner|CA manager|Member) pressed Share$/)
   expect(JSON.stringify(events[0])).not.toContain("@")
 }
 
@@ -172,19 +177,24 @@ test.describe("WO-DPDP-014 §2 -- the line: same words, same place, everyone", (
   }
 })
 
-test.describe("WO-DPDP-014 §3 -- who sees the share ask", () => {
-  for (const r of NEVER) {
-    test(`${r.role} (${r.scenario}): brand line yes, share ask absent`, async ({ page }) => {
+test.describe("WO-DPDP-016 §1 -- who sees the share ask, widened", () => {
+  // Every member -- decision-maker or not -- now sees it (dpdp__share_role
+  // returns 'member' rather than refusing/nulling). Only a true non-member
+  // (dpdp_my_page itself refuses them) never reaches this page at all.
+  for (const r of [...DECISION_MAKERS, ...NEVER]) {
+    test(`${r.role} (${r.scenario}): brand line and share ask both present`, async ({ page }) => {
       await seed(page, r.scenario)
       await assertBar(page)
-      await expect(shareButton(page)).toHaveCount(0)
-      await expect(page.getByText("Share VERIDIAN")).toHaveCount(0)
+      await expect(shareButton(page)).toBeVisible()
+      await expect(page.getByText("Share VERIDIAN")).toBeVisible()
     })
   }
 })
 
 test.describe("WO-DPDP-014 §3 -- the private-page leak test", () => {
-  for (const r of DECISION_MAKERS) {
+  // WO-016 §1: every member sees the share ask now, so every member's own
+  // press must be checked for the leak too, not just a decision-maker's.
+  for (const r of [...DECISION_MAKERS, ...NEVER]) {
     test(`${r.role} (${r.scenario}), share sheet: only ${PUBLIC_SITE}?ref=<code> leaves the browser`, async ({ page }) => {
       await arm(page, true)
       await seed(page, r.scenario)
