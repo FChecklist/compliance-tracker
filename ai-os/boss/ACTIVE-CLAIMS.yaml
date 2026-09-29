@@ -40,6 +40,14 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, PROJEXA server-merge session; worktree C:/ct/ct/.claude/worktrees/agent-a1a35a08a954477cf (reused -- branch feat/projexa-merge-invoices already merged as #1973, reset to origin/main and rebranched for this module; node_modules retained from that reuse, matching lockfile confirmed, no fresh bun install), branch feat/projexa-merge-sales-orders) -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md: port PROJEXA's Sales Orders module (list/detail/create) into compliance-tracker as native src/app/(app)/sales-orders/** pages, calling the already-live /api/v1/projexa/sales-orders*, /api/v1/projexa/sales-order-document-flow/[id] routes directly (route.ts files + erp-selling-service.ts read and verified field-for-field before writing any page). Natural next step after quotations (#1975, sent quotations convert here via the already-wired POST .../quotations/[id]/convert). New top-level route (no /sales-orders page existed before this), so no shadow-routing collision. Checked this file for an existing sales-orders claim (grep, none found) before starting. [IN PROGRESS]"
+    claimed_at: "2026-09-29T (this session)"
+    claim: |
+      Building src/app/(app)/sales-orders/page.tsx (list, with bulk-status via
+      the existing /api/v1/projexa/sales-orders/bulk-status route),
+      [id]/page.tsx (detail, incl. a Document Flow section from
+      /api/v1/projexa/sales-order-document-flow/[id]), new/page.tsx (create).
+      No other active claim in this file overlaps this module.
   - session_label: "claude-code (interactive, PROJEXA server-merge session; worktree C:/ct/ct/.claude/worktrees/agent-a1a35a08a954477cf (reused, node_modules junctioned to the main C:/ct/ct checkout rather than a fresh bun install, per the RAM constraint), branch feat/projexa-merge-invoices) -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md: port PROJEXA's Invoices module (list/detail/create, credit-notes list/detail/create, AR aging tab) into compliance-tracker as native src/app/(app)/invoices/** pages, calling the already-live /api/v1/projexa/sales-invoices*, /api/v1/projexa/credit-notes*, /api/v1/projexa/ar-aging, /api/v1/projexa/accounts, /api/v1/projexa/customers routes directly (route.ts files read and verified field-for-field before writing any page). New top-level route (no /invoices or erp/*invoice* page existed before this), so no shadow-routing collision. [IN PROGRESS]"
     claimed_at: "2026-09-29T (this session)"
     claim: |
