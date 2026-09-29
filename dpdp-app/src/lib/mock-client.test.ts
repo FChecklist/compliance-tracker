@@ -420,4 +420,69 @@ describe("WO-DPDP-016 §7-8: billing status and self-declared payment (drizzle/0
     expect((await c.rpc("dpdp_my_billing")).error?.message).toContain("Only the owner")
     expect((await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 999_900 })).error?.message).toContain("Only the owner")
   })
+
+  test("a declared payment carries its proof (reference, screenshot path, note) through to dpdp_my_billing", async () => {
+    const c = createMockClient("owner-live")
+    const declared = await c.rpc("dpdp_declare_payment", {
+      p_interval: "year", p_amount_paise: 999_900, p_reference: "UTR900", p_proof_path: "org-mock/proof.png", p_note: "paid via GPay",
+    })
+    expect(declared.error).toBeNull()
+    const after = (await c.rpc("dpdp_my_billing")).data as { selfDeclaredReference: string; selfDeclaredProofPath: string; selfDeclaredNote: string }
+    expect(after).toMatchObject({ selfDeclaredReference: "UTR900", selfDeclaredProofPath: "org-mock/proof.png", selfDeclaredNote: "paid via GPay" })
+  })
+})
+
+describe("Payment confirmation flow follow-on: the Owner's approve/reject screen (drizzle/0658)", () => {
+  // In mock mode the "owner" scenario's own persona also stands in for
+  // VERIDIAN's own platform admin (mock-client.ts's own header comment on
+  // dpdp__is_platform_admin) -- a genuinely separate allowlist for real,
+  // but one identity is enough to preview and test the screen.
+  test("a non-admin (any other persona) is refused by all three admin RPCs -- falsifiability: this must fail if the gate is ever removed", async () => {
+    const c = createMockClient("member")
+    expect((await c.rpc("dpdp__is_platform_admin")).data).toBe(false)
+    expect((await c.rpc("dpdp_owner_pending_claims")).error?.message).toContain("Owner only")
+    expect((await c.rpc("dpdp_owner_approve_payment", { p_org_id: "org-mock" })).error?.message).toContain("Owner only")
+    expect((await c.rpc("dpdp_owner_reject_payment", { p_org_id: "org-mock" })).error?.message).toContain("Owner only")
+  })
+
+  test("the admin sees a declared claim in the worklist, with its proof, and can approve it -- state flips to active", async () => {
+    // "owner-live" and "owner" both sign in as MOCK_OWNER (mock-client.ts's
+    // own seedScenario) -- one client is both the org's own owner AND
+    // (mock-mode-only) the platform admin, so this exercises the real
+    // sequence (declare, then approve) without inventing cross-client state
+    // sharing this fixture was never built to support.
+    const c = createMockClient("owner-live")
+    await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 999_900, p_reference: "UTR900", p_note: "paid via GPay" })
+
+    expect((await c.rpc("dpdp__is_platform_admin")).data).toBe(true)
+    const claims = (await c.rpc("dpdp_owner_pending_claims")).data as Array<{ orgId: string; reference: string; note: string }>
+    const mine = claims.find((claim) => claim.orgId === "org-mock")
+    expect(mine).toMatchObject({ reference: "UTR900", note: "paid via GPay" })
+
+    const approved = (await c.rpc("dpdp_owner_approve_payment", { p_org_id: "org-mock" })).data as { ok: true; paymentId: string }
+    expect(approved.ok).toBe(true)
+    expect(approved.paymentId).toBeTruthy()
+
+    const after = (await c.rpc("dpdp_my_billing")).data as { state: string }
+    expect(after.state).toBe("active")
+    const stillPending = (await c.rpc("dpdp_owner_pending_claims")).data as Array<{ orgId: string }>
+    expect(stillPending.find((claim) => claim.orgId === "org-mock")).toBeUndefined()
+  })
+
+  test("rejecting a claim sends the org back to trial with the claim cleared, not left dangling", async () => {
+    const c = createMockClient("owner-live")
+    await c.rpc("dpdp_declare_payment", { p_interval: "month", p_amount_paise: 199_900 })
+
+    const rejected = (await c.rpc("dpdp_owner_reject_payment", { p_org_id: "org-mock" })).data as { ok: true; state: string }
+    expect(rejected).toEqual({ ok: true, state: "trial" })
+
+    const after = (await c.rpc("dpdp_my_billing")).data as { state: string; selfDeclaredAmountPaise: number | null }
+    expect(after).toMatchObject({ state: "trial", selfDeclaredAmountPaise: null })
+  })
+
+  test("approving or rejecting an organisation with nothing awaiting confirmation is refused", async () => {
+    const c = createMockClient("owner-live")
+    expect((await c.rpc("dpdp_owner_approve_payment", { p_org_id: "org-mock" })).error?.message).toContain("no payment awaiting confirmation")
+    expect((await c.rpc("dpdp_owner_reject_payment", { p_org_id: "org-mock" })).error?.message).toContain("no payment awaiting confirmation")
+  })
 })

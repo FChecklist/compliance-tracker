@@ -40,6 +40,36 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, Claude Desktop, DPDP session; worktree C:/ct/ct-worktrees/dpdp-payment-confirmation, branch feat/dpdp-payment-confirmation) -- WO-DPDP-016 follow-on: manual payment confirmation flow (owner instruction, this session, 2026-09-29: publish bank/UPI+QR, let the org owner attach proof (reference + screenshot) to the existing self-declare 'I've paid' claim, give the Owner an in-app approve screen instead of raw SQL, auto-send an invoice on approval) [IN PROGRESS]"
+    claimed_at: "2026-09-29T09:00Z (this session)"
+    claim: |
+      Checked ai-os/boss/ACTIVE-CLAIMS.yaml (this file) and the live peer-session
+      list before starting: no other active entry touches dpdp.subscription /
+      dpdp.payment / dpdp_declare_payment / dpdp_record_confirmed_payment /
+      BillingPanel.tsx, and no currently-running peer session (checked via the
+      desktop app's own session list) is working on DPDP. Every PROJEXA-side
+      claim in this file already explicitly excludes dpdp_*/dpdp-* objects.
+      Files this claim will touch:
+        - a new drizzle/06xx migration: proof fields on dpdp.subscription's
+          self-declare columns (reference/UTR text, proof image path), a new
+          app_runtime-callable RPC pair (list pending claims / approve one,
+          identity-gated to the Owner's own email) wrapping the existing
+          service_role-only dpdp_record_confirmed_payment so the Owner no
+          longer needs raw SQL to confirm a payment
+        - a Supabase Storage bucket for payment-proof screenshots (private,
+          owner-readable) + its policy
+        - dpdp-app/src/components/BillingPanel.tsx (bank/UPI/QR display,
+          reference + screenshot on the "I've paid" form, WhatsApp/email
+          quick-send links) and a new owner-only admin review page
+        - an invoice email template, sent through the existing Resend path
+          (supabase/functions/dpdp-monday-email's send helper, or a small
+          sibling function) on approval
+      NOT touching: any PROJEXA/compliance-tracker object outside dpdp-app and
+      dpdp_* Supabase functions/migrations, Vercel, DNS, Cloudflare Pages
+      config, any other org's real payment data (only test identities used
+      for verification, per the same testing conventions as WO-DPDP-016).
+      Commits are local to this worktree; will open a PR and merge on green CI
+      per Amendment 001 (autonomous merge), same as WO-DPDP-016.
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session; BUILD-002 AI work completion; clean docs worktree C:/ct/ct-claims-update, build worktrees under C:/ct/ct-worktrees/)"
     claimed_at: "2026-09-26T15:00Z (this session)"
     claim: |
@@ -4580,7 +4610,81 @@ active:
           differences, e.g. a MiddleColumnToggle type PROJEXA's AppSidebar
           imports that compliance-tracker's does not) -- reconciling as part
           of Phase 1, bumping compliance-tracker to PROJEXA's SHA (or later)
-          since PROJEXA's UI is what's being folded in.
+          since PROJEXA's UI is what's being folded in. NOT YET DONE as of
+          this update (Phase 1 module ports so far haven't needed the drift
+          kit APIs) -- do before any px/<name> page needs one of them.
+
+      PROGRESS (2026-09-29, same session):
+        - Phase 0: DONE. src/app/(app)/projects/page.tsx merged (PR #1949) --
+          real proof that a PROJEXA page ports with zero backend rewrite,
+          reading /api/v1/projexa/dashboard directly, same-origin.
+        - Phase 1: host-branching middleware merged (PR #1950, src/proxy.ts,
+          28 unit tests). Module porting IN PROGRESS as a background Workflow
+          (batch 1: hr/settings/recruitment -> src/app/(app)/px/<name>/,
+          implement+independent-verify per module, each its own branch/PR).
+          One real, substantive finding from a batch-1 subagent: PROJEXA's
+          "recruitment" is NOT a genuine semantic collision like the other 6
+          -- src/app/(app)/recruitment (native) and PROJEXA's version share
+          the exact same backend (src/lib/services/recruitment-service.ts,
+          same jobOpenings/candidates/jobApplications tables), just a
+          thinner native UI. Worth checking the other 6 (dashboard/documents/
+          hr/knowledge-base/reports/settings) for the same pattern before
+          assuming they're all genuinely distinct concepts -- if any are,
+          the eventual right move may be replacing the native page outright
+          rather than a permanent px/ shadow. NOT decided yet; flagged for
+          whoever does the later consolidation pass.
+        - Phase 2 (auth reconciliation): DONE for identity data. Investigated
+          before executing (evpckeuxgvahguwsaeul has 114 users, ALL
+          test/demo/e2e/internal by email pattern -- zero real customers,
+          confirmed by full email-list review, not just a heuristic count).
+          Cross-project check found compliance.users.auth_user_id for 94
+          rows was already pointing at evpckeuxgvahguwsaeul's own auth.users
+          ids (a real, previously-silent bug -- these ids never existed in
+          pcrjmlpuqsbocqfwoxod's own auth.users at all) and for 8 more rows
+          was pointing at the WRONG project's id even though a real,
+          correctly-different pcrjmlpuqsbocqfwoxod auth.users row for the
+          same email already existed (one of the 8 is arjun.mehta@
+          skylinebuilders-demo.veridianai.dev -- the account this whole
+          session's own manual verification steps use; its auth_user_id was
+          silently wrong before this fix). Fixed: 94 new pcrjmlpuqsbocqfwoxod
+          auth.users rows created via the Admin API (email_confirm:true,
+          random password, user_metadata.projexa_merge_phase2_migrated_from
+          tag), 8 relinked to their already-existing correct row, all 102
+          compliance.users.auth_user_id FKs updated and verified. Small
+          test batch (3 rows) run and verified end-to-end before the full
+          batch, per the plan doc's own "dry run" instruction. Script:
+          scratchpad (not committed -- one-off migration, not app code),
+          available in this session's transcript if it needs re-running.
+          Deliberately SKIPPED: 11 evpckeuxgvahguwsaeul emails with no
+          compliance.users row at all (demo_ceo/demo_client_viewer/
+          demo_exec/demo_manager/demo_pm/demo_site_engineer@projexa-ai.com,
+          dana@cobalt-demo.ae, farid@meridian-demo.ae, priya@meridian-demo.ae,
+          r48-provision-probe@meridian-demo.ae, suresh@meridian-demo.ae) --
+          no org membership, nothing functional to preserve; creating a
+          login shell for them would just be clutter. NOT YET DONE: actually
+          retiring src/lib/supabase/api-key-auth.ts's PROJEXA callers and
+          PROJEXA's own login flow pointing at evpckeuxgvahguwsaeul -- that
+          requires the UI port (Phase 1) to be further along first, since
+          PROJEXA's browser code needs to start resolving identity against
+          pcrjmlpuqsbocqfwoxod's own Supabase project before the bridge can
+          go away without breaking PROJEXA's still-standalone app.
+        - Phase 3: investigated (Explore agent), NOT executed. Real evidence
+          both ways: compliance-tracker's original non-DPDP/non-PROJEXA
+          product (audit/penalties/CRM/departments/checklists/GST/training/
+          facilities) has ZERO rows created or updated in the last 30 days
+          across every core table checked, and every one of the 23 orgs with
+          any data at all is explicitly test/demo/fixture-named (zero real
+          customer orgs) -- but the UI is still fully wired in AppSidebar.tsx
+          (not hidden/flagged off) and several of those page directories
+          (crm, departments, gst-reconciliation) got real commits within the
+          last 2-4 weeks, so this reads as "unused today" rather than
+          "already cut off." Archiving ~30+ nav items and their pages is a
+          real, broad-blast-radius UI change in its own right (per the
+          investigating agent's own words: "should account for the fact
+          that removing it is a UI/nav change, not just deleting dead
+          code") -- deliberately NOT bundled into this already-large session
+          alongside Phase 0-2's execution; left as a clearly evidence-backed,
+          ready-to-execute follow-up rather than rushed through here.
 
       File scope: C:\ct\ct's src/app/(app)/** (new pages + the 7 px/**
       shadow pages), src/proxy.ts (host-branching -- this repo's real
