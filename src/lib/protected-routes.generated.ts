@@ -55,6 +55,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/hr-compliance",
   "/incidents",
   "/ingest",
+  "/invoices",
   "/ip-portfolio",
   "/irdai",
   "/it-dr",
