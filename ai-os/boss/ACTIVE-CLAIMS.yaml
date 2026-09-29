@@ -4593,6 +4593,33 @@ active:
       Commits are local to this worktree; PR opened via gh pr create, not merged
       by this session.
 
+  - session_label: "claude-code (workflow-harness subagent, isolated worktree C:/ct/ct/.claude/worktrees/wf_fcacd3cf-86b-2, branch feat/projexa-merge-px-settings) -- PROJEXA server-merge, module \"settings\": port PROJEXA's Settings screen into compliance-tracker at src/app/(app)/px/settings/page.tsx"
+    claimed_at: "2026-09-29 (this session)"
+    claim: |
+      SCOPE (ai-os/PROJEXA_SERVER_MERGE_PLAN.md Phase 1, one page assigned by
+      the orchestrating session -- distinct from the "projects" module already
+      done on branch feat/projexa-merge-phase0, not yet merged to main).
+      Ports 2 of PROJEXA's 8 Settings cards (Organization Currency, BOQ
+      Categories) as a native page reading compliance-tracker's own
+      GET/PUT /api/v1/projexa/currencies/base and GET/POST/PATCH/DELETE
+      /api/v1/projexa/scope/categories[/[id]] directly -- no new backend
+      route. The other 6 PROJEXA Settings cards (org info, team roster,
+      workspace-connection repair, org invites, Google Sheets, daily digest)
+      were traced individually and found to read/write PROJEXA's OWN Supabase
+      project (evpckeuxgvahguwsaeul) with no compliance-tracker route behind
+      them at all -- NOT ported, and not invented, per this task's own
+      UI-only instruction; see the page's own header comment for the full
+      per-card trace.
+      Files this claim touches: src/app/(app)/px/settings/page.tsx (new),
+      src/lib/protected-routes.generated.ts (regenerated), this file (claim
+      only).
+      NOT touching: src/components/AppSidebar.tsx, messages/en.json,
+      messages/hi.json (nav wiring is a separate, later consolidation pass
+      per the orchestrating task's own instruction), src/proxy.ts (already
+      handles this path's rewrite).
+      Commits are local to this worktree; pushed to origin for the
+      orchestrating session to open the PR -- not merged by this session.
+
 recently_completed:
   - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch feat/dpdp-editions-complete) -- WO-DPDP-015: Monday digest timeout fixed and self-healing; /dpdp-firm and /dpdp-institution completed end to end (self-serve organisation, every role tested live) [DONE on merge of its PR]"
     claimed_at: "2026-09-28 (this session)"
