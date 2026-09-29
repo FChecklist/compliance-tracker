@@ -58,7 +58,11 @@ export const MOCK_UNDO_ACTION = { actionId: "mock-action", undoToken: "mock-undo
 // the real code's alphabet -- no 0/O/1/I), and the share_press event's
 // role labels, exactly as drizzle/0611 writes them.
 export const MOCK_REFERRAL_CODE = "MOCK1234"
-export const SHARE_ROLE_LABEL: Record<ShareRoleWire, string> = { owner: "Owner", partner: "CA partner", manager: "CA manager" }
+// WO-DPDP-016 Step 2: HOME_ORG's own evergreen invite code -- a fixed
+// per-org code, same simplification as the referral code above (proves the
+// shape, not a real multi-org code registry).
+export const MOCK_INVITE_CODE = "JOIN5678"
+export const SHARE_ROLE_LABEL: Record<ShareRoleWire, string> = { owner: "Owner", partner: "CA partner", manager: "CA manager", member: "Member" }
 
 export const MOCK_SCENARIOS = ["owner", "owner-live", "client-owner", "partner", "manager", "go", "coord", "staff", "hr", "member", "member2", "member3", "visitor"] as const
 export type MockScenario = (typeof MOCK_SCENARIOS)[number]
@@ -214,6 +218,19 @@ type OrgState = {
   aiWorkLinks: AiWorkLinkRecord[]
   /** Set by dpdp_create_my_org: this org was opened by the visitor themselves (a double click returns it again). */
   createdByVisitor?: boolean
+  /** WO-DPDP-016 Step 2: emails that joined via dpdp_join_org_via_invite -- treated as staff by viewerIn, same as a real 'invited' membership. */
+  invitedMembers: string[]
+  // WO-DPDP-016 §7-8: billing status (drizzle/0655's dpdp.subscription).
+  // Every org gets one at creation; access never depends on any of it.
+  billing: {
+    state: "trial" | "awaiting_confirmation" | "active"
+    interval: "month" | "year" | null
+    trialEndsAt: string
+    selfDeclaredAt: string | null
+    selfDeclaredInterval: "month" | "year" | null
+    selfDeclaredAmountPaise: number | null
+    lastConfirmedAt: string | null
+  }
 }
 type State = {
   signedInAs: string | null
@@ -267,7 +284,8 @@ function makeOrg(id: string, name: string, product: "firm" | "institution", o: M
   for (const e of o.seenBy ?? []) viewers[e] = { firstVisitSeenAt: daysFromNow(-1), saidNotMeAt: null }
   return {
     id, name, product, ownerEmail: o.owner, client: o.client ?? false, rows, groupMembers: [...(o.group ?? [])], groupAnswers: {},
-    history: [], setUpBy: o.setUpBy ?? null, ownerConfirmedAt: o.ownerConfirmedAt ?? null, viewers, aiWorkLinks: [],
+    history: [], setUpBy: o.setUpBy ?? null, ownerConfirmedAt: o.ownerConfirmedAt ?? null, viewers, aiWorkLinks: [], invitedMembers: [],
+    billing: { state: "trial", interval: null, trialEndsAt: daysFromNow(30), selfDeclaredAt: null, selfDeclaredInterval: null, selfDeclaredAmountPaise: null, lastConfirmedAt: null },
   }
 }
 
@@ -413,6 +431,10 @@ export function createMockClient(scenario?: string): DpdpClient {
     if (me === org.ownerEmail) return { kind: "owner", caSub: null }
     const caRow = org.rows.find((r) => (r.area === "CAMGR" || r.area === "CAPARTNER") && r.by === me)
     if (caRow) return { kind: "ca", caSub: caRow.area === "CAMGR" ? "manager" : "partner" }
+    // WO-DPDP-016 Step 2: someone who redeemed this org's invite link --
+    // real membership (level 'staff', joined_via 'invited'), checked before
+    // the HOME_ORG-only persona table below so it also works for CLIENT_ORG.
+    if (org.invitedMembers.includes(me)) return { kind: "staff", caSub: null }
     if (org.id !== HOME_ORG) return null
     return PERSONAS[me] ?? null
   }
@@ -442,14 +464,16 @@ export function createMockClient(scenario?: string): DpdpClient {
       rows: org.rows.map((r) => toWire(org, r, me)),
     }
   }
-  // drizzle/0611's decision-maker gate: the org's owner, or a CA partner /
-  // manager named on its sign-off chain. Everyone else is refused with the
-  // RPC's own words -- coordinator, GO, staff, vendor, parent never share.
+  // drizzle/0655 (WO-DPDP-016 §1): the org's owner or a CA partner/manager
+  // keep their named role; everyone else who is still a real member --
+  // coordinator, GO, staff, vendor, parent -- gets "member", never null,
+  // matching dpdp__share_role's widening from decision-makers-only.
   const shareRoleIn = (org: OrgState, me: string): ShareRoleWire | null => {
     const who = viewerIn(org, me)
-    if (who?.kind === "owner") return "owner"
-    if (who?.kind === "ca" && who.caSub) return who.caSub
-    return null
+    if (!who) return null
+    if (who.kind === "owner") return "owner"
+    if (who.kind === "ca" && who.caSub) return who.caSub
+    return "member"
   }
   // A real Monday email mints one token PER JOB (drizzle/0606
   // dpdp.issue_email_action_tokens): the "done" and "cannot" mock tokens are
@@ -744,6 +768,12 @@ export function createMockClient(scenario?: string): DpdpClient {
           state.orgs[HOME_ORG] = org
           log(org, "organisation_created", `Organisation "${name}" created`)
           log(org, "obligation_assigned", `${org.rows.length} jobs opened from library 0.2-wo010`, null, "system")
+          // WO-DPDP-016 §2: real attribution (self_referral/shared_advisor
+          // conflict-checking) lives in the SQL RPC, not this mock -- the
+          // mock only proves the code travels through and is noted, since
+          // there is no second identity to referee a conflict against here.
+          const referralCode = String(args?.p_referral_code ?? "").trim()
+          if (referralCode) log(org, "referral_recorded", `Signed up via referral code ${referralCode}`)
           save(state)
           return ok({ ok: true, orgId: HOME_ORG, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "org", membershipId: `m-${HOME_ORG}-${me}`, jobs: org.rows.length, existing: false })
         }
@@ -898,6 +928,62 @@ export function createMockClient(scenario?: string): DpdpClient {
           log(org, "share_press", `${SHARE_ROLE_LABEL[role]} pressed Share`, role, SHARE_ROLE_LABEL[role])
           save(state)
           return ok({ ok: true, role })
+        }
+        // --- WO-DPDP-016 §5 (drizzle/0655) ---
+        case "dpdp_my_referral_summary": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          // The mock has no second identity to have actually earned
+          // anything from -- this proves the shape, not the arithmetic
+          // (which is a Postgres-side unit, dpdp_record_confirmed_payment).
+          return ok({ code: MOCK_REFERRAL_CODE, referredCount: 0, totalEarnedPaise: 0, pendingPaise: 0, paidPaise: 0 })
+        }
+        // --- WO-DPDP-016 Step 2 (drizzle/0657) ---
+        case "dpdp_my_org_invite_link": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          return ok({ code: MOCK_INVITE_CODE })
+        }
+        case "dpdp_join_org_via_invite": {
+          const code = String(args?.p_code ?? "").trim().toUpperCase()
+          if (!code) return fail("An invite link is required")
+          if (code !== MOCK_INVITE_CODE) return fail("That invite link is not valid")
+          const org = home()
+          const already = viewerIn(org, me) !== null
+          if (!already) {
+            org.invitedMembers.push(me)
+            log(org, "membership_joined", `${me} joined via an invite link`, "invited", me)
+            save(state)
+          }
+          return ok({ ok: true, orgId: org.id, membershipId: `m-${org.id}-${me}`, alreadyMember: already })
+        }
+        // --- WO-DPDP-016 §7-8 (drizzle/0655) ---
+        case "dpdp_my_billing": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          if (viewerIn(org, me)?.kind !== "owner") return fail("Only the owner can see billing")
+          const b = org.billing
+          return ok({
+            orgId: org.id, product: org.product, state: b.state, trialEndsAt: b.trialEndsAt, interval: b.interval,
+            selfDeclaredAt: b.selfDeclaredAt, selfDeclaredInterval: b.selfDeclaredInterval, selfDeclaredAmountPaise: b.selfDeclaredAmountPaise, lastConfirmedAt: b.lastConfirmedAt,
+          })
+        }
+        case "dpdp_declare_payment": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          if (viewerIn(org, me)?.kind !== "owner") return fail("Only the owner can declare a payment")
+          const interval = String(args?.p_interval ?? "")
+          const amount = Number(args?.p_amount_paise)
+          if (interval !== "month" && interval !== "year") return fail("interval must be 'month' or 'year'")
+          if (!Number.isFinite(amount) || amount <= 0) return fail("amount_paise must be a positive number")
+          org.billing.state = "awaiting_confirmation"
+          org.billing.interval = interval
+          org.billing.selfDeclaredAt = new Date().toISOString()
+          org.billing.selfDeclaredInterval = interval
+          org.billing.selfDeclaredAmountPaise = amount
+          log(org, "payment_declared", `Owner said they paid Rs ${(amount / 100).toLocaleString("en-IN")} (${interval}ly) -- awaiting confirmation`)
+          save(state)
+          return ok({ ok: true, state: "awaiting_confirmation" })
         }
         default:
           return fail(`Unknown RPC ${fn}`)

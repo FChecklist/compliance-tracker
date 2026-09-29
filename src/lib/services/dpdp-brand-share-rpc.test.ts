@@ -1,29 +1,39 @@
 /// <reference types="bun-types" />
-// WO-DPDP-014 §3/§7: the share action's RPCs (drizzle/0611) exercised over
-// the real database, the same way dpdp-browser-rpc-step5.test.ts exercises
-// 0609 -- a Supabase Auth JWT is stood in for by the request.jwt.claims GUC
-// that auth.jwt() reads, one transaction per call (DATABASE_URL goes
-// through the transaction-mode pooler, so session state does not survive a
-// statement). Load-bearing assertions:
-//   * dpdp_my_referral_code: a decision-maker (the owner; a CA partner
-//     named on the CAPARTNER job; a CA manager on CAMGR) gets a STABLE
+// WO-DPDP-014 §3/§7, widened by WO-DPDP-016 §1 (drizzle/0655): the share
+// action's RPCs exercised over the real database, the same way
+// dpdp-browser-rpc-step5.test.ts exercises 0609 -- a Supabase Auth JWT is
+// stood in for by the request.jwt.claims GUC that auth.jwt() reads, one
+// transaction per call (DATABASE_URL goes through the transaction-mode
+// pooler, so session state does not survive a statement). Load-bearing
+// assertions:
+//   * dpdp_my_referral_code: the owner, a CA partner (CAPARTNER), a CA
+//     manager (CAMGR) AND a plain staff/group member all get a STABLE
 //     8-char code from the unambiguous alphabet -- the same code on a
 //     second call and from a different org, persisted as ONE consented
-//     dpdp.referral row, re-read from the table, not from the payload.
-//   * a staff member / group member / non-member is refused with 42501's
-//     plain English, and no referral row appears for them.
+//     dpdp.referral row per person, re-read from the table, not from the
+//     payload. A staff/group member's role is 'member', never null --
+//     0655 widened this from decision-makers-only to every signed-in
+//     person ("every email gets a default share link", Owner instruction).
+//   * only a real non-member (no membership in the org at all) is refused,
+//     with 42501's plain English, and gets no referral row.
 //   * dpdp_record_share_press appends EXACTLY ONE dpdp.event of kind
 //     share_press, "<Role> pressed Share", detail = the role key, and no
 //     column of that row contains an email address or the person's name;
-//     the org's hash chain still verifies.
+//     the org's hash chain still verifies. A plain member's own press is
+//     labelled "Member pressed Share" (0655 also fixed dpdp_record_share_
+//     press's v_label CASE, whose old `else 'CA manager'` catch-all would
+//     otherwise have mislabelled every member's press).
 //   * dpdp_brand_measures (service_role / app_runtime only) counts that
 //     press under this ISO week and role, and reports reportsGenerated 0
 //     with its note; anon/authenticated cannot call it.
 // Manual try/catch rather than expect().rejects -- see
 // dpdp-group-answer.test.ts for the bun 1.3.14 matcher hang it avoids.
 //
-// NOT run by the WO-014 agent (no .env.local in its worktree): the PM
-// applies 0611 via the Supabase MCP and runs this afterwards.
+// Requires drizzle/0655_dpdp_wo016_refer_and_earn.sql applied to the target
+// database (dpdp__share_role's 'member' fallback and dpdp_record_share_
+// press's fixed v_label) -- against a pre-0655 database this test's own
+// assertions below (role 'member', not a refusal) will fail honestly,
+// which is the intended signal that the migration has not shipped yet.
 import { afterAll, describe, expect, test } from "bun:test"
 
 async function probeDpdpDatabase(): Promise<boolean> {
@@ -58,7 +68,7 @@ afterAll(async () => { try { await sql.end({ timeout: 5 }) } catch {} })
 
 const CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/
 
-type CodeResult = { code: string; role: "owner" | "partner" | "manager" }
+type CodeResult = { code: string; role: "owner" | "partner" | "manager" | "member" }
 type PressResult = { ok: boolean; role: string }
 type EventRow = { id: string; org_id: string; actor_identity_id: string | null; actor_label: string; kind: string; summary: string; detail: string | null; route: string | null; device: string | null; occurred_at: string; prev_hash: string | null; hash: string }
 type WeekRow = { week: string; weekStart: string; sharePresses: { owner: number; partner: number; manager: number; total: number }; referralSignups: number; paidReferrals: number; creditMonths: number; referralsBlocked: number; reportsGenerated: number; reportsNote: string }
@@ -154,8 +164,8 @@ function isoWeekKey(dt: Date): string {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`
 }
 
-d("WO-DPDP-014 §3: the referral code, decision-makers only", () => {
-  test("owner, CA partner and CA manager get a stable, persisted 8-char code; staff, group members and non-members are refused", async () => {
+d("WO-DPDP-014 §3, widened by WO-DPDP-016 §1: the referral code, every signed-in person", () => {
+  test("owner, CA partner, CA manager and a plain staff member all get a stable, persisted 8-char code; only a real non-member is refused", async () => {
     const suffix = crypto.randomUUID().slice(0, 8)
     const { owner, org } = await buildOrg(suffix)
     const partner = await seedIdentity(`partner-${suffix}`)
@@ -198,15 +208,20 @@ d("WO-DPDP-014 §3: the referral code, decision-makers only", () => {
     expect(new Set([first.code, p.code, m.code]).size).toBe(3)
     expect((await referralRowFor(partner.identityId))?.code).toBe(p.code)
 
-    // Refusals, in the RPC's own words, and no row for the refused.
+    // A plain staff/group member: role 'member', a real code, their own
+    // persisted row -- WO-DPDP-016 §1's widening, not a refusal.
     for (const who of [staff, member]) {
-      let msg = ""
-      try { await myReferralCode(who, org.id) } catch (e) { msg = message(e) }
-      expect(msg).toContain("Only the owner, a CA partner or a CA manager can share a referral code")
+      const code = await myReferralCode(who, org.id)
+      expect(code.role).toBe("member")
+      expect(code.code).toMatch(CODE_RE)
+      const whoIdentity = await db.query.dpdpIdentityEmail.findFirst({ where: eq(dpdpIdentityEmail.email, who) })
+      expect(whoIdentity).toBeDefined()
+      const whoRow = await referralRowFor(whoIdentity!.identityId)
+      expect(whoRow?.code).toBe(code.code)
+      expect(whoRow?.state).toBe("active")
     }
-    const staffIdentity = await db.query.dpdpIdentityEmail.findFirst({ where: eq(dpdpIdentityEmail.email, staff) })
-    expect(staffIdentity).toBeDefined()
-    expect(await referralRowFor(staffIdentity!.identityId)).toBeUndefined()
+
+    // Only a real non-member is refused, in the RPC's own words.
     let msg = ""
     try { await myReferralCode(`wo014-nobody-${suffix}@example.test`, org.id) } catch (e) { msg = message(e) }
     expect(msg).toContain("Not a member of this organisation")
@@ -252,19 +267,26 @@ d("WO-DPDP-014 §7: the share press and the measures", () => {
     expect(events[1].detail).toBe("partner")
     expect(events[1].actor_label).toBe("CA partner")
 
-    // Staff is refused and writes nothing.
-    let msg = ""
-    try { await recordSharePress(staff, org.id) } catch (e) { msg = message(e) }
-    expect(msg).toContain("Only the owner, a CA partner or a CA manager can share a referral code")
-    expect(await shareEvents(org.id)).toHaveLength(2)
+    // Staff presses too (WO-DPDP-016 §1: role 'member', not a refusal) --
+    // the label fix this same migration made to v_label's CASE is exactly
+    // what makes this "Member pressed Share", not the old catch-all's
+    // wrong "CA manager pressed Share".
+    expect(await recordSharePress(staff, org.id)).toEqual({ ok: true, role: "member" })
+    events = await shareEvents(org.id)
+    expect(events).toHaveLength(3)
+    expect(events[2].summary).toBe("Member pressed Share")
+    expect(events[2].detail).toBe("member")
+    expect(events[2].actor_label).toBe("Member")
     expect((await verifyDpdpEventChain(org.id)).ok).toBe(true)
 
-    // The measures: +1 owner, +1 partner, +2 total for this week, aggregates only.
+    // The measures count owner/partner only by name; a plain member's
+    // press still lands in the total, just not broken out by its own key
+    // (dpdp_brand_measures, drizzle/0611, was never extended for it).
     const after = (await measures(2)).find((w) => w.week === week)!
     expect(after.sharePresses.owner - before!.sharePresses.owner).toBe(1)
     expect(after.sharePresses.partner - before!.sharePresses.partner).toBe(1)
     expect(after.sharePresses.manager - before!.sharePresses.manager).toBe(0)
-    expect(after.sharePresses.total - before!.sharePresses.total).toBe(2)
+    expect(after.sharePresses.total - before!.sharePresses.total).toBe(3)
     expect(typeof after.referralSignups).toBe("number")
     expect(typeof after.paidReferrals).toBe("number")
     expect(after.reportsGenerated).toBe(0)

@@ -18,7 +18,7 @@ export const BRAND_LINE_FULL = "VERIDIAN · VERy INDIAN — Built for India's DP
 /** The short line: the top bar under 480 px. */
 export const BRAND_LINE_SHORT = "VERIDIAN · VERy INDIAN · For India, by India"
 
-/** The share ask -- decision-makers only (WO-014 §3): CA partner, CA manager, owner/principal. */
+/** The share ask -- every signed-in person (WO-DPDP-016 §1 widened WO-014 §3's decision-makers-only rule to "every email gets a default share link"). */
 export const SHARE_ASK = "Know a firm that needs this? Share VERIDIAN"
 
 /** The ONLY address the share action ever hands out (WO-014 §3): the public website, never a private page. */
@@ -27,19 +27,18 @@ export const PUBLIC_SITE = "https://veridian-aios.com/"
 /** Second line of every report footer (WO-014 §6), with the report date appended by the caller. */
 export const PREPARED_WITH = "Prepared with VERIDIAN · veridian-aios.com"
 
-/** Who may share with a referral code (WO-014 §3): the owner/principal, a CA partner, a CA manager. */
-export type ShareRole = "owner" | "partner" | "manager"
+/** Who shares a referral code: everyone signed in (WO-DPDP-016 §1). "member" is anyone not owner/CA partner/CA manager -- coordinator, Grievance Officer, staff, teacher, vendor, parent all included, per the Owner's own instruction: "every email gets a default share link for refer". */
+export type ShareRole = "owner" | "partner" | "manager" | "member"
 
 /**
- * WO-014 §3's table: the share ask goes to CA partners, CA managers and
- * client owners/principals -- never to a coordinator, Grievance Officer,
- * staff, teacher, vendor or parent. dpdp_my_page's viewer.kind is "ca"
- * with caSub partner|manager for the CA roles (rpc-types.ts), so this is
- * the one place the two-field answer becomes one role, or null.
+ * dpdp_my_page's viewer.kind is "ca" with caSub partner|manager for the CA
+ * roles (rpc-types.ts); everything else falls through to "member" now --
+ * this never returns null, matching dpdp__share_role (drizzle/0655), so
+ * the two can never disagree about who gets a share button.
  */
-export function shareRoleFor(viewer: { kind: string; caSub: "partner" | "manager" | null }): ShareRole | null {
+export function shareRoleFor(viewer: { kind: string; caSub: "partner" | "manager" | null }): ShareRole {
   if (viewer.kind === "owner") return "owner"
   if (viewer.kind === "ca" && viewer.caSub === "partner") return "partner"
   if (viewer.kind === "ca" && viewer.caSub === "manager") return "manager"
-  return null
+  return "member"
 }

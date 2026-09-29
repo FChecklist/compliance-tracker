@@ -9,7 +9,7 @@
 // sentence, statutory-only after unsubscribe).
 import { describe, expect, test } from "bun:test"
 import {
-  BRAND_LINE_FULL, BRAND_LINE_SHORT, PUBLIC_SITE, SHARE_ASK, isDecisionMaker,
+  BRAND_LINE_FULL, BRAND_LINE_SHORT, INVITE_ASK, PUBLIC_SITE, SHARE_ASK, isDecisionMaker,
   computeEscalation, domainOfFrom, escalationLines, isDeliverableAddress, isEmpty, listUnsubscribeHeaders, longDate, PLACEHOLDER,
   renderDigest, renderLeakClock, renderRightsClock, sortJobs, statutorySubset, subjectFor,
   type Digest, type DigestJob, type RenderLinks,
@@ -194,7 +194,7 @@ describe("WO-DPDP-014 -- the brand line in email footers", () => {
     expect(BRAND_LINE_FULL).toBe("VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India.")
   })
 
-  test("decision-maker = owner, or a CA partner/manager when the digest carries caSub (0606 does not, yet)", () => {
+  test("decision-maker = owner, or a CA partner/manager when the digest carries caSub (0606 does not, yet) -- unchanged by WO-016's widening below, kept for callers that still care who counts as one", () => {
     expect(isDecisionMaker({ level: "owner" })).toBe(true)
     expect(isDecisionMaker({ level: "staff" })).toBe(false)
     expect(isDecisionMaker({ level: "staff", caSub: null })).toBe(false)
@@ -217,35 +217,50 @@ describe("WO-DPDP-014 -- the brand line in email footers", () => {
     }
   })
 
-  test("the share ask goes to the owner's Monday digest only -- with the public site and no referral code", () => {
+  test("WO-016 §1/Step 2: the invite + refer asks reach EVERY signed-in person's Monday digest now, not just a decision-maker -- bare public site when there is no code yet", () => {
     const owner = renderDigest(ownerDigest(), live)
     expect(owner.html).toContain(SHARE_ASK)
+    expect(owner.html).toContain(INVITE_ASK)
     expect(owner.html).toContain(`href="${PUBLIC_SITE}"`)
     expect(owner.text).toContain(`${SHARE_ASK}: ${PUBLIC_SITE}`)
+    expect(owner.text).toContain(`${INVITE_ASK}: ${PUBLIC_SITE}`)
     expect(owner.html).not.toContain("?ref=")
-    expect(owner.text).not.toContain("?ref=")
-    // The ask sits under the brand line, in the footer.
-    expect(owner.html.indexOf(SHARE_ASK)).toBeGreaterThan(owner.html.indexOf(BRAND_LINE_FULL))
+    expect(owner.html).not.toContain("?join=")
+    // Both asks sit under the brand line, in the footer.
+    expect(owner.html.indexOf(INVITE_ASK)).toBeGreaterThan(owner.html.indexOf(BRAND_LINE_FULL))
+    expect(owner.html.indexOf(SHARE_ASK)).toBeGreaterThan(owner.html.indexOf(INVITE_ASK))
     expect(owner.text.indexOf(SHARE_ASK)).toBeGreaterThan(owner.text.indexOf(BRAND_LINE_FULL))
 
+    // Plain staff, a coordinator, and a CA partner all now get both asks too.
     const staff = renderDigest(staffDigest(), live)
-    expect(staff.html).not.toContain(SHARE_ASK)
-    expect(staff.text).not.toContain(SHARE_ASK)
-    expect(staff.html).not.toContain(PUBLIC_SITE)
+    expect(staff.html).toContain(SHARE_ASK)
+    expect(staff.html).toContain(INVITE_ASK)
 
     const coord = renderDigest(digest({ roleKind: "coord", email: "coord@example.test", jobs: [job({ obligationId: "j1" })] }), live)
-    expect(coord.html).not.toContain(SHARE_ASK)
+    expect(coord.html).toContain(SHARE_ASK)
+    expect(coord.html).toContain(INVITE_ASK)
 
-    // A CA partner/manager, once 0606 emits caSub, is a decision-maker too.
     const partner = renderDigest(digest({ caSub: "partner", jobs: [job({ obligationId: "j1" })] }), live)
     expect(partner.html).toContain(SHARE_ASK)
     expect(partner.text).toContain(SHARE_ASK)
 
-    // The statutory-only digest (after unsubscribe) carries the line but never the ask.
+    // The statutory-only digest (after unsubscribe) carries the brand line but never either ask.
     const statutory = renderDigest(statutorySubset(digest({ level: "owner", roleKind: "owner", statutoryOnly: true, jobs: [job({ obligationId: "s", isMine: false, requiredToday: true })] })), live, "statutory")
     expect(statutory.html).toContain(BRAND_LINE_FULL)
     expect(statutory.html).not.toContain(SHARE_ASK)
+    expect(statutory.html).not.toContain(INVITE_ASK)
     expect(statutory.text).not.toContain(SHARE_ASK)
+  })
+
+  test("WO-016 Step 2: when the digest carries a referralCode/inviteCode, the footer links are personalised", () => {
+    const out = renderDigest(digest({
+      level: "owner", roleKind: "owner", email: "owner@example.test", referralCode: "REFCODE1", inviteCode: "JOINCODE",
+      jobs: [job({ obligationId: "j1", isMine: false, assigneeEmail: "staff@example.test" })],
+    }), live)
+    expect(out.html).toContain(`${PUBLIC_SITE}?ref=REFCODE1`)
+    expect(out.html).toContain(`${PUBLIC_SITE}?join=JOINCODE`)
+    expect(out.text).toContain(`${SHARE_ASK}: ${PUBLIC_SITE}?ref=REFCODE1`)
+    expect(out.text).toContain(`${INVITE_ASK}: ${PUBLIC_SITE}?join=JOINCODE`)
   })
 
   test("legal-clock emails: brand line in the footer, share ask never", () => {
@@ -257,6 +272,8 @@ describe("WO-DPDP-014 -- the brand line in email footers", () => {
       expect(out.text).toContain(BRAND_LINE_FULL)
       expect(out.html).not.toContain(SHARE_ASK)
       expect(out.text).not.toContain(SHARE_ASK)
+      expect(out.html).not.toContain(INVITE_ASK)
+      expect(out.text).not.toContain(INVITE_ASK)
       expect(out.html).not.toContain(PUBLIC_SITE)
       expect(out.text).not.toContain(PUBLIC_SITE)
       expect(out.html.indexOf(BRAND_LINE_FULL)).toBeGreaterThan(out.html.indexOf("Sent to you as"))
@@ -327,5 +344,29 @@ describe("legal clocks and RFC 8058 headers", () => {
     for (const good of ["rajat@veridian-aios.com", "CA.Partner@Firm.co.in", " owner@client-org.in "]) {
       expect(isDeliverableAddress(good)).toBe(true)
     }
+  })
+})
+
+describe("WO-DPDP-016 §9: the billing banner, before everything else", () => {
+  test("trial and awaiting_confirmation both get the banner, ahead of the intro", () => {
+    for (const state of ["trial", "awaiting_confirmation"] as const) {
+      const out = renderDigest(digest({ subscriptionState: state }), live)
+      expect(out.html).toContain("DPDP is important")
+      expect(out.text).toContain("DPDP IS IMPORTANT")
+      expect(out.html.indexOf("DPDP is important")).toBeLessThan(out.html.indexOf("Here are your DPDP jobs"))
+      expect(out.text.indexOf("DPDP IS IMPORTANT")).toBeLessThan(out.text.indexOf("Here are your DPDP jobs"))
+    }
+  })
+
+  test("active, and an older fixture with no subscriptionState at all, never show it", () => {
+    expect(renderDigest(digest({ subscriptionState: "active" }), live).html).not.toContain("DPDP is important")
+    expect(renderDigest(digest({}), live).html).not.toContain("DPDP is important")
+  })
+
+  test("the banner reaches every recipient, not just the owner -- and survives the statutory-only reduction", () => {
+    const ownerOut = renderDigest(digest({ subscriptionState: "trial", level: "owner", roleKind: "owner" }), live)
+    expect(ownerOut.html).toContain("DPDP is important")
+    const statutoryOut = renderDigest(digest({ subscriptionState: "trial" }), live, "statutory")
+    expect(statutoryOut.html).toContain("DPDP is important")
   })
 })

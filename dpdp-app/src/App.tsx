@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createDpdpClient, type DpdpClient } from "./lib/client"
 import {
   RpcFailure, acknowledgeWelcome, answerGroup, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
-  createMyOrg, fetchOrgSetup, flagNotMe, markDone, ownerConfirmSetup, readDraftFragment, readUndoFragment, viewerContext,
+  createMyOrg, fetchOrgSetup, flagNotMe, joinOrgViaInvite, markDone, ownerConfirmSetup, readDraftFragment, readUndoFragment, viewerContext,
   type Area, type CaClient, type DraftFragment, type MyPage, type UndoFragment,
 } from "./lib/api"
 import type { OrgSetupPayload } from "./lib/rpc-types"
-import { readLanding, recallEdition, recallEmail, rememberEmail, type Landing } from "./lib/landing"
+import { clearJoin, readLanding, recallEdition, recallEmail, recallJoin, recallReferral, rememberEmail, type Landing } from "./lib/landing"
 import { OnePageView } from "./components/onepage/OnePageView"
 import { FirstVisitWizard } from "./components/onepage/FirstVisitWizard"
 import { RoleWelcome } from "./components/onepage/RoleWelcome"
@@ -16,6 +16,7 @@ import { CaClients, type NewClient } from "./components/CaClients"
 import { CaPartnerFirstVisit } from "./components/CaPartnerFirstVisit"
 import { OwnerReview } from "./components/OwnerReview"
 import { AiWorkLink } from "./components/AiWorkLink"
+import { BillingPanel } from "./components/BillingPanel"
 import { DraftConfirm } from "./components/DraftConfirm"
 import { AiUndoConfirm } from "./components/AiUndoConfirm"
 import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type ResendState } from "./components/Screens"
@@ -86,6 +87,24 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   const load = useCallback(async () => {
     // Keep the page on screen during a refetch; only a first load blanks it.
     setPhase((p) => (p.name === "app" ? p : { name: "loading" }))
+    // WO-DPDP-016 Step 2: a colleague who arrived on an invite link (?join=,
+    // remembered on this device by landing.ts the same way a referral code
+    // is) is joined to that organisation BEFORE the page is fetched, so
+    // dpdp_my_page finds the new membership as their newest one and shows
+    // that org straight away -- no separate "join" screen needed. Attempted
+    // once: clearJoin() makes every later call here (a refetch, opening a
+    // different client) a silent no-op. Best-effort, like the referral
+    // code's own landing-page handling: a stale/typo'd code must never
+    // block a person who is signing in for a completely unrelated reason.
+    const pendingJoin = landing.joinCode ?? recallJoin()
+    if (pendingJoin) {
+      clearJoin()
+      try {
+        await joinOrgViaInvite(client, pendingJoin)
+      } catch {
+        // invalid/expired/already-used code: nothing to recover, load() carries on as normal
+      }
+    }
     try {
       // The client list is a cross-org fact about the PERSON, read alongside
       // the page so the shell can show "My clients (N)" without a second
@@ -103,7 +122,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       if (e instanceof RpcFailure && !isPostgrest) setPhase({ name: "no-membership", busy: false, error: null })
       else setPhase({ name: "error", message: e instanceof Error ? e.message : String(e) })
     }
-  }, [client])
+  }, [client, landing.joinCode])
 
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
@@ -184,10 +203,13 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
 
   // WO-DPDP-015: a visitor with no organisation opens their own (the landing
   // pages' "Start free"); load() then finds the new owner membership.
+  // WO-DPDP-016: the referral code they arrived with (landing.ts's ?ref=,
+  // or one remembered from an earlier visit on this device) rides along --
+  // a bad/unknown code is ignored server-side, never blocks the signup.
   async function openMyOrg(name: string, product: "firm" | "institution") {
     setPhase({ name: "no-membership", busy: true, error: null })
     try {
-      await createMyOrg(client, name, product)
+      await createMyOrg(client, name, product, landing.referralCode ?? recallReferral())
     } catch (e) {
       setPhase({ name: "no-membership", busy: false, error: e instanceof Error ? e.message : String(e) })
       return
@@ -236,8 +258,9 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       break
   }
 
-  // WO-DPDP-014 §2/§3: the brand line above every phase of /app/; the share
-  // ask only once the page is loaded AND the viewer is a decision-maker.
+  // WO-DPDP-014 §2/§3, widened by WO-DPDP-016 §1: the brand line above
+  // every phase of /app/; the share ask once the page is loaded, for
+  // whichever viewer is signed in -- shareRoleFor never returns null now.
   const shareRole = phase.name === "app" ? shareRoleFor(phase.page.viewer) : null
   return (
     <>
@@ -332,6 +355,8 @@ function Page({
       {draft && <DraftConfirm client={client} draft={draft} onDone={refetch} onDismiss={onDraftDone} />}
       {undo && <AiUndoConfirm client={client} undo={undo} onDone={refetch} onDismiss={onUndoDone} />}
       {body}
+      {/* WO-DPDP-016 §7: lower-left, owner-only -- the component itself checks the role via dpdp_my_billing's own 42501. */}
+      {viewer.kind === "owner" && <BillingPanel client={client} orgId={org.id} />}
     </div>
   )
 }

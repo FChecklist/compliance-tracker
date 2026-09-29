@@ -1,7 +1,8 @@
 import { useState } from "react"
 import { BRAND_LINE_FULL, PUBLIC_SITE, SHARE_ASK, type ShareRole } from "@/lib/brand"
 import type { DpdpClient } from "@/lib/client"
-import { myReferralCode, recordSharePress } from "@/lib/api"
+import { myReferralCode, myReferralSummary, recordSharePress } from "@/lib/api"
+import type { ReferralSummaryPayload } from "@/lib/rpc-types"
 
 // WO-DPDP-014 §3 "The share action -- must never share a private page".
 // What is shared is PUBLIC_SITE plus, when this decision-maker has one, a
@@ -27,11 +28,18 @@ function shareUrl(code: string | null): string {
   return code && /^[A-Za-z0-9]{4,16}$/.test(code) ? `${PUBLIC_SITE}?ref=${code}` : PUBLIC_SITE
 }
 
+function formatRupees(paise: number): string {
+  return `Rs ${(paise / 100).toLocaleString("en-IN")}`
+}
+
 export function ShareVeridian({ client, orgId, role }: { client: DpdpClient; orgId: string; role: ShareRole }) {
   const [code, setCode] = useState<string | null | undefined>(undefined)
   const [panel, setPanel] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState(false)
+  // WO-DPDP-016 §5: fetched only once the panel actually opens (press()),
+  // never on mount -- the same "never slow down the button" rule resolveCode follows.
+  const [earnings, setEarnings] = useState<ReferralSummaryPayload | null>(null)
 
   async function resolveCode(): Promise<string | null> {
     if (code !== undefined) return code
@@ -63,6 +71,9 @@ export function ShareVeridian({ client, orgId, role }: { client: DpdpClient; org
         }
       }
       setPanel(url)
+      // Best-effort, never blocks the panel from opening: a failed fetch
+      // just means the earnings line stays hidden this time.
+      myReferralSummary(client, orgId).then(setEarnings, () => {})
     } finally {
       setBusy(false)
     }
@@ -89,6 +100,12 @@ export function ShareVeridian({ client, orgId, role }: { client: DpdpClient; org
           <code>{panel}</code>
           <button type="button" onClick={() => copy(panel)}>{copied ? "Copied" : "Copy link"}</button>
           <a href={`https://wa.me/?text=${encodeURIComponent(message(panel))}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+          {earnings && earnings.referredCount > 0 && (
+            <p className="dpdp-sharepanel__earnings">
+              You've earned {formatRupees(earnings.totalEarnedPaise)} so far
+              {earnings.pendingPaise > 0 && ` (${formatRupees(earnings.pendingPaise)} pending payout)`}.
+            </p>
+          )}
           <a href={`mailto:?subject=${encodeURIComponent(SHARE_TITLE)}&body=${encodeURIComponent(message(panel))}`}>Email</a>
           <button type="button" className="dpdp-sharepanel__close" onClick={() => setPanel(null)}>Close</button>
         </div>
