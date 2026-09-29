@@ -3404,6 +3404,34 @@
       "when": 1790472000000,
       "tag": "0657_dpdp_wo016_step2_invite_and_link_personalization",
       "breakpoints": true
+    },
+    {
+      "idx": 488,
+      "version": "7",
+      "when": 1790473000000,
+      "tag": "0658_dpdp_payment_confirmation_flow",
+      "breakpoints": true
+    },
+    {
+      "idx": 489,
+      "version": "7",
+      "when": 1790474000000,
+      "tag": "0659_dpdp_invoice_details_for_timer",
+      "breakpoints": true
+    },
+    {
+      "idx": 490,
+      "version": "7",
+      "when": 1790475000000,
+      "tag": "0660_dpdp_invoice_email_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 491,
+      "version": "7",
+      "when": 1790476000000,
+      "tag": "0661_dpdp_my_billing_proof_fields",
+      "breakpoints": true
     }
   ]
 }
