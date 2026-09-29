@@ -5,8 +5,15 @@ import type {
   AreaAssignmentWire, AreaPayload, BillingStatusPayload, CaClientWire, ConfirmSetupPayload,
   CreateClientPayload, CreateMyOrgPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
   JoinOrgResult, OrgInviteLinkPayload, OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
+  ApprovePaymentResult, PendingClaimWire, RejectPaymentResult,
 } from "./rpc-types"
 import { SITE_ORIGIN } from "./site-origin.mjs"
+
+// Only reached from inside /app/ (never the public marketing surface --
+// check-two-doors.mjs's own wall only scans publicSurfaceFiles(), which
+// this module is not part of), so referencing the project's own
+// functions/v1 URL directly here is safe.
+const SUPABASE_FUNCTIONS_URL = `${(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "")}/functions/v1`
 
 export class RpcFailure extends Error {
   code?: string
@@ -330,11 +337,68 @@ export async function myBilling(client: DpdpClient, orgId?: string | null): Prom
   return data as BillingStatusPayload
 }
 
-/** "I've paid": a claim, not a fact -- moves the org to awaiting_confirmation. Changes no access anywhere; the Owner still has to confirm the money was actually seen. */
-export async function declarePayment(client: DpdpClient, interval: "month" | "year", amountPaise: number, orgId?: string | null): Promise<{ ok: true; state: "awaiting_confirmation" }> {
-  const { data, error } = await client.rpc("dpdp_declare_payment", { p_interval: interval, p_amount_paise: amountPaise, ...(orgId ? { p_org_id: orgId } : {}) })
+/** "I've paid": a claim, not a fact -- moves the org to awaiting_confirmation. Changes no access anywhere; the Owner still has to confirm the money was actually seen. reference/proofPath/note are all optional (drizzle/0658). */
+export async function declarePayment(
+  client: DpdpClient, interval: "month" | "year", amountPaise: number, orgId?: string | null,
+  proof?: { reference?: string; proofPath?: string; note?: string },
+): Promise<{ ok: true; state: "awaiting_confirmation" }> {
+  const { data, error } = await client.rpc("dpdp_declare_payment", {
+    p_interval: interval, p_amount_paise: amountPaise, ...(orgId ? { p_org_id: orgId } : {}),
+    p_reference: proof?.reference || null, p_proof_path: proof?.proofPath || null, p_note: proof?.note || null,
+  })
   if (error) throw new RpcFailure(error)
   return data as { ok: true; state: "awaiting_confirmation" }
+}
+
+/** Upload the payment-proof screenshot to Storage before declaring the payment (drizzle/0658's bucket). Returns null on failure -- the reference number alone still gets recorded. */
+export async function uploadPaymentProof(client: DpdpClient, orgId: string, file: File): Promise<string | null> {
+  const { path } = await client.uploadPaymentProof(orgId, file)
+  return path
+}
+
+/** dpdp__is_platform_admin: whether the signed-in person is VERIDIAN's own team, not any one org's owner. Used only to decide whether to render the admin review panel at all. */
+export async function amIPlatformAdmin(client: DpdpClient): Promise<boolean> {
+  const { data, error } = await client.rpc("dpdp__is_platform_admin", {})
+  if (error) return false
+  return data === true
+}
+
+/** dpdp_owner_pending_claims: every organisation awaiting confirmation, across the whole platform. Owner only. */
+export async function ownerPendingClaims(client: DpdpClient): Promise<PendingClaimWire[]> {
+  const { data, error } = await client.rpc("dpdp_owner_pending_claims", {})
+  if (error) throw new RpcFailure(error)
+  return (data as PendingClaimWire[] | null) ?? []
+}
+
+/** dpdp_owner_approve_payment: the Owner's real act -- flips the org active, records the payment, pays out any referral commission. */
+export async function ownerApprovePayment(client: DpdpClient, orgId: string, note?: string): Promise<ApprovePaymentResult> {
+  const { data, error } = await client.rpc("dpdp_owner_approve_payment", { p_org_id: orgId, p_note: note || null })
+  if (error) throw new RpcFailure(error)
+  return data as ApprovePaymentResult
+}
+
+/** dpdp_owner_reject_payment: sends the org back to a plain trial and clears the claim. */
+export async function ownerRejectPayment(client: DpdpClient, orgId: string, note?: string): Promise<RejectPaymentResult> {
+  const { data, error } = await client.rpc("dpdp_owner_reject_payment", { p_org_id: orgId, p_note: note || null })
+  if (error) throw new RpcFailure(error)
+  return data as RejectPaymentResult
+}
+
+/** Fires the invoice email (supabase/functions/dpdp-invoice-email) right after approval. Best-effort: a failure here never undoes the approval -- the Owner can re-send from the same row (idempotent per paymentId). */
+export async function sendInvoiceEmail(client: DpdpClient, paymentId: string): Promise<{ ok: boolean; error?: string }> {
+  const token = await client.accessToken()
+  if (!token) return { ok: false, error: "Not signed in" }
+  try {
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/dpdp-invoice-email`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentId }),
+    })
+    const body = await res.json().catch(() => ({}))
+    return res.ok ? { ok: true } : { ok: false, error: (body as { error?: string }).error || `HTTP ${res.status}` }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 /** resolveConsentToken(): the parent consent page before any answer. */

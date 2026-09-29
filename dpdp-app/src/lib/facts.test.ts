@@ -164,7 +164,7 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
   })
 
   test("tab titles are '<prefix> — <page>' (WO-014 §4) and every public page has one", () => {
-    expect(pageTitle(facts, "/")).toBe("VERIDIAN · VERy INDIAN — Digital Personal Data Protection Act Compliance")
+    expect(pageTitle(facts, "/")).toBe("VERIDIAN · VERy INDIAN — DPDP and Digital Data Compliance")
     for (const p of PUBLIC_PAGES) expect(p.title).toBe(pageTitle(facts, p.path))
     expect(() => pageTitle(facts, "/nope/")).toThrow(/no pages entry/)
   })
