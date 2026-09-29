@@ -38,6 +38,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/doa",
   "/documents",
   "/drawings",
+  "/employees",
   "/erp",
   "/esg",
   "/expenses",
