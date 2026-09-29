@@ -4802,6 +4802,19 @@ active:
       current state this pass given time, flagging as worth a follow-up
       check, not fixed or confirmed either way here).
 
+      PROGRESS UPDATE (2026-09-29, continuing after the go-live fix, per the
+      owner's "I will be back in 1 hour, continue working" instruction): all
+      7 px-shadow modules now merged (recruitment, hr, settings, dashboard,
+      documents, reports, knowledge-base). Of the 24 genuinely-new modules,
+      merged so far: customers (#1957), vendors (#1958), kpis (#1959), wiki
+      (#1960), meetings (#1962), budgets (#1968), purchase-orders (#1969) --
+      plus projects, done earlier under Part 1. Now claiming "employees"
+      (PROJEXA's src/app/(app)/employees/**, backed by real routes
+      /api/v1/projexa/employees, /api/v1/projexa/leave, /api/v1/projexa/hr)
+      as the next module -- confirmed no existing compliance-tracker
+      top-level /employees path (no collision, plain new page, same house
+      convention as the customers/vendors/kpis batch).
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
