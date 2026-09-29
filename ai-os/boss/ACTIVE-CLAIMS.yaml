@@ -4860,6 +4860,24 @@ active:
       /api/v1/projexa/sales-orders (+ [id]). No collision with any existing
       compliance-tracker top-level page.
 
+      PROGRESS UPDATE (2026-09-29, continued, owner returned and reaffirmed
+      "complete everything, don't stop"): sales-orders merged (#1977) -- 12
+      of 24 genuinely-new modules done. "sales" (leads + opportunities,
+      confirmed distinct from native /crm's separate /api/crm/* namespace)
+      is currently in flight, PR not yet opened/merged. Also now claiming
+      "procurement" (PROJEXA's src/app/(app)/procurement/** -- overview,
+      goods-receipts/{[id],new}, purchase-orders/[id], quotations/new,
+      requisitions/{[id],new}, rfqs/{[id],new}). Real backend confirmed
+      live: /api/v1/projexa/procurement/{goods-receipts,purchase-orders,
+      quotations,requisitions,rfqs}/**. No collision with any existing
+      compliance-tracker top-level page (distinct from native
+      erp/procurement, same coexistence precedent as purchase-orders).
+      NOTE for the porting agent: procurement/purchase-orders/[id] may
+      already be covered by the already-merged top-level purchase-orders
+      module's detail page (PR #1969 explicitly used this same raw-shape
+      route) -- check before duplicating, only build what's genuinely not
+      already covered.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
