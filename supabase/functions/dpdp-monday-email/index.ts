@@ -242,6 +242,18 @@ async function runMonday(sb: SupabaseClient, now: Date, orgId: string | null, dr
       const id = queue.shift()
       if (!id) return
       try {
+        // WO-DPDP-016 Step 2: issue any missing referral/invite codes for
+        // this org's active members BEFORE building its digest, so the
+        // ?ref=/?join= links in the email are never a dead end for a
+        // recipient who has never pressed the in-app Share/Invite button.
+        // Best-effort: a failure here must not stop the org's actual
+        // digest -- the email still sends, just without a personal link
+        // this once (dpdp_timer_ensure_link_codes tries again next Monday).
+        try {
+          await rpc(sb, "dpdp_timer_ensure_link_codes", { p_org_id: id })
+        } catch (e) {
+          console.warn(`dpdp_timer_ensure_link_codes failed for org ${id}: ${e instanceof Error ? e.message : String(e)}`)
+        }
         const digests = await rpc<Digest[]>(sb, "dpdp_timer_build_monday_digests", { p_now: now.toISOString(), p_org_id: id })
         await deliverDigests(sb, digests, dryRun, summary)
       } catch (e) {

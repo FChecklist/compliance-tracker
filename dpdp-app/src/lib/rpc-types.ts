@@ -146,11 +146,39 @@ export type AiDraftConfirmPayload = { ok: true; verb: string; obligationId: stri
 
 // WO-DPDP-014 §3/§7 (drizzle/0611): the share action.
 
-/** Who may share with a referral code (WO-014 §3): the owner/principal, a CA partner, a CA manager. */
-export type ShareRoleWire = "owner" | "partner" | "manager"
+/** Who shares a referral code (WO-014 §3, widened WO-DPDP-016 §1): everyone gets a role now, 'member' being the default for anyone not owner/partner/manager. */
+export type ShareRoleWire = "owner" | "partner" | "manager" | "member"
 
-/** dpdp_my_referral_code: the caller's own dpdp.referral code (8 chars, unambiguous alphabet), made on first ask. Refused for every other role. */
+/** dpdp_my_referral_code: the caller's own dpdp.referral code (8 chars, unambiguous alphabet), made on first ask. Any signed-in member. */
 export type ReferralCodePayload = { code: string; role: ShareRoleWire }
 
 /** dpdp_record_share_press: one share_press event appended; the role it was recorded under. */
 export type SharePressPayload = { ok: true; role: ShareRoleWire }
+
+/** dpdp_my_referral_summary (drizzle/0655): this person's own code (null until they've asked for one) and what it has earned -- pending is not yet paid out, paid is what the Owner has already sent (both manual, outside this system). */
+export type ReferralSummaryPayload = {
+  code: string | null
+  referredCount: number
+  totalEarnedPaise: number
+  pendingPaise: number
+  paidPaise: number
+}
+
+/** dpdp_my_org_invite_link (drizzle/0657): this org's evergreen join code -- one per organisation, made on first ask, any member. */
+export type OrgInviteLinkPayload = { code: string }
+
+/** dpdp_join_org_via_invite (drizzle/0657): redeems a `?join=` code, adding the caller to that code's organisation as staff. alreadyMember is true when they belonged to it already (idempotent, not an error). */
+export type JoinOrgResult = { ok: true; orgId: string; membershipId: string; alreadyMember: boolean }
+
+/** dpdp_my_billing (drizzle/0655), owner-only: trial | awaiting_confirmation | active. selfDeclared* is the owner's own unverified claim; lastConfirmedAt is the only fact the Owner has actually verified. Access never depends on any of this. */
+export type BillingStatusPayload = {
+  orgId: string
+  product: "firm" | "institution"
+  state: "trial" | "awaiting_confirmation" | "active"
+  trialEndsAt: string | null
+  interval: "month" | "year" | null
+  selfDeclaredAt: string | null
+  selfDeclaredInterval: "month" | "year" | null
+  selfDeclaredAmountPaise: number | null
+  lastConfirmedAt: string | null
+}
