@@ -4555,10 +4555,26 @@ active:
           tracker feature of the same name (dashboard, documents, hr,
           knowledge-base, reports, settings, recruitment) -- decided (this
           session, no owner check-in per instruction): give PROJEXA's version
-          a distinct physical path under src/app/(app)/_projexa/<name>/, and
-          add host-branching middleware that rewrites projexa-ai.com traffic
-          from the clean /<name> URL to /_projexa/<name> internally, leaving
-          compliance-tracker's own /<name> untouched for every other host.
+          a distinct physical path under src/app/(app)/px/<name>/ (NOT
+          "_projexa" -- Next.js treats an underscore-prefixed segment as a
+          private folder and refuses to route it at all, found while actually
+          building this), and host-branching added to this repo's REAL
+          middleware file, src/proxy.ts (this repo has no src/middleware.ts
+          at all -- confirmed by grep before naming it in the file-scope line
+          below, which was written earlier and never corrected until now).
+          proxy.ts now rewrites projexa-ai.com traffic from the clean
+          /<name> URL to /px/<name> internally via NextResponse.rewrite(),
+          leaving compliance-tracker's own /<name> untouched for every other
+          host. CORRECTION (2026-09-29, same session): the two paragraphs
+          above originally said "_projexa" and "src/middleware.ts" -- written
+          before the middleware was actually built, and never updated after
+          building it revealed both were wrong. A parallel batch of Phase 1
+          module-port subagents had already started dispatching against the
+          stale wording before this was caught (one subagent verified
+          src/proxy.ts directly rather than trusting this file and flagged
+          the mismatch) -- corrected here now, but if you're reading this
+          from a worktree/agent report created before this correction landed,
+          treat "_projexa"/"src/middleware.ts" as wrong and use px/proxy.ts.
         - @fchecklist/veridian-ui-kit version drift found (compliance-tracker
           pinned to tag v0.7.0, PROJEXA pinned to a newer commit SHA with API
           differences, e.g. a MiddleColumnToggle type PROJEXA's AppSidebar
@@ -4566,8 +4582,9 @@ active:
           of Phase 1, bumping compliance-tracker to PROJEXA's SHA (or later)
           since PROJEXA's UI is what's being folded in.
 
-      File scope: C:\ct\ct's src/app/(app)/** (new pages + the 7 _projexa/**
-      shadow pages), src/middleware.ts (host-branching), src/components/**
+      File scope: C:\ct\ct's src/app/(app)/** (new pages + the 7 px/**
+      shadow pages), src/proxy.ts (host-branching -- this repo's real
+      middleware file, not src/middleware.ts), src/components/**
       (porting PROJEXA's shell/*, screens/*, workspace/*, veri-chat/*, and
       the ~150 flat *Client.tsx files), package.json (ui-kit version bump),
       plus (Phase 2) a real Supabase Auth user migration from evpckeuxgvahguwsaeul
