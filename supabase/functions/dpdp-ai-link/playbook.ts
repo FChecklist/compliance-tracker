@@ -116,7 +116,7 @@ export function playbookBullets(p: JobPlaybook): string[] {
     `Done looks like: ${p.proof}`,
     `Note to record: ${p.note}`,
   ]
-  if (p.notApplicableWhen) out.push(`Not applicable when: ${p.notApplicableWhen}`)
+  out.push(p.notApplicableWhen ? `Not applicable when: ${p.notApplicableWhen}` : "Not applicable: no case is listed for this job. If the person says it does not apply, record their reason as a note and let the owner or their CA decide.")
   for (const w of p.watchFor) out.push(`Watch for: ${w}`)
   if (p.email) out.push(`Email to send (the person sends it): to ${p.email.to}. The text is just below.`)
   return out
@@ -139,7 +139,7 @@ export function playbookLines(p: JobPlaybook, opts: { includeEmail?: boolean } =
     `Done looks like: ${p.proof}`,
     `Note to record: ${p.note}`,
   ]
-  if (p.notApplicableWhen) out.push(`Not applicable when: ${p.notApplicableWhen}`)
+  out.push(p.notApplicableWhen ? `Not applicable when: ${p.notApplicableWhen}` : "Not applicable: no case is listed for this job. If the person says it does not apply, record their reason as a note and let the owner or their CA decide.")
   if (p.watchFor.length) out.push(`Watch for: ${p.watchFor.join(" ")}`)
   if (p.email && opts.includeEmail !== false) {
     out.push(`Email to send (the person sends it; you cannot): to ${p.email.to}`, `  Subject: ${p.email.subject}`, ...p.email.body.split("\n").map((l) => `  ${l}`))

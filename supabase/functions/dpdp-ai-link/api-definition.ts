@@ -113,8 +113,8 @@ export const ENDPOINTS: ReadonlyArray<Endpoint> = [
   },
   {
     id: "drafts", method: "POST", path: "/drafts", level: 2,
-    summary: "Level 2: anything with legal weight. Nothing changes -- you get a confirmation link for the person to open in their own browser, sign in, and confirm.",
-    body: "{ \"verb\": \"MARK_DONE | OWNER_CONFIRM | MANAGER_CHECK | PARTNER_SIGN | DELETE | ADD_PERSON | REMOVE_PERSON | CHANGE_SIGNER | PUBLISH | EXPORT_PERSONAL_DATA\", \"job_id\": \"<id, where the verb needs one>\", \"value\": { ... } }",
+    summary: "Level 2: anything with legal weight. Nothing changes -- you get a confirmation link for the person to open in their own browser, sign in, and confirm. The four small edits (NOTE, SET_DUE, ASSIGN, MARK_NA) may be sent here too; on a Level 0 link this is the only way to make them. Confirming SET_DUE, ASSIGN and MARK_NA needs the owner; MARK_DONE confirms only for the job's own person or the owner; a group job is answered by each member on their own page.",
+    body: "{ \"verb\": \"MARK_DONE | OWNER_CONFIRM | MANAGER_CHECK | PARTNER_SIGN | DELETE | ADD_PERSON | REMOVE_PERSON | CHANGE_SIGNER | PUBLISH | EXPORT_PERSONAL_DATA | NOTE | SET_DUE | ASSIGN | MARK_NA\", \"job_id\": \"<id, where the verb needs one>\", \"value\": { ... } }",
     formats: ["json"],
     returns: "201 { draftId, verb, jobId, expiresAt, confirmUrl, executableOnConfirm, next }",
     example: "POST /drafts  { \"verb\": \"MARK_DONE\", \"job_id\": \"...\", \"value\": {} }",

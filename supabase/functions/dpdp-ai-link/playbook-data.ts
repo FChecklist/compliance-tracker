@@ -437,23 +437,23 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "why": "A lost full Aadhaar copy can be misused. Showing only the last four digits limits the harm.",
     "who": "The staff records person, with whoever files Aadhaar copies of staff or customers, and the IT person.",
     "steps": [
-      "List where Aadhaar copies sit: paper files, scanner folders, email, shared drives, staff phones.",
-      "On paper copies, cover all but the last four digits with an opaque sticker.",
-      "On computer copies, print the page, cover all but the last four digits, rescan it, then delete the original file and empty the Recycle Bin.",
-      "If your CA or lawyer says a law makes you keep a full copy, lock it away and record why. Otherwise mask it.",
+      "List where Aadhaar copies sit: paper files, scans, email, shared drives, staff phones.",
+      "Ask your CA or lawyer whether any law makes you keep a full copy. Delete or cover nothing until they answer. Lock away any full copy you must keep, and record why.",
+      "On paper copies you do not need in full, cover all but the last four digits with an opaque sticker.",
+      "On computer copies you do not need in full, print the page, cover all but the last four digits, rescan it, then delete the original file and empty the Recycle Bin.",
       "Ask staff to accept only masked copies from now on."
     ],
     "ask": [
       "Where do Aadhaar copies sit today: paper, computer, email or phones?",
       "Has your CA or lawyer said a law makes you keep any full copy? Which?"
     ],
-    "proof": "A signed declaration by the staff records person that all copies were checked, kept in your own folder, with masked copies in the files.",
+    "proof": "Masked copies in the files, plus the staff records person's signed declaration, kept in your own folder.",
     "note": "Aadhaar copies checked on {date} by {name}. Places: {places}. All masked to last 4 digits except {exceptions_and_reason}.",
-    "notApplicableWhen": "No Aadhaar copy of staff or customers is held anywhere: paper, computers or phones.",
+    "notApplicableWhen": "No Aadhaar copy of staff or customers is held anywhere.",
     "email": null,
     "watchFor": [
       "Never paste or upload an Aadhaar copy into an AI chat or a free online masking website.",
-      "A box drawn over a scan on screen can often be lifted off. Use the printout method.",
+      "A black box drawn on a scan can often be lifted off.",
       "Old copies in email, WhatsApp and phone galleries are easily missed."
     ]
   },
@@ -470,7 +470,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     ],
     "ask": [
       "How many computers and laptops are there, and does each have a password or PIN and screen lock?",
-      "Does everyone have their own login, or is one shared, for example Tally or Zoho? Which roles can open the accounts and staff folders?",
+      "Does everyone have their own login, or is one shared, like Tally or Zoho? Which roles can open accounts and staff folders?",
       "How are backups taken, how often, and where are they kept?"
     ],
     "proof": "A short note by the IT person in your own folder: computers secured, access by role, backup method, last restore test.",
@@ -484,26 +484,26 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
   },
   // firm-19 -- Keep a record of who opened personal data — for at least one year
   "firm-19": {
-    "why": "If something goes wrong, a record of who opened which data shows what happened. Without it you cannot investigate a leak.",
+    "why": "A record of who opened which data shows what happened when something goes wrong, and helps you investigate a leak.",
     "who": "The IT and computers person, with the software or hosting firm that holds the records.",
     "steps": [
-      "List the systems holding personal data: accounting, HR, email, website admin, shared drives.",
+      "List the systems holding personal data: accounting, HR, email, website, shared drives.",
       "In each, switch on the setting that records who logged in and who opened or changed data.",
-      "If a system cannot, ask its provider in writing (draft below), with a reply date a few days before the due date.",
+      "If a system cannot, ask its provider in writing (draft below), with a reply date before the due date.",
       "Keep the records at least one year, somewhere nobody can edit them."
     ],
     "ask": [
-      "Which systems hold personal data? Use the list from the job on where your software keeps data, if it has one.",
+      "Which systems hold personal data? (See your 'where your software keeps data' job.)",
       "Can each show who logged in and who opened or changed records?",
       "How long does each keep those records, and where are they stored?"
     ],
-    "proof": "Proof from each system that access records are on and how long they are kept, in your own folder. Declaration by the IT person.",
+    "proof": "A declaration by the IT person, with each system's proof that access records are on, in your own folder.",
     "note": "Access records switched on in {systems} on {date}. Kept for {period} at {where}. Gaps: {systems_without_records}.",
     "notApplicableWhen": null,
     "email": {
-      "to": "Software or hosting firm support desk",
+      "to": "Software or hosting firm",
       "subject": "Access records for {org}",
-      "body": "Dear {their_name}, {org} uses {system}. Please tell us whether it records who opens, changes or downloads our records, how to switch that on, and whether we can keep the records for at least one year. Kindly reply by {reply_by}. Regards, {your_name}"
+      "body": "Dear {their_name}, {org} uses {system}. Please tell us whether it records who opens, changes or downloads our records, how to switch that on, and whether we can keep them for at least one year. Please reply by {reply_by}. Regards, {your_name}"
     },
     "watchFor": [
       "Some tools erase records after a short time. Check the default."
@@ -539,8 +539,8 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "why": "Customer details often sit on personal phones, WhatsApp chats and downloads. A lost phone then exposes them.",
     "who": "Every staff member checks their own devices; the owner sends the request and keeps the replies.",
     "steps": [
-      "Owner: send the email drafted below to all staff, asking for a reply before the due date.",
-      "Staff: search your phone (WhatsApp chats and groups, gallery, downloads, email, notes) and laptop (desktop, downloads, documents, attachments).",
+      "Owner: send the email below to all staff, with a reply date before the due date.",
+      "Staff: search your phone (WhatsApp chats, gallery, downloads, email, notes) and laptop (desktop, downloads, documents, attachments).",
       "Move what the office needs to the office system, then delete your copy.",
       "Stop forwarding customer details on WhatsApp. Use office email or software."
     ],
@@ -550,11 +550,11 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     ],
     "proof": "Each staff member's emailed or signed confirmation that devices were checked, kept in your own folder.",
     "note": "Owner: check requested {date}, {number} of {total} staff confirmed. Staff: devices checked {date}, customer data {moved_deleted_or_none_found}.",
-    "notApplicableWhen": "No one uses a personal phone or laptop for work, and customer details never reach personal WhatsApp.",
+    "notApplicableWhen": "No one uses a personal phone or laptop for work, or sends customer details on personal WhatsApp.",
     "email": {
       "to": "All staff",
       "subject": "Check your devices by {reply_by}",
-      "body": "Dear team, please search your own phone and laptop, including WhatsApp and downloads, for customer details. Move what we need to our office email or software, then delete your copy. Do not forward customer details on personal WhatsApp. Please reply to confirm by {reply_by}. Thanks, {your_name}"
+      "body": "Dear team, please search your own phone and laptop, including WhatsApp and downloads, for customer details. Move what we need to our office email or software, then delete your copy. Do not forward customer details on personal WhatsApp. Please confirm by {reply_by}. Thanks, {your_name}"
     },
     "watchFor": [
       "Deleting a chat does not remove photos and files saved separately."
@@ -567,12 +567,12 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "steps": [
       "Write a one-page agreement: enquiries used only for your work, kept secure, leaks reported, deleted or returned at the end. The AI can draft it.",
       "Have your CA or lawyer check it before you sign.",
-      "Sign it yourself, attach it to the email below and send it, choosing a reply date well before the due date.",
+      "Sign it, attach it to the email below and send it, with a reply date well before the due date.",
       "If no reply, phone them. File the signed copy in your own folder."
     ],
     "ask": [
       "Which firm builds, hosts or looks after your website?",
-      "Is there already a signed agreement with them? If so, does it cover the same points?"
+      "Is there already a signed agreement? Does it cover the same points?"
     ],
     "proof": "The agreement signed by both sides, as a PDF or scan in your own folder.",
     "note": "Data agreement sent by {your_name} to {firm_name} on {date}. Signed copy: {received_on_date_or_awaited}. Filed at {where_or_not_yet}.",
@@ -588,53 +588,52 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
   },
   // firm-23 -- Payroll firm signs the data agreement
   "firm-23": {
-    "why": "Your payroll firm sees staff bank details, PAN and salary. Careless handling by them would harm your staff.",
+    "why": "Your payroll firm sees staff bank details, PAN and salary. Careless handling would harm your staff.",
     "who": "The owner or accounts head, who must get the payroll firm to sign.",
     "steps": [
-      "Write a one-page agreement: details used only for your payroll, kept secure, not shared, leaks reported, deleted or returned. The AI can draft it.",
+      "Write an agreement: details used only for your payroll, kept secure, not shared, leaks reported, deleted or returned. The AI can draft it.",
       "Have your CA or lawyer check it before you sign.",
-      "Sign it yourself, attach it to the email below and send it, choosing a reply date well before the due date.",
+      "Sign it, attach it to the email below and send it, with a reply date well before the due date.",
       "If no reply, phone them. File the signed copy in your own folder."
     ],
     "ask": [
       "Which firm runs your payroll, and which staff details does it receive?",
-      "Is there already a signed agreement with them? If so, does it cover the same points?"
+      "Is there already a signed agreement? Does it cover the same points?"
     ],
     "proof": "The agreement signed by both sides, as a PDF or scan in your own folder.",
     "note": "Data agreement sent by {your_name} to {firm_name} on {date}. Signed copy: {received_on_date_or_awaited}. Filed at {where_or_not_yet}.",
-    "notApplicableWhen": "Salaries are run in house, and no outside firm, accountant or cloud payroll software holds staff details.",
+    "notApplicableWhen": "Salaries are run in house; no outside firm, accountant or cloud payroll software holds staff details.",
     "email": {
       "to": "The payroll firm",
-      "subject": "Data agreement for {org} payroll",
-      "body": "Dear {their_name}, please sign the attached data agreement for our payroll. It says salary, PAN and bank details are used only for our payroll, kept secure, not shared, reported to us if leaked, and deleted or returned at the end. Please return it by {reply_by}. Regards, {your_name}, {org}"
+      "subject": "Payroll data agreement: {org}",
+      "body": "Dear {their_name}, please sign the attached data agreement. It says salary, PAN and bank details are used only for our payroll, kept secure, not shared, reported to us if leaked, and deleted or returned at the end. Please return it by {reply_by}. Regards, {your_name}, {org}"
     },
     "watchFor": [
-      "Ask if the payroll firm uses another software firm; it should be bound too."
+      "Ask whether the payroll firm's software firm is bound too."
     ]
   },
   // firm-24 -- Group company signs a data-sharing agreement
   "firm-24": {
-    "why": "Records shared with a group company leave your hands. A signed agreement says what it may do with them.",
-    "who": "The owner or whoever manages group dealings; the group company must sign.",
+    "why": "Records shared with a group company leave your hands. A signed agreement limits their use.",
+    "who": "The owner, who must get the group company to sign.",
     "steps": [
-      "List which customer and staff records go to the group company, and why.",
-      "Share only what it truly needs, and only where the person consented or a contract with them needs it.",
-      "Write a one-page agreement: stated purpose, same protection as yours, no passing on, leak notice, deletion when done. The AI can draft it.",
-      "Have your CA or lawyer check it before you sign.",
-      "Sign it yourself, attach it to the email below and send it to someone senior there, with a reply date well before the due date.",
+      "List which records go to the group company, and why.",
+      "Share only what it truly needs, and only with the person's consent or for a contract with them.",
+      "Write an agreement (the AI can draft it): stated purpose, same protection as yours, no passing on, leak notice, deletion.",
+      "Have your CA or lawyer check it. Sign it and send it with the email below, with a reply date before the due date.",
       "If no reply, phone them. File the signed copy in your own folder."
     ],
     "ask": [
       "Which group company, which records, and for what purpose?",
-      "Is there already a signed agreement between the two? If so, does it cover the same points?"
+      "Is there already a signed agreement? Does it cover the same points?"
     ],
     "proof": "The agreement signed by both companies, as a PDF or scan in your own folder.",
-    "note": "Data-sharing agreement sent by {your_name} to {group_company} on {date}. Signed copy: {received_on_date_or_awaited}. Filed at {where_or_not_yet}.",
+    "note": "Agreement sent by {your_name} to {group_company} on {date}. Signed copy: {received_on_date_or_awaited}. Filed at {where_or_not_yet}.",
     "notApplicableWhen": "No customer or staff records go to any group, parent or sister company.",
     "email": {
       "to": "Group company management",
       "subject": "Data-sharing agreement: {org}",
-      "body": "Dear {their_name}, {org} shares {records} with you for {purpose}. Please sign the attached data-sharing agreement: records used only for that purpose, protected as carefully as we do, not passed on, leaks reported quickly, deleted when done. Please return it by {reply_by}. Regards, {your_name}"
+      "body": "Dear {their_name}, {org} shares {records} with you for {purpose}. Please sign the attached agreement: records used only for that purpose, kept as safe as ours, not passed on, leaks reported, deleted when done. Please return it by {reply_by}. Regards, {your_name}"
     },
     "watchFor": [
       "Shared spreadsheets and common software logins are sharing too."
@@ -718,32 +717,31 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
   },
   // firm-28 -- Delete a customer’s data when they ask or when it is no longer needed — and tell anyone you shared it with
   "firm-28": {
-    "why": "Keeping customer data longer than needed only adds risk. Delete it properly, and make others holding it do the same.",
+    "why": "Keeping customer data longer than needed only adds risk. Delete it, and make outside firms do the same.",
     "who": "The customer data person, with IT and accounts.",
     "steps": [
-      "If a customer asked, check it is really them, using details you already hold.",
+      "If a customer asked, check it is really them.",
       "List where customer data sits (software, spreadsheets, email, paper, backups, outside firms) and any records no longer needed.",
-      "Ask your CA or lawyer whether any law makes you keep some records, such as tax or accounts. Delete nothing until they answer.",
+      "Ask your CA or lawyer if any law makes you keep records, such as tax records. Delete nothing until they answer.",
       "Delete the rest everywhere, including exports and downloads. Keep a deletion note without the data.",
-      "Ask each outside firm holding a copy to delete it too, with a written reply (draft below).",
-      "If the customer asked, tell them what was deleted, what was kept and why."
+      "Ask each outside firm holding a copy to delete it too and reply in writing.",
+      "If they asked, tell them what was deleted, what was kept and why."
     ],
     "ask": [
-      "Did a customer ask, or is the data no longer needed? What reference number do you use for them?",
+      "Did a customer ask, or is the data no longer needed? What is their reference number?",
       "Which outside firms hold copies?",
-      "Which records must you keep, and for how long, according to your CA or lawyer?"
+      "What must you keep, and for how long, per your CA or lawyer?"
     ],
-    "proof": "A deletion note per case in your own folder: what was deleted, what was kept and why, firms told.",
+    "proof": "A deletion note per case in your own folder: deleted, kept and why, firms told.",
     "note": "Deleted on {date} ({reason}). Ref {reference_number}. Places: {places}. Kept: {what_and_why}. Firms told {firms} on {date}; replies: {status}.",
     "notApplicableWhen": null,
     "email": {
-      "to": "Any outside firm holding the data",
-      "subject": "Please delete customer records for {org}",
+      "to": "Outside firm holding the data",
+      "subject": "Deletion request: {org}",
       "body": "Dear {their_name}, {org} shared customer records with you for {purpose}. Please delete {records} from your systems and copies, and confirm in writing by {reply_by}. Regards, {your_name}"
     },
     "watchFor": [
-      "Old backups and Excel files still hold copies.",
-      "Keep the customer's name out of the note; use a reference number."
+      "Keep the customer's name out of notes; use a reference number."
     ]
   },
   // firm-29 -- Owner confirms all the answers are true
@@ -752,7 +750,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "who": "The owner, with the Grievance Officer and the IT person showing their proof.",
     "steps": [
       "Ask the AI to read the job list and show: done jobs with no note, not-applicable reasons, open jobs missing a person or date.",
-      "For each done job, check the proof really exists in your folder. Ask whether each not-applicable reason is really true for you.",
+      "For each done job, check the proof exists in your folder. Ask whether each not-applicable reason is true for you.",
       "Ask the people who did each job about anything you doubt. Reopen it on your page if needed.",
       "When satisfied, confirm the answers yourself on your own page. The AI only prepares a draft."
     ],
@@ -760,7 +758,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
       "Have you personally seen the proof for the jobs marked done, or only been told?",
       "Is any job marked done or not applicable one you are unsure about?"
     ],
-    "proof": "The owner's own confirmation on their page, with the date. Save or print the job list page to PDF that day and keep it in your own folder.",
+    "proof": "The owner's own confirmation on their page, with the date. Save the job list page as a PDF that day in your own folder.",
     "note": "Owner reviewed all answers on {date}. Doubtful, to reopen: {list}. Still open: {list}. Owner to confirm on own page by {due_date}.",
     "notApplicableWhen": null,
     "email": null,

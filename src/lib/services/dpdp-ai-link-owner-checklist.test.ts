@@ -78,7 +78,7 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
     expect(md).toContain("POST /actions with NOTE")
     expect(md).toContain("POST /drafts with MARK_DONE")
     expect(md).toMatch(/- Note to record: \S/)
-    expect(md).toContain("record the answers as a NOTE, then prepare MARK_DONE")
+    expect(md).toContain("record the answers as a NOTE (POST /actions), then prepare MARK_DONE")
     expect(md).toContain("Never say a job is done until they have confirmed it.")
   })
 
@@ -117,7 +117,8 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
 
   test("ROLE and RESPONSIBILITIES", () => {
     expect(md).toContain("YOUR ROLE")
-    expect(md).toContain("You are answerable for the organisation's DPDP work and the last to sign it off")
+    expect(md).toContain("You are answerable for the organisation's DPDP work and the first to sign it off")
+    expect(md).toContain("OWNER_CONFIRM, a draft too. It is not the final sign-off")
     expect(md).toContain("make sure every job has someone looking after it")
   })
 
@@ -130,7 +131,7 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
 
   test("COMPLETION, PENDING and DEFAULTERS, with numbers", () => {
     expect(md).toMatch(/COMPLETION: 1 of 8 jobs done, 13%\./)
-    expect(md).toMatch(/PENDING: 7 open\. 7 late, 0 due today, 0 still on time\./)
+    expect(md).toMatch(/PENDING: 7 open\. 7 late \(2 of them have nobody looking after them\), 0 due today, 0 still on time\./)
     expect(md).toContain("WHO IS BEHIND (people or groups with at least one late job, worst first)")
     expect(md).toMatch(/\| ravi@acmeca\.in \| \d+ \| \d+ \| \d+ \| obl-/)
     expect(md).toContain("REQUIRED BY TODAY'S LAW")

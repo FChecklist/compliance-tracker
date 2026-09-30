@@ -18,11 +18,17 @@ export function longDate(ymd: string): string {
   return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : ymd
 }
 
-/** One short line of DATA (a job name, an organisation): whitespace collapsed, no control characters, cut to `max`. */
+// Characters a person cannot see but a model may read: C0/C1 controls, soft hyphen, Arabic letter mark, Mongolian vowel separator,
+// zero-width and directional marks and overrides and isolates (U+200B-200F, U+202A-202E, U+2060-206F), the byte-order mark, the
+// interlinear annotation marks, and the Unicode "tag" block (U+E0000-E007F) that can spell a hidden sentence.
+// eslint-disable-next-line no-control-regex
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb\u{e0000}-\u{e007f}]/gu
+
+/** One short line of DATA (a job name, an organisation, an address): invisible and control characters and line breaks turned into spaces, whitespace collapsed, cut to `max` characters (never in the middle of a character). */
 export function oneLine(v: unknown, max = 120): string {
-  // eslint-disable-next-line no-control-regex
-  const t = String(v ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim()
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t
+  const t = String(v ?? "").replace(INVISIBLE, " ").replace(/\s+/g, " ").trim()
+  const chars = Array.from(t)
+  return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : t
 }
 
 /**
