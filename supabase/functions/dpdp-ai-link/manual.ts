@@ -169,7 +169,7 @@ export function buildManual(input: ManualInput): Manual {
       { type: "p", text: "IF YOU CANNOT SEND REQUESTS FROM WHERE YOU ARE" },
       { type: "ul", items: [
         "Say so once, in your first message. Keep reading this page, explaining jobs, asking the questions and writing the texts and emails.",
-        `The person's own page, ${FACTS.appOrigin}/app/ (they may have to sign in), lets them say Yes to their own jobs, answer a group job, confirm or undo a change an AI link made, and make or turn off AI links. It has no control for a note, a new date, giving a job to someone, or not applicable: those can only be made through a link that can send requests, so write the words down for whoever can (the owner, or an AI that can send requests). Never say a change was made.`,
+        `The person's own page, ${FACTS.appOrigin}/app/ (they may have to sign in), lets them say Yes to their own jobs, answer a group job, confirm or undo a change an AI link made, and make or turn off AI links. Each job row also has a "More" button: anyone who can see the job can add a note to it; the owner can also give it to someone, change its due date, or say it doesn't apply; and the person a job is given to can say it doesn't apply. So if you cannot send requests yourself, write down the exact words (the note, the new date, the email address, the reason) and tell the person which "More" option to use, or hand them to the owner. Never say a change was made.`,
       ] },
       { type: "p", text: "RULES" },
       { type: "ul", items: brief.rules },
