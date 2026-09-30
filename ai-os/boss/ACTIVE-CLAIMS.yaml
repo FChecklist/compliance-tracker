@@ -40,6 +40,17 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive PM session; worktree C:/ct/wt-dpdp-mail, branch feat/dpdp-page-controls) -- DPDP one-page app: owner/assignee controls for assign, not applicable, due date, note [IN PROGRESS]"
+    claimed_at: "2026-09-30T (this session)"
+    claim: |
+      The person's own DPDP page (dpdp-app) has no control for giving a job to someone, marking it
+      not applicable, changing a due date, or adding a note (assignPerson / markNotApplicable exist in
+      dpdp-app/src/lib/api.ts but no component calls them). Files: dpdp-app/src/components/onepage/**,
+      dpdp-app/src/App.tsx, dpdp-app/src/lib/{api,rpc-types,mock-client}.ts, one new drizzle migration
+      (dpdp_set_due_date, dpdp_add_note; not-applicable refuses a closed job) + its PGlite test.
+      No overlap with the mailbox/AI-link work on branch feat/dpdp-single-mailbox (PR #1984), which
+      touches supabase/functions/dpdp-*, drizzle 0662-0665 and public copy; merge order: #1984 first,
+      then this rebases and takes the next free migration number.
   - session_label: "claude-code (interactive, PROJEXA server-merge session; worktree C:/ct/ct/.claude/worktrees/agent-a1a35a08a954477cf (reused -- branch feat/projexa-merge-invoices already merged as #1973, reset to origin/main and rebranched for this module; node_modules retained from that reuse, matching lockfile confirmed, no fresh bun install), branch feat/projexa-merge-sales-orders) -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md: port PROJEXA's Sales Orders module (list/detail/create) into compliance-tracker as native src/app/(app)/sales-orders/** pages, calling the already-live /api/v1/projexa/sales-orders*, /api/v1/projexa/sales-order-document-flow/[id] routes directly (route.ts files + erp-selling-service.ts read and verified field-for-field before writing any page). Natural next step after quotations (#1975, sent quotations convert here via the already-wired POST .../quotations/[id]/convert). New top-level route (no /sales-orders page existed before this), so no shadow-routing collision. Checked this file for an existing sales-orders claim (grep, none found) before starting. [IN PROGRESS]"
     claimed_at: "2026-09-29T (this session)"
     claim: |
