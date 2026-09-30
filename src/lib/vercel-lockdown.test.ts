@@ -6,17 +6,36 @@
 //
 // PROJEXA-E2E-001, continued (2026-09-21, owner directive, quoted verbatim):
 // "WE NEED TO SPEND MINIMUM VERCEL CREDITS ... THAN WE GO LIVE BY RECHARGING
-// VERCEL." Investigated first, not just applied blind: both projects'
-// `live` flag was already `false` and every deployment PROJEXA-E2E-001's own
-// merges to main had triggered (dpl_HbGeekZ7.../dpl_EwyTrQAQ...) showed
-// readyState=BLOCKED with target=null -- the project-pause/spend-cap
-// backstop documented in R87's own findings was in fact catching every one
-// of them, so no real build/compute was spent by those merges. Tightening
-// anyway, on the owner's explicit instruction, rather than relying on that
-// backstop as the only line of defense: ignoreCommand is now unconditional
-// -- `exit 0` on every ref, VERCEL_ENV included -- so nothing here can ever
-// reach a real build again until the owner recharges and says go live,
-// at which point THIS is the one line that changes back.
+// VERCEL." Tightened to unconditional `exit 0` on every ref, with the exit
+// condition written directly into the old version of this file: "until the
+// owner recharges and says go live, at which point THIS is the one line that
+// changes back."
+//
+// 2026-09-30, owner directive, quoted verbatim, this session: "CAN WE GO LIVE
+// ON PROJEXA-AI.COM NOW FOR TESTING ON SERVER?" -- the owner saying go live,
+// without recharging (explicitly still on Hobby, $0). Investigated first, not
+// applied blind: every production deployment since the start of this session
+// (both `projexa` and `veridian-compliance-ai`) was CANCELED with errorLink
+// pointing at "ignored-build-step" -- this exact unconditional ignoreCommand
+// was the actual, sole blocker; projexa-ai.com had been serving a ~10-day-old
+// build the entire session. A Hobby-plan deploy costs $0 regardless of
+// whether it runs, as long as build-minute quotas aren't exceeded, so
+// deploying does not conflict with "no recharge" -- confirmed with the owner
+// directly (not assumed) before changing this file, given how firmly and
+// repeatedly the zero-Vercel-spend rule had been stated across this session.
+//
+// Restores branch+path gating (the same shape as the R87 version, re-derived
+// rather than reused verbatim since that version predates PROJEXA-E2E-001's
+// dpdp-app/ split): skip any non-main branch outright; on main, additionally
+// skip when every changed file is docs/governance (*.md/*.jsonl/kt/**/
+// ai-os/**/.github/**) or DPDP-only (dpdp-app/**, src/app/dpdp*/**,
+// src/app/api/dpdp/**) -- the owner's own follow-up instruction, same
+// session: "please ensure that we use it only for PROJEXA-AI.COM, the work
+// of VERIDIAN-AIOS.COM has gone to cloudflare". dpdp-app/DEPLOY.md and
+// .github/workflows/dpdp-app-deploy.yml's own header comment both state they
+// rely on this file keeping Vercel out of DPDP's deploy path entirely --
+// confirmed live via that workflow's real path triggers (`dpdp-app/**` only)
+// before writing the skip pattern below, not guessed. Otherwise: proceed.
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -26,49 +45,55 @@ function readVercelJson() {
   return JSON.parse(raw)
 }
 
-function runIgnoreCommand(cmd: string, vercelEnv: string | undefined): number | null {
-  const env = { ...process.env }
-  if (vercelEnv === undefined) {
-    delete env.VERCEL_ENV
-  } else {
-    env.VERCEL_ENV = vercelEnv
-  }
-  const proc = Bun.spawnSync(["sh", "-c", cmd], { env })
+/**
+ * Runs the real ignoreCommand against a REAL commit's real diff, by substituting the two `HEAD` tokens in the
+ * command's own `git diff --name-only HEAD^ HEAD` for the given commit -- so this exercises the actual committed
+ * string, not a re-implementation of its logic, and the fixture commits are real history, not synthetic ones.
+ */
+function runIgnoreCommand(cmd: string, gitRef: string, commitForDiff: string): number | null {
+  const substituted = cmd.replaceAll("HEAD^ HEAD", `${commitForDiff}^ ${commitForDiff}`)
+  const env = { ...process.env, VERCEL_GIT_COMMIT_REF: gitRef }
+  const proc = Bun.spawnSync(["sh", "-c", substituted], { env, cwd: join(import.meta.dir, "..", "..") })
   return proc.exitCode
 }
 
-describe("Vercel deploy lockdown (PROJEXA-E2E-001, 2026-09-21) -- ignoreCommand skips unconditionally", () => {
+// Real commits from this repo's own history, chosen for what they touch -- not synthetic fixtures, so a change to
+// the ignoreCommand's own regex is exercised against real file paths this codebase actually produced.
+const REAL_CODE_COMMIT = "76f1da66ce1bea9d7aa9698a2c53cee87bb5c8a8" // e2e specs + ci.yml: real code alongside a skippable path -- must still proceed
+const DOCS_ONLY_COMMIT = "b5b7c7aebde77edcb2213a1d486b4c1e3086f820" // docs(ai-os): claim ... -- ai-os/** only
+const DPDP_ONLY_COMMIT = "20c98d7b1ca097dd027a9ee8a82c88219349b410" // feat(dpdp): /original/ landing page -- dpdp-app/** only
+
+describe("Vercel deploy gate (2026-09-30, owner-directed go-live) -- branch + path", () => {
   test("git.deploymentEnabled is not relied upon (still gone since R87)", () => {
     const v = readVercelJson()
     expect(v.git).toBeUndefined()
   })
 
-  test("ignoreCommand exists and does not branch on VERCEL_ENV, branch name, or git diff", () => {
+  test("ignoreCommand exists and branches on both VERCEL_GIT_COMMIT_REF and git diff", () => {
     const v = readVercelJson()
     expect(typeof v.ignoreCommand).toBe("string")
-    expect(v.ignoreCommand).not.toContain("VERCEL_ENV")
-    expect(v.ignoreCommand).not.toContain("VERCEL_GIT_COMMIT_REF")
-    expect(v.ignoreCommand).not.toContain("git diff")
+    expect(v.ignoreCommand).toContain("VERCEL_GIT_COMMIT_REF")
+    expect(v.ignoreCommand).toContain("git diff")
   })
 
-  test("VERCEL_ENV=production is skipped (exit 0) -- no build proceeds until the owner reverts this", () => {
+  test("a non-main branch is skipped (exit 0) regardless of what changed", () => {
     const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "production")).toBe(0)
+    expect(runIgnoreCommand(v.ignoreCommand, "some-feature-branch", REAL_CODE_COMMIT)).toBe(0)
   })
 
-  test("VERCEL_ENV=preview is skipped (exit 0) -- every branch/PR build", () => {
+  test("main with real code changes proceeds (non-zero), even mixed with a skippable path", () => {
     const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "preview")).toBe(0)
+    expect(runIgnoreCommand(v.ignoreCommand, "main", REAL_CODE_COMMIT)).not.toBe(0)
   })
 
-  test("VERCEL_ENV=development is skipped (exit 0)", () => {
+  test("main with a docs/governance-only commit is skipped (exit 0)", () => {
     const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "development")).toBe(0)
+    expect(runIgnoreCommand(v.ignoreCommand, "main", DOCS_ONLY_COMMIT)).toBe(0)
   })
 
-  test("VERCEL_ENV unset is skipped (exit 0) -- fail closed, not open", () => {
+  test("main with a DPDP-only commit is skipped (exit 0) -- DPDP deploys via Cloudflare Pages only, never Vercel", () => {
     const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, undefined)).toBe(0)
+    expect(runIgnoreCommand(v.ignoreCommand, "main", DPDP_ONLY_COMMIT)).toBe(0)
   })
 })
 
