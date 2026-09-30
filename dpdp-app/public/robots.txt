@@ -5,7 +5,8 @@
 # CSS, JS and fonts under /assets/ and /fonts/.
 # Private: /app/ (the signed-in one-page app), /act/ and /unsubscribe/ (the
 # Monday email's one-click pages, token in the fragment), /p/ (the parent
-# consent page), and the remaining prefix in the Disallow lines below. Never
+# consent page), /copy/ (the one-tap Copy page behind the Monday email's
+# Copy button), and the remaining prefix in the Disallow lines below. Never
 # indexed, by any bot. Nothing private is described here (WO-DPDP-013 v2
 # §2.3: the wall); scripts/check-two-doors.mjs scans this file too.
 #
@@ -29,6 +30,7 @@ Disallow: /app/
 Disallow: /act/
 Disallow: /unsubscribe/
 Disallow: /p/
+Disallow: /copy/
 Disallow: /ai/
 
 # Everything else: the same public paths, the same private prefixes.
@@ -38,6 +40,7 @@ Disallow: /app/
 Disallow: /act/
 Disallow: /unsubscribe/
 Disallow: /p/
+Disallow: /copy/
 Disallow: /ai/
 
 Sitemap: https://app.veridian-aios.com/sitemap.xml

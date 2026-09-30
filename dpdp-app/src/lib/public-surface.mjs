@@ -67,6 +67,9 @@ export const PRIVATE_PAGES = [
   // Monday email (token in the #fragment), and the unsubscribe page.
   { prefix: "/act/", source: "act/index.html" },
   { prefix: "/unsubscribe/", source: "unsubscribe/index.html" },
+  // The one-tap Copy page behind the "Copy" button in the Monday email's AI-prompt box (token in the #fragment): reads the person's
+  // prompt from their own AI work link (GET /ai/<token>/prompt) and puts it on the clipboard.
+  { prefix: "/copy/", source: "copy/index.html" },
   // WO-DPDP-011 §4: the parent consent page (consent token in the #fragment).
   { prefix: "/p/", source: "p/index.html" },
   // WO-DPDP-012 §7: the AI link's human-readable page, proxied from the

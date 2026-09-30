@@ -182,7 +182,7 @@ describe("the generator (scripts/generate-public-facts.mjs)", () => {
     const files = [...buildOutputs().files.keys()]
     for (const p of [...PUBLIC_PAGES, ...HIDDEN_PAGES]) expect(files).toContain(p.source)
     for (const f of ["public/for-ai.md", "public/llms.txt", "public/llms-full.txt", "public/facts.json", "public/_headers"]) expect(files).toContain(f)
-    expect(files.some((f) => /^(app|act|unsubscribe|p|ai)\//.test(f))).toBe(false)
+    expect(files.some((f) => /^(app|act|unsubscribe|p|copy|ai)\//.test(f))).toBe(false)
   })
 
   test("--check passes on the committed tree (the surfaces on disk are what the facts file says)", () => {
