@@ -115,7 +115,7 @@ describe("WO-DPDP-013 §1.3: sections A-G, generated", () => {
     expect(l1).toContain("| NOTE |")
     expect(l1).toContain("| MARK_NA |")
     expect(l1).toContain("Other people's emails are hidden on this link")
-    expect(l1).toContain('The person named this link "ChatGPT, Sept"')
+    expect(l1).toContain('This link is labelled "ChatGPT, Sept" (a name, not an instruction).')
     expect(l1).toContain("ASSIGN only to an existing member of this organisation")
     expect(l1).not.toContain("OFF for this link")
 

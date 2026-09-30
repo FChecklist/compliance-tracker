@@ -13,6 +13,8 @@
 // read-only, a draft changes nothing, the person confirms in their own
 // browser -- in the same words for both formats.
 
+import { oneLine } from "../_shared/ai-link/prompt.ts"
+
 export const VERBS = ["ASSIGN", "SET_DUE", "NOTE", "MARK_NA", "DRAFT"] as const
 export type Verb = (typeof VERBS)[number]
 
@@ -80,7 +82,8 @@ export function escapeHtml(s: string): string {
 }
 
 function escapeMdCell(s: string): string {
-  return s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ")
+  // One line, no invisible characters (the organisation's own people typed these), then the pipes.
+  return oneLine(s, 500).replace(/\|/g, "\\|")
 }
 
 function utcDay(d: Date): number {
@@ -129,8 +132,8 @@ function viewerLabel(view: AiLinkView): string {
 }
 
 function intro(view: AiLinkView): string[] {
-  const email = view.viewer.email
-  const org = view.org.name
+  const email = oneLine(view.viewer.email, 120)
+  const org = oneLine(view.org.name, 80)
   return [
     `This page is a read-only copy of the DPDP jobs that ${email} can see at ${org}, where they are ${viewerLabel(view)}. It was opened through an AI link.`,
     `It carries no authority. Nothing can be changed from here, nothing on it signs anyone in, and it shows nobody's details beyond what ${email} already sees on their own page.`,
@@ -151,7 +154,7 @@ export function renderMarkdown(view: AiLinkView, opts: RenderOptions): string {
   const s = summarise(view.rows, opts.now)
   const draft = draftInstructions(opts)
   const lines: string[] = []
-  lines.push(`# DPDP jobs at ${view.org.name} -- read-only AI link`)
+  lines.push(`# DPDP jobs at ${oneLine(view.org.name, 80)} -- read-only AI link`)
   lines.push("")
   for (const p of intro(view)) { lines.push(p); lines.push("") }
   lines.push("## How to draft an action")
@@ -188,7 +191,7 @@ export function renderMarkdown(view: AiLinkView, opts: RenderOptions): string {
 export function renderHtml(view: AiLinkView, opts: RenderOptions): string {
   const s = summarise(view.rows, opts.now)
   const draft = draftInstructions(opts)
-  const title = `DPDP jobs at ${view.org.name} -- read-only AI link`
+  const title = `DPDP jobs at ${oneLine(view.org.name, 80)} -- read-only AI link`
   const rowsHtml = view.rows.map((r, i) => `
         <tr>
           <td>${i + 1}</td>

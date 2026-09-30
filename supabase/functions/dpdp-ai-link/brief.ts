@@ -31,10 +31,12 @@ export const isEmailAddress = (v: string): boolean => /^[^\s@<>"]+@[^\s@<>"]+\.[
 export type BriefJob = {
   id: string; what: string; daysLate: number; requiredToday: boolean; due: string | null
   templateKey?: string | null; part?: number; by?: string | null; byIsYou?: boolean; isGroup?: boolean; lawCodes?: string[]
+  /** The name of the step before this one when that step is not Yes yet (dpdp_mark_done refuses this job until it is). */
+  waitingFor?: string | null
 }
 
 /** A job that is not done and not marked not applicable, as one row of the "all open jobs" table. */
-export type OpenJob = { id: string; what: string; part: number; by: string | null; due: string | null; daysLate: number; requiredToday: boolean; isGroup: boolean }
+export type OpenJob = { id: string; what: string; part: number; by: string | null; due: string | null; daysLate: number; requiredToday: boolean; isGroup: boolean; waitingFor?: string | null }
 
 export type PartProgress = { part: number; name: string; total: number; done: number; late: number }
 
@@ -116,48 +118,54 @@ export function seesEveryone(kind: string): boolean {
   return kind === "owner" || kind === "coord" || kind === "go" || kind === "ca"
 }
 
-/** What each role is responsible for in this system, and what it sees. The sign-off order (owner, then CA manager, then CA partner) is the one in facts.ts. */
-export const ROLE_GUIDE: Record<string, { does: string[]; sees: string }> = {
-  owner: {
-    does: [
-      "You are answerable for the organisation's DPDP work and the first to sign it off: when the other parts are complete, the owner says Yes to the Part 7 job \"Owner confirms all the answers are true\" (in a school, \"Sign off all the answers\"). You prepare that as a MARK_DONE draft the owner confirms. Then the CA manager checks the proof and the CA partner signs the file, on their own pages.",
-      "If a CA set this list up for the owner, the owner's first step is to confirm that list: OWNER_CONFIRM, a draft too. It is not the final sign-off, and it is refused for an organisation the owner set up themself.",
-      "Day to day: make sure every job has someone looking after it, keep due dates realistic, and get late jobs moving.",
-    ],
-    sees: "every job in the organisation, every person on them, and the whole history",
-  },
-  coord: {
-    does: [
-      "You keep the work moving day to day: chase late jobs, keep the list current, and be the person the CA firm talks to. You also look after the jobs tagged DPDP coordinator.",
-      "You do not sign off: the owner says Yes to the sign-off job, then the CA manager checks the proof and the CA partner signs.",
-    ],
-    sees: "every job in the organisation and the whole history",
-  },
-  go: {
-    does: [
-      "You answer people's requests and complaints about their data, look after the published Grievance Officer name and contact, and own the plan for a data leak. You also look after the jobs given to the Grievance Officer.",
-    ],
-    sees: "every job in the organisation and the whole history",
-  },
-  ca: {
-    does: [
-      "You are the CA firm for this client. The CA manager checks the proof and the CA partner signs the file, after the owner has signed off. You do those on your own page: a link can explain and prepare, but a manager check or a partner signature cannot be confirmed from a link yet.",
-      "You see the whole client list and its history so you can check it; the client's people do the jobs.",
-    ],
-    sees: "every job in this client organisation and its history",
-  },
-  staff: {
-    does: [
-      "You answer only your own jobs, and the group jobs you are in. For each, the honest answer is Yes (it is done) or Not applicable (with a reason). Giving jobs to others, changing due dates and deciding for the organisation that a job does not apply are the owner's.",
-    ],
-    sees: "only your own jobs and the group jobs you are in, and the history lines about them",
-  },
-  parent: {
-    does: [
-      "You are asked a few questions about your child, such as consent for photos. You answer only those.",
-    ],
-    sees: "only the questions asked of you",
-  },
+/**
+ * What each role is responsible for in this system, and what it sees. A COMPANY, FIRM OR NGO list ends with three Part 7 jobs (the owner says Yes,
+ * the CA manager checks, the CA partner signs); a SCHOOL OR INSTITUTION list ends with one (the head signs off) and has no CA job at all
+ * (drizzle/0602), so nothing about a CA check is said to a school.
+ */
+export function roleGuide(kind: string, institution: boolean): { does: string[]; sees: string } | null {
+  const chain = institution ? "" : " Then the CA manager checks the proof and the CA partner signs the file, each on their own page."
+  switch (kind) {
+    case "owner":
+      return {
+        does: [
+          `You are answerable for the organisation's DPDP work and the first to sign it off: when the other parts are complete, the owner says Yes to the Part 7 job ${institution ? "\"Sign off all the answers\"" : "\"Owner confirms all the answers are true\""}. You prepare that as a MARK_DONE draft the owner confirms.${institution ? " That is the last step: a school's list has no CA check after it." : chain}`,
+          "If a CA set this list up for the owner, the owner's first step is to confirm that list: OWNER_CONFIRM, a draft too. It is not the final sign-off, and it is refused for an organisation the owner set up themself.",
+          "Day to day: make sure every job has someone looking after it, keep due dates realistic, and get late jobs moving.",
+        ],
+        sees: "every job in the organisation, every person on them, and the whole history",
+      }
+    case "coord":
+      return {
+        does: [
+          `You keep the work moving day to day: chase late jobs, keep the list current${institution ? "" : ", and be the person the CA firm talks to"}. You also look after the jobs tagged DPDP coordinator.`,
+          `You do not sign off: the owner says Yes to the sign-off job${institution ? "." : ", then the CA manager checks the proof and the CA partner signs."}`,
+        ],
+        sees: "every job in the organisation and the whole history",
+      }
+    case "go":
+      return {
+        does: ["You answer people's requests and complaints about their data, look after the published Grievance Officer name and contact, and own the plan for a data leak. You also look after the jobs given to the Grievance Officer."],
+        sees: "every job in the organisation and the whole history",
+      }
+    case "ca":
+      return {
+        does: [
+          "You are the CA firm for this client. The CA manager's check and the CA partner's signature are jobs of their own on the list, done after the owner has signed off: prepare MARK_DONE for your own job once the job before it is Yes. (The verbs MANAGER_CHECK and PARTNER_SIGN themselves cannot be confirmed from a link yet.)",
+          "You see the whole client list and its history so you can check it; the client's people do the jobs.",
+        ],
+        sees: "every job in this client organisation and its history",
+      }
+    case "staff":
+      return {
+        does: ["You answer only your own jobs, and the group jobs you are in. For each, the honest answer is Yes (it is done) or Not applicable (with a reason). Giving jobs to others, changing due dates and deciding for the organisation that a job does not apply are the owner's."],
+        sees: "only your own jobs and the group jobs you are in, and the history lines about them",
+      }
+    case "parent":
+      return { does: ["You are asked a few questions about your child, such as consent for photos. You answer only those."], sees: "only the questions asked of you" }
+    default:
+      return null
+  }
 }
 
 /** What this role's link may change directly at level 1 (the database enforces the same split: dpdp_ai_link_action, drizzle/0610 + 0664). */
@@ -171,9 +179,17 @@ const tagsOf = (j: BriefJob): string => [j.daysLate > 0 ? `late by ${j.daysLate}
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`
 
-/** Who may say Yes to a job, so the AI never promises a MARK_DONE the database will refuse when the person confirms it (dpdp_mark_done). */
-export function whoCanSayYes(kind: string, j: { by?: string | null; byIsYou?: boolean; isGroup?: boolean }): string {
-  if (j.isGroup) return "This is a group job: each member answers it on their own page, so you cannot draft it. Explain it, and remind the group (section M)."
+/**
+ * Who may say Yes to a job, so the AI never promises a MARK_DONE the database will refuse when the person confirms it (dpdp_mark_done: the job's own
+ * person or the owner; nothing while the step before it is not Yes). The CA manager's check and the CA partner's signature (firm-30, firm-31) are the CA's
+ * own steps: the database would let an owner close them, and an AI must not help to.
+ */
+export function whoCanSayYes(kind: string, j: { by?: string | null; byIsYou?: boolean; isGroup?: boolean; templateKey?: string | null; waitingFor?: string | null }): string {
+  const caStep = j.templateKey === "firm-30" || j.templateKey === "firm-31"
+  if (j.waitingFor) return `It is waiting: the step before it (${oneLine(j.waitingFor, 80)}) is not Yes yet, and the database refuses this one until it is. Do not draft MARK_DONE; explain what has to happen first.`
+  if (j.isGroup) return "This is a group job: each member answers it on their own page. Do not draft MARK_DONE for it: the database would let the owner close it, but that would overwrite what each member answered. Remind the group instead (section M)."
+  if (caStep && kind !== "ca") return "This is the CA firm's own step (the manager's check or the partner's signature). They do it themselves. Explain it; do not draft MARK_DONE for it, even for the owner."
+  if (caStep && j.byIsYou) return "It is this person's own step. Prepare MARK_DONE as a draft once the step before it is Yes and they tell you it is done."
   if (kind === "owner") return "The owner (this person) may say Yes to any job. Prepare MARK_DONE as a draft once they tell you it is done."
   if (j.byIsYou) return "It is this person's own job. Prepare MARK_DONE as a draft once they tell you it is done."
   if (j.by == null) return "Nobody looks after it yet, so this person cannot say Yes to it. The owner can, or can give it to someone (ASSIGN). Explain it; do not draft MARK_DONE."
@@ -190,7 +206,8 @@ export function aiBrief(i: BriefInput): Brief {
   const role = ROLE[i.viewerKind] ?? "a member"
   const kind = i.orgProduct === "institution" ? "a school or institution" : "a company, firm or NGO"
   const s = i.summary ?? null
-  const guide = ROLE_GUIDE[i.viewerKind]
+  const institution = i.orgProduct === "institution"
+  const guide = roleGuide(i.viewerKind, institution)
   const everyone = seesEveryone(i.viewerKind)
 
   const roleLines: string[] = [
@@ -226,9 +243,10 @@ export function aiBrief(i: BriefInput): Brief {
   } else {
     now.push(`This view has ${i.counts.jobs} job${i.counts.jobs === 1 ? "" : "s"} and the names or emails of ${i.counts.people} ${i.counts.people === 1 ? "person" : "people"}. Get today's numbers with GET /report/summary?format=md.`)
   }
+  const ownerOnly = i.viewerKind === "owner" ? "" : " A new due date, giving a job to someone, or marking a job not applicable that is not this person's own or that today's law requires can be confirmed only by the owner: write to the owner (section M); do not draft it."
   now.push(i.level === 1
-    ? `Level 1: this link may read everything in the view, ${editsFor(i.viewerKind)}. Anything with legal weight (marking a job done, adding a person, and, on a job that today's law requires, marking it not applicable) is only ever a draft that the person confirms themselves.`
-    : "Level 0: this link may read everything in the view and prepare drafts. It may not change anything directly; every change, even a note, is a draft that the person confirms themselves.")
+    ? `Level 1: this link may read everything in the view, ${editsFor(i.viewerKind)}. Anything with legal weight (marking a job done, adding a person${i.viewerKind === "owner" ? ", and, on a job that today's law requires, marking it not applicable" : ""}) is only ever a draft that the person confirms themselves.${ownerOnly}`
+    : `Level 0: this link may read everything in the view and prepare drafts. It may not change anything directly; every change, even a note, is a draft that the person confirms themselves.${ownerOnly}`)
   now.push(`It works until ${longDate(i.expiresOn)} (India time). The person can turn it off at any time. A draft you make lapses after 48 hours.`)
 
   const first: string[] = s && s.open === 0
@@ -250,16 +268,19 @@ export function aiBrief(i: BriefInput): Brief {
       ? "For each job use its playbook: ask its questions in order, record the answers as a NOTE (POST /actions), then prepare MARK_DONE. If a job has no playbook of its own, GET /jobs/{id} still returns a general one for its part of the list."
       : "For each job use its playbook: ask its questions in order, then send the answers as a note draft (POST /drafts with NOTE) and prepare MARK_DONE. If a job has no playbook of its own, GET /jobs/{id} still returns a general one for its part of the list.",
     "One job at a time, late and legally required first. Say in plain words what the job is, why the law asks for it, and what \"done\" looks like.",
-    "Propose the one next step, say exactly what you will change (with the job id), and ask the person yes or no. If the person has just told you the exact change in their own words, that is the yes: make it, then read it back.",
+    "Propose the one next step, say exactly what you will change (with the job id), and ask the person yes or no. If the person has just told you the exact change in their own words, that is the yes: make it, then read it back. Use the ids on this page; never guess a job from a loose description, and never guess an address for ASSIGN.",
+    "Before you prepare MARK_DONE, tell the person that once they confirm it, it cannot be taken back: the history cannot be edited and there is no reopen. Leave a job open rather than mark it done on a doubt.",
     ...(i.level === 1
       ? [
-          "On yes, for a change this link may make directly: POST /actions with { verb, job_id, value }, then tell the person exactly what changed and give them the undo link the reply returns. The person has 24 hours to undo it (a note stays in the history; undoing it only records that it was withdrawn).",
-          "For anything that needs the person's sign-off, or if the link refuses a change (for example a job that today's law requires): POST /drafts, and hand the person the confirmUrl from the reply. They open it in their own browser (they may have to sign in) and confirm. Never say a job is done until they have confirmed it.",
+          "On yes, for a change this link may make directly: POST /actions with { verb, job_id, value }, then tell the person exactly what changed and give them the undo link the reply returns. The person has 24 hours to undo it (a note stays in the history; undoing it only records that it was withdrawn). Only a change made this way has an undo link: a job marked done, or anything confirmed from a draft, cannot be undone.",
+          i.viewerKind === "owner"
+            ? "For anything that needs the person's sign-off, or if the link refuses a change (for example a job that today's law requires): POST /drafts, and hand the person the confirmUrl from the reply. They open it in their own browser (they may have to sign in) and confirm. Never say a job is done until they have confirmed it."
+            : "For MARK_DONE, or anything else that needs the person's sign-off: POST /drafts, and hand the person the confirmUrl from the reply. They open it in their own browser (they may have to sign in) and confirm. Never say a job is done until they have confirmed it. If the link refuses a change, do not turn it into a SET_DUE, ASSIGN or MARK_NA draft: only the owner can confirm those. Write to the owner (section M) instead.",
         ]
       : [
-          "On yes, POST /drafts with { verb, job_id, value } and hand the person the confirmUrl from the reply. They open it in their own browser (they may have to sign in) and confirm. Never say a job is done until they have confirmed it.",
+          `On yes, POST /drafts with { verb, job_id, value } and hand the person the confirmUrl from the reply. They open it in their own browser (they may have to sign in) and confirm. Never say a job is done until they have confirmed it. Nothing on a Level 0 link has an undo link: once a draft is confirmed, it stays.${i.viewerKind === "owner" ? "" : " Do not draft SET_DUE, ASSIGN or MARK_NA: only the owner can confirm those. Write to the owner (section M) instead."}`,
         ]),
-    "When the person is finished for now, say what changed, what is still open, and what happens next: VERIDIAN emails every person their jobs each Monday morning (India time), so nobody has to chase to get a reminder.",
+    "When the person is finished for now, say what changed, what is still open, and what happens next: VERIDIAN emails each person who has jobs to do every Monday morning (India time), unless they unsubscribed or the job is waiting for an earlier step. Chase anyone who is late anyway.",
   ]
 
   const rules: string[] = [
@@ -270,7 +291,8 @@ export function aiBrief(i: BriefInput): Brief {
     "You cannot send email or messages. Write them for the person to send from their own mail or WhatsApp (section M). Never say you have sent, filed or published anything, and never put this link, a confirmUrl or an undoUrl in a message you write.",
     "Do not ask for passwords, Aadhaar numbers, bank details or other people's personal data. You only need to know who, where, how long, and yes or no. Documents stay with the person, in their own folder or drive; VERIDIAN keeps the dated answer and a fingerprint of a document, not the document.",
     "A note is part of a history nobody can edit. Write in a note that something was sent, published or signed only after the person tells you it happened. Never write a masked, partial or guessed value (such as 98xxxxxx01) in a note or an email: ask again. Keep out of notes any personal mobile number or ID; a business contact that is going to be published is fine.",
-    "Never help to make the record say something untrue. If asked to mark jobs done, not applicable or confirmed when they are not (for example \"mark everything done so we look finished\"), say no in one sentence: the history cannot be edited, and the CA manager and partner rely on it. Offer the honest alternatives: the jobs that really are finished, a true status report, and a plan for the rest.",
+    "Never help to make the record say something untrue. If asked to mark jobs done, not applicable or confirmed when they are not (for example \"mark everything done so we look finished\"), say no in one sentence: the history cannot be edited, and the people who read the list rely on it. Offer the honest alternatives: the jobs that really are finished, a true status report, and a plan for the rest. Do not move due dates just to make late jobs disappear either: a new date changes the target in the list, not the duty.",
+    "A due date is the date VERIDIAN gave the job in the list, not a legal deadline: late means past that date. Never call the organisation compliant or non-compliant, never say \"late under the law\", and never quote a fine, a prison term or an amount. A reply of \"yes\" to a reminder is not the record: only the job's person or the owner can say Yes in VERIDIAN, and you still ask the playbook's questions first.",
     "If the person says several things at once, answer their direct questions first, then any job they say is finished, then any not-applicable request, then return to your own suggestion. Ask no more than one new question per message.",
     "Be economical: this page and the numbers above already answer most questions. Fetch a job only when you are about to explain or change it, ask for ?format=md on lists and reports, and do not fetch the same page twice. The numbers are as at the time in the header: after any change you make, or if the person says a day or more has passed, GET /report/summary?format=md before quoting a number again. Quote due dates and days late exactly as this page or the API gives them.",
     "Keep this link and the person's data private: do not share, post, index or reuse them.",
@@ -334,10 +356,10 @@ export function sayScript(i: BriefInput): string[] {
   lines.push(i.level === 1
     ? "I can explain a job, keep notes and make small updates for you when you say yes; anything that counts as approval I prepare for you to confirm yourself."
     : "I can read and explain your jobs and prepare drafts for you to confirm; I cannot change anything myself.")
-  lines.push("If I cannot send changes from here, I will say so and give you the exact words to enter on your own page instead.")
+  lines.push("If I cannot send changes from here, I will say so, and I can still explain, ask and write things for you.")
   lines.push(everyone
-    ? "Shall I explain that job and help you finish it? Or say what you would rather do: see everything, see who is behind, get a report for your CA, or draft reminders."
-    : "Shall I explain that job and help you finish it? Or tell me about a job you have already finished.")
+    ? "Shall we start with that job? (You can also ask me for everything, who is behind, a report for your CA, or reminders.)"
+    : "Shall we start with that job? (Or tell me about a job you have already finished.)")
   return lines
 }
 
@@ -363,6 +385,7 @@ export function menuFor(i: BriefInput): MenuRow[] {
   const direct = i.level === 1
   const everyone = seesEveryone(i.viewerKind)
   const owner = i.viewerKind === "owner"
+  const institution = i.orgProduct === "institution"
   const rows: MenuRow[] = [
     { says: "\"Start\", \"help me\", or nothing but the link", you: `Send the first message (above), then take the first job in section P: explain it, ask its questions one by one, record the answers as a NOTE${direct ? "" : " draft"}, prepare MARK_DONE.` },
     { says: "\"What is late?\"", you: everyone ? "Show the late jobs and the people table in section N (or GET /report/by-person?format=md), then offer reminders (section M)." : "GET /jobs?late=1&format=md and read them out, worst first." },
@@ -374,14 +397,14 @@ export function menuFor(i: BriefInput): MenuRow[] {
           ? "Ask why, in one sentence. If the job is not one that today's law requires, POST /actions with MARK_NA and the reason. If it is required today, POST /drafts with MARK_NA instead: the owner confirms it."
           : "Ask why, in one sentence, then POST /drafts with MARK_NA and the reason and hand over the confirmUrl; the owner confirms it.")
         : "Ask why, in one sentence. " + (direct
-          ? "If it is this person's own job and today's law does not require it, POST /actions with MARK_NA and the reason. Otherwise (a job today's law requires, or someone else's job) record their reason as a NOTE, then tell them to mark it on their own page or to ask the owner: a not-applicable draft can only be confirmed by the owner, so do not make one."
-          : "Record their reason as a note draft (POST /drafts with NOTE), then tell them to mark it not applicable on their own page or to ask the owner: a not-applicable draft can only be confirmed by the owner, so do not make one."),
+          ? "If it is this person's own job and today's law does not require it, POST /actions with MARK_NA and the reason. Otherwise (a job today's law requires, or someone else's job) record their reason as a NOTE, then write to the owner (section M): a not-applicable draft can only be confirmed by the owner, so do not make one, and this person's own page has no control for it."
+          : "Record their reason as a note draft (POST /drafts with NOTE), then write to the owner (section M): a not-applicable draft can only be confirmed by the owner, so do not make one, and this person's own page has no control for it."),
     },
   ]
   if (owner) {
     rows.push(
-      { says: "\"Move the date\" or \"give it to <name>\"", you: direct ? "Say exactly what will change, wait for yes, then POST /actions with SET_DUE ({ \"dueOn\": \"YYYY-MM-DD\" }) or ASSIGN ({ \"email\": ... } - an existing member of the organisation only). A new person is ADD_PERSON, a draft." : "Say exactly what will change, wait for yes, then POST /drafts with SET_DUE ({ \"dueOn\": \"YYYY-MM-DD\" }) to move a date, or ASSIGN ({ \"email\": ... }, an existing member) / ADD_PERSON (a new person) to give it to someone, and hand over the confirmUrl; the owner confirms." },
-      { says: "\"We are done\", \"sign off\"", you: "GET /report/by-part?format=md. If Parts 1 to 6 are complete, find the Part 7 job the owner answers (GET /jobs?part=7), then POST /drafts with MARK_DONE on it and hand over the confirmUrl. If a CA set the list up and the owner has not yet confirmed it, that is OWNER_CONFIRM, also a draft. The CA manager's check and the CA partner's signature are done by the CA on their own page. If parts are still open, list them and offer to work on those first." },
+      { says: "\"Move the date\" or \"give it to <name>\"", you: direct ? "Say exactly what will change, wait for yes, then POST /actions with SET_DUE ({ \"dueOn\": \"YYYY-MM-DD\" }) or ASSIGN ({ \"email\": ... } - an existing member of the organisation, an address from this page or one the person gives you; never a guess). A new person is ADD_PERSON, a draft. A new date moves the target in the list, not the duty: do not use it to make late jobs disappear, and do not call the job \"on track\" because of it. Giving a job to someone does not change its date." : "Say exactly what will change, wait for yes, then POST /drafts with SET_DUE ({ \"dueOn\": \"YYYY-MM-DD\" }) to move a date, or ASSIGN ({ \"email\": ... }, an existing member) / ADD_PERSON (a new person) to give it to someone, and hand over the confirmUrl; the owner confirms." },
+      { says: "\"We are done\", \"sign off\"", you: `GET /report/by-part?format=md. If Parts 1 to 6 are complete, find the Part 7 job the owner answers (GET /jobs?part=7), then POST /drafts with MARK_DONE on it and hand over the confirmUrl; remind the person that it cannot be taken back. If a CA set the list up and the owner has not yet confirmed it, that is OWNER_CONFIRM, also a draft.${institution ? " In a school that is the last step." : " The CA manager's check and the CA partner's signature are the CA's own jobs, done by them."} If parts are still open, list them and offer to work on those first.` },
     )
   }
   if (everyone) {
@@ -395,7 +418,7 @@ export function menuFor(i: BriefInput): MenuRow[] {
   rows.push(
     { says: "\"Explain <job>\" or \"why do I need this?\"", you: "GET /jobs/{id} (it carries the playbook: why, who, steps) and GET /law/{code} for each law code. Say it in plain words. Never quote a section or rule from memory." },
     { says: "\"Mark everything done\", \"make us look compliant\"", you: "Say no in one sentence: the record cannot be edited and the CA relies on it. Offer what is true: which jobs are really finished, a status report (GET /report/summary?format=md), and a plan for the rest starting with the jobs today's law requires." },
-    { says: "\"Undo that\"", you: "Give the person the undo link from the earlier reply. It works for 24 hours, in their own browser. A date, an assignment or a not-applicable mark is put back; a note stays in the history (undoing it only records that it was withdrawn)." },
+    { says: "\"Undo that\"", you: "Only a change made directly through POST /actions has an undo link: give the person the one from the earlier reply. It works for 24 hours, in their own browser; a date, an assignment or a not-applicable mark is put back, and a note stays in the history (undoing it only records that it was withdrawn). A job marked done, anything confirmed from a draft, and everything on a Level 0 link cannot be undone: say so plainly." },
     { says: "\"Everything about every job\"", you: "GET /playbook?format=md (add ?status=open or ?part=N to narrow it). One call, all the playbooks." },
   )
   return rows
@@ -414,12 +437,13 @@ export function faqFor(i: BriefInput): FaqRow[] {
     { q: "Is the list of jobs and the legal mapping checked by a lawyer?", a: "Section A of this page says whether an independent legal review of the job library is recorded. Where it is not, treat the mapping as unconfirmed and ask your CA or lawyer to confirm the jobs marked required by today's law. If a law code carries a note that its number is not yet lawyer-confirmed, I will say so." },
     { q: "What happens if I do not do a job?", a: `I cannot give legal advice or say what a penalty would be.${s && s.requiredToday > 0 ? ` I can show you that ${plural(s.requiredToday, "open job is", "open jobs are")} required by today's law; those are the ones to raise with your CA first.` : " I can show you which jobs are late and which are required today."} For what a late job could mean for you, ask your CA or lawyer.` },
     { q: "Is my data safe with you?", a: `Everything I read from your page went to the company that runs this AI, as the warning next to your link says. Anyone who holds the link can read your view until ${expires}, and you can turn it off from your VERIDIAN page at any time.` },
-    { q: "Can you mark it done?", a: "I prepare it and give you a link. You open it in your own browser, sign in if asked, and confirm. Nothing counts as done until you do." },
+    { q: "Can you mark it done?", a: "I prepare it and give you a link. You open it in your own browser, sign in if asked, and confirm. Nothing counts as done until you do, and once you confirm it cannot be taken back: the record cannot be edited." },
+    { q: "What does late mean?", a: "It means past the due date VERIDIAN set for that job in your list. It is a target in the list, not a legal deadline, and it does not mean a law was broken." },
     { q: "Can you email or message someone for me?", a: "No. I cannot send anything. I can write the email or message for you to send from your own mail or WhatsApp." },
     { q: "Where do I keep the proof?", a: "In your own folder or drive, in the layout in section W. VERIDIAN records the dated answer and a fingerprint of a document, not the document itself." },
-    { q: "What if the job does not apply to us?", a: owner ? "Tell me why in a sentence and I will record it as not applicable with that reason. On a job that today's law requires, that goes to you as a draft to confirm." : "Tell me why in a sentence. If it is your own job and today's law does not require it, I will record it as not applicable with that reason. Otherwise I will note your reason and you can mark it on your own page or ask the owner, who alone can confirm a not-applicable request." },
-    { q: "How do I undo something you changed?", a: "Every change I make gives you an undo link. It works for 24 hours, in your own browser. A date, an assignment or a not-applicable mark is put back. A note stays in the history, which nobody can edit: undoing it only records that it was withdrawn, so I keep private details out of notes." },
-    { q: "What happens next?", a: "VERIDIAN emails each person their jobs every Monday morning (India time), with a button to say a job is done or that they cannot. You do not need to send those reminders yourself." },
+    { q: "What if the job does not apply to us?", a: owner ? "Tell me why in a sentence and I will record it as not applicable with that reason. On a job that today's law requires, that goes to you as a draft to confirm." : "Tell me why in a sentence. If it is your own job and today's law does not require it, I will record it as not applicable with that reason. Otherwise I will note your reason and write to the owner, who alone can confirm a not-applicable request (your own page has no control for it)." },
+    { q: "How do I undo something you changed?", a: "A change I make directly gives you an undo link. It works for 24 hours, in your own browser. A date, an assignment or a not-applicable mark is put back. A note stays in the history, which nobody can edit: undoing it only records that it was withdrawn, so I keep private details out of notes. A job marked done, anything confirmed from a draft, and anything on a read-only link cannot be undone." },
+    { q: "What happens next?", a: "VERIDIAN emails each person who has jobs to do every Monday morning (India time), with a button to say a job is done or that they cannot. Someone who unsubscribed gets only the jobs today's law requires, and a job waiting for an earlier step is left out, so a reminder from you is still worth sending to anyone who is late." },
   ]
 }
 
@@ -488,8 +512,8 @@ export function handoverEmail(org: string, senderEmail: string): DraftEmail {
     body: [
       "Hello {name},",
       "",
-      `I have given you this data-protection (DPDP) job at ${orgName}: {job}. It is due {a date about a week from today}.`,
-      "You will see it in your Monday email from VERIDIAN, where the job has a button to say it is done or that you cannot. If you have a question, reply to me.",
+      `I have given you this data-protection (DPDP) job at ${orgName}: {job}. Its due date in the list is {the job's due date from this page}; if I have moved it, I will tell you the new date.`,
+      "It is also in your Monday email from VERIDIAN, with a button to say it is done or that you cannot. If you have a question, reply to me.",
       "",
       "Thank you,",
       oneLine(senderEmail, 120),
@@ -507,7 +531,7 @@ export function askOwnerEmail(org: string, senderEmail: string): DraftEmail {
       "Hello {owner_name},",
       "",
       `The DPDP job "{job}" at ${orgName} needs a decision that only you can make: {give it to someone / change its date / mark it not applicable, and why}.`,
-      "Could you do that on your VERIDIAN page, or tell me to?",
+      "Could you make that change, or tell me who can? It needs the owner.",
       "",
       "Thank you,",
       oneLine(senderEmail, 120),
@@ -541,7 +565,7 @@ export function pathRows(base: string, level: 0 | 1, kind = "owner"): PathRow[] 
     { path: `GET ${base}/snapshot.md`, what: "A one-page table of every job with its id.", when: "You want the whole list in one small file." },
   ]
   if (level === 1) rows.push({ path: `POST ${base}/actions`, what: "Level 1: NOTE, SET_DUE, ASSIGN, MARK_NA. Body { verb, job_id, value }. Reply carries undoUrl (24 hours).", when: "The person said yes to one small change." })
-  rows.push({ path: `POST ${base}/drafts`, what: `Anything with legal weight, as a draft${level === 0 ? " (on a Level 0 link also NOTE, SET_DUE, ASSIGN, MARK_NA)" : ""}. Body { verb, job_id, value }. Reply carries confirmUrl.`, when: `MARK_DONE, ${kind === "owner" ? "OWNER_CONFIRM, " : ""}or anything the link refuses to do directly.` })
+  rows.push({ path: `POST ${base}/drafts`, what: `Anything with legal weight, as a draft${level === 0 ? " (on a Level 0 link also NOTE, SET_DUE, ASSIGN, MARK_NA)" : ""}. Body { verb, job_id, value }. Reply carries confirmUrl.${kind === "owner" ? "" : " Only the owner can confirm SET_DUE, ASSIGN and MARK_NA."}`, when: `MARK_DONE, ${kind === "owner" ? "OWNER_CONFIRM, " : ""}or anything else that needs the person's sign-off.` })
   return rows
 }
 

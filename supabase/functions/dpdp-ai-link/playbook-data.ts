@@ -751,7 +751,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "steps": [
       "Ask the AI to read the job list and show: done jobs with no note, not-applicable reasons, open jobs missing a person or date.",
       "For each done job, check the proof exists in your folder. Ask whether each not-applicable reason is true for you.",
-      "Ask the people who did each job about anything you doubt. Reopen it on your page if needed.",
+      "Ask the people who did each job about anything you doubt. A Yes cannot be taken back, so settle every doubt first and write it in a note.",
       "When satisfied, confirm the answers yourself on your own page. The AI only prepares a draft."
     ],
     "ask": [
@@ -759,7 +759,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
       "Is any job marked done or not applicable one you are unsure about?"
     ],
     "proof": "The owner's own confirmation on their page, with the date. Save the job list page as a PDF that day in your own folder.",
-    "note": "Owner reviewed all answers on {date}. Doubtful, to reopen: {list}. Still open: {list}. Owner to confirm on own page by {due_date}.",
+    "note": "Owner reviewed all answers on {date}. Doubts to settle first: {list}. Still open: {list}. Owner to confirm by {due_date}.",
     "notApplicableWhen": null,
     "email": null,
     "watchFor": [

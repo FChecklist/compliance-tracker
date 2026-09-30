@@ -19,10 +19,10 @@ export function longDate(ymd: string): string {
 }
 
 // Characters a person cannot see but a model may read: C0/C1 controls, soft hyphen, Arabic letter mark, Mongolian vowel separator,
-// zero-width and directional marks and overrides and isolates (U+200B-200F, U+202A-202E, U+2060-206F), the byte-order mark, the
+// zero-width space and directional marks and overrides and isolates (U+200B, U+200E-200F, U+202A-202E, U+2060-206F; NOT the zero-width joiners U+200C and U+200D, which belong inside words in Indic and Persian scripts), the byte-order mark, the
 // interlinear annotation marks, and the Unicode "tag" block (U+E0000-E007F) that can spell a hidden sentence.
 // eslint-disable-next-line no-control-regex
-const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb\u{e0000}-\u{e007f}]/gu
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb\u{e0000}-\u{e007f}]/gu
 
 /** One short line of DATA (a job name, an organisation, an address): invisible and control characters and line breaks turned into spaces, whitespace collapsed, cut to `max` characters (never in the middle of a character). */
 export function oneLine(v: unknown, max = 120): string {

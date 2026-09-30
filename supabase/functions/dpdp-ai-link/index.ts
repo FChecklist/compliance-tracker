@@ -34,7 +34,7 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
 import {
   LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
-  playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
+  maskEmails, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
   type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
 } from "./router.ts"
 import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "./manual.ts"
@@ -179,7 +179,14 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
       if (r.error) return mapDbError(r.error, true)
       // The job's own playbook (its library key is on the detail), or a general one for its part of the list: why, who, steps, questions, note, email.
       const pb = playbookFor(r.data.templateKey ?? null, { part: r.data.part, what: r.data.what, requiredToday: r.data.requiredToday })
-      return format === "md" ? formatted("md", renderJobMarkdown(r.data, pb)) : json(200, { ...r.data, playbook: pb.playbook, playbookSource: pb.source })
+      // A link that hides other people's addresses: mask the two fields the database does not (a reason, an action's value).
+      let job = r.data
+      const ctx = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+      if (!ctx.error && ctx.data.link.hideEmails) {
+        const keep = ctx.data.viewer.email
+        job = { ...job, naReason: job.naReason == null ? null : maskEmails(job.naReason, keep), aiActions: job.aiActions.map((a) => ({ ...a, value: JSON.parse(maskEmails(JSON.stringify(a.value ?? null), keep)) })) }
+      }
+      return format === "md" ? formatted("md", renderJobMarkdown(job, pb)) : json(200, { ...job, playbook: pb.playbook, playbookSource: pb.source })
     }
     case "playbook": {
       const format = negotiateFormat(offeredFormats("playbook"), q.get("format"), accept, "md")
