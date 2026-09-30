@@ -324,7 +324,7 @@ describe("what to say, ask and answer", () => {
     expect(staff).not.toContain("SET_DUE")
     expect(staff).not.toContain("Remind people")
     expect(staff).not.toContain("sign off")
-    expect(staff).toContain("write to the owner (section M): a not-applicable draft can only be confirmed by the owner, so do not make one, and this person's own page has no control for it.")
+    expect(staff).toContain("write to the owner (section M): a not-applicable draft can only be confirmed by the owner, so do not make one. The person can also say it themselves, for their own job only: on their own page, More on that job, then Doesn't apply")
     expect(staff).toContain("If it is this person's own job and today's law does not require it, POST /actions with MARK_NA")
     const staff0 = menuFor(input({ viewerKind: "staff", level: 0 })).filter((r) => !r.says.includes("Undo")).map((r) => r.you).join(NL)
     expect(staff0).toContain("Record their reason as a note draft (POST /drafts with NOTE)")
@@ -349,7 +349,7 @@ describe("what to say, ask and answer", () => {
     expect(text.toLowerCase()).not.toMatch(/recommend|promote|guarantee|certified|world.class/)
     // the not-applicable answer is the owner's or the honest one for someone else
     expect(faqFor(input({ viewerKind: "owner" })).find((r) => r.q.startsWith("What if the job does not apply"))!.a).toContain("that goes to you as a draft to confirm")
-    expect(faqFor(input({ viewerKind: "staff" })).find((r) => r.q.startsWith("What if the job does not apply"))!.a).toContain("write to the owner, who alone can confirm a not-applicable request (your own page has no control for it)")
+    expect(faqFor(input({ viewerKind: "staff" })).find((r) => r.q.startsWith("What if the job does not apply"))!.a).toContain("write to the owner, who alone can confirm a not-applicable request (you can also say it yourself, for your own job: on your own page, More on that job, then Doesn't apply")
     // no numbers: still a complete answer
     expect(faqFor(input({ summary: null })).map((r) => r.a).join(NL)).toContain("I can show you which jobs are late and which are required today.")
   })
@@ -510,8 +510,8 @@ describe("the manual opens with Start here and carries the whole briefing", () =
     const md = renderManualMarkdown(m)
     const s = md.slice(md.indexOf("## Start here"), md.indexOf("## N · "))
     expect(s).toContain("IF YOU CANNOT SEND REQUESTS FROM WHERE YOU ARE")
-    expect(s).toContain("lets them say Yes to their own jobs, answer a group job, confirm or undo a change an AI link made, and make or turn off AI links. It has no control for a note, a new date, giving a job to someone, or not applicable")
-    expect(s).toContain("so write the words down for whoever can (the owner, or an AI that can send requests). Never say a change was made.")
+    expect(s).toContain("lets them say Yes to their own jobs, answer a group job, confirm or undo a change an AI link made, and make or turn off AI links. Each job row also has a \"More\" button: anyone who can see the job can add a note to it; the owner can also give it to someone, change its due date, or say it doesn't apply; and the person a job is given to can say it doesn't apply")
+    expect(s).toContain("write down the exact words (the note, the new date, the email address, the reason) and tell the person which \"More\" option to use, or hand them to the owner. Never say a change was made.")
     expect(s.indexOf("IF YOU CANNOT SEND REQUESTS")).toBeLessThan(s.indexOf("RULES"))
   })
   test("job text is escaped in the HTML page", () => {

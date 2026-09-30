@@ -87,6 +87,18 @@ export async function markNotApplicable(client: DpdpClient, obligationId: string
   if (error) throw new RpcFailure(error)
 }
 
+/** Change when one job is due (drizzle/0666). Owner-only; a finished or not-applicable job is refused; the date must be within 30 days back and 400 ahead. `dueOn` is YYYY-MM-DD. */
+export async function setDueDate(client: DpdpClient, obligationId: string, dueOn: string): Promise<void> {
+  const { error } = await client.rpc("dpdp_set_due_date", { p_obligation_id: obligationId, p_due_on: dueOn })
+  if (error) throw new RpcFailure(error)
+}
+
+/** Add a note to one job's history (drizzle/0666): anyone who can see the job. 1-1000 characters; the history is append-only, so a note cannot be edited or removed. */
+export async function addNote(client: DpdpClient, obligationId: string, text: string): Promise<void> {
+  const { error } = await client.rpc("dpdp_add_note", { p_obligation_id: obligationId, p_text: text })
+  if (error) throw new RpcFailure(error)
+}
+
 /** listOnePageHistory(): the org's events, newest first (the RPC caps at 50; the UI shows 15). */
 export async function fetchHistory(client: DpdpClient, orgId?: string, limit = 15): Promise<HistoryItem[]> {
   const { data, error } = await client.rpc("dpdp_org_history", { p_limit: limit, ...(orgId ? { p_org_id: orgId } : {}) })

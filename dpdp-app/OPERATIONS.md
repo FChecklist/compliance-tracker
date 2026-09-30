@@ -215,3 +215,21 @@ Nothing on this list had been done when it was written. Steps 1 and 2 are decisi
 ## Where the website lives (since 2026-09-28)
 
 `veridian-aios.com`, `www.veridian-aios.com` and `app.veridian-aios.com` are all served by the one Cloudflare Pages project `veridian-dpdp-app` (free plan, no server). The domain's DNS is on Cloudflare (zone `veridian-aios.com`, free plan); the registration (renewal 14 July each year) is still held at Vercel, which only stores the registration and the two Cloudflare nameservers `dina.ns.cloudflare.com` / `toby.ns.cloudflare.com`. Vercel does not serve any page for this domain and is not needed for it. Email-sending records for Resend live in the same Cloudflare zone. The sending identity is `dpdp@veridian-aios.com` (Resend sending domain `veridian-aios.com`, once it shows Verified in Resend; see the go-live list above). Historical note: until 2026-09-29 mail was sent from the subdomain `send.veridian-aios.com`; those records were created under that name and can stay in the zone until nothing sends from it, but nothing new should use `send.`. If a page ever shows a Vercel "DEPLOYMENT_PAUSED" 503 again, the nameservers at the registrar have been changed back: set them to the two above.
+
+## Sign-in emails through Resend (owner-run, one command)
+
+Until this is done the sign-in link goes out through Supabase's built-in mailer, which delivers only to addresses on the project's own team and is capped at a few an hour -- a customer who is not on that list never receives it. Everything else about mail is already on Resend (send + receive verified, DMARC published).
+
+`scripts/dpdp/set-auth-smtp.mjs` moves the sign-in mail to Resend. It changes only the Auth SMTP fields of Supabase project `pcrjmlpuqsbocqfwoxod` (host `smtp.resend.com`, port 465, user `resend`, sender `dpdp@veridian-aios.com` / "VERIDIAN DPDP", password = a Resend API key with sending access, plus the hourly cap). Dry run is the default and changes nothing:
+
+```
+SUPABASE_ACCESS_TOKEN=<Supabase personal access token> node scripts/dpdp/set-auth-smtp.mjs
+RESEND_API_KEY=re_...  SUPABASE_ACCESS_TOKEN=... node scripts/dpdp/set-auth-smtp.mjs --apply
+node scripts/dpdp/set-auth-smtp.mjs --revert-note      # how to go back
+```
+
+Two things to know before running it. (1) That Supabase project is shared: the compliance-tracker web app signs people in with it too, so from then on its sign-in emails also come from `dpdp@veridian-aios.com`. (2) Resend has its own daily send cap on the plan in use; a Monday send to many people can reach it -- check the plan before a large customer list goes live. The script never prints a key; after `--apply`, send yourself one from the sign-in page to confirm it arrives.
+
+## Lawyer review pack
+
+The 59 library jobs, the guidance shown for each (`supabase/functions/dpdp-ai-link/playbook-data.ts`) and the law each one cites (`law.ts`) were written and checked by AI. **No lawyer has reviewed them, and the pages say so.** `dpdp-app/docs/LAWYER-REVIEW-PACK.md` gathers everything counsel needs in one place -- the 44 law codes with their plain meaning and the product's own open `verify` notes first (21 today), then every job with its guidance and boxes to tick -- and `lawyer-review-checklist.csv` is the same list as a spreadsheet for comments. Both are generated (`bun scripts/dpdp/gen-lawyer-review-pack.ts`) and a test fails if they fall out of date; every box is left empty on purpose. A reviewer's corrections are made in `law.ts` / `playbook-data.ts` through an ordinary reviewed change, and a `verify` note is removed only when the reviewer has confirmed that point.

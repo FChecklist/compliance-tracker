@@ -91,7 +91,7 @@ All on `?mock=owner-live` (the full table). "Spec" cites
 | LAW-12 | group header row 655: `'Part '+s.k+' · '+s.name` + `s.done+' of '+s.all+' done'` | all 7 headers with their counts |
 | LAW-13 | `fmt()` 270: `en-IN {day:'2-digit', month:'short'}` | four due dates read exactly what that formatter gives for +25/+27/+30/-6 days |
 | LAW-14 | 665: `(-x.due)+' days late'` when `!x.yes && x.due<0` | "6 days late", "3 days late", "1 days late"; three in all; none on a done job |
-| LAW-15 | `blocked()` 497; 672: "Waiting" `until "…" is done` | "Waiting" on the manager's and partner's chain steps, no button |
+| LAW-15 | `blocked()` 497; 672: "Waiting" `until "…" is done` | "Waiting" on the manager's and partner's chain steps, no Yes button (the only button on the row is the owner's "More actions for …", job controls of 2026-09-30) |
 | LAW-16 | chain 336-338 + `blocked()` | the owner's Mark Yes frees the manager's step ("No", not "Waiting"), the partner's stays "Waiting", History records it |
 | LAW-17 | 336-338; `stage()` 505-514 | the manager (real sign-in) then sees Mark Yes and frees the partner; the partner (three steps, then Mark Yes) closes the chain; History has all three |
 | LAW-18 | 667 "Doesn't apply" + `.na td.what` 135 line-through + 658 "—"; 662 "nobody" `tag nob` | Payroll firm: stamp, strike-through, "—" for the person; Group company: "nobody", the only one |

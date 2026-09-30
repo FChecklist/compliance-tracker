@@ -3460,6 +3460,13 @@
       "when": 1790480000000,
       "tag": "0665_dpdp_ai_link_jobs_template_key",
       "breakpoints": true
+    },
+    {
+      "idx": 496,
+      "version": "7",
+      "when": 1790481000000,
+      "tag": "0666_dpdp_page_job_controls",
+      "breakpoints": true
     }
   ]
 }
