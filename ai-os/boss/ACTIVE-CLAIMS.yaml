@@ -5055,6 +5055,20 @@ active:
       minutes amend-history), not basic CRUD. No collision with any existing
       compliance-tracker top-level page (no (app)/moms exists yet).
 
+      PROGRESS UPDATE (2026-09-30, continued): moms merged (#1998 claim,
+      #1999 module) -- 22/24 done. grc module PR open (#2000, auto-merge
+      enabled, draining CI). Now claiming "payroll" (PROJEXA's
+      src/app/(app)/payroll/** -- hub, runs/[id], runs/[id]/payslips/
+      [payslipId], runs/new, statutory-rules/new, structures/new,
+      tax-slabs/new, components/new -- 8 pages). No collision with any
+      existing compliance-tracker top-level page. Backend fully live,
+      confirmed via directory listing, no new routes needed:
+      /api/v1/projexa/payroll/{runs,runs/[id],runs/[id]/process,
+      runs/[id]/payslips,payslips/[id],payslips/[id]/finalize,
+      payslips/[id]/pdf,payslips/[id]/tds,salary-components,
+      salary-structures,statutory-rules,income-tax-slabs,
+      employees/[id]/income-tax-slab,employees/[id]/tax-exemptions}.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
