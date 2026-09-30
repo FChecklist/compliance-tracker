@@ -9,6 +9,15 @@
 // numbers (14/30 days, halved to 7/15 for a job required by today's law)
 // and used as a fallback only when a job arrives without its `escalation`
 // object.
+//
+// The only imports are the two PURE shared modules (no Deno, no network):
+// mail-taxonomy.ts for the dpdp+<tag>.<ref>@ address grammar (used by
+// unsubscribeMailto) and mail-outbound.ts for domainOfFrom, re-exported below
+// so existing importers keep working and there is one implementation.
+import { replyToAddress } from "../_shared/mail-taxonomy.ts"
+import { domainOfFrom } from "../_shared/mail-outbound.ts"
+
+export { domainOfFrom }
 
 export type Escalation = {
   red: boolean
@@ -91,6 +100,8 @@ export type Digest = {
   unsubscribed: boolean
   statutoryOnly: boolean
   alreadySentThisWeek: boolean
+  /** Set by the sender, never by the database: nothing is due, but the person's AI changed things since the last email and they are told. */
+  aiChangesOnly?: boolean
   owners: Contact[]
   coordinators: Contact[]
   jobs: DigestJob[]
@@ -99,7 +110,35 @@ export type Digest = {
 
 export type ActionLinks = Record<string, { done: string; cannot: string; neverHadAny: string | null }>
 
+/**
+ * The person's AI work link as it goes into THIS email (drizzle/0663). `url` is the whole link, or the {{AI_WORK_LINK}}
+ * placeholder in a dry run; `level` is the authority it carries (1 = read + small edits + drafts, 0 = read only).
+ */
+export type AiLinkInfo = {
+  url: string
+  expiresOn: string
+  level: 0 | 1
+  jobs?: number
+  people?: number
+  /** The one-tap Copy page for this link (dpdp-app /copy/#<token>); absent until that page is live. */
+  copyUrl?: string | null
+}
+
+/** One thing the person's AI changed since their last Monday email (dpdp_timer_ai_actions_for_digest). */
+export type AiChange = {
+  verb: string
+  what: string | null
+  value: Record<string, unknown> | null
+  appliedAt: string
+  /** Set only while the change can still be undone (a fresh one-time token in the URL). */
+  undoUrl: string | null
+}
+
 export type RenderLinks = {
+  /** The person's AI work link (Read / Edit / Work). Absent or null: none in this email, and the copy points at the page instead. */
+  aiLink?: AiLinkInfo | null
+  /** What their AI changed for them since the last email (Monday digest only). */
+  aiChanges?: AiChange[] | null
   /** The Supabase Auth magic link (24h), or null when it could not be minted / dry run. */
   signIn: string | null
   /** Per obligationId, the one-click confirmation-page URLs; null in a dry run. */
@@ -113,6 +152,8 @@ export type RenderLinks = {
 export type Rendered = { subject: string; html: string; text: string }
 
 export type EmailKind = "monday_digest" | "escalation" | "leak_clock" | "rights_clock" | "statutory"
+
+import { aiPasteText } from "../_shared/ai-link/prompt.ts"
 
 // WO-DPDP-014 §1/§4/§5: the brand line, footer only, plain small text, on
 // every email; the share ask only in a Monday digest to a decision-maker,
@@ -142,6 +183,7 @@ export function isDecisionMaker(digest: Pick<Digest, "level" | "caSub">): boolea
 /** Placeholders a dry run leaves in the recorded body so no credential is ever stored. */
 export const PLACEHOLDER = {
   signIn: "{{SIGN_IN_LINK}}",
+  aiLink: "{{AI_WORK_LINK}}",
   done: "{{DONE_LINK}}",
   cannot: "{{CANNOT_LINK}}",
   neverHadAny: "{{NEVER_HAD_ANY_LINK}}",
@@ -220,6 +262,7 @@ export function subjectFor(digest: Digest, kind: EmailKind = "monday_digest"): s
   if (kind === "statutory") {
     return `${digest.orgName}: ${plural(digest.jobs.length, "job")} required by today's law${late.length ? ` (${late.length} late)` : ""}`
   }
+  if (digest.aiChangesOnly) return `${digest.orgName}: what your AI changed for you this week`
   if (digest.level === "owner") {
     const open = digest.jobs.length
     return `${digest.orgName}: DPDP this week — ${plural(open, "open job")}${late.length ? `, ${late.length} late` : ""}${escalated ? `, ${escalated} escalated to you` : ""}`
@@ -401,6 +444,172 @@ function textShell(title: string, bodyText: string, links: RenderLinks, kind: Em
   ].join("\n")
 }
 
+// ---------------------------------------------------------------------------
+// The three ways to do the week's jobs, led by the AI work link (owner, 2026-09-30).
+// ---------------------------------------------------------------------------
+
+const AI_NAMES = "ChatGPT, Claude, Gemini, Grok, DeepSeek"
+
+/**
+ * Same line the in-app Copy-link screen shows (dpdp-app/src/lib/ai-work-link.ts aiWorkLinkWarningSentence, WO-013 §1.1 VERBATIM,
+ * including "1 jobs" for a count of one: that app test pins "no special-casing of the count 1"). The two are pinned equal by
+ * src/lib/services/dpdp-email-ai-link.test.ts -- change both or neither.
+ */
+export function aiLinkWarningSentence(jobs: number, people: number): string {
+  return `This link lets an AI assistant read your VERIDIAN view: ${jobs} jobs and the names and emails of ${people} people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.`
+}
+
+/** What the link can do, in the words of what the database really allows (dpdp_ai_link_action, 0610 + 0664), for this kind of person. */
+function aiLinkWhatItCan(level: 0 | 1, isOwner: boolean, hasButtons: boolean): string {
+  if (level === 0) return "It can read your jobs and report on them. It cannot change anything; whatever it suggests, you do yourself on your VERIDIAN page (you may need to sign in first)."
+  const edits = isOwner
+    ? "add a note, change a due date (within a sensible range), give a job to someone already on your team, or mark a job not applicable (with a written reason)"
+    : "add a note, or mark one of your own jobs not applicable (with a written reason)"
+  return `It can read your jobs and make small changes for you directly: ${edits}. Each change is recorded as made by you via your AI assistant, is listed in your next Monday email, and you have 24 hours to undo it on your VERIDIAN page. ` +
+    `Anything that counts as approval, such as marking a job done, or marking a job that today's law requires not applicable, it only prepares as a draft. You then confirm it on your VERIDIAN page (you may need to sign in first).` +
+    (hasButtons ? " To mark a job done, the fastest way is still the green button below." : "")
+}
+
+// The paste itself lives in _shared/ai-link/prompt.ts (also served by dpdp-ai-link at /prompt for the one-tap Copy page). The instructions do
+// not: they are on the page the link opens, personalised per link (the manual's "Start here" section), so the email carries two lines.
+export { aiPasteText }
+
+/** The prompt as HTML: one <br> per line (Outlook's Word renderer ignores white-space), the three headings in bold, the link on its own line. */
+function promptHtml(prompt: string, url: string): string {
+  return prompt.split("\n").map((line) => {
+    if (line === "") return ""
+    if (line === url) return `<span style="word-break:break-all;">${esc(line)}</span>`
+    if (/^[A-Z][A-Z ,()'.-]+$/.test(line)) return `<strong>${esc(line)}</strong>`
+    return esc(line)
+  }).join("<br>")
+}
+
+/**
+ * `hasButtons`: the person has jobs of their own, so there are "Yes, it is done" buttons under them. An owner or coordinator who
+ * only oversees other people's jobs has none, and then there is no "do it right here" option to offer.
+ */
+function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { html: string; text: string[] } {
+  const ai = links.aiLink ?? null
+  const isOwner = digest.level === "owner"
+  const heading = hasButtons ? "Three ways to do this" : "Two ways to do this"
+  const opt = (label: string, rest: string, last = false) =>
+    `<p style="margin:0 0 ${last ? 0 : 6}px;"><strong>${esc(label)}</strong> ${esc(rest)}</p>`
+  const o2: Array<[string, string]> = hasButtons
+    ? [["Option 2 — Do it right here.", "Tap the button under a job when it is done, or “I can't” if you are stuck. Two taps, no sign-in: the button, then a confirm on the page that opens."]]
+    : []
+  const o3: [string, string] = [`Option ${o2.length + 2} — Do it yourself.`, "Open your page (the button at the bottom) and go through everything by hand — most weeks, a couple of minutes."]
+  if (!ai) {
+    // No link could be made (or none was asked for): point at the page.
+    const rows: Array<[string, string]> = [
+      ["Option 1 — Relax, let an AI do it for you.", `Open your page below, copy your AI Work link, and paste it into an AI that can open web links (${AI_NAMES}).`],
+      ...o2.map(([l, r]) => [l, hasButtons ? "Use the buttons under your jobs below, in this email." : r] as [string, string]),
+      [o3[0], "Open your page below and go through it by hand — most weeks, a couple of minutes."],
+    ]
+    return {
+      html: `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">${heading}</h2><div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
+        rows.map(([l, r], i) => opt(l, r, i === rows.length - 1)).join("") + `</div>`,
+      text: [heading.toUpperCase(), ...rows.map(([l, r]) => `${l} ${r}`), ""],
+    }
+  }
+  const jobs = ai.jobs ?? digest.jobs.length
+  const people = ai.people ?? new Set(digest.jobs.map((j) => (j.assigneeEmail ?? "").toLowerCase()).filter(Boolean)).size + 1
+  const expires = longDate(ai.expiresOn)
+  const prompt = aiPasteText(ai.url)
+  const l1 = "Option 1 — Relax, let an AI do it for you."
+  const copyLead = ai.copyUrl ? "Tap Copy at the top right of the box below (or select the box yourself)" : "Copy the whole box below"
+  // The instructions are on the page the link opens, written for this person: their jobs, what is late, what to do first, how.
+  const r1 = ai.level === 1
+    ? `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). The whole box or just the link: either works. The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first. It explains each job in plain words, makes the small updates for you once you say yes, and prepares anything that needs your sign-off for you to confirm.`
+    : `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). The whole box or just the link: either works. The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first. It explains each job in plain words. It cannot change anything.`
+  // Before the link, not after it: what pasting it means (WO-013 §1.1 sentence, verbatim, then what the email adds).
+  const before = `${aiLinkWarningSentence(jobs, people)} Most of these companies are outside India (DeepSeek is run from China). Anyone who holds this link can read all of that${ai.level === 1 ? " and make small changes as you" : ""} until ${expires}. Check that your firm allows this, keep the link private, and do not forward this email.`
+  const fine = `${aiLinkWhatItCan(ai.level, isOwner, hasButtons)} The link stops working early on ${expires}. When there is something for you to do, next Monday's email brings a fresh one; otherwise open your page to make a new one. Tip: if your AI says it cannot open web links, use Option ${o2.length ? "2 or 3" : "2"}; if your mail app turns the box into a blue link, press and hold it and choose Copy.`
+  const html =
+    `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">${heading}</h2>` +
+    `<div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
+    `<p style="margin:0 0 8px;"><strong>${esc(l1)}</strong> ${esc(r1)}</p>` +
+    `<div style="background:#FEF3C7;border:1px solid #F1D48A;border-radius:8px;padding:10px 12px;margin:0 0 8px;color:#78350F;font-size:13.5px;line-height:1.5;"><strong>Before you paste.</strong> ${esc(before)}</div>` +
+    `<div style="background:#F1F5F9;border:1px solid #CBD5E1;border-radius:8px;padding:12px 14px;margin:0 0 8px;">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;"><tr>` +
+    `<td style="color:#475569;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;">Your AI Work link — copy and paste this into your AI</td>` +
+    (ai.copyUrl ? `<td align="right" style="padding-left:8px;white-space:nowrap;"><a href="${esc(ai.copyUrl)}" style="display:inline-block;background:#1C2B3A;color:#FFFFFF;text-decoration:none;font-size:12px;font-weight:700;line-height:1;padding:7px 11px;border-radius:6px;">&#128203; Copy</a></td>` : "") +
+    `</tr></table>` +
+    `<div style="color:#1C2B3A;font-size:13px;line-height:1.55;word-break:break-word;-webkit-user-select:all;user-select:all;">${promptHtml(prompt, ai.url)}</div></div>` +
+    `<p style="color:#475569;font-size:12.5px;margin:0 0 10px;">${esc(fine)}</p>` +
+    o2.map(([l, r]) => opt(l, r)).join("") + opt(o3[0], o3[1], true) +
+    `</div>`
+  const text = [
+    heading.toUpperCase(),
+    `${l1} ${r1}`,
+    "",
+    `BEFORE YOU PASTE. ${before}`,
+    "",
+    ...(ai.copyUrl ? [`COPY IN ONE TAP: ${ai.copyUrl}`, ""] : []),
+    "YOUR AI WORK LINK -- copy the two lines between the lines below and paste them into your AI:",
+    "----------------------------------------------------------------",
+    prompt,
+    "----------------------------------------------------------------",
+    "",
+    fine,
+    "",
+    ...o2.map(([l, r]) => `${l} ${r}`),
+    `${o3[0]} ${o3[1]}`,
+    "",
+  ]
+  return { html, text }
+}
+
+// AI-written text is data, never structure: no quote characters (they frame it in the sentence) and no live URLs (a note could
+// otherwise close the quote and forge a lookalike "Undo: https://..." line).
+const clean = (v: unknown, max = 120): string => oneLine(String(v ?? "").replace(/https?:\/\/\S+/gi, "[link removed]").replace(/["“”‘’]/g, "'"), max)
+
+const oneLine = (v: unknown, max = 120): string => {
+  const t = String(v ?? "").replace(/\s+/g, " ").trim()
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t
+}
+
+/** "Added a note to “Write down where…”: “called the vendor”" -- one plain sentence per change. */
+export function aiChangeSentence(c: AiChange): string {
+  const job = c.what ? `“${clean(c.what, 80)}”` : "a job"
+  const v = c.value ?? {}
+  switch (c.verb) {
+    case "NOTE": return `Added a note to ${job}: “${clean(v.text)}”`
+    case "SET_DUE": return `Moved the due date of ${job} to ${clean(v.dueOn, 20)}`
+    case "ASSIGN": return `Gave ${job} to ${clean(v.email, 80)}`
+    case "MARK_NA": return `Marked ${job} not applicable: “${clean(v.reason)}”`
+    default: return `${clean(c.verb, 30)} on ${job}`
+  }
+}
+
+function aiChangesSection(changes: AiChange[]): { html: string; text: string[] } | null {
+  if (!changes.length) return null
+  const title = `What your AI changed for you (${changes.length})`
+  const note = "These were made through your AI Work link since your last email, and are recorded in your history as made by you via your AI assistant. If any is wrong, open your page to put it right. If you did not expect them, open your page and revoke your AI links."
+  const rows = changes.slice(0, 20)
+  const more = changes.length - rows.length
+  const line = (c: AiChange) => `${aiChangeSentence(c)} — ${longDate(istYmd(c.appliedAt))}`
+  const html =
+    `<h2 style="color:#1C2B3A;font-size:15px;margin:20px 0 8px;">${esc(title)}</h2>` +
+    `<p style="color:#475569;font-size:12.5px;margin:0 0 8px;">${esc(note)}</p>` +
+    rows.map((c) => `<div style="border-left:4px solid #0E7C6E;padding:6px 12px;margin:0 0 8px;color:#334155;font-size:13px;">${esc(line(c))}${c.undoUrl ? ` <a href="${esc(c.undoUrl)}" style="color:#0E7C6E;">Undo</a>` : ""}</div>`).join("") +
+    (more > 0 ? `<p style="color:#475569;font-size:12.5px;margin:0 0 8px;">…and ${more} more in your history.</p>` : "")
+  const text = [
+    title.toUpperCase(),
+    note,
+    ...rows.map((c) => `  ${line(c)}${c.undoUrl ? `\n    Undo: ${c.undoUrl}` : ""}`),
+    ...(more > 0 ? [`  ...and ${more} more in your history.`] : []),
+    "",
+  ]
+  return { html, text }
+}
+
+/** YYYY-MM-DD in India Standard Time for an ISO instant. */
+export function istYmd(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return "1970-01-01"
+  return new Date(d.getTime() + 330 * 60_000).toISOString().slice(0, 10)
+}
+
 /**
  * The Monday email for ONE membership. `kind` is 'statutory' when the
  * digest has already been reduced by statutorySubset(); the copy says so.
@@ -418,6 +627,8 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   const urgency = "DPDP is the law, and the penalties for getting it wrong are steep. The good news: most weeks, this takes under 5 minutes."
   const intro = kind === "statutory"
     ? `You have stopped the weekly email, so this only lists what today's law already requires of you at ${digest.orgName}.`
+    : digest.aiChangesOnly
+      ? `Nothing needs you at ${digest.orgName} this week. Your AI assistant made some changes for you since your last email, and they are listed below so nothing is a surprise.`
     : digest.level === "owner"
       ? `${urgency} Here is where ${digest.orgName} stands on DPDP for the week of ${weekOf}. Late jobs are at the top, in red. Everyone with a job has had their own email; nothing here needs you unless it is escalated to you below.`
       : `${urgency} Here are your DPDP jobs at ${digest.orgName} for the week of ${weekOf}. Late ones are at the top, in red. When a job is done, press the green button — that is all.`
@@ -439,35 +650,25 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   htmlParts.push(`<p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(intro)}</p>`)
   textParts.push(intro, "")
 
-  // WO-DPDP-016 Step 2: the three ways to actually do this, spelled out --
-  // never for the statutory-only view (nothing to "do" there but read the
-  // list). Option 1/2 both point at the SAME "Open my page" sign-in link
-  // rendered below by shell()/textShell() -- Option 1 is what to do once
-  // there (the already-shipped AI work link, WO-DPDP-013), Option 2 is
-  // doing it by hand; Option 3 is the buttons under each job, right here.
-  if (kind !== "statutory") {
-    htmlParts.push(
-      `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Three ways to do this</h2>` +
-      `<div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
-      `<p style="margin:0 0 6px;"><strong>Option 1 — Let an AI do it.</strong> Open your page below, then copy your AI work link and paste it into any AI you use (ChatGPT, Claude, Gemini, Grok, DeepSeek, and so on) — it can read your DPDP jobs and act for you, within the limits you set.</p>` +
-      `<p style="margin:0 0 6px;"><strong>Option 2 — Do it yourself.</strong> Open your page below and go through it yourself — most weeks, a couple of minutes.</p>` +
-      `<p style="margin:0;"><strong>Option 3 — Do it right here.</strong> Use the buttons under your jobs below, in this email.</p>` +
-      `</div>`,
-    )
-    textParts.push(
-      "THREE WAYS TO DO THIS",
-      "Option 1 -- Let an AI do it. Open your page below, then copy your AI work link and paste it into any AI you use (ChatGPT, Claude, Gemini, Grok, DeepSeek, and so on) -- it can read your DPDP jobs and act for you, within the limits you set.",
-      "Option 2 -- Do it yourself. Open your page below and go through it yourself -- most weeks, a couple of minutes.",
-      "Option 3 -- Do it right here. Use the buttons under your jobs below, in this email.",
-      "",
-    )
+  // Owner (2026-09-30): the AI work link goes IN the email, so most people never
+  // open the page at all -- they copy it, paste it into their AI, and the work
+  // is done. Option 1 is that; Option 2 is the buttons under each job; Option 3
+  // is the page, for the rare week they want to go through it by hand. Never for
+  // the statutory-only view (nothing to "do" there but read the list).
+  if (kind !== "statutory" && !digest.aiChangesOnly) {
+    const opts = aiOptions(digest, links, mine.length > 0)
+    htmlParts.push(opts.html)
+    textParts.push(...opts.text)
   }
+  // What the person's AI changed is reported in every version of the email they get, including the statutory-only one.
+  const changes = aiChangesSection(links.aiChanges ?? [])
+  if (changes) { htmlParts.push(changes.html); textParts.push(...changes.text) }
 
   if (mine.length) {
     htmlParts.push(`<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Your jobs (${mine.length})</h2>`)
     textParts.push(`YOUR JOBS (${mine.length})`)
     for (const j of mine) { htmlParts.push(jobHtml(j, digest, links, true)); textParts.push(jobText(j, digest, links, true), "") }
-  } else if (digest.level !== "owner" && kind !== "statutory") {
+  } else if (digest.level !== "owner" && kind !== "statutory" && !digest.aiChangesOnly) {
     htmlParts.push(`<p style="color:#475569;font-size:14px;">Nothing for you this week. You will get an email if anything new comes up.</p>`)
     textParts.push("Nothing for you this week. You will get an email if anything new comes up.", "")
   }
@@ -490,15 +691,17 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
     for (const j of others) { htmlParts.push(jobHtml(j, digest, links, false)); textParts.push(jobText(j, digest, links, false), "") }
   }
 
-  const title = digest.level === "owner" ? `${digest.orgName} — DPDP this week` : "Your DPDP jobs this week"
+  const title = digest.aiChangesOnly ? "What your AI changed for you" : digest.level === "owner" ? `${digest.orgName} — DPDP this week` : "Your DPDP jobs this week"
   // WO-014 §4, widened by WO-016 §1: the invite + refer asks reach every
   // signed-in person in a real Monday digest now, not just a decision-maker
   // (isDecisionMaker is kept, exported, for callers that still care who a
   // "decision-maker" is -- it no longer gates this footer).
-  const shareAsk = kind === "monday_digest"
+  const shareAsk = kind === "monday_digest" && !digest.aiChangesOnly
+  // The preview text an inbox shows: for the changes-only email, the first change rather than the subject repeated.
+  const preview = digest.aiChangesOnly && links.aiChanges?.length ? aiChangeSentence(links.aiChanges[0]) : subject
   return {
     subject,
-    html: shell(title, htmlParts.join("\n"), links, kind, subject, shareAsk, digest.referralCode, digest.inviteCode),
+    html: shell(title, htmlParts.join("\n"), links, kind, preview, shareAsk, digest.referralCode, digest.inviteCode),
     text: textShell(title, textParts.join("\n"), links, kind, shareAsk, digest.referralCode, digest.inviteCode),
   }
 }
@@ -584,10 +787,19 @@ export function listUnsubscribeHeaders(httpsUrl: string, mailto: string | null):
   }
 }
 
-/** "dpdp@send.veridian-aios.com" or "Name <dpdp@send.veridian-aios.com>" -> "send.veridian-aios.com". */
-export function domainOfFrom(from: string): string | null {
-  const m = /<([^>]+)>/.exec(from)
-  const addr = (m ? m[1] : from).trim()
-  const at = addr.lastIndexOf("@")
-  return at === -1 ? null : addr.slice(at + 1)
+/**
+ * The mailto half of List-Unsubscribe: a fresh message to the ONE public
+ * mailbox, addressed dpdp+dsr.<ref>@veridian-aios.com so the inbound
+ * classifier reads it as a data request (a legal-clock class -- ticketed and
+ * acknowledged, never dropped) from the address alone, and `ref` (the SAME ref
+ * as this email's Reply-To) finds the membership it came from. The old mailto
+ * put the one-click token in the subject; that is deliberately gone -- the ref
+ * does the finding, and a live credential has no business in a mail header.
+ *
+ * Honest limit: an unsubscribe BY EMAIL is answered by a person working the
+ * ticket, not applied automatically. The RFC 8058 https POST in the same
+ * header (listUnsubscribeHeaders) is the automatic path and is untouched.
+ */
+export function unsubscribeMailto(ref: string): string {
+  return `${replyToAddress("data_request", ref)}?subject=unsubscribe`
 }

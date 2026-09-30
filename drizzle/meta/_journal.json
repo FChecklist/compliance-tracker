@@ -3432,6 +3432,34 @@
       "when": 1790476000000,
       "tag": "0661_dpdp_my_billing_proof_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 492,
+      "version": "7",
+      "when": 1790477000000,
+      "tag": "0662_dpdp_single_mailbox_mail_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 493,
+      "version": "7",
+      "when": 1790478000000,
+      "tag": "0663_dpdp_email_ai_work_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 494,
+      "version": "7",
+      "when": 1790479000000,
+      "tag": "0664_dpdp_email_ai_link_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 495,
+      "version": "7",
+      "when": 1790480000000,
+      "tag": "0665_dpdp_ai_link_jobs_template_key",
+      "breakpoints": true
     }
   ]
 }

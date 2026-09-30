@@ -2,16 +2,18 @@ import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
 import { declarePayment, myBilling, uploadPaymentProof } from "@/lib/api"
 import type { BillingStatusPayload } from "@/lib/rpc-types"
+import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
 
 // Where to actually send the money -- swap these for the real values the
 // moment the Owner shares them (bank/UPI details + a QR code image at
 // public/payment-qr.png; WhatsApp number). Until then the email address is
-// real and already works -- that channel needs nothing to swap.
+// real and already works -- that channel needs nothing to swap. It is the
+// one public DPDP mailbox (PAY_EMAIL, src/lib/payment-proof-mail.ts), not a
+// personal address: a proof mailed there is filed as an invoice ticket.
 const PAY_UPI_ID = "veridian@upi (ask the Owner for the real UPI ID)"
 const PAY_BANK = { accountName: "VERIDIAN (bank details pending)", accountNumber: "-- pending --", ifsc: "-- pending --" }
 const PAY_QR_IMAGE = "/payment-qr.png"
 const PAY_WHATSAPP_NUMBER = "" // e.g. "919999999999" -- wa.me link is hidden until this is set
-const PAY_EMAIL = "raajat.agarwal@gmail.com"
 
 // WO-DPDP-016 §7-8: the billing widget, lower-left of the owner's own page
 // (Owner instruction, this session). Owner-only -- App.tsx only renders
@@ -77,7 +79,7 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
 
   const amountDue = chosen === "year" ? YEARLY_PAISE : MONTHLY_PAISE
   const waMessage = encodeURIComponent(`VERIDIAN payment -- org ${orgId}, ${formatRupees(amountDue)} (${chosen}ly). Reference: ${reference || "(see attached)"}`)
-  const mailBody = encodeURIComponent(`Org: ${orgId}\nAmount: ${formatRupees(amountDue)} (${chosen}ly)\nReference: ${reference || "(attached separately)"}\n\n(attach your payment screenshot to this email)`)
+  const proofMailto = paymentProofMailto({ orgId, amountLabel: formatRupees(amountDue), interval: chosen, reference })
 
   const trialDays = billing.state === "trial" ? daysLeft(billing.trialEndsAt) : null
   const pillLabel = billing.state === "active"
@@ -170,7 +172,7 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
                 )}
               </div>
               <p style={{ margin: 0, fontSize: 12 }}>
-                Prefer email? <a href={`mailto:${PAY_EMAIL}?subject=${encodeURIComponent("VERIDIAN payment -- " + orgId)}&body=${mailBody}`} style={{ color: "var(--dpdp-v)" }}>{PAY_EMAIL}</a> -- attach your screenshot there.
+                Prefer email? <a href={proofMailto} style={{ color: "var(--dpdp-v)" }}>{PAY_EMAIL}</a> -- attach your screenshot there.
               </p>
             </>
           )}

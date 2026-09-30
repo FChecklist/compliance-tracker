@@ -7,7 +7,7 @@
 //
 //   GET  /                 manual (HTML)      GET /manual.md  GET /manual.json
 //   GET  /context          GET /jobs[?part&status&late&today&mine&nobody]
-//   GET  /jobs/{id}        GET /law/{code}    GET /report/{kind}[?format=md|csv]
+//   GET  /jobs/{id}        GET /playbook[?filters as /jobs]   GET /law/{code}    GET /report/{kind}[?format=md|csv]
 //   GET  /history          POST /actions      POST /drafts
 //   GET  /snapshot.md      (the pre-WO-013 page; <token>.md and /draft still work)
 //
@@ -34,11 +34,13 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
 import {
   LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
-  renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderReportCsv, renderReportMarkdown,
+  maskEmails, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
   type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
 } from "./router.ts"
 import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "./manual.ts"
 import { MAX_BODY_BYTES, RATE_LIMIT, type Format } from "./api-definition.ts"
+import { aiPasteText } from "../_shared/ai-link/prompt.ts"
+import { playbookFor } from "./playbook.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
@@ -131,7 +133,11 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
       const format = negotiateFormat(offeredFormats("manual"), q.get("format"), route.format === "html" ? accept : null, route.format)
       const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
       if (r.error) return mapDbError(r.error)
-      const manual = buildManual({ context: r.data, base: linkBase(token), now: new Date() })
+      // "Start here" carries today's numbers and the most urgent jobs so the AI does not spend calls finding them. A failure here only
+      // means the section tells the AI to fetch them itself.
+      const jr = await rpc<JobRow[]>("dpdp_ai_link_jobs", { p_token: token, p_filters: {} })
+      const summary = !jr.error && Array.isArray(jr.data) ? summariseJobs(jr.data) : null
+      const manual = buildManual({ context: r.data, base: linkBase(token), now: new Date(), summary })
       if (format === "json") return formatted("json", renderManualJson(manual))
       if (format === "md") return formatted("md", renderManualMarkdown(manual))
       return formatted("html", renderManualHtml(manual))
@@ -147,6 +153,13 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
       const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
       if (r.error) return mapDbError(r.error)
       return json(200, { ...r.data, base: linkBase(token) })
+    }
+    case "prompt": {
+      // The two lines the person pastes ("open this link and follow the page"), for the one-tap Copy page. The token must be a live
+      // link -- the context call is the check -- but the text carries no personal data: the personal part is the page itself.
+      const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+      if (r.error) return mapDbError(r.error)
+      return text(200, aiPasteText(linkBase(token)))
     }
     case "jobs": {
       const format = negotiateFormat(offeredFormats("jobs"), q.get("format"), accept, "json")
@@ -164,7 +177,25 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
       const format = negotiateFormat(offeredFormats("job"), q.get("format"), accept, "json")
       const r = await rpc<JobDetail>("dpdp_ai_link_job", { p_token: token, p_job_id: route.id })
       if (r.error) return mapDbError(r.error, true)
-      return format === "md" ? formatted("md", renderJobMarkdown(r.data)) : json(200, r.data)
+      // The job's own playbook (its library key is on the detail), or a general one for its part of the list: why, who, steps, questions, note, email.
+      const pb = playbookFor(r.data.templateKey ?? null, { part: r.data.part, what: r.data.what, requiredToday: r.data.requiredToday })
+      // A link that hides other people's addresses: mask the two fields the database does not (a reason, an action's value).
+      let job = r.data
+      const ctx = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+      if (!ctx.error && ctx.data.link.hideEmails) {
+        const keep = ctx.data.viewer.email
+        job = { ...job, naReason: job.naReason == null ? null : maskEmails(job.naReason, keep), aiActions: job.aiActions.map((a) => ({ ...a, value: JSON.parse(maskEmails(JSON.stringify(a.value ?? null), keep)) })) }
+      }
+      return format === "md" ? formatted("md", renderJobMarkdown(job, pb)) : json(200, { ...job, playbook: pb.playbook, playbookSource: pb.source })
+    }
+    case "playbook": {
+      const format = negotiateFormat(offeredFormats("playbook"), q.get("format"), accept, "md")
+      const r = await rpc<JobRow[]>("dpdp_ai_link_jobs", { p_token: token, p_filters: jobFilters(q) })
+      if (r.error) return mapDbError(r.error)
+      const page = paginate(playbookItems(r.data), q.get("page"), q.get("per_page"))
+      if (format === "json") return json(200, page)
+      const ctx = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+      return formatted("md", renderPlaybookMarkdown(page, ctx.error ? "this organisation" : ctx.data.org.name))
     }
     case "law": {
       const format = negotiateFormat(offeredFormats("law"), q.get("format"), accept, "json")

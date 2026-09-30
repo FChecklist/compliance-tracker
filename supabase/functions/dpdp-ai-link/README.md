@@ -32,10 +32,11 @@ and the router are both generated from it. In brief:
 
 | Method · path | Level | Returns |
 |---|---|---|
-| `GET /` (also `/manual`, `/manual.md`, `/manual.json`) | 0 | the manual, personalised (sections A-G, WO-013 §1.3) |
+| `GET /` (also `/manual`, `/manual.md`, `/manual.json`) | 0 | the manual, personalised: the briefing (S, N, P, T, M, W) then the reference (A-G, WO-013 §1.3) |
 | `GET /context` | 0 | `{ org, viewer, link, library, counts, verbs, base }` |
 | `GET /jobs?part&status&late&today&mine&nobody&page&per_page` | 0 | `{ items, page, perPage, total, pages }` -- also `?format=md\|csv` |
-| `GET /jobs/{id}` | 0 | one job in full (`?format=md`) |
+| `GET /jobs/{id}` | 0 | one job in full, with its `playbook` (`?format=md`) |
+| `GET /playbook?part&status&late&today&mine&nobody&page&per_page` | 0 | the playbook of every job in the view: markdown by default, `?format=json` for `{ items: [{ job, playbook, source }], ... }` |
 | `GET /law/{code}` | 0 | in-force fact from the database + the plain-English topic from `law.ts` (`?format=md`) |
 | `GET /report/{summary\|by-person\|by-law\|by-part}` | 0 | structured JSON, or `?format=md\|csv` with the WO-014 footer |
 | `GET /history?page&per_page` | 0 | the append-only change log, newest first (`?format=md`) |
@@ -106,15 +107,31 @@ logged too. `dpdp.ai_link.call_count` / `last_used_at` feed "Your AI links".
   assignee; `NOTE` anyone). `ASSIGN` never creates an identity or membership.
   Level 2 verbs are refused by `dpdp_ai_link_action` for every link.
 
-## The manual (WO-013 §1.3, WO-014 §4)
+## The manual (WO-013 §1.3, WO-014 §4) and the briefing above it
 
-`manual.ts` builds sections A-G from `facts.ts` + `api-definition.ts` +
-`GET /context`, and renders HTML / Markdown / JSON with the same words. The
-WO-014 brand line appears once, in the header, as a plain fact; there is no
-share ask and no instruction to the AI to share, promote, rank or recommend
-anything (`src/lib/services/dpdp-ai-manual.test.ts`). **`facts.ts` is an
-interim source**: once `dpdp-app/data/veridian-facts.yaml` (WO-013 §4 item 2)
-lands, regenerate it from there.
+`manual.ts` builds the page from `facts.ts` + `api-definition.ts` + `GET /context` + the link's own jobs, and renders HTML / Markdown / JSON
+with the same words. The WO-014 brand line appears once, in the header, as a plain fact; there is no share ask and no instruction to the AI
+to share, promote, rank or recommend anything (`src/lib/services/dpdp-ai-manual.test.ts`). **`facts.ts` is an interim source**: once
+`dpdp-app/data/veridian-facts.yaml` (WO-013 §4 item 2) lands, regenerate it from there.
+
+**The briefing (owner, 2026-09-30).** The Monday email pastes two lines, or the person pastes only the link. Either way the AI must be able
+to do the work from THIS page without thinking hard, so the sections above the WO's reference A-G are written for it:
+
+| Section | What the AI gets |
+|---|---|
+| `S` Start here | who it works for, their role and responsibilities, this link's level, today's numbers, the five jobs that most need doing, what to do first, how to update, the rules of conduct |
+| `N` Where things stand | completion (done / counted, %), pending (open, late, due today, nobody yet), required by today's law, progress by part, and the people who are behind (defaulters) - only for roles that see the whole organisation |
+| `P` The jobs to do first | for each of those jobs its playbook: why, who, steps, questions to ask, what done looks like, the note to record, when "not applicable" is honest, and the email to send if an outside firm has to act |
+| `T` What to say, ask, answer | the first message (a script with the real numbers), the opening questions, "if the person says ... you do ..." with the exact calls, and answers to what people ask |
+| `M` Emails you can draft | reminders for people with late jobs, a status note, and what VERIDIAN sends by itself. The AI cannot send; the person does |
+| `W` Where things are | every call and when to use it, files to hand over with fixed names, the folder layout where the person keeps proof (VERIDIAN keeps a fingerprint, not the document), the person's own page |
+
+The words live in `brief.ts` (the brief, the role guide, the script, the menu, the answers, the emails, the paths) and `playbook.ts` +
+`playbook-data.ts` (one entry per library job, keyed by the library's own key; a job with no entry gets a general playbook for its part). The
+list of jobs carries each job's `templateKey` (drizzle/0665) so the page can pick the playbooks without a call per job. The playbook never
+states a section, rule number or penalty of its own: the law behind a job is fetched with `GET /law/{code}` (`law.ts`, with its `verify`
+notes). `src/lib/services/dpdp-ai-link-owner-checklist.test.ts` pins the owner's list item by item;
+`dpdp-ai-link-playbook.test.ts` pins the playbook's completeness and honesty.
 
 ## Deploy note -- `verify_jwt: false`, and why
 
@@ -150,7 +167,9 @@ function calls RPCs that only exist after it. `APP_ORIGIN` defaults to
 - `index.ts` -- Deno entry point: call log, rate limit, routing, RPC calls, error mapping.
 - `router.ts` -- pure: path parsing, format negotiation, pagination, md/csv renderings (`dpdp-ai-link-router.test.ts`).
 - `api-definition.ts` -- the one API definition (router + manual).
-- `manual.ts` -- pure: the manual, sections A-G, HTML/md/json (`dpdp-ai-manual.test.ts`).
+- `manual.ts` -- pure: the manual, sections S, N, P, T, M, W and A-G, HTML/md/json (`dpdp-ai-manual.test.ts`, `dpdp-ai-link-brief.test.ts`).
+- `brief.ts` -- pure: the task brief, role guide, first-message script, menu, answers, emails, paths and files (`dpdp-ai-link-brief.test.ts`).
+- `playbook.ts`, `playbook-data.ts` -- pure: the job playbook, one entry per library job, and the general fallback (`dpdp-ai-link-playbook.test.ts`).
 - `facts.ts` -- interim facts (brand line, About text) until `veridian-facts.yaml`.
 - `law.ts` -- the citation table, a port of `dpdp-app/scripts/draft-content/law.mjs`.
 - `render.ts` -- the pre-WO-013 snapshot page (`dpdp-ai-link-render.test.ts`).

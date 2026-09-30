@@ -251,6 +251,20 @@ describe("Hindi drafts: lang, reciprocal hreflang, machine-draft marking", () =>
     for (const s of hiSlugs) expect(existsSync(join(DRAFTS, "guides", s, "index.html"))).toBe(true)
     expect(hiSlugs.length).toBe(5)
   })
+
+  // The two Hindi landing drafts mirror the English landings' footers and go
+  // live with them, so they must carry the single published address
+  // (owner decision, 2026-09-29) and never the retired grievance@ / partners@.
+  test("the Hindi landing drafts name dpdp@veridian-aios.com and neither retired address", () => {
+    for (const edition of ["dpdp-firm", "dpdp-institution"]) {
+      for (const name of ["index.html", "index.md"]) {
+        const body = read(join(DRAFTS, "hi", edition, name))
+        expect(body, `hi/${edition}/${name}`).toContain("dpdp@veridian-aios.com")
+        expect(body, `hi/${edition}/${name}`).not.toMatch(/grievance@veridian-aios\.com/i)
+        expect(body, `hi/${edition}/${name}`).not.toMatch(/partners@veridian-aios\.com/i)
+      }
+    }
+  })
 })
 
 describe("published count is 0: nothing under drafts/ is reachable from the site", () => {

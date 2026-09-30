@@ -106,7 +106,13 @@ export function loadFacts() {
   for (const k of ["legal_name", "cin", "registered_office", "gstin"]) need(f.company[k] === null || isStr(f.company[k]), `company.${k} must be a string or null`)
   need(f.company.owner_required === true || Object.values(f.company).every((v) => v !== null), "company.owner_required must be true while any company field is null")
 
-  need(f.contact && isStr(f.contact.grievance_officer_email) && isStr(f.contact.partners_email), "contact emails missing")
+  need(f.contact && typeof f.contact === "object", "contact block missing")
+  need(isStr(f.contact.contact_email), "contact.contact_email missing (the ONE published address)")
+  need(f.contact.contact_email === "dpdp@veridian-aios.com", "contact.contact_email must be dpdp@veridian-aios.com -- the single address the owner approved on 2026-09-29; grievance@ and partners@ are retired")
+  need(/^\d{4}-\d{2}-\d{2}$/.test(String(f.contact.address_approved_on)), "contact.address_approved_on must be YYYY-MM-DD (when the owner approved the single address)")
+  need(isStrList(f.contact.subject_topics), "contact.subject_topics must be a non-empty list of strings")
+  need(f.contact.subject_topics.includes("Grievance"), 'contact.subject_topics must include "Grievance" (the Grievance Officer line refers to it)')
+  need(!("grievance_officer_email" in f.contact) && !("partners_email" in f.contact), "contact.grievance_officer_email / contact.partners_email are retired -- one address only")
 
   need(f.pages && typeof f.pages === "object", "pages block missing")
   for (const p of FACT_PAGE_PATHS) {
@@ -138,6 +144,29 @@ export function publicFacts(facts) {
     setPath(out, path, v)
   }
   return out
+}
+
+/**
+ * The clause that asks a sender to name the topic in the subject line, built
+ * from contact.subject_topics: "and put the topic in the subject: Grievance,
+ * Data request, Sales or Partner". The one place this wording is made -- the
+ * generator (footers, /about/, /for-ai/, llms*.txt), the hand-kept landing
+ * footers' must-contain list in public-surface.mjs and the tests all use it.
+ */
+export function subjectTopicsClause(facts) {
+  const t = facts.contact.subject_topics
+  const list = t.length > 1 ? `${t.slice(0, -1).join(", ")} or ${t[t.length - 1]}` : t[0]
+  return `and put the topic in the subject: ${list}`
+}
+
+/** "Write to dpdp@veridian-aios.com and put the topic in the subject: ..." (plain text). */
+export function contactSentence(facts) {
+  return `Write to ${facts.contact.contact_email} ${subjectTopicsClause(facts)}`
+}
+
+/** "Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)" (plain text). The officer is reached at the same single address. */
+export function grievanceOfficerLine(facts) {
+  return `Grievance Officer: ${facts.contact.contact_email} (subject: Grievance)`
 }
 
 /** "<title_prefix> — <page name>" (WO-014 §4). */

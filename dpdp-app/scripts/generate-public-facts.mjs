@@ -42,7 +42,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { APP_DIR, loadClaims, loadFacts, loadProof, pageTitle, publicFacts } from "../src/lib/facts.mjs"
+import { APP_DIR, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageTitle, publicFacts, subjectTopicsClause } from "../src/lib/facts.mjs"
 import { HIDDEN_PAGES, PUBLIC_PAGES, SITE_ORIGIN, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
@@ -139,10 +139,14 @@ function organizationNode(facts) {
     "@id": ORG_ID,
     name: "VERIDIAN",
     url: facts.company_site,
-    contactPoint: [
-      { "@type": "ContactPoint", contactType: "Grievance Officer", email: facts.contact.grievance_officer_email },
-      { "@type": "ContactPoint", contactType: "Partners", email: facts.contact.partners_email },
-    ],
+    // One address, one ContactPoint per topic a sender may name in the
+    // subject line (contact.subject_topics). "Grievance" keeps its old
+    // contactType, "Grievance Officer".
+    contactPoint: facts.contact.subject_topics.map((topic) => ({
+      "@type": "ContactPoint",
+      contactType: topic === "Grievance" ? "Grievance Officer" : topic,
+      email: facts.contact.contact_email,
+    })),
   }
   if (facts.company.legal_name) node.legalName = facts.company.legal_name
   if (facts.company.registered_office) node.address = { "@type": "PostalAddress", streetAddress: facts.company.registered_office, addressCountry: "IN" }
@@ -231,12 +235,20 @@ function footer(facts) {
   return [
     `<footer class="footer">`,
     `  <b class="font-heading footer-brand">VERIDIAN · VERy INDIAN</b>`,
-    `  <p class="footer-line">Grievance Officer: <b class="white">${esc(facts.contact.grievance_officer_email)}</b> &nbsp;·&nbsp; Partners: <b class="white">${esc(facts.contact.partners_email)}</b></p>`,
+    `  <p class="footer-line">Write to <b class="white">${esc(facts.contact.contact_email)}</b> ${esc(subjectTopicsClause(facts))}</p>`,
+    `  <p class="footer-line">Grievance Officer: <b class="white">${esc(facts.contact.contact_email)}</b> (subject: Grievance)</p>`,
     `  <p class="footer-line">${esc(facts.storage.stored_in_india_wording)}</p>`,
     `  <p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>`,
     `</footer>`,
   ].join("\n")
 }
+
+/** The Contact section's bullets, everywhere it appears (/about/, /for-ai/,
+ * for-ai.md, llms.txt, llms-full.txt): the one address, the subject-line
+ * topics, and the Grievance Officer line (the officer is reached at the same
+ * address). Wording comes from src/lib/facts.mjs so the hand-kept landing
+ * footers' must-contain strings (public-surface.mjs) cannot drift from it. */
+const contactBullets = (facts) => [contactSentence(facts), grievanceOfficerLine(facts)]
 
 function companyLines(facts) {
   const out = []
@@ -280,7 +292,7 @@ function factSheet(facts) {
       ],
     },
     { h2: "The company", paragraphs: companyLines(facts) },
-    { h2: "Contact", bullets: [`Grievance Officer: ${facts.contact.grievance_officer_email}`, `Partners: ${facts.contact.partners_email}`] },
+    { h2: "Contact", bullets: contactBullets(facts) },
   ]
 }
 
@@ -345,7 +357,7 @@ function aboutPage(facts) {
       { h2: "Where the data is", bullets: [facts.storage.database.sentence, facts.storage.email.sentence, facts.storage.website.sentence] },
       { h2: "Your own AI assistant", paragraphs: [facts.ai_work_link_public_sentence] },
       { h2: "The company", paragraphs: companyLines(facts) },
-      { h2: "Contact", bullets: [`Grievance Officer: ${facts.contact.grievance_officer_email}`, `Partners: ${facts.contact.partners_email}`] },
+      { h2: "Contact", bullets: contactBullets(facts) },
     ]),
     `  <p class="facts-meta">Facts version ${facts.version}, approved by the owner on ${esc(facts.approved_on)}. The same facts for AI systems: <a href="/for-ai/">/for-ai/</a> · as plain text: <a href="/for-ai.md">/for-ai.md</a> · as JSON: <a href="/facts.json">/facts.json</a>.</p>`,
     `  <!-- BEGIN generated: facts -->`,
@@ -531,8 +543,7 @@ function llmsTxt(facts) {
     ``,
     `## Contact`,
     ``,
-    `- Grievance Officer: ${facts.contact.grievance_officer_email}`,
-    `- Partners: ${facts.contact.partners_email}`,
+    ...contactBullets(facts).map((b) => `- ${b}`),
     ``,
     `We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.`,
     ``,
@@ -546,7 +557,7 @@ function llmsFullTxt(facts, pagesHtml) {
     for (const line of visibleLines(pagesHtml.get(p.source))) out.push(line.startsWith("# ") ? `### ${line.slice(2)}` : line.startsWith("## ") ? `### ${line.slice(3)}` : line)
     out.push(``)
   }
-  out.push(`## Contact`, ``, `- Grievance Officer: ${facts.contact.grievance_officer_email}`, `- Partners: ${facts.contact.partners_email}`, ``, `We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.`, ``)
+  out.push(`## Contact`, ``, ...contactBullets(facts).map((b) => `- ${b}`), ``, `We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.`, ``)
   return out.join("\n")
 }
 

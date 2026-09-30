@@ -42,7 +42,7 @@ export interface Facts {
     stored_in_india_wording: string
   }
   company: { owner_approved: boolean; owner_required: boolean; source: string; legal_name: string | null; cin: string | null; registered_office: string | null; gstin: string | null; incorporation: string }
-  contact: { owner_approved: boolean; source: string; grievance_officer_email: string; partners_email: string }
+  contact: { owner_approved: boolean; address_approved_on: string; source: string; contact_email: string; subject_topics: string[] }
   ai_work_link_public_sentence: string
   pages: Record<string, FactPage> & { owner_approved: boolean }
   public_fields: string[]
@@ -92,5 +92,8 @@ export function getPath(obj: unknown, path: string): unknown
 export function loadFacts(): Facts
 export function publicFacts(facts: Facts): Record<string, unknown>
 export function pageTitle(facts: Facts, path: string): string
+export function subjectTopicsClause(facts: Facts): string
+export function contactSentence(facts: Facts): string
+export function grievanceOfficerLine(facts: Facts): string
 export function loadClaims(): ClaimsRegister
 export function loadProof(): Proof

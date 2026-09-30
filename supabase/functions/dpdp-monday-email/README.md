@@ -43,10 +43,19 @@ yourself) plus Vault:
   `dpdp_timer_secret` the cron reads. So step 1 alone is enough; nothing
   needs `supabase secrets set`.
 * `APP_ORIGIN` defaults to `https://app.veridian-aios.com`.
-* `DPDP_EMAIL_FROM` defaults to `VERIDIAN AI DPDP <dpdp@send.veridian-aios.com>`.
+* `DPDP_EMAIL_FROM` defaults to `VERIDIAN AI DPDP <dpdp@veridian-aios.com>` — the
+  one public address (see "The one public mailbox" below). **If this secret is
+  already set to the old `…@send.veridian-aios.com` value it overrides the new
+  default, and mail keeps going out from the old subdomain: delete the secret
+  (or set it to the value above).** The function logs a warning at start-up
+  whenever the configured From is not on `veridian-aios.com`.
 * `RESEND_API_KEY` absent = **dry run** (unchanged). Set it only once Resend's
   domain is verified, via the dashboard (Edge Functions → Secrets) or
   `supabase secrets set RESEND_API_KEY='re_...'` from a machine with a CLI token.
+  **`veridian-aios.com` itself (not only `send.veridian-aios.com`) must be a
+  verified sending domain in Resend** before the new From works; until it is,
+  Resend refuses every send with a "domain is not verified" error and each row
+  is marked `failed` (nothing is lost, the retry job goes again).
 
 Other optional overrides: `DPDP_FUNCTION_URL` (defaults to
 `$SUPABASE_URL/functions/v1/dpdp-monday-email`), `DPDP_ACTION_PATH` (default
@@ -62,7 +71,11 @@ supabase functions deploy dpdp-monday-email --no-verify-jwt
 ```
 
 (Via the Supabase MCP `deploy_edge_function`: pass `verify_jwt: false` and
-both files, `index.ts` + `render.ts`.)
+the function's files, `index.ts` + `render.ts`, **plus the two shared files it
+now imports by relative path: `../_shared/mail-taxonomy.ts` and
+`../_shared/mail-outbound.ts`.** The CLI bundles those automatically; the MCP
+does not, so leaving them out fails the deploy on the import. The same two
+shared files are needed by `dpdp-invoice-email`.)
 
 ### 4. Apply the migrations
 
@@ -111,6 +124,76 @@ select jobname, status, return_message, start_time from cron.job_run_details
 select id, status_code, error_msg from net._http_response order by id desc limit 5;
 ```
 
+## The one public mailbox (outbound)
+
+The public shows one address, `dpdp@veridian-aios.com`. Everything this function
+(and `dpdp-invoice-email`) sends is built by `../_shared/mail-outbound.ts` on the
+grammar in `../_shared/mail-taxonomy.ts`:
+
+| What | Value |
+| --- | --- |
+| From | `VERIDIAN AI DPDP <dpdp@veridian-aios.com>` (`DPDP_EMAIL_FROM` overrides) |
+| Reply-To | `dpdp+mon.<ref>@veridian-aios.com` (Monday digest and its statutory-only view, class `monday`); `dpdp+clk.<ref>@veridian-aios.com` (the 72-hour leak-clock and 90-day rights-clock notices, class `clock`, chosen by `mailClassOf` in `index.ts`); `dpdp+inv.<ref>@…` for the invoice |
+| Subject | `[VERIDIAN DPDP · Monday] …` / `[VERIDIAN DPDP · Statutory] …` (the two legal-clock notices) / `[VERIDIAN DPDP · Invoice] …`, added once, never stacked. `render.ts` still returns the plain subject; the prefix is added at send time |
+| Headers | `X-Veridian-Class`, `X-Veridian-Ref`, plus `List-Unsubscribe` / `List-Unsubscribe-Post` (Monday) |
+| List-Unsubscribe mailto | `mailto:dpdp+dsr.<ref>@veridian-aios.com?subject=unsubscribe` — same `ref` as the Reply-To, class `data_request`. The RFC 8058 https one-click POST beside it is unchanged |
+| Log | one `dpdp.mail_outbound` row per sent message, via `public.dpdp_mail_log_outbound(p_ref, p_class, p_to_addr, p_subject, p_provider_message_id, p_membership_id, p_org_id)` |
+
+**Two different "legal clock" things -- do not confuse them.** The *notices* of the `legal_clocks` job (the
+72-hour data-leak clock, the 90-day rights clock) go out as class `clock`. `clock` is the class of the
+message WE send and of a plain reply to it; it is deliberately **not** one of the inbound
+legal-clock classes (`grievance`, `data_request`, `review`: `LEGAL_CLOCK_CLASSES` in
+`../_shared/mail-taxonomy.ts`), the ones that get a due date and an automatic acknowledgement,
+because a reply such as "done, thanks" does not itself start a response clock. It becomes one
+by what the person WRITES: a data request or a grievance in the reply is raised to `data_request` /
+`grievance` by the inbound classifier (whichever notice it answers, with or without the plus-tag), and
+a reply that leaves nothing of the person's own above the quote, or is cut short with almost no text,
+becomes `review`. The notices' own body lines ("Still to do: tell the Data Protection Board",
+"A erasure request (RR-7) received on ... has not been answered") are recognised there as OUR words, so
+an echo of a notice is not mistaken for a request;
+`supabase/functions/dpdp-inbound-mail/classify.test.ts` renders every notice in full to prove it (so a
+wording change in `render.ts` that adds a legal word fails that test, not silently a real reply).
+
+`ref` is 10 characters, fresh for every message. Cloudflare Email Routing
+delivers every `dpdp+anything@` to the one `dpdp@` rule, so a reply that loses
+its `+tag` is still received (the inbound classifier then falls back to thread
+and keyword rules).
+
+**The log is best-effort by design.** It is written right after Resend accepts
+the message and before the `sent` mark; it never throws and waits at most 4 s
+(`LOG_TIMEOUT_MS`). If `public.dpdp_mail_log_outbound` does not exist yet
+(another migration creates it), sends still go out, the log call warns
+(`… (the email WAS sent; …)`) and returns, and replies are still classified from
+the class/ref in the Reply-To address. What is lost is only the lookup from a
+`ref` to the membership/organisation. A failed send is not logged.
+
+Limits worth knowing: `provider_message_id` is Resend's `id`, not the RFC 5322
+Message-ID a mail client quotes in `In-Reply-To`, so the `ref` in the Reply-To
+address is the dependable link. An unsubscribe **by email** becomes a
+data-request ticket a person works; only the https one-click POST is applied
+automatically.
+
+Tests: `bun test --isolate src/lib/services/dpdp-mail-outbound.test.ts src/lib/services/dpdp-timer-render.test.ts`
+(the first loads both real `index.ts` files under bun with a stubbed `Deno`,
+a mocked supabase client and a stubbed `fetch`).
+
+## The AI work link in the email (owner, 2026-09-30)
+
+The owner's aim: a person should, in most weeks, never open the web page. They copy the AI work link out of the Monday email, paste it into an AI, and the AI does the work. So the digest carries the link itself, inside a **complete prompt** (the external AI is told exactly what to do and does not have to think), and reports what the person's AI changed.
+
+* **Authority: READ / EDIT / WORK.** The emailed link is level 1 of WO-DPDP-013 v2 §1.2: read everything in the person's view, make the small edits directly, and prepare a **draft** for anything with legal weight, which the person confirms on their VERIDIAN page (they may have to sign in first: it is never "one tap"). Level 2 is never a link property; this feature does not change that. What a link can do depends on the person, and the email says so: an **owner** can `NOTE`, `SET_DUE`, `ASSIGN` (an existing member) and `MARK_NA`; anyone else can `NOTE` and `MARK_NA` their own jobs (the database refuses the rest).
+* **Extra limits, only for an emailed link (label `Monday email`, drizzle/0664).** It was not chosen by the person and it sits in mailboxes, forwards and quoted replies, so `dpdp_ai_link_action` refuses `SET_DUE` outside [today - 30 days, today + 400 days] and `MARK_NA` on a job required by today's law (that becomes a draft). A link the person makes in the app is unchanged.
+* **Two lines in the email, the whole briefing on the page.** The box holds `aiPasteText` (`_shared/ai-link/prompt.ts`): "Please open this link and follow the instructions on that page exactly ... If you cannot open web links, tell me so and stop", then the link; the email also says the whole box or just the link works. Everything the AI needs is on the page the link opens, personalised per link by `dpdp-ai-link` (`brief.ts`, `playbook.ts`, `playbook-data.ts`, `manual.ts`): who the person is and their role and responsibilities, this link's level, completion / pending / who is behind, the five most urgent jobs each with its law and playbook (why, who, steps, questions to ask, the note to record, the email to send), the first message as a script, "if the person says ... you do ...", ten answers, emails to draft (the AI cannot send), every call, the files to hand over and the folders where the person keeps proof. Because the words live on the page, they can be improved for every link already sent without another email. Full description: `supabase/functions/dpdp-ai-link/README.md`.
+* **Copy, in one tap.** An email cannot run a script, so nothing in it can react to a hover or to scrolling into view. The prompt box has a **Copy** button in its top right corner: a link to `https://app.veridian-aios.com/copy/#<token>` (a private page, dpdp-app `/copy/`). The token is in the URL fragment, which a browser never sends to a server; the page removes it from the address bar at once, fetches the two lines from `GET /ai/<token>/prompt`, and puts them on the clipboard by itself where the browser allows it (Chrome and Edge do; Safari and Firefox want a tap, and then the big Copy button is right there). The button appears only when `DPDP_COPY_PAGE_URL` is set to `https://app.veridian-aios.com/copy/`; set it once that page is deployed.
+* **Consent, before the link.** A "Before you paste" block sits above the box: the app's WO-013 §1.1 sentence verbatim with the person's real counts, that most of these companies are outside India (DeepSeek from China), that anyone holding the link can read it all (and edit, at level 1) until the date, and "check your firm allows this, keep it private, do not forward". A tip covers an AI that cannot open links.
+* **One new link every Monday, valid 7 days, retired only AFTER the send.** `dpdp_timer_mint_email_ai_link` makes the row and retires nothing; after Resend accepts the message `dpdp_timer_finish_email_ai_link(delivered = true)` retires the person's other `Monday email` links. A failed send retires only the link nobody received (`delivered = false`), so the previous link keeps working. Links a person made themselves are never touched. `DPDP_EMAIL_AI_LINK_DAYS` may be 1, 7 or 30.
+* **What the AI changed.** The digest (and the statutory-only version) lists the changes the person's AI made since their last email (`dpdp_timer_ai_actions_for_digest`, the hook 0610 built), with a fresh one-time Undo link while one can still be undone (this needs a sign-in). A person with nothing due whose AI changed something gets a short email for that alone (its own period key `<week>:ai`, no new link, no share asks); it is never sent with an empty list. The changes listed are marked shown by id **after** the send, so a change made meanwhile is reported next time.
+* **Fail-soft, and visible.** A link that cannot be made never stops the email (older wording, "open your page and copy your AI Work link"). The run summary now has `ai: { minted, mintFailed, changesListed, changesFailed, aiOnlySent }`, so a week in which the link silently broke shows up. A failure after Resend accepted the message (marking the row, retiring the old link, marking changes shown) is warned and never turns the row into `failed`, so a retry cannot send the email twice. A dry run records `{{AI_WORK_LINK}}`, never a credential, and reads nothing about the person's AI.
+* **Replies.** A reply to this email quotes it. `dpdp-inbound-mail` redacts the AI link, Undo, "done", sign-in and unsubscribe tokens from the text before the ticket excerpt is stored or the operator's notice is sent (`redactSecrets` in its handler).
+* **Switches (Edge Function secrets), FAIL CLOSED.** `DPDP_EMAIL_AI_LINK_ENABLED` and `DPDP_EMAIL_AI_CHANGES_ENABLED`: on when unset or exactly `1`, off for anything else (`0`, `false`, `off` ...). `DPDP_EMAIL_AI_LINK_LEVEL`: `1` when unset or `1`; anything else is read-only. `DPDP_EMAIL_AI_LINK_DAYS`: exactly 1, 7 or 30, else 7. Anything not understood is logged at start-up. Emergency: `update dpdp.ai_link set revoked_at = now() where label = 'Monday email' and revoked_at is null;`.
+* **Known and accepted.** The token is in the URL path, so Supabase's request log holds live tokens: log access equals link access. Resend keeps the sent body. Resend click tracking must stay OFF (an Undo anchor would otherwise be rewritten). Mail scanners that fetch a plain-text URL cause a counter update on the link and see the manual (which names the person); the link is shown as plain text, not an anchor, to keep that rare.
+* The URL is shown as plain text, not an anchor, so a click tracker does not rewrite it. The row that records a real send stores no body.
+
 ## What the static app (`dpdp-app/`, other agents) needs to provide
 
 * `/act/#<token>` — the one-click confirmation page (WO-011 §2.3). On load
@@ -121,7 +204,8 @@ select id, status_code, error_msg from net._http_response order by id desc limit
 * `/unsubscribe/#<token>` — call `rpc('dpdp_unsubscribe', { p_token })` on
   the button press. The `List-Unsubscribe` header's https URL is this
   function's `?action=unsubscribe&t=<token>` (a POST target, RFC 8058); a
-  human GET on it is 302'd to this page.
+  human GET on it is 302'd to this page. (Its mailto half now goes to the one
+  public mailbox as a data request — see "The one public mailbox" above.)
 * `/app/` — the signed-in page, and the "Send me a new link" button the
   email points at when its 24-hour link has expired.
 

@@ -53,8 +53,13 @@
     "registered_office": "B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India"
   },
   "contact": {
-    "grievance_officer_email": "grievance@veridian-aios.com",
-    "partners_email": "partners@veridian-aios.com"
+    "contact_email": "dpdp@veridian-aios.com",
+    "subject_topics": [
+      "Grievance",
+      "Data request",
+      "Sales",
+      "Partner"
+    ]
   },
   "ai_work_link_public_sentence": "Users can give their own AI assistant a private, time-limited AI work link from inside VERIDIAN."
 }

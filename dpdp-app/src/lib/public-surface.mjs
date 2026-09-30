@@ -24,7 +24,7 @@
 // canonical, X-Robots-Tag noindex, absent from the sitemap and llms*.txt,
 // linked from nowhere -- but NOT a private prefix (no robots Disallow, so a
 // crawler that finds it can still read the noindex).
-import { loadFacts, pageTitle } from "./facts.mjs"
+import { loadFacts, pageTitle, subjectTopicsClause } from "./facts.mjs"
 
 import { SITE_ORIGIN } from "./site-origin.mjs"
 export { SITE_ORIGIN }
@@ -123,8 +123,12 @@ const LANDING_COPY = [
   "Start with what you hold",
   "One email. No card. Fifteen minutes.",
   "Your DPDP proof — not just your DPDP policy. People move on. The proof stays.",
-  "grievance@veridian-aios.com",
-  "partners@veridian-aios.com",
+  // The one published address and the ask to name the topic in the subject
+  // line. Since 2026-09-29 (owner decision) there is no separate
+  // grievance@ / partners@ address; both landings' hand-kept footers carry
+  // these strings, built from the facts file so they cannot drift from it.
+  FACTS.contact.contact_email,
+  subjectTopicsClause(FACTS),
   "We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.",
 ]
 
@@ -203,7 +207,8 @@ export const PUBLIC_PAGES = [
       FACTS.storage.email.sentence,
       FACTS.storage.website.sentence,
       FACTS.ai_work_link_public_sentence,
-      FACTS.contact.grievance_officer_email,
+      FACTS.contact.contact_email,
+      subjectTopicsClause(FACTS),
       FACTS.brand.share_ask,
       ...FACT_COPY,
     ],

@@ -178,7 +178,7 @@ storage:
     provider: Resend
     provider_country: United States
     sentence: Email is sent through Resend, a US company, so the content of every email passes through a US company's service.
-    source: Resend, sending domain send.veridian-aios.com (provisioned in Resend's ap-northeast-1 region) -- verified 2026-09-22
+    source: Resend, sending identity dpdp@veridian-aios.com (Resend domain veridian-aios.com; the previous subdomain send.veridian-aios.com was provisioned in Resend's ap-northeast-1 region -- verified 2026-09-22; the new domain's region has not been re-checked)
   website:
     provider: Cloudflare Pages
     sentence: The public website is served by Cloudflare Pages, a global content delivery network.
@@ -205,12 +205,30 @@ company:
   gstin: null
   incorporation: incorporated in India under the Companies Act, 2013
 
-# Public contact points, as the public pages already publish them.
+# Public contact point. Since 2026-09-29 the public sees ONE address,
+# dpdp@veridian-aios.com, for everything: the Grievance Officer, data
+# requests, sales and partners. `address_approved_on` records that the owner
+# approved that single address in a live session on 2026-09-29 (externally one
+# address; internally the platform tells the kinds of mail apart, see
+# supabase/functions/_shared/mail-taxonomy.ts). `owner_approved` below stays
+# false on purpose and keeps its old meaning: it covers the WORDING of the
+# contact copy (the sentence the generator builds from `subject_topics`),
+# which the owner has not signed off word for word. The retired
+# grievance@ and partners@ addresses are published nowhere any more; a page
+# that names them again is a regression (src/lib/facts.test.ts pins that).
+# `subject_topics` are the words a sender is asked to put in the subject line;
+# "Grievance" must stay in the list because the Grievance Officer line refers
+# to it.
 contact:
   owner_approved: false
-  source: dpdp-firm/index.html footer and JSON-LD Organization.contactPoint
-  grievance_officer_email: grievance@veridian-aios.com
-  partners_email: partners@veridian-aios.com
+  address_approved_on: "2026-09-29"
+  source: dpdp-firm/index.html footer and JSON-LD Organization.contactPoint; src/app/dpdp/_components/DpdpMarketingPage.tsx footer
+  contact_email: dpdp@veridian-aios.com
+  subject_topics:
+    - Grievance
+    - Data request
+    - Sales
+    - Partner
 
 # ---------------------------------------------------------------------------
 # WO-DPDP-013 v2 §2.1: the ONE sentence /for-ai may say about the AI work
@@ -279,8 +297,8 @@ public_fields:
   - company.legal_name
   - company.cin
   - company.registered_office
-  - contact.grievance_officer_email
-  - contact.partners_email
+  - contact.contact_email
+  - contact.subject_topics
   - ai_work_link_public_sentence
 
 # ---------------------------------------------------------------------------

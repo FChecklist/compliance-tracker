@@ -32,22 +32,60 @@
 // run; the row is marked 'failed' with the error and the next one
 // proceeds. Idempotent per (membership, ISO week): a re-run skips anyone
 // already recorded for this week.
+//
+// ONE PUBLIC MAILBOX (2026-09-29). Every email this function sends goes out
+// From "VERIDIAN AI DPDP <dpdp@veridian-aios.com>" with a Reply-To of
+// dpdp+mon.<ref>@veridian-aios.com, a "[VERIDIAN DPDP · Monday]" subject
+// prefix and X-Veridian-Class/-Ref headers, so a person's reply reaches the
+// one inbox already labelled (supabase/functions/_shared/mail-outbound.ts,
+// mail-taxonomy.ts). Each sent message also gets one dpdp.mail_outbound row
+// (public.dpdp_mail_log_outbound) so a reply can be traced to the membership
+// it answers. That log write is best-effort: it can never fail or delay a
+// send past a few seconds (see logOutbound).
+//
+// TWO CLASSES. The weekly digest (and its statutory-only view for someone who has
+// stopped the weekly email) goes out as class "monday". The two notices of the
+// legal_clocks job -- the 72-hour data-leak clock and the 90-day rights clock --
+// go out as class "clock" ("[VERIDIAN DPDP · Statutory]", Reply-To
+// dpdp+clk.<ref>@), so a reply to one is filed as a reply to a statutory notice
+// (ticket K-...) and not mistaken for a reply to the weekly digest. A reply that
+// itself carries a data request or a grievance is raised to that class by the
+// inbound classifier whichever of the two it answers. mailClassOf() below is
+// the one place that maps a delivery to its class.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import {
-  type ActionLinks, type Digest, type LegalClocks, type LegalRecipient, type RenderLinks, type Rendered,
-  domainOfFrom, isDeliverableAddress, isEmpty, listUnsubscribeHeaders, renderDigest, renderLeakClock, renderRightsClock, statutorySubset,
+  type ActionLinks, type AiChange, type Digest, type LegalClocks, type LegalRecipient, type RenderLinks, type Rendered,
+  PLACEHOLDER, isDeliverableAddress, isEmpty, istYmd, listUnsubscribeHeaders, renderDigest, renderLeakClock, renderRightsClock, statutorySubset, unsubscribeMailto,
 } from "./render.ts"
+import {
+  type AiStats, type Rpc, aiOnlyChanges, finishEmailAiLink, loadAiChanges, markChangesShown, mintAiLink, newAiStats, parseAiLinkConfig,
+} from "./ai-link-email.ts"
+import { type OutboundEnvelope, buildOutbound, foreignSenderWarning, logOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
+import { type MailClass, newRef, withSubjectPrefix } from "../_shared/mail-taxonomy.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
 const SUPABASE_URL = env("SUPABASE_URL")
 const SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY")
 const TIMER_SECRET = env("DPDP_TIMER_SECRET")
 const RESEND_API_KEY = env("RESEND_API_KEY")
-const EMAIL_FROM = env("DPDP_EMAIL_FROM") || "VERIDIAN AI DPDP <dpdp@send.veridian-aios.com>"
+const EMAIL_FROM = resolveFrom(env("DPDP_EMAIL_FROM"))
+// A stale DPDP_EMAIL_FROM secret naming the old send. subdomain would silently override the new default.
+const SENDER_WARNING = foreignSenderWarning(EMAIL_FROM)
+if (SENDER_WARNING) console.warn(SENDER_WARNING)
 const APP_ORIGIN = (env("APP_ORIGIN") || "https://app.veridian-aios.com").replace(/\/+$/, "")
 const FUNCTION_URL = (env("DPDP_FUNCTION_URL") || `${SUPABASE_URL}/functions/v1/dpdp-monday-email`).replace(/\/+$/, "")
 const ACTION_PATH = env("DPDP_ACTION_PATH") || "/act/"
 const UNSUBSCRIBE_PATH = env("DPDP_UNSUBSCRIBE_PATH") || "/unsubscribe/"
+// The AI work link inside the Monday email (drizzle/0663 + 0664; ai-link-email.ts). Owner, 2026-09-30: the emailed link is
+// READ / EDIT / WORK, which is level 1 (read + small edits directly; anything with legal weight is a draft the person confirms).
+// FAIL CLOSED: a switch is on only when unset or exactly "1". DPDP_EMAIL_AI_LINK_ENABLED=0 takes the link out of the email;
+// DPDP_EMAIL_AI_CHANGES_ENABLED=0 stops listing what the person's AI changed; DPDP_EMAIL_AI_LINK_LEVEL is 1 unless set to
+// anything else (then read-only); DPDP_EMAIL_AI_LINK_DAYS is 1, 7 or 30 (default 7). Emergency: update dpdp.ai_link set
+// revoked_at = now() where label = 'Monday email' and revoked_at is null.
+const AI = parseAiLinkConfig((k) => env(k).trim())
+for (const w of AI.warnings) console.warn(`dpdp-monday-email: ${w}`)
+const aiRpc = (sb: SupabaseClient): Rpc => (fn, args) => rpc<unknown>(sb, fn, args)
+const aiWarn = (m: string) => console.warn(m)
 
 type Summary = {
   job: string
@@ -61,6 +99,8 @@ type Summary = {
   orgs: number
   /** True when the time budget ran out before every organisation was done: the retry job continues it. */
   partial: boolean
+  /** The AI work link in the email: links made / failed, changes listed / failed to read, changes-only emails sent. A week where the link silently broke shows here. */
+  ai: AiStats
   details: Array<{ membershipId: string; to: string; kind: string; status: string; error?: string }>
 }
 
@@ -132,11 +172,11 @@ function unsubscribeUrl(token: string): string {
   return `${FUNCTION_URL}?action=unsubscribe&t=${encodeURIComponent(token)}`
 }
 
-async function sendViaResend(to: string, rendered: Rendered, headers: Record<string, string>): Promise<string> {
+async function sendViaResend(to: string, rendered: Rendered, out: OutboundEnvelope): Promise<string> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject: rendered.subject, html: rendered.html, text: rendered.text, headers }),
+    body: JSON.stringify(resendPayload(to, out, rendered)),
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`Resend ${res.status}: ${JSON.stringify(body).slice(0, 300)}`)
@@ -144,6 +184,15 @@ async function sendViaResend(to: string, rendered: Rendered, headers: Record<str
 }
 
 type RecordResult = { id: string | null; unsubscribeToken?: string; duplicate: boolean }
+
+/**
+ * The mail class a delivery goes out as. The legal-clock notices (kind leak_clock / rights_clock, which only the
+ * legal_clocks job produces) are "clock"; everything else -- the weekly digest and its statutory-only subset -- is
+ * "monday".
+ */
+function mailClassOf(kind: Deliverable["kind"]): MailClass {
+  return kind === "leak_clock" || kind === "rights_clock" ? "clock" : "monday"
+}
 
 type Deliverable = {
   orgId: string
@@ -155,6 +204,11 @@ type Deliverable = {
   obligationIds: string[]
   /** Obligations the recipient may act on from this email (tokens are minted for exactly these). */
   actionableIds: string[]
+  /** Nothing is due; the email exists only to tell the person what their AI changed. No new AI work link is minted for it. */
+  aiChangesOnly?: boolean
+  /** With aiChangesOnly: the changes, loaded once by the caller (an email with an empty list is never sent), and their ids. */
+  aiChanges?: AiChange[]
+  aiChangeIds?: string[]
   render: (links: RenderLinks) => Rendered
 }
 
@@ -164,13 +218,22 @@ type Deliverable = {
  * stop the rest of the run.
  */
 async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summary: Summary): Promise<void> {
-  const placeholders: RenderLinks = { signIn: null, actions: null, unsubscribeUrl: null, appHome: `${APP_ORIGIN}/app/` }
+  const cls = mailClassOf(d.kind)
+  const isDigest = d.kind === "monday_digest"
+  const placeholders: RenderLinks = {
+    signIn: null, actions: null, unsubscribeUrl: null, appHome: `${APP_ORIGIN}/app/`,
+    // A dry run shows the placeholder, never a minted credential, and reads nothing about the person's AI changes.
+    aiLink: isDigest && !d.aiChangesOnly && AI.linkEnabled
+      ? { url: PLACEHOLDER.aiLink, expiresOn: istYmd(new Date(Date.now() + AI.days * 86_400_000).toISOString()), level: AI.level, copyUrl: AI.copyPageUrl ? `${AI.copyPageUrl}#${PLACEHOLDER.aiLink}` : null }
+      : null,
+  }
   const base = { p_org_id: d.orgId, p_membership_id: d.membershipId, p_identity_id: d.identityId, p_obligation_ids: d.obligationIds, p_kind: d.kind, p_period_key: d.periodKey, p_to_email: d.to }
 
   if (dryRun) {
     try {
       const preview = d.render(placeholders)
-      const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: preview.subject, p_status: "dry_run", p_body_text: preview.text })
+      // The recorded subject is the one the recipient would see, prefix included.
+      const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: withSubjectPrefix(cls, preview.subject), p_status: "dry_run", p_body_text: preview.text })
       if (rec.duplicate) { summary.skipped++; summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "skipped-duplicate" }); return }
       summary.dry_run++
       summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "dry_run" })
@@ -190,9 +253,11 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
   }
 
   let rowId: string | null = null
+  let minted: Awaited<ReturnType<typeof mintAiLink>> = null
+  let delivered = false
   try {
     const preview = d.render(placeholders)
-    const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: preview.subject, p_status: "queued" })
+    const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: withSubjectPrefix(cls, preview.subject), p_status: "queued" })
     if (rec.duplicate || !rec.id) { summary.skipped++; summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "skipped-duplicate" }); return }
     rowId = rec.id
 
@@ -206,17 +271,45 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
       for (const t of minted) actions[t.obligationId] = { done: actionUrl(t.done), cannot: actionUrl(t.cannot), neverHadAny: t.neverHadAny ? actionUrl(t.neverHadAny) : null }
     }
     const unsub = unsubscribeUrl(rec.unsubscribeToken ?? "")
-    const rendered = d.render({ signIn, actions, unsubscribeUrl: unsub, appHome: `${APP_ORIGIN}/app/` })
-    const fromDomain = domainOfFrom(EMAIL_FROM)
-    const headers = listUnsubscribeHeaders(unsub, fromDomain ? `unsubscribe@${fromDomain}?subject=unsubscribe%20${encodeURIComponent(rec.unsubscribeToken ?? "")}` : null)
-    const messageId = await sendViaResend(d.to, rendered, headers)
-    await rpc(sb, "dpdp_timer_mark_email_send_result", { p_id: rowId, p_status: "sent", p_resend_message_id: messageId || null, p_error: null })
+    // The AI work link goes IN the email (owner, 2026-09-30), and so does what the person's AI changed since last time.
+    // The link is made now but retires nothing: last week's stays valid until this email has really gone (finishEmailAiLink).
+    minted = isDigest && !d.aiChangesOnly ? await mintAiLink(aiRpc(sb), AI, APP_ORIGIN, d.membershipId, summary.ai, aiWarn) : null
+    const shown = d.aiChanges
+      ? { changes: d.aiChanges, ids: d.aiChangeIds ?? [] }
+      : isDigest || d.kind === "statutory" ? await loadAiChanges(aiRpc(sb), AI, APP_ORIGIN, d.membershipId, summary.ai, aiWarn) : { changes: [], ids: [] }
+    const rendered = d.render({ aiLink: minted, aiChanges: shown.changes, signIn, actions, unsubscribeUrl: unsub, appHome: `${APP_ORIGIN}/app/` })
+    // One ref per message. It goes in BOTH the Reply-To (class monday, or clock for a
+    // legal-clock notice) and the List-Unsubscribe mailto (class data_request), so
+    // either reply finds this send. RFC 8058's https one-click POST stays as it was.
+    const ref = newRef()
+    const out = buildOutbound(cls, rendered.subject, {
+      from: EMAIL_FROM,
+      ref,
+      headers: listUnsubscribeHeaders(unsub, unsubscribeMailto(ref)),
+    })
+    const messageId = await sendViaResend(d.to, rendered, out)
+    delivered = true
+    // The message HAS gone. Nothing below may turn it into a "failed" row: the retry would send it a second time. Log it for
+    // reply-tracing first, and never let the log affect the send (best-effort, bounded wait, never throws).
+    await logOutbound(sb, { ref, cls, to: d.to, subject: out.subject, providerMessageId: messageId || null, membershipId: d.membershipId, orgId: d.orgId })
+    try {
+      await rpc(sb, "dpdp_timer_mark_email_send_result", { p_id: rowId, p_status: "sent", p_resend_message_id: messageId || null, p_error: null })
+    } catch (markErr) {
+      // The row stays 'queued', which still blocks a second send this week.
+      console.warn(`could not mark ${rowId} sent (the email did go): ${markErr instanceof Error ? markErr.message : String(markErr)}`)
+    }
+    // Now last week's emailed link can stop working, and the changes listed in this email are reported.
+    if (minted) await finishEmailAiLink(aiRpc(sb), d.membershipId, minted.linkId, true, aiWarn)
+    await markChangesShown(aiRpc(sb), d.membershipId, shown.ids, aiWarn)
+    if (d.aiChangesOnly) summary.ai.aiOnlySent++
     summary.sent++
     summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "sent" })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     summary.failed++
     summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "failed", error: message })
+    // A link made for an email that never went stops working; the previous one, which someone does hold, keeps working.
+    if (minted && !delivered) await finishEmailAiLink(aiRpc(sb), d.membershipId, minted.linkId, false, aiWarn)
     if (rowId) {
       try { await rpc(sb, "dpdp_timer_mark_email_send_result", { p_id: rowId, p_status: "failed", p_resend_message_id: null, p_error: message.slice(0, 2000) }) } catch (markErr) { console.error("mark failed:", markErr) }
     }
@@ -231,7 +324,7 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
  * retry job (drizzle/0654) goes again -- safe, a digest is unique per week.
  */
 async function runMonday(sb: SupabaseClient, now: Date, orgId: string | null, dryRun: boolean): Promise<Summary> {
-  const summary: Summary = { job: "monday", dryRun, digests: 0, sent: 0, dry_run: 0, failed: 0, skipped: 0, orgs: 0, partial: false, details: [] }
+  const summary: Summary = { job: "monday", dryRun, digests: 0, sent: 0, dry_run: 0, failed: 0, skipped: 0, orgs: 0, partial: false, ai: newAiStats(), details: [] }
   const orgIds = orgId ? [orgId] : await rpc<string[]>(sb, "dpdp_timer_org_ids", { p_now: now.toISOString() })
   summary.orgs = orgIds.length
   const deadline = Date.now() + TIME_BUDGET_MS
@@ -276,23 +369,35 @@ async function deliverDigests(sb: SupabaseClient, digests: Digest[], dryRun: boo
     if (raw.alreadySentThisWeek) { summary.skipped++; summary.details.push({ membershipId: raw.membershipId, to: raw.email, kind: "monday_digest", status: "skipped-already-sent" }); continue }
     const kind: "monday_digest" | "statutory" = raw.statutoryOnly ? "statutory" : "monday_digest"
     const digest = raw.statutoryOnly ? statutorySubset(raw) : raw
-    if (isEmpty(digest)) { summary.skipped++; summary.details.push({ membershipId: raw.membershipId, to: raw.email, kind, status: "skipped-nothing-to-say" }); continue }
+    let only: { changes: AiChange[]; ids: string[] } | null = null
+    if (isEmpty(digest)) {
+      // Nothing is due -- but if the person's AI changed something since the last email, WO-013 promises they are told in
+      // "their next Monday email", so an email goes out for that alone (a real send only, to a real address, never a dry run).
+      // The changes are loaded ONCE, here: an email with an empty list is never sent.
+      if (!dryRun && isDeliverableAddress(digest.email)) only = await aiOnlyChanges(aiRpc(sb), AI, APP_ORIGIN, digest.membershipId, summary.ai, aiWarn)
+      if (!only) { summary.skipped++; summary.details.push({ membershipId: raw.membershipId, to: raw.email, kind, status: "skipped-nothing-to-say" }); continue }
+    }
+    const aiChangesOnly = only !== null
     await deliver(sb, {
       orgId: digest.orgId,
       membershipId: digest.membershipId,
       identityId: digest.identityId,
       to: digest.email,
-      kind,
-      periodKey: digest.weekKey,
+      kind: aiChangesOnly ? "monday_digest" : kind,
+      // Its own key, so it does not use up the week's real digest (the unique index is on membership + kind + period).
+      periodKey: aiChangesOnly ? `${digest.weekKey}:ai` : digest.weekKey,
       obligationIds: digest.jobs.map((j) => j.obligationId),
       actionableIds: digest.jobs.filter((j) => j.isMine).map((j) => j.obligationId),
-      render: (links) => renderDigest(digest, links, kind),
+      aiChangesOnly,
+      aiChanges: only?.changes,
+      aiChangeIds: only?.ids,
+      render: (links) => renderDigest(aiChangesOnly ? { ...digest, aiChangesOnly: true } : digest, links, aiChangesOnly ? "monday_digest" : kind),
     }, dryRun, summary)
   }
 }
 
 async function runLegalClocks(sb: SupabaseClient, now: Date, orgId: string | null, dryRun: boolean): Promise<Summary> {
-  const summary: Summary = { job: "legal_clocks", dryRun, digests: 0, sent: 0, dry_run: 0, failed: 0, skipped: 0, orgs: 0, partial: false, details: [] }
+  const summary: Summary = { job: "legal_clocks", dryRun, digests: 0, sent: 0, dry_run: 0, failed: 0, skipped: 0, orgs: 0, partial: false, ai: newAiStats(), details: [] }
   const clocks = await rpc<LegalClocks>(sb, "dpdp_timer_legal_clocks", { p_now: now.toISOString(), p_org_id: orgId })
   for (const leak of clocks.leaks) {
     for (const r of leak.recipients as LegalRecipient[]) {

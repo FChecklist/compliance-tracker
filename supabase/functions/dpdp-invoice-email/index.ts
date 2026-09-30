@@ -18,14 +18,29 @@
 // payment: dpdp.email_send's (membership, kind, period_key) uniqueness
 // means calling this twice for the same paymentId records but does not
 // double-send (dpdp_timer_record_email_send's own duplicate check).
+//
+// ONE PUBLIC MAILBOX (2026-09-29). The receipt goes out From "VERIDIAN AI DPDP
+// <dpdp@veridian-aios.com>" with Reply-To dpdp+inv.<ref>@veridian-aios.com, a
+// "[VERIDIAN DPDP · Invoice]" subject prefix and X-Veridian-Class/-Ref headers,
+// so "Questions? Just reply to this email." (the receipt's own last line) is now
+// literally true: the reply reaches the one inbox, already labelled as an invoice
+// reply. The sent message is also logged (public.dpdp_mail_log_outbound) so the
+// reply can be traced to the organisation; that write is best-effort and can
+// never fail or delay the send (supabase/functions/_shared/mail-outbound.ts).
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
+import { type OutboundEnvelope, buildOutbound, foreignSenderWarning, logOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
+import type { MailClass } from "../_shared/mail-taxonomy.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
 const SUPABASE_URL = env("SUPABASE_URL")
 const ANON_KEY = env("SUPABASE_ANON_KEY")
 const SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY")
 const RESEND_API_KEY = env("RESEND_API_KEY")
-const EMAIL_FROM = env("DPDP_EMAIL_FROM") || "VERIDIAN AI DPDP <dpdp@send.veridian-aios.com>"
+const EMAIL_FROM = resolveFrom(env("DPDP_EMAIL_FROM"))
+const MAIL_CLASS: MailClass = "invoice"
+// A stale DPDP_EMAIL_FROM secret naming the old send. subdomain would silently override the new default.
+const SENDER_WARNING = foreignSenderWarning(EMAIL_FROM)
+if (SENDER_WARNING) console.warn(SENDER_WARNING)
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -83,11 +98,11 @@ function renderInvoice(d: InvoiceDetails): { subject: string; text: string; html
   return { subject, text, html }
 }
 
-async function sendViaResend(to: string, rendered: { subject: string; text: string; html: string }): Promise<string> {
+async function sendViaResend(to: string, rendered: { text: string; html: string }, out: OutboundEnvelope): Promise<string> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject: rendered.subject, html: rendered.html, text: rendered.text }),
+    body: JSON.stringify(resendPayload(to, out, rendered)),
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`Resend ${res.status}: ${JSON.stringify(body).slice(0, 300)}`)
@@ -121,22 +136,28 @@ Deno.serve(async (req: Request) => {
   if (!d || !d.ownerEmail) return json({ error: "No such payment, or the organisation has no owner on file" }, 404)
 
   const rendered = renderInvoice(d)
+  // One envelope (ref, Reply-To, prefixed subject, headers) for this message; the prefixed
+  // subject is what is recorded in dpdp.email_send too, so the log matches what the owner saw.
+  const out = buildOutbound(MAIL_CLASS, rendered.subject, { from: EMAIL_FROM })
   const dryRun = body.dryRun === true || !RESEND_API_KEY
 
   const { data: rec, error: recErr } = await sb.rpc("dpdp_timer_record_email_send", {
     p_org_id: d.orgId, p_membership_id: d.ownerMembershipId, p_identity_id: d.ownerIdentityId, p_obligation_ids: [],
-    p_kind: "invoice", p_period_key: d.paymentId, p_to_email: d.ownerEmail, p_subject: rendered.subject,
+    p_kind: "invoice", p_period_key: d.paymentId, p_to_email: d.ownerEmail, p_subject: out.subject,
     p_status: dryRun ? "dry_run" : "queued", p_body_text: rendered.text,
   })
   if (recErr) return json({ error: recErr.message }, 500)
   const rowId = (rec as { id: string | null } | null)?.id ?? null
   const duplicate = (rec as { duplicate?: boolean } | null)?.duplicate === true
 
-  if (dryRun) return json({ ok: true, dryRun: true, duplicate, to: d.ownerEmail, subject: rendered.subject })
+  if (dryRun) return json({ ok: true, dryRun: true, duplicate, to: d.ownerEmail, subject: out.subject })
   if (duplicate) return json({ ok: true, dryRun: false, duplicate: true, to: d.ownerEmail })
 
   try {
-    const messageId = await sendViaResend(d.ownerEmail, rendered)
+    const messageId = await sendViaResend(d.ownerEmail, rendered, out)
+    // The receipt has left. Log it for reply-tracing before the bookkeeping below; best-effort,
+    // bounded wait, never throws -- a log problem must not turn a delivered receipt into a 502.
+    await logOutbound(sb, { ref: out.ref, cls: MAIL_CLASS, to: d.ownerEmail, subject: out.subject, providerMessageId: messageId || null, membershipId: d.ownerMembershipId, orgId: d.orgId })
     if (rowId) await sb.rpc("dpdp_timer_mark_email_send_result", { p_id: rowId, p_status: "sent", p_resend_message_id: messageId })
     return json({ ok: true, dryRun: false, duplicate: false, to: d.ownerEmail, resendMessageId: messageId })
   } catch (e) {
