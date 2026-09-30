@@ -231,12 +231,17 @@ function nav(facts, current) {
   ].join("\n")
 }
 
+/** Cloudflare Pages rewrites every visible e-mail address in HTML to "[email protected]" plus a script unless the text sits between these two
+ * comments (the comments themselves are removed from the response). A no-JavaScript reader -- a crawler, an AI fetcher, a screen reader on a
+ * locked-down device -- then sees no way to reach us. Every visible address the generator writes goes through this. */
+const EMAIL_OFF = (html) => `<!--email_off-->${html}<!--/email_off-->`
+
 function footer(facts) {
   return [
     `<footer class="footer">`,
     `  <b class="font-heading footer-brand">VERIDIAN · VERy INDIAN</b>`,
-    `  <p class="footer-line">Write to <b class="white">${esc(facts.contact.contact_email)}</b> ${esc(subjectTopicsClause(facts))}</p>`,
-    `  <p class="footer-line">Grievance Officer: <b class="white">${esc(facts.contact.contact_email)}</b> (subject: Grievance)</p>`,
+    `  <p class="footer-line">${EMAIL_OFF(`Write to <b class="white">${esc(facts.contact.contact_email)}</b> ${esc(subjectTopicsClause(facts))}`)}</p>`,
+    `  <p class="footer-line">${EMAIL_OFF(`Grievance Officer: <b class="white">${esc(facts.contact.contact_email)}</b> (subject: Grievance)`)}</p>`,
     `  <p class="footer-line">${esc(facts.storage.stored_in_india_wording)}</p>`,
     `  <p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>`,
     `</footer>`,
@@ -301,7 +306,7 @@ const sectionsHtml = (sections) =>
     .map((s) => {
       const out = [`  <section class="facts-section">`, `    <h2>${esc(s.h2)}</h2>`]
       for (const p of s.paragraphs ?? []) out.push(`    <p>${esc(p)}</p>`)
-      if (s.bullets) out.push(`    <ul>`, ...s.bullets.map((b) => `      <li>${esc(b)}</li>`), `    </ul>`)
+      if (s.bullets) out.push(`    <ul>`, ...s.bullets.map((b) => `      <li>${b.includes("@") ? EMAIL_OFF(esc(b)) : esc(b)}</li>`), `    </ul>`)
       out.push(`  </section>`)
       return out.join("\n")
     })
