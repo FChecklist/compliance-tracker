@@ -84,6 +84,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/mood-boards",
   "/notices",
   "/orchestra",
+  "/payroll",
   "/penalties",
   "/performance-reviews",
   "/permits",
