@@ -48,6 +48,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/expenses",
   "/fde",
   "/ffe",
+  "/finance",
   "/finops",
   "/floor-plans",
   "/fm-register-digitization",
