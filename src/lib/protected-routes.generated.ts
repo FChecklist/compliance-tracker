@@ -9,6 +9,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/accounting",
   "/ai-cost-governance",
   "/ai-observability",
+  "/analysis",
   "/approvals",
   "/audit",
   "/audit-engagements",
