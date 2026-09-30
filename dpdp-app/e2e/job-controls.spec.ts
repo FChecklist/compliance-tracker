@@ -27,7 +27,7 @@ const MORE = { name: /^More actions for / } as const
 const MORE_OR_CLOSE = { name: /^(More|Close) actions for / } as const
 
 // The sentence the page shows after a control succeeded. A staff member has no History on their page, so this is their only confirmation.
-const saidOnPage = (page: Page, text: string | RegExp) => page.getByRole("status").filter({ hasText: text })
+const saidOnPage = (page: Page, text: string | RegExp) => page.getByText(text)
 
 // The first row whose panel offers exactly these tabs, opened. Rows are tried
 // in page order and closed again when they do not fit, so the test names the

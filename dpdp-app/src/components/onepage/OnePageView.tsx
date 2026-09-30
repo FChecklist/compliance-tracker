@@ -137,8 +137,9 @@ export function OnePageView({
 
         {/* What was just done, in words, kept on screen while the person works down a long list. A staff member has no History on their page, so this is
             their only confirmation; the region exists before it has words (a live region announces a change, not an insertion) and a row that a filter then
-            hides cannot take its message with it. */}
-        <div role="status" aria-live="polite" className="sticky top-2 z-20">
+            hides cannot take its message with it. A plain aria-live region, not role="status": the page already has role="status" notices (a confirmed draft, an undo)
+            that must stay the only ones. */}
+        <div aria-live="polite" aria-atomic="true" className="sticky top-2 z-20">
           {saved && <div className="rounded-xl px-3.5 py-2.5 mb-2.5" style={{ background: "var(--dpdp-gL)", color: "#0B5F26", fontSize: 13.5, fontWeight: 700, boxShadow: "0 2px 10px rgba(20,30,60,.12)" }}>✓ {saved}</div>}
         </div>
 
