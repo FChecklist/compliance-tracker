@@ -12,6 +12,14 @@
 // Read-only: the service only SELECTs, and so does the oracle. Nothing is
 // written anywhere.
 //
+// A SECOND test covers the 11 checks no live project can exercise today (no
+// disputes, complaints, material issues, drawing-linked progress, invoice
+// lines tied to BOQ lines, interim bills or double-approved revision chains
+// exist live yet): it inserts a qualifying scenario into real existing
+// projects of the real E2E test org through the real withTenantContext,
+// runs the real aggregator in that same transaction, ROLLS IT BACK, and
+// re-reads to prove no row persisted.
+//
 // Needs DATABASE_URL + APP_RUNTIME_DATABASE_URL (this repo's own Supabase
 // project; test-guard.ts refuses anything else). Without a reachable
 // database the suite SKIPS (CI's unit-test job uses a placeholder URL) --
@@ -291,5 +299,97 @@ d("live oracle: getProjectExceptions() vs an independent SQL reading of the real
     for (const s of summary) console.log(JSON.stringify(s))
     expect(compared).toBeGreaterThan(0)
     expect(mismatches).toEqual([])
+  }, 900_000)
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // THE DETECTORS NO LIVE PROJECT CAN EXERCISE TODAY -- the live data has no
+  // vendor disputes, customer complaints, material issues, drawing-linked
+  // progress, purchase-invoice lines tied to BOQ lines, interim bills, or a
+  // revision chain with two approved versions -- so for #3, #4, #10, #11,
+  // #12, #18, #19, #22, #23, #27 and #24's retention half the oracle above
+  // can only ever agree at zero. Here each one gets a real qualifying
+  // scenario INSIDE REAL EXISTING PROJECTS of the real E2E test org
+  // ("Meridian Construction Group (E2E Test Org)"): inserted through the
+  // real withTenantContext (app_runtime, RLS enforced), the real aggregator
+  // run in the same transaction, then the whole transaction ROLLED BACK --
+  // and the tagged rows re-read afterwards to prove nothing persisted.
+  // Positives must fire; the paired negative controls must not.
+  // ─────────────────────────────────────────────────────────────────────────
+  test("zero-live-data detectors fire on a real scenario inside real projects, rolled back, nothing persisted", async () => {
+    const { withTenantContext } = await import("@/lib/db/tenant-scoped")
+    const { getProjectExceptionsWithDb } = await import("./construction-exceptions-service")
+    const { sql } = await import("drizzle-orm")
+    class Rollback extends Error {}
+
+    const ORG = "4ecc472f-4152-4310-ae8d-cf8b7c52ab6d" // Meridian Construction Group (E2E Test Org)
+    const MAIN = "dd486dad-9119-4d9a-a9d9-cf0ee0cc9e04" // Meridian Heights - Residential Tower A (real, 2.7k+ progress entries)
+    const RET = "jrs5mqku99jnyxhvkbisb5qa" // same org, real project with no snags and no bills yet (retention needs "every snag closed")
+    const tag = `excv${Date.now()}`
+    const id = (s: string) => `${tag}-${s}`
+    const invNo = 900_000_000 + Math.floor(Math.random() * 90_000_000)
+
+    type Checks = Awaited<ReturnType<typeof getProjectExceptionsWithDb>>
+    let main: Checks = []
+    let ret: Checks = []
+    await withConnectRetry(() => withTenantContext({ orgId: ORG }, async (db) => {
+      const supplierRows = await db.execute(sql`select id from compliance.erp_suppliers limit 1`) as unknown as Array<{ id: string }>
+      const supplier = supplierRows[0]?.id
+      expect(supplier).toBeTruthy() // the real test org has real suppliers (23 on 2026-09-30)
+      const statements = [
+        // #3 / #4: a superseded drawing and its current version; one entry unconfirmed on the old one, one confirmed on the new one.
+        `insert into compliance.documents (id, name, file_url, org_id, is_latest_version) values ('${id("doc-old")}', 'EXCV drawing rev 1', 'https://files.test/excv-r1.pdf', '${ORG}', false), ('${id("doc-new")}', 'EXCV drawing rev 2', 'https://files.test/excv-r2.pdf', '${ORG}', true)`,
+        `insert into compliance.construction_work_progress_entries (id, org_id, project_id, activity_id, entry_date, recorded_by_id, drawing_document_id, drawing_confirmed_at) values ('${id("e-unconf-old")}', '${ORG}', '${MAIN}', '${id("act-dr")}', '2026-09-15', 'excv', '${id("doc-old")}', null), ('${id("e-conf-new")}', '${ORG}', '${MAIN}', '${id("act-dr")}', '2026-09-15', 'excv', '${id("doc-new")}', '2026-09-15T08:00:00')`,
+        // #10 / #11 / #12
+        `insert into compliance.construction_vendor_disputes (id, org_id, project_id, description, status, raised_by_id) values ('${id("vd-open")}', '${ORG}', '${MAIN}', 'EXCV rebar quantity dispute', 'open', 'excv'), ('${id("vd-res")}', '${ORG}', '${MAIN}', 'EXCV settled dispute', 'resolved', 'excv')`,
+        `insert into compliance.construction_customer_complaints (id, org_id, project_id, category, description, status, raised_by_id) values ('${id("cc-wd-open")}', '${ORG}', '${MAIN}', 'work_dispute', 'EXCV finish disputed', 'open', 'excv'), ('${id("cc-gen-open")}', '${ORG}', '${MAIN}', 'general', 'EXCV site noise', 'open', 'excv'), ('${id("cc-wd-res")}', '${ORG}', '${MAIN}', 'work_dispute', 'EXCV old dispute', 'resolved', 'excv')`,
+        // #22: v1 approved -> v2 superseded -> v3 approved, plus two line items on v3 for #23 and one for #19's late issue.
+        `insert into compliance.construction_boqs (id, org_id, project_id, version, parent_boq_id, title, status, created_by_id, approved_at) values ('${id("c1")}', '${ORG}', '${MAIN}', 1, null, 'EXCV chain', 'approved', 'excv', '2026-09-01T10:00:00Z'), ('${id("c2")}', '${ORG}', '${MAIN}', 2, '${id("c1")}', 'EXCV chain', 'superseded', 'excv', null), ('${id("c3")}', '${ORG}', '${MAIN}', 3, '${id("c2")}', 'EXCV chain', 'approved', 'excv', '2026-09-02T10:00:00Z')`,
+        `insert into compliance.construction_boq_line_items (id, boq_id, activity_id, description, unit, org_id) values ('${id("li-a")}', '${id("c3")}', '${id("act-a")}', 'EXCV line A', 'm2', '${ORG}'), ('${id("li-b")}', '${id("c3")}', '${id("act-b")}', 'EXCV line B', 'm2', '${ORG}'), ('${id("li-late")}', '${id("c3")}', '${id("act-late")}', 'EXCV line late', 'm2', '${ORG}')`,
+        // #18 / #19 / #27: i1 and i2 (2 days apart, no BOQ line); i3 on time and i4 late against act-late (progress from 09-05).
+        `insert into compliance.construction_materials (id, org_id, project_id, name, unit) values ('${id("mat")}', '${ORG}', '${MAIN}', 'EXCV cement', 'bag'), ('${id("mat-2")}', '${ORG}', '${MAIN}', 'EXCV rebar', 't')`,
+        `insert into compliance.construction_work_progress_entries (id, org_id, project_id, activity_id, entry_date, recorded_by_id) values ('${id("e-late-act")}', '${ORG}', '${MAIN}', '${id("act-late")}', '2026-09-05', 'excv')`,
+        `insert into compliance.construction_material_issues (id, org_id, project_id, material_id, issued_date, quantity, boq_line_item_id, created_by_id) values ('${id("i1")}', '${ORG}', '${MAIN}', '${id("mat")}', '2026-09-10', 5, null, 'excv'), ('${id("i2")}', '${ORG}', '${MAIN}', '${id("mat")}', '2026-09-12', 5, null, 'excv'), ('${id("i3")}', '${ORG}', '${MAIN}', '${id("mat-2")}', '2026-08-20', 1, '${id("li-late")}', 'excv'), ('${id("i4")}', '${ORG}', '${MAIN}', '${id("mat-2")}', '2026-09-20', 1, '${id("li-late")}', 'excv')`,
+        // #23: li-a certified 3000, invoiced 2000 + 2000 (over); li-b certified 5000, invoiced 4000 + a CANCELLED 9000 (not over).
+        `insert into compliance.construction_interim_bills (id, org_id, project_id, boq_id, bill_number, bill_date, retention_amount, created_by_id) values ('${id("bill-main")}', '${ORG}', '${MAIN}', '${id("c3")}', ${invNo % 100000}, '2026-09-25', 0, 'excv')`,
+        `insert into compliance.construction_interim_bill_line_items (id, interim_bill_id, boq_line_item_id, cumulative_amount) values ('${id("bl-a")}', '${id("bill-main")}', '${id("li-a")}', 3000), ('${id("bl-b")}', '${id("bill-main")}', '${id("li-b")}', 5000)`,
+        `insert into compliance.erp_purchase_invoices (id, org_id, supplier_id, invoice_number, posting_date, status) values ('${id("pinv-a")}', '${ORG}', '${supplier}', ${invNo}, '2026-09-26', 'submitted'), ('${id("pinv-b")}', '${ORG}', '${supplier}', ${invNo + 1}, '2026-09-26', 'cancelled'), ('${id("pinv-c")}', '${ORG}', '${supplier}', ${invNo + 2}, '2026-09-27', 'paid')`,
+        `insert into compliance.erp_purchase_invoice_items (id, invoice_id, description, amount, boq_line_item_id) values ('${id("x1")}', '${id("pinv-a")}', 'EXCV labour A', 2000, '${id("li-a")}'), ('${id("x2")}', '${id("pinv-c")}', 'EXCV labour A balance', 2000, '${id("li-a")}'), ('${id("x3")}', '${id("pinv-a")}', 'EXCV labour B', 4000, '${id("li-b")}'), ('${id("x4")}', '${id("pinv-b")}', 'EXCV labour B (cancelled)', 9000, '${id("li-b")}')`,
+        // #24 retention half, in RET: its only snag verified closed; one bill still holding retention, one fully released.
+        `insert into compliance.construction_punch_list_items (id, org_id, project_id, number, description, status, created_by_id) values ('${id("snag")}', '${ORG}', '${RET}', 1, 'EXCV final clean', 'verified_closed', 'excv')`,
+        `insert into compliance.construction_interim_bills (id, org_id, project_id, boq_id, bill_number, bill_date, retention_amount, retention_released_amount, created_by_id) values ('${id("bill-held")}', '${ORG}', '${RET}', 'excv-boq', 1, '2026-09-25', 500, null, 'excv'), ('${id("bill-released")}', '${ORG}', '${RET}', 'excv-boq', 2, '2026-09-26', 300, 300, 'excv')`,
+      ]
+      for (const s of statements) await db.execute(sql.raw(s))
+      main = await getProjectExceptionsWithDb(db, { orgId: ORG }, MAIN)
+      ret = await getProjectExceptionsWithDb(db, { orgId: ORG }, RET)
+      throw new Rollback()
+    }).catch((err) => { if (!(err instanceof Rollback)) throw err }))
+
+    const idsOf = (checks: Checks, item: number) => checks.find((c) => c.item === item)!.records.map((r) => r.id).filter((x) => x.startsWith(tag))
+    const expectExactly = (checks: Checks, item: number, want: string[]) => expect({ item, ids: [...idsOf(checks, item)].sort() }).toEqual({ item, ids: want.map(id).sort() })
+    expect(main).toHaveLength(28)
+    expectExactly(main, 3, ["e-unconf-old"])
+    expectExactly(main, 4, ["e-unconf-old"])
+    expectExactly(main, 10, ["vd-open"])
+    expectExactly(main, 11, ["cc-wd-open"])
+    expectExactly(main, 12, ["cc-wd-open", "cc-gen-open"])
+    expectExactly(main, 18, ["i1", "i2"])
+    expectExactly(main, 27, ["i1", "i2"])
+    expectExactly(main, 19, ["i2", "i4"])
+    expectExactly(main, 22, ["c3"])
+    expectExactly(main, 23, ["x1", "x2"])
+    expectExactly(ret, 24, ["bill-held"])
+
+    // Nothing persisted: every tagged row is gone once the transaction rolled back.
+    const leftovers = await withConnectRetry(() => withTenantContext({ orgId: ORG }, async (db) => {
+      const tables = ["documents", "construction_work_progress_entries", "construction_vendor_disputes", "construction_customer_complaints", "construction_boqs", "construction_boq_line_items", "construction_materials", "construction_material_issues", "construction_interim_bills", "construction_interim_bill_line_items", "erp_purchase_invoices", "erp_purchase_invoice_items", "construction_punch_list_items"]
+      let n = 0
+      for (const t of tables) {
+        const rows = await db.execute(sql.raw(`select count(*)::int as n from compliance.${t} where id like '${tag}-%'`)) as unknown as Array<{ n: number }>
+        n += Number(rows[0].n)
+      }
+      return n
+    }))
+    console.log(`LIVE ROLLED-BACK SCENARIO (${tag}): all 11 zero-live-data checks fired as expected in real projects; leftover rows after rollback = ${leftovers}`)
+    expect(leftovers).toBe(0)
   }, 900_000)
 })
