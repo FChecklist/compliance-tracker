@@ -21,6 +21,7 @@ export type Route =
   | { kind: "manual"; format: "html" | "md" | "json" }
   | { kind: "snapshot"; format: "html" | "md" }
   | { kind: "context" }
+  | { kind: "prompt" }
   | { kind: "jobs" }
   | { kind: "job"; id: string }
   | { kind: "law"; code: string }
@@ -60,6 +61,8 @@ export function parseRoute(pathname: string): Parsed {
       case "snapshot": return { token, route: { kind: "snapshot", format: "html" } }
       case "snapshot.md": return { token, route: { kind: "snapshot", format: "md" } }
       case "context": return { token, route: { kind: "context" } }
+      // Not an API endpoint for an AI: the ready-to-paste prompt for the PERSON, fetched by the one-tap Copy page (dpdp-app /copy/).
+      case "prompt": return { token, route: { kind: "prompt" } }
       case "jobs": return { token, route: { kind: "jobs" } }
       case "history": return { token, route: { kind: "history" } }
       case "actions": return { token, route: { kind: "actions" } }

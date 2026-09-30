@@ -162,6 +162,40 @@ describe("the email: warning first, then a complete prompt, and only true claims
   })
 })
 
+describe("the Copy button in the corner of the prompt box", () => {
+  const COPY = `https://app.veridian-aios.com/copy/#${TOKEN}`
+  const withCopy = (level: 0 | 1 = 1) => ({ ...base, aiLink: { url: URL_, expiresOn: "2026-10-12", level, jobs: 31, people: 4, copyUrl: COPY } })
+  test("a real anchor in the top right of the box header, before the prompt, saying Copy; the plain-text part gets the same one-tap link", () => {
+    const out = renderDigest(digest(), withCopy())
+    const head = out.html.indexOf("Your AI Work link — copy and paste this prompt into your AI")
+    const btn = out.html.indexOf(`href="${COPY}"`)
+    const prompt = out.html.indexOf("You are my DPDP compliance assistant")
+    expect(btn).toBeGreaterThan(head)
+    expect(btn).toBeLessThan(prompt)
+    expect(out.html).toContain('<td align="right"')
+    expect(out.html).toContain("&#128203; Copy</a>")
+    expect(out.text).toContain(`COPY IN ONE TAP: ${COPY}`)
+    expect(out.text.indexOf("COPY IN ONE TAP")).toBeLessThan(out.text.indexOf("YOUR AI WORK LINK -- copy everything"))
+    expect(out.text).toContain("Tap Copy at the top right of the box below (or select the box yourself) and paste it into an AI")
+    // the token URL itself stays plain text; only the fragment-carrying Copy URL is an anchor
+    expect(out.html).not.toContain(`href="${URL_}"`)
+  })
+  test("no Copy page, no button, and the older sentence; the same for a read-only link", () => {
+    for (const links of [withLink(1), { ...withLink(0) }]) {
+      const out = renderDigest(digest(), links)
+      expect(out.html).not.toContain("Copy</a>")
+      expect(out.text).not.toContain("COPY IN ONE TAP")
+      expect(out.text).toContain("Copy the whole box below and paste it into an AI")
+    }
+    expect(renderDigest(digest(), withCopy(0)).html).toContain("Copy</a>")
+  })
+  test("the Copy URL is HTML-escaped and a dry run carries the placeholder, never a token", () => {
+    const out = renderDigest(digest(), { ...base, aiLink: { url: PLACEHOLDER.aiLink, expiresOn: "2026-10-12", level: 1, copyUrl: `https://app.veridian-aios.com/copy/#${PLACEHOLDER.aiLink}` } })
+    expect(out.text).toContain(`COPY IN ONE TAP: https://app.veridian-aios.com/copy/#${PLACEHOLDER.aiLink}`)
+    expect(out.html + out.text).not.toMatch(/[0-9a-f]{64}/)
+  })
+})
+
 describe("the prompt: complete, and written against the link's real API", () => {
   const p = aiPrompt("Acme & Co", URL_, "2026-10-12", 1, true)
   const lines = p.split("\n")
@@ -315,13 +349,13 @@ function fakeDb(answers: Record<string, unknown | ((args: Record<string, unknown
   }
   return { rpc, calls }
 }
-const ON: AiLinkConfig = { linkEnabled: true, changesEnabled: true, level: 1, days: 7, warnings: [] }
+const ON: AiLinkConfig = { linkEnabled: true, changesEnabled: true, level: 1, days: 7, copyPageUrl: null, warnings: [] }
 const minted = { linkId: "L1", token: TOKEN, level: 1, expiresAt: "2026-10-12T00:30:00Z", jobs: 31, people: 4 }
 
 describe("parseAiLinkConfig: a switch on a credential fails CLOSED", () => {
   const cfg = (env: Record<string, string>) => parseAiLinkConfig((k) => env[k] ?? "")
   test("unset means the documented defaults: on, level 1, 7 days", () => {
-    expect(cfg({})).toEqual({ linkEnabled: true, changesEnabled: true, level: 1, days: 7, warnings: [] })
+    expect(cfg({})).toEqual({ linkEnabled: true, changesEnabled: true, level: 1, days: 7, copyPageUrl: null, warnings: [] })
   })
   test("'1' is on and '0' is off, with no warning", () => {
     expect(cfg({ DPDP_EMAIL_AI_LINK_ENABLED: "1", DPDP_EMAIL_AI_CHANGES_ENABLED: "0" })).toMatchObject({ linkEnabled: true, changesEnabled: false, warnings: [] })
@@ -343,6 +377,12 @@ describe("parseAiLinkConfig: a switch on a credential fails CLOSED", () => {
       expect(c.warnings.length).toBe(1)
     }
   })
+  test("the Copy page address: an https URL ending in /copy/, else ignored and reported", () => {
+    expect(cfg({ DPDP_COPY_PAGE_URL: "https://app.veridian-aios.com/copy/" })).toMatchObject({ copyPageUrl: "https://app.veridian-aios.com/copy/", warnings: [] })
+    for (const v of ["http://app.veridian-aios.com/copy/", "https://app.veridian-aios.com/copy", "https://app.veridian-aios.com/copy/?x=1", "https://app.veridian-aios.com/copy/#t", "javascript:alert(1)", "https://evil.example/copy/x"]) {
+      expect(cfg({ DPDP_COPY_PAGE_URL: v })).toMatchObject({ copyPageUrl: null, warnings: [expect.stringContaining("DPDP_COPY_PAGE_URL")] })
+    }
+  })
   test("days is exactly 1, 7 or 30, else 7 with a warning", () => {
     expect(cfg({ DPDP_EMAIL_AI_LINK_DAYS: "1" }).days).toBe(1)
     expect(cfg({ DPDP_EMAIL_AI_LINK_DAYS: "30" }).days).toBe(30)
@@ -355,9 +395,17 @@ describe("mintAiLink: fail-soft, counted, and it returns the link only in the sh
     const db = fakeDb({ dpdp_timer_mint_email_ai_link: minted })
     const stats = newAiStats()
     const link = await mintAiLink(db.rpc, ON, ORIGIN, "m1", stats)
-    expect(link).toEqual({ linkId: "L1", url: URL_, expiresOn: "2026-10-12", level: 1, jobs: 31, people: 4 })
+    expect(link).toEqual({ linkId: "L1", url: URL_, expiresOn: "2026-10-12", level: 1, jobs: 31, people: 4, copyUrl: null })
     expect(db.calls).toEqual([{ fn: "dpdp_timer_mint_email_ai_link", args: { p_membership_id: "m1", p_level: 1, p_days: 7 } }])
     expect(stats).toMatchObject({ minted: 1, mintFailed: 0 })
+  })
+  test("with the Copy page on, the link carries a one-tap URL whose token is in the FRAGMENT, and only on the app's own origin", async () => {
+    const db = fakeDb({ dpdp_timer_mint_email_ai_link: minted })
+    const link = await mintAiLink(db.rpc, { ...ON, copyPageUrl: "https://app.veridian-aios.com/copy/" }, ORIGIN, "m1", newAiStats())
+    expect(link?.copyUrl).toBe(`https://app.veridian-aios.com/copy/#${TOKEN}`)
+    // a Copy page on another host is never used, even if it was configured
+    const other = await mintAiLink(fakeDb({ dpdp_timer_mint_email_ai_link: minted }).rpc, { ...ON, copyPageUrl: "https://evil.example/copy/" }, ORIGIN, "m1", newAiStats())
+    expect(other?.copyUrl).toBeNull()
   })
   test("the configured level and days are what is asked for", async () => {
     const db = fakeDb({ dpdp_timer_mint_email_ai_link: { ...minted, level: 0 } })

@@ -17,6 +17,8 @@ export type AiLinkConfig = {
   /** 1 = read + small edits + drafts (READ / EDIT / WORK), 0 = read only. */
   level: 0 | 1
   days: 1 | 7 | 30
+  /** The one-tap Copy page (https://<app>/copy/), or null while it is not live. Set DPDP_COPY_PAGE_URL when it is. */
+  copyPageUrl: string | null
   /** Values that were set but not understood. Logged once at start-up. */
   warnings: string[]
 }
@@ -43,7 +45,14 @@ export function parseAiLinkConfig(get: (key: string) => string): AiLinkConfig {
   const daysRaw = get("DPDP_EMAIL_AI_LINK_DAYS")
   const days: 1 | 7 | 30 = daysRaw === "1" ? 1 : daysRaw === "30" ? 30 : 7
   if (daysRaw !== "" && daysRaw !== "1" && daysRaw !== "7" && daysRaw !== "30") warnings.push(`DPDP_EMAIL_AI_LINK_DAYS=${JSON.stringify(daysRaw)} is not 1, 7 or 30; using 7`)
-  return { linkEnabled: flag("DPDP_EMAIL_AI_LINK_ENABLED"), changesEnabled: flag("DPDP_EMAIL_AI_CHANGES_ENABLED"), level, days, warnings }
+  // The Copy page address: an https URL ending in /copy/ with no query or fragment; anything else is ignored (no button), and reported.
+  const copyRaw = get("DPDP_COPY_PAGE_URL")
+  let copyPageUrl: string | null = null
+  if (copyRaw !== "") {
+    if (/^https:\/\/[a-z0-9.-]+\/copy\/$/i.test(copyRaw)) copyPageUrl = copyRaw
+    else warnings.push(`DPDP_COPY_PAGE_URL=${JSON.stringify(copyRaw)} is not an https address ending in /copy/; no Copy button`)
+  }
+  return { linkEnabled: flag("DPDP_EMAIL_AI_LINK_ENABLED"), changesEnabled: flag("DPDP_EMAIL_AI_CHANGES_ENABLED"), level, days, copyPageUrl, warnings }
 }
 
 export type MintedLink = AiLinkInfo & { linkId: string }
@@ -68,7 +77,9 @@ export async function mintAiLink(rpc: Rpc, cfg: AiLinkConfig, appOrigin: string,
       return null
     }
     stats.minted++
-    return { linkId: r.linkId, url: aiLinkUrl(appOrigin, r.token), expiresOn: istYmd(r.expiresAt), level: r.level === 0 ? 0 : 1, jobs: r.jobs, people: r.people }
+    // The Copy page is only ever on the app's own origin, and the token rides in the URL FRAGMENT (a browser never sends it to a server).
+    const copyUrl = cfg.copyPageUrl && cfg.copyPageUrl.startsWith(`${appOrigin}/`) ? `${cfg.copyPageUrl}#${r.token}` : null
+    return { linkId: r.linkId, url: aiLinkUrl(appOrigin, r.token), expiresOn: istYmd(r.expiresAt), level: r.level === 0 ? 0 : 1, jobs: r.jobs, people: r.people, copyUrl }
   } catch (e) {
     stats.mintFailed++
     warn(`mintAiLink failed for ${membershipId}: ${e instanceof Error ? e.message : String(e)}`)

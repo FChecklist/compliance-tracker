@@ -39,6 +39,7 @@ import {
 } from "./router.ts"
 import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "./manual.ts"
 import { MAX_BODY_BYTES, RATE_LIMIT, type Format } from "./api-definition.ts"
+import { aiPrompt } from "../_shared/ai-link/prompt.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
@@ -147,6 +148,13 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
       const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
       if (r.error) return mapDbError(r.error)
       return json(200, { ...r.data, base: linkBase(token) })
+    }
+    case "prompt": {
+      // The prompt the Monday email shows, for the person's one-tap Copy page. Plain text, built from this link's own context.
+      const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+      if (r.error) return mapDbError(r.error)
+      const expiresOn = new Date(new Date(r.data.link.expiresAt).getTime() + 330 * 60_000).toISOString().slice(0, 10) // India time
+      return text(200, aiPrompt(r.data.org.name, linkBase(token), expiresOn, r.data.link.authorityLevel === 1 ? 1 : 0, r.data.viewer.kind === "owner"))
     }
     case "jobs": {
       const format = negotiateFormat(offeredFormats("jobs"), q.get("format"), accept, "json")
