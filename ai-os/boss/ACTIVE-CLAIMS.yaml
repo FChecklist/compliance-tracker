@@ -4955,6 +4955,27 @@ active:
       report with per-record drill-down). No collision with any existing
       compliance-tracker top-level page.
 
+      PROGRESS UPDATE (2026-09-30, continued): analysis merged (#1987 claim,
+      #1988 module) -- 17 of 24 genuinely-new modules now done. Honest gaps
+      the porting agent found and reported rather than silently fixing:
+      work-progress/scope's own tab-query params are no-ops, dashboard/
+      project doesn't exist as a page at all, and reports' own designer-
+      timesheet link target disagrees with report-catalog-service.ts's own
+      documented destination -- flagged for a future session, not fixed
+      here (out of this claim's scope). Now claiming "billing-milestones"
+      (PROJEXA's single-file src/app/(app)/billing-milestones/page.tsx --
+      the real create/draft/submit/approve/reject/invoice write UI for
+      constructionProgressClaims; Project 360's own tile is read-only-count
+      only). Checked ai-os/boss/ACTIVE-CLAIMS.yaml's own history first per
+      Rule 12/11 -- found a 2026-09-20 R-95 entry that already touched
+      "billing-milestones" but it's [DONE], unrelated (projexa e2e spec
+      timeout fixes, not a UI port), and file-scope-disjoint from this
+      claim. Real backend confirmed live: /api/v1/projexa/billing-claims
+      (+ /[id]), /api/v1/projexa/customers, /api/v1/projexa/tax-templates,
+      /api/v1/projexa/reports/boq-analysis. No collision with any existing
+      compliance-tracker top-level page (native /api/billing exists but no
+      (app)/billing* page).
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
