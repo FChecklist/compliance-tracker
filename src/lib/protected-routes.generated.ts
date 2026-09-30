@@ -79,6 +79,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/mdm-quality",
   "/meetings",
   "/metric-alerts",
+  "/moms",
   "/mood-boards",
   "/notices",
   "/orchestra",
