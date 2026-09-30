@@ -244,6 +244,7 @@ function footer(facts) {
     `  <p class="footer-line">${EMAIL_OFF(`Grievance Officer: <b class="white">${esc(facts.contact.contact_email)}</b> (subject: Grievance)`)}</p>`,
     `  <p class="footer-line">${esc(facts.storage.stored_in_india_wording)}</p>`,
     `  <p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>`,
+    `  <p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a></p>`,
     `</footer>`,
   ].join("\n")
 }

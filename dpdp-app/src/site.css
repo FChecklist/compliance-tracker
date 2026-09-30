@@ -582,6 +582,10 @@ b {
 .footer-line + .footer-line {
   margin-top: 8px;
 }
+.footer-legal a {
+  color: inherit;
+  text-decoration: underline;
+}
 .footer-legal {
   max-width: 32rem;
   margin: 16px auto 0;
