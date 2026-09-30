@@ -36,32 +36,75 @@
 // rely on this file keeping Vercel out of DPDP's deploy path entirely --
 // confirmed live via that workflow's real path triggers (`dpdp-app/**` only)
 // before writing the skip pattern below, not guessed. Otherwise: proceed.
-import { describe, expect, test } from "bun:test"
+//
+// FIXTURE-REPO-DRIVEN, same day, second revision: the first version of this
+// rewrite (real historical commit SHAs from this repo, e.g. `HEAD^` on a
+// picked commit) passed locally but failed in CI -- `unit-tests`' checkout
+// step (ci.yml) uses actions/checkout's default fetch-depth: 1 (shallow), so
+// a fixture commit's parent is genuinely absent and `git diff HEAD^ HEAD`
+// fails, silently falling through to exit 0 (skip) instead of exit 1
+// (proceed) -- the exact failure mode this test exists to catch, now firing
+// on the test itself rather than on production (PROJEXA's real Vercel build
+// environment is NOT shallow -- confirmed separately via a real "BUILDING"
+// deployment for a real commit -- so this was a CI-checkout-depth artifact of
+// the test, not a production bug). Same fix PROJEXA's own copy of this file
+// already used for the same reason: build a throwaway git repo under a temp
+// directory with deterministic fixture commits, so every case is exercised
+// against a real `git diff` and a real shell with full local history,
+// independent of how deep the outer CI checkout is.
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { tmpdir } from "node:os"
 
 function readVercelJson() {
   const raw = readFileSync(join(import.meta.dir, "..", "..", "vercel.json"), "utf8")
   return JSON.parse(raw)
 }
 
-/**
- * Runs the real ignoreCommand against a REAL commit's real diff, by substituting the two `HEAD` tokens in the
- * command's own `git diff --name-only HEAD^ HEAD` for the given commit -- so this exercises the actual committed
- * string, not a re-implementation of its logic, and the fixture commits are real history, not synthetic ones.
- */
-function runIgnoreCommand(cmd: string, gitRef: string, commitForDiff: string): number | null {
-  const substituted = cmd.replaceAll("HEAD^ HEAD", `${commitForDiff}^ ${commitForDiff}`)
-  const env = { ...process.env, VERCEL_GIT_COMMIT_REF: gitRef }
-  const proc = Bun.spawnSync(["sh", "-c", substituted], { env, cwd: join(import.meta.dir, "..", "..") })
+function sh(cwd: string, cmd: string, env?: Record<string, string>) {
+  const proc = Bun.spawnSync(["sh", "-c", cmd], { cwd, env: { ...process.env, ...env } })
+  return proc
+}
+
+/** Builds a throwaway git repo with a base commit, then one more commit per `commits` entry, in order. Returns its path. */
+function buildFixtureRepo(commits: ReadonlyArray<{ files: Record<string, string> }>): string {
+  const dir = mkdtempSync(join(tmpdir(), "vercel-lockdown-fixture-"))
+  sh(dir, "git init -q && git config user.email t@t.test && git config user.name t")
+  writeFileSync(join(dir, "README.md"), "base\n")
+  sh(dir, "git add -A && git commit -q -m base")
+  for (const [i, c] of commits.entries()) {
+    for (const [path, content] of Object.entries(c.files)) {
+      const full = join(dir, path)
+      mkdirSync(join(full, ".."), { recursive: true })
+      writeFileSync(full, content)
+    }
+    sh(dir, `git add -A && git commit -q -m commit-${i}`)
+  }
+  return dir
+}
+
+function runIgnoreCommand(cmd: string, cwd: string, gitRef: string): number | null {
+  const proc = sh(cwd, cmd, { VERCEL_GIT_COMMIT_REF: gitRef })
   return proc.exitCode
 }
 
-// Real commits from this repo's own history, chosen for what they touch -- not synthetic fixtures, so a change to
-// the ignoreCommand's own regex is exercised against real file paths this codebase actually produced.
-const REAL_CODE_COMMIT = "76f1da66ce1bea9d7aa9698a2c53cee87bb5c8a8" // e2e specs + ci.yml: real code alongside a skippable path -- must still proceed
-const DOCS_ONLY_COMMIT = "b5b7c7aebde77edcb2213a1d486b4c1e3086f820" // docs(ai-os): claim ... -- ai-os/** only
-const DPDP_ONLY_COMMIT = "20c98d7b1ca097dd027a9ee8a82c88219349b410" // feat(dpdp): /original/ landing page -- dpdp-app/** only
+let repo: string
+
+beforeAll(() => {
+  repo = buildFixtureRepo([
+    { files: { "src/app/page.tsx": "// real code v1\n" } }, // commit-0: real code only
+    { files: { "docs/NOTES.md": "notes\n" } }, // commit-1: docs-only
+    { files: { "kt/report.jsonl": '{"a":1}\n' } }, // commit-2: kt-only
+    { files: { "dpdp-app/src/App.tsx": "// dpdp only\n" } }, // commit-3: DPDP-only
+    { files: { "src/app/page.tsx": "// real code v2\n", "docs/NOTES.md": "more notes\n" } }, // commit-4: mixed
+  ])
+})
+
+afterAll(() => {
+  rmSync(repo, { recursive: true, force: true })
+})
 
 describe("Vercel deploy gate (2026-09-30, owner-directed go-live) -- branch + path", () => {
   test("git.deploymentEnabled is not relied upon (still gone since R87)", () => {
@@ -78,22 +121,43 @@ describe("Vercel deploy gate (2026-09-30, owner-directed go-live) -- branch + pa
 
   test("a non-main branch is skipped (exit 0) regardless of what changed", () => {
     const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "some-feature-branch", REAL_CODE_COMMIT)).toBe(0)
+    expect(runIgnoreCommand(v.ignoreCommand, repo, "some-feature-branch")).toBe(0)
   })
 
   test("main with real code changes proceeds (non-zero), even mixed with a skippable path", () => {
     const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "main", REAL_CODE_COMMIT)).not.toBe(0)
+    // HEAD^ HEAD in the fixture repo is commit-4 (mixed) vs commit-3 (DPDP-only) -- real code present, must proceed.
+    expect(runIgnoreCommand(v.ignoreCommand, repo, "main")).not.toBe(0)
   })
 
   test("main with a docs/governance-only commit is skipped (exit 0)", () => {
     const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "main", DOCS_ONLY_COMMIT)).toBe(0)
+    sh(repo, "git checkout -q HEAD~3") // land on commit-1 (docs-only vs commit-0, real code)
+    try {
+      expect(runIgnoreCommand(v.ignoreCommand, repo, "main")).toBe(0)
+    } finally {
+      sh(repo, "git checkout -q -")
+    }
+  })
+
+  test("main with a kt-only commit is skipped (exit 0)", () => {
+    const v = readVercelJson()
+    sh(repo, "git checkout -q HEAD~2") // land on commit-2 (kt-only vs commit-1, docs-only) -- still all-skippable
+    try {
+      expect(runIgnoreCommand(v.ignoreCommand, repo, "main")).toBe(0)
+    } finally {
+      sh(repo, "git checkout -q -")
+    }
   })
 
   test("main with a DPDP-only commit is skipped (exit 0) -- DPDP deploys via Cloudflare Pages only, never Vercel", () => {
     const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "main", DPDP_ONLY_COMMIT)).toBe(0)
+    sh(repo, "git checkout -q HEAD~1") // land on commit-3 (DPDP-only vs commit-2, kt-only) -- still all-skippable
+    try {
+      expect(runIgnoreCommand(v.ignoreCommand, repo, "main")).toBe(0)
+    } finally {
+      sh(repo, "git checkout -q -")
+    }
   })
 })
 
