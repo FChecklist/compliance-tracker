@@ -1135,3 +1135,22 @@ describe("hide other people's addresses: also where the database does not", () =
     expect(shown.aiActions[0].value.email).toBe("meena@acmeca.in")
   })
 })
+
+describe("Cloudflare must not turn the addresses on the page into '[email protected]'", () => {
+  test("the HTML manual and the HTML snapshot are wrapped in Cloudflare's own email_off region, from before <html> to after </html>", () => {
+    const html = renderManualHtml(buildManual({ context: context(), base: BASE, now: NOW, summary: summary() }))
+    expect(html.startsWith("<!doctype html>" + NL + "<!--email_off--><html")).toBe(true)
+    expect(html.trimEnd().endsWith("</html>" + NL + "<!--/email_off-->")).toBe(true)
+    expect(html.split("<!--email_off-->")).toHaveLength(2)
+    expect(html).toContain("priya@acmeca.in")
+    const view: AiLinkView = { org: { id: "o", name: "Acme", product: "firm" }, viewer: { email: "p@a.in", kind: "owner" }, link: { id: "L", expiresAt: "2026-10-12T00:00:00Z", readCount: 0 }, verbs: [...SNAPSHOT_VERBS], rows: [] }
+    const snap = renderSnapshotHtml(view, { draftEndpoint: "https://x/d", markdownUrl: "https://x/m", htmlUrl: "https://x/h", now: NOW })
+    expect(snap.startsWith("<!doctype html>" + NL + "<!--email_off--><html")).toBe(true)
+    expect(snap.trimEnd().endsWith("</html>" + NL + "<!--/email_off-->")).toBe(true)
+  })
+  test("the Markdown and JSON pages are not HTML, so Cloudflare leaves them alone and carry no wrapper", () => {
+    const m = buildManual({ context: context(), base: BASE, now: NOW, summary: summary() })
+    expect(renderManualMarkdown(m)).not.toContain("email_off")
+    expect(renderManualJson(m)).not.toContain("email_off")
+  })
+})

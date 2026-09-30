@@ -463,10 +463,16 @@ function blockHtml(b: Block): string {
 }
 
 /** Clean HTML: no scripts, inline CSS only, noindex, the same words as the Markdown. */
+// The pages go out through Cloudflare (dpdp-app/functions/ai/), whose "Email Address Obfuscation" rewrites every address in an HTML response into
+// "[email protected]" plus a script. A browser decodes it; an AI that reads the HTML sees no address at all -- not the person's, not a colleague's,
+// not the "To:" of a reminder. `<!--email_off-->` is Cloudflare's own switch to leave a region alone, so the whole document is wrapped in it.
+export const EMAIL_OFF_OPEN = "<!--email_off-->"
+export const EMAIL_OFF_CLOSE = "<!--/email_off-->"
+
 export function renderManualHtml(m: Manual): string {
   const sections = m.sections.map((s) => `  <section id="${s.id}">\n    <h2>${escapeHtml(headingOf(s))}</h2>\n${s.blocks.map(blockHtml).join("\n")}\n  </section>`).join("\n")
   return `<!doctype html>
-<html lang="en">
+${EMAIL_OFF_OPEN}<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -500,5 +506,6 @@ export function renderManualHtml(m: Manual): string {
 ${sections}
 </body>
 </html>
+${EMAIL_OFF_CLOSE}
 `
 }

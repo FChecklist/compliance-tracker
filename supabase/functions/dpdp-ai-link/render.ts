@@ -15,6 +15,11 @@
 
 import { oneLine } from "../_shared/ai-link/prompt.ts"
 
+// Cloudflare rewrites every address in an HTML response into "[email protected]" (a browser decodes it; an AI reading the HTML sees no address).
+// `<!--email_off-->` is its own switch to leave a region alone; the whole document is wrapped in it (same as manual.ts).
+const EMAIL_OFF_OPEN = "<!--email_off-->"
+const EMAIL_OFF_CLOSE = "<!--/email_off-->"
+
 export const VERBS = ["ASSIGN", "SET_DUE", "NOTE", "MARK_NA", "DRAFT"] as const
 export type Verb = (typeof VERBS)[number]
 
@@ -209,7 +214,7 @@ export function renderHtml(view: AiLinkView, opts: RenderOptions): string {
           <td>${escapeHtml(v.means)}</td>
         </tr>`).join("")
   return `<!doctype html>
-<html lang="en">
+${EMAIL_OFF_OPEN}<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -261,5 +266,6 @@ ${intro(view).map((p) => `    <p>${escapeHtml(p)}</p>`).join("\n")}
   <footer>Generated ${escapeHtml(opts.now.toISOString())} · read ${view.link.readCount} time${view.link.readCount === 1 ? "" : "s"} · Markdown version: <code>${escapeHtml(opts.markdownUrl)}</code></footer>
 </body>
 </html>
+${EMAIL_OFF_CLOSE}
 `
 }
