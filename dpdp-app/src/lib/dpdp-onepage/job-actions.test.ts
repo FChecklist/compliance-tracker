@@ -4,7 +4,7 @@
 // never offers what the database would refuse, so a person is not handed a button that only produces an error.
 import { describe, expect, test } from "bun:test"
 import {
-  NOTE_MAX, availableActions, checkDue, checkEmail, checkNote, checkReason, dayOf, dueBounds, istDay, offeredActions, requiredTodayWarning,
+  NOTE_MAX, availableActions, charCount, checkDue, checkEmail, checkNote, checkReason, dayOf, dependantCount, dueBounds, istDay, notApplicableCautions, offeredActions, requiredTodayWarning,
 } from "./job-actions"
 import type { ObligationRow, ViewerContext } from "./view-model"
 
@@ -56,7 +56,16 @@ describe("the checks a form makes before it asks", () => {
   })
   test("an email address: a full one, lower-cased", () => {
     expect(checkEmail(" Ravi@Acme.IN ")).toEqual({ ok: true, value: "ravi@acme.in" })
-    for (const bad of ["", "ravi", "ravi@acme", "ra vi@acme.in", "<ravi@acme.in>", "@acme.in"]) expect(checkEmail(bad).ok, bad).toBe(false)
+    for (const bad of ["", "ravi", "ravi@acme", "ra vi@acme.in", "<ravi@acme.in>", "@acme.in", "a@b..c", "a@b.c.", "a@.b.co", "a..b@acme.in", ".a@acme.in", "a.@acme.in", "a@acme.i", "a@-.co"]) {
+      expect(checkEmail(bad).ok, bad).toBe(false)
+    }
+    for (const good of ["ravi@acme.in", "ravi.k+dpdp@sub.acme.co.in", "r_v@acme-corp.com"]) expect(checkEmail(good).ok, good).toBe(true)
+  })
+  test("length is counted in characters, the way the database counts: an emoji is one, not two", () => {
+    expect(charCount("😀😀")).toBe(2)
+    expect(checkNote("😀".repeat(NOTE_MAX)).ok).toBe(true)
+    expect(checkNote("😀".repeat(NOTE_MAX + 1)).ok).toBe(false)
+    expect(checkReason("😀".repeat(NOTE_MAX + 1)).ok).toBe(false)
   })
   test("a not-applicable reason: a few words, and they are kept", () => {
     expect(checkReason("no")).toMatchObject({ ok: false })
@@ -80,6 +89,19 @@ describe("the checks a form makes before it asks", () => {
   })
   test("a due date is read as its own calendar day in any time zone", () => {
     expect(dayOf(new Date("2026-10-10"))).toBe("2026-10-10")
+  })
+  test("saying 'doesn't apply' warns who it lets through, and what it may do to a role holder's own view", () => {
+    const step = row({ id: "s1", by: "owner@acme.in" })
+    const next = row({ id: "s2", by: "mgr@acme.in", dependsOnObligationId: "s1" })
+    const done = row({ id: "s3", by: "x@acme.in", dependsOnObligationId: "s1", yes: true })
+    expect(dependantCount(step, [step, next, done])).toBe(1)
+    expect(notApplicableCautions(step, viewer("owner"), [step, next, done])).toEqual(["Another job is waiting for this one. Saying it doesn't apply lets it go ahead."])
+    expect(notApplicableCautions(step, viewer("owner"), [step, next, { ...next, id: "s4" }])[0]).toContain("2 other jobs are waiting for this one")
+    expect(notApplicableCautions(step, viewer("owner"), [step])).toEqual([])
+    const mine = row({ by: "priya@acme.in" })
+    expect(notApplicableCautions(mine, viewer("go"), [mine])[0]).toContain("you may see only your own jobs")
+    expect(notApplicableCautions(mine, viewer("staff"), [mine])).toEqual([])
+    expect(notApplicableCautions(row({ by: "someone@acme.in" }), viewer("go"), [mine])).toEqual([])
   })
   test("only a job today's law is behind gets the warning", () => {
     expect(requiredTodayWarning(row({ lawCodes: ["d:§4"] }))).toBeNull()

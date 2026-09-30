@@ -546,6 +546,27 @@ describe("the job controls on the person's own page (drizzle/0605 + 0666, mirror
     expect((await history(c))[0]).toMatchObject({ kind: "obligation_not_my_job", detail: "No cameras anywhere." })
   })
 
+  test("a 'doesn't apply' reason is capped like a note, counted in characters (an emoji is one)", async () => {
+    const c = createMockClient("owner-live")
+    const open = (await rowsOf(c)).find((r) => !r.yes && !r.na)!
+    expect((await c.rpc("dpdp_mark_not_applicable", { p_obligation_id: open.id, p_reason: "x".repeat(1001) })).error?.message).toContain("1000 characters at most")
+    expect((await c.rpc("dpdp_mark_not_applicable", { p_obligation_id: open.id, p_reason: "😀".repeat(600) })).error).toBeNull()
+  })
+
+  test("a staff member reads only their own entries in History; the owner reads everything", async () => {
+    const owner = createMockClient("owner-live")
+    const someone = (await rowsOf(owner)).find((r) => !r.yes && !r.na && !r.isGroup)!
+    await owner.rpc("dpdp_add_note", { p_obligation_id: someone.id, p_text: "Owner-only remark." })
+    expect((await history(owner)).some((h) => h.detail === "Owner-only remark.")).toBe(true)
+    const staff = createMockClient("staff")
+    const mine = (await rowsOf(staff)).find((r) => r.by === MOCK_STAFF && !r.yes)!
+    await staff.rpc("dpdp_add_note", { p_obligation_id: mine.id, p_text: "Staff remark." })
+    const seen = await history(staff)
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen.every((h) => h.actorLabel === MOCK_STAFF)).toBe(true)
+    expect(seen.some((h) => h.detail === "Staff remark.")).toBe(true)
+  })
+
   test("giving a job to someone: owner only, not a finished job, and the row shows the new person", async () => {
     const c = createMockClient("owner-live")
     const job = (await rowsOf(c)).find((r) => !r.yes && !r.na && !r.isGroup)!

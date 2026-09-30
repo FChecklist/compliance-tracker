@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { JobActionsPanel, MoreButton } from "./JobActions"
-import { offeredActions, type JobActionHandlers } from "@/lib/dpdp-onepage/job-actions"
+import { moreButtonId, offeredActions, type JobActionHandlers } from "@/lib/dpdp-onepage/job-actions"
 import { LAWS, PARTS, SENSITIVE_DATA_TYPES, avatarColor, avatarInitial, blocked, daysLate, dueStatus, isToday, type GroupAnswerKind, type ObligationRow, type PartSummary, type ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
 const GROUP_ANSWER_LABEL: Record<GroupAnswerKind, string> = {
@@ -219,8 +219,8 @@ function JobRow({
   n, row, viewer, allRows, now, onMarkYes, onAnswerGroup, actions,
 }: { n: number; row: ObligationRow; viewer: ViewerContext; allRows: ObligationRow[]; now: Date; onMarkYes?: (id: string) => void; onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void; actions?: JobActionHandlers }) {
   const [open, setOpen] = useState(false)
-  // What was just done to this job, said in words on its row: a staff member has no History on their page, so without this a saved note would just vanish.
-  const [saved, setSaved] = useState<string | null>(null)
+  // A form is talking to the database: "More/Close" waits, so a refusal is never reported to a form that has already gone.
+  const [busy, setBusy] = useState(false)
   const mine = row.by === viewer.me
   const offered = actions ? offeredActions(row, viewer, actions).length : 0
   const cell = { padding: 12, borderBottom: "1px solid var(--dpdp-line2)" } as const
@@ -240,19 +240,23 @@ function JobRow({
         <td style={cell}><DueCell row={row} now={now} /></td>
         <td style={cell}><StampOrAction row={row} allRows={allRows} mine={mine} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} /></td>
         <td className="text-center" style={cell}>{row.sent}</td>
-        <td style={cell}>{actions && <MoreButton rowId={row.id} open={open} count={offered} onClick={() => { setSaved(null); setOpen((o) => !o) }} />}</td>
+        <td style={cell}>{actions && <MoreButton rowId={row.id} what={row.what} busy={busy} open={open} count={offered} onClick={() => setOpen((o) => !o)} />}</td>
       </tr>
       {open && actions && offered > 0 && (
         <tr>
           <td colSpan={10} style={{ padding: "4px 14px 16px", borderBottom: "1px solid var(--dpdp-line2)", background: "#fff" }}>
-            <JobActionsPanel row={row} viewer={viewer} handlers={actions} now={now} onDone={(message) => { setOpen(false); setSaved(message) }} />
-          </td>
-        </tr>
-      )}
-      {saved && !open && (
-        <tr>
-          <td colSpan={10} style={{ padding: "0 14px 10px", borderBottom: "1px solid var(--dpdp-line2)" }}>
-            <div role="status" className="rounded-xl px-3 py-2" style={{ background: "var(--dpdp-gL)", color: "var(--dpdp-g)", fontSize: 13, fontWeight: 600 }}>✓ {saved}</div>
+            {/* sticky: the table scrolls sideways on a narrow screen and "More" is its last column, so the panel must stay where the person is looking */}
+            <div style={{ position: "sticky", left: 0, width: "min(960px, calc(100vw - 72px))" }}>
+              <JobActionsPanel
+                row={row} viewer={viewer} handlers={actions} allRows={allRows} now={now} onBusy={setBusy}
+                onDone={(message) => {
+                  setOpen(false)
+                  actions.onSaved?.(message)
+                  // the panel (and the button that was pressed in it) is gone: put the keyboard back on this row's own button
+                  requestAnimationFrame(() => document.getElementById(moreButtonId(row.id))?.focus())
+                }}
+              />
+            </div>
           </td>
         </tr>
       )}

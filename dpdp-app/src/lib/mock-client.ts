@@ -1,6 +1,6 @@
 import type { AuthListener, AuthSession, DpdpClient, RpcResult } from "./client"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
-import { NOTE_MAX, dueBounds } from "@/lib/dpdp-onepage/job-actions"
+import { NOTE_MAX, charCount, dueBounds } from "@/lib/dpdp-onepage/job-actions"
 import { recallEdition } from "./landing"
 import type {
   AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire,
@@ -720,6 +720,7 @@ export function createMockClient(scenario?: string): DpdpClient {
           if (row.by !== me && viewerIn(org, me)?.kind !== "owner") return fail("Not your job")
           if (row.yes) return fail("Already closed")
           const reason = String(args?.p_reason ?? "").trim() || null
+          if (reason && charCount(reason) > NOTE_MAX) return fail(`A reason can be ${NOTE_MAX} characters at most`)
           row.na = true
           log(org, "obligation_not_my_job", `Marked "${row.what}" as not applicable`, reason)
           save(state)
@@ -755,7 +756,7 @@ export function createMockClient(scenario?: string): DpdpClient {
           if (!sees) return fail("Job not found")
           const text = String(args?.p_text ?? "").trim()
           if (!text) return fail("A note needs some words")
-          if (text.length > NOTE_MAX) return fail(`A note can be ${NOTE_MAX} characters at most`)
+          if (charCount(text) > NOTE_MAX) return fail(`A note can be ${NOTE_MAX} characters at most`)
           log(org, "obligation_note_added", `Added a note to "${row.what}"`, text)
           save(state)
           return ok({ ok: true })
@@ -764,7 +765,9 @@ export function createMockClient(scenario?: string): DpdpClient {
           const org = orgOf(args?.p_org_id)
           if (!org) return fail("Not a member of this organisation")
           const limit = Math.max(1, Math.min(Number(args?.p_limit ?? 15) || 15, 50))
-          return ok(structuredClone(org.history.slice(0, limit)))
+          // drizzle/0666: a staff member reads only the entries they made themselves (a note or a reason may concern a job they cannot see).
+          const staff = viewerIn(org, me)?.kind === "staff"
+          return ok(structuredClone((staff ? org.history.filter((h) => h.actorLabel === me) : org.history).slice(0, limit)))
         }
         // --- WO-DPDP-011 Step 5 (drizzle/0609) ---
         case "dpdp_answer_group": {

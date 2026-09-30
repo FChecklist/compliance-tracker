@@ -1,5 +1,5 @@
 import "./dpdp-onepage-tokens.css"
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { Seal } from "./Seal"
 import { DoThisNow } from "./DoThisNow"
 import { PartsTrack } from "./PartsTrack"
@@ -66,6 +66,14 @@ export function OnePageView({
     })
   }
 
+  // The sentence a job control leaves behind ("Note saved."), cleared by the next one or after a while.
+  const [saved, setSaved] = useState<string | null>(null)
+  useEffect(() => {
+    if (!saved) return
+    const t = window.setTimeout(() => setSaved(null), 12_000)
+    return () => window.clearTimeout(t)
+  }, [saved])
+
   // The four job controls keep their own errors (the form that asked shows the refusal and stays open), so unlike Mark Yes they do not go through
   // runThenRefetch: they run, re-read the page, and let a failure reach the form.
   const withRefetch = <A extends unknown[]>(fn?: (...a: A) => Promise<void>) => fn && (async (...a: A) => { await fn(...a); await refetch() })
@@ -74,6 +82,7 @@ export function OnePageView({
     onAssign: withRefetch(jobActions.onAssign),
     onSetDue: withRefetch(jobActions.onSetDue),
     onNotApplicable: withRefetch(jobActions.onNotApplicable),
+    onSaved: setSaved,
   }
 
   function handleMarkYes(id: string) {
@@ -125,6 +134,13 @@ export function OnePageView({
             {actionError}
           </div>
         )}
+
+        {/* What was just done, in words, kept on screen while the person works down a long list. A staff member has no History on their page, so this is
+            their only confirmation; the region exists before it has words (a live region announces a change, not an insertion) and a row that a filter then
+            hides cannot take its message with it. */}
+        <div role="status" aria-live="polite" className="sticky top-2 z-20">
+          {saved && <div className="rounded-xl px-3.5 py-2.5 mb-2.5" style={{ background: "var(--dpdp-gL)", color: "#0B5F26", fontSize: 13.5, fontWeight: 700, boxShadow: "0 2px 10px rgba(20,30,60,.12)" }}>✓ {saved}</div>}
+        </div>
 
         <div style={pending ? { opacity: 0.6, pointerEvents: "none" } : undefined}>
           <JobsTable rows={filtered} allRows={visibleRows} partSummaries={parts} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} onAnswerGroup={onAnswerGroup ? handleAnswerGroup : undefined} actions={actions} />

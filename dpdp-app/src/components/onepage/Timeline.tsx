@@ -5,13 +5,13 @@ export type HistoryEntry = { who: string; what: string; detail?: string; at: Dat
 // Port of veridian-dpdp.html's vHistory()/.hist/.h/.hdot markup. "Nothing
 // here can be edited" (spec's own subtitle) -- this component is read-only
 // by construction, no action props.
-export function Timeline({ entries }: { entries: HistoryEntry[] }) {
+export function Timeline({ entries, limit = 15 }: { entries: HistoryEntry[]; limit?: number }) {
   if (!entries.length) {
     return <div className="p-4" style={{ color: "var(--dpdp-ink3)" }}>Nothing yet.</div>
   }
   return (
     <div className="rounded-[22px] border py-2" style={{ background: "var(--dpdp-card)", borderColor: "var(--dpdp-line)" }}>
-      {entries.slice(0, 15).map((h, i) => (
+      {entries.slice(0, limit).map((h, i) => (
         <div key={i} className="flex gap-3.5 px-[18px] py-2.5 relative">
           <span
             className="rounded-full flex-none mt-1.5 relative z-10"

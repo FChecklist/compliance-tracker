@@ -213,10 +213,10 @@ test.describe("tlaw -- the law and date labels", () => {
     await expect(row(page, MANAGER_CHECKS).getByText("Waiting", { exact: true })).toBeVisible()
     await expect(row(page, PARTNER_SIGNS).getByText("Waiting", { exact: true })).toBeVisible()
     await expect(page.getByText("Waiting", { exact: true })).toHaveCount(2)
-    // No way to say Yes to a step that is not open yet. The owner's "More ▾" (note / give / date / doesn't apply) is the row's one button and is not a Yes.
+    // No way to say Yes to a step that is not open yet. The owner's "More actions for …" button (note / give / date / doesn't apply) is the row's one button and is not a Yes.
     await expect(row(page, MANAGER_CHECKS).getByRole("button", { name: "Mark Yes", exact: true })).toHaveCount(0)
     await expect(row(page, MANAGER_CHECKS).getByRole("button")).toHaveCount(1)
-    await expect(row(page, MANAGER_CHECKS).getByRole("button", { name: "More ▾", exact: true })).toBeVisible()
+    await expect(row(page, MANAGER_CHECKS).getByRole("button", { name: /^More actions for / })).toBeVisible()
   })
 
   test("LAW-16 the chain runs owner → manager → partner: the owner's Yes frees the manager's step and no other", async ({ page }) => {

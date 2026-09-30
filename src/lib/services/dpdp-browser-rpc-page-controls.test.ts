@@ -174,6 +174,71 @@ d("drizzle/0666: the page's due-date and note controls, and a 'doesn't apply' th
     expect((await verifyDpdpEventChain(org.id)).ok).toBe(true)
   }, 120_000)
 
+  test("a 'submitted' job is finished too: its date, its owner and its Yes are all left alone", async () => {
+    const tag = crypto.randomUUID().slice(0, 8)
+    const { owner, org } = await buildOrg(tag)
+    const job = openJob(await myPage(owner.email))
+    const before = await withDpdpContext({ orgId: org.id }, (tx) => tx.query.dpdpObligation.findFirst({ where: eq(dpdpObligation.id, job.id) }))
+    // Through the tenant-scoped connection: a bare `sql` update is filtered by row-level security and would change nothing, silently.
+    await withDpdpContext({ orgId: org.id }, (tx) => tx.update(dpdpObligation).set({ state: "submitted" }).where(eq(dpdpObligation.id, job.id)))
+    expect((await myPage(owner.email)).rows.find((x) => x.id === job.id)).toMatchObject({ yes: true, na: false })
+    expect((await refusal(() => setDue(owner.email, job.id, inDays(10)))).message).toBe("Already closed")
+    expect((await refusal(() => markNa(owner.email, job.id, "changed my mind"))).message).toBe("Already closed")
+    expect((await refusal(() => assign(owner.email, job.id, "someone.else@example.test"))).message).toBe("Already closed")
+    const row = await withDpdpContext({ orgId: org.id }, (tx) => tx.query.dpdpObligation.findFirst({ where: eq(dpdpObligation.id, job.id) }))
+    expect(row?.state).toBe("submitted")
+    expect(String(row?.dueOn).slice(0, 10)).toBe(job.due)
+    expect(row?.assignedPersonId ?? null).toBe(before?.assignedPersonId ?? null) // "assign" must not have moved it, and must not have put it back to 'open'
+    // a note is still welcome on a finished job
+    expect(await addNote(owner.email, job.id, "Filed with the CA on Monday.")).toEqual({ ok: true })
+    expect((await verifyDpdpEventChain(org.id)).ok).toBe(true)
+  }, 120_000)
+
+  test("the date window is inclusive at both ends: 30 days back and 400 days ahead (India time) are accepted, one further is not", async () => {
+    const tag = crypto.randomUUID().slice(0, 8)
+    const { owner } = await buildOrg(tag)
+    const job = openJob(await myPage(owner.email))
+    expect(await setDue(owner.email, job.id, inDays(-30))).toEqual({ ok: true, dueOn: inDays(-30) })
+    expect(await setDue(owner.email, job.id, inDays(400))).toEqual({ ok: true, dueOn: inDays(400) })
+    expect((await refusal(() => setDue(owner.email, job.id, inDays(401)))).code).toBe("22023")
+    expect((await refusal(() => setDue(owner.email, job.id, inDays(-31)))).code).toBe("22023")
+  }, 120_000)
+
+  test("a note or a reason of only line breaks and tabs is empty, and a reason is capped at 1000 characters (it lands in the permanent history)", async () => {
+    const tag = crypto.randomUUID().slice(0, 8)
+    const { owner, org } = await buildOrg(tag)
+    const page = await myPage(owner.email)
+    const job = openJob(page)
+    expect((await refusal(() => addNote(owner.email, job.id, "\n\t \r\n"))).message).toBe("A note needs some words")
+    const long = await refusal(() => markNa(owner.email, job.id, "y".repeat(1001)))
+    expect(long).toMatchObject({ message: "A reason can be 1000 characters at most", code: "22023" })
+    expect((await myPage(owner.email)).rows.find((x) => x.id === job.id)).toMatchObject({ yes: false, na: false })
+    expect(await markNa(owner.email, job.id, "\u{1F600}".repeat(600))).toEqual({ ok: true }) // 600 characters, 2400 bytes: characters are what count
+    expect((await verifyDpdpEventChain(org.id)).ok).toBe(true)
+  }, 120_000)
+
+  test("History: a staff member reads only what they did themselves; the owner reads everything", async () => {
+    const tag = crypto.randomUUID().slice(0, 8)
+    const { owner, org } = await buildOrg(tag)
+    const staff = await seedIdentity(`staff-${tag}`)
+    const page = await myPage(owner.email)
+    const plain = page.rows.find((x) => /^Write down where it is kept/.test(x.what) && !x.yes && !x.na && !x.isGroup && !x.dependsOnObligationId)!
+    const other = openJob(page, [plain.id])
+    await assign(owner.email, plain.id, staff.email)
+    await addNote(owner.email, other.id, "Owner-only: the grievance was about a named employee.")
+    await addNote(staff.email, plain.id, "Staff: list is with HR.")
+
+    const seenByStaff = await history(staff.email, org.id)
+    expect(seenByStaff.length).toBeGreaterThan(0)
+    expect(seenByStaff.every((e) => e.actorLabel === staff.email)).toBe(true)
+    expect(seenByStaff.some((e) => e.detail === "Staff: list is with HR.")).toBe(true)
+    expect(seenByStaff.some((e) => (e.detail ?? "").startsWith("Owner-only"))).toBe(false)
+
+    const seenByOwner = await history(owner.email, org.id)
+    expect(seenByOwner.some((e) => (e.detail ?? "").startsWith("Owner-only"))).toBe(true)
+    expect(seenByOwner.some((e) => e.detail === "Staff: list is with HR.")).toBe(true)
+  }, 120_000)
+
   test("cross-tenant: the owner of one organisation gets 'Job not found' for another organisation's job, on every control", async () => {
     const tag = crypto.randomUUID().slice(0, 8)
     const a = await buildOrg(`a-${tag}`)

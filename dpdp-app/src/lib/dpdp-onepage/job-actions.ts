@@ -31,8 +31,9 @@ export function availableActions(row: ObligationRow, viewer: ViewerContext): Job
   return out
 }
 
-/** What the page wires for the four actions. Each may reject with the database's own plain-English refusal. */
+/** What the page wires for the four actions. Each may reject with the database's own plain-English refusal. `onSaved` receives the sentence to show once one succeeded. */
 export type JobActionHandlers = {
+  onSaved?: (message: string) => void
   onNote?: (obligationId: string, text: string) => Promise<void>
   onAssign?: (obligationId: string, email: string) => Promise<void>
   onSetDue?: (obligationId: string, dueOn: string) => Promise<void>
@@ -76,23 +77,33 @@ export function dayOf(d: Date): string {
 
 export type Check = { ok: true; value: string } | { ok: false; message: string }
 
+/** The id of a row's "More" button, so the row can hand the keyboard's focus back to it when its panel closes. */
+export const moreButtonId = (rowId: string): string => `job-more-${rowId}`
+
+/** Characters as Postgres counts them (code points), not UTF-16 units: 600 emoji are 600 characters, not 1200. */
+export const charCount = (s: string): number => Array.from(s).length
+
 export function checkNote(text: string): Check {
   const t = text.trim()
   if (!t) return { ok: false, message: "Write a few words first." }
-  if (t.length > NOTE_MAX) return { ok: false, message: `A note can be ${NOTE_MAX} characters at most (this one is ${t.length}).` }
+  const n = charCount(t)
+  if (n > NOTE_MAX) return { ok: false, message: `A note can be ${NOTE_MAX} characters at most (this one is ${n}).` }
   return { ok: true, value: t }
 }
 
 export function checkEmail(email: string): Check {
   const t = email.trim().toLowerCase()
-  if (!/^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(t)) return { ok: false, message: "Enter a full email address, like name@company.com." }
+  // name@domain.tld: no spaces, brackets or quotes; the domain is dot-separated labels of letters, digits and hyphens; no empty label, no trailing dot.
+  const ok = /^[^\s@<>()[\],;:"\\]+@([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(t) && !t.includes("..") && !t.startsWith(".") && !t.split("@")[0].endsWith(".")
+  if (!ok) return { ok: false, message: "Enter a full email address, like name@company.com." }
   return { ok: true, value: t }
 }
 
 export function checkReason(reason: string): Check {
   const t = reason.trim()
-  if (t.length < 3) return { ok: false, message: "Say in a few words why it doesn't apply. The reason stays in the history." }
-  if (t.length > NOTE_MAX) return { ok: false, message: `The reason can be ${NOTE_MAX} characters at most.` }
+  const n = charCount(t)
+  if (n < 3) return { ok: false, message: "Say in a few words why it doesn't apply. The reason stays in the history." }
+  if (n > NOTE_MAX) return { ok: false, message: `The reason can be ${NOTE_MAX} characters at most (this one is ${n}).` }
   return { ok: true, value: t }
 }
 
@@ -101,6 +112,22 @@ export function checkDue(value: string, now: Date): Check {
   const { min, max } = dueBounds(now)
   if (value < min || value > max) return { ok: false, message: `Pick a date from ${min} to ${max}.` }
   return { ok: true, value }
+}
+
+/** Jobs still waiting on this one: a not-applicable step counts as done, so saying it doesn't apply lets them go ahead. */
+export function dependantCount(row: ObligationRow, allRows: ObligationRow[]): number {
+  return allRows.filter((r) => r.dependsOnObligationId === row.id && !r.yes && !r.na).length
+}
+
+/** Everything worth saying before a person marks THIS job "doesn't apply", beyond the law warning: who it lets through, and what it does to their own view. */
+export function notApplicableCautions(row: ObligationRow, viewer: ViewerContext, allRows: ObligationRow[]): string[] {
+  const out: string[] = []
+  const waiting = dependantCount(row, allRows)
+  if (waiting > 0) out.push(`${waiting === 1 ? "Another job is" : `${waiting} other jobs are`} waiting for this one. Saying it doesn't apply lets ${waiting === 1 ? "it" : "them"} go ahead.`)
+  if (["coord", "go", "ca"].includes(viewer.kind) && sameAddress(row.by, viewer.me)) {
+    out.push("If this job is what gives you your role in this list (Grievance Officer, coordinator or CA), you may see only your own jobs once it is marked.")
+  }
+  return out
 }
 
 /** Shown above the reason box when today's law is what makes the job a job. */

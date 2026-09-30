@@ -85,7 +85,11 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   // RPC's default); set when a CA opens one of their clients.
   const orgRef = useRef<string | null>(null)
 
+  // Refetches can overlap (two job controls saved close together); only the newest one may put its page on screen, or an older, slower answer
+  // would win and show a row as it was before the last change.
+  const loadSeq = useRef(0)
   const load = useCallback(async () => {
+    const mine = ++loadSeq.current
     // Keep the page on screen during a refetch; only a first load blanks it.
     setPhase((p) => (p.name === "app" ? p : { name: "loading" }))
     // WO-DPDP-016 Step 2: a colleague who arrived on an invite link (?join=,
@@ -113,6 +117,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       // refusal from it -- that is the same "no membership" the page call
       // reports, so it is folded into [] here and the page decides.
       const [page, clients] = await Promise.all([fetchMyPage(client, orgRef.current), fetchMyClients(client).catch(() => [] as CaClient[])])
+      if (mine !== loadSeq.current) return
       setPhase({ name: "app", page, clients })
     } catch (e) {
       // The contract: an error from dpdp_my_page means "no active
@@ -416,22 +421,32 @@ function OwnerFirstVisit({ client, page, refetch, onSignOut }: { client: DpdpCli
 // The History timeline (owner/coordinator/GO/CA only, as on main). Re-read
 // whenever `page` changes, i.e. after every successful action's refetch, so
 // the entry for what was just done appears without a reload.
+// The kinds of entry whose `detail` is words a person wrote or a fact worth reading (a note, a "doesn't apply" reason, the old date). Every other
+// kind keeps its detail for the audit trail only: some are internal strings ("job <id>, answer done") that mean nothing on a page.
+const DETAIL_KINDS = new Set(["obligation_note_added", "obligation_not_my_job", "obligation_due_changed"])
+const HISTORY_PAGE = 15
+const HISTORY_MAX = 50 // dpdp_org_history clamps to 50
+
 function History({ client, page }: { client: DpdpClient; page: MyPage }) {
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [limit, setLimit] = useState(HISTORY_PAGE)
 
   useEffect(() => {
     let cancelled = false
-    fetchHistory(client, page.org.id).then(
+    fetchHistory(client, page.org.id, limit).then(
       (history) => {
         if (cancelled) return
         setError(null)
-        setEntries(history.map((h) => ({ who: h.actorLabel, what: h.summary, detail: h.detail ?? undefined, at: h.occurredAt, isNew: Date.now() - h.occurredAt.getTime() < 3_600_000 })))
+        setEntries(history.map((h) => ({
+          who: h.actorLabel, what: h.summary, detail: DETAIL_KINDS.has(h.kind) ? h.detail ?? undefined : undefined, at: h.occurredAt,
+          isNew: Date.now() - h.occurredAt.getTime() < 3_600_000,
+        })))
       },
       (e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)) },
     )
     return () => { cancelled = true }
-  }, [client, page])
+  }, [client, page, limit])
 
   return (
     <div className="dpdp-onepage">
@@ -442,7 +457,16 @@ function History({ client, page }: { client: DpdpClient; page: MyPage }) {
         ) : entries === null ? (
           <div className="p-4" style={{ color: "var(--dpdp-ink3)" }}>Loading…</div>
         ) : (
-          <Timeline entries={entries} />
+          <>
+            <Timeline entries={entries} limit={limit} />
+            {entries.length >= limit && limit < HISTORY_MAX && (
+              <div className="text-center mt-3">
+                <button type="button" onClick={() => setLimit(HISTORY_MAX)} className="rounded-lg font-semibold" style={{ fontSize: 13, padding: "8px 14px", background: "#fff", color: "var(--dpdp-v)", border: "1.4px solid var(--dpdp-line)" }}>
+                  Show older entries
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
