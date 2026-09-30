@@ -179,6 +179,17 @@ async function mintAiLink(sb: SupabaseClient, membershipId: string): Promise<AiL
   }
 }
 
+/** True when this person's AI changed something (not since undone) that no email has told them about yet. Never throws. */
+async function hasPendingAiChanges(sb: SupabaseClient, membershipId: string): Promise<boolean> {
+  try {
+    const rows = await rpc<Array<{ undoneAt: string | null }>>(sb, "dpdp_timer_ai_actions_for_digest", { p_membership_id: membershipId, p_mark: false })
+    return Array.isArray(rows) && rows.some((r) => !r.undoneAt)
+  } catch (e) {
+    console.warn(`hasPendingAiChanges failed for ${membershipId}: ${e instanceof Error ? e.message : String(e)}`)
+    return false
+  }
+}
+
 /** What this person's AI changed since their last email (WO-013 §1.2: "shown in your next Monday email"), with a fresh undo link while one is still possible. */
 async function loadAiChanges(sb: SupabaseClient, membershipId: string): Promise<AiChange[]> {
   if (!AI_LINK_ENABLED) return []
@@ -245,6 +256,8 @@ type Deliverable = {
   obligationIds: string[]
   /** Obligations the recipient may act on from this email (tokens are minted for exactly these). */
   actionableIds: string[]
+  /** Nothing is due; the email exists only to tell the person what their AI changed. No new AI work link is minted for it. */
+  aiChangesOnly?: boolean
   render: (links: RenderLinks) => Rendered
 }
 
@@ -306,7 +319,7 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
     }
     const unsub = unsubscribeUrl(rec.unsubscribeToken ?? "")
     // The AI work link goes IN the email (owner, 2026-09-30), and so does what the person's AI changed since last time.
-    const aiLink = isDigest ? await mintAiLink(sb, d.membershipId) : null
+    const aiLink = isDigest && !d.aiChangesOnly ? await mintAiLink(sb, d.membershipId) : null
     const aiChanges = isDigest ? await loadAiChanges(sb, d.membershipId) : []
     const rendered = d.render({ aiLink, aiChanges, signIn, actions, unsubscribeUrl: unsub, appHome: `${APP_ORIGIN}/app/` })
     // One ref per message. It goes in BOTH the Reply-To (class monday, or clock for a
@@ -392,7 +405,13 @@ async function deliverDigests(sb: SupabaseClient, digests: Digest[], dryRun: boo
     if (raw.alreadySentThisWeek) { summary.skipped++; summary.details.push({ membershipId: raw.membershipId, to: raw.email, kind: "monday_digest", status: "skipped-already-sent" }); continue }
     const kind: "monday_digest" | "statutory" = raw.statutoryOnly ? "statutory" : "monday_digest"
     const digest = raw.statutoryOnly ? statutorySubset(raw) : raw
-    if (isEmpty(digest)) { summary.skipped++; summary.details.push({ membershipId: raw.membershipId, to: raw.email, kind, status: "skipped-nothing-to-say" }); continue }
+    let aiChangesOnly = false
+    if (isEmpty(digest)) {
+      // Nothing is due -- but if the person's AI changed something since the last email, WO-013 promises they are told in
+      // "their next Monday email", so an email goes out for that alone (a real send only, to a real address, never a dry run).
+      aiChangesOnly = kind === "monday_digest" && !dryRun && AI_LINK_ENABLED && isDeliverableAddress(digest.email) && (await hasPendingAiChanges(sb, digest.membershipId))
+      if (!aiChangesOnly) { summary.skipped++; summary.details.push({ membershipId: raw.membershipId, to: raw.email, kind, status: "skipped-nothing-to-say" }); continue }
+    }
     await deliver(sb, {
       orgId: digest.orgId,
       membershipId: digest.membershipId,
@@ -402,7 +421,8 @@ async function deliverDigests(sb: SupabaseClient, digests: Digest[], dryRun: boo
       periodKey: digest.weekKey,
       obligationIds: digest.jobs.map((j) => j.obligationId),
       actionableIds: digest.jobs.filter((j) => j.isMine).map((j) => j.obligationId),
-      render: (links) => renderDigest(digest, links, kind),
+      aiChangesOnly,
+      render: (links) => renderDigest(aiChangesOnly ? { ...digest, aiChangesOnly: true } : digest, links, kind),
     }, dryRun, summary)
   }
 }

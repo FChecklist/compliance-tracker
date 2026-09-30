@@ -142,6 +142,30 @@ describe("the AI work link in the Monday email", () => {
   })
 })
 
+describe("an email that exists only to tell the person what their AI changed", () => {
+  const one: AiChange[] = [{ verb: "NOTE", what: "Name a DPDP coordinator", value: { text: "asked Priya" }, appliedAt: "2026-09-28T01:00:00Z", undoUrl: null }]
+  const quiet = digest({ jobs: [], aiChangesOnly: true })
+  test("its own subject, an honest first line, the changes, and nothing to do: no options, no new link", () => {
+    const out = renderDigest(quiet, { ...base, aiLink: null, aiChanges: one })
+    expect(out.subject).toBe("Acme & Co: what your AI changed for you this week")
+    expect(out.text).toContain("What your AI changed for you\n")
+    expect(out.text).toContain("Nothing needs you at Acme & Co this week. Your AI assistant made some changes for you since your last email")
+    expect(out.text).toContain("WHAT YOUR AI CHANGED FOR YOU (1)")
+    expect(out.text).toContain("Added a note to “Name a DPDP coordinator”: “asked Priya”")
+    expect(out.text).not.toContain("Option 1")
+    expect(out.text).not.toContain("TWO WAYS")
+    expect(out.text).not.toContain("Please open this link")
+    expect(out.text).not.toContain("Nothing for you this week")
+    expect(out.text).not.toContain("DPDP is the law")
+  })
+  test("the same person, with jobs, gets the ordinary digest", () => {
+    const out = renderDigest(digest({ aiChangesOnly: false }), withLink(1, { aiChanges: one }))
+    expect(out.subject).toContain("Your DPDP jobs this week")
+    expect(out.text).toContain("Option 1")
+    expect(out.text).toContain("WHAT YOUR AI CHANGED FOR YOU (1)")
+  })
+})
+
 describe("what your AI changed for you", () => {
   const changes: AiChange[] = [
     { verb: "NOTE", what: "Give a privacy notice", value: { text: "called the vendor <b>today</b>" }, appliedAt: "2026-09-27T20:30:00Z", undoUrl: null },
@@ -227,7 +251,12 @@ describe("the Edge Function, the migration and the database agree", () => {
     expect(index).toContain("url: PLACEHOLDER.aiLink")
     expect(index.indexOf('p_status: "sent"')).toBeGreaterThan(-1)
     expect(index.indexOf("p_mark: true")).toBeGreaterThan(index.indexOf('p_status: "sent"'))
-    expect(index).toContain('const aiLink = isDigest ? await mintAiLink(sb, d.membershipId) : null')
+    expect(index).toContain('const aiLink = isDigest && !d.aiChangesOnly ? await mintAiLink(sb, d.membershipId) : null')
+  })
+  test("an AI-changes-only email is sent for a real address only, never in a dry run, and only when something is pending", () => {
+    expect(index).toContain("aiChangesOnly = kind === \"monday_digest\" && !dryRun && AI_LINK_ENABLED && isDeliverableAddress(digest.email) && (await hasPendingAiChanges(sb, digest.membershipId))")
+    expect(index).toContain("if (!aiChangesOnly) { summary.skipped++;")
+    expect(index).toContain("renderDigest(aiChangesOnly ? { ...digest, aiChangesOnly: true } : digest, links, kind)")
   })
   test("the switches: on by default at level 1 for 7 days; ENABLED=0 removes it, LEVEL=0 makes it read-only", () => {
     expect(index).toContain('const AI_LINK_ENABLED = env("DPDP_EMAIL_AI_LINK_ENABLED") !== "0"')

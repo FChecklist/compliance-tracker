@@ -100,6 +100,8 @@ export type Digest = {
   unsubscribed: boolean
   statutoryOnly: boolean
   alreadySentThisWeek: boolean
+  /** Set by the sender, never by the database: nothing is due, but the person's AI changed things since the last email and they are told. */
+  aiChangesOnly?: boolean
   owners: Contact[]
   coordinators: Contact[]
   jobs: DigestJob[]
@@ -250,6 +252,7 @@ export function subjectFor(digest: Digest, kind: EmailKind = "monday_digest"): s
   if (kind === "statutory") {
     return `${digest.orgName}: ${plural(digest.jobs.length, "job")} required by today's law${late.length ? ` (${late.length} late)` : ""}`
   }
+  if (digest.aiChangesOnly) return `${digest.orgName}: what your AI changed for you this week`
   if (digest.level === "owner") {
     const open = digest.jobs.length
     return `${digest.orgName}: DPDP this week — ${plural(open, "open job")}${late.length ? `, ${late.length} late` : ""}${escalated ? `, ${escalated} escalated to you` : ""}`
@@ -569,6 +572,8 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   const urgency = "DPDP is the law, and the penalties for getting it wrong are steep. The good news: most weeks, this takes under 5 minutes."
   const intro = kind === "statutory"
     ? `You have stopped the weekly email, so this only lists what today's law already requires of you at ${digest.orgName}.`
+    : digest.aiChangesOnly
+      ? `Nothing needs you at ${digest.orgName} this week. Your AI assistant made some changes for you since your last email, and they are listed below so nothing is a surprise.`
     : digest.level === "owner"
       ? `${urgency} Here is where ${digest.orgName} stands on DPDP for the week of ${weekOf}. Late jobs are at the top, in red. Everyone with a job has had their own email; nothing here needs you unless it is escalated to you below.`
       : `${urgency} Here are your DPDP jobs at ${digest.orgName} for the week of ${weekOf}. Late ones are at the top, in red. When a job is done, press the green button — that is all.`
@@ -596,9 +601,11 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   // is the page, for the rare week they want to go through it by hand. Never for
   // the statutory-only view (nothing to "do" there but read the list).
   if (kind !== "statutory") {
-    const opts = aiOptions(digest, links, mine.length > 0)
-    htmlParts.push(opts.html)
-    textParts.push(...opts.text)
+    if (!digest.aiChangesOnly) {
+      const opts = aiOptions(digest, links, mine.length > 0)
+      htmlParts.push(opts.html)
+      textParts.push(...opts.text)
+    }
     const changes = aiChangesSection(links.aiChanges ?? [])
     if (changes) { htmlParts.push(changes.html); textParts.push(...changes.text) }
   }
@@ -607,7 +614,7 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
     htmlParts.push(`<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Your jobs (${mine.length})</h2>`)
     textParts.push(`YOUR JOBS (${mine.length})`)
     for (const j of mine) { htmlParts.push(jobHtml(j, digest, links, true)); textParts.push(jobText(j, digest, links, true), "") }
-  } else if (digest.level !== "owner" && kind !== "statutory") {
+  } else if (digest.level !== "owner" && kind !== "statutory" && !digest.aiChangesOnly) {
     htmlParts.push(`<p style="color:#475569;font-size:14px;">Nothing for you this week. You will get an email if anything new comes up.</p>`)
     textParts.push("Nothing for you this week. You will get an email if anything new comes up.", "")
   }
@@ -630,7 +637,7 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
     for (const j of others) { htmlParts.push(jobHtml(j, digest, links, false)); textParts.push(jobText(j, digest, links, false), "") }
   }
 
-  const title = digest.level === "owner" ? `${digest.orgName} — DPDP this week` : "Your DPDP jobs this week"
+  const title = digest.aiChangesOnly ? "What your AI changed for you" : digest.level === "owner" ? `${digest.orgName} — DPDP this week` : "Your DPDP jobs this week"
   // WO-014 §4, widened by WO-016 §1: the invite + refer asks reach every
   // signed-in person in a real Monday digest now, not just a decision-maker
   // (isDecisionMaker is kept, exported, for callers that still care who a
