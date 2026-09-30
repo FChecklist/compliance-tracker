@@ -20,7 +20,7 @@ import { describe, expect, test } from "bun:test"
 import { MAILBOX, replyToAddress, type MailClass } from "../_shared/mail-taxonomy.ts"
 import {
   DEFAULT_LEGAL_RESPONSE_DAYS, EXCERPT_CHARS, MAX_BODY_CHARS, MESSAGE_ID_REUSED_NOTE, ackBlocker, ackSubject, formatIst, handleInbound, htmlToText, parseInbound, parseLegalDays,
-  renderAck, receivedAtOf, secretMatches, type InboundConfig, type InboundDeps, type OutMessage, type Rpc,
+  redactSecrets, renderAck, receivedAtOf, secretMatches, type InboundConfig, type InboundDeps, type OutMessage, type Rpc,
 } from "./handler.ts"
 
 const SECRET = "test-secret-" + "x".repeat(24)
@@ -1126,5 +1126,67 @@ describe("parseLegalDays and formatIst", () => {
     expect(text).toContain("Received: 2026-09-29 21:03 IST")
     expect(text).not.toContain("Subject")
     expect(renderAck.length).toBe(2) // (ticket, receivedAt): there is no parameter through which text could get in
+  })
+})
+
+
+// A reply to our own Monday digest quotes it, and the digest carries credentials (the AI work link, one-time Undo and "done"
+// links, the sign-in link, the unsubscribe token). None of that may reach dpdp.mail_inbound.excerpt or the operator's notice.
+describe("redactSecrets: a reply that quotes our email must not carry its credentials into the ticket log", () => {
+  const HEX = "ab".repeat(32) // 64 hex characters, low entropy on purpose (gitleaks)
+  const quoted = [
+    "Thanks, please delete my data.",
+    "",
+    "> Please open this link and help me finish my DPDP jobs for this week:",
+    `> https://app.veridian-aios.com/ai/${HEX}`,
+    "> Yes, it is done: https://app.veridian-aios.com/act/#one-time-token-123",
+    `> Undo: https://app.veridian-aios.com/app/#undo=action1.${HEX}`,
+    "> Open my page: https://pcrjmlpuqsbocqfwoxod.supabase.co/auth/v1/verify?token=abc123&type=magiclink&redirect_to=https://app.veridian-aios.com/app/",
+    `> Stop these weekly emails: https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=${"cd".repeat(16)}`,
+  ].join("\n")
+
+  test("every credential is replaced and the words around them stay", () => {
+    const out = redactSecrets(quoted)
+    expect(out).toContain("Thanks, please delete my data.")
+    expect(out).toContain("Please open this link and help me finish my DPDP jobs for this week:")
+    expect(out).not.toContain(HEX)
+    expect(out).not.toMatch(/[0-9a-f]{40}/i)
+    expect(out).not.toContain("one-time-token-123")
+    expect(out).not.toContain("token=abc123")
+    expect(out).not.toContain("cdcdcdcd")
+    expect(out).toContain("[AI work link removed]")
+    expect(out).toContain("/act/#[removed]")
+    expect(out).toContain("#undo=[removed]")
+    expect(out).toContain("/auth/v1/verify?[removed]")
+    expect(out).toContain("t=[removed]")
+  })
+  test("ordinary text, a short hex string and a normal link are left alone", () => {
+    const plain = "Order 4f9a2c was sent on 5 October. See https://example.org/docs/ai/intro and hash deadbeef."
+    expect(redactSecrets(plain)).toBe(plain)
+  })
+  test("a bare 64-hex string is removed wherever it appears", () => {
+    expect(redactSecrets(`token ${HEX} end`)).toBe("token [64-hex removed] end")
+  })
+  test("end to end: the recorded excerpt and the operator's notice contain none of it, and the message is still classified", async () => {
+    const h = harness()
+    const res = await h.run(payload({ envelope_to: replyToAddress("monday", REF), envelope_to_raw: replyToAddress("monday", REF), text: quoted }))
+    expect(res.status).toBe(200)
+    const insert = h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")
+    expect(insert).toBeTruthy()
+    expect(String(insert!.args.p_excerpt)).not.toContain(HEX)
+    expect(String(insert!.args.p_excerpt)).toContain("[AI work link removed]")
+    const everything = JSON.stringify(h.calls) + JSON.stringify(h.sent)
+    expect(everything).not.toContain(HEX)
+    expect(everything).not.toContain("one-time-token-123")
+    expect(everything).not.toContain("token=abc123")
+    // the "delete my data" is still read, so a legal request is not lost to the redaction
+    expect(String(insert!.args.p_class)).toBe("data_request")
+  })
+  test("hostile input stays linear (the platform kills a slow isolate)", () => {
+    const t0 = Date.now()
+    redactSecrets("/ai/".repeat(16_000))
+    redactSecrets("a".repeat(64_000))
+    redactSecrets(("https://" + "a".repeat(190) + "/ai/").repeat(300))
+    expect(Date.now() - t0).toBeLessThan(1500)
   })
 })

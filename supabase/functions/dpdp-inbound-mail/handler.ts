@@ -288,6 +288,23 @@ export function htmlToText(html: string): string {
 }
 
 /**
+ * A reply to one of OUR emails usually quotes it, and the Monday digest carries credentials: the person's AI work link (a 7-day
+ * read + small-edits bearer link), one-time Undo and "Yes, it is done" links, the sign-in link and the unsubscribe token. The
+ * reply goes to the one public mailbox, so without this the quoted digest would be written to dpdp.mail_inbound.excerpt, quoted
+ * into the notice sent to the operator, and kept by the mail provider. Every such secret is replaced before anything is stored or
+ * forwarded; the surrounding words stay, so the message still reads and still classifies. Linear time: bounded quantifiers only.
+ */
+export function redactSecrets(text: string): string {
+  return text
+    .replace(/[^\s<>"')\]]{0,200}\/ai\/[0-9a-f]{64}[^\s<>"')\]]{0,200}/gi, "[AI work link removed]")
+    .replace(/#undo=[^\s<>"')\]]{1,300}/gi, "#undo=[removed]")
+    .replace(/\/act\/#[^\s<>"')\]]{1,300}/gi, "/act/#[removed]")
+    .replace(/\/auth\/v1\/verify\?[^\s<>"')\]]{1,600}/gi, "/auth/v1/verify?[removed]")
+    .replace(/([?&]t=)[0-9a-f]{32,128}/gi, "$1[removed]")
+    .replace(/\b[0-9a-f]{64}\b/gi, "[64-hex removed]")
+}
+
+/**
  * Reads the Worker's JSON (workers/dpdp-inbound-mail/src/types.ts, InboundMailPayload, version 1: snake_case). That type
  * IS the wire contract; a few camelCase aliases are accepted as well because a rename must not lose mail. Returns null
  * when the body is not an object or carries nothing at all (no address, no subject, no text).
@@ -336,7 +353,7 @@ export function parseInbound(raw: unknown): InboundMail | null {
     const html = pick("html")
     if (html) text = htmlToText(html)
   }
-  text = text.slice(0, MAX_TEXT_CHARS)
+  text = redactSecrets(text.slice(0, MAX_TEXT_CHARS))
 
   if (!senders.length && !recipients.length && !subject.trim() && !text.trim()) return null
 

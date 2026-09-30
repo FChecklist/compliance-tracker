@@ -48,7 +48,7 @@ Addresses on reserved test domains (`*.test`, `example.*`, `*.invalid`, `localho
 ## Switches
 
 - `DPDP_INTERNAL_AI_ENABLED=1` (Next.js app only) brings back the older in-app AI pages. Off by default; the external AI work link is the DPDP way.
-- `DPDP_EMAIL_AI_LINK_ENABLED` (Edge Function secret, default on): `0` takes the AI work link out of the Monday email. `DPDP_EMAIL_AI_LINK_LEVEL` (default `1` = read + small edits + drafts; `0` = read only) and `DPDP_EMAIL_AI_LINK_DAYS` (`1`, `7` or `30`; default `7`) set the emailed link's authority and life. The link is a credential: a new one every Monday, the previous emailed one retired. Details in `supabase/functions/dpdp-monday-email/README.md`.
+- The AI work link in the Monday email (Edge Function secrets; all FAIL CLOSED, a typo turns the feature off or read-only, never up): `DPDP_EMAIL_AI_LINK_ENABLED` and `DPDP_EMAIL_AI_CHANGES_ENABLED` are on when unset or exactly `1`; `DPDP_EMAIL_AI_LINK_LEVEL` is `1` (read + small edits + drafts) when unset or `1`, anything else is read-only; `DPDP_EMAIL_AI_LINK_DAYS` is exactly `1`, `7` or `30` (default `7`). The link is a credential: a new one every Monday, the previous one retired after the new email has gone. Emergency stop for every live emailed link: `update dpdp.ai_link set revoked_at = now() where label = 'Monday email' and revoked_at is null;`. Keep Resend click tracking OFF for the sending domain. Details in `supabase/functions/dpdp-monday-email/README.md`.
 
 ## Single mailbox (dpdp@veridian-aios.com)
 

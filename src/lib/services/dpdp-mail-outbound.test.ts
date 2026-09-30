@@ -564,6 +564,9 @@ describe("dpdp-monday-email legal_clocks job: the statutory notices go out as cl
     expect(logs.map((l) => l.args.p_class)).toEqual(["clock", "clock"])
     expect(logs.map((l) => l.args.p_ref).sort()).toEqual(fetchCalls.map((c) => c.body.headers["X-Veridian-Ref"]).sort())
     expect(logs.map((l) => l.args.p_to_addr)).toEqual(["owner@client-org.in", "coordinator@client-org.in"])
+    // the statutory notices never carry, mint, retire or report on an AI work link
+    expect(rpcCalls.some((c) => /ai_link|ai_actions|undo_token/.test(c.fn))).toBe(false)
+    for (const call of fetchCalls) expect(String(call.body.text)).not.toMatch(/\/ai\/[0-9a-f]{64}|AI Work link/)
   })
 
   test("the List-Unsubscribe mailto on a clock notice is still the data-request address on the SAME ref (a reply and an unsubscribe both find this send)", async () => {
@@ -598,5 +601,192 @@ describe("dpdp-monday-email legal_clocks job: the statutory notices go out as cl
       expect(await res.json()).toMatchObject({ sent: 1, failed: 0 })
       expect(callsTo("dpdp_timer_mark_email_send_result")[0].args).toMatchObject({ p_status: "sent" })
     } finally { warn.mockRestore() }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The AI work link in the Monday email, through the REAL handler (drizzle/0663 + 0664). These are the send-path behaviours an
+// independent review asked to be pinned: the link is made before the send and last week's is retired only after it, a failed send
+// retires only the link nobody received, bookkeeping after an accepted send can never cause a second email, a failed link never
+// stops the email, and an email that only reports what the person's AI changed is never sent empty.
+// ---------------------------------------------------------------------------
+describe("dpdp-monday-email: the AI work link in the email, through its real handler", () => {
+  const TOKEN = "ab".repeat(32) // 64 hex characters, low entropy on purpose (gitleaks)
+  const UNDO = "cd".repeat(32)
+  const digest = {
+    membershipId: MEMBERSHIP_ID, identityId: "ident2", orgId: ORG_ID, orgName: "Acme & Co", orgProduct: "firm", email: "person@client-org.in",
+    level: "staff", roleKind: "staff", weekKey: "2026-W41", today: "2026-10-05", unsubscribed: false, statutoryOnly: false,
+    alreadySentThisWeek: false, owners: [{ membershipId: "mo", email: "owner@client-org.in" }], coordinators: [], escalatedToMe: [],
+    jobs: [{
+      obligationId: "ob1", key: "firm-04", what: "Write down where it is kept", part: 2, dueOn: "2026-10-09", daysLate: 0, late: false,
+      requiredToday: false, isGroup: false, groupLabel: null, assigneeEmail: "person@client-org.in", isMine: true, stuck: false, outsideParty: false,
+    }],
+  }
+  const quiet = { ...digest, jobs: [] }
+  const actionRows = [
+    { actionId: "act1", verb: "NOTE", what: "Job A", value: { text: "asked Priya" }, appliedAt: "2026-10-04T05:00:00Z", stillUndoable: true, undoneAt: null },
+    { actionId: "act2", verb: "SET_DUE", what: "Job B", value: { dueOn: "2026-10-20" }, appliedAt: "2026-10-03T05:00:00Z", stillUndoable: false, undoneAt: null },
+  ]
+  function wire(over: Record<string, RpcHandler> = {}, d: unknown = digest) {
+    rpcHandlers = {
+      dpdp_timer_start_run: () => ({ data: "run1" }),
+      dpdp_timer_finish_run: () => ({ data: null }),
+      dpdp_timer_org_ids: () => ({ data: [ORG_ID] }),
+      dpdp_timer_ensure_link_codes: () => ({ data: null }),
+      dpdp_timer_build_monday_digests: () => ({ data: [d] }),
+      dpdp_timer_record_email_send: () => ({ data: { id: "row1", unsubscribeToken: "a".repeat(32), duplicate: false } }),
+      dpdp_timer_issue_action_tokens: () => ({ data: [{ obligationId: "ob1", done: "d".repeat(32), cannot: "c".repeat(32), neverHadAny: null }] }),
+      dpdp_timer_mark_email_send_result: () => ({ data: null }),
+      dpdp_mail_log_outbound: () => ({ data: null }),
+      dpdp_timer_mint_email_ai_link: () => ({ data: { linkId: "L1", token: TOKEN, level: 1, expiresAt: "2026-10-12T00:30:00Z", jobs: 31, people: 4 } }),
+      dpdp_timer_finish_email_ai_link: () => ({ data: { ok: true, revoked: 1 } }),
+      dpdp_timer_ai_actions_for_digest: () => ({ data: [] }),
+      dpdp_timer_issue_undo_token: () => ({ data: { ok: true, undoToken: UNDO } }),
+      dpdp_timer_ai_actions_mark_shown: () => ({ data: { ok: true, marked: 0 } }),
+      ...over,
+    }
+  }
+  const post = (body: unknown) => handlers.monday!(new Request("https://proj.supabase.co/functions/v1/dpdp-monday-email", {
+    method: "POST", headers: { Authorization: `Bearer ${envMap.DPDP_TIMER_SECRET}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
+  }))
+  const quietWarn = () => spyOn(console, "warn").mockImplementation(() => {})
+
+  test("a real digest carries the person's link in a prompt; last week's link is retired only AFTER the send, with delivered = true", async () => {
+    resetWorld(); wire()
+    const res = await post({ job: "monday" })
+    const summary = await res.json()
+    expect(summary).toMatchObject({ sent: 1, failed: 0, ai: { minted: 1, mintFailed: 0, changesListed: 0, changesFailed: 0, aiOnlySent: 0 } })
+    expect(fetchCalls).toHaveLength(1)
+    const text = fetchCalls[0].body.text as string
+    const html = fetchCalls[0].body.html as string
+    expect(text).toContain(`https://app.veridian-aios.com/ai/${TOKEN}`)
+    expect(text).toContain("You are my DPDP compliance assistant. Help me finish this week's DPDP jobs at Acme & Co.")
+    expect(text).toContain("BEFORE YOU PASTE.")
+    expect(text.lastIndexOf(`https://app.veridian-aios.com/ai/${TOKEN}`)).toBeGreaterThan(text.indexOf("My link (works until 12 October 2026):"))
+    expect(html).toContain("Before you paste.")
+    expect(callsTo("dpdp_timer_mint_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_level: 1, p_days: 7 })
+    // order: made before the send; retired after the row is marked sent
+    expect(order("dpdp_timer_mint_email_ai_link")).toBeLessThan(order("dpdp_mail_log_outbound"))
+    expect(order("dpdp_mail_log_outbound")).toBeLessThan(order("dpdp_timer_mark_email_send_result"))
+    expect(order("dpdp_timer_mark_email_send_result")).toBeLessThan(order("dpdp_timer_finish_email_ai_link"))
+    expect(callsTo("dpdp_timer_finish_email_ai_link")).toHaveLength(1)
+    expect(callsTo("dpdp_timer_finish_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_link_id: "L1", p_delivered: true })
+    // a real send records no body (so no credential is ever stored in dpdp.email_send)
+    expect(callsTo("dpdp_timer_record_email_send").every((c) => c.args.p_body_text === undefined || c.args.p_body_text === null)).toBe(true)
+  })
+
+  test("the provider refuses the send: only the link nobody received is retired (delivered = false); the previous one is left alone", async () => {
+    resetWorld(); wire()
+    resendResponse = { status: 500, body: { message: "boom" } }
+    const res = await post({ job: "monday" })
+    expect(await res.json()).toMatchObject({ sent: 0, failed: 1 })
+    const finish = callsTo("dpdp_timer_finish_email_ai_link")
+    expect(finish).toHaveLength(1)
+    expect(finish[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_link_id: "L1", p_delivered: false })
+    expect(callsTo("dpdp_timer_mark_email_send_result")[0].args).toMatchObject({ p_status: "failed" })
+    expect(callsTo("dpdp_timer_ai_actions_mark_shown")).toHaveLength(0)
+  })
+
+  test("the email was accepted but marking the row sent fails: NO second email, the row is NOT marked failed, and the link still switches over", async () => {
+    resetWorld(); wire({ dpdp_timer_mark_email_send_result: () => ({ error: { message: "connection reset" } }) })
+    const warn = quietWarn()
+    try {
+      const res = await post({ job: "monday" })
+      expect(await res.json()).toMatchObject({ sent: 1, failed: 0 })
+      expect(fetchCalls).toHaveLength(1)
+      // the only mark attempt was the 'sent' one; nothing turned it into 'failed' (which would let a retry send it twice)
+      expect(callsTo("dpdp_timer_mark_email_send_result").map((c) => c.args.p_status)).toEqual(["sent"])
+      expect(callsTo("dpdp_timer_finish_email_ai_link")[0].args.p_delivered).toBe(true)
+    } finally { warn.mockRestore() }
+  })
+
+  test("the link cannot be made: the email still goes out with the older wording, the failure is counted, and nothing is retired", async () => {
+    resetWorld(); wire({ dpdp_timer_mint_email_ai_link: () => ({ error: { message: "function dpdp_timer_mint_email_ai_link does not exist" } }) })
+    const warn = quietWarn()
+    try {
+      const res = await post({ job: "monday" })
+      const summary = await res.json()
+      expect(summary).toMatchObject({ sent: 1, failed: 0, ai: { minted: 0, mintFailed: 1 } })
+      const text = fetchCalls[0].body.text as string
+      expect(text).toContain("Open your page below, copy your AI Work link")
+      expect(text).not.toContain("BEFORE YOU PASTE")
+      expect(text).not.toMatch(/\/ai\/[0-9a-f]{64}/)
+      expect(callsTo("dpdp_timer_finish_email_ai_link")).toHaveLength(0)
+    } finally { warn.mockRestore() }
+  })
+
+  test("what the person's AI changed is listed with a fresh Undo link, and exactly those ids are marked shown AFTER the send", async () => {
+    resetWorld(); wire({ dpdp_timer_ai_actions_for_digest: () => ({ data: actionRows }) })
+    const res = await post({ job: "monday" })
+    expect(await res.json()).toMatchObject({ sent: 1, ai: { changesListed: 2 } })
+    const text = fetchCalls[0].body.text as string
+    expect(text).toContain("WHAT YOUR AI CHANGED FOR YOU (2)")
+    expect(text).toContain(`Undo: https://app.veridian-aios.com/app/#undo=act1.${UNDO}`)
+    expect(callsTo("dpdp_timer_issue_undo_token")).toHaveLength(1) // only the still-undoable one
+    const shown = callsTo("dpdp_timer_ai_actions_mark_shown")
+    expect(shown).toHaveLength(1)
+    expect(shown[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_action_ids: ["act1", "act2"] })
+    expect(order("dpdp_timer_mark_email_send_result")).toBeLessThan(order("dpdp_timer_ai_actions_mark_shown"))
+    // reading the list never marks anything
+    expect(callsTo("dpdp_timer_ai_actions_for_digest").every((c) => c.args.p_mark === false)).toBe(true)
+  })
+
+  test("a person with nothing due whose AI changed something gets an email for that alone: its own period key, no new link, marked shown after", async () => {
+    resetWorld(); wire({ dpdp_timer_ai_actions_for_digest: () => ({ data: actionRows }) }, quiet)
+    const res = await post({ job: "monday" })
+    expect(await res.json()).toMatchObject({ sent: 1, skipped: 0, ai: { changesListed: 2, aiOnlySent: 1, minted: 0 } })
+    const sent = fetchCalls[0].body
+    expect(sent.subject).toBe("[VERIDIAN DPDP · Monday] Acme & Co: what your AI changed for you this week")
+    expect(sent.text).toContain("WHAT YOUR AI CHANGED FOR YOU (2)")
+    expect(sent.text).not.toContain("Option 1")
+    expect(callsTo("dpdp_timer_record_email_send")[0].args).toMatchObject({ p_kind: "monday_digest", p_period_key: "2026-W41:ai" })
+    expect(callsTo("dpdp_timer_mint_email_ai_link")).toHaveLength(0)
+    expect(callsTo("dpdp_timer_finish_email_ai_link")).toHaveLength(0)
+    expect(callsTo("dpdp_timer_ai_actions_mark_shown")[0].args.p_action_ids).toEqual(["act1", "act2"])
+  })
+
+  test("nothing due and nothing to report: skipped, no email; changes unreadable at the second look: skipped, never an empty email", async () => {
+    resetWorld(); wire({}, quiet)
+    let res = await post({ job: "monday" })
+    expect(await res.json()).toMatchObject({ sent: 0, skipped: 1 })
+    expect(fetchCalls).toHaveLength(0)
+
+    resetWorld()
+    let reads = 0
+    wire({ dpdp_timer_ai_actions_for_digest: () => (++reads === 1 ? { data: actionRows } : { error: { message: "timeout" } }) }, quiet)
+    const warn = quietWarn()
+    try {
+      res = await post({ job: "monday" })
+      expect(await res.json()).toMatchObject({ sent: 0, skipped: 1, ai: { changesFailed: 1 } })
+      expect(fetchCalls).toHaveLength(0)
+      expect(callsTo("dpdp_timer_record_email_send")).toHaveLength(0)
+    } finally { warn.mockRestore() }
+  })
+
+  test("a dry run records the placeholder, never mints a link, and never reads the person's AI changes", async () => {
+    resetWorld(); wire()
+    const res = await post({ job: "monday", dryRun: true })
+    expect(await res.json()).toMatchObject({ dryRun: true, dry_run: 1, sent: 0 })
+    const rec = callsTo("dpdp_timer_record_email_send")[0].args
+    expect(rec.p_body_text).toContain("{{AI_WORK_LINK}}")
+    expect(rec.p_body_text).not.toMatch(/\/ai\/[0-9a-f]{64}/)
+    expect(callsTo("dpdp_timer_mint_email_ai_link")).toHaveLength(0)
+    expect(callsTo("dpdp_timer_ai_actions_for_digest")).toHaveLength(0)
+  })
+
+  test("the statutory-only view gets no link but does list what the AI changed; a reserved test address is never minted for", async () => {
+    resetWorld()
+    wire({ dpdp_timer_ai_actions_for_digest: () => ({ data: actionRows }) }, { ...digest, statutoryOnly: true, jobs: digest.jobs.map((j) => ({ ...j, requiredToday: true })) })
+    await post({ job: "monday" })
+    const text = fetchCalls[0].body.text as string
+    expect(text).not.toContain("Option 1")
+    expect(text).not.toMatch(/\/ai\/[0-9a-f]{64}/)
+    expect(text).toContain("WHAT YOUR AI CHANGED FOR YOU (2)")
+    expect(callsTo("dpdp_timer_mint_email_ai_link")).toHaveLength(0)
+
+    resetWorld(); wire({}, { ...digest, email: "person@example.test" })
+    await post({ job: "monday" })
+    expect(callsTo("dpdp_timer_mint_email_ai_link")).toHaveLength(0)
+    expect(fetchCalls).toHaveLength(0)
   })
 })

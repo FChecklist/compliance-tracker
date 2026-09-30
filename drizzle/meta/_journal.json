@@ -3446,6 +3446,13 @@
       "when": 1790478000000,
       "tag": "0663_dpdp_email_ai_work_link",
       "breakpoints": true
+    },
+    {
+      "idx": 494,
+      "version": "7",
+      "when": 1790479000000,
+      "tag": "0664_dpdp_email_ai_link_hardening",
+      "breakpoints": true
     }
   ]
 }
