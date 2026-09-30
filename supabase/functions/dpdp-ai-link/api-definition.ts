@@ -32,6 +32,16 @@ export type Endpoint = {
   example: string
 }
 
+const JOBS_QUERY: QueryParam[] = [
+  { name: "part", meaning: "1 to 7 (1 Basics, 2 Know your data, 3 Tell people & take consent, 4 Keep it safe, 5 Firms you share data with, 6 Requests & complaints, 7 Sign off)", example: "part=4" },
+  { name: "status", meaning: "open | done | late | na | due_today", example: "status=open" },
+  { name: "late", meaning: "1 -- only jobs past their due date", example: "late=1" },
+  { name: "today", meaning: "1 -- only jobs required by today's law (SPDI Rules 2011 / Aadhaar Act), not the DPDP Act that starts 13 May 2027", example: "today=1" },
+  { name: "mine", meaning: "1 -- only the jobs assigned to the person this link belongs to", example: "mine=1" },
+  { name: "nobody", meaning: "1 -- only jobs nobody looks after yet", example: "nobody=1" },
+  { name: "page, per_page", meaning: "pagination (default per_page 100, max 500)", example: "page=2&per_page=50" },
+]
+
 export const ENDPOINTS: ReadonlyArray<Endpoint> = [
   {
     id: "manual", method: "GET", path: "/", level: 0,
@@ -50,25 +60,25 @@ export const ENDPOINTS: ReadonlyArray<Endpoint> = [
   {
     id: "jobs", method: "GET", path: "/jobs", level: 0,
     summary: "This view's jobs. Every filter may be combined.",
-    query: [
-      { name: "part", meaning: "1 to 7 (1 Basics, 2 Know your data, 3 Tell people & take consent, 4 Keep it safe, 5 Firms you share data with, 6 Requests & complaints, 7 Sign off)", example: "part=4" },
-      { name: "status", meaning: "open | done | late | na | due_today", example: "status=open" },
-      { name: "late", meaning: "1 -- only jobs past their due date", example: "late=1" },
-      { name: "today", meaning: "1 -- only jobs required by today's law (SPDI Rules 2011 / Aadhaar Act), not the DPDP Act that starts 13 May 2027", example: "today=1" },
-      { name: "mine", meaning: "1 -- only the jobs assigned to the person this link belongs to", example: "mine=1" },
-      { name: "nobody", meaning: "1 -- only jobs nobody looks after yet", example: "nobody=1" },
-      { name: "page, per_page", meaning: "pagination (default per_page 100, max 500)", example: "page=2&per_page=50" },
-    ],
+    query: JOBS_QUERY,
     formats: ["json", "md", "csv"],
-    returns: "{ items: [job], page, perPage, total, pages } -- a job is { id, part, what, dataSet, dataTypes, lawCodes, by, byIsYou, isGroup, groupDone, groupTotal, due, yes, na, status, daysLate, late, requiredToday, dependsOnObligationId }",
+    returns: "{ items: [job], page, perPage, total, pages } -- a job is { id, part, what, dataSet, dataTypes, lawCodes, by, byIsYou, isGroup, groupDone, groupTotal, due, yes, na, status, daysLate, late, requiredToday, dependsOnObligationId, templateKey }",
     example: "GET /jobs?late=1",
   },
   {
     id: "job", method: "GET", path: "/jobs/{id}", level: 0,
-    summary: "One job in full: the library's plain text, data set and types, law codes, the person, due date, emails sent for it, this link's actions on it, and the history lines that name it.",
+    summary: "One job in full: the library's plain text, data set and types, law codes, the person, due date, emails sent for it, this link's actions on it, and the history lines that name it -- plus the job's playbook (why, who, steps, questions to ask, note to record, email).",
     formats: ["json", "md"],
-    returns: "the job plus { plainText, sectionRef, proofKind, roleTag, naReason, closedAt, emailsSent, aiActions, history }",
+    returns: "the job plus { plainText, sectionRef, proofKind, roleTag, templateKey, naReason, closedAt, emailsSent, aiActions, history, playbook, playbookSource }",
     example: "GET /jobs/<id from /jobs>",
+  },
+  {
+    id: "playbook", method: "GET", path: "/playbook", level: 0,
+    summary: "The playbook for every job in this view: why it matters, who does it, the steps, the questions to ask the person, what done looks like, the note to record, and an email to send where someone outside has to act. The same filters as /jobs. Markdown by default.",
+    query: JOBS_QUERY,
+    formats: ["md", "json"],
+    returns: "{ items: [{ job, playbook, source }], page, perPage, total, pages }, or a Markdown document grouped by part",
+    example: "GET /playbook?status=open",
   },
   {
     id: "law", method: "GET", path: "/law/{code}", level: 0,

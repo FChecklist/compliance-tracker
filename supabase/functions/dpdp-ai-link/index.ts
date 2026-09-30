@@ -7,7 +7,7 @@
 //
 //   GET  /                 manual (HTML)      GET /manual.md  GET /manual.json
 //   GET  /context          GET /jobs[?part&status&late&today&mine&nobody]
-//   GET  /jobs/{id}        GET /law/{code}    GET /report/{kind}[?format=md|csv]
+//   GET  /jobs/{id}        GET /playbook[?filters as /jobs]   GET /law/{code}    GET /report/{kind}[?format=md|csv]
 //   GET  /history          POST /actions      POST /drafts
 //   GET  /snapshot.md      (the pre-WO-013 page; <token>.md and /draft still work)
 //
@@ -34,12 +34,13 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
 import {
   LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
-  renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
+  playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
   type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
 } from "./router.ts"
 import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "./manual.ts"
 import { MAX_BODY_BYTES, RATE_LIMIT, type Format } from "./api-definition.ts"
 import { aiPasteText } from "../_shared/ai-link/prompt.ts"
+import { playbookFor } from "./playbook.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
@@ -176,7 +177,18 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
       const format = negotiateFormat(offeredFormats("job"), q.get("format"), accept, "json")
       const r = await rpc<JobDetail>("dpdp_ai_link_job", { p_token: token, p_job_id: route.id })
       if (r.error) return mapDbError(r.error, true)
-      return format === "md" ? formatted("md", renderJobMarkdown(r.data)) : json(200, r.data)
+      // The job's own playbook (its library key is on the detail), or a general one for its part of the list: why, who, steps, questions, note, email.
+      const pb = playbookFor(r.data.templateKey ?? null, { part: r.data.part, what: r.data.what, requiredToday: r.data.requiredToday })
+      return format === "md" ? formatted("md", renderJobMarkdown(r.data, pb)) : json(200, { ...r.data, playbook: pb.playbook, playbookSource: pb.source })
+    }
+    case "playbook": {
+      const format = negotiateFormat(offeredFormats("playbook"), q.get("format"), accept, "md")
+      const r = await rpc<JobRow[]>("dpdp_ai_link_jobs", { p_token: token, p_filters: jobFilters(q) })
+      if (r.error) return mapDbError(r.error)
+      const page = paginate(playbookItems(r.data), q.get("page"), q.get("per_page"))
+      if (format === "json") return json(200, page)
+      const ctx = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+      return formatted("md", renderPlaybookMarkdown(page, ctx.error ? "this organisation" : ctx.data.org.name))
     }
     case "law": {
       const format = negotiateFormat(offeredFormats("law"), q.get("format"), accept, "json")

@@ -223,6 +223,8 @@ describe("the paste: two lines, the link last; the instructions live on the page
     const out = renderDigest(digest(), withLink(1)).text
     expect(out).toContain("The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first.")
     expect(out).toContain("makes the small updates for you once you say yes")
+    // the person may paste the whole box, or only the link (owner, 2026-09-30): the email says either works, and the page must not need more
+    expect(out).toContain("The whole box or just the link: either works.")
     const ro = renderDigest(digest(), withLink(0)).text
     expect(ro).toContain("The page it opens tells your AI exactly what has to be done and how")
     expect(ro).toContain("It cannot change anything.")

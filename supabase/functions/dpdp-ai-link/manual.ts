@@ -16,7 +16,8 @@
 import { API_DEFINITION, LEVEL1_VERBS, LEVEL2_VERBS, type Endpoint, type VerbHelp } from "./api-definition.ts"
 import { FACTS, type LibraryFacts } from "./facts.ts"
 
-import { aiBrief, type BriefInput } from "../_shared/ai-link/prompt.ts"
+import { aiBrief, chaseEmail, faqFor, fileRows, longDate, menuFor, oneLine, openingQuestions, pathRows, proofFolders, sayScript, seesEveryone, statusEmail, type BriefInput, type BriefSummary } from "./brief.ts"
+import { PART_NAMES, playbookBullets, playbookEmailText, playbookFor } from "./playbook.ts"
 
 export type ContextPayload = {
   org: { id: string; name: string; product: string }
@@ -33,7 +34,7 @@ export type ManualInput = {
   base: string
   now: Date
   /** Today's numbers and the most urgent jobs for the "Start here" section; absent (the AI is told to fetch them) when they could not be read. */
-  summary?: BriefInput["summary"]
+  summary?: BriefSummary | null
 }
 
 export type Block =
@@ -42,7 +43,7 @@ export type Block =
   | { type: "table"; header: string[]; rows: string[][] }
   | { type: "code"; text: string }
 
-export type Section = { id: "S" | "A" | "B" | "C" | "D" | "E" | "F" | "G"; title: string; blocks: Block[] }
+export type Section = { id: "S" | "N" | "P" | "T" | "M" | "W" | "A" | "B" | "C" | "D" | "E" | "F" | "G"; title: string; blocks: Block[] }
 
 /** The "right now" facts, with the urgent jobs (lines indented by the brief) as a list of their own, so the page reads as a list of jobs and not as bullets inside a bullet. */
 function nowBlocks(now: string[]): Block[] {
@@ -70,6 +71,8 @@ export function headingOf(s: { id: string; title: string }): string {
 export type Manual = {
   title: string
   brandLine: string
+  /** One line for an AI that arrives with nothing but the link: this page is the whole briefing. */
+  lead: string
   generatedAt: string
   base: string
   apiVersion: string
@@ -122,18 +125,25 @@ export function buildManual(input: ManualInput): Manual {
   const who = KIND_LABEL[c.viewer.kind] ?? "a member"
   const generatedAt = now.toISOString()
 
-  // Owner, 2026-09-30: the email's paste is two lines ("open this link and follow the page"); THIS is the page. A task brief for this
-  // one link -- who it is for, today's numbers, the jobs that most need doing, how to do them -- so the AI does not have to work any of
-  // it out, and improving it improves every link already sent. The text lives in _shared/ai-link/prompt.ts (aiBrief).
-  const brief = aiBrief({
+  // Owner, 2026-09-30: the email's paste is two lines ("open this link and follow the page"), or the person pastes only the link; THIS is the
+  // page. A task brief for this one link -- who it is for, their role, today's numbers, the jobs that most need doing, how to do them, what
+  // to say and ask, the emails to draft, where everything is -- so the AI does not have to work any of it out, and improving it improves
+  // every link already sent. The text lives in brief.ts (the brief, the guides) and playbook.ts (the jobs).
+  const today = new Date(now.getTime() + 330 * 60_000).toISOString().slice(0, 10)
+  const bi: BriefInput = {
     orgName: c.org.name, orgProduct: c.org.product, viewerEmail: c.viewer.email, viewerKind: c.viewer.kind, level: c.link.authorityLevel === 1 ? 1 : 0,
     expiresOn: new Date(new Date(c.link.expiresAt).getTime() + 330 * 60_000).toISOString().slice(0, 10), counts: c.counts, summary: input.summary ?? null,
-  })
+  }
+  const brief = aiBrief(bi)
+  const summary = input.summary ?? null
+  const everyone = seesEveryone(c.viewer.kind)
   const S: Section = {
     id: "S", title: "Start here — your task",
     blocks: [
       { type: "p", text: brief.headline },
       ...brief.intro.map((text) => ({ type: "p", text }) as Block),
+      { type: "p", text: "YOUR ROLE" },
+      { type: "ul", items: brief.role },
       { type: "p", text: "RIGHT NOW" },
       ...nowBlocks(brief.now),
       { type: "p", text: "FIRST" },
@@ -142,7 +152,107 @@ export function buildManual(input: ManualInput): Manual {
       { type: "ul", items: brief.then },
       { type: "p", text: "RULES" },
       { type: "ul", items: brief.rules },
-      { type: "p", text: "Below this line is the reference: what this system is, what you can and cannot do, the whole API, and worked examples. Read it when you need it; you do not have to read it all first." },
+      { type: "p", text: "This page continues: N where things stand (completion, pending, who is behind) · P the jobs to do first, each with its playbook · T what to say, what to ask, what to answer · M emails you can draft · W paths, files and where proof is kept · then the reference, A to G. Read them when you need them; you do not have to read it all first." },
+    ],
+  }
+
+  const N: Section = { id: "N", title: "Where things stand — completion, pending, who is behind", blocks: [] }
+  if (!summary) {
+    N.blocks.push({ type: "p", text: "The numbers could not be read when this page was made. GET /report/summary?format=md gives the same picture in one call (completion by part, what is late, what today's law requires); GET /report/by-person?format=md shows who is behind." })
+  } else {
+    const counted = summary.total - summary.na
+    N.blocks.push(
+      { type: "p", text: `As on ${longDate(today)} (India time).` },
+      { type: "ul", items: [
+        `COMPLETION: ${summary.done} of ${counted} job${counted === 1 ? "" : "s"} done, ${summary.percentDone}%.${summary.na > 0 ? ` ${summary.na} more marked not applicable.` : ""}`,
+        `PENDING: ${summary.open} open. ${summary.late} late, ${summary.dueToday} due today, ${summary.open - summary.late - summary.dueToday} still on time.${summary.nobody > 0 ? ` ${summary.nobody} of the open jobs have nobody looking after them yet${c.viewer.kind === "owner" ? " (as the owner you can give them to someone with ASSIGN)" : ""}.` : ""}`,
+        `REQUIRED BY TODAY'S LAW (SPDI Rules 2011 / Aadhaar Act): ${summary.requiredTodayTotal} job${summary.requiredTodayTotal === 1 ? "" : "s"}, ${summary.requiredTodayDone} done, ${summary.requiredToday} still open.`,
+      ] },
+      { type: "table", header: ["Part", "What it covers", "Jobs", "Done", "Late", "Progress"], rows: summary.byPart.map((r) => [String(r.part), r.name || PART_NAMES[r.part] || "", String(r.total), String(r.done), String(r.late), r.total > 0 ? `${Math.round((r.done / r.total) * 100)}%` : "-"]) },
+    )
+    if (everyone) {
+      N.blocks.push({ type: "p", text: "WHO IS BEHIND (people or groups with at least one late job, worst first)" })
+      if (summary.defaulters.length === 0) N.blocks.push({ type: "p", text: "Nobody has a late job." })
+      else {
+        N.blocks.push(
+          { type: "table", header: ["Who", "Late jobs", "Open jobs", "Longest late (days)", "Job ids"], rows: summary.defaulters.map((d) => [`${oneLine(d.who, 80)}${d.isYou ? " (this person)" : ""}${d.isGroup ? " (group)" : ""}`, String(d.late), String(d.open), String(d.oldestDaysLate), d.jobIds.map((x) => oneLine(x, 80)).join(", ")]) },
+          { type: "p", text: "What to do about it: offer to write a reminder for each person (section M) for the person to send. The owner may also give a late job to someone else (ASSIGN) or move a date (SET_DUE). Say exactly what will change and wait for yes." },
+        )
+      }
+    } else {
+      N.blocks.push({ type: "p", text: "This view holds only this person's own jobs, so there is no team table." })
+    }
+  }
+
+  const P: Section = { id: "P", title: "The jobs to do first — each with its playbook", blocks: [] }
+  if (summary && summary.top.length > 0) {
+    P.blocks.push({ type: "p", text: "For each job: why it matters, who does it, the steps, the questions to ask the person, what done looks like, the note to record, and where it applies an email to send. Ask the questions one at a time. The law behind a job: GET /law/{code} for each code GET /jobs/{id} lists." })
+    for (const j of summary.top) {
+      const { playbook, source } = playbookFor(j.templateKey ?? null, { part: j.part ?? 2, what: j.what, requiredToday: j.requiredToday })
+      const tags = [j.daysLate > 0 ? `late by ${j.daysLate} day${j.daysLate === 1 ? "" : "s"}` : j.due ? `due ${longDate(j.due)}` : null, j.requiredToday ? "required by today's law" : null].filter(Boolean).join(", ")
+      const who = j.by == null ? "nobody looks after it yet" : `for ${oneLine(j.by, 80)}`
+      P.blocks.push({ type: "p", text: `JOB ${oneLine(j.id, 60)} · ${oneLine(j.what, 140)}${tags ? ` (${tags})` : ""} · ${who}${source === "generic" ? " · general playbook for this part of the list" : ""}` })
+      P.blocks.push({ type: "ul", items: playbookBullets(playbook) })
+      if (playbook.email) P.blocks.push({ type: "code", text: playbookEmailText(playbook.email) })
+    }
+    P.blocks.push({ type: "p", text: "Any other job: GET /jobs/{id}. Every job at once: GET /playbook?format=md (add ?status=open, ?late=1 or ?part=N to narrow it)." })
+  } else {
+    P.blocks.push({ type: "p", text: summary ? "Nothing is open, so there is no job to start with. GET /playbook?format=md shows how every job is done, if the person asks." : "The list of urgent jobs could not be read when this page was made. GET /jobs?late=1 lists the late jobs; GET /jobs/{id} for each carries its playbook (why, who, steps, questions to ask, note to record); GET /playbook?format=md gives every job's playbook in one call." })
+  }
+
+  const T: Section = {
+    id: "T", title: "What to say, what to ask, what to answer",
+    blocks: [
+      { type: "p", text: "WHAT TO SAY FIRST. Send this as your first message. Reword it if you like, but keep every number and the question at the end." },
+      { type: "code", text: sayScript(bi).join("\n") },
+      { type: "p", text: "QUESTIONS TO OPEN WITH (then, for each job, the questions in its playbook, one at a time)" },
+      { type: "ul", items: openingQuestions(bi) },
+      { type: "p", text: "IF THE PERSON SAYS ... YOU DO ..." },
+      { type: "table", header: ["The person says", "You do"], rows: menuFor(bi).map((r) => [r.says, r.you]) },
+      { type: "p", text: "ANSWERS YOU CAN GIVE (no legal opinion in any of them; for a legal question the answer is: ask your CA or lawyer)" },
+      { type: "table", header: ["If asked", "Say"], rows: faqFor(bi).map((r) => [r.q, r.a]) },
+    ],
+  }
+
+  const senderEmail = c.viewer.email
+  const M: Section = {
+    id: "M", title: "Emails you can draft — the person sends them",
+    blocks: [
+      { type: "p", text: "You cannot send email or messages. Write these for the person to copy into their own mail or WhatsApp. Fill every {placeholder} before you hand a text over; never leave one in." },
+    ],
+  }
+  const chasable = summary ? summary.defaulters.filter((d) => !d.isYou && !d.isGroup).slice(0, 3) : []
+  if (everyone && chasable.length > 0) {
+    M.blocks.push({ type: "p", text: "REMINDERS TO PEOPLE WITH LATE JOBS (one each; ready to send)" })
+    for (const d of chasable) {
+      const e = chaseEmail(c.org.name, senderEmail, d)
+      M.blocks.push({ type: "code", text: `To: ${e.to}\nSubject: ${e.subject}\n\n${e.body}` })
+    }
+  } else if (everyone) {
+    M.blocks.push({ type: "p", text: summary ? "Nobody else has a late job, so there are no reminders to write." : "Who is behind could not be read when this page was made: GET /report/by-person?format=md, then write one reminder per person with late jobs, listing their late jobs and asking for a yes or a reason." })
+  }
+  const st = statusEmail(c.org.name, senderEmail, summary, today)
+  M.blocks.push(
+    { type: "p", text: "STATUS NOTE FOR THE CA OR THE OWNER (attach the status file from section W)" },
+    { type: "code", text: `To: ${st.to}\nSubject: ${st.subject}\n\n${st.body}` },
+    { type: "p", text: "EMAILS THAT BELONG TO A JOB" },
+    { type: "ul", items: [
+      "A job that an outside firm has to act on (the website firm, the payroll firm, a group company, the bus firm, the school software firm), or that needs a colleague's facts, carries its own email in its playbook: section P, GET /jobs/{id} or GET /playbook.",
+      "VERIDIAN itself emails every person their jobs each Monday morning (India time), with a button to say a job is done or that they cannot. Your reminders are extra and personal; they do not replace that email.",
+      "Do not draft any notice to a regulator or to people affected by a data leak. Tell the person to take that to their CA or lawyer.",
+    ] },
+  )
+
+  const W: Section = {
+    id: "W", title: "Where things are — paths, files, and where proof is kept",
+    blocks: [
+      { type: "p", text: `Every path below is relative to this link's base, ${base}. Use the full address with the base in front.` },
+      { type: "table", header: ["Call", "What it gives", "When to use it"], rows: pathRows("", bi.level, c.viewer.kind).map((r) => [r.path, r.what, r.when]) },
+      { type: "p", text: "FILES YOU MAY HAND OVER (fetch, then give the person the text under this file name so it lands in the same place every time)" },
+      { type: "table", header: ["File name", "Made from", "Use"], rows: fileRows(c.org.name, today, everyone).map((r) => [r.name, r.from, r.use]) },
+      { type: "p", text: "WHERE THE PERSON KEEPS PROOF. VERIDIAN records the dated answer and a fingerprint of a document, not the document itself, so each job's proof (a signed agreement, a published notice, a written plan) lives in the organisation's own folder or drive. Suggest this layout, naming each file after the job's short name and the date, for example \"Grievance Officer notice - 2026-10-05.pdf\":" },
+      { type: "table", header: ["Folder", "Holds"], rows: proofFolders(PART_NAMES).map((r) => [r.folder, r.holds]) },
+      { type: "p", text: `THE PERSON'S OWN PAGE is ${FACTS.appOrigin}/app/ . That is where they confirm a draft (the confirmUrl in your reply opens it) and undo a change (the undoUrl). They may have to sign in. This link is not a sign-in link and never opens the app by itself.` },
     ],
   }
 
@@ -235,10 +345,11 @@ export function buildManual(input: ManualInput): Manual {
   return {
     title: `VERIDIAN AI work link — manual for ${c.viewer.email} at ${c.org.name}`,
     brandLine: FACTS.brandLine,
+    lead: "AI assistant: this page is your complete briefing for the person named in the title. Start at \"Start here — your task\" and do what it says; nothing else is needed to begin. If you are the person, this is what your AI reads.",
     generatedAt,
     base,
     apiVersion: API_DEFINITION.version,
-    sections: [S, A, B, C, D, E, F, G],
+    sections: [S, N, P, T, M, W, A, B, C, D, E, F, G],
   }
 }
 
@@ -258,13 +369,14 @@ function blockMarkdown(b: Block): string {
   switch (b.type) {
     case "p": return b.text + "\n"
     case "ul": return b.items.map((i) => `- ${i}`).join("\n") + "\n"
-    case "code": return "```\n" + b.text + "\n```\n"
+    // Text inside a fence can come from job names and addresses: three backticks in it must not end the fence early.
+    case "code": return "```\n" + b.text.replace(/`{3,}/g, "'''") + "\n```\n"
     case "table": return [`| ${b.header.join(" | ")} |`, `| ${b.header.map(() => "---").join(" | ")} |`, ...b.rows.map((r) => `| ${r.map(mdCell).join(" | ")} |`)].join("\n") + "\n"
   }
 }
 
 export function renderManualMarkdown(m: Manual): string {
-  const out: string[] = [`# ${m.title}`, "", m.brandLine, "", `Generated ${m.generatedAt} · API ${m.apiVersion} · base ${m.base}`, ""]
+  const out: string[] = [`# ${m.title}`, "", m.brandLine, "", `Generated ${m.generatedAt} · API ${m.apiVersion} · base ${m.base}`, "", `**${m.lead}**`, ""]
   for (const s of m.sections) {
     out.push(`## ${headingOf(s)}`, "")
     for (const b of s.blocks) out.push(blockMarkdown(b))
@@ -319,6 +431,7 @@ export function renderManualHtml(m: Manual): string {
   <header class="brand"><span>●</span> ${escapeHtml(m.brandLine)}</header>
   <h1>${escapeHtml(m.title)}</h1>
   <p class="meta">Generated ${escapeHtml(m.generatedAt)} · API ${escapeHtml(m.apiVersion)} · base <code>${escapeHtml(m.base)}</code> · also as <code>manual.md</code> and <code>manual.json</code></p>
+  <p class="lead"><strong>${escapeHtml(m.lead)}</strong></p>
   <nav>${m.sections.map((s) => `<a href="#${s.id}">${escapeHtml(headingOf(s))}</a>`).join("\n    ")}</nav>
 ${sections}
 </body>

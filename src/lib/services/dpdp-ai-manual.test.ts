@@ -76,11 +76,11 @@ describe("WO-DPDP-014: the brand line", () => {
 describe("WO-DPDP-013 §1.3: sections A-G, generated", () => {
   // Owner, 2026-09-30: the page an AI is sent to opens with a personalised "Start here" task brief (section S, tested in
   // dpdp-ai-link-brief.test.ts). The WO's seven reference sections A-G follow it, unchanged.
-  test("the personalised Start-here section first, then the WO's seven sections in the WO's order, with the WO's titles", () => {
+  test("the personalised Start-here section first, then the briefing sections N, P, T, M, W, then the WO's seven sections in the WO's order, with the WO's titles", () => {
     const m = buildManual({ context: context(), base: BASE, now: NOW })
-    expect(m.sections.map((s) => s.id)).toEqual(["S", "A", "B", "C", "D", "E", "F", "G"])
+    expect(m.sections.map((s) => s.id)).toEqual(["S", "N", "P", "T", "M", "W", "A", "B", "C", "D", "E", "F", "G"])
     expect(m.sections.map((s) => s.title)).toEqual([
-      "Start here — your task", "About this system — read this first", "Who you are working for", "What you can do", "What you cannot do", "The API", "How to do common tasks", "Rules of conduct",
+      "Start here — your task", "Where things stand — completion, pending, who is behind", "The jobs to do first — each with its playbook", "What to say, what to ask, what to answer", "Emails you can draft — the person sends them", "Where things are — paths, files, and where proof is kept", "About this system — read this first", "Who you are working for", "What you can do", "What you cannot do", "The API", "How to do common tasks", "Rules of conduct",
     ])
     expect(m.apiVersion).toBe(API_DEFINITION.version)
     expect(m.base).toBe(BASE)
