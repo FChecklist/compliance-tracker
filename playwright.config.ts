@@ -97,19 +97,29 @@ const ciPlaceholderEnv = process.env.CI
 // above) is checked explicitly now, so the exclusion applies ONLY to the
 // plain "e2e" job (which never boots PROJEXA and would just skip this spec's
 // ENV-2-reachability probe) and never to e2e-env1 (which needs to run it).
+//
+// FIXED 2026-09-30 (PR #2008's own CI run, real failure): the same E2E-ENV1-
+// JOB gap this comment already documents for demo-gate-smoke-env1.spec.ts
+// was found again on three MORE files that were never added here in the
+// first place -- r01-r02-boq-create-env1.spec.ts, r32-boq-total-excludes-
+// subtasks-env1.spec.ts, r40-work-progress-weighted-subtask-env1.spec.ts
+// (T2/D78's own e2e-env1 additions). The plain "E2E Tests" job's blanket
+// `bunx playwright test` (no positional pattern) was picking all three up
+// with none of e2e-env1's setup -- no MINT_SECRET, no PROJEXA_ORIGIN, no
+// dual-app boot -- so each one's mintSessionCookie() 401'd against the real
+// mint-session-r33 Edge Function and failed the job on every PR. Same fix,
+// same conditional-exclusion shape as demo-gate-smoke-env1.spec.ts above:
+// excluded only when this is NOT the e2e-env1 job, which still picks all
+// four up via its own `env1.spec.ts` filename-substring invocation.
+const env1OnlySpecs = [
+  "demo-gate-smoke-env1.spec.ts",
+  "r01-r02-boq-create-env1.spec.ts",
+  "r32-boq-total-excludes-subtasks-env1.spec.ts",
+  "r40-work-progress-weighted-subtask-env1.spec.ts",
+];
 const ciExcludedSpecs = process.env.CI
   ? [
-      // RENAMED 2026-09-13 (R-B1, e2e-env1 CI wiring): demo-gate-smoke.spec.ts
-      // -> demo-gate-smoke-env1.spec.ts, so e2e-env1's own `bunx playwright
-      // test env1.spec.ts` invocation (matches by filename substring, NOT
-      // via this file's own testDir sweep) picks it up automatically -- that
-      // job boots a REAL local PROJEXA dev server with E2E_PROJEXA_ORIGIN=
-      // http://localhost:3100 already set, which is exactly the ENV-1 target
-      // this spec's own header comment documents as proven-passing
-      // (2026-09-09, three consecutive local runs). Only actually excluded
-      // when E2E_ENV1_JOB is not "true" (the plain "e2e" job) -- see the
-      // block comment above for why a bare filename entry here is wrong.
-      ...(process.env.E2E_ENV1_JOB === "true" ? [] : ["demo-gate-smoke-env1.spec.ts"]),
+      ...(process.env.E2E_ENV1_JOB === "true" ? [] : env1OnlySpecs),
       "r48-uat-bank-reachability.spec.ts",
       "r63-local-composer.spec.ts",
     ]
