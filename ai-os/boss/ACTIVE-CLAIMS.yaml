@@ -4942,6 +4942,19 @@ active:
       own High-Risk-Files list, read carefully). No collision with any
       existing compliance-tracker top-level page.
 
+      PROGRESS UPDATE (2026-09-30, continued): accounting merged (#1985
+      claim, #1986 module) -- 16 of 24 genuinely-new modules now done. Now
+      claiming "analysis" (PROJEXA's src/app/(app)/analysis/** -- an unusual
+      shape: a hub page (analysisScreens() link list, 4 entries pointing at
+      OTHER already-existing modules via query params -- work-progress,
+      scope, dashboard/project, reports -- plus 2 genuinely new sub-pages,
+      project-360 and exceptions). Real backend confirmed live for both new
+      sub-pages: /api/v1/projexa/{reports/boq-analysis,change-orders,
+      milestones,schedule/gantt,billing-claims} (project-360) and
+      /api/v1/projexa/exceptions (exceptions, read-only 28-check deterministic
+      report with per-record drill-down). No collision with any existing
+      compliance-tracker top-level page.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
