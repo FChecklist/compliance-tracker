@@ -29,7 +29,7 @@ async function get(path, init) {
 }
 
 // 1. Every public page answers, as HTML.
-for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/for-ai/", "/proof/", "/app/", "/act/", "/unsubscribe/"]) {
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/for-ai/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
   const r = await get(p)
   check(r.status === 200 && /text\/html/.test(r.type), `${p} answers 200 as HTML`, `${r.status} ${r.type}`)
 }

@@ -50,6 +50,14 @@
   Referrer-Policy: no-referrer
   Cache-Control: no-store
 
+/copy/*
+  ! Referrer-Policy
+
+/copy/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+
 /ai/*
   ! Referrer-Policy
 

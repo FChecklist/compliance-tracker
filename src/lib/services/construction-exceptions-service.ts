@@ -41,7 +41,7 @@
 // construction_customer_complaints) -- roughly half the 28 items needed a
 // real new fact recorded somewhere; the rest were already fully answerable
 // from existing tables and simply had never been joined this way before.
-import { and, eq, gte, isNull, isNotNull, ne, lt, sql } from "drizzle-orm"
+import { and, asc, eq, gte, isNull, isNotNull, ne, lt, sql } from "drizzle-orm"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import {
   constructionSiteDiaries, constructionWorkProgressEntries,
@@ -49,7 +49,7 @@ import {
   constructionMaterialIssues, constructionLabourRoster, constructionPunchListItems,
   constructionInterimBills, constructionInterimBillLineItems,
   constructionVendorDisputes, constructionCustomerComplaints,
-  erpPurchaseInvoiceItems,
+  erpPurchaseInvoices, erpPurchaseInvoiceItems,
   documents, projects,
 } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
@@ -232,8 +232,25 @@ export async function findSelfApprovedChangeOrders(db: TenantDb, orgId: string, 
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// #7 -- work-progress entries recorded against a BOQ line whose BOQ is not
-// (yet, or no longer) 'approved' -- work happening against an unapproved BOQ.
+// #7 -- "work without approval happened": a work-progress entry recorded
+// against a BOQ line whose BOQ had no approval covering that work. Two
+// deterministic halves (fixed 2026-09-30, EXC-ITEM-07 live verification):
+//   (a) the BOQ was NEVER approved -- status draft/submitted, or superseded
+//       with approvedAt NULL. createBoqRevision() supersedes ANY parent,
+//       draft included (no status guard), so status='superseded' alone does
+//       not mean "was approved" -- live data on 2026-09-30 had 1431
+//       superseded BOQs with approvedAt NULL and exactly 1 with it set.
+//   (b) the BOQ WAS approved (status approved, or superseded with approvedAt
+//       set -- approveBoq() always stamps approvedAt) but the entry is dated
+//       BEFORE the approval date: the work happened before approval existed.
+//       Compared as calendar dates, entry_date < approvedAt's UTC date, so a
+//       same-day entry is given the benefit of the doubt.
+// The previous version flagged every non-'approved' status, which (i) wrongly
+// flagged work done under a BOQ that WAS approved at the time and was later
+// superseded by a revision, and (ii) never flagged work logged before an
+// approved BOQ's approval date -- the literal reading of Sumeet's item #7.
+// An approved BOQ with approvedAt NULL (7 seed rows live, never produced by
+// the real approve path) cannot be timed, so it is treated as approved.
 // ─────────────────────────────────────────────────────────────────────────
 export async function findWorkWithoutApprovedBoq(db: TenantDb, orgId: string, projectId: string): Promise<ExceptionRecord[]> {
   const entries = await db.query.constructionWorkProgressEntries.findMany({
@@ -253,15 +270,25 @@ export async function findWorkWithoutApprovedBoq(db: TenantDb, orgId: string, pr
   const boqIds = [...new Set(lines.map((l) => l.boqId))]
   const boqs = boqIds.length === 0 ? [] : await db.query.constructionBoqs.findMany({
     where: sql`${constructionBoqs.id} IN (${sql.join(boqIds.map((id) => sql`${id}`), sql`, `)})`,
-    columns: { id: true, status: true },
+    columns: { id: true, status: true, approvedAt: true },
   })
-  const statusByBoqId = new Map(boqs.map((b) => [b.id, b.status]))
+  const boqById = new Map(boqs.map((b) => [b.id, b]))
   const out: ExceptionRecord[] = []
   for (const e of entries) {
     const boqId = boqIdByLineId.get(e.boqLineItemId!)
     if (!boqId) continue
-    const status = statusByBoqId.get(boqId) ?? "unknown"
-    if (status !== "approved") out.push({ id: e.id, detail: `Progress entry ${e.entryDate} recorded against a BOQ line whose BOQ status is '${status}', not approved`, recordType: "work_progress_entry" })
+    const boq = boqById.get(boqId)
+    const status = boq?.status ?? "unknown"
+    const approvedAt = boq?.approvedAt ?? null
+    const everApproved = status === "approved" || (status === "superseded" && approvedAt !== null)
+    if (!everApproved) {
+      out.push({ id: e.id, detail: `Progress entry ${e.entryDate} recorded against a BOQ line whose BOQ status is '${status}' and was never approved`, recordType: "work_progress_entry" })
+      continue
+    }
+    const approvedOn = approvedAt ? approvedAt.toISOString().slice(0, 10) : null
+    if (approvedOn && e.entryDate < approvedOn) {
+      out.push({ id: e.id, detail: `Progress entry ${e.entryDate} recorded before its BOQ was approved on ${approvedOn}`, recordType: "work_progress_entry" })
+    }
   }
   return out
 }
@@ -408,16 +435,30 @@ export async function findLateOrDuplicateMaterial(db: TenantDb, orgId: string, p
     columns: { id: true, materialId: true, issuedDate: true, boqLineItemId: true },
   })
   const out: ExceptionRecord[] = []
+  // One record per issue (fixed 2026-09-30): an issue that is BOTH a
+  // re-issue inside the window AND late used to be pushed twice under the
+  // same id -- two rows with the same React key on the exceptions screen.
+  // The second reason is now appended to the first record's detail.
+  const flaggedById = new Map<string, ExceptionRecord>()
+  const flag = (rec: ExceptionRecord) => {
+    const existing = flaggedById.get(rec.id)
+    if (existing) { existing.detail = `${existing.detail}; also: ${rec.detail}`; return }
+    flaggedById.set(rec.id, rec)
+    out.push(rec)
+  }
 
-  // Duplicate: same material issued twice within the window.
+  // Duplicate: same material issued twice within the window. Same-day ties
+  // are ordered by id (fixed 2026-09-30) -- the old comparator never
+  // returned 0, so WHICH of two same-day issues got flagged depended on the
+  // sort algorithm, not on the data.
   const byMaterial = new Map<string, typeof issues>()
   for (const i of issues) byMaterial.set(i.materialId, [...(byMaterial.get(i.materialId) ?? []), i])
   for (const [materialId, rows] of byMaterial) {
-    const sorted = [...rows].sort((a, b) => (a.issuedDate < b.issuedDate ? -1 : 1))
+    const sorted = [...rows].sort((a, b) => (a.issuedDate === b.issuedDate ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) : a.issuedDate < b.issuedDate ? -1 : 1))
     for (let i = 1; i < sorted.length; i++) {
       const days = (new Date(sorted[i].issuedDate).getTime() - new Date(sorted[i - 1].issuedDate).getTime()) / 86_400_000
       if (days <= DUPLICATE_MATERIAL_WINDOW_DAYS) {
-        out.push({ id: sorted[i].id, detail: `Material ${materialId} issued again ${sorted[i].issuedDate}, only ${days}d after the previous issue -- possible duplicate order`, recordType: "material_issue", linkId: materialId })
+        flag({ id: sorted[i].id, detail: `Material ${materialId} issued again ${sorted[i].issuedDate}, only ${days}d after the previous issue -- possible duplicate order`, recordType: "material_issue", linkId: materialId })
       }
     }
   }
@@ -454,7 +495,7 @@ export async function findLateOrDuplicateMaterial(db: TenantDb, orgId: string, p
       if (!activityId) continue
       const earliestDate = earliestByActivity.get(activityId)
       if (earliestDate && i.issuedDate > earliestDate) {
-        out.push({ id: i.id, detail: `Material issued ${i.issuedDate} for an activity that already had progress logged from ${earliestDate} -- arrived late`, recordType: "material_issue", linkId: i.materialId })
+        flag({ id: i.id, detail: `Material issued ${i.issuedDate} for an activity that already had progress logged from ${earliestDate} -- arrived late`, recordType: "material_issue", linkId: i.materialId })
       }
     }
   }
@@ -476,7 +517,13 @@ export async function findMissingDailyReports(db: TenantDb, orgId: string, proje
   const start = new Date(sorted[0])
   const end = new Date(Math.min(new Date(sorted[sorted.length - 1]).getTime(), Date.now()))
   const out: ExceptionRecord[] = []
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+  // UTC day arithmetic (fixed 2026-09-30): `new Date("YYYY-MM-DD")` parses
+  // as UTC midnight, but the old setDate()/getDate() stepped in the SERVER'S
+  // LOCAL zone -- on any DST-observing host the 23h/25h transition days made
+  // toISOString() repeat one calendar day and skip another (a missing diary
+  // on the skipped day was silently never reported). Vercel runs in UTC so
+  // production never hit it, but the detector must not depend on host TZ.
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
     const iso = d.toISOString().slice(0, 10)
     if (!diaryDates.has(iso)) out.push({ id: iso, detail: `No site diary filed for ${iso}`, recordType: "date" })
   }
@@ -502,28 +549,57 @@ export async function findUnlinkedRoster(db: TenantDb, orgId: string, projectId:
 // wrapper exists only so #22 has the same shape as every other item here.
 // ─────────────────────────────────────────────────────────────────────────
 export async function findAmbiguousBoqVersions(db: TenantDb, orgId: string, projectId: string): Promise<ExceptionRecord[]> {
-  const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, orgId), eq(constructionBoqs.projectId, projectId), eq(constructionBoqs.status, "approved")) })
   // A revision chain can only ever have ONE row with status='approved' at a
-  // time per parentBoqId chain by construction (createBoqRevision supersedes
-  // the parent's status away from 'approved' when a child is confirmed --
-  // see that function's own invariant). More than one INDEPENDENT
-  // (non-chained) approved BOQ for the same project is legitimate (E-116)
-  // and is not ambiguity -- so this only flags a true chain violation: two
-  // approved rows where one's parentBoqId is the other's id.
+  // time by construction (createBoqRevision supersedes the parent when it
+  // inserts the child -- see that function's own invariant). More than one
+  // INDEPENDENT (non-chained) approved BOQ for the same project is
+  // legitimate (E-116) and is not ambiguity -- so this only flags a true
+  // chain violation: an approved row with an approved ANCESTOR anywhere up
+  // its own parentBoqId chain.
+  //
+  // Fixed 2026-09-30 (EXC-ITEM-22 live verification): this used to compare
+  // each approved row only with its DIRECT parent, so v1 approved -> v2
+  // superseded -> v3 approved (two "final" versions in one chain, exactly
+  // Sumeet's "which one is final") was never flagged. It now loads every
+  // BOQ of the project (id/parent/status/version only -- the chain's
+  // intermediate rows are not approved, so an approved-only read cannot see
+  // through them) and walks each approved row's ancestors in memory.
+  // parent_boq_id is UNIQUE, so a chain is linear; the `seen` set only
+  // guards against a malformed cycle, never a legitimate branch.
+  const boqs = await db.query.constructionBoqs.findMany({
+    where: and(eq(constructionBoqs.orgId, orgId), eq(constructionBoqs.projectId, projectId)),
+    columns: { id: true, parentBoqId: true, status: true, version: true },
+  })
+  const byId = new Map(boqs.map((b) => [b.id, b]))
   const out: ExceptionRecord[] = []
   for (const b of boqs) {
-    if (b.parentBoqId && boqs.some((other) => other.id === b.parentBoqId)) {
-      out.push({ id: b.id, detail: `BOQ v${b.version} and its own parent are BOTH status='approved' -- the revision chain's invariant is violated`, recordType: "boq" })
+    if (b.status !== "approved") continue
+    const seen = new Set([b.id])
+    let ancestor = b.parentBoqId ? byId.get(b.parentBoqId) : undefined
+    while (ancestor && !seen.has(ancestor.id)) {
+      if (ancestor.status === "approved") {
+        out.push({ id: b.id, detail: `BOQ v${b.version} and its earlier revision v${ancestor.version} in the same chain are BOTH status='approved' -- which one is final is ambiguous`, recordType: "boq" })
+        break
+      }
+      seen.add(ancestor.id)
+      ancestor = ancestor.parentBoqId ? byId.get(ancestor.parentBoqId) : undefined
     }
   }
   return out
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// #23 -- a subcontractor invoice line linked to a BOQ line whose invoiced
-// amount exceeds that line's own cumulative billed-to-customer amount --
-// paying a subcontractor more than has been certified to the customer for
-// the same work.
+// #23 -- the TOTAL amount subcontractors have invoiced against a BOQ line
+// (summed over every non-cancelled purchase-invoice line linked to it)
+// exceeds that line's cumulative billed-to-customer amount -- paying
+// subcontractors more than has been certified to the customer for the same
+// work. Every invoice line on an over-invoiced BOQ line is flagged, so each
+// one can be opened and checked.
+//
+// Fixed 2026-09-30 (EXC-ITEM-23 live verification): this used to compare
+// EACH invoice line on its own, so splitting one over-invoice across two
+// lines/invoices (2 x 2000 against 3000 certified) was never flagged, and a
+// CANCELLED purchase invoice still counted as money owed.
 // ─────────────────────────────────────────────────────────────────────────
 export async function findMismatchedSubcontractorInvoices(db: TenantDb, orgId: string, projectId: string): Promise<ExceptionRecord[]> {
   // Rebuilt 2026-09-21 (was the worst N+1 in this file: 3 extra queries PER
@@ -544,10 +620,22 @@ export async function findMismatchedSubcontractorInvoices(db: TenantDb, orgId: s
   })
   if (lines.length === 0) return []
   const lineIds = lines.map((l) => l.id)
-  const invoiceItems = await db.query.erpPurchaseInvoiceItems.findMany({
+  const allInvoiceItems = await db.query.erpPurchaseInvoiceItems.findMany({
     where: sql`${erpPurchaseInvoiceItems.boqLineItemId} IN (${sql.join(lineIds.map((id) => sql`${id}`), sql`, `)})`,
     columns: { id: true, boqLineItemId: true, amount: true, invoiceId: true },
   })
+  if (allInvoiceItems.length === 0) return []
+  const invoiceIds = [...new Set(allInvoiceItems.map((i) => i.invoiceId))]
+  const cancelledInvoiceIds = new Set(
+    (await db.query.erpPurchaseInvoices.findMany({
+      where: and(
+        sql`${erpPurchaseInvoices.id} IN (${sql.join(invoiceIds.map((id) => sql`${id}`), sql`, `)})`,
+        eq(erpPurchaseInvoices.status, "cancelled")
+      ),
+      columns: { id: true },
+    })).map((i) => i.id)
+  )
+  const invoiceItems = allInvoiceItems.filter((i) => !cancelledInvoiceIds.has(i.invoiceId))
   if (invoiceItems.length === 0) return []
   const billedRows = await db.query.constructionInterimBillLineItems.findMany({
     where: sql`${constructionInterimBillLineItems.boqLineItemId} IN (${sql.join(lineIds.map((id) => sql`${id}`), sql`, `)})`,
@@ -562,14 +650,19 @@ export async function findMismatchedSubcontractorInvoices(db: TenantDb, orgId: s
     const cur = maxBilledByLine.get(b.boqLineItemId)
     if (cur === undefined || amt > cur) maxBilledByLine.set(b.boqLineItemId, amt)
   }
+  const invoicedByLine = new Map<string, number>()
+  for (const item of invoiceItems) {
+    invoicedByLine.set(item.boqLineItemId!, (invoicedByLine.get(item.boqLineItemId!) ?? 0) + Number(item.amount))
+  }
   const out: ExceptionRecord[] = []
   for (const item of invoiceItems) {
     const billedAmount = maxBilledByLine.get(item.boqLineItemId!) ?? 0
-    if (Number(item.amount) > billedAmount) {
+    const invoicedTotal = invoicedByLine.get(item.boqLineItemId!) ?? 0
+    if (invoicedTotal > billedAmount) {
       // No subcontractor-invoice object screen exists in PROJEXA today --
       // same honest-tagging reasoning as the vendor-dispute/customer-
       // complaint detectors above.
-      out.push({ id: item.id, detail: `Subcontractor invoice line (${item.amount}) exceeds this BOQ line's cumulative billed-to-customer amount (${billedAmount})`, recordType: "invoice_item" })
+      out.push({ id: item.id, detail: `Subcontractor invoice line (${item.amount}) is part of ${invoicedTotal} invoiced against a BOQ line whose cumulative billed-to-customer amount is only ${billedAmount}`, recordType: "invoice_item" })
     }
   }
   return out
@@ -588,16 +681,30 @@ export async function findOverdueSnags(db: TenantDb, orgId: string, projectId: s
   return rows.map((r) => ({ id: r.id, detail: `Snag #${r.number} ("${r.description}") was due ${r.dueDate} and is still not verified closed`, recordType: "punch_list_item" as const }))
 }
 
+// Fixed 2026-09-30 (EXC-ITEM-24 live verification): "every snag verified
+// closed" used to be checked only as "no snag is open", which is vacuously
+// TRUE for a project with ZERO snags -- so every interim bill holding
+// retention on a project whose snag list had not even started (i.e. most
+// projects mid-construction) was flagged. It now requires at least one snag
+// on record AND none of them open.
 export async function findRetentionHeldDespiteSnagsClosed(db: TenantDb, orgId: string, projectId: string): Promise<ExceptionRecord[]> {
-  const openSnags = await db.query.constructionPunchListItems.findFirst({ where: and(eq(constructionPunchListItems.orgId, orgId), eq(constructionPunchListItems.projectId, projectId), ne(constructionPunchListItems.status, "verified_closed")) })
-  if (openSnags) return [] // snags still open -- retention being held is not (yet) a red flag
+  const snags = await db.query.constructionPunchListItems.findMany({
+    where: and(eq(constructionPunchListItems.orgId, orgId), eq(constructionPunchListItems.projectId, projectId)),
+    columns: { status: true },
+  })
+  if (snags.length === 0) return [] // no snag list yet -- nothing has been closed out, so held retention is not a red flag
+  if (snags.some((s) => s.status !== "verified_closed")) return [] // snags still open -- retention being held is not (yet) a red flag
   const bills = await db.query.constructionInterimBills.findMany({
     where: and(eq(constructionInterimBills.orgId, orgId), eq(constructionInterimBills.projectId, projectId), gte(constructionInterimBills.retentionAmount, "0.01")),
-    columns: { id: true, billNumber: true, retentionAmount: true, retentionReleasedAmount: true },
+    columns: { id: true, billNumber: true, retentionAmount: true, retentionReleasedAmount: true, salesInvoiceId: true },
   })
+  // linkId = the bill's own SALES INVOICE (2026-09-30): an interim bill has
+  // no object screen of its own, but once invoiced its sales invoice does
+  // (/invoices/[id] in PROJEXA and here). Left undefined when the bill has
+  // not been invoiced yet -- the UI then opens Billing Milestones instead.
   return bills
     .filter((b) => Number(b.retentionReleasedAmount ?? 0) < Number(b.retentionAmount))
-    .map((b) => ({ id: b.id, detail: `Interim bill #${b.billNumber} still holds ${Number(b.retentionAmount) - Number(b.retentionReleasedAmount ?? 0)} retention, despite every snag on this project being verified closed`, recordType: "interim_bill" as const }))
+    .map((b) => ({ id: b.id, detail: `Interim bill #${b.billNumber} still holds ${Number(b.retentionAmount) - Number(b.retentionReleasedAmount ?? 0)} retention, despite every snag on this project being verified closed`, recordType: "interim_bill" as const, ...(b.salesInvoiceId ? { linkId: b.salesInvoiceId } : {}) }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -636,12 +743,25 @@ export async function findProgressRegressions(db: TenantDb, orgId: string, proje
   const entries = await db.query.constructionWorkProgressEntries.findMany({
     where: and(eq(constructionWorkProgressEntries.orgId, orgId), eq(constructionWorkProgressEntries.projectId, projectId), eq(constructionWorkProgressEntries.entryBasis, "SNAPSHOT")),
     columns: { id: true, activityId: true, entryDate: true, percentComplete: true, createdAt: true },
+    // Ordered IN POSTGRES -- entry date, then created_at, then id (fixed
+    // 2026-09-30, found by the live-data oracle). Two real defects in the old
+    // JS re-sort: (1) no final tie-break -- on the real Oakwood project five
+    // SNAPSHOT entries for one activity and day share the SAME created_at to
+    // the microsecond (one transaction), so their order, and whether "40%
+    // after 50%" was reported, depended on the order the database happened to
+    // return rows (the same data read 3 regressions one time, 2 another);
+    // (2) a JS Date keeps only MILLISECONDS, so two entries created within
+    // one millisecond lost their real order. Postgres now orders at full
+    // microsecond precision and breaks exact ties by id, deterministically --
+    // for entries saved in the same instant, "later" is not recorded anywhere,
+    // so id order is the stated, repeatable convention.
+    // Row order within each activity below is exactly this ORDER BY.
+    orderBy: [asc(constructionWorkProgressEntries.entryDate), asc(constructionWorkProgressEntries.createdAt), asc(constructionWorkProgressEntries.id)],
   })
   const byActivity = new Map<string, typeof entries>()
   for (const e of entries) byActivity.set(e.activityId, [...(byActivity.get(e.activityId) ?? []), e])
   const out: ExceptionRecord[] = []
-  for (const rows of byActivity.values()) {
-    const sorted = [...rows].sort((a, b) => (a.entryDate === b.entryDate ? a.createdAt.getTime() - b.createdAt.getTime() : a.entryDate < b.entryDate ? -1 : 1))
+  for (const sorted of byActivity.values()) {
     for (let i = 1; i < sorted.length; i++) {
       if (Number(sorted[i].percentComplete) < Number(sorted[i - 1].percentComplete)) {
         out.push({ id: sorted[i].id, detail: `Progress entry ${sorted[i].entryDate} reports ${sorted[i].percentComplete}%, lower than the ${sorted[i - 1].percentComplete}% already reported on ${sorted[i - 1].entryDate}`, recordType: "work_progress_entry" })
@@ -673,68 +793,81 @@ export async function findProgressRegressions(db: TenantDb, orgId: string, proje
 // unchanged -- only each detector's OWN internal round-trip count dropped.
 // ─────────────────────────────────────────────────────────────────────────
 export async function getProjectExceptions(ctx: ExceptionsContext, projectId: string): Promise<ExceptionCheck[]> {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
-    if (!project) throw new ServiceError("Project not found", 404)
+  return withTenantContext({ orgId: ctx.orgId }, (db) => getProjectExceptionsWithDb(db, ctx, projectId))
+}
 
-    const checks: Array<{ item: number; title: string; formula: string; records: ExceptionRecord[] }> = []
-    const push = (item: number, title: string, formula: string, records: ExceptionRecord[]) => checks.push({ item, title, formula, records })
+/**
+ * The same 28-item report over a db handle the caller already holds -- the
+ * established `*WithDb` escape hatch (isBranchEnabledForOrgWithDb /
+ * computeUserChainUsageScoresWithDb precedent, CLAUDE.md R74) so a caller
+ * already inside a withTenantContext block never nests a second one. Added
+ * 2026-09-30 so construction-exceptions-service.test.ts can run the REAL
+ * aggregator, every detector's real drizzle WHERE clause included, against a
+ * real Postgres (PGlite loaded from scripts/verify/fixtures/construction-
+ * exceptions-service.base.sql) -- the gap U22_REQUIREMENT_CHECKS.md finding 1
+ * recorded for the fake-db tests.
+ */
+export async function getProjectExceptionsWithDb(db: TenantDb, ctx: ExceptionsContext, projectId: string): Promise<ExceptionCheck[]> {
+  const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+  if (!project) throw new ServiceError("Project not found", 404)
 
-    const diaryGap = await findDiaryWithoutProgressEntry(db, ctx.orgId, projectId)
-    push(1, "Extra work done, never captured", "Site diary records work done on a date with no matching work-progress entry", diaryGap)
-    push(8, "Work happened not captured", "Same detector as #1: a diary entry with no matching progress entry", diaryGap)
+  const checks: Array<{ item: number; title: string; formula: string; records: ExceptionRecord[] }> = []
+  const push = (item: number, title: string, formula: string, records: ExceptionRecord[]) => checks.push({ item, title, formula, records })
 
-    push(2, "Extra work done, never billed", "An approved change order (cost impact != 0) linked to a BOQ revision with zero interim bills ever raised against it", await findApprovedChangeOrdersNeverBilled(db, ctx.orgId, projectId))
-    push(3, "Site builds from the drawing but not confirmed", "Work-progress entry names a drawing with no confirmation recorded", await findUnconfirmedDrawingProgress(db, ctx.orgId, projectId))
-    push(4, "Site builds from the old drawing", "Work-progress entry's named drawing is not the latest version", await findOldDrawingProgress(db, ctx.orgId, projectId))
-    push(5, "Approvals stuck", `Change order pending_approval for over ${STUCK_APPROVAL_DAYS} days with no decision`, await findStuckApprovals(db, ctx.orgId, projectId))
-    push(6, "Wrong approval given", "Change order approved by the same person who requested it", await findSelfApprovedChangeOrders(db, ctx.orgId, projectId))
-    push(7, "Work without approval happened", "Work-progress entry recorded against a BOQ line whose BOQ is not status='approved'", await findWorkWithoutApprovedBoq(db, ctx.orgId, projectId))
-    push(9, "Work happened not billed", "BOQ line with logged progress but zero interim-bill line items ever raised", await findProgressNeverBilled(db, ctx.orgId, projectId))
-    push(10, "Work disputed with vendor", "Any construction_vendor_disputes row with status='open'", await findOpenVendorDisputes(db, ctx.orgId, projectId))
-    push(11, "Work disputed by customer", "Any open construction_customer_complaints row with category='work_dispute'", await findOpenCustomerComplaints(db, ctx.orgId, projectId, "work_dispute"))
-    push(12, "Customer complained", "Any open construction_customer_complaints row, any category", await findOpenCustomerComplaints(db, ctx.orgId, projectId))
+  const diaryGap = await findDiaryWithoutProgressEntry(db, ctx.orgId, projectId)
+  push(1, "Extra work done, never captured", "Site diary records work done on a date with no matching work-progress entry", diaryGap)
+  push(8, "Work happened not captured", "Same detector as #1: a diary entry with no matching progress entry", diaryGap)
 
-    const newBoqs = await findNewBoqRevisions(db, ctx.orgId, projectId)
-    push(13, "New scope of work decided", "A BOQ revision exists (parentBoqId set) -- this product's own record of a scope decision", newBoqs)
-    push(14, "New BOQ decided", "Same detector as #13: BOQ IS this product's record of scope (R-96)", newBoqs)
+  push(2, "Extra work done, never billed", "An approved change order (cost impact != 0) linked to a BOQ revision with zero interim bills ever raised against it", await findApprovedChangeOrdersNeverBilled(db, ctx.orgId, projectId))
+  push(3, "Site builds from the drawing but not confirmed", "Work-progress entry names a drawing with no confirmation recorded", await findUnconfirmedDrawingProgress(db, ctx.orgId, projectId))
+  push(4, "Site builds from the old drawing", "Work-progress entry's named drawing is not the latest version", await findOldDrawingProgress(db, ctx.orgId, projectId))
+  push(5, "Approvals stuck", `Change order pending_approval for over ${STUCK_APPROVAL_DAYS} days with no decision`, await findStuckApprovals(db, ctx.orgId, projectId))
+  push(6, "Wrong approval given", "Change order approved by the same person who requested it", await findSelfApprovedChangeOrders(db, ctx.orgId, projectId))
+  push(7, "Work without approval happened", "Work-progress entry recorded against a BOQ line whose BOQ was never approved, or dated before that BOQ's approval date", await findWorkWithoutApprovedBoq(db, ctx.orgId, projectId))
+  push(9, "Work happened not billed", "BOQ line with logged progress but zero interim-bill line items ever raised", await findProgressNeverBilled(db, ctx.orgId, projectId))
+  push(10, "Work disputed with vendor", "Any construction_vendor_disputes row with status='open'", await findOpenVendorDisputes(db, ctx.orgId, projectId))
+  push(11, "Work disputed by customer", "Any open construction_customer_complaints row with category='work_dispute'", await findOpenCustomerComplaints(db, ctx.orgId, projectId, "work_dispute"))
+  push(12, "Customer complained", "Any open construction_customer_complaints row, any category", await findOpenCustomerComplaints(db, ctx.orgId, projectId))
 
-    const noCustomerApproval = await findBoqWithoutCustomerApproval(db, ctx.orgId, projectId)
-    push(15, "Approval from customer on new scope of work", "BOQ internally approved with no customerApprovedAt on record (inverted: flags the MISSING approval)", noCustomerApproval)
-    push(16, "Approval from customer on new BOQ", "Same detector as #15", noCustomerApproval)
+  const newBoqs = await findNewBoqRevisions(db, ctx.orgId, projectId)
+  push(13, "New scope of work decided", "A BOQ revision exists (parentBoqId set) -- this product's own record of a scope decision", newBoqs)
+  push(14, "New BOQ decided", "Same detector as #13: BOQ IS this product's record of scope (R-96)", newBoqs)
 
-    push(17, "Approvals given without comparing scope of work and BOQ", "Change order approved with no BOQ revision ever linked to it", await findApprovalsWithoutBoqComparison(db, ctx.orgId, projectId))
+  const noCustomerApproval = await findBoqWithoutCustomerApproval(db, ctx.orgId, projectId)
+  push(15, "Approval from customer on new scope of work", "BOQ internally approved with no customerApprovedAt on record (inverted: flags the MISSING approval)", noCustomerApproval)
+  push(16, "Approval from customer on new BOQ", "Same detector as #15", noCustomerApproval)
 
-    const materialNoLine = await findMaterialWithoutBoqLine(db, ctx.orgId, projectId)
-    push(18, "Material ordered without scope of work and BOQ", "Material issue with no boqLineItemId recorded", materialNoLine)
-    push(19, "Material ordered twice, or late", "Same material re-issued within a short window, or issued after progress on its activity had already started", await findLateOrDuplicateMaterial(db, ctx.orgId, projectId))
+  push(17, "Approvals given without comparing scope of work and BOQ", "Change order approved with no BOQ revision ever linked to it", await findApprovalsWithoutBoqComparison(db, ctx.orgId, projectId))
 
-    const missingDiaries = await findMissingDailyReports(db, ctx.orgId, projectId)
-    push(20, "The daily report never arrives", "A calendar day inside the project's active date range with no site diary filed", missingDiaries)
-    push(26, "The user forgets", "Same detector as #20: a missed daily report", missingDiaries)
+  const materialNoLine = await findMaterialWithoutBoqLine(db, ctx.orgId, projectId)
+  push(18, "Material ordered without scope of work and BOQ", "Material issue with no boqLineItemId recorded", materialNoLine)
+  push(19, "Material ordered twice, or late", "Same material re-issued within a short window, or issued after progress on its activity had already started", await findLateOrDuplicateMaterial(db, ctx.orgId, projectId))
 
-    push(21, "Manpower on paper, payroll disputes", "Labour roster entry with no linked employee profile -- cannot be reconciled against payroll", await findUnlinkedRoster(db, ctx.orgId, projectId))
-    push(22, "Multiple versions of the BOQ -- which one is final, which is worked upon", "A BOQ revision chain violation (a row and its own parent both status='approved')", await findAmbiguousBoqVersions(db, ctx.orgId, projectId))
-    push(23, "Subcontractor invoices don't match the work", "A subcontractor invoice line's amount exceeds its BOQ line's cumulative billed-to-customer amount", await findMismatchedSubcontractorInvoices(db, ctx.orgId, projectId))
+  const missingDiaries = await findMissingDailyReports(db, ctx.orgId, projectId)
+  push(20, "The daily report never arrives", "A calendar day inside the project's active date range with no site diary filed", missingDiaries)
+  push(26, "The user forgets", "Same detector as #20: a missed daily report", missingDiaries)
 
-    // #24 is a SINGLE owner-facing item answered by TWO different detectors
-    // (unlike the shared-detector pairs above, which are the opposite: ONE
-    // detector reused under TWO DIFFERENT owner item numbers). Both results
-    // are merged into one push under item 24 -- fixed 2026-09-21 after a
-    // real bug where this used to push(24, ...) TWICE, producing 29 array
-    // entries instead of the documented 28 (each detector's own records
-    // keep their own `detail` text, so a reader can still tell "overdue
-    // snag" flags apart from "retention still held" flags within the one
-    // merged item).
-    push(24, "Snags lost, retention held", "Overdue, not-yet-verified-closed punch list items, OR retention still held on an interim bill despite every snag being verified closed", [
-      ...await findOverdueSnags(db, ctx.orgId, projectId),
-      ...await findRetentionHeldDespiteSnagsClosed(db, ctx.orgId, projectId),
-    ])
+  push(21, "Manpower on paper, payroll disputes", "Labour roster entry with no linked employee profile -- cannot be reconciled against payroll", await findUnlinkedRoster(db, ctx.orgId, projectId))
+  push(22, "Multiple versions of the BOQ -- which one is final, which is worked upon", "A BOQ revision chain violation (an approved BOQ with an approved earlier revision anywhere up its own chain)", await findAmbiguousBoqVersions(db, ctx.orgId, projectId))
+  push(23, "Subcontractor invoices don't match the work", "The total invoiced by subcontractors against a BOQ line (non-cancelled invoices) exceeds that line's cumulative billed-to-customer amount", await findMismatchedSubcontractorInvoices(db, ctx.orgId, projectId))
 
-    push(25, "The user decides from memory", "Change order approved with no evidence document attached", await findApprovalsWithoutEvidence(db, ctx.orgId, projectId))
-    push(27, "The user doesn't remember", "Same detector as #18: material issued with no BOQ line recorded", materialNoLine)
-    push(28, "The user reports wrong but it should be caught by software", "A work-progress entry's percentComplete is lower than the immediately preceding one for the same activity", await findProgressRegressions(db, ctx.orgId, projectId))
+  // #24 is a SINGLE owner-facing item answered by TWO different detectors
+  // (unlike the shared-detector pairs above, which are the opposite: ONE
+  // detector reused under TWO DIFFERENT owner item numbers). Both results
+  // are merged into one push under item 24 -- fixed 2026-09-21 after a
+  // real bug where this used to push(24, ...) TWICE, producing 29 array
+  // entries instead of the documented 28 (each detector's own records
+  // keep their own `detail` text, so a reader can still tell "overdue
+  // snag" flags apart from "retention still held" flags within the one
+  // merged item).
+  push(24, "Snags lost, retention held", "Overdue, not-yet-verified-closed punch list items, OR retention still held on an interim bill despite every snag (at least one on record) being verified closed", [
+    ...await findOverdueSnags(db, ctx.orgId, projectId),
+    ...await findRetentionHeldDespiteSnagsClosed(db, ctx.orgId, projectId),
+  ])
 
-    return checks.map((c) => ({ item: c.item, title: c.title, formula: c.formula, records: c.records, count: c.records.length, flagged: c.records.length > 0 }))
-  })
+  push(25, "The user decides from memory", "Change order approved with no evidence document attached", await findApprovalsWithoutEvidence(db, ctx.orgId, projectId))
+  push(27, "The user doesn't remember", "Same detector as #18: material issued with no BOQ line recorded", materialNoLine)
+  push(28, "The user reports wrong but it should be caught by software", "A work-progress entry's percentComplete is lower than the immediately preceding one for the same activity", await findProgressRegressions(db, ctx.orgId, projectId))
+
+  return checks.map((c) => ({ item: c.item, title: c.title, formula: c.formula, records: c.records, count: c.records.length, flagged: c.records.length > 0 }))
 }

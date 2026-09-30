@@ -4903,6 +4903,182 @@ active:
       precedent as budgets vs erp/budgets and purchase-orders vs
       erp/procurement.
 
+      PROGRESS UPDATE (2026-09-29, continued; hit and fixed a real merge
+      conflict on the "sales" claim doc PR #1978 -- resolved via
+      git rebase origin/main + force-with-lease push, same pattern as the
+      earlier #1961/#1964 ACTIVE-CLAIMS.yaml collision; this file has a
+      `merge=union-registry` .gitattributes driver that auto-resolves
+      locally even when GitHub's own mergeability check reports DIRTY,
+      since GitHub doesn't apply local merge drivers -- rebase+force-push
+      is the correct fix when that happens, not a sign of real data loss).
+      "sales" (PR #1980) and "procurement" (PR #1981) are both open with
+      native GitHub auto-merge enabled (this repo now has auto-merge
+      enabled at the repo level, gh pr merge --auto used going forward
+      instead of manual polling). Now claiming "inventory" (PROJEXA's
+      src/app/(app)/inventory/** -- overview, items/{[id],new},
+      stock-entries/new, warehouses/new). Real backend confirmed live:
+      /api/v1/projexa/inventory/{items,stock-balance,stock-entries,
+      warehouses}. No collision with any existing compliance-tracker
+      top-level page.
+
+      PROGRESS UPDATE (2026-09-29/30, continued): sales (#1980), procurement
+      (#1981), the inventory claim doc (#1982), and inventory (#1983) all
+      merged -- 15 of 24 genuinely-new modules now done. Real, root-caused
+      incident in between: stacking several PRs' CI concurrently against the
+      live Supabase DB (pcrjmlpuqsbocqfwoxod) exhausted its connection pool
+      ("sorry, too many clients already", confirmed via query_logs -- zero
+      occurrences in the 9 hours before, then hundreds per 15-min bucket the
+      moment 5 PRs' CI ran at once), which failed all 4 required DB-touching
+      checks (Migration Integrity AR-12, Migration Schema Drift, Graph Drift,
+      Screen Definition Label) on unrelated PRs simultaneously, including on
+      main's own HEAD -- not a real code defect in any of those PRs. Fixed by
+      halting new pushes/agents, waiting for in-flight CI to drain (confirmed
+      via the live app's own health endpoint latency dropping from 31s to
+      sub-second), then re-running failed checks + repeated update-branch
+      cycles as each merge advanced main. Also surfaced (not fixed --
+      separate task, see [[ci-db-connection-pool-exhaustion-2026-09-29]] in
+      this session's memory) a likely root cause for the previously-open
+      "BOQ save timeout" mystery: a budget-vs-actual BOQ rollup query taking
+      16-46s per execution in the same window, which alone can exhaust a
+      small pool under concurrent load. #1982 hit the identical
+      merge=union-registry rebase pattern as #1978 -- same fix. Lesson
+      applied going forward: pace module PRs so no more than ~1-2 are
+      running CI at once, rather than stacking claim+module PRs across
+      several modules simultaneously. Now claiming "accounting" (PROJEXA's
+      src/app/(app)/accounting/** -- page.tsx overview,
+      companies/new, journal-entries/{[id],new}). Real backend confirmed
+      live: /api/v1/projexa/journal-entries, /api/v1/projexa/
+      asset-to-gl-reconciliation (erp-accounting-service.ts -- CLAUDE.md's
+      own High-Risk-Files list, read carefully). No collision with any
+      existing compliance-tracker top-level page.
+
+      PROGRESS UPDATE (2026-09-30, continued): accounting merged (#1985
+      claim, #1986 module) -- 16 of 24 genuinely-new modules now done. Now
+      claiming "analysis" (PROJEXA's src/app/(app)/analysis/** -- an unusual
+      shape: a hub page (analysisScreens() link list, 4 entries pointing at
+      OTHER already-existing modules via query params -- work-progress,
+      scope, dashboard/project, reports -- plus 2 genuinely new sub-pages,
+      project-360 and exceptions). Real backend confirmed live for both new
+      sub-pages: /api/v1/projexa/{reports/boq-analysis,change-orders,
+      milestones,schedule/gantt,billing-claims} (project-360) and
+      /api/v1/projexa/exceptions (exceptions, read-only 28-check deterministic
+      report with per-record drill-down). No collision with any existing
+      compliance-tracker top-level page.
+
+      PROGRESS UPDATE (2026-09-30, continued): analysis merged (#1987 claim,
+      #1988 module) -- 17 of 24 genuinely-new modules now done. Honest gaps
+      the porting agent found and reported rather than silently fixing:
+      work-progress/scope's own tab-query params are no-ops, dashboard/
+      project doesn't exist as a page at all, and reports' own designer-
+      timesheet link target disagrees with report-catalog-service.ts's own
+      documented destination -- flagged for a future session, not fixed
+      here (out of this claim's scope). Now claiming "billing-milestones"
+      (PROJEXA's single-file src/app/(app)/billing-milestones/page.tsx --
+      the real create/draft/submit/approve/reject/invoice write UI for
+      constructionProgressClaims; Project 360's own tile is read-only-count
+      only). Checked ai-os/boss/ACTIVE-CLAIMS.yaml's own history first per
+      Rule 12/11 -- found a 2026-09-20 R-95 entry that already touched
+      "billing-milestones" but it's [DONE], unrelated (projexa e2e spec
+      timeout fixes, not a UI port), and file-scope-disjoint from this
+      claim. Real backend confirmed live: /api/v1/projexa/billing-claims
+      (+ /[id]), /api/v1/projexa/customers, /api/v1/projexa/tax-templates,
+      /api/v1/projexa/reports/boq-analysis. No collision with any existing
+      compliance-tracker top-level page (native /api/billing exists but no
+      (app)/billing* page).
+
+      PROGRESS UPDATE (2026-09-30, continued): billing-milestones merged
+      (#1989 claim, #1990 module) -- 18 of 24 genuinely-new modules now
+      done. Porting agent caught a real role-floor mismatch rather than
+      copying PROJEXA's gate 1:1 (reports/boq-analysis needs "manager",
+      billing-claims writes only need "member" -- used /api/v1/projexa/scope
+      instead to avoid 403ing member-role users out of milestone creation).
+      Now claiming "copilot" (PROJEXA's single-file
+      src/app/(app)/copilot/page.tsx + CopilotClient.tsx -- a simple
+      single-endpoint chat/query interface). Real backend confirmed live:
+      /api/v1/projexa/assistant (GET query history, POST dispatch). No
+      collision with any existing compliance-tracker top-level page.
+
+      PROGRESS UPDATE (2026-09-30, continued): copilot module merged (#1991
+      claim, #1992 module) -- 19 of 24 done. Now claiming "finance"
+      (PROJEXA's src/app/(app)/finance/budgets/{page,new/page,[id]/page}.tsx
+      -- the ERP's fiscal-year Budget screen, distinct from the
+      already-merged accounting module and from the project-level BOQ
+      budget on /scope?tab=budget). Confirmed via PROJEXA source: /budgets,
+      /budgets/[id], /budgets/new are all redirect shims onto
+      /finance/budgets/* (R67 D-62) -- porting only the real screens, not
+      the shims. Real backend already fully live in compliance-tracker, no
+      new routes needed: /api/v1/projexa/project-budgets (GET list, POST
+      create), /project-budgets/[id] (GET detail, PATCH line items),
+      /project-budgets/[id]/submit, /cancel, /variance (all backed by
+      erp-budget-service.ts), plus the four lookup endpoints this screen
+      needs (/fiscal-years, /cost-centers, /accounts, /companies) which
+      already exist from the accounting-module port. Org-wide, not
+      project-scoped -- no ProjectPicker needed, simpler than most ports.
+      Simplifying two PROJEXA-only conveniences that don't have a
+      compliance-tracker equivalent: the "ask your administrator to set up
+      a fiscal year" task-filing flow (POST /api/tasks, a PROJEXA-internal
+      mechanism) is dropped in favor of just showing the same blocked-setup
+      banner to every role; the "Set up in VERIDIAN" link becomes a same-origin
+      Link to /erp/periods (a real compliance-tracker page) since there's no
+      cross-app hop needed here. No collision with any existing
+      compliance-tracker top-level page (no (app)/finance/* exists yet).
+
+      PROGRESS UPDATE (2026-09-30, continued): finance module merged (#1993
+      claim, #1994 module) -- 20/24 done. Also this session: root-caused and
+      fixed a real, separate bug blocking the "AI work link" feature (not a
+      module port -- a pre-existing PROJEXA feature, own repo) for all 11
+      meridian-construction.e2e-test.projexa-ai.com demo accounts:
+      compliance.users.auth_user_id held a UUID from the WRONG Supabase
+      project (compliance-tracker's own, not PROJEXA's evpckeuxgvahguwsaeul)
+      for every one of them, so projexa_read_resolve_user() could never match
+      them and ai-work-link mint always answered "not linked to a VERIDIAN
+      user". Fixed by updating all 11 rows' auth_user_id to the real
+      evpckeuxgvahguwsaeul auth.users.id per email (verified against both
+      projects directly); re-verified live -- a real link now mints (row
+      confirmed in platform.user_ai_links). Out of scope here whether this
+      same mismatch class affects any non-test org.
+
+      Now claiming "grc" (PROJEXA's src/app/(app)/grc/** -- hub +
+      access-review/audits/cases/findings/policies/risks/vendors, ~12 pages).
+      No collision risk despite compliance-tracker having its OWN native
+      /risks, /policies, /vendors, /audit, /fraud-cases, /legal-vendors,
+      /vendor-risk pages -- PROJEXA's whole GRC module is self-namespaced
+      under /grc/*, never touching those bare paths. Backend fully live,
+      confirmed via directory listing, no new routes needed:
+      /api/v1/projexa/{access-review,compliance-register,fraud-cases,
+      grc-dashboard,policies,risks,vendor-payment-behavior,vendor-risk,
+      vendors,audit-engagements,audit-findings}.
+
+      PROGRESS UPDATE (2026-09-30, continued): grc claim merged (#1997), a
+      porting agent is building the module in the background (module PR not
+      yet opened). Now ALSO claiming "moms" (PROJEXA's
+      src/app/(app)/moms/{page,[id]/page,new/page}.tsx -- Minutes of
+      Meeting) in parallel, since it's independent of grc's own files. Real
+      backend confirmed: PROJEXA's own client calls /api/moms, which maps to
+      compliance-tracker's /api/v1/projexa/veri-meetings (NOT the plainer
+      /api/v1/projexa/meetings, which is a separate, already-existing basic
+      scheduling CRUD surface backing PROJEXA's own /api/meetings instead --
+      veri-meetings' own route header confirms this explicitly: "this is a
+      new, separate module PROJEXA's MoM screen calls instead"). veri-meetings
+      is backed by veri-meeting-service.ts -- a real, richer live-meeting-notes
+      engine (AI summary/key-decisions/suggested action items, publish/lock,
+      minutes amend-history), not basic CRUD. No collision with any existing
+      compliance-tracker top-level page (no (app)/moms exists yet).
+
+      PROGRESS UPDATE (2026-09-30, continued): moms merged (#1998 claim,
+      #1999 module) -- 22/24 done. grc module PR open (#2000, auto-merge
+      enabled, draining CI). Now claiming "payroll" (PROJEXA's
+      src/app/(app)/payroll/** -- hub, runs/[id], runs/[id]/payslips/
+      [payslipId], runs/new, statutory-rules/new, structures/new,
+      tax-slabs/new, components/new -- 8 pages). No collision with any
+      existing compliance-tracker top-level page. Backend fully live,
+      confirmed via directory listing, no new routes needed:
+      /api/v1/projexa/payroll/{runs,runs/[id],runs/[id]/process,
+      runs/[id]/payslips,payslips/[id],payslips/[id]/finalize,
+      payslips/[id]/pdf,payslips/[id]/tds,salary-components,
+      salary-structures,statutory-rules,income-tax-slabs,
+      employees/[id]/income-tax-slab,employees/[id]/tax-exemptions}.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
