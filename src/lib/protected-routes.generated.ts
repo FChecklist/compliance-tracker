@@ -32,6 +32,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/connectors",
   "/construction-dashboard",
   "/contract-compliance",
+  "/copilot",
   "/crm",
   "/customers",
   "/dashboard",
