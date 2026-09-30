@@ -5013,6 +5013,48 @@ active:
       cross-app hop needed here. No collision with any existing
       compliance-tracker top-level page (no (app)/finance/* exists yet).
 
+      PROGRESS UPDATE (2026-09-30, continued): finance module merged (#1993
+      claim, #1994 module) -- 20/24 done. Also this session: root-caused and
+      fixed a real, separate bug blocking the "AI work link" feature (not a
+      module port -- a pre-existing PROJEXA feature, own repo) for all 11
+      meridian-construction.e2e-test.projexa-ai.com demo accounts:
+      compliance.users.auth_user_id held a UUID from the WRONG Supabase
+      project (compliance-tracker's own, not PROJEXA's evpckeuxgvahguwsaeul)
+      for every one of them, so projexa_read_resolve_user() could never match
+      them and ai-work-link mint always answered "not linked to a VERIDIAN
+      user". Fixed by updating all 11 rows' auth_user_id to the real
+      evpckeuxgvahguwsaeul auth.users.id per email (verified against both
+      projects directly); re-verified live -- a real link now mints (row
+      confirmed in platform.user_ai_links). Out of scope here whether this
+      same mismatch class affects any non-test org.
+
+      Now claiming "grc" (PROJEXA's src/app/(app)/grc/** -- hub +
+      access-review/audits/cases/findings/policies/risks/vendors, ~12 pages).
+      No collision risk despite compliance-tracker having its OWN native
+      /risks, /policies, /vendors, /audit, /fraud-cases, /legal-vendors,
+      /vendor-risk pages -- PROJEXA's whole GRC module is self-namespaced
+      under /grc/*, never touching those bare paths. Backend fully live,
+      confirmed via directory listing, no new routes needed:
+      /api/v1/projexa/{access-review,compliance-register,fraud-cases,
+      grc-dashboard,policies,risks,vendor-payment-behavior,vendor-risk,
+      vendors,audit-engagements,audit-findings}.
+
+      PROGRESS UPDATE (2026-09-30, continued): grc claim merged (#1997), a
+      porting agent is building the module in the background (module PR not
+      yet opened). Now ALSO claiming "moms" (PROJEXA's
+      src/app/(app)/moms/{page,[id]/page,new/page}.tsx -- Minutes of
+      Meeting) in parallel, since it's independent of grc's own files. Real
+      backend confirmed: PROJEXA's own client calls /api/moms, which maps to
+      compliance-tracker's /api/v1/projexa/veri-meetings (NOT the plainer
+      /api/v1/projexa/meetings, which is a separate, already-existing basic
+      scheduling CRUD surface backing PROJEXA's own /api/meetings instead --
+      veri-meetings' own route header confirms this explicitly: "this is a
+      new, separate module PROJEXA's MoM screen calls instead"). veri-meetings
+      is backed by veri-meeting-service.ts -- a real, richer live-meeting-notes
+      engine (AI summary/key-decisions/suggested action items, publish/lock,
+      minutes amend-history), not basic CRUD. No collision with any existing
+      compliance-tracker top-level page (no (app)/moms exists yet).
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
