@@ -4976,6 +4976,18 @@ active:
       compliance-tracker top-level page (native /api/billing exists but no
       (app)/billing* page).
 
+      PROGRESS UPDATE (2026-09-30, continued): billing-milestones merged
+      (#1989 claim, #1990 module) -- 18 of 24 genuinely-new modules now
+      done. Porting agent caught a real role-floor mismatch rather than
+      copying PROJEXA's gate 1:1 (reports/boq-analysis needs "manager",
+      billing-claims writes only need "member" -- used /api/v1/projexa/scope
+      instead to avoid 403ing member-role users out of milestone creation).
+      Now claiming "copilot" (PROJEXA's single-file
+      src/app/(app)/copilot/page.tsx + CopilotClient.tsx -- a simple
+      single-endpoint chat/query interface). Real backend confirmed live:
+      /api/v1/projexa/assistant (GET query history, POST dispatch). No
+      collision with any existing compliance-tracker top-level page.
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
