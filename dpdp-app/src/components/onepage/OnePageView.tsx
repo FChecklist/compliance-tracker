@@ -1,10 +1,11 @@
 import "./dpdp-onepage-tokens.css"
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { Seal } from "./Seal"
 import { DoThisNow } from "./DoThisNow"
 import { PartsTrack } from "./PartsTrack"
 import { FilterChips } from "./FilterChips"
 import { JobsTable } from "./JobsTable"
+import type { JobActionHandlers } from "@/lib/dpdp-onepage/job-actions"
 import {
   applyFilter, filterCounts, heroStats, partsForRows, vNow,
   type FilterKey, type GroupAnswerKind, type ObligationRow, type ViewerContext,
@@ -21,7 +22,7 @@ import {
 // after a successful mutation, so the visible row updates from the real,
 // re-read DB state rather than from an optimistic guess.
 export function OnePageView({
-  orgName, rows, viewer, refetch, onMarkYes, onAnswerGroup,
+  orgName, rows, viewer, refetch, onMarkYes, onAnswerGroup, jobActions,
 }: {
   orgName: string
   rows: ObligationRow[]
@@ -29,6 +30,8 @@ export function OnePageView({
   refetch: () => Promise<void>
   onMarkYes?: (obligationId: string) => Promise<void>
   onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => Promise<void>
+  /** Add a note / give to someone / change the date / doesn't apply. Each may throw the database's plain-English refusal; the page is re-read after a success. */
+  jobActions?: JobActionHandlers
 }) {
   const [filter, setFilter] = useState<FilterKey>("all")
   const [pending, startTransition] = useTransition()
@@ -61,6 +64,25 @@ export function OnePageView({
         setActionError(e instanceof Error ? e.message : String(e))
       }
     })
+  }
+
+  // The sentence a job control leaves behind ("Note saved."), cleared by the next one or after a while.
+  const [saved, setSaved] = useState<string | null>(null)
+  useEffect(() => {
+    if (!saved) return
+    const t = window.setTimeout(() => setSaved(null), 12_000)
+    return () => window.clearTimeout(t)
+  }, [saved])
+
+  // The four job controls keep their own errors (the form that asked shows the refusal and stays open), so unlike Mark Yes they do not go through
+  // runThenRefetch: they run, re-read the page, and let a failure reach the form.
+  const withRefetch = <A extends unknown[]>(fn?: (...a: A) => Promise<void>) => fn && (async (...a: A) => { await fn(...a); await refetch() })
+  const actions: JobActionHandlers | undefined = jobActions && {
+    onNote: withRefetch(jobActions.onNote),
+    onAssign: withRefetch(jobActions.onAssign),
+    onSetDue: withRefetch(jobActions.onSetDue),
+    onNotApplicable: withRefetch(jobActions.onNotApplicable),
+    onSaved: setSaved,
   }
 
   function handleMarkYes(id: string) {
@@ -113,8 +135,16 @@ export function OnePageView({
           </div>
         )}
 
+        {/* What was just done, in words, kept on screen while the person works down a long list. A staff member has no History on their page, so this is
+            their only confirmation; the region exists before it has words (a live region announces a change, not an insertion) and a row that a filter then
+            hides cannot take its message with it. A plain aria-live region, not role="status": the page already has role="status" notices (a confirmed draft, an undo)
+            that must stay the only ones. */}
+        <div aria-live="polite" aria-atomic="true" className="sticky top-2 z-20">
+          {saved && <div className="rounded-xl px-3.5 py-2.5 mb-2.5" style={{ background: "var(--dpdp-gL)", color: "#0B5F26", fontSize: 13.5, fontWeight: 700, boxShadow: "0 2px 10px rgba(20,30,60,.12)" }}>✓ {saved}</div>}
+        </div>
+
         <div style={pending ? { opacity: 0.6, pointerEvents: "none" } : undefined}>
-          <JobsTable rows={filtered} allRows={visibleRows} partSummaries={parts} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} onAnswerGroup={onAnswerGroup ? handleAnswerGroup : undefined} />
+          <JobsTable rows={filtered} allRows={visibleRows} partSummaries={parts} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} onAnswerGroup={onAnswerGroup ? handleAnswerGroup : undefined} actions={actions} />
         </div>
 
         <div className="text-center mt-7" style={{ fontSize: 12, color: "var(--dpdp-ink3)" }}>

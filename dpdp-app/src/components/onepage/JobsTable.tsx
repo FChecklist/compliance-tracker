@@ -1,3 +1,6 @@
+import { useState } from "react"
+import { JobActionsPanel, MoreButton } from "./JobActions"
+import { moreButtonId, offeredActions, type JobActionHandlers } from "@/lib/dpdp-onepage/job-actions"
 import { LAWS, PARTS, SENSITIVE_DATA_TYPES, avatarColor, avatarInitial, blocked, daysLate, dueStatus, isToday, type GroupAnswerKind, type ObligationRow, type PartSummary, type ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
 const GROUP_ANSWER_LABEL: Record<GroupAnswerKind, string> = {
@@ -139,7 +142,7 @@ function StampOrAction({
 }
 
 export function JobsTable({
-  rows, allRows, partSummaries, viewer, staffView, now = new Date(), onMarkYes, onAnswerGroup,
+  rows, allRows, partSummaries, viewer, staffView, now = new Date(), onMarkYes, onAnswerGroup, actions,
 }: {
   rows: ObligationRow[] // the currently chip-filtered rows to render in the table body
   allRows: ObligationRow[] // the full, unfiltered set -- for blocked()/dependency lookups, which must see rows even when a filter hides them
@@ -149,6 +152,7 @@ export function JobsTable({
   now?: Date
   onMarkYes?: (id: string) => void
   onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void
+  actions?: JobActionHandlers // add a note / give to someone / change the date / doesn't apply -- each returns a promise that rejects with the database's own plain-English refusal
 }) {
   const byPart = new Map<number, ObligationRow[]>()
   for (const r of rows) {
@@ -163,17 +167,17 @@ export function JobsTable({
 
   return (
     <div className="rounded-[22px] border overflow-auto" style={{ background: "var(--dpdp-card)", borderColor: "var(--dpdp-line)" }}>
-      <table className="w-full border-collapse" style={{ minWidth: staffView ? 760 : 1320 }}>
+      <table className="w-full border-collapse" style={{ minWidth: staffView ? 840 : 1400 }}>
         <thead>
           <tr>
-            {["#", "Data set", "Data type", "What has to be done", "Law", "Person responsible", "Due date", "Done?", "Emails sent"].map((h) => (
+            {["#", "Data set", "Data type", "What has to be done", "Law", "Person responsible", "Due date", "Done?", "Emails sent", "More"].map((h) => (
               <th key={h} className="text-left whitespace-nowrap" style={{ background: "#F8F9FC", color: "var(--dpdp-ink3)", fontSize: 12, fontWeight: 600, padding: 12, borderBottom: "1px solid var(--dpdp-line)" }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {PARTS.filter((p) => byPart.has(p.n)).map((p) => (
-            <PartGroup key={p.n} part={p} rows={byPart.get(p.n)!} summary={summaryByPart.get(p.n)} viewer={viewer} allRows={allRows} now={now} staffView={staffView} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} />
+            <PartGroup key={p.n} part={p} rows={byPart.get(p.n)!} summary={summaryByPart.get(p.n)} viewer={viewer} allRows={allRows} now={now} staffView={staffView} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} actions={actions} />
           ))}
         </tbody>
       </table>
@@ -182,8 +186,8 @@ export function JobsTable({
 }
 
 function PartGroup({
-  part, rows, summary, viewer, allRows, now, staffView, onMarkYes, onAnswerGroup,
-}: { part: { n: number; name: string; color: string }; rows: ObligationRow[]; summary?: PartSummary; viewer: ViewerContext; allRows: ObligationRow[]; now: Date; staffView?: boolean; onMarkYes?: (id: string) => void; onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void }) {
+  part, rows, summary, viewer, allRows, now, staffView, onMarkYes, onAnswerGroup, actions,
+}: { part: { n: number; name: string; color: string }; rows: ObligationRow[]; summary?: PartSummary; viewer: ViewerContext; allRows: ObligationRow[]; now: Date; staffView?: boolean; onMarkYes?: (id: string) => void; onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void; actions?: JobActionHandlers }) {
   // summary.done/all is the stable, na-excluding count from the FULL row
   // set (partsForRows), not derived from `rows` (which is whatever the
   // active filter chip happens to show) -- found live: with a chip other
@@ -196,7 +200,7 @@ function PartGroup({
     <>
       {!staffView && (
         <tr>
-          <td colSpan={9} style={{ background: `color-mix(in srgb, ${part.color} 7%, #fff)`, color: part.color, fontFamily: "Sora, sans-serif", fontWeight: 700, fontSize: 13.5, padding: "10px 14px", borderLeft: `4px solid ${part.color}` }}>
+          <td colSpan={10} style={{ background: `color-mix(in srgb, ${part.color} 7%, #fff)`, color: part.color, fontFamily: "Sora, sans-serif", fontWeight: 700, fontSize: 13.5, padding: "10px 14px", borderLeft: `4px solid ${part.color}` }}>
             Part {part.n} · {part.name}
             <span className="ml-2.5" style={{ fontFamily: "inherit", fontWeight: 500, fontSize: 12, color: "var(--dpdp-ink3)" }}>{done} of {total} done</span>
           </td>
@@ -204,25 +208,58 @@ function PartGroup({
       )}
       {rows.map((row) => {
         n++
-        const mine = row.by === viewer.me
-        return (
-          <tr key={row.id} style={row.yes ? { background: "#F7FBF8" } : !row.by && !row.na ? { background: "var(--dpdp-aL)" } : undefined}>
-            <td className="text-center" style={{ color: "var(--dpdp-ink3)", fontFamily: "Sora, sans-serif", fontSize: 12, fontWeight: 600, width: 44, padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>{n}</td>
-            <td style={{ fontWeight: 600, minWidth: 118, color: "var(--dpdp-ink)", padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>{row.dataSet ?? <span style={{ color: "var(--dpdp-ink3)" }}>—</span>}</td>
-            <td style={{ minWidth: 170, maxWidth: 240, padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><DataTypeCell types={row.dataTypes} /></td>
-            <td style={{ fontWeight: 600, minWidth: 250, color: "var(--dpdp-ink)", padding: 12, borderBottom: "1px solid var(--dpdp-line2)", textDecoration: row.na ? "line-through" : undefined }}>{row.what}</td>
-            <td style={{ minWidth: 150, padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><LawCell codes={row.lawCodes} /></td>
-            <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>
-              {row.na ? <span style={{ color: "var(--dpdp-ink3)" }}>—</span>
-                : row.by ? <Avatar email={row.by} />
-                : <span className="inline-block rounded-[20px]" style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", background: "var(--dpdp-aL)", color: "#8A5A00" }}>nobody</span>}
-            </td>
-            <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><DueCell row={row} now={now} /></td>
-            <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><StampOrAction row={row} allRows={allRows} mine={mine} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} /></td>
-            <td className="text-center" style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>{row.sent}</td>
-          </tr>
-        )
+        return <JobRow key={row.id} n={n} row={row} viewer={viewer} allRows={allRows} now={now} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} actions={actions} />
       })}
+    </>
+  )
+}
+
+// One job: its row, and, when "More" is open, the panel of actions under it (the panel spans every column so a form has room).
+function JobRow({
+  n, row, viewer, allRows, now, onMarkYes, onAnswerGroup, actions,
+}: { n: number; row: ObligationRow; viewer: ViewerContext; allRows: ObligationRow[]; now: Date; onMarkYes?: (id: string) => void; onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void; actions?: JobActionHandlers }) {
+  const [open, setOpen] = useState(false)
+  // A form is talking to the database: "More/Close" waits, so a refusal is never reported to a form that has already gone.
+  const [busy, setBusy] = useState(false)
+  const mine = row.by === viewer.me
+  const offered = actions ? offeredActions(row, viewer, actions).length : 0
+  const cell = { padding: 12, borderBottom: "1px solid var(--dpdp-line2)" } as const
+  return (
+    <>
+      <tr style={row.yes ? { background: "#F7FBF8" } : !row.by && !row.na ? { background: "var(--dpdp-aL)" } : undefined}>
+        <td className="text-center" style={{ color: "var(--dpdp-ink3)", fontFamily: "Sora, sans-serif", fontSize: 12, fontWeight: 600, width: 44, padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>{n}</td>
+        <td style={{ fontWeight: 600, minWidth: 118, color: "var(--dpdp-ink)", padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>{row.dataSet ?? <span style={{ color: "var(--dpdp-ink3)" }}>—</span>}</td>
+        <td style={{ minWidth: 170, maxWidth: 240, padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><DataTypeCell types={row.dataTypes} /></td>
+        <td style={{ fontWeight: 600, minWidth: 250, color: "var(--dpdp-ink)", padding: 12, borderBottom: "1px solid var(--dpdp-line2)", textDecoration: row.na ? "line-through" : undefined }}>{row.what}</td>
+        <td style={{ minWidth: 150, padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><LawCell codes={row.lawCodes} /></td>
+        <td style={cell}>
+          {row.na ? <span style={{ color: "var(--dpdp-ink3)" }}>—</span>
+            : row.by ? <Avatar email={row.by} />
+            : <span className="inline-block rounded-[20px]" style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", background: "var(--dpdp-aL)", color: "#8A5A00" }}>nobody</span>}
+        </td>
+        <td style={cell}><DueCell row={row} now={now} /></td>
+        <td style={cell}><StampOrAction row={row} allRows={allRows} mine={mine} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} /></td>
+        <td className="text-center" style={cell}>{row.sent}</td>
+        <td style={cell}>{actions && <MoreButton rowId={row.id} what={row.what} busy={busy} open={open} count={offered} onClick={() => setOpen((o) => !o)} />}</td>
+      </tr>
+      {open && actions && offered > 0 && (
+        <tr>
+          <td colSpan={10} style={{ padding: "4px 14px 16px", borderBottom: "1px solid var(--dpdp-line2)", background: "#fff" }}>
+            {/* sticky: the table scrolls sideways on a narrow screen and "More" is its last column, so the panel must stay where the person is looking */}
+            <div style={{ position: "sticky", left: 0, width: "min(960px, calc(100vw - 72px))" }}>
+              <JobActionsPanel
+                row={row} viewer={viewer} handlers={actions} allRows={allRows} now={now} onBusy={setBusy}
+                onDone={(message) => {
+                  setOpen(false)
+                  actions.onSaved?.(message)
+                  // the panel (and the button that was pressed in it) is gone: put the keyboard back on this row's own button
+                  requestAnimationFrame(() => document.getElementById(moreButtonId(row.id))?.focus())
+                }}
+              />
+            </div>
+          </td>
+        </tr>
+      )}
     </>
   )
 }
