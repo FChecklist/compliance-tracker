@@ -16,6 +16,8 @@
 import { API_DEFINITION, LEVEL1_VERBS, LEVEL2_VERBS, type Endpoint, type VerbHelp } from "./api-definition.ts"
 import { FACTS, type LibraryFacts } from "./facts.ts"
 
+import { aiBrief, type BriefInput } from "../_shared/ai-link/prompt.ts"
+
 export type ContextPayload = {
   org: { id: string; name: string; product: string }
   viewer: { email: string; kind: string; level: string }
@@ -30,6 +32,8 @@ export type ManualInput = {
   /** The link base as the person pasted it, e.g. https://app.veridian-aios.com/ai/<token>. */
   base: string
   now: Date
+  /** Today's numbers and the most urgent jobs for the "Start here" section; absent (the AI is told to fetch them) when they could not be read. */
+  summary?: BriefInput["summary"]
 }
 
 export type Block =
@@ -38,7 +42,30 @@ export type Block =
   | { type: "table"; header: string[]; rows: string[][] }
   | { type: "code"; text: string }
 
-export type Section = { id: "A" | "B" | "C" | "D" | "E" | "F" | "G"; title: string; blocks: Block[] }
+export type Section = { id: "S" | "A" | "B" | "C" | "D" | "E" | "F" | "G"; title: string; blocks: Block[] }
+
+/** The "right now" facts, with the urgent jobs (lines indented by the brief) as a list of their own, so the page reads as a list of jobs and not as bullets inside a bullet. */
+function nowBlocks(now: string[]): Block[] {
+  const out: Block[] = []
+  let facts: string[] = []
+  let jobs: string[] = []
+  const flush = () => {
+    if (facts.length) out.push({ type: "ul", items: facts })
+    if (jobs.length) out.push({ type: "ul", items: jobs })
+    facts = []; jobs = []
+  }
+  for (const line of now) {
+    if (line.startsWith("  ")) jobs.push(line.trim())
+    else { if (jobs.length) flush(); facts.push(line) }
+  }
+  flush()
+  return out
+}
+
+/** "Start here" carries no letter; the reference sections keep theirs (WO-DPDP-013 §1.3 A-G). */
+export function headingOf(s: { id: string; title: string }): string {
+  return s.id === "S" ? s.title : `${s.id} · ${s.title}`
+}
 
 export type Manual = {
   title: string
@@ -94,6 +121,30 @@ export function buildManual(input: ManualInput): Manual {
   const expires = c.link.expiresAt
   const who = KIND_LABEL[c.viewer.kind] ?? "a member"
   const generatedAt = now.toISOString()
+
+  // Owner, 2026-09-30: the email's paste is two lines ("open this link and follow the page"); THIS is the page. A task brief for this
+  // one link -- who it is for, today's numbers, the jobs that most need doing, how to do them -- so the AI does not have to work any of
+  // it out, and improving it improves every link already sent. The text lives in _shared/ai-link/prompt.ts (aiBrief).
+  const brief = aiBrief({
+    orgName: c.org.name, orgProduct: c.org.product, viewerEmail: c.viewer.email, viewerKind: c.viewer.kind, level: c.link.authorityLevel === 1 ? 1 : 0,
+    expiresOn: new Date(new Date(c.link.expiresAt).getTime() + 330 * 60_000).toISOString().slice(0, 10), counts: c.counts, summary: input.summary ?? null,
+  })
+  const S: Section = {
+    id: "S", title: "Start here — your task",
+    blocks: [
+      { type: "p", text: brief.headline },
+      ...brief.intro.map((text) => ({ type: "p", text }) as Block),
+      { type: "p", text: "RIGHT NOW" },
+      ...nowBlocks(brief.now),
+      { type: "p", text: "FIRST" },
+      ...brief.first.map((t, n) => ({ type: "p", text: `${n + 1}. ${t}` }) as Block),
+      { type: "p", text: "THEN, ONE JOB AT A TIME (late first, then required by law)" },
+      { type: "ul", items: brief.then },
+      { type: "p", text: "RULES" },
+      { type: "ul", items: brief.rules },
+      { type: "p", text: "Below this line is the reference: what this system is, what you can and cannot do, the whole API, and worked examples. Read it when you need it; you do not have to read it all first." },
+    ],
+  }
 
   const A: Section = {
     id: "A", title: "About this system — read this first",
@@ -187,7 +238,7 @@ export function buildManual(input: ManualInput): Manual {
     generatedAt,
     base,
     apiVersion: API_DEFINITION.version,
-    sections: [A, B, C, D, E, F, G],
+    sections: [S, A, B, C, D, E, F, G],
   }
 }
 
@@ -215,7 +266,7 @@ function blockMarkdown(b: Block): string {
 export function renderManualMarkdown(m: Manual): string {
   const out: string[] = [`# ${m.title}`, "", m.brandLine, "", `Generated ${m.generatedAt} · API ${m.apiVersion} · base ${m.base}`, ""]
   for (const s of m.sections) {
-    out.push(`## ${s.id} · ${s.title}`, "")
+    out.push(`## ${headingOf(s)}`, "")
     for (const b of s.blocks) out.push(blockMarkdown(b))
   }
   return out.join("\n")
@@ -237,7 +288,7 @@ function blockHtml(b: Block): string {
 
 /** Clean HTML: no scripts, inline CSS only, noindex, the same words as the Markdown. */
 export function renderManualHtml(m: Manual): string {
-  const sections = m.sections.map((s) => `  <section id="${s.id}">\n    <h2>${s.id} · ${escapeHtml(s.title)}</h2>\n${s.blocks.map(blockHtml).join("\n")}\n  </section>`).join("\n")
+  const sections = m.sections.map((s) => `  <section id="${s.id}">\n    <h2>${escapeHtml(headingOf(s))}</h2>\n${s.blocks.map(blockHtml).join("\n")}\n  </section>`).join("\n")
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -268,7 +319,7 @@ export function renderManualHtml(m: Manual): string {
   <header class="brand"><span>●</span> ${escapeHtml(m.brandLine)}</header>
   <h1>${escapeHtml(m.title)}</h1>
   <p class="meta">Generated ${escapeHtml(m.generatedAt)} · API ${escapeHtml(m.apiVersion)} · base <code>${escapeHtml(m.base)}</code> · also as <code>manual.md</code> and <code>manual.json</code></p>
-  <nav>${m.sections.map((s) => `<a href="#${s.id}">${s.id} · ${escapeHtml(s.title)}</a>`).join("\n    ")}</nav>
+  <nav>${m.sections.map((s) => `<a href="#${s.id}">${escapeHtml(headingOf(s))}</a>`).join("\n    ")}</nav>
 ${sections}
 </body>
 </html>

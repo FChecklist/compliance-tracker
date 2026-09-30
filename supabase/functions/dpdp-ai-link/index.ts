@@ -34,12 +34,12 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
 import {
   LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
-  renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderReportCsv, renderReportMarkdown,
+  renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
   type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
 } from "./router.ts"
 import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "./manual.ts"
 import { MAX_BODY_BYTES, RATE_LIMIT, type Format } from "./api-definition.ts"
-import { aiPrompt } from "../_shared/ai-link/prompt.ts"
+import { aiPasteText } from "../_shared/ai-link/prompt.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
@@ -132,7 +132,11 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
       const format = negotiateFormat(offeredFormats("manual"), q.get("format"), route.format === "html" ? accept : null, route.format)
       const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
       if (r.error) return mapDbError(r.error)
-      const manual = buildManual({ context: r.data, base: linkBase(token), now: new Date() })
+      // "Start here" carries today's numbers and the most urgent jobs so the AI does not spend calls finding them. A failure here only
+      // means the section tells the AI to fetch them itself.
+      const jr = await rpc<JobRow[]>("dpdp_ai_link_jobs", { p_token: token, p_filters: {} })
+      const summary = !jr.error && Array.isArray(jr.data) ? summariseJobs(jr.data) : null
+      const manual = buildManual({ context: r.data, base: linkBase(token), now: new Date(), summary })
       if (format === "json") return formatted("json", renderManualJson(manual))
       if (format === "md") return formatted("md", renderManualMarkdown(manual))
       return formatted("html", renderManualHtml(manual))
@@ -150,11 +154,11 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
       return json(200, { ...r.data, base: linkBase(token) })
     }
     case "prompt": {
-      // The prompt the Monday email shows, for the person's one-tap Copy page. Plain text, built from this link's own context.
+      // The two lines the person pastes ("open this link and follow the page"), for the one-tap Copy page. The token must be a live
+      // link -- the context call is the check -- but the text carries no personal data: the personal part is the page itself.
       const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
       if (r.error) return mapDbError(r.error)
-      const expiresOn = new Date(new Date(r.data.link.expiresAt).getTime() + 330 * 60_000).toISOString().slice(0, 10) // India time
-      return text(200, aiPrompt(r.data.org.name, linkBase(token), expiresOn, r.data.link.authorityLevel === 1 ? 1 : 0, r.data.viewer.kind === "owner"))
+      return text(200, aiPasteText(linkBase(token)))
     }
     case "jobs": {
       const format = negotiateFormat(offeredFormats("jobs"), q.get("format"), accept, "json")

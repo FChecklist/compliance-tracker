@@ -12,6 +12,7 @@
 import { API_DEFINITION, PAGINATION, RATE_LIMIT, type Format } from "./api-definition.ts"
 import { BRAND_LINE, PREPARED_WITH } from "./facts.ts"
 import { citeLawCode } from "./law.ts"
+import type { BriefInput } from "../_shared/ai-link/prompt.ts"
 
 export const FUNCTION_NAME = "dpdp-ai-link"
 export const TOKEN_RE = /^[A-Za-z0-9_-]{16,256}$/
@@ -195,6 +196,24 @@ export type JobRow = {
   by: string | null; byIsYou: boolean; isGroup: boolean; groupDone: number | null; groupTotal: number | null
   due: string; yes: boolean; na: boolean; status: string; daysLate: number; late: boolean; requiredToday: boolean
   dependsOnObligationId: string | null
+}
+
+/**
+ * Today's numbers and the five jobs that most need doing, for the manual's "Start here" section (owner, 2026-09-30): the AI is told what
+ * is late and what to open first without spending calls to find out. Late first, then required by today's law, then the most days late,
+ * then the earliest due date. Done and not-applicable jobs are not "open".
+ */
+export function summariseJobs(rows: JobRow[]): NonNullable<BriefInput["summary"]> {
+  const open = rows.filter((j) => !j.yes && !j.na)
+  const top = [...open]
+    .sort((a, b) => Number(b.late) - Number(a.late) || Number(b.requiredToday) - Number(a.requiredToday) || (b.daysLate ?? 0) - (a.daysLate ?? 0) || String(a.due ?? "").localeCompare(String(b.due ?? "")))
+    .slice(0, 5)
+  return {
+    open: open.length,
+    late: open.filter((j) => j.late).length,
+    requiredToday: open.filter((j) => j.requiredToday).length,
+    top: top.map((j) => ({ id: j.id, what: j.what, daysLate: j.daysLate ?? 0, requiredToday: !!j.requiredToday, due: j.due || null })),
+  }
 }
 
 const JOB_COLUMNS = ["id", "part", "what", "by", "due", "status", "daysLate", "requiredToday", "lawCodes", "dataSet"] as const

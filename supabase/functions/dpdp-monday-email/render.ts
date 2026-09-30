@@ -153,7 +153,7 @@ export type Rendered = { subject: string; html: string; text: string }
 
 export type EmailKind = "monday_digest" | "escalation" | "leak_clock" | "rights_clock" | "statutory"
 
-import { aiPrompt } from "../_shared/ai-link/prompt.ts"
+import { aiPasteText } from "../_shared/ai-link/prompt.ts"
 
 // WO-DPDP-014 §1/§4/§5: the brand line, footer only, plain small text, on
 // every email; the share ask only in a Monday digest to a decision-maker,
@@ -470,8 +470,9 @@ function aiLinkWhatItCan(level: 0 | 1, isOwner: boolean, hasButtons: boolean): s
     (hasButtons ? " To mark a job done, the fastest way is still the green button below." : "")
 }
 
-// The prompt itself lives in _shared/ai-link/prompt.ts (also served by dpdp-ai-link at /prompt for the one-tap Copy page).
-export { aiPrompt }
+// The paste itself lives in _shared/ai-link/prompt.ts (also served by dpdp-ai-link at /prompt for the one-tap Copy page). The instructions do
+// not: they are on the page the link opens, personalised per link (the manual's "Start here" section), so the email carries two lines.
+export { aiPasteText }
 
 /** The prompt as HTML: one <br> per line (Outlook's Word renderer ignores white-space), the three headings in bold, the link on its own line. */
 function promptHtml(prompt: string, url: string): string {
@@ -513,12 +514,13 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
   const jobs = ai.jobs ?? digest.jobs.length
   const people = ai.people ?? new Set(digest.jobs.map((j) => (j.assigneeEmail ?? "").toLowerCase()).filter(Boolean)).size + 1
   const expires = longDate(ai.expiresOn)
-  const prompt = aiPrompt(digest.orgName, ai.url, ai.expiresOn, ai.level, isOwner)
+  const prompt = aiPasteText(ai.url)
   const l1 = "Option 1 — Relax, let an AI do it for you."
   const copyLead = ai.copyUrl ? "Tap Copy at the top right of the box below (or select the box yourself)" : "Copy the whole box below"
+  // The instructions are on the page the link opens, written for this person: their jobs, what is late, what to do first, how.
   const r1 = ai.level === 1
-    ? `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). It already knows what to do: it reads your DPDP jobs, explains each in plain words, makes the small updates for you once you say yes, and prepares anything that needs your sign-off for you to confirm.`
-    : `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). It already knows what to do: it reads your DPDP jobs, explains each in plain words and tells you what to do first. It cannot change anything.`
+    ? `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first. It explains each job in plain words, makes the small updates for you once you say yes, and prepares anything that needs your sign-off for you to confirm.`
+    : `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first. It explains each job in plain words. It cannot change anything.`
   // Before the link, not after it: what pasting it means (WO-013 §1.1 sentence, verbatim, then what the email adds).
   const before = `${aiLinkWarningSentence(jobs, people)} Most of these companies are outside India (DeepSeek is run from China). Anyone who holds this link can read all of that${ai.level === 1 ? " and make small changes as you" : ""} until ${expires}. Check that your firm allows this, keep the link private, and do not forward this email.`
   const fine = `${aiLinkWhatItCan(ai.level, isOwner, hasButtons)} The link stops working early on ${expires}. When there is something for you to do, next Monday's email brings a fresh one; otherwise open your page to make a new one. Tip: if your AI says it cannot open web links, use Option ${o2.length ? "2 or 3" : "2"}; if your mail app turns the box into a blue link, press and hold it and choose Copy.`
@@ -529,7 +531,7 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
     `<div style="background:#FEF3C7;border:1px solid #F1D48A;border-radius:8px;padding:10px 12px;margin:0 0 8px;color:#78350F;font-size:13.5px;line-height:1.5;"><strong>Before you paste.</strong> ${esc(before)}</div>` +
     `<div style="background:#F1F5F9;border:1px solid #CBD5E1;border-radius:8px;padding:12px 14px;margin:0 0 8px;">` +
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;"><tr>` +
-    `<td style="color:#475569;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;">Your AI Work link — copy and paste this prompt into your AI</td>` +
+    `<td style="color:#475569;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;">Your AI Work link — copy and paste this into your AI</td>` +
     (ai.copyUrl ? `<td align="right" style="padding-left:8px;white-space:nowrap;"><a href="${esc(ai.copyUrl)}" style="display:inline-block;background:#1C2B3A;color:#FFFFFF;text-decoration:none;font-size:12px;font-weight:700;line-height:1;padding:7px 11px;border-radius:6px;">&#128203; Copy</a></td>` : "") +
     `</tr></table>` +
     `<div style="color:#1C2B3A;font-size:13px;line-height:1.55;word-break:break-word;-webkit-user-select:all;user-select:all;">${promptHtml(prompt, ai.url)}</div></div>` +
@@ -543,7 +545,7 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
     `BEFORE YOU PASTE. ${before}`,
     "",
     ...(ai.copyUrl ? [`COPY IN ONE TAP: ${ai.copyUrl}`, ""] : []),
-    "YOUR AI WORK LINK -- copy everything between the two lines below and paste it into your AI:",
+    "YOUR AI WORK LINK -- copy the two lines between the lines below and paste them into your AI:",
     "----------------------------------------------------------------",
     prompt,
     "----------------------------------------------------------------",

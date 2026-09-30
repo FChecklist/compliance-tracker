@@ -660,9 +660,11 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
     const text = fetchCalls[0].body.text as string
     const html = fetchCalls[0].body.html as string
     expect(text).toContain(`https://app.veridian-aios.com/ai/${TOKEN}`)
-    expect(text).toContain("You are my DPDP compliance assistant. Help me finish this week's DPDP jobs at Acme & Co.")
+    // the paste is two lines: "open this link and follow the page", then the link; the instructions live on the page it opens
+    expect(text).toContain(`Please open this link and follow the instructions on that page exactly.`)
+    expect(text).not.toContain("You are my DPDP compliance assistant")
     expect(text).toContain("BEFORE YOU PASTE.")
-    expect(text.lastIndexOf(`https://app.veridian-aios.com/ai/${TOKEN}`)).toBeGreaterThan(text.indexOf("My link (works until 12 October 2026):"))
+    expect(text.indexOf("BEFORE YOU PASTE.")).toBeLessThan(text.indexOf(`https://app.veridian-aios.com/ai/${TOKEN}`))
     expect(html).toContain("Before you paste.")
     expect(callsTo("dpdp_timer_mint_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_level: 1, p_days: 7 })
     // order: made before the send; retired after the row is marked sent

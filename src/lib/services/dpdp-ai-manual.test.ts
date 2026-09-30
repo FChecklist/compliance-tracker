@@ -74,11 +74,13 @@ describe("WO-DPDP-014: the brand line", () => {
 })
 
 describe("WO-DPDP-013 §1.3: sections A-G, generated", () => {
-  test("seven sections in the WO's order, with the WO's titles", () => {
+  // Owner, 2026-09-30: the page an AI is sent to opens with a personalised "Start here" task brief (section S, tested in
+  // dpdp-ai-link-brief.test.ts). The WO's seven reference sections A-G follow it, unchanged.
+  test("the personalised Start-here section first, then the WO's seven sections in the WO's order, with the WO's titles", () => {
     const m = buildManual({ context: context(), base: BASE, now: NOW })
-    expect(m.sections.map((s) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G"])
+    expect(m.sections.map((s) => s.id)).toEqual(["S", "A", "B", "C", "D", "E", "F", "G"])
     expect(m.sections.map((s) => s.title)).toEqual([
-      "About this system — read this first", "Who you are working for", "What you can do", "What you cannot do", "The API", "How to do common tasks", "Rules of conduct",
+      "Start here — your task", "About this system — read this first", "Who you are working for", "What you can do", "What you cannot do", "The API", "How to do common tasks", "Rules of conduct",
     ])
     expect(m.apiVersion).toBe(API_DEFINITION.version)
     expect(m.base).toBe(BASE)
@@ -87,7 +89,7 @@ describe("WO-DPDP-013 §1.3: sections A-G, generated", () => {
 
   test("A is the WO §1.3-A text verbatim, with the library version filled and an unrecorded review stated plainly", () => {
     const m = buildManual({ context: context(), base: BASE, now: NOW })
-    const a = m.sections[0].blocks.map((b) => (b.type === "p" ? b.text : ""))
+    const a = m.sections.find((s) => s.id === "A")!.blocks.map((b) => (b.type === "p" ? b.text : ""))
     expect(a).toEqual(aboutSystem({ version: "0.2-wo010", releasedOn: "2026-09-16", reviewer: null, reviewedOn: null }))
     expect(a[0]).toBe("VERIDIAN is purpose-built for India's Digital Personal Data Protection Act 2023 and DPDP Rules 2025 — not a general task tool with a DPDP template. It also tracks the SPDI Rules 2011, which apply until 13 May 2027.")
     expect(a[1]).toContain("version 0.2-wo010, released on 2026-09-16; an independent legal review is not yet recorded")
@@ -133,7 +135,7 @@ describe("WO-DPDP-013 §1.3: sections A-G, generated", () => {
 
   test("E is the API definition, one row per endpoint, every error code, rate limit and pagination -- never hand-written twice", () => {
     const m = buildManual({ context: context(), base: BASE, now: NOW })
-    const e = m.sections[4]
+    const e = m.sections.find((s) => s.id === "E")!
     const table = e.blocks.find((b) => b.type === "table" && b.header[0] === "Method · path")
     expect(table).toBeDefined()
     if (table?.type !== "table") throw new Error("no api table")
@@ -172,7 +174,7 @@ describe("WO-DPDP-013 §1.3: sections A-G, generated", () => {
     expect(html).toContain('<section id="G">')
     expect(html).not.toMatch(/<link[^>]+rel="stylesheet"/)
     // Every paragraph of A is in both renderings.
-    for (const b of m.sections[0].blocks) if (b.type === "p") {
+    for (const b of m.sections.find((s) => s.id === "A")!.blocks) if (b.type === "p") {
       expect(renderManualMarkdown(m)).toContain(b.text)
       expect(html).toContain(b.text.replace(/'/g, "&#39;").replace(/"/g, "&quot;"))
     }
