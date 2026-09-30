@@ -54,6 +54,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/fm-register-digitization",
   "/frameworks",
   "/fraud-cases",
+  "/grc",
   "/gst-reconciliation",
   "/home",
   "/hr",
