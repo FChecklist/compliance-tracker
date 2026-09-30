@@ -653,11 +653,21 @@ jobs:
           [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" ] && missing="$missing NEXT_PUBLIC_SUPABASE_ANON_KEY"
           [ -z "${{ secrets.PROJEXA_DATABASE_URL }}" ] && missing="$missing PROJEXA_DATABASE_URL"
           [ -z "${{ secrets.VERIDIAN_API_KEY }}" ] && missing="$missing VERIDIAN_API_KEY"
+          [ -z "${{ secrets.MINT_SECRET }}" ] && missing="$missing MINT_SECRET"
           if [ -n "$missing" ]; then
             echo "::error::e2e-env1 cannot run: missing repo secret(s):$missing -- see kt/FINDINGS.W-CI.jsonl F-2026-09-10-W-CI-001 / OR-7 / OR-8 (owner-only, direct GitHub UI entry, never via a shell)."
             exit 1
           fi
-          echo "all 6 required secrets present (values not printed)"
+          echo "all 7 required secrets present (values not printed)"
+          # 2026-09-30: MINT_SECRET added -- mint-session-r33's own secret was
+          # rotated server-side in the Supabase dashboard (closing the
+          # residual-risk gap that function's own header comment flagged), so
+          # the *-env1.spec.ts files' old published literal ("r33-mint-2026")
+          # now gets a genuine 401 from the live function. The specs read
+          # process.env.MINT_SECRET first (falling back to that literal only
+          # for a local run with no env var set) -- this repo secret must hold
+          # the CURRENT real value from the Supabase dashboard, entered
+          # directly by the owner, same as every other secret in this check.
       # R-80/81/82 investigation (2026-09-13): the REAL, confirmed root cause of
       # this job's cascading timeouts (15s/30s/45s/90s apiRequestContext/page.goto
       # failures across ~24 of 25 PROJEXA Env-1 tests, every one of them, not just
@@ -1076,6 +1086,7 @@ jobs:
         env:
           E2E_PROJEXA_ORIGIN: http://localhost:3100
           E2E_ENV1_JOB: "true"
+          MINT_SECRET: ${{ secrets.MINT_SECRET }}
 
       # --- Run projexa's own Env-1 spec(s) (R-60 today) under projexa's OWN
       # playwright config (auth.setup.ts + storageState, a different fixture

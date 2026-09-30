@@ -27,7 +27,11 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 const SUPABASE_URL = "https://evpckeuxgvahguwsaeul.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2cGNrZXV4Z3ZhaGd1d3NhZXVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjM4MzIsImV4cCI6MjA5OTA5OTgzMn0.3vDtJ-XlsVse2jJ8XNozM-Szyt-Wb6FxX9ZoC2_q8pk";
-const MINT_SECRET = "r33-mint-2026";
+// 2026-09-30: MINT_SECRET was rotated server-side (see demo-gate-smoke-env1
+// .spec.ts's own comment on this same line for the full story) -- read the
+// real value from CI's env var, falling back to the pre-rotation literal
+// only for a local run with no env var configured.
+const MINT_SECRET = process.env.MINT_SECRET || "r33-mint-2026";
 const DEMO_EMAIL = "democeo@projexa-ai.com";
 const PROJEXA_ORIGIN = process.env.E2E_PROJEXA_ORIGIN || "https://projexa-ai.com";
 const PROJEXA_COOKIE_DOMAIN = new URL(PROJEXA_ORIGIN).hostname;
