@@ -28,10 +28,10 @@ export const dynamic = "force-dynamic";
 // detail route -- so those five now render as plain non-clickable text
 // instead of a fabricated dead link, same discipline PROJEXA's own file
 // already applies to vendor_dispute/customer_complaint/invoice_item/date.
-// interim_bill -> /invoices?highlight=<id> keeps its link (that route does
-// exist), but invoices/page.tsx only reads ?tab=, not ?highlight= -- so it
-// opens the real Invoices list, not a highlighted row; noted honestly in
-// this module's PR description rather than silently claimed as full parity.
+// interim_bill (2026-09-30): opens the bill's own sales invoice at
+// /invoices/[id] (the API sends its sales_invoice_id as linkId once the bill
+// is invoiced), or Billing Milestones when it is not invoiced yet -- the old
+// /invoices?highlight=<id> link was dropped because nothing reads ?highlight=.
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -63,7 +63,11 @@ function recordHref(r: ExceptionRecord): string | null {
     case "boq_line_item":
       return `/scope/${linkId}`; // no per-line screen -- lands on the parent BOQ (linkId), the real "scope" screen
     case "interim_bill":
-      return `/invoices?highlight=${linkId}`; // real route, but invoices/page.tsx doesn't read ?highlight= yet -- opens the list, not a highlighted row
+      // Fixed 2026-09-30 (Sumeet EXC-ITEM-24): was `/invoices?highlight=<bill id>`,
+      // which nothing reads. The API now sends the bill's sales_invoice_id as
+      // linkId once invoiced -> the real /invoices/[id] screen; a bill not yet
+      // invoiced opens Billing Milestones, where interim bills are listed.
+      return r.linkId ? `/invoices/${r.linkId}` : "/billing-milestones"
     default:
       // work_progress_entry / site_diary / material_issue / labour_roster /
       // punch_list_item: PROJEXA has a per-record screen for these, this
