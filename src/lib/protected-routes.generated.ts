@@ -15,6 +15,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/audit-engagements",
   "/automation",
   "/bcm",
+  "/billing-milestones",
   "/board",
   "/board-evaluation",
   "/budgets",
