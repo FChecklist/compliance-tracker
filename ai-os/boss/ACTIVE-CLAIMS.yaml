@@ -4988,6 +4988,31 @@ active:
       /api/v1/projexa/assistant (GET query history, POST dispatch). No
       collision with any existing compliance-tracker top-level page.
 
+      PROGRESS UPDATE (2026-09-30, continued): copilot module merged (#1991
+      claim, #1992 module) -- 19 of 24 done. Now claiming "finance"
+      (PROJEXA's src/app/(app)/finance/budgets/{page,new/page,[id]/page}.tsx
+      -- the ERP's fiscal-year Budget screen, distinct from the
+      already-merged accounting module and from the project-level BOQ
+      budget on /scope?tab=budget). Confirmed via PROJEXA source: /budgets,
+      /budgets/[id], /budgets/new are all redirect shims onto
+      /finance/budgets/* (R67 D-62) -- porting only the real screens, not
+      the shims. Real backend already fully live in compliance-tracker, no
+      new routes needed: /api/v1/projexa/project-budgets (GET list, POST
+      create), /project-budgets/[id] (GET detail, PATCH line items),
+      /project-budgets/[id]/submit, /cancel, /variance (all backed by
+      erp-budget-service.ts), plus the four lookup endpoints this screen
+      needs (/fiscal-years, /cost-centers, /accounts, /companies) which
+      already exist from the accounting-module port. Org-wide, not
+      project-scoped -- no ProjectPicker needed, simpler than most ports.
+      Simplifying two PROJEXA-only conveniences that don't have a
+      compliance-tracker equivalent: the "ask your administrator to set up
+      a fiscal year" task-filing flow (POST /api/tasks, a PROJEXA-internal
+      mechanism) is dropped in favor of just showing the same blocked-setup
+      banner to every role; the "Set up in VERIDIAN" link becomes a same-origin
+      Link to /erp/periods (a real compliance-tracker page) since there's no
+      cross-app hop needed here. No collision with any existing
+      compliance-tracker top-level page (no (app)/finance/* exists yet).
+
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
     claimed_at: "2026-09-29T (this session)"
     claim: |
