@@ -36,24 +36,25 @@ function browserClipboard(): ClipboardDeps {
 }
 
 export function CopyPromptPage() {
-  const [state, setState] = useState<State>({ kind: "checking" })
+  // Read once, before the first render, so "no token" is the starting state rather than a state set inside the effect.
+  const [token] = useState(() => promptTokenFromHash(window.location.hash))
+  const [state, setState] = useState<State>(() => (token ? { kind: "checking" } : { kind: "no-token" }))
   const [copied, setCopied] = useState<"auto" | "tap" | null>(null)
   const started = useRef(false)
 
   useEffect(() => {
     if (started.current) return // StrictMode runs effects twice in development; one fetch is enough
     started.current = true
-    const token = promptTokenFromHash(window.location.hash)
     // The token has done its job as soon as it is read: take it out of the address bar and the history entry.
     if (window.location.hash) window.history.replaceState(null, "", window.location.pathname + window.location.search)
-    if (!token) { setState({ kind: "no-token" }); return }
+    if (!token) return
     void (async () => {
       const r = await fetchPrompt(token, (input, init) => fetch(input, init))
       if (r.kind !== "ok") { setState({ kind: r.kind }); return }
       setState({ kind: "ready", text: r.text })
       if (await copyToClipboard(r.text, browserClipboard())) setCopied("auto")
     })()
-  }, [])
+  }, [token])
 
   async function copyNow(text: string) {
     if (await copyToClipboard(text, browserClipboard())) {
