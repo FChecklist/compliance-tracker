@@ -5,6 +5,7 @@ import { DoThisNow } from "./DoThisNow"
 import { PartsTrack } from "./PartsTrack"
 import { FilterChips } from "./FilterChips"
 import { JobsTable } from "./JobsTable"
+import type { JobActionHandlers } from "@/lib/dpdp-onepage/job-actions"
 import {
   applyFilter, filterCounts, heroStats, partsForRows, vNow,
   type FilterKey, type GroupAnswerKind, type ObligationRow, type ViewerContext,
@@ -21,7 +22,7 @@ import {
 // after a successful mutation, so the visible row updates from the real,
 // re-read DB state rather than from an optimistic guess.
 export function OnePageView({
-  orgName, rows, viewer, refetch, onMarkYes, onAnswerGroup,
+  orgName, rows, viewer, refetch, onMarkYes, onAnswerGroup, jobActions,
 }: {
   orgName: string
   rows: ObligationRow[]
@@ -29,6 +30,8 @@ export function OnePageView({
   refetch: () => Promise<void>
   onMarkYes?: (obligationId: string) => Promise<void>
   onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => Promise<void>
+  /** Add a note / give to someone / change the date / doesn't apply. Each may throw the database's plain-English refusal; the page is re-read after a success. */
+  jobActions?: JobActionHandlers
 }) {
   const [filter, setFilter] = useState<FilterKey>("all")
   const [pending, startTransition] = useTransition()
@@ -61,6 +64,16 @@ export function OnePageView({
         setActionError(e instanceof Error ? e.message : String(e))
       }
     })
+  }
+
+  // The four job controls keep their own errors (the form that asked shows the refusal and stays open), so unlike Mark Yes they do not go through
+  // runThenRefetch: they run, re-read the page, and let a failure reach the form.
+  const withRefetch = <A extends unknown[]>(fn?: (...a: A) => Promise<void>) => fn && (async (...a: A) => { await fn(...a); await refetch() })
+  const actions: JobActionHandlers | undefined = jobActions && {
+    onNote: withRefetch(jobActions.onNote),
+    onAssign: withRefetch(jobActions.onAssign),
+    onSetDue: withRefetch(jobActions.onSetDue),
+    onNotApplicable: withRefetch(jobActions.onNotApplicable),
   }
 
   function handleMarkYes(id: string) {
@@ -114,7 +127,7 @@ export function OnePageView({
         )}
 
         <div style={pending ? { opacity: 0.6, pointerEvents: "none" } : undefined}>
-          <JobsTable rows={filtered} allRows={visibleRows} partSummaries={parts} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} onAnswerGroup={onAnswerGroup ? handleAnswerGroup : undefined} />
+          <JobsTable rows={filtered} allRows={visibleRows} partSummaries={parts} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} onAnswerGroup={onAnswerGroup ? handleAnswerGroup : undefined} actions={actions} />
         </div>
 
         <div className="text-center mt-7" style={{ fontSize: 12, color: "var(--dpdp-ink3)" }}>

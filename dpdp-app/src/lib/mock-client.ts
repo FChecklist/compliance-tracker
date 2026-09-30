@@ -1,5 +1,6 @@
 import type { AuthListener, AuthSession, DpdpClient, RpcResult } from "./client"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
+import { NOTE_MAX, dueBounds } from "@/lib/dpdp-onepage/job-actions"
 import { recallEdition } from "./landing"
 import type {
   AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire,
@@ -717,9 +718,45 @@ export function createMockClient(scenario?: string): DpdpClient {
           if (!hit) return fail("Job not found")
           const { org, row } = hit
           if (row.by !== me && viewerIn(org, me)?.kind !== "owner") return fail("Not your job")
+          if (row.yes) return fail("Already closed")
           const reason = String(args?.p_reason ?? "").trim() || null
           row.na = true
           log(org, "obligation_not_my_job", `Marked "${row.what}" as not applicable`, reason)
+          save(state)
+          return ok({ ok: true })
+        }
+        // --- drizzle/0666: the page's own due-date and note controls ---
+        case "dpdp_set_due_date": {
+          const hit = rowOf(args?.p_obligation_id)
+          if (!hit) return fail("Job not found")
+          const { org, row } = hit
+          if (!viewerIn(org, me)) return fail("Job not found")
+          if (viewerIn(org, me)?.kind !== "owner") return fail("Only the owner can do this")
+          const dueOn = String(args?.p_due_on ?? "")
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(dueOn)) return fail("A date is required")
+          if (row.yes) return fail("Already closed")
+          if (row.na) return fail("Doesn't apply")
+          const { min, max } = dueBounds(new Date())
+          if (dueOn < min || dueOn > max) return fail(`Pick a date from ${min} to ${max}`)
+          const was = row.due
+          row.due = dueOn
+          log(org, "obligation_due_changed", `Set "${row.what}" due on ${dueOn}`, `It was due on ${was}`)
+          save(state)
+          return ok({ ok: true, dueOn })
+        }
+        case "dpdp_add_note": {
+          const hit = rowOf(args?.p_obligation_id)
+          if (!hit) return fail("Job not found")
+          const { org, row } = hit
+          const who = viewerIn(org, me)
+          if (!who) return fail("Job not found")
+          // The page's own visibility rule: a staff member sees their own jobs and the group jobs they are in; everyone else sees the organisation (the mock has no parent persona).
+          const sees = who.kind !== "staff" || row.by === me || (row.isGroup && org.groupMembers.includes(me))
+          if (!sees) return fail("Job not found")
+          const text = String(args?.p_text ?? "").trim()
+          if (!text) return fail("A note needs some words")
+          if (text.length > NOTE_MAX) return fail(`A note can be ${NOTE_MAX} characters at most`)
+          log(org, "obligation_note_added", `Added a note to "${row.what}"`, text)
           save(state)
           return ok({ ok: true })
         }

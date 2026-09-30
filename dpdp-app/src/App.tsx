@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createDpdpClient, type DpdpClient } from "./lib/client"
 import {
-  RpcFailure, acknowledgeWelcome, answerGroup, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
-  createMyOrg, fetchOrgSetup, flagNotMe, joinOrgViaInvite, markDone, ownerConfirmSetup, readDraftFragment, readUndoFragment, viewerContext,
+  RpcFailure, acknowledgeWelcome, addNote, answerGroup, assignPerson, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
+  createMyOrg, fetchOrgSetup, flagNotMe, joinOrgViaInvite, markDone, markNotApplicable, ownerConfirmSetup, readDraftFragment, readUndoFragment, setDueDate, viewerContext,
   type Area, type CaClient, type DraftFragment, type MyPage, type UndoFragment,
 } from "./lib/api"
 import type { OrgSetupPayload } from "./lib/rpc-types"
@@ -332,6 +332,12 @@ function Page({
           orgName={org.name} rows={rows} viewer={viewer} refetch={refetch}
           onMarkYes={(id) => markDone(client, id)}
           onAnswerGroup={async (id, answer) => { await answerGroup(client, id, answer) }}
+          jobActions={{
+            onNote: (id, text) => addNote(client, id, text),
+            onAssign: (id, email) => assignPerson(client, id, email),
+            onSetDue: (id, dueOn) => setDueDate(client, id, dueOn),
+            onNotApplicable: (id, reason) => markNotApplicable(client, id, reason),
+          }}
         />
         <AiWorkLink client={client} orgId={org.id} onMade={refetch} />
         {viewer.kind !== "staff" && <History client={client} page={page} />}
@@ -420,7 +426,7 @@ function History({ client, page }: { client: DpdpClient; page: MyPage }) {
       (history) => {
         if (cancelled) return
         setError(null)
-        setEntries(history.map((h) => ({ who: h.actorLabel, what: h.summary, at: h.occurredAt, isNew: Date.now() - h.occurredAt.getTime() < 3_600_000 })))
+        setEntries(history.map((h) => ({ who: h.actorLabel, what: h.summary, detail: h.detail ?? undefined, at: h.occurredAt, isNew: Date.now() - h.occurredAt.getTime() < 3_600_000 })))
       },
       (e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)) },
     )

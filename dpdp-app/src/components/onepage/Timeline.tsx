@@ -1,6 +1,6 @@
 import { avatarColor, avatarInitial } from "@/lib/dpdp-onepage/view-model"
 
-export type HistoryEntry = { who: string; what: string; at: Date; isNew?: boolean }
+export type HistoryEntry = { who: string; what: string; detail?: string; at: Date; isNew?: boolean }
 
 // Port of veridian-dpdp.html's vHistory()/.hist/.h/.hdot markup. "Nothing
 // here can be edited" (spec's own subtitle) -- this component is read-only
@@ -30,6 +30,8 @@ export function Timeline({ entries }: { entries: HistoryEntry[] }) {
               </time>
             </div>
             <div className="mt-[3px]" style={{ fontSize: 13.5, color: "var(--dpdp-ink)" }}>{h.what}</div>
+            {/* A note's words, or a not-applicable reason: shown as written, as plain text (React escapes it), one block. */}
+            {h.detail && <div className="mt-1 whitespace-pre-wrap break-words" style={{ fontSize: 13, color: "var(--dpdp-ink2)", borderLeft: "3px solid var(--dpdp-line)", paddingLeft: 10 }}>{h.detail}</div>}
           </div>
         </div>
       ))}

@@ -486,3 +486,74 @@ describe("Payment confirmation flow follow-on: the Owner's approve/reject screen
     expect((await c.rpc("dpdp_owner_reject_payment", { p_org_id: "org-mock" })).error?.message).toContain("no payment awaiting confirmation")
   })
 })
+
+describe("the job controls on the person's own page (drizzle/0605 + 0666, mirrored by the mock)", () => {
+  type Row = { id: string; what: string; by: string | null; yes: boolean; na: boolean; isGroup: boolean; due: string }
+  const rowsOf = async (c: ReturnType<typeof createMockClient>) => ((await c.rpc("dpdp_my_page")).data as { rows: Row[] }).rows
+  const history = async (c: ReturnType<typeof createMockClient>) => (await c.rpc("dpdp_org_history", { p_limit: 50 })).data as Array<{ kind: string; summary: string; detail: string | null; actorLabel: string }>
+  const inDays = (n: number) => new Date(Date.now() + n * 86_400_000 + 330 * 60_000).toISOString().slice(0, 10)
+
+  test("the owner changes a due date: the row shows it, History says what it was, and the date must be sensible", async () => {
+    const c = createMockClient("owner-live")
+    const job = (await rowsOf(c)).find((r) => !r.yes && !r.na && !r.isGroup)!
+    const to = inDays(40)
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: job.id, p_due_on: to })).error).toBeNull()
+    expect((await rowsOf(c)).find((r) => r.id === job.id)!.due).toBe(to)
+    expect((await history(c))[0]).toMatchObject({ kind: "obligation_due_changed", summary: `Set "${job.what}" due on ${to}`, detail: `It was due on ${job.due}`, actorLabel: MOCK_OWNER })
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: job.id, p_due_on: inDays(-31) })).error?.message).toContain("Pick a date from")
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: job.id, p_due_on: inDays(401) })).error?.message).toContain("Pick a date from")
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: job.id, p_due_on: "" })).error?.message).toBe("A date is required")
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: "no-such-job", p_due_on: to })).error?.message).toBe("Job not found")
+  })
+
+  test("a date is not moved on a finished job, and only the owner moves one", async () => {
+    const owner = createMockClient("owner-live")
+    const done = (await rowsOf(owner)).find((r) => r.yes)!
+    expect((await owner.rpc("dpdp_set_due_date", { p_obligation_id: done.id, p_due_on: inDays(10) })).error?.message).toBe("Already closed")
+    const staff = createMockClient("staff")
+    const open = (await rowsOf(staff)).find((r) => !r.yes && !r.na)!
+    expect((await staff.rpc("dpdp_set_due_date", { p_obligation_id: open.id, p_due_on: inDays(10) })).error?.message).toBe("Only the owner can do this")
+  })
+
+  test("a note goes to History as the words written, for whoever can see the job; empty and over-long notes are refused", async () => {
+    const c = createMockClient("owner-live")
+    const job = (await rowsOf(c)).find((r) => !r.yes)!
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: job.id, p_text: "  The signed copy is with the CA.  " })).error).toBeNull()
+    expect((await history(c))[0]).toMatchObject({ kind: "obligation_note_added", summary: `Added a note to "${job.what}"`, detail: "The signed copy is with the CA." })
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: job.id, p_text: "   " })).error?.message).toBe("A note needs some words")
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: job.id, p_text: "x".repeat(1001) })).error?.message).toContain("1000 characters at most")
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: job.id, p_text: "x".repeat(1000) })).error).toBeNull()
+  })
+
+  test("a staff member notes their own job but a job they cannot see is 'not found', never 'not allowed'", async () => {
+    const c = createMockClient("staff")
+    const rows = await rowsOf(c)
+    const mine = rows.find((r) => r.by === MOCK_STAFF && !r.yes)
+    const theirs = rows.find((r) => r.by && r.by !== MOCK_STAFF && !r.isGroup)!
+    if (mine) expect((await c.rpc("dpdp_add_note", { p_obligation_id: mine.id, p_text: "On it." })).error).toBeNull()
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: theirs.id, p_text: "Not mine." })).error?.message).toBe("Job not found")
+  })
+
+  test("'doesn't apply' is refused on a finished job (the database no longer flips a Yes), allowed on an open one with the reason kept", async () => {
+    const c = createMockClient("owner-live")
+    const rows = await rowsOf(c)
+    const done = rows.find((r) => r.yes && !r.na)!
+    expect((await c.rpc("dpdp_mark_not_applicable", { p_obligation_id: done.id, p_reason: "changed my mind" })).error?.message).toBe("Already closed")
+    expect((await rowsOf(c)).find((r) => r.id === done.id)!.yes).toBe(true)
+    const open = rows.find((r) => !r.yes && !r.na)!
+    expect((await c.rpc("dpdp_mark_not_applicable", { p_obligation_id: open.id, p_reason: "No cameras anywhere." })).error).toBeNull()
+    expect((await rowsOf(c)).find((r) => r.id === open.id)!.na).toBe(true)
+    expect((await history(c))[0]).toMatchObject({ kind: "obligation_not_my_job", detail: "No cameras anywhere." })
+  })
+
+  test("giving a job to someone: owner only, not a finished job, and the row shows the new person", async () => {
+    const c = createMockClient("owner-live")
+    const job = (await rowsOf(c)).find((r) => !r.yes && !r.na && !r.isGroup)!
+    expect((await c.rpc("dpdp_assign_person", { p_obligation_id: job.id, p_email: "New.Person@Acme.example" })).error).toBeNull()
+    expect((await rowsOf(c)).find((r) => r.id === job.id)!.by).toBe("new.person@acme.example")
+    const done = (await rowsOf(c)).find((r) => r.yes)!
+    expect((await c.rpc("dpdp_assign_person", { p_obligation_id: done.id, p_email: "x@y.example" })).error?.message).toBe("Already closed")
+    const staff = createMockClient("staff")
+    expect((await staff.rpc("dpdp_assign_person", { p_obligation_id: job.id, p_email: "x@y.example" })).error?.message).toBe("Only the owner can do this")
+  })
+})
