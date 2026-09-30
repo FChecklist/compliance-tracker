@@ -108,7 +108,27 @@ export type Digest = {
 
 export type ActionLinks = Record<string, { done: string; cannot: string; neverHadAny: string | null }>
 
+/**
+ * The person's AI work link as it goes into THIS email (drizzle/0663). `url` is the whole link, or the {{AI_WORK_LINK}}
+ * placeholder in a dry run; `level` is the authority it carries (1 = read + small edits + drafts, 0 = read only).
+ */
+export type AiLinkInfo = { url: string; expiresOn: string; level: 0 | 1; jobs?: number; people?: number }
+
+/** One thing the person's AI changed since their last Monday email (dpdp_timer_ai_actions_for_digest). */
+export type AiChange = {
+  verb: string
+  what: string | null
+  value: Record<string, unknown> | null
+  appliedAt: string
+  /** Set only while the change can still be undone (a fresh one-time token in the URL). */
+  undoUrl: string | null
+}
+
 export type RenderLinks = {
+  /** The person's AI work link (Read / Edit / Work). Absent or null: none in this email, and the copy points at the page instead. */
+  aiLink?: AiLinkInfo | null
+  /** What their AI changed for them since the last email (Monday digest only). */
+  aiChanges?: AiChange[] | null
   /** The Supabase Auth magic link (24h), or null when it could not be minted / dry run. */
   signIn: string | null
   /** Per obligationId, the one-click confirmation-page URLs; null in a dry run. */
@@ -151,6 +171,7 @@ export function isDecisionMaker(digest: Pick<Digest, "level" | "caSub">): boolea
 /** Placeholders a dry run leaves in the recorded body so no credential is ever stored. */
 export const PLACEHOLDER = {
   signIn: "{{SIGN_IN_LINK}}",
+  aiLink: "{{AI_WORK_LINK}}",
   done: "{{DONE_LINK}}",
   cannot: "{{CANNOT_LINK}}",
   neverHadAny: "{{NEVER_HAD_ANY_LINK}}",
@@ -410,6 +431,127 @@ function textShell(title: string, bodyText: string, links: RenderLinks, kind: Em
   ].join("\n")
 }
 
+// ---------------------------------------------------------------------------
+// The three ways to do the week's jobs, led by the AI work link (owner, 2026-09-30).
+// ---------------------------------------------------------------------------
+
+const AI_NAMES = "ChatGPT, Claude, Gemini, Grok, DeepSeek"
+
+/** Same line the in-app Copy-link screen shows (dpdp-app/src/lib/ai-work-link.ts aiWorkLinkWarningSentence, WO-013 §1.1). Keep the two in step. */
+export function aiLinkWarningSentence(jobs: number, people: number): string {
+  return `This link lets an AI assistant read your VERIDIAN view: ${jobs} jobs and the names and emails of ${people} people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.`
+}
+
+function aiLinkWhatItCan(level: 0 | 1): string {
+  return level === 1
+    ? "It can read your jobs and make small changes for you directly — add a note, change a due date, give a job to someone already on your team, or mark a job not applicable. Each change is recorded as made by you via your AI assistant and listed in your next Monday email. Anything with legal weight, such as marking a job done, it only prepares as a draft: you confirm it with one tap."
+    : "It can read your jobs and report on them. It cannot change anything."
+}
+
+/**
+ * `hasButtons`: the person has jobs of their own, so there are "Yes, it is done" buttons under them. An owner or coordinator who
+ * only oversees other people's jobs has none, and then there is no "do it right here" option to offer.
+ */
+function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { html: string; text: string[] } {
+  const ai = links.aiLink ?? null
+  const heading = hasButtons ? "Three ways to do this" : "Two ways to do this"
+  const opt = (label: string, rest: string, last = false) =>
+    `<p style="margin:0 0 ${last ? 0 : 6}px;"><strong>${esc(label)}</strong> ${esc(rest)}</p>`
+  if (!ai) {
+    // No link could be minted (or none was asked for): point at the page.
+    const l1 = "Option 1 — Relax, let an AI do it for you."
+    const r1 = `Open your page below, copy your AI Work link, and paste it into any AI you use (${AI_NAMES}).`
+    const rows: Array<[string, string]> = [[l1, r1]]
+    if (hasButtons) rows.push(["Option 2 — Do it right here.", "Use the buttons under your jobs below, in this email."])
+    rows.push([`Option ${rows.length + 1} — Do it yourself.`, "Open your page below and go through it by hand — most weeks, a couple of minutes."])
+    return {
+      html: `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">${heading}</h2><div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
+        rows.map(([l, r], i) => opt(l, r, i === rows.length - 1)).join("") + `</div>`,
+      text: [heading.toUpperCase(), ...rows.map(([l, r]) => `${l} ${r}`), ""],
+    }
+  }
+  const jobs = ai.jobs ?? digest.jobs.length
+  const people = ai.people ?? new Set(digest.jobs.map((j) => (j.assigneeEmail ?? "").toLowerCase()).filter(Boolean)).size + 1
+  const expires = longDate(ai.expiresOn)
+  const ask = "Please open this link and help me finish my DPDP jobs for this week:"
+  const l1 = "Option 1 — Relax, let an AI do it for you."
+  const r1 = `Copy the box below and paste it into any AI you use (${AI_NAMES}). It reads your DPDP jobs, does the small updates for you, and gets anything that needs your sign-off ready — so all you do is tap once to confirm.`
+  const fine = `${aiLinkWarningSentence(jobs, people)} ${aiLinkWhatItCan(ai.level)} The link stops working on ${expires}; next Monday's email brings a fresh one. Keep it private, paste it only into an AI you trust, and do not forward this email.`
+  const later: Array<[string, string]> = []
+  if (hasButtons) later.push(["Option 2 — Do it right here.", "Press the button under a job when it is done, or “I can't” if you are stuck. One tap, no sign-in."])
+  later.push([`Option ${later.length + 2} — Do it yourself.`, "Open your page (the button at the bottom) and go through everything by hand — most weeks, a couple of minutes."])
+  const html =
+    `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">${heading}</h2>` +
+    `<div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
+    `<p style="margin:0 0 8px;"><strong>${esc(l1)}</strong> ${esc(r1)}</p>` +
+    `<div style="background:#F1F5F9;border:1px solid #CBD5E1;border-radius:8px;padding:12px 14px;margin:0 0 8px;">` +
+    `<div style="color:#64748B;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;margin:0 0 6px;">Your AI Work link — copy and paste into your AI</div>` +
+    `<div style="color:#1C2B3A;font-size:13px;line-height:1.5;word-break:break-all;-webkit-user-select:all;user-select:all;">${esc(ask)} ${esc(ai.url)}</div></div>` +
+    `<p style="color:#64748B;font-size:12px;margin:0 0 10px;">${esc(fine)}</p>` +
+    later.map(([l, r], i) => opt(l, r, i === later.length - 1)).join("") +
+    `</div>`
+  const text = [
+    heading.toUpperCase(),
+    `${l1} ${r1}`,
+    "",
+    "  YOUR AI WORK LINK -- copy everything on the next line and paste it into your AI:",
+    `  ${ask} ${ai.url}`,
+    "",
+    fine,
+    "",
+    ...later.map(([l, r]) => `${l} ${r}`),
+    "",
+  ]
+  return { html, text }
+}
+
+const oneLine = (v: unknown, max = 120): string => {
+  const t = String(v ?? "").replace(/\s+/g, " ").trim()
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t
+}
+
+/** "Added a note to “Write down where…”: “called the vendor”" -- one plain sentence per change. */
+export function aiChangeSentence(c: AiChange): string {
+  const job = c.what ? `“${oneLine(c.what, 80)}”` : "a job"
+  const v = c.value ?? {}
+  switch (c.verb) {
+    case "NOTE": return `Added a note to ${job}: “${oneLine(v.text)}”`
+    case "SET_DUE": return `Moved the due date of ${job} to ${oneLine(v.dueOn, 20)}`
+    case "ASSIGN": return `Gave ${job} to ${oneLine(v.email, 80)}`
+    case "MARK_NA": return `Marked ${job} not applicable: “${oneLine(v.reason)}”`
+    default: return `${oneLine(c.verb, 30)} on ${job}`
+  }
+}
+
+function aiChangesSection(changes: AiChange[]): { html: string; text: string[] } | null {
+  if (!changes.length) return null
+  const title = `What your AI changed for you (${changes.length})`
+  const note = "These were made through your AI Work link since your last email, and are recorded in your history as made by you via your AI assistant. If any is wrong, open your page to put it right."
+  const rows = changes.slice(0, 20)
+  const more = changes.length - rows.length
+  const line = (c: AiChange) => `${aiChangeSentence(c)} — ${longDate(istYmd(c.appliedAt))}`
+  const html =
+    `<h2 style="color:#1C2B3A;font-size:15px;margin:20px 0 8px;">${esc(title)}</h2>` +
+    `<p style="color:#64748B;font-size:12px;margin:0 0 8px;">${esc(note)}</p>` +
+    rows.map((c) => `<div style="border-left:4px solid #0E7C6E;padding:6px 12px;margin:0 0 8px;color:#334155;font-size:13px;">${esc(line(c))}${c.undoUrl ? ` <a href="${esc(c.undoUrl)}" style="color:#0E7C6E;">Undo</a>` : ""}</div>`).join("") +
+    (more > 0 ? `<p style="color:#64748B;font-size:12px;margin:0 0 8px;">…and ${more} more in your history.</p>` : "")
+  const text = [
+    title.toUpperCase(),
+    note,
+    ...rows.map((c) => `  ${line(c)}${c.undoUrl ? `\n    Undo: ${c.undoUrl}` : ""}`),
+    ...(more > 0 ? [`  ...and ${more} more in your history.`] : []),
+    "",
+  ]
+  return { html, text }
+}
+
+/** YYYY-MM-DD in India Standard Time for an ISO instant. */
+export function istYmd(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return "1970-01-01"
+  return new Date(d.getTime() + 330 * 60_000).toISOString().slice(0, 10)
+}
+
 /**
  * The Monday email for ONE membership. `kind` is 'statutory' when the
  * digest has already been reduced by statutorySubset(); the copy says so.
@@ -448,28 +590,17 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   htmlParts.push(`<p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(intro)}</p>`)
   textParts.push(intro, "")
 
-  // WO-DPDP-016 Step 2: the three ways to actually do this, spelled out --
-  // never for the statutory-only view (nothing to "do" there but read the
-  // list). Option 1/2 both point at the SAME "Open my page" sign-in link
-  // rendered below by shell()/textShell() -- Option 1 is what to do once
-  // there (the already-shipped AI work link, WO-DPDP-013), Option 2 is
-  // doing it by hand; Option 3 is the buttons under each job, right here.
+  // Owner (2026-09-30): the AI work link goes IN the email, so most people never
+  // open the page at all -- they copy it, paste it into their AI, and the work
+  // is done. Option 1 is that; Option 2 is the buttons under each job; Option 3
+  // is the page, for the rare week they want to go through it by hand. Never for
+  // the statutory-only view (nothing to "do" there but read the list).
   if (kind !== "statutory") {
-    htmlParts.push(
-      `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Three ways to do this</h2>` +
-      `<div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
-      `<p style="margin:0 0 6px;"><strong>Option 1 — Let an AI do it.</strong> Open your page below, then copy your AI work link and paste it into any AI you use (ChatGPT, Claude, Gemini, Grok, DeepSeek, and so on) — it can read your DPDP jobs and act for you, within the limits you set.</p>` +
-      `<p style="margin:0 0 6px;"><strong>Option 2 — Do it yourself.</strong> Open your page below and go through it yourself — most weeks, a couple of minutes.</p>` +
-      `<p style="margin:0;"><strong>Option 3 — Do it right here.</strong> Use the buttons under your jobs below, in this email.</p>` +
-      `</div>`,
-    )
-    textParts.push(
-      "THREE WAYS TO DO THIS",
-      "Option 1 -- Let an AI do it. Open your page below, then copy your AI work link and paste it into any AI you use (ChatGPT, Claude, Gemini, Grok, DeepSeek, and so on) -- it can read your DPDP jobs and act for you, within the limits you set.",
-      "Option 2 -- Do it yourself. Open your page below and go through it yourself -- most weeks, a couple of minutes.",
-      "Option 3 -- Do it right here. Use the buttons under your jobs below, in this email.",
-      "",
-    )
+    const opts = aiOptions(digest, links, mine.length > 0)
+    htmlParts.push(opts.html)
+    textParts.push(...opts.text)
+    const changes = aiChangesSection(links.aiChanges ?? [])
+    if (changes) { htmlParts.push(changes.html); textParts.push(...changes.text) }
   }
 
   if (mine.length) {

@@ -844,11 +844,12 @@ describe("the file as a migration", () => {
     expect(await snap()).toBe(before)
   })
 
-  test("7b. the journal registers it, after every other entry, with the next idx", async () => {
+  test("7b. the journal registers it, after every earlier entry, with the next idx", async () => {
     const journal = JSON.parse(read("drizzle/meta/_journal.json")) as { entries: Array<{ idx: number; when: number; tag: string }> }
     const mine = journal.entries.filter((e) => e.tag === TAG)
     expect(mine).toHaveLength(1)
-    const others = journal.entries.filter((e) => e.tag !== TAG)
+    // "earlier" = every entry numbered below this one; a later migration (0663 ...) is allowed to follow it.
+    const others = journal.entries.filter((e) => e.tag !== TAG && e.tag < TAG)
     expect(mine[0].when).toBeGreaterThan(Math.max(...others.map((e) => e.when)))
     expect(mine[0].idx).toBe(Math.max(...others.map((e) => e.idx)) + 1)
     expect(journal.entries.filter((e) => e.tag.startsWith("0662_"))).toHaveLength(1)

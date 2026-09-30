@@ -3439,6 +3439,13 @@
       "when": 1790477000000,
       "tag": "0662_dpdp_single_mailbox_mail_log",
       "breakpoints": true
+    },
+    {
+      "idx": 493,
+      "version": "7",
+      "when": 1790478000000,
+      "tag": "0663_dpdp_email_ai_work_link",
+      "breakpoints": true
     }
   ]
 }

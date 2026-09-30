@@ -54,8 +54,8 @@
 // the one place that maps a delivery to its class.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import {
-  type ActionLinks, type Digest, type LegalClocks, type LegalRecipient, type RenderLinks, type Rendered,
-  isDeliverableAddress, isEmpty, listUnsubscribeHeaders, renderDigest, renderLeakClock, renderRightsClock, statutorySubset, unsubscribeMailto,
+  type ActionLinks, type AiChange, type AiLinkInfo, type Digest, type LegalClocks, type LegalRecipient, type RenderLinks, type Rendered,
+  PLACEHOLDER, isDeliverableAddress, isEmpty, istYmd, listUnsubscribeHeaders, renderDigest, renderLeakClock, renderRightsClock, statutorySubset, unsubscribeMailto,
 } from "./render.ts"
 import { type OutboundEnvelope, buildOutbound, foreignSenderWarning, logOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
 import { type MailClass, newRef, withSubjectPrefix } from "../_shared/mail-taxonomy.ts"
@@ -73,6 +73,12 @@ const APP_ORIGIN = (env("APP_ORIGIN") || "https://app.veridian-aios.com").replac
 const FUNCTION_URL = (env("DPDP_FUNCTION_URL") || `${SUPABASE_URL}/functions/v1/dpdp-monday-email`).replace(/\/+$/, "")
 const ACTION_PATH = env("DPDP_ACTION_PATH") || "/act/"
 const UNSUBSCRIBE_PATH = env("DPDP_UNSUBSCRIBE_PATH") || "/unsubscribe/"
+// The AI work link inside the Monday email (drizzle/0663). Owner, 2026-09-30: the emailed link is READ / EDIT / WORK, which is
+// level 1 (read + small edits directly; anything with legal weight is a draft the person confirms). DPDP_EMAIL_AI_LINK_ENABLED=0
+// takes the link out of the email; DPDP_EMAIL_AI_LINK_LEVEL=0 makes it read-only; DPDP_EMAIL_AI_LINK_DAYS is 1, 7 or 30.
+const AI_LINK_ENABLED = env("DPDP_EMAIL_AI_LINK_ENABLED") !== "0"
+const AI_LINK_LEVEL: 0 | 1 = env("DPDP_EMAIL_AI_LINK_LEVEL") === "0" ? 0 : 1
+const AI_LINK_DAYS = [1, 7, 30].includes(Number(env("DPDP_EMAIL_AI_LINK_DAYS"))) ? Number(env("DPDP_EMAIL_AI_LINK_DAYS")) : 7
 
 type Summary = {
   job: string
@@ -149,6 +155,56 @@ async function mintSignInLink(sb: SupabaseClient, email: string): Promise<string
   }
 }
 
+/** The URL a person pastes into an AI: this host's /ai/<token> (dpdp-app/functions/ai forwards it to the dpdp-ai-link function). */
+function aiLinkUrl(token: string): string {
+  return `${APP_ORIGIN}/ai/${token}`
+}
+
+/**
+ * This person's AI work link for THIS email (dpdp_timer_mint_email_ai_link, 0663): a new one every Monday, and it retires last
+ * week's emailed one. Null on any failure or when switched off -- the email then points at the page instead; a failed link never
+ * stops the email.
+ */
+async function mintAiLink(sb: SupabaseClient, membershipId: string): Promise<AiLinkInfo | null> {
+  if (!AI_LINK_ENABLED) return null
+  try {
+    const r = await rpc<{ token?: string; expiresAt?: string; level?: number; jobs?: number; people?: number }>(
+      sb, "dpdp_timer_mint_email_ai_link", { p_membership_id: membershipId, p_level: AI_LINK_LEVEL, p_days: AI_LINK_DAYS },
+    )
+    if (!r || typeof r.token !== "string" || !/^[0-9a-f]{64}$/.test(r.token) || typeof r.expiresAt !== "string") return null
+    return { url: aiLinkUrl(r.token), expiresOn: istYmd(r.expiresAt), level: r.level === 0 ? 0 : 1, jobs: r.jobs, people: r.people }
+  } catch (e) {
+    console.warn(`mintAiLink failed for ${membershipId}: ${e instanceof Error ? e.message : String(e)}`)
+    return null
+  }
+}
+
+/** What this person's AI changed since their last email (WO-013 §1.2: "shown in your next Monday email"), with a fresh undo link while one is still possible. */
+async function loadAiChanges(sb: SupabaseClient, membershipId: string): Promise<AiChange[]> {
+  if (!AI_LINK_ENABLED) return []
+  try {
+    const rows = await rpc<Array<{ actionId: string; verb: string; what: string | null; value: Record<string, unknown> | null; appliedAt: string; stillUndoable: boolean; undoneAt: string | null }>>(
+      sb, "dpdp_timer_ai_actions_for_digest", { p_membership_id: membershipId, p_mark: false },
+    )
+    const out: AiChange[] = []
+    for (const r of Array.isArray(rows) ? rows : []) {
+      if (r.undoneAt) continue // put back already: not news
+      let undoUrl: string | null = null
+      if (r.stillUndoable) {
+        try {
+          const t = await rpc<{ ok?: boolean; undoToken?: string }>(sb, "dpdp_timer_issue_undo_token", { p_action_id: r.actionId })
+          if (t?.ok && typeof t.undoToken === "string") undoUrl = `${APP_ORIGIN}/app/#undo=${r.actionId}.${t.undoToken}`
+        } catch (e) { console.warn(`undo token failed for ${r.actionId}: ${e instanceof Error ? e.message : String(e)}`) }
+      }
+      out.push({ verb: r.verb, what: r.what, value: r.value, appliedAt: r.appliedAt, undoUrl })
+    }
+    return out
+  } catch (e) {
+    console.warn(`loadAiChanges failed for ${membershipId}: ${e instanceof Error ? e.message : String(e)}`)
+    return []
+  }
+}
+
 function actionUrl(token: string): string {
   return `${APP_ORIGIN}${ACTION_PATH}#${token}`
 }
@@ -199,7 +255,14 @@ type Deliverable = {
  */
 async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summary: Summary): Promise<void> {
   const cls = mailClassOf(d.kind)
-  const placeholders: RenderLinks = { signIn: null, actions: null, unsubscribeUrl: null, appHome: `${APP_ORIGIN}/app/` }
+  const isDigest = d.kind === "monday_digest"
+  const placeholders: RenderLinks = {
+    signIn: null, actions: null, unsubscribeUrl: null, appHome: `${APP_ORIGIN}/app/`,
+    // A dry run shows the placeholder, never a minted credential, and reads nothing about the person's AI changes.
+    aiLink: isDigest && AI_LINK_ENABLED
+      ? { url: PLACEHOLDER.aiLink, expiresOn: istYmd(new Date(Date.now() + AI_LINK_DAYS * 86_400_000).toISOString()), level: AI_LINK_LEVEL }
+      : null,
+  }
   const base = { p_org_id: d.orgId, p_membership_id: d.membershipId, p_identity_id: d.identityId, p_obligation_ids: d.obligationIds, p_kind: d.kind, p_period_key: d.periodKey, p_to_email: d.to }
 
   if (dryRun) {
@@ -242,7 +305,10 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
       for (const t of minted) actions[t.obligationId] = { done: actionUrl(t.done), cannot: actionUrl(t.cannot), neverHadAny: t.neverHadAny ? actionUrl(t.neverHadAny) : null }
     }
     const unsub = unsubscribeUrl(rec.unsubscribeToken ?? "")
-    const rendered = d.render({ signIn, actions, unsubscribeUrl: unsub, appHome: `${APP_ORIGIN}/app/` })
+    // The AI work link goes IN the email (owner, 2026-09-30), and so does what the person's AI changed since last time.
+    const aiLink = isDigest ? await mintAiLink(sb, d.membershipId) : null
+    const aiChanges = isDigest ? await loadAiChanges(sb, d.membershipId) : []
+    const rendered = d.render({ aiLink, aiChanges, signIn, actions, unsubscribeUrl: unsub, appHome: `${APP_ORIGIN}/app/` })
     // One ref per message. It goes in BOTH the Reply-To (class monday, or clock for a
     // legal-clock notice) and the List-Unsubscribe mailto (class data_request), so
     // either reply finds this send. RFC 8058's https one-click POST stays as it was.
@@ -257,6 +323,10 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
     // throw, and never let the log affect the send (best-effort, bounded wait, never throws).
     await logOutbound(sb, { ref, cls, to: d.to, subject: out.subject, providerMessageId: messageId || null, membershipId: d.membershipId, orgId: d.orgId })
     await rpc(sb, "dpdp_timer_mark_email_send_result", { p_id: rowId, p_status: "sent", p_resend_message_id: messageId || null, p_error: null })
+    // They are in the sent email now: stop listing them. Best-effort; a failure only means they are listed once more next Monday.
+    if (aiChanges.length) {
+      try { await rpc(sb, "dpdp_timer_ai_actions_for_digest", { p_membership_id: d.membershipId, p_mark: true }) } catch (e) { console.warn(`mark AI changes shown failed: ${e instanceof Error ? e.message : String(e)}`) }
+    }
     summary.sent++
     summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "sent" })
   } catch (e) {

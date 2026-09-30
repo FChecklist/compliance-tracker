@@ -177,6 +177,19 @@ Tests: `bun test --isolate src/lib/services/dpdp-mail-outbound.test.ts src/lib/s
 (the first loads both real `index.ts` files under bun with a stubbed `Deno`,
 a mocked supabase client and a stubbed `fetch`).
 
+## The AI work link in the email (owner, 2026-09-30)
+
+The owner's aim: a person should, in most weeks, never open the web page. They copy the AI work link out of the Monday email, paste it into an AI, and the AI does the work. So the digest now carries the link itself, in a copy-and-paste box, with a ready sentence ("Please open this link and help me finish my DPDP jobs for this week: ...").
+
+* **Authority: READ / EDIT / WORK.** The emailed link is level 1 of WO-DPDP-013 v2 §1.2: read everything in the person's view, make the four small edits directly (`NOTE`, `SET_DUE`, `ASSIGN` to an existing member, `MARK_NA`, each recorded "by <person> via AI assistant" and undoable for 24 hours), and prepare a **draft** for anything with legal weight (mark done, attest, add a person ...), which the person confirms with one tap. Drafts are available on every link and level 2 is never a link property; this change does not alter that. `DPDP_EMAIL_AI_LINK_LEVEL=0` makes the emailed link read-only.
+* **One new link every Monday, valid 7 days.** `public.dpdp_timer_mint_email_ai_link` (drizzle/0663, service role only) inserts the same row `dpdp_ai_link_create` does, labelled `Monday email`, and retires the previous live `Monday email` link of the same person. Links a person made themselves are never touched. `DPDP_EMAIL_AI_LINK_DAYS` may be 1, 7 or 30.
+* **Consent.** The email carries the same warning sentence the in-app Copy-link screen shows (WO-013 §1.1, with the person's real counts), what the link can do, when it stops working, and "keep it private ... do not forward this email". The pinned test compares it byte-for-byte with `dpdp-app/src/lib/ai-work-link.ts`.
+* **What the AI changed.** The digest now also lists the changes the person's AI made since their last email (`dpdp_timer_ai_actions_for_digest`, the hook 0610 built for this and nothing called until now), each with a fresh one-time Undo link while it can still be undone. They are marked shown only after the email has been sent.
+* **Fail-soft.** If the link cannot be minted the email goes out anyway with the older wording ("open your page, copy your AI Work link"). A dry run records the `{{AI_WORK_LINK}}` placeholder, never a credential. The statutory-only view (someone who pressed "Stop these weekly emails") and the legal-clock notices get no link. `DPDP_EMAIL_AI_LINK_ENABLED=0` takes the link out of the email altogether.
+* **Options shown.** "Three ways" for a person with jobs of their own (AI, the buttons in the email, the page); "Two ways" for an owner or coordinator who only oversees other people's jobs and so has no buttons.
+* The URL is shown as plain text, not an anchor, so a mail scanner or click tracker does not fetch or rewrite it and the person copies exactly what is there. The row that records the send stores no body for a real send.
+* Secrets: none new. Switches: `DPDP_EMAIL_AI_LINK_ENABLED`, `DPDP_EMAIL_AI_LINK_LEVEL` (default 1), `DPDP_EMAIL_AI_LINK_DAYS` (default 7).
+
 ## What the static app (`dpdp-app/`, other agents) needs to provide
 
 * `/act/#<token>` — the one-click confirmation page (WO-011 §2.3). On load

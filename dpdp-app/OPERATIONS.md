@@ -48,6 +48,7 @@ Addresses on reserved test domains (`*.test`, `example.*`, `*.invalid`, `localho
 ## Switches
 
 - `DPDP_INTERNAL_AI_ENABLED=1` (Next.js app only) brings back the older in-app AI pages. Off by default; the external AI work link is the DPDP way.
+- `DPDP_EMAIL_AI_LINK_ENABLED` (Edge Function secret, default on): `0` takes the AI work link out of the Monday email. `DPDP_EMAIL_AI_LINK_LEVEL` (default `1` = read + small edits + drafts; `0` = read only) and `DPDP_EMAIL_AI_LINK_DAYS` (`1`, `7` or `30`; default `7`) set the emailed link's authority and life. The link is a credential: a new one every Monday, the previous emailed one retired. Details in `supabase/functions/dpdp-monday-email/README.md`.
 
 ## Single mailbox (dpdp@veridian-aios.com)
 
