@@ -18,7 +18,7 @@ import { ShareVeridian } from "./ShareVeridian"
 // so a parent, a staff member on a one-click link or an unsubscribing
 // address never sees "Share VERIDIAN" -- only someone actually signed into
 // /app/ does.
-export function BrandLine({ share }: { share?: { client: DpdpClient; orgId: string; role: ShareRole } | null }) {
+export function BrandLine({ share }: { share?: { client: DpdpClient; orgId: string; role: ShareRole; onOpenPartner?: () => void } | null }) {
   return (
     <div className="dpdp-onepage dpdp-brandline" role="region" aria-label="VERIDIAN brand line">
       <span className="dpdp-brandline__line">
@@ -26,7 +26,7 @@ export function BrandLine({ share }: { share?: { client: DpdpClient; orgId: stri
         <span className="dpdp-brandline__full">{BRAND_LINE_FULL}</span>
         <span className="dpdp-brandline__short">{BRAND_LINE_SHORT}</span>
       </span>
-      {share ? <ShareVeridian client={share.client} orgId={share.orgId} role={share.role} /> : null}
+      {share ? <ShareVeridian client={share.client} orgId={share.orgId} role={share.role} onOpenPartner={share.onOpenPartner} /> : null}
     </div>
   )
 }

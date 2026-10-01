@@ -206,3 +206,117 @@ export type PendingClaimWire = {
 /** dpdp_owner_approve_payment: mirrors dpdp_record_confirmed_payment's own return shape. */
 export type ApprovePaymentResult = { ok: true; paymentId: string; commissionId: string | null; commissionAmountPaise: number | null }
 export type RejectPaymentResult = { ok: true; state: "trial" }
+
+// ---------------------------------------------------------------------
+// Sales Partner lifecycle (drizzle/0674). Counts and money only: no client name
+// or personal data ever appears in these payloads. Payout details come back MASKED.
+// ---------------------------------------------------------------------
+
+export type PartnerStatus = "applied" | "active" | "paused" | "ended"
+
+export type PartnerMaskedDetails = {
+  method: "upi" | "bank"
+  upiMasked: string | null
+  nameMasked: string | null
+  accountMasked: string | null
+  ifscMasked: string | null
+  panMasked: string | null
+  updatedAt: string
+}
+
+export type PartnerLineWire = {
+  at: string
+  basis: "yearly" | "first_month"
+  ratePercent: number
+  grossPaise: number
+  status: "waiting" | "payable" | "paid"
+  payableOn: string
+  paidOn: string | null
+  /** For a paid line the final TDS; for others an estimate at the current rate, or null while the rate is not set. */
+  tdsPaise: number | null
+  netPaise: number | null
+  tdsIsFinal: boolean
+}
+
+/** dpdp_partner_dashboard. `status` is null for a signed-in person who has not applied yet (only the first group of fields is then present). */
+export type PartnerDashboardPayload = {
+  status: PartnerStatus | null
+  email: string
+  currentTermsVersion: string
+  needsTerms: boolean
+  payableAfterDays: number
+  payoutDay: number
+  minPayoutPaise: number
+  nextPayoutOn: string
+  tdsPercentSet: boolean
+  displayName?: string | null
+  termsVersion?: string | null
+  termsAcceptedAt?: string | null
+  hasPayoutDetails?: boolean
+  payoutDetails?: PartnerMaskedDetails | null
+  code?: string | null
+  funnel?: { signedUp: number; inTrial: number; paying: number; notCounted: number }
+  money?: { earnedPaise: number; waitingPaise: number; payablePaise: number; paidGrossPaise: number; paidTdsPaise: number; paidNetPaise: number }
+  lines?: PartnerLineWire[]
+  payableBefore?: string
+}
+
+export type PartnerStatementLine = {
+  madeOn: string
+  basis: "yearly" | "first_month"
+  ratePercent: number
+  grossPaise: number
+  tdsPaise: number | null
+  netPaise: number | null
+  status: "waiting" | "payable" | "paid"
+  payableOn: string
+  paidOn: string | null
+}
+export type PartnerStatementPayout = {
+  paidOn: string; period: string; method: "upi" | "bank"; reference: string
+  commissions: number; grossPaise: number; tdsPaise: number; netPaise: number
+}
+export type PartnerStatementPayload = {
+  period: string
+  email: string
+  lines: PartnerStatementLine[]
+  payouts: PartnerStatementPayout[]
+  totals: { madePaise: number; paidGrossPaise: number; paidTdsPaise: number; paidNetPaise: number; stillWaitingPaise: number }
+}
+
+export type PartnerDetailsInput = {
+  method: "upi" | "bank"
+  upiId?: string
+  accountName?: string
+  accountNumber?: string
+  ifsc?: string
+  pan?: string
+}
+
+export type AdminPartnerSettings = {
+  payableAfterDays: number; payoutDay: number; minPayoutPaise: number
+  tdsPercent: number; tdsPercentSet: boolean; termsVersion: string; updatedAt: string
+}
+
+export type AdminPartnerRow = {
+  identityId: string; email: string | null; name: string | null; status: PartnerStatus; termsVersion: string | null
+  appliedAt: string; activatedAt: string | null; hasPayoutDetails: boolean
+  signedUp: number; waitingPaise: number; payablePaise: number; paidNetPaise: number
+}
+
+/** The Owner's payout run. This is the ONE place full payout details are returned (to the Owner, who has to send the money). */
+export type AdminPayoutPartner = {
+  identityId: string; email: string | null; name: string | null; status: PartnerStatus
+  method: "upi" | "bank"; upiId: string | null; accountName: string | null; accountNumber: string | null; ifsc: string | null; pan: string | null
+  detailsUpdatedAt: string; detailsChangedRecently: boolean
+  commissions: number; grossPaise: number; tdsPaise: number; netPaise: number; meetsMinimum: boolean
+}
+export type AdminPayoutRun = {
+  period: string; payableBefore: string; tdsPercentSet: boolean; tdsPercent: number; minPayoutPaise: number; payoutDay: number
+  partners: AdminPayoutPartner[]
+  held: Array<{ identityId: string; email: string | null; grossPaise: number; reason: string }>
+}
+export type AdminMarkPaidResult = {
+  ok: true; alreadyPaid: boolean; payoutId: string; netPaise: number
+  email?: string | null; commissions?: number; grossPaise?: number; tdsPaise?: number
+}

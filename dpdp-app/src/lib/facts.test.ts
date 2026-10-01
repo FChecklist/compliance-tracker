@@ -108,11 +108,11 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.storage.stored_in_india_wording).toContain("Resend, a US company")
   })
 
-  test("company: legal name + CIN + registered office from the published disclaimer; GSTIN null and owner_required", () => {
+  test("company: legal name + CIN + registered office from the published disclaimer; GSTIN as given by the owner (2026-10-01)", () => {
     expect(facts.company.legal_name).toBe("SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED")
     expect(facts.company.cin).toBe("U74999UP2017PTC098453")
     expect(facts.company.registered_office).toContain("Ghaziabad")
-    expect(facts.company.gstin).toBeNull()
+    expect(facts.company.gstin).toBe("09AAZCS4477M1Z3")
     expect(facts.company.owner_required).toBe(true)
     expect(facts.company.source).toContain("src/app/disclaimer/page.tsx")
   })
@@ -410,20 +410,42 @@ describe("/partner/ (Sales Partner): the page says what the database does", () =
     expect(text).not.toMatch(/monthly|first month|per month/i)
   })
 
-  test("the rules it states exist in the database: self-referral blocked, payment confirmed by hand, payout by hand", () => {
+  test("the rules it states exist in the database: self-referral blocked, payment confirmed by hand, payout by UPI or bank", () => {
     expect(sql).toContain("v_block_reason := 'self_referral'")
     expect(sql).toMatch(/payout_status text not null default 'pending' check \(payout_status in \('pending', 'paid'\)\)/)
     expect(sql).toContain("Payout itself stays manual (UPI/bank, outside this system)")
-    expect(text).toContain("Your own organisation never counts.")
+    expect(text).toContain("Your own organisation, and any organisation you belong to, never counts.")
     expect(text).toContain("We see the money and confirm the payment by hand. Until then, no commission is created.")
-    expect(text).toContain("We pay by hand, by UPI or bank transfer.")
+    expect(text).toContain("We pay by UPI or bank transfer, to the details you gave us.")
   })
 
-  test("it promises no income, states no price or rupee amount, no payout date, no tax treatment", () => {
+  test("the payout terms on the page are the defaults in migration 0674: 30 days, the 10th, Rs 500 minimum, a settings row for TDS", () => {
+    const m = readFileSync(join(APP, "..", "drizzle", "0674_dpdp_sales_partner_lifecycle.sql"), "utf8")
+    expect(m).toContain("payable_after_days integer not null default 30")
+    expect(m).toContain("payout_day integer not null default 10")
+    expect(m).toContain("min_payout_paise integer not null default 50000")
+    expect(m).toContain("tds_percent_set boolean not null default false")
+    expect(text).toContain("A commission becomes payable 30 days after we confirm the client's payment.")
+    expect(text).toContain("We pay once a month, on the 10th, for everything that became payable before the end of the month before.")
+    expect(text).toContain("If your balance is under Rs 500, it carries forward to the next month.")
+    expect(text).toContain("These are the current terms. We may change them with 30 days' notice.")
+  })
+
+  test("it promises no income and states no tax rate and no tax advice: only the fixed TDS sentence", () => {
     expect(text).toContain("We cannot promise that you will earn anything.")
-    expect(text).not.toMatch(/₹|\bRs\.?\s?\d|\bINR\b|\bper month\b|\bper year\b|\bTDS\b|\bGST\b/i)
-    expect(text).not.toMatch(/within \d+ (?:days|hours)|every (?:month|week)|on the \d+(?:st|nd|rd|th)/i)
-    expect(text).toContain("This page does not cover tax on a commission.")
+    expect(text).toContain("Tax (TDS) is deducted where the law requires it and shown on your statement.")
+    expect(text).toContain("We do not give tax advice.")
+    // no other tax wording, and no percentage but the yearly commission rate
+    expect(text).not.toMatch(/\bGST\b|\bINR\b|₹|\bper month\b|\bper year\b/i)
+    expect([...text.matchAll(/\bTDS\b/g)].length).toBe(2) // the fixed sentence, and "It shows gross, TDS and net."
+    expect(text).not.toMatch(/TDS (?:at|of|rate)\s*\d|\d+(?:\.\d+)?\s?%\s*TDS/i)
+    // the only rupee amount is the minimum payout
+    expect([...text.matchAll(/\bRs\.?\s?(\d+)/g)].map((x) => x[1])).toEqual(["500"])
+  })
+
+  test("it links to the terms page, which exists", () => {
+    expect(html).toContain('<a href="/partner/terms/">Read the Sales Partner terms</a>')
+    expect(existsSync(join(APP, "partner", "terms", "index.html"))).toBe(true)
   })
 
   test("the primary button 'Become a Sales Partner' opens the sign-in at /app/", () => {
@@ -437,6 +459,71 @@ describe("/partner/ (Sales Partner): the page says what the database does", () =
     const crumbs = graph.find((n) => n["@type"] === "BreadcrumbList")!
     expect(crumbs.itemListElement!.map((i) => i.item)).toEqual(["https://veridian-aios.com/", "https://veridian-aios.com/partner/"])
     expect(crumbs.itemListElement![1].name).toBe("Become a Sales Partner")
+  })
+})
+
+// Owner, 2026-10-01: /partner/terms/ is the Sales Partner agreement. Every rule it states is tied to the SQL.
+describe("/partner/terms/ (the Sales Partner agreement): the agreement says what the database does", () => {
+  const sql655 = readFileSync(join(APP, "..", "drizzle", "0655_dpdp_wo016_refer_and_earn.sql"), "utf8")
+  const sql674 = readFileSync(join(APP, "..", "drizzle", "0674_dpdp_sales_partner_lifecycle.sql"), "utf8")
+  const facts = loadFacts()
+  const html = read("partner/terms/index.html")
+  const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/\s+/g, " ")
+
+  test("the version on the page is the version the database asks partners to accept", () => {
+    const v = /terms_version text not null default '([^']+)'/.exec(sql674)![1]
+    expect(facts.sales_partner_terms.version).toBe(v)
+    expect(text).toContain(`Version ${v}.`)
+    expect(text).toContain("In force from 1 October 2026.")
+  })
+
+  test("the commission rules are the ones in dpdp_record_confirmed_payment: 20% yearly on every renewal, 5% first monthly payment only", () => {
+    const rates = [...sql655.matchAll(/v_rate := (0\.\d+);/g)].map((m) => Math.round(Number(m[1]) * 100))
+    expect(rates).toEqual([20, 5])
+    expect(text).toContain(`You earn ${rates[0]}% of each yearly payment from an organisation you referred, including every yearly renewal, for as long as that organisation stays a client.`)
+    expect(text).toContain(`you earn ${rates[1]}% of its first confirmed monthly payment. Nothing is earned on later months.`)
+    expect([...text.matchAll(/(\d+)%/g)].map((m) => Number(m[1]))).toEqual(rates)
+    // and the extra rules the migration enforces
+    expect(sql674).toContain("v_skip := 'self_referral'")
+    expect(sql674).toContain("v_skip := 'partner_not_active'")
+    expect(sql674).toContain("new.block_reason := 'partner_not_active'")
+    expect(text).toContain("You earn nothing on an organisation you own or belong to.")
+  })
+
+  test("payout cycle, minimum and notice period equal the settings defaults; 30 days' notice; the 11th statement", () => {
+    expect(sql674).toContain("payable_after_days integer not null default 30")
+    expect(sql674).toContain("payout_day integer not null default 10")
+    expect(sql674).toContain("min_payout_paise integer not null default 50000")
+    expect(sql674).toContain("'30 3 11 * *'")
+    expect(text).toContain("A commission becomes payable 30 days after we confirm the client's payment.")
+    expect(text).toContain("We pay once a month, on the 10th")
+    expect(text).toContain("If your balance is under Rs 500, it carries forward to the next month.")
+    expect(text).toContain("at least 30 days before a change takes effect")
+    expect(text).toContain("We email you a statement on the 11th of each month.")
+  })
+
+  test("tax: only the fixed TDS sentence, no rate, no advice", () => {
+    expect(text).toContain("Tax (TDS) is deducted where the law requires it and shown on your statement.")
+    expect(text).toContain("We do not give tax advice.")
+    expect(text).not.toMatch(/TDS (?:at|of|rate)\s*\d|\d+(?:\.\d+)?\s?%\s*TDS|\bGST\b|₹/i)
+  })
+
+  test("it says what a partner may and may not say, and bans spam and self-sign-up", () => {
+    for (const s of ["No spam.", "Do not say that VERIDIAN gives legal advice, certifies anyone as compliant, or promises that nobody will be fined.", "Do not invent prices, discounts, offers or results.", "Do not sign up through your own code"]) expect(text).toContain(s)
+  })
+
+  test("it names the company as the facts file does, ends by notice, and is under Indian law", () => {
+    expect(text).toContain(facts.company.legal_name!)
+    expect(text).toContain("You can end them at any time.")
+    expect(text).toContain("These terms are governed by the laws of India.")
+  })
+
+  test("it is a public, indexable page with a canonical on the apex and a Home > page breadcrumb", () => {
+    expect(html).toContain('<link rel="canonical" href="https://veridian-aios.com/partner/terms/" />')
+    expect(html).not.toMatch(/<meta\s+name="robots"/i)
+    const graph = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)![1])["@graph"] as Array<{ "@type": string; itemListElement?: Array<{ item: string; name: string }> }>
+    const crumbs = graph.find((n) => n["@type"] === "BreadcrumbList")!
+    expect(crumbs.itemListElement!.map((i) => i.item)).toEqual(["https://veridian-aios.com/", "https://veridian-aios.com/partner/terms/"])
   })
 })
 

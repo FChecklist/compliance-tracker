@@ -3513,7 +3513,14 @@
     {
       "idx": 503,
       "version": "7",
-      "when": 1790487100000,
+      "when": 1790489000000,
+      "tag": "0674_dpdp_sales_partner_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 504,
+      "version": "7",
+      "when": 1790490000000,
       "tag": "0673_dpdp_razorpay_sales_lifecycle",
       "breakpoints": true
     }

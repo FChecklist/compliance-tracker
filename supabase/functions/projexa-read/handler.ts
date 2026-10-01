@@ -42,7 +42,7 @@ export const DEFAULT_LIMIT = 100
 export const MAX_LIMIT = 500
 
 // Same sentence as src/lib/supabase/auth-guard.ts USER_NOT_LINKED_MESSAGE (the test holds the two equal).
-export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a VERIDIAN user - ask your admin"
+export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a PROJEXA user - ask your admin"
 
 // The names src/lib/services/cost-visibility-service.ts PROJECT_SIDE_COST_FIELDS redacts for a caller without a cost grant (the
 // test holds this list to be a superset of that one).

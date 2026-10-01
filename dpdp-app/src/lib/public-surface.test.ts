@@ -379,7 +379,7 @@ describe("the header of every public page: Sales Partner next to Sign in, top ri
 // EXACTLY, so adding a public page or opening a private one is a deliberate edit of this test, not a side effect.
 describe("what is public and what is private, pinned exactly (with /partner/ public)", () => {
   test("the public pages are exactly these (+ /proof/ only if the owner switched it on)", () => {
-    const expected = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/"].concat(FACTS.proof.enabled ? ["/proof/"] : [])
+    const expected = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/partner/terms/", "/ai-assistant/"].concat(FACTS.proof.enabled ? ["/proof/"] : [])
     expect(PUBLIC_PAGES.map((p) => p.path)).toEqual(expected)
   })
 
@@ -419,6 +419,17 @@ describe("what is public and what is private, pinned exactly (with /partner/ pub
 
   test("the live smoke script checks /partner/ as a public page", () => {
     expect(read("scripts/live-smoke.mjs")).toContain('"/partner/"')
+  })
+
+  test("/partner/terms/ is public and indexable like /partner/: sitemap, llms.txt, llms-full.txt, robots, headers, smoke; not under any private prefix", () => {
+    for (const priv of PRIVATE_PAGES) expect("/partner/terms/".startsWith(priv.prefix), `/partner/terms/ is under ${priv.prefix}`).toBe(false)
+    const rules = parseHeadersFile(read("public/_headers"))
+    for (const sub of ["/partner/terms/", "/partner/terms/index.html"]) expect(resolveHeaders(rules, sub)["x-robots-tag"]).toBeUndefined()
+    for (const g of parseRobots(read("public/robots.txt")).groups) for (const d of g.disallow) expect("/partner/terms/".startsWith(d), `Disallow: ${d} would block /partner/terms/`).toBe(false)
+    expect(renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))).toContain("<loc>https://veridian-aios.com/partner/terms/</loc>")
+    expect(read("public/llms.txt")).toContain("](https://veridian-aios.com/partner/terms/)")
+    expect(read("public/llms-full.txt")).toContain("https://veridian-aios.com/partner/terms/")
+    expect(read("scripts/live-smoke.mjs")).toContain('"/partner/terms/"')
   })
 
   // Owner, 2026-10-01: /ai-assistant/ is public and indexable. Its name starts with "/ai", so it must never be mistaken for the private

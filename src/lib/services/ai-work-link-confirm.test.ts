@@ -732,7 +732,7 @@ describe("the settings match projexa-read, and nothing the route ever said held 
     expect(CLOCK_TOLERANCE_SECONDS).toBe(projexaRead.CLOCK_TOLERANCE_SECONDS)
     expect(VERIDIAN_ISSUER).toBe("https://pcrjmlpuqsbocqfwoxod.supabase.co/auth/v1")
     expect(VERIDIAN_JWKS_URL).toBe(`${VERIDIAN_ISSUER}/.well-known/jwks.json`)
-    expect(USER_NOT_LINKED_MESSAGE).toBe("Your PROJEXA account is not linked to a VERIDIAN user - ask your admin")
+    expect(USER_NOT_LINKED_MESSAGE).toBe("Your PROJEXA account is not linked to a PROJEXA user - ask your admin")
   })
 
   test("across the whole file, no answer body carried a 64-character hex token, a JWT, or a money key", () => {

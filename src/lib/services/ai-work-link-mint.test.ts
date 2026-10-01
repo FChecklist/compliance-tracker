@@ -244,7 +244,7 @@ describe("refused, and nothing is written", () => {
     for (const sub of [AUTH.off, AUTH.nobody, AUTH.email]) {
       const r = await mint({ sub })
       expect(`${sub} ${r.res.status} ${r.json.code}`).toBe(`${sub} 403 USER_NOT_LINKED`)
-      expect(r.json.error).toBe("Your PROJEXA account is not linked to a VERIDIAN user - ask your admin")
+      expect(r.json.error).toBe("Your PROJEXA account is not linked to a PROJEXA user - ask your admin")
     }
     expect(await rowCount()).toBe(0)
   })

@@ -11,6 +11,8 @@ Nothing here needs a person on a Monday. This page says what runs by itself, how
 | Public site + external AI work link check | GitHub `DPDP live smoke` | daily 05:15 UTC and after every site deploy | the run turns red; GitHub emails the watchers |
 | The site itself (`veridian-aios.com`, `www`, `app.`) | GitHub `dpdp-app deploy` → Cloudflare Pages, one project `veridian-dpdp-app` | every merge that touches `dpdp-app/` | the deploy run turns red |
 | Every mail sent to `dpdp@veridian-aios.com` (ticket, class, notice to the operator, acknowledgement) | Cloudflare Email Routing → Email Worker `dpdp-inbound-mail` → Edge Function `dpdp-inbound-mail` → `dpdp.mail_inbound` | on arrival | the Worker forwards the raw original to the fallback Gmail; nothing is dropped (see "Single mailbox" below) |
+| Sales Partner emails (welcome, referral signed up, commission earned, payout sent, details changed) | pg_cron `dpdp-partner-mail` → Edge Function `dpdp-partner-email` | every 30 minutes | the notices stay in `dpdp.partner_notice`; the next run tries again (5 tries) |
+| Sales Partner monthly statement email | pg_cron `dpdp-partner-statements` → `dpdp-partner-email` `{"job":"statements"}` | 11th of the month, 03:30 UTC (09:00 IST) | queued once per partner per month, so a re-run never sends a second copy |
 
 The Monday run goes through one organisation at a time, so one slow or broken organisation cannot stop the others. Every run writes one row to `dpdp.timer_run` (`ok`, `partial`, counts, error). A digest is unique per person per week, so running it again never sends anyone a second copy.
 
@@ -255,6 +257,33 @@ Nothing on this list had been done when it was written. Steps 1 and 2 are decisi
 **Cost.** Nothing monthly on our side: the Edge Functions and cron are inside the existing Supabase plan. Razorpay charges a per-transaction fee (about 2% plus GST at the time of writing; check razorpay.com/pricing) and no monthly fee.
 
 **Honest limits.** The yearly price lives in two places that must match (`dpdp_plan_price_paise` in 0673, and what the panel shows); a test fails if they differ. The webhook is verified, but no test here has talked to Razorpay itself: do step 5 before telling anyone it works.
+
+||||||| 0f8cadf0
+
+## Sales Partner programme (2026-10-01)
+
+Migration `drizzle/0674_dpdp_sales_partner_lifecycle.sql`, Edge Function `dpdp-partner-email`, the app screens `SalesPartner` (the partner) and `OwnerPartnerPayouts` (the Owner), the public pages `/partner/` and `/partner/terms/`.
+
+**The partner's path.** Anyone signed in opens *Sales Partner* (top bar of the page, the Share box, or the "Open your organisation" screen), accepts the terms (version recorded in `dpdp.partner_terms_acceptance`) and gives UPI or bank details. Status is `applied` until both are done, then `active` (no manual approval). The Owner can set `paused` or `ended` any time (*Partner payouts* panel, bottom right, VERIDIAN team only). A sign-up through the code of a partner who is not `active` is recorded as blocked (`partner_not_active`); a partner who owns or belongs to the organisation earns nothing, checked at sign-up and again when the payment is confirmed. A person who never opened a partner profile keeps the older behaviour (their Share code still works and a commission still appears in the ledger), but it is held in the payout run until they finish the set-up.
+
+**Defaults, all in the one row `dpdp.partner_setting` (the Owner changes them in the panel, or with `dpdp_admin_partner_set_settings`):** commission payable 30 days after the payment is confirmed (the refund window); payout once a month on the 10th for everything payable before the end of the previous month; minimum payout Rs 500 on the net amount, smaller balances carry forward; terms version `1.0`. These are the current terms, marked on the public page as changeable with 30 days' notice.
+
+**Tax (TDS).** The ledger keeps gross, TDS and net on every commission. No tax rate is written anywhere in the code, the pages or the emails. `tds_percent` starts unset and **a payout cannot be marked paid until the Owner (with the CA) has set it** (0 is allowed): the panel shows a red line until then. The rate in force on the day the payout is marked is stored on each commission. Pending lines on the partner's dashboard show an estimate marked "est.".
+
+**The monthly payout run (the 10th).**
+1. Open *Partner payouts*, check the TDS % and the minimum.
+2. Pick the month (the default list starts at the previous month). The list shows each partner's lines, gross, TDS, net, and the full UPI / bank details (the one place they are shown in full, to the Owner only). A red line means the details were changed in the last 7 days: confirm with the partner before sending.
+3. *Download payout list (CSV)*, then send the money by UPI or bank transfer, outside this system.
+4. Type the UTR next to each partner and press *Mark paid*. That flips their commissions to paid, stores gross/TDS/net, writes one `dpdp.partner_payout` row (append-only; the same UTR twice never pays twice) and emails the partner. Below the minimum is listed but cannot be marked paid. People who cannot be paid yet (paused, terms not accepted, no payout details, never a partner) are listed under *Held*.
+5. On the 11th each partner gets a statement email; they can also download any month as a CSV.
+
+**Refunds.** The public terms say a commission is cancelled if its payment is refunded or reversed before the commission is paid. There is no cancel function: do it by hand in the SQL editor while the commission is still `pending` (`delete from dpdp.referral_commission where id = '<id>' and payout_status = 'pending';`) and write a line in `dpdp.partner_event` if you want a record. Decide whether to build a `void` status before there is real volume.
+
+**Privacy.** The payout detail table has row level security on, no policy and no grant: only the `public.dpdp_partner_*` / `dpdp_admin_partner_*` functions reach it. Partners only ever read masked values. No audit row, email, log line or AI link carries a payout detail (`src/lib/services/dpdp-partner-email.test.ts` fails if the AI link, Monday or invoice function code names the table). Visits to the public site are not counted anywhere (the static pages run no counting script), so the dashboard shows signed up / in trial / paying, not visits.
+
+**Proof.** `bun test --isolate src/lib/services/dpdp-partner-lifecycle.pglite.test.ts` applies the migration (twice) on PGlite and runs `scripts/dpdp/partner-lifecycle-scenario.sql` (about 90 checks: the lifecycle, the guards, the 20% / 5% commissions, payable dates, TDS arithmetic, the payout run, privileges, append-only tables). `node scripts/dpdp/partner-lifecycle-live-test.mjs` runs the migration text plus the same scenario (and the real `dpdp_create_my_org` attribution) against the live project in one rolled-back transaction; add `--applied` once the migration is live. `bun test src/lib/referral-chain.test.ts` (in `dpdp-app`) pins the whole share link → `ref.js` → localStorage → `createMyOrg` → RPC chain.
+
+**Go-live order.** (1) CI green. (2) Apply `drizzle/0674` live (the file is idempotent and creates the two cron jobs only where `pg_cron` and `pg_net` exist, with the Vault secrets the other DPDP jobs already use). (3) Deploy `dpdp-partner-email` with `--no-verify-jwt` (files `index.ts`, `flush.ts`, `render.ts`, `../_shared/mail-outbound.ts`, `../_shared/mail-taxonomy.ts`). (4) Set the TDS % in the panel. (5) Run `partner-lifecycle-live-test.mjs --applied`, then deploy the site (`dpdp-app deploy`). The mail function sends only when `RESEND_API_KEY` is set; otherwise it reports a dry run and leaves every notice waiting.
 
 ## Where the website lives (since 2026-09-28)
 

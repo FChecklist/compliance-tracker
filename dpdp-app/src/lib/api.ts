@@ -6,6 +6,7 @@ import type {
   CreateClientPayload, CreateMyOrgPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
   JoinOrgResult, OrgInviteLinkPayload, OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
   ApprovePaymentResult, PendingClaimWire, RejectPaymentResult,
+  AdminMarkPaidResult, AdminPartnerRow, AdminPartnerSettings, AdminPayoutRun, PartnerDashboardPayload, PartnerDetailsInput, PartnerStatementPayload, PartnerStatus,
 } from "./rpc-types"
 import { SITE_ORIGIN } from "./site-origin.mjs"
 
@@ -446,6 +447,106 @@ export async function previewParentConsent(client: DpdpClient, token: string): P
   const { data, error } = await client.rpc("dpdp_parent_consent_preview", { p_token: token })
   if (error) throw new RpcFailure(error)
   return data as ParentConsentPreview
+}
+
+// ---------------------------------------------------------------------
+// Sales Partner lifecycle (drizzle/0674).
+// ---------------------------------------------------------------------
+
+/** The partner's dashboard: status, masked payout details, funnel counts, money, lines. Any signed-in person. */
+export async function partnerDashboard(client: DpdpClient): Promise<PartnerDashboardPayload> {
+  const { data, error } = await client.rpc("dpdp_partner_dashboard")
+  if (error) throw new RpcFailure(error)
+  return data as PartnerDashboardPayload
+}
+
+/** Accept the partner terms (the version being shown). Creates the partner profile as "applied". */
+export async function partnerAcceptTerms(client: DpdpClient, version: string, displayName?: string): Promise<{ ok: true; status: PartnerStatus; activated: boolean }> {
+  const { data, error } = await client.rpc("dpdp_partner_accept_terms", { p_version: version, p_display_name: displayName?.trim() || null })
+  if (error) throw new RpcFailure(error)
+  return data as { ok: true; status: PartnerStatus; activated: boolean }
+}
+
+/** Save payout details (UPI id, or bank account). Never read back in full by the partner. */
+export async function partnerSavePayoutDetails(client: DpdpClient, d: PartnerDetailsInput): Promise<{ ok: true; status: PartnerStatus; activated: boolean }> {
+  const { data, error } = await client.rpc("dpdp_partner_save_payout_details", {
+    p_method: d.method, p_upi_id: d.upiId?.trim() || null, p_account_name: d.accountName?.trim() || null,
+    p_account_number: d.accountNumber?.trim() || null, p_ifsc: d.ifsc?.trim() || null, p_pan: d.pan?.trim() || null,
+  })
+  if (error) throw new RpcFailure(error)
+  return data as { ok: true; status: PartnerStatus; activated: boolean }
+}
+
+/** The active partner's personal code (the same one the Share button hands out). */
+export async function partnerGetCode(client: DpdpClient): Promise<{ code: string }> {
+  const { data, error } = await client.rpc("dpdp_partner_get_code")
+  if (error) throw new RpcFailure(error)
+  return data as { code: string }
+}
+
+/** One month's statement, "YYYY-MM". */
+export async function partnerStatement(client: DpdpClient, period: string): Promise<PartnerStatementPayload> {
+  const { data, error } = await client.rpc("dpdp_partner_statement", { p_period: period })
+  if (error) throw new RpcFailure(error)
+  return data as PartnerStatementPayload
+}
+
+export async function adminPartnerSettings(client: DpdpClient): Promise<AdminPartnerSettings> {
+  const { data, error } = await client.rpc("dpdp_admin_partner_settings")
+  if (error) throw new RpcFailure(error)
+  return data as AdminPartnerSettings
+}
+
+/** Any field left undefined is left as it was. Passing tdsPercent (0 included) marks the rate as set. */
+export async function adminPartnerSetSettings(
+  client: DpdpClient, s: { payableAfterDays?: number; payoutDay?: number; minPayoutPaise?: number; tdsPercent?: number },
+): Promise<AdminPartnerSettings> {
+  const { data, error } = await client.rpc("dpdp_admin_partner_set_settings", {
+    p_payable_after_days: s.payableAfterDays ?? null, p_payout_day: s.payoutDay ?? null,
+    p_min_payout_paise: s.minPayoutPaise ?? null, p_tds_percent: s.tdsPercent ?? null,
+  })
+  if (error) throw new RpcFailure(error)
+  return data as AdminPartnerSettings
+}
+
+export async function adminPartnerList(client: DpdpClient): Promise<AdminPartnerRow[]> {
+  const { data, error } = await client.rpc("dpdp_admin_partner_list")
+  if (error) throw new RpcFailure(error)
+  return (data as AdminPartnerRow[] | null) ?? []
+}
+
+export async function adminPartnerSetStatus(client: DpdpClient, identityId: string, status: "active" | "paused" | "ended", reason?: string): Promise<void> {
+  const { error } = await client.rpc("dpdp_admin_partner_set_status", { p_identity_id: identityId, p_status: status, p_reason: reason ?? null })
+  if (error) throw new RpcFailure(error)
+}
+
+/** The monthly payout run (read only). period "YYYY-MM"; omit for the month before this one. */
+export async function adminPartnerPayoutRun(client: DpdpClient, period?: string): Promise<AdminPayoutRun> {
+  const { data, error } = await client.rpc("dpdp_admin_partner_payout_run", { p_period: period ?? null })
+  if (error) throw new RpcFailure(error)
+  return data as AdminPayoutRun
+}
+
+/** After the money has been sent: records the UTR / reference and flips the commissions to paid. */
+export async function adminPartnerMarkPaid(client: DpdpClient, period: string, identityId: string, reference: string, note?: string): Promise<AdminMarkPaidResult> {
+  const { data, error } = await client.rpc("dpdp_admin_partner_mark_paid", { p_period: period, p_identity_id: identityId, p_reference: reference, p_note: note ?? null })
+  if (error) throw new RpcFailure(error)
+  return data as AdminMarkPaidResult
+}
+
+/** Asks the partner-mail function to send what is waiting (best effort; the cron does it every 30 minutes anyway). */
+export async function flushPartnerEmails(client: DpdpClient): Promise<{ ok: boolean; error?: string }> {
+  const token = await client.accessToken()
+  if (!token) return { ok: false, error: "Not signed in" }
+  try {
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/dpdp-partner-email`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ job: "flush" }),
+    })
+    const body = await res.json().catch(() => ({}))
+    return res.ok ? { ok: true } : { ok: false, error: (body as { error?: string }).error || `HTTP ${res.status}` }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 /** recordConsent(): Yes or No -- both are answers, both are recorded. Single use. */
