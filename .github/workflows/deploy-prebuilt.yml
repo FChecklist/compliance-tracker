@@ -61,12 +61,20 @@ jobs:
       # veridian-compliance-ai in team veridian-ai-os (verified via the Vercel API).
       VERCEL_ORG_ID: team_Iqx3zyb7sDdsdzcNskCFFsHD
       VERCEL_PROJECT_ID: prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII
-      VERCEL_TOKEN: ${{ secrets.VERCEL_API_TOKEN || secrets.VERCEL_ACCESS_TOKEN }}
+      RAW_VERCEL_TOKEN: ${{ secrets.VERCEL_API_TOKEN || secrets.VERCEL_ACCESS_TOKEN }}
       NODE_OPTIONS: --max-old-space-size=6144
       # Lower build parallelism to keep peak memory down (next.config honours Next's own env).
       NEXT_BUILD_CPUS: "2"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Sanitize Vercel token
+        run: |
+          # The stored secret carries a leading BOM (U+FEFF) that the Vercel CLI rejects; keep printable ASCII only.
+          tok="$(printf '%s' "$RAW_VERCEL_TOKEN" | LC_ALL=C tr -cd '[:graph:]')"
+          echo "::add-mask::$tok"
+          echo "VERCEL_TOKEN=$tok" >> "$GITHUB_ENV"
+          echo "token length after sanitize: ${#tok}"
 
       - name: Add 6GB swap
         run: |
