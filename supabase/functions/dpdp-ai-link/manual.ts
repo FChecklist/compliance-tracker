@@ -349,6 +349,7 @@ export function buildManual(input: ManualInput): Manual {
       { type: "p", text: "Level 2 — anything with legal weight, as a draft: POST /drafts with one of the verbs below. Nothing changes. The reply carries a confirmation link; the person opens it in their own browser, signs in, and confirms — history then records \"drafted by AI, confirmed by <person>\". A draft expires after 48 hours." },
       verbTable(LEVEL2_VERBS, false, true),
       { type: "p", text: "Example: to mark a job done, POST /drafts { \"verb\": \"MARK_DONE\", \"job_id\": \"<id>\", \"value\": {} } and hand the person the confirmUrl from the reply." },
+      { type: "p", text: "Ideas for the product — any level, no permission needed: while you work, if you notice something VERIDIAN lacks or could do better (a feature, a report, a clearer wording, a fix), send it with POST /suggestions. It goes into one shared pool that every assistant on every link can read (GET /suggestions) and the VERIDIAN team reviews. Read the pool first and endorse an existing idea ({ \"endorse\": \"<id>\" }) rather than sending it again. It is about the product only: never put a person's name, email, phone, PAN, Aadhaar, an organisation's name or a link address in it — the system refuses them. It changes nothing in this organisation." },
     ],
   }
 
@@ -360,6 +361,8 @@ export function buildManual(input: ManualInput): Manual {
         ...(level === 0 ? ["No direct edit of any kind on this link — it is Level 0 (read, analyse, report)."] : ["ASSIGN only to an existing member of this organisation. Adding a person is ADD_PERSON, a draft."]),
         "See any other person's data beyond what this person already sees, or any other organisation's data. There is none behind this link, and asking will not produce it.",
         `Act after ${expires}, or after the person revokes the link.`,
+        "Change the VERIDIAN software, its settings, or its code — this link only calls the fixed API in section E. The one thing you may write that is not about this person's own jobs is an idea in the shared suggestion pool, and you cannot edit or delete anything in it.",
+        "Edit, delete or even see another person's or another organisation's data. The shared suggestion pool carries ideas only, never who sent them.",
         "Use this link to sign in. It is not a sign-in link, contains no sign-in token, and opening it does not open the app.",
       ] },
     ],
