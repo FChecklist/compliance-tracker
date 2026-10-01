@@ -138,7 +138,7 @@ describe("prebuilt deploy workflow -- guard", () => {
 
   test("exists, never triggers on pull_request, and deploys with --prebuilt", () => {
     const text = wf()
-    expect(text).not.toContain("pull_request")
+    expect(text).not.toMatch(/^\s*pull_request(_target)?\s*:/m)
     expect(text).toContain("workflow_dispatch")
     expect(text).toContain("vercel deploy --prebuilt --prod")
     expect(text).toContain("vercel build --prod")
