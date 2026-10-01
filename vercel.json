@@ -2,7 +2,7 @@
   "installCommand": "bun install",
   "framework": "nextjs",
   "regions": ["bom1"],
-  "ignoreCommand": "sh -c '[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ] && exit 0; git diff --name-only HEAD^ HEAD | grep -qvE \"^(.*\\.md$|.*\\.jsonl$|kt/|ai-os/|\\.github/|dpdp-app/|src/app/dpdp|src/app/api/dpdp)\" && exit 1; exit 0'",
+  "ignoreCommand": "exit 0",
   "crons": [
     { "path": "/api/internal/secrets-audit/run", "schedule": "0 7 * * *" }
   ]
