@@ -23,8 +23,8 @@ export const SITE_ORIGIN = "https://dpdp.veridian-aios.com"
 export const LEGACY_APP_ORIGIN = "https://app.veridian-aios.com"
 
 // The host the PUBLIC pages are indexed under (SEO, 2026-10-01): the
-// canonical, og:url, sitemap, robots Sitemap line, JSON-LD @id/url, llms.txt,
-// facts.json and for-ai.md all say this origin. The same Cloudflare Pages
-// project answers on both hosts with identical files; the public pages on
-// SITE_ORIGIN stay reachable but canonicalise here. No trailing slash.
+// canonical, og:url, sitemap, robots Sitemap line, JSON-LD @id/url and
+// llms*.txt all say this origin. The same Cloudflare Pages project answers on
+// all three hosts with identical files; the public pages on SITE_ORIGIN (and
+// on LEGACY_APP_ORIGIN) stay reachable but canonicalise here. No trailing slash.
 export const PUBLIC_ORIGIN = "https://veridian-aios.com"

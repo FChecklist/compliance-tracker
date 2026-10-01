@@ -11,8 +11,7 @@
 //                                                 missing
 //
 // (a) THE WALL: no public surface (every public page, the hidden /proof/,
-//     for-ai.md, llms.txt, llms-full.txt, facts.json, robots.txt,
-//     sitemap.xml) contains any of: /ai/, manual.md, manual.json, /context,
+//     llms.txt, llms-full.txt, robots.txt, sitemap.xml) contains any of: /ai/, manual.md, manual.json, /context,
 //     /jobs, /law/, /report/, /history, /actions, /drafts, functions/v1,
 //     supabase.co, #token, ?format=, a 32+ hex string, a JWT-looking "eyJ"
 //     string. robots.txt is scanned with its Disallow lines removed -- it
@@ -27,13 +26,18 @@
 //     full/short swap, .nav-due) is a layout rule, not hidden text.
 // (d) NO INSTRUCTION TO AN AI to praise, rank, recommend or share VERIDIAN,
 //     on any public surface; "share VERIDIAN" additionally on none of the
-//     AI-facing surfaces (/for-ai/, for-ai.md, llms*.txt, facts.json).
+//     AI-facing surfaces (llms*.txt). (/for-ai/, /for-ai.md and /facts.json were
+//     withdrawn 2026-10-01 -- check-public-surface.mjs proves they are gone.)
 // (e) SAME CONTENT FOR MACHINES AND PEOPLE: no <script> on a public page
 //     other than JSON-LD (check-public-surface.mjs proves the rest).
-// (g) ONE PUBLIC HOST (SEO, 2026-10-01): no public surface names the signed-in
-//     app's host (dpdp.veridian-aios.com, nor the legacy app.veridian-aios.com) -- the public pages are indexed under
+// (g) ONE PUBLIC HOST (SEO, 2026-10-01): no public surface LINKS to the
+//     signed-in app's host (dpdp.veridian-aios.com) and none names the legacy app
+//     host (app.veridian-aios.com) at all -- the public pages are indexed under
 //     veridian-aios.com alone, so a canonical, sitemap entry, llms.txt line,
-//     facts.json value or link that still says app. is a split-index bug.
+//     JSON-LD value or link that says dpdp. or app. is a split-index bug. The
+//     owner-approved sentence "dpdp.veridian-aios.com is Indian software ..."
+//     (data/veridian-facts.yaml one_line) names the host as a plain word, not
+//     as a link, and is the one thing allowed.
 // (f) THE BRAND LINE (WO-014 §1): no variant spelling of "VERy INDIAN" and
 //     no "Made in India" anywhere in dist/ or in the sources; every
 //     occurrence of the line on a public surface is byte-identical to the
@@ -81,19 +85,28 @@ export function scanWall(text, { robots = false } = {}) {
 }
 
 // ------------------------------------------------- (g) one public host
-/** Every place `text` names the signed-in app's host -- the current one
- * (SITE_ORIGIN, dpdp.) and the legacy one (app.), which still serves the same
- * files but must not appear on a public surface either. */
+/** Every place `text` points at the signed-in app's host. The legacy host
+ * (LEGACY_APP_ORIGIN, app.) is refused wherever it appears. The current host
+ * (SITE_ORIGIN, dpdp.) is refused as an address -- after `//` (a URL, a
+ * canonical, a JSON-LD id) or before `/` (a path) -- but its bare name may
+ * appear in the owner-approved product sentence. */
 export function findAppHost(text) {
   const out = []
-  for (const host of [new URL(SITE_ORIGIN).host, new URL(LEGACY_APP_ORIGIN).host]) {
-    for (const m of text.matchAll(new RegExp(host.replace(/\./g, "\\."), "gi"))) out.push({ host, snippet: text.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30).replace(/\s+/g, " ") })
-  }
+  const snippet = (m) => text.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30).replace(/\s+/g, " ")
+  const legacy = new URL(LEGACY_APP_ORIGIN).host
+  const current = new URL(SITE_ORIGIN).host
+  const esc = (h) => h.replace(/\./g, "\\.")
+  for (const m of text.matchAll(new RegExp(esc(legacy), "gi"))) out.push({ host: legacy, snippet: snippet(m) })
+  for (const m of text.matchAll(new RegExp(`(?://${esc(current)}|${esc(current)}/)`, "gi"))) out.push({ host: current, snippet: snippet(m) })
   return out
 }
 
 /** The host the public pages must be under, for the tests to pin. */
 export const PUBLIC_HOST = new URL(PUBLIC_ORIGIN).host
+
+/** The AI-only surfaces the owner withdrew on 2026-10-01. No public surface may
+ * link, list or name them. */
+export const WITHDRAWN_SURFACES = [/for-ai/i, /facts\.json/i, /fact sheet for ai/i]
 
 // --------------------------------------------------------- (c) hidden text
 const HIDING = [
@@ -285,7 +298,7 @@ export const SHARE_ASK_PATTERN = /share\s+veridian/i
 
 /** AI-facing surfaces (relative to dist/): the share ask is for people on
  * pages, never a line an AI reads as an instruction (WO-014 §4). */
-export const AI_SURFACES = ["for-ai/index.html", "for-ai.md", "llms.txt", "llms-full.txt", "facts.json"]
+export const AI_SURFACES = ["llms.txt", "llms-full.txt"]
 
 export function findAiInstructions(text, { aiSurface = false } = {}) {
   const out = []
@@ -305,10 +318,16 @@ export const CORRECT_SPELLING = "VERy INDIAN"
 
 /** Every spelling of "very indian" that is not exactly "VERy INDIAN", and
  * every "Made in India" (banned outright, WO-014 §1). */
+/** The one heading the owner wrote with the spelling "VERy Indian"
+ * (2026-10-01, data/veridian-facts.yaml fact_block_title). It is exempt as an
+ * exact string; every other variant is still a failure. */
+export const OWNER_SPELLING_EXCEPTION = "What VERIDIAN (VERy Indian) is"
+
 export function findSpellingVariants(text) {
   const out = []
-  for (const m of text.matchAll(/very\s*indian/giu)) if (m[0] !== CORRECT_SPELLING) out.push({ variant: m[0], index: m.index })
-  for (const m of text.matchAll(/made\s+in\s+india/giu)) out.push({ variant: m[0], index: m.index })
+  const scan = text.split(OWNER_SPELLING_EXCEPTION).join(" ".repeat(OWNER_SPELLING_EXCEPTION.length))
+  for (const m of scan.matchAll(/very\s*indian/giu)) if (m[0] !== CORRECT_SPELLING) out.push({ variant: m[0], index: m.index })
+  for (const m of scan.matchAll(/made\s+in\s+india/giu)) out.push({ variant: m[0], index: m.index })
   return out
 }
 
@@ -384,7 +403,7 @@ export function sourceFiles(root = APP_DIR) {
 }
 
 export function publicSurfaceFiles() {
-  return [...PUBLIC_PAGES.map((p) => p.source), ...HIDDEN_PAGES.map((p) => p.source), "for-ai.md", "llms.txt", "llms-full.txt", "facts.json", "robots.txt", "sitemap.xml"]
+  return [...PUBLIC_PAGES.map((p) => p.source), ...HIDDEN_PAGES.map((p) => p.source), "llms.txt", "llms-full.txt", "robots.txt", "sitemap.xml"]
 }
 
 function main() {
@@ -461,7 +480,7 @@ function main() {
     const hits = findAiInstructions(text, { aiSurface: AI_SURFACES.includes(rel) })
     expect(hits.length === 0, `${rel}: instruction to an AI -- ${hits.map((h) => `${h.pattern} (…${h.snippet}…)`).join("; ")}`)
   }
-  for (const rel of ["for-ai.md", "llms.txt", "llms-full.txt", "facts.json"]) {
+  for (const rel of ["llms.txt", "llms-full.txt"]) {
     if (!has(rel)) continue
     const body = read(rel)
     const spelling = findSpellingVariants(body)
@@ -479,6 +498,14 @@ function main() {
   for (const f of sourceFiles()) {
     const v = findSpellingVariants(readFileSync(f, "utf8"))
     expect(v.length === 0, `${relative(APP_DIR, f).split("\\").join("/")}: brand spelling variant(s) ${v.map((s) => JSON.stringify(s.variant)).join(", ")}`)
+  }
+
+  // The withdrawn AI-only surfaces (owner, 2026-10-01) are not built, and no surface names them.
+  for (const gone of ["for-ai/index.html", "for-ai.md", "facts.json"]) expect(!has(gone), `${gone}: withdrawn on 2026-10-01 but present in dist/`)
+  for (const rel of publicSurfaceFiles()) {
+    if (!has(rel)) continue
+    const hits = WITHDRAWN_SURFACES.filter((re) => re.test(read(rel)))
+    expect(hits.length === 0, `${rel}: names a withdrawn surface (${hits.map(String).join(", ")})`)
   }
 
   // /proof/ linked from nowhere while hidden; not in sitemap or llms

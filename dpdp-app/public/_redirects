@@ -19,6 +19,14 @@
 /dpdp-institutions   /dpdp-institution/   301
 /dpdp-institutions/  /dpdp-institution/   301
 
+# Withdrawn on 2026-10-01 (owner decision): the AI-only fact sheet, its
+# plain-text copy and the facts file are no longer published. A visitor or a
+# crawler that still has an old address is sent to the About page.
+/for-ai      /about/   301
+/for-ai/     /about/   301
+/for-ai.md   /about/   301
+/facts.json  /about/   301
+
 # /home is the root chooser.
 /home                /                    301
 /home/               /                    301

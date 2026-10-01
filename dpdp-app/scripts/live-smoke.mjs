@@ -34,13 +34,19 @@ async function get(path, init) {
 }
 
 // 1. Every public page answers, as HTML.
-for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/for-ai/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
   const r = await get(p)
   check(r.status === 200 && /text\/html/.test(r.type), `${p} answers 200 as HTML`, `${r.status} ${r.type}`)
 }
-for (const p of ["/facts.json", "/llms.txt", "/robots.txt", "/sitemap.xml"]) {
+for (const p of ["/llms.txt", "/robots.txt", "/sitemap.xml"]) {
   const r = await get(p)
   check(r.status === 200, `${p} answers 200`, String(r.status))
+}
+
+// 1a. Withdrawn on 2026-10-01 (owner): the AI-only fact sheet, its plain-text copy and facts.json answer a 301 to /about/, never a page.
+for (const p of ["/for-ai/", "/for-ai.md", "/facts.json"]) {
+  const r = await get(p)
+  check(r.status === 301 && /\/about\/$/.test(r.headers.get("location") || ""), `${p} is withdrawn (301 to /about/)`, `${r.status} ${r.headers.get("location") || ""}`)
 }
 
 // 1b. One file, three hosts: the private prefixes are never indexed and never cached on ANY of them.

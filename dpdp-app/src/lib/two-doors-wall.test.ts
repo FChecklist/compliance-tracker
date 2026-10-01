@@ -120,7 +120,7 @@ describe("(a) the wall: scanWall()", () => {
   })
 
   test("the facts sheet says the one allowed sentence about the AI work link, and the pages carry it", () => {
-    for (const rel of ["for-ai/index.html", "about/index.html", "for-ai.md", "llms.txt"]) expect(surfaceSource(rel)).toContain(FACTS.ai_work_link_public_sentence)
+    expect(surfaceSource("about/index.html")).toContain(FACTS.ai_work_link_public_sentence)
   })
 })
 
@@ -207,7 +207,7 @@ describe("(d) no instruction to an AI: findAiInstructions()", () => {
   test('"share VERIDIAN" is flagged on an AI-facing surface and allowed on a page for people', () => {
     expect(findAiInstructions("Know a firm that needs this? Share VERIDIAN", { aiSurface: true }).length).toBe(1)
     expect(findAiInstructions("Know a firm that needs this? Share VERIDIAN", { aiSurface: false })).toEqual([])
-    expect(AI_SURFACES).toEqual(["for-ai/index.html", "for-ai.md", "llms.txt", "llms-full.txt", "facts.json"])
+    expect(AI_SURFACES).toEqual(["llms.txt", "llms-full.txt"])
   })
 
   test("every committed public surface carries none; the AI-facing ones carry no share ask", () => {

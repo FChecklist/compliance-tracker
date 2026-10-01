@@ -9,15 +9,14 @@ actions marked **OWNER** below.
 
 | Path | What | Indexed? |
 |---|---|---|
-| `/` | root chooser (firm / institution) | yes |
+| `/` | home: exactly two ways in (CA/CS/legal/audit firm doing it for clients -> `/dpdp-firm/`; company/institution/school/NGO doing it for itself -> `/dpdp-institution/`) | yes |
 | `/dpdp-firm/`, `/dpdp-institution/` | edition landing pages | yes |
 | `/about/` | the full facts for people (WO-DPDP-013 v2 §2.1), generated from `data/veridian-facts.yaml` | yes |
-| `/for-ai/`, `/for-ai.md` | the fact sheet for AI systems, HTML and plain text, generated | yes |
-| `/facts.json` | the public facts as JSON -- exactly `public_fields` in the facts file | -- |
 | `/proof/` | evidence page from `data/proof.yaml`; **built and hidden** until the owner sets `proof.enabled: true` in the facts file | **no** while hidden -- `noindex` meta + `X-Robots-Tag` via the generated block in `public/_headers`; not in the sitemap or llms*.txt; linked from nowhere |
 | `/app/` | the signed-in one-page app (magic-link session in the `#fragment`) | **no** -- `noindex` meta + `X-Robots-Tag` via `public/_headers` |
 | `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt` | crawler files (WO-DPDP-012 §3); llms*.txt are generated | -- |
 | `/dpdp-institutions` → `/dpdp-institution/`, `/home` → `/` | 301s in `public/_redirects` (WO-DPDP-013 v2 §2.4) | -- |
+| `/for-ai`, `/for-ai/`, `/for-ai.md`, `/facts.json` | **withdrawn 2026-10-01** (owner: they published internal detail); 301 to `/about/`. Nothing builds or links them; `check-public-surface.mjs` and `check-two-doors.mjs` fail if they come back | -- |
 
 Build: `bun run build` → `dist/`. The only build-time inputs are the **public**
 Supabase URL and anon key. `scripts/scan-bundle.mjs` proves per build that
@@ -105,7 +104,7 @@ the Step 2 spike), so a missing entry looks like "the link opens the wrong site"
 | 1 | `dpdp-app` CI job green on the merge commit | Actions → dpdp-app |
 | 2 | Bundle key scan: `service_role` = 0 | CI step log |
 | 3 | `/app/` returns `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer` | `curl -I https://…/app/` |
-| 4 | `/`, `/dpdp-firm/`, `/dpdp-institution/`, `/about/`, `/for-ai/` readable with JS off (h1 + body in raw HTML) | `curl` output |
+| 4 | `/`, `/dpdp-firm/`, `/dpdp-institution/`, `/about/` readable with JS off (h1 + body in raw HTML) | `curl` output |
 | 5 | `robots.txt`, `sitemap.xml`, `llms.txt` served; sitemap lists only public pages; `/proof/` returns `X-Robots-Tag: noindex, nofollow` while hidden | `curl` |
 | 5a | `/dpdp-institutions` and `/home` answer 301 to `/dpdp-institution/` and `/` | `curl -I` |
 | 6 | Magic link round-trip on the real host: email → link → `/app/#access_token…` → jobs load → fragment cleared | screen recording / test run |
@@ -124,8 +123,7 @@ The same Pages project answers on `veridian-aios.com`, `www.veridian-aios.com`
 `app.veridian-aios.com`, with identical files. Search engines are told **one** host:
 
 - every public page's `<link rel="canonical">`, `og:url`, JSON-LD `@id`/`url`,
-  the sitemap, `robots.txt`'s `Sitemap:` line, `llms*.txt`, `facts.json` and
-  `for-ai.md` say `https://veridian-aios.com/...` (`PUBLIC_ORIGIN` in
+  the sitemap, `robots.txt`'s `Sitemap:` line and `llms*.txt` say `https://veridian-aios.com/...` (`PUBLIC_ORIGIN` in
   `src/lib/site-origin.mjs`);
 - the signed-in app, the Monday email's links and the AI work link stay on
   `dpdp.veridian-aios.com` (`SITE_ORIGIN`, same file) and are `noindex`/`no-store`.

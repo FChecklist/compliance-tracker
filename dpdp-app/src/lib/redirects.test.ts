@@ -46,8 +46,13 @@ describe("public/_redirects (WO-013 §2.4)", () => {
     expect(rule("/home/")).toEqual({ from: "/home/", to: "/", status: 301 })
   })
 
-  test("exactly these four rules, every one permanent, every destination a public page", () => {
-    expect(rules).toHaveLength(4)
+  // Owner, 2026-10-01: the AI-only fact sheet, its plain-text copy and facts.json are withdrawn.
+  test("the withdrawn addresses 301 to /about/, with and without the slash", () => {
+    for (const from of ["/for-ai", "/for-ai/", "/for-ai.md", "/facts.json"]) expect(rule(from), from).toEqual({ from, to: "/about/", status: 301 })
+  })
+
+  test("exactly these eight rules, every one permanent, every destination a public page", () => {
+    expect(rules).toHaveLength(8)
     for (const r of rules) {
       expect(r.status).toBe(301)
       expect(PUBLIC_PAGES.some((p) => p.path === r.to), `${r.to} is not a public page`).toBe(true)

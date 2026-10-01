@@ -17,7 +17,7 @@
 // DPDP product".
 //
 // WO-DPDP-013 v2 / WO-DPDP-014: the titles, the fact copy every public page
-// must carry, and the /about/ and /for-ai/ pages come from
+// must carry, and the /about/ page come from
 // data/veridian-facts.yaml (via facts.mjs) -- never retyped here. A third
 // category, HIDDEN_PAGES, is a page that is BUILT but not public yet
 // (/proof/ until the owner switches facts.proof.enabled on): noindex, no
@@ -44,22 +44,19 @@ export const OG_IMAGE = {
   alt: FACTS.brand.full,
 }
 
-/** The internal-link row every public page's footer carries (SEO: every
- * public page links the fact surfaces). href -> link text; the post-build
- * check proves each href is in the raw HTML of each public page. */
-export const FOOTER_LINKS = [
-  ["/about/", FACTS.pages["/about/"].name],
-  ["/for-ai/", FACTS.pages["/for-ai/"].name],
-  ["/for-ai.md", "Fact sheet as plain text"],
-  ["/facts.json", "Facts as JSON"],
-  ["/llms.txt", "llms.txt"],
-]
+/** The internal-link row every public page's footer carries. href -> link
+ * text; the post-build check proves each href is in the raw HTML of each
+ * public page. Owner decision 2026-10-01: About VERIDIAN alone -- the fact
+ * sheet for AI systems, its plain-text copy and facts.json are withdrawn. */
+export const FOOTER_LINKS = [["/about/", FACTS.pages["/about/"].name]]
 
 // The copy generated from the facts file onto EVERY public page (the fact
 // block, WO-013 §2.1; the brand line, WO-014 §2): the post-build check
 // proves each string is in the raw HTML of each page.
 const FACT_COPY = [
   FACTS.one_line,
+  FACTS.fact_block_title,
+  FACTS.who_for.join(" · "),
   ...FACTS.three_strongest_facts,
   FACTS.what_it_does_not_do,
   FACTS.brand.full,
@@ -104,57 +101,36 @@ export const PRIVATE_PAGES = [
   { prefix: "/ai/", source: null },
 ]
 
-// Copy shared by both edition landing pages, verbatim from
-// src/app/dpdp/_components/DpdpMarketingPage.tsx on the Next.js side. The
-// post-build check proves each string is in the RAW html file -- WO-012 §1:
-// "readable with JavaScript switched off ... prove it".
+// Copy on BOTH edition landing pages (rewritten 2026-10-01: plain English,
+// short sentences, one call to action). The post-build check proves each
+// string is in the RAW html file -- WO-012 §1: "readable with JavaScript
+// switched off ... prove it".
 const LANDING_COPY = [
   "Compliance due 13 May 2027",
-  "The Schedule to the Act",
-  "Ceilings per instance · the Board decides under S.33 ·",
-  "no penalty order has been issued in India to date",
-  "Everything DPDP, in one place",
-  "And the two things the law already requires you to publish are free, forever.",
-  "Where your data actually is",
-  "A Grievance Officer, published",
-  "Your own public page",
-  "One email a day, and it is the dashboard",
-  "An AI Link for any chatbox",
-  "Proof that survives people",
-  "We never keep your documents",
-  "Deleting somebody, everywhere",
-  "Consent that people actually give",
-  "72 hours, planned in advance",
-  "Auditors and cyber firms, listed",
-  "Your vendors, in the same system",
+  "How it works",
+  "What you get",
   "What we do, and where we stop",
-  "Said plainly, because the people selling fear will not.",
-  "Write down what you hold and where · turn the Act into duties with names and dates · chase them · check the proof · publish your officer and your notices · keep a record nobody can edit · answer people who ask",
-  "Touch your systems · keep your documents · certify you as compliant · give legal advice · quote penalties at you · promise nobody will ever be fined",
-  "Four ways in",
-  "Pricing after a short conversation, because the right number depends on what you hold.",
-  "A company, school or NGO",
-  "A CA, CS, audit or legal firm",
-  "A web agency, payroll bureau or IT firm",
-  "An auditor or cyber firm",
-  "Questions people actually ask",
-  "We run on Gmail. Does that matter?",
-  "Has anybody actually been fined?",
-  "We are small. Does this apply to us?",
+  "Turn the Act into jobs · Give each job to a person · Chase the answers · Keep a dated record",
+  "Touch your systems · Keep your documents · Give legal advice · Certify you as compliant · Promise that nobody will be fined",
+  "Questions people ask",
+  "One email. No card. Fifteen minutes.",
+  "Jobs with names and dates",
+  "A record nobody can edit",
+  "We keep no documents",
+  "People answer by email",
   "Do you touch our systems?",
   "Do you keep our documents?",
   "Can you certify us as compliant?",
-  "What if we stop paying?",
-  "What happens if you disappear?",
-  "Start with what you hold",
-  "One email. No card. Fifteen minutes.",
-  "Your DPDP proof — not just your DPDP policy. People move on. The proof stays.",
+  "Has anyone been fined yet?",
+  "No penalty order has been issued in India to date.",
+  "Sign in",
   // The one published address and the ask to name the topic in the subject
   // line. Since 2026-09-29 (owner decision) there is no separate
   // grievance@ / partners@ address; both landings' hand-kept footers carry
   // these strings, built from the facts file so they cannot drift from it.
   FACTS.contact.contact_email,
   subjectTopicsClause(FACTS),
+  FACTS.storage.stored_in_india_wording,
   "We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.",
 ]
 
@@ -180,11 +156,11 @@ export const PUBLIC_PAGES = [
       "VERy INDIAN",
       "Know what data you hold. Tell people about it. Keep it safe.",
       "Prove all three — with a record that outlasts the person who set it up.",
-      "I do this for clients",
-      "A CA, CS, audit or legal firm. Your own file is free, always.",
-      "I do this for us",
-      "A company, NGO or firm of our own.",
-      "Running a school instead? →",
+      // Exactly two ways in, with exactly these labels (owner, 2026-10-01).
+      "I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS",
+      "I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES",
+      'href="/dpdp-firm/"',
+      'href="/dpdp-institution/"',
       "Already have an account? Sign in",
       FACTS.brand.share_ask,
       ...FACT_COPY,
@@ -194,11 +170,17 @@ export const PUBLIC_PAGES = [
     path: "/dpdp-firm/",
     source: "dpdp-firm/index.html",
     title: pageTitle(FACTS, "/dpdp-firm/"),
-    h1: "Your DPDP proof — not just your DPDP policy.",
+    h1: "DPDP compliance for all your clients, in one place",
     jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
-      "an independent, third-party DPDP compliance record",
-      "Built for a company, NGO, trading firm or a CA/CS/audit practice's own file.",
+      "For CA, CS, audit and legal firms",
+      "Give each client a list of jobs. Chase the answers by email. Keep a dated record nobody can edit.",
+      "Your own firm's file is free. No licence fee. You pay per client file, after you have billed the client.",
+      "Add each client",
+      "Every client has its own file",
+      "Checks and sign-off",
+      "Start with one client",
+      'href="/app/?edition=firm"',
       ...LANDING_COPY,
       FACTS.brand.share_ask,
       ...FACT_COPY,
@@ -208,11 +190,16 @@ export const PUBLIC_PAGES = [
     path: "/dpdp-institution/",
     source: "dpdp-institution/index.html",
     title: pageTitle(FACTS, "/dpdp-institution/"),
-    h1: "Your DPDP proof — not just a policy nobody reads.",
+    h1: "DPDP compliance for your own organisation, with proof you can show",
     jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
-      "an independent, third-party DPDP compliance record for schools",
-      "Built for a school handling students', parents' and staff's data — most of it belonging to minors.",
+      "For companies, institutions, schools and NGOs",
+      "Get a list of jobs. Give each job to a person. Keep a dated record nobody can edit.",
+      "Pricing after a short conversation, because the right number depends on what you hold.",
+      "Open your organisation",
+      "Parents' consent, on a link",
+      "Start with what you hold",
+      'href="/app/?edition=institution"',
       ...LANDING_COPY,
       FACTS.brand.share_ask,
       ...FACT_COPY,
@@ -227,7 +214,6 @@ export const PUBLIC_PAGES = [
     h1: FACTS.pages["/about/"].name,
     jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList"],
     mustContain: [
-      FACTS.what_it_does,
       FACTS.deadline_line,
       FACTS.storage.database.sentence,
       FACTS.storage.email.sentence,
@@ -239,26 +225,7 @@ export const PUBLIC_PAGES = [
       ...FACT_COPY,
     ],
   },
-  // WO-DPDP-013 v2 §2.1: the fact sheet for AI systems (+ /for-ai.md). No
-  // share ask here (WO-014 §4: the share ask is for people on pages, never an
-  // instruction to an AI) -- scripts/check-two-doors.mjs proves it.
-  {
-    path: "/for-ai/",
-    source: "for-ai/index.html",
-    title: pageTitle(FACTS, "/for-ai/"),
-    h1: FACTS.pages["/for-ai/"].name,
-    jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList"],
-    mustContain: [
-      FACTS.what_it_does,
-      FACTS.deadline_line,
-      FACTS.storage.database.sentence,
-      FACTS.storage.email.sentence,
-      FACTS.ai_work_link_public_sentence,
-      ...FACT_COPY,
-    ],
-  },
 ]
-
 /** The /proof/ page (WO-013 §2.1): public once facts.proof.enabled is true,
  * otherwise built-and-hidden (see HIDDEN_PAGES). */
 const PROOF_PAGE = {

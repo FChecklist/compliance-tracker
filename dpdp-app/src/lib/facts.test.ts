@@ -5,8 +5,8 @@
 //   1. data/veridian-facts.yaml carries the owner's §2.2 wording verbatim,
 //      is owner-approved, versioned, and exposes exactly the public fields
 //      it says it does (nothing Part-1-only, nothing null, no sources);
-//   2. the committed surfaces (about/, for-ai/, proof/, public/for-ai.md,
-//      llms*.txt, facts.json, the three landings' generated blocks,
+//   2. the committed surfaces (about/, proof/,
+//      llms*.txt, the three landings' generated blocks,
 //      public/_headers) are byte-for-byte what scripts/
 //      generate-public-facts.mjs produces from the facts file today, and
 //      the generator is byte-stable across runs;
@@ -16,9 +16,9 @@
 // dpdp-app (bunfig root = src).
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
-import { contactSentence, grievanceOfficerLine, loadFacts, loadProof, publicFacts, pageDescription, pageTitle, getPath, subjectTopicsClause } from "./facts.mjs"
+import { contactSentence, grievanceOfficerLine, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "./facts.mjs"
 import { FACTS, HIDDEN_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES } from "./public-surface.mjs"
 import { buildOutputs } from "../../scripts/generate-public-facts.mjs"
 
@@ -28,18 +28,20 @@ const read = (rel: string) => readFileSync(join(APP, rel), "utf8").replace(/\r\n
 describe("data/veridian-facts.yaml: the one source of truth", () => {
   const facts = loadFacts()
 
-  test("is version 1, owner-approved on 2026-09-22 by the owner's WO text", () => {
-    expect(facts.version).toBe(1)
+  test("is version 2, owner-approved on 2026-10-01 (the home-page block) on top of the owner's WO text", () => {
+    expect(facts.version).toBe(2)
     expect(facts.owner_approved).toBe(true)
-    expect(facts.approved_on).toBe("2026-09-22")
+    expect(facts.approved_on).toBe("2026-10-01")
     expect(facts.approved_by).toContain("owner")
     expect(facts.approved_by).toContain("WO-DPDP-013 v2")
   })
 
   test("carries WO-DPDP-013 v2 §2.2 verbatim (the four paragraphs)", () => {
+    // 2026-10-01 (owner): the first sentence names the app host; the audience adds companies and NGOs.
     expect(facts.one_line).toBe(
-      "VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions.",
+      "dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.",
     )
+    expect(facts.fact_block_title).toBe("What VERIDIAN (VERy Indian) is")
     expect(facts.what_it_does).toBe(
       "It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords. Each answer is recorded with a date and cannot be edited, building the proof an organisation needs. Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.",
     )
@@ -47,11 +49,11 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.what_it_does_not_do).toBe("It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.")
     // The three strongest facts are the three sentences of the second paragraph, in order.
     expect(facts.three_strongest_facts.join(" ")).toBe(facts.what_it_does)
-    expect(facts.who_for).toEqual(["CA, CS, audit and legal firms", "their clients", "schools and institutions"])
+    expect(facts.who_for).toEqual(["CA, CS, audit and legal firms", "their clients", "companies, institutions, schools and NGOs"])
     expect(facts.one_line.endsWith(facts.who_for_line + ".")).toBe(true)
   })
 
-  test("carries the one sentence /for-ai may say about the AI work link, and nothing about its API", () => {
+  test("carries the one sentence a public page may say about the AI work link, and nothing about its API", () => {
     expect(facts.ai_work_link_public_sentence).toBe("Users can give their own AI assistant a private, time-limited AI work link from inside VERIDIAN.")
     const yaml = read("data/veridian-facts.yaml")
     for (const leak of ["/ai/", "manual.md", "manual.json", "/context", "/jobs", "/law/", "/report/", "/history", "/actions", "/drafts", "functions/v1", "supabase.co", "#token", "?format="]) {
@@ -63,7 +65,6 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.about_this_system).toHaveLength(5)
     expect(facts.about_this_system[0]).toStartWith("VERIDIAN is purpose-built for India's Digital Personal Data Protection Act 2023")
     expect(facts.about_this_system[3]).toStartWith("Rely on it.")
-    expect(facts.public_fields).not.toContain("about_this_system")
   })
 
   test("key dates: SPDI Rules 2011 until 13 May 2027; DPDP Act 2023 + Rules 2025 from 13 May 2027", () => {
@@ -106,61 +107,11 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.company.source).toContain("src/app/disclaimer/page.tsx")
   })
 
-  test("public_fields is exactly the list WO-013 §2.1 allows into facts.json", () => {
-    expect(facts.public_fields).toEqual([
-      "version",
-      "approved_on",
-      "product",
-      "site",
-      "one_line",
-      "who_for",
-      "what_it_does",
-      "three_strongest_facts",
-      "deadline_line",
-      "what_it_does_not_do",
-      "brand_line",
-      "key_dates.items",
-      "library.version",
-      "library.job_count",
-      "library.reviewer",
-      "library.reviewed_on",
-      "storage.database.sentence",
-      "storage.email.sentence",
-      "storage.website.sentence",
-      "company.legal_name",
-      "company.cin",
-      "company.registered_office",
-      "contact.contact_email",
-      "contact.subject_topics",
-      "ai_work_link_public_sentence",
-    ])
-  })
-
-  test("publicFacts() carries those paths and nothing else -- no nulls, no sources, no Part 1 text, no share URL", () => {
-    const pub = publicFacts(facts)
-    const flat = JSON.stringify(pub)
-    expect(flat).not.toContain("about_this_system")
-    expect(flat).not.toContain("Rely on it")
-    expect(flat).not.toContain('"source"')
-    expect(flat).not.toContain("owner_approved")
-    expect(flat).not.toContain("owner_required")
-    expect(flat).not.toContain("gstin")
-    expect(flat).not.toContain("share_url")
-    expect(flat).not.toContain("null")
-    for (const path of facts.public_fields) {
-      const v = getPath(facts, path)
-      if (v === null) expect(getPath(pub, path)).toBeUndefined()
-      else expect(getPath(pub, path)).toEqual(v)
-    }
-    // Every leaf in the public view is reachable from a listed path.
-    const leaves: string[] = []
-    const walk = (o: unknown, p: string) => {
-      if (o && typeof o === "object" && !Array.isArray(o)) for (const [k, v] of Object.entries(o)) walk(v, p ? `${p}.${k}` : k)
-      else leaves.push(p)
-    }
-    walk(pub, "")
-    for (const leaf of leaves) expect(facts.public_fields.some((f) => leaf === f || leaf.startsWith(f + ".")), `${leaf} is in facts.json but not in public_fields`).toBe(true)
-    expect(pub.brand_line).toBe(facts.brand.full)
+  // Owner, 2026-10-01: /facts.json (and the public_fields list that fed it) is withdrawn.
+  test("there is no public_fields list and no facts.json any more", () => {
+    expect(facts).not.toHaveProperty("public_fields")
+    expect(read("data/veridian-facts.yaml")).not.toMatch(/public_fields|facts\.json/)
+    expect(existsSync(join(APP, "public", "facts.json"))).toBe(false)
   })
 
   test("tab titles are '<prefix> — <page>' (WO-014 §4) and every public page has one", () => {
@@ -178,11 +129,12 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(title("/")).toContain("dpdp compliance management software")
     expect(title("/")).toContain("india")
     expect(desc("/")).toContain("dpdp compliance management software for india")
-    expect(title("/dpdp-firm/")).toContain("ca firms")
-    expect(desc("/dpdp-firm/")).toContain("ca, cs and audit firms")
+    expect(title("/dpdp-firm/")).toContain("ca, cs, audit and legal firms")
+    expect(desc("/dpdp-firm/")).toContain("ca, cs, audit and legal firms")
     expect(desc("/dpdp-firm/")).toContain("13 may 2027")
-    expect(title("/dpdp-institution/")).toContain("schools")
+    expect(title("/dpdp-institution/")).toContain("companies, institutions, schools and ngos")
     expect(desc("/dpdp-institution/")).toContain("schools")
+    expect(desc("/dpdp-institution/")).toContain("13 may 2027")
     expect(desc("/about/")).toContain("13 may 2027")
     expect(desc("/about/")).toContain("dpdp rules 2025")
     for (const p of PUBLIC_PAGES) {
@@ -194,12 +146,13 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     }
   })
 
-  test("one public host: facts.site is the apex, and the app host is not a fact", () => {
+  test("one public host: facts.site is the apex; the app host is never an address in the facts", () => {
     expect(facts.site).toBe("https://veridian-aios.com")
     expect(PUBLIC_ORIGIN).toBe(facts.site)
     expect(facts.company_site).toBe(`${facts.site}/`)
-    expect(JSON.stringify(publicFacts(facts))).not.toContain("dpdp.veridian-aios.com")
-    expect(JSON.stringify(publicFacts(facts))).not.toContain("app.veridian-aios.com")
+    // The owner-approved sentence names dpdp.veridian-aios.com as a plain word; no URL anywhere.
+    expect(JSON.stringify(facts)).not.toContain("https://dpdp.veridian-aios.com")
+    expect(JSON.stringify(facts)).not.toContain("app.veridian-aios.com")
   })
 })
 
@@ -211,10 +164,11 @@ describe("the generator (scripts/generate-public-facts.mjs)", () => {
     for (const [k, v] of a) expect(b.get(k), k).toBe(v)
   })
 
-  test("writes every public and hidden page plus the seven fact files, and nothing under private prefixes", () => {
+  test("writes every public and hidden page plus the fact files, and nothing under private prefixes or the withdrawn AI-only surfaces", () => {
     const files = [...buildOutputs().files.keys()]
     for (const p of [...PUBLIC_PAGES, ...HIDDEN_PAGES]) expect(files).toContain(p.source)
-    for (const f of ["public/for-ai.md", "public/llms.txt", "public/llms-full.txt", "public/facts.json", "public/_headers"]) expect(files).toContain(f)
+    for (const f of ["public/llms.txt", "public/llms-full.txt", "public/_headers"]) expect(files).toContain(f)
+    for (const gone of ["for-ai/index.html", "public/for-ai.md", "public/facts.json"]) expect(files, gone).not.toContain(gone)
     expect(files.some((f) => /^(app|act|unsubscribe|p|copy|ai)\//.test(f))).toBe(false)
   })
 
@@ -223,10 +177,6 @@ describe("the generator (scripts/generate-public-facts.mjs)", () => {
     expect(r.stderr, r.stderr).toBe("")
     expect(r.status).toBe(0)
     expect(r.stdout).toMatch(/OK -- \d+ surfaces match/)
-  })
-
-  test("public/facts.json on disk is exactly publicFacts()", () => {
-    expect(JSON.parse(read("public/facts.json"))).toEqual(publicFacts(loadFacts()))
   })
 
   test("Part 1's §1.3-A text never reaches a Part 2 surface", () => {
@@ -258,7 +208,7 @@ describe("the single published address (owner decision, 2026-09-29): dpdp@veridi
   const RETIRED = [/grievance@veridian-aios\.com/i, /partners@veridian-aios\.com/i]
 
   // Everything a visitor, a crawler or an assistant can be shown: the public
-  // and hidden page sources, the four fact files, and the Next.js edition
+  // and hidden page sources, the llms files, and the Next.js edition
   // landing's footer (the same copy on veridian-aios.com/dpdp). The Hindi
   // landing drafts are unpublished and are checked in drafts.test.ts, the
   // one test file the "nothing in src/ references the drafts" wall exempts.
@@ -266,8 +216,6 @@ describe("the single published address (owner decision, 2026-09-29): dpdp@veridi
     ...[...PUBLIC_PAGES, ...HIDDEN_PAGES].map((p) => p.source),
     "public/llms.txt",
     "public/llms-full.txt",
-    "public/for-ai.md",
-    "public/facts.json",
     "../src/app/dpdp/_components/DpdpMarketingPage.tsx",
   ]
 
@@ -329,6 +277,55 @@ describe("the single published address (owner decision, 2026-09-29): dpdp@veridi
     const tsx = read("../src/app/dpdp/_components/DpdpMarketingPage.tsx")
     expect(tsx).toContain(`Write to <b className="text-white">${ADDRESS}</b> ${subjectTopicsClause(facts)}`)
     expect(tsx).toContain(`Grievance Officer: <b className="text-white">${ADDRESS}</b> (subject: Grievance)`)
+  })
+})
+
+// Owner, 2026-10-01: the public pages must not publish how the site is made.
+describe("no internal-process wording on any public surface", () => {
+  const INTERNAL: Array<[string, RegExp]> = [
+    ["a facts-file version or approval date", /facts version|approved by the owner|owner-approved|owner approved|facts file/i],
+    ["the library version or reviewer", /version 0\.2|wo010|reviewer: not yet recorded|reviewed on: not yet recorded/i],
+    ["a crawl-policy or llms.txt essay", /no major search engine|honesty note|plain note first/i],
+    ["a how-to-describe-us instruction", /how to describe it accurately|for any ai system, crawler or agent/i],
+    ["a withdrawn surface", /for-ai|facts\.json|fact sheet for ai/i],
+  ]
+  const surfaces = (): Array<[string, string]> => [
+    ...PUBLIC_PAGES.map((p) => [p.source, read(p.source)] as [string, string]),
+    ["public/llms.txt", read("public/llms.txt")],
+    ["public/llms-full.txt", read("public/llms-full.txt")],
+  ]
+
+  test("the committed public pages and llms files carry none of it", () => {
+    for (const [rel, body] of surfaces()) for (const [what, re] of INTERNAL) expect(body, `${rel}: ${what}`).not.toMatch(re)
+  })
+
+  // View-source is public too: no descriptive HTML comment (work-order numbers, file paths, "generated from ...") on a public or hidden page.
+  // Only the BEGIN/END generated markers and the Cloudflare email_off markers may remain.
+  const strayComments = (html: string) => (html.match(/<!--[\s\S]*?-->/g) ?? []).filter((c) => !/^<!--\s*(?:(?:BEGIN|END) generated: [a-z-]+|\/?email_off)\s*-->$/.test(c))
+
+  test("public and hidden pages carry no descriptive HTML comment", () => {
+    for (const p of [...PUBLIC_PAGES.map((x) => x.source), "proof/index.html"]) expect(strayComments(read(p)), p).toEqual([])
+  })
+
+  test("the comment check catches a planted one", () => {
+    expect(strayComments("<p>x</p><!-- WO-DPDP-012 §1: generated from data/veridian-facts.yaml -->")).toHaveLength(1)
+    expect(strayComments("<!-- BEGIN generated: facts --><!--email_off-->a<!--/email_off--><!-- END generated: facts -->")).toEqual([])
+  })
+
+  test("the checker catches each kind (a planted sentence is found)", () => {
+    for (const [what, re] of INTERNAL) {
+      const planted = { 0: "Facts version 2, approved by the owner on 2026-10-01.", 1: "Version 0.2-wo010: 50 jobs.", 2: "A plain note first: no major search engine has confirmed it.", 3: "How to describe it accurately", 4: "See /for-ai/ and /facts.json." }[INTERNAL.findIndex(([w]) => w === what)]!
+      expect(planted, what).toMatch(re)
+    }
+  })
+
+  test("the heading and copy of the fact block are the owner's, on every public page", () => {
+    for (const p of PUBLIC_PAGES) {
+      const html = read(p.source)
+      expect(html, p.source).toContain('<h2 class="facts-title" id="facts-title">What VERIDIAN (VERy Indian) is</h2>')
+      expect(html, p.source).toContain("<b>Who it is for:</b> CA, CS, audit and legal firms · their clients · companies, institutions, schools and NGOs")
+      expect(html, p.source).toContain('<p class="facts-links"><a href="/about/">About VERIDIAN</a></p>')
+    }
   })
 })
 

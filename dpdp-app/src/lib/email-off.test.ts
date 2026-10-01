@@ -1,9 +1,9 @@
 /// <reference types="bun-types" />
 // Cloudflare Pages ("Email Address Obfuscation", a Scrape Shield default) rewrites every visible e-mail address in an HTML response to the words
 // "[email protected]" and a link to /cdn-cgi/l/email-protection, decoded only by a script. A reader that runs no JavaScript -- a crawler, an AI
-// fetcher, a locked-down browser -- is then told nothing about how to reach us; on /for-ai/, the page written for AIs, that is the one job the page
+// fetcher, a locked-down browser -- is then told nothing about how to reach us; on the About page, that is the one job the page
 // has. Text between <!--email_off--> and <!--/email_off--> is left alone (Cloudflare drops the comments from what it serves). Found live on
-// 2026-09-30 on /about/, /for-ai/, /dpdp-firm/, /dpdp-institution/ and /proof/; a string search for "[email protected]" in our own files can never
+// 2026-09-30 on /about/, /dpdp-firm/, /dpdp-institution/ and /proof/; a string search for "[email protected]" in our own files can never
 // find it, because the rewrite happens at the edge. So the rule is pinned here, against the SOURCE of every page and the /original/ page:
 // an address in visible markup must sit inside an email_off region. (An address inside <script> -- the JSON-LD -- is not touched by Cloudflare.)
 import { describe, expect, test } from "bun:test"
@@ -57,7 +57,7 @@ describe("no visible e-mail address is left for Cloudflare to hide", () => {
   })
 
   test("the generated pages really do carry the marker (guards the generator, not just today's files)", () => {
-    for (const rel of ["about/index.html", "for-ai/index.html", "dpdp-firm/index.html", "dpdp-institution/index.html"]) {
+    for (const rel of ["about/index.html", "dpdp-firm/index.html", "dpdp-institution/index.html"]) {
       const html = read(rel)
       expect(html, rel).toContain("<!--email_off-->Write to")
       expect(html, rel).toContain("<!--email_off-->Grievance Officer:")

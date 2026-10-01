@@ -10,6 +10,7 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
+  FACTS,
   FOOTER_LINKS,
   OG_IMAGE,
   PRIVATE_PAGES,
@@ -59,8 +60,8 @@ describe("public-surface.mjs: the one list", () => {
 
   test("the edition landings are public on the Next.js host too (src/lib/dpdp-public-surface.ts)", () => {
     const nextJsAllow: readonly string[] = DPDP_PUBLIC_ALLOW
-    // Only the edition landings exist on both hosts. /about/ and /for-ai/
-    // (WO-DPDP-013 v2) are generated on this static host only.
+    // Only the edition landings exist on both hosts. /about/
+    // (WO-DPDP-013 v2) is generated on this static host only.
     const landings = PUBLIC_PAGES.filter((p) => p.path.startsWith("/dpdp-"))
     expect(landings.map((p) => p.path)).toEqual(["/dpdp-firm/", "/dpdp-institution/"])
     for (const pub of landings) expect(nextJsAllow).toContain(pub.path.replace(/\/$/, ""))
@@ -106,11 +107,18 @@ describe("two origins, one bundle (SEO canonical host)", () => {
     expect(pageUrl("/")).toBe("https://veridian-aios.com/")
   })
 
-  test("no public page source, llms file, facts.json or for-ai.md names the app host", () => {
-    for (const host of [new URL(SITE_ORIGIN).host, new URL(LEGACY_APP_ORIGIN).host]) {
-      for (const rel of [...PUBLIC_PAGES.map((p) => p.source), "public/llms.txt", "public/llms-full.txt", "public/facts.json", "public/for-ai.md", "public/robots.txt"]) {
-        expect(read(rel), `${rel} names ${host}`).not.toContain(host)
-      }
+  // The owner-approved product sentence ("dpdp.veridian-aios.com is Indian
+  // software ...") names the dpdp. host as a plain word on every page, so the
+  // rule for that host is "never as an address": no `//host`, no `host/`. The
+  // legacy app. host is named nowhere at all.
+  test("no public page source, llms file or robots.txt links to the app host or names the legacy host", () => {
+    const current = new URL(SITE_ORIGIN).host
+    const legacy = new URL(LEGACY_APP_ORIGIN).host
+    for (const rel of [...PUBLIC_PAGES.map((p) => p.source), "public/llms.txt", "public/llms-full.txt", "public/robots.txt"]) {
+      const body = read(rel)
+      expect(body, `${rel} links to ${current}`).not.toContain(`//${current}`)
+      expect(body, `${rel} links to ${current}/`).not.toContain(`${current}/`)
+      expect(body, `${rel} names ${legacy}`).not.toContain(legacy)
     }
   })
 
@@ -203,13 +211,63 @@ describe("sitemap renderer (WO-012 §1: public pages only, real lastmod)", () =>
 
 describe("public/llms.txt and llms-full.txt (WO-012 §3: honest, existing pages only)", () => {
   for (const file of ["public/llms.txt", "public/llms-full.txt"]) {
-    test(`${file} lists every public page, links no private page, and says nobody has confirmed reading it`, () => {
+    test(`${file} lists every public page, links no private page, and carries no crawl-policy essay`, () => {
       const text = read(file)
       for (const pub of PUBLIC_PAGES) expect(text).toContain(pageUrl(pub.path))
       for (const priv of PRIVATE_PAGES) expect(text).not.toContain(pageUrl(priv.prefix))
-      expect(text).toMatch(/no major search engine has confirmed/i)
+      // Owner, 2026-10-01: nothing about what search engines have or have not confirmed.
+      expect(text).not.toMatch(/no major search engine has confirmed/i)
+      expect(text).not.toMatch(/\bhonest|plain note\b/i)
     })
   }
+
+  test("public/llms.txt is short: the home page's own facts, the list of pages, the contact, nothing internal", () => {
+    const text = read("public/llms.txt")
+    expect(text.split("\n").length).toBeLessThan(60)
+    expect(text).toContain(FACTS.one_line)
+    for (const banned of [/facts file/i, /approved/i, /version \d/i, /\bowner\b/i, /library/i, /reviewer/i, /signed-in app/i, /No prices are published/i]) expect(text, String(banned)).not.toMatch(banned)
+  })
+})
+
+// Owner decision 2026-10-01: the public fact sheet for AI systems, its plain
+// text twin and facts.json published internal detail, so they are gone, and no
+// public surface names them.
+describe("withdrawn surfaces: /for-ai/, /for-ai.md, /facts.json", () => {
+  test("the files do not exist and are not in the page lists", () => {
+    for (const rel of ["for-ai/index.html", "public/for-ai.md", "public/facts.json"]) expect(existsSync(join(root, rel)), rel).toBe(false)
+    expect(PUBLIC_PAGES.some((p) => p.path === "/for-ai/")).toBe(false)
+    expect(FOOTER_LINKS).toEqual([["/about/", "About VERIDIAN"]])
+  })
+
+  test("no public page, llms file, robots.txt, _headers or sitemap names them", () => {
+    const sitemap = renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
+    const surfaces: Array<[string, string]> = [...PUBLIC_PAGES.map((p) => [p.source, read(p.source)] as [string, string]), ["public/llms.txt", read("public/llms.txt")], ["public/llms-full.txt", read("public/llms-full.txt")], ["public/robots.txt", read("public/robots.txt")], ["sitemap.xml", sitemap]]
+    for (const [rel, body] of surfaces) {
+      expect(body, `${rel} names /for-ai`).not.toMatch(/for-ai/i)
+      expect(body, `${rel} names facts.json`).not.toMatch(/facts\.json/i)
+      expect(body, `${rel} names the fact sheet for AI systems`).not.toMatch(/fact sheet for ai/i)
+    }
+  })
+})
+
+describe("the home page offers exactly two ways in (owner, 2026-10-01)", () => {
+  const html = read("index.html")
+  const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
+  const choices = [...main.matchAll(/<a class="choice" href="([^"]*)">([\s\S]*?)<\/a>/g)].map((m) => ({ href: m[1], text: m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() }))
+
+  test("two big choice cards, with exactly these labels and targets", () => {
+    expect(choices).toEqual([
+      { href: "/dpdp-firm/", text: "🧑‍⚖️ I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS" },
+      { href: "/dpdp-institution/", text: "🏭 I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES" },
+    ])
+  })
+
+  test("no third option or secondary chooser link: the only other link in the page body is the sign-in and About", () => {
+    const hrefs = [...main.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1])
+    expect(hrefs.sort()).toEqual(["/about/", "/app/", "/dpdp-firm/", "/dpdp-institution/"].sort())
+    expect(main).not.toMatch(/school instead/i)
+    expect(main).not.toContain("?for=")
+  })
 })
 
 describe("page sources", () => {

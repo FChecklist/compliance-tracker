@@ -10,8 +10,8 @@
 //
 // What is scanned (every public surface in dist/, plus the hidden /proof/):
 // each public page's visible text, <title>, meta description, Open Graph
-// content and every string inside its JSON-LD; /for-ai.md; /llms.txt;
-// /llms-full.txt; /facts.json (every string value).
+// content and every string inside its JSON-LD; /llms.txt;
+// /llms-full.txt.
 //
 // The rule: a sentence containing a banned word (data/claims-register.yaml
 // `banned_words`, whole-word, case-insensitive; "#1", "100%" and "Made in
@@ -84,7 +84,7 @@ export function fileTexts(name, body) {
 /** The surfaces to scan, relative to dist/: every public page, every hidden
  * page, and the four non-HTML fact files. */
 export function surfaceFiles() {
-  return [...PUBLIC_PAGES.map((p) => p.source), ...HIDDEN_PAGES.map((p) => p.source), "for-ai.md", "llms.txt", "llms-full.txt", "facts.json"]
+  return [...PUBLIC_PAGES.map((p) => p.source), ...HIDDEN_PAGES.map((p) => p.source), "llms.txt", "llms-full.txt"]
 }
 
 /**
