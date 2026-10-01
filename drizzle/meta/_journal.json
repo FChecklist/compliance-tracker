@@ -3521,6 +3521,13 @@
       "idx": 504,
       "version": "7",
       "when": 1790490000000,
+      "tag": "0675_awl_first_user_self_heal",
+      "breakpoints": true
+    },
+    {
+      "idx": 505,
+      "version": "7",
+      "when": 1790491000000,
       "tag": "0673_dpdp_razorpay_sales_lifecycle",
       "breakpoints": true
     }
