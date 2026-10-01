@@ -32,6 +32,20 @@ export interface SalesPartner {
   sections: PartnerSection[]
 }
 
+export interface AiAssistant {
+  owner_approved: boolean
+  source: string
+  nav_label: string
+  button: string
+  heading: string
+  tagline: string
+  home_line: string
+  home_more: string
+  lead: string
+  sign_in_note: string
+  sections: PartnerSection[]
+}
+
 export interface Facts {
   version: 2
   owner_approved: true
@@ -68,6 +82,7 @@ export interface Facts {
   contact: { owner_approved: boolean; address_approved_on: string; source: string; contact_email: string; subject_topics: string[] }
   ai_work_link_public_sentence: string
   sales_partner: SalesPartner
+  ai_assistant: AiAssistant
   pages: Record<string, FactPage> & { owner_approved: boolean }
   proof: { enabled: boolean; content: string }
 }
