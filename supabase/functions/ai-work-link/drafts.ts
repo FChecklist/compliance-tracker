@@ -21,7 +21,7 @@
 import { cleanDeep, errorBody } from "../_shared/ai-link/core.ts"
 import { functionDef } from "./api-definition.ts"
 import { readConfirmBody, personGate, sessionGate, type ConfirmDeps } from "./confirm.ts"
-import { availabilityOf, callRpc, checkChange, fail, readIntent, requireScope, type ExecOutcome, type ReadEnv } from "./reads.ts"
+import { availabilityOf, callRpc, checkChange, fail, projectArg, readIntent, requireScope, type ExecOutcome, type ReadEnv } from "./reads.ts"
 
 export type Answer = { status: number; body: unknown; headers?: Record<string, string> }
 
@@ -58,7 +58,8 @@ type Recorded = {
 }
 
 async function recordIntent(env: ReadEnv, kind: "draft" | "action", fn: string, params: Record<string, unknown>, key: string | null): Promise<Recorded> {
-  const data = (await callRpc(env.rpc, "ai_work_link_record_intent", { p_token: env.token, p_kind: kind, p_function_id: fn, p_params: params, p_idempotency_key: key })) as Recorded | null
+  // a link made for a person names the project the change belongs to (the bound project of /projects/{id}/drafts); with none, only create_project can be recorded
+  const data = (await callRpc(env.rpc, "ai_work_link_record_intent", { p_token: env.token, p_kind: kind, p_function_id: fn, p_params: params, p_idempotency_key: key, ...projectArg(env) })) as Recorded | null
   if (!data || typeof data.intent_id !== "string" || typeof data.status !== "string") throw fail(500, "Something failed on our side. Try again in a minute.")
   return data
 }
@@ -129,7 +130,19 @@ const NEXT: Record<string, string> = {
 export async function draftGet(env: ReadEnv, id: string): Promise<Record<string, unknown>> {
   const doc = await readIntent(env, id)
   if (doc.kind !== "draft") throw fail(404, "No such draft on this link.")
-  return { draft_id: id, ...doc, next: NEXT[String(doc.status)] ?? "" }
+  const base = { draft_id: id, ...doc, next: NEXT[String(doc.status)] ?? "" }
+  // a new project: once it is made, the AI is told its id and where to continue (a link made for a person reaches it at /projects/{id}/...)
+  const result = doc.result && typeof doc.result === "object" ? (doc.result as { id?: unknown }) : null
+  if (doc.function_id === "create_project" && doc.status === "done" && typeof result?.id === "string" && result.id !== "") {
+    const root = env.base.replace(/\/projects\/[^/]+$/, "")
+    return {
+      ...base,
+      next: "The project was created and you can work in it now.",
+      project: { id: result.id },
+      continue_at: `${root}/projects/${encodeURIComponent(result.id)}/context`,
+    }
+  }
+  return base
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

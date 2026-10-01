@@ -78,12 +78,17 @@ describe("drizzle/0651 on PGlite over 0621 to 0628, 0644, 0643, 0650, 0647, 0648
     expect(kindsBefore).toHaveLength(33)
   })
 
-  test("the seeded rows are exactly the generated JSON, row by row (the seed and the Edge Function's registry cannot differ)", () => {
+  // 0651 is no longer the current seed: 0669 moved create_project to level 2, so the generated JSON differs from 0651 in that one row (0669's own test and the
+  // seed test of migrations.pglite compare the CURRENT seed with the JSON, row by row)
+  test("the seeded rows are the generated JSON, row by row, except create_project (which 0669 moved to level 2)", () => {
     type FnJson = { function_id: string; kind: string; link_level: number | null; money_sensitive: boolean; min_role_rank: number; excluded_reason: string | null; text_params: string[] }
     const json = (JSON.parse(read("supabase/functions/ai-work-link/function-registry.generated.json")) as FnJson[]).map((f) => ({
       function_id: f.function_id, link_level: f.link_level, money_sensitive: f.money_sensitive, min_role_rank: f.min_role_rank, text_params: f.text_params, excluded_reason: f.excluded_reason,
     }))
-    expect(after).toEqual(json)
+    const but = (rows: Array<{ function_id: string }>) => rows.filter((r) => r.function_id !== "create_project")
+    expect(but(after)).toEqual(but(json))
+    expect(after.find((f) => f.function_id === "create_project")).toMatchObject({ link_level: null, min_role_rank: 0 })
+    expect(json.find((f) => f.function_id === "create_project")).toMatchObject({ link_level: 2, min_role_rank: 2 })
   })
 
   test("the version function reads the hash in the migration's header and is executable by service_role alone", async () => {

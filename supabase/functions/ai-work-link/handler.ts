@@ -22,12 +22,16 @@
 // BUILT IN BUILD-002 WP-09a (drafts.ts, one dispatch line each): POST /drafts, GET /drafts/{id}, GET|POST /drafts/{id}/preview (a session), and
 //   POST /actions, which refuses with the true reason while the switch is off and claims and runs an intent once the exec function is wired.
 //
+// THE USER-WIDE LINK (drizzle/0668): a link of scope `user` belongs to a person, not to a project. Its context has a null project until a route binds one: GET /projects
+// and GET /portfolio list and report, and /projects/{id}/<endpoint> answers as <endpoint> does, inside that project (bindProject: the database re-checks the project now,
+// and any project that does not bind is a 404). Outside a project it may only draft create_project; everything else is 400 PROJECT_REQUIRED. POST /user-link (mint.ts) makes it.
+//
 // The token is never logged and never echoed: log lines carry a route name and a status only, and errorBody scrubs anything token-shaped.
 import {
   CORS_PREFLIGHT_HEADERS, LIMITS, LINK_GONE, NO_QUERY_TOKEN, contentTypeFor, errorBody, hasQueryToken, isRateLimited, linkBase, negotiateFormat, paginate,
   parseTarget, privateHeaders, relativePathOf, remainingCalls, throttleAddress, tokenFromHeaders, uaFamilyOf, type Format,
 } from "../_shared/ai-link/core.ts"
-import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, bodyLimitFor, functionDef, kb, matchEndpoint, type EndpointId } from "./api-definition.ts"
+import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, USER_LEVEL_IDS, bodyLimitFor, functionDef, kb, matchEndpoint, underlyingOf, type EndpointId } from "./api-definition.ts"
 import { renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
 import { handleConfirm } from "./confirm.ts"
 import { actionCreate, draftCreate, draftGet, draftPreview } from "./drafts.ts"
@@ -35,11 +39,11 @@ import { handleMcp, type McpReads } from "./mcp.ts"
 import { handleMint, isMintRoute } from "./mint.ts"
 import { buildOpenApi, buildSwagger } from "./openapi.ts"
 import {
-  AwlError, availabilityOf, checkChange, effectiveFunctionViews, fail, proposeChange, readContext, readHistory, readIntent, readRecord, readRecords, requireScope,
-  resolveLink, searchRecords, fetchRecord, type AwlConfig, type ExecClient, type ReadEnv, type Rpc,
+  AwlError, availabilityOf, checkChange, effectiveFunctionViews, fail, proposeChange, readContext, readHistory, readIntent, readPortfolio, readProjects, readRecord, readRecords,
+  requireScope, resolveInProject, resolveLink, searchRecords, fetchRecord, type AwlConfig, type ExecClient, type LinkCtx, type ReadEnv, type Rpc,
 } from "./reads.ts"
 import type { SessionVerifier } from "./session.ts"
-import { contextMarkdown, functionsMarkdown, historyMarkdown, intentMarkdown, proposalMarkdown, recordMarkdown, recordsCsv, recordsMarkdown } from "./render.ts"
+import { contextMarkdown, functionsMarkdown, historyMarkdown, intentMarkdown, portfolioMarkdown, projectsMarkdown, proposalMarkdown, recordMarkdown, recordsCsv, recordsMarkdown } from "./render.ts"
 
 export type { AwlConfig, Rpc } from "./reads.ts"
 
@@ -102,6 +106,7 @@ const APP_ROUTES: ReadonlyArray<{ pattern: string[]; methods: string[] }> = [
   { pattern: ["links", ":id", "revoke"], methods: ["POST"] },
   { pattern: ["warning"], methods: ["GET", "POST"] },
   { pattern: ["new-project"], methods: ["POST"] },
+  { pattern: ["user-link"], methods: ["POST"] },
   { pattern: ["drafts", ":id", "preview"], methods: ["GET", "POST"] },
   { pattern: ["drafts", ":id", "confirm"], methods: ["POST"] },
 ]
@@ -278,6 +283,8 @@ function readsNotOpen(env: ReadEnv): AwlError | null {
  */
 async function runFunctionRead(env: ReadEnv, fn: string, params: Record<string, unknown>): Promise<Out> {
   const { ctx } = env
+  // a read runs in a project: a link for a person has one only inside /projects/{id}/ (the router refuses it outside)
+  if (ctx.project_id === null) throw fail(400, "Choose a project first.", "GET /projects lists the person's projects; then POST /projects/{id}/functions/{fn}.", { code: "PROJECT_REQUIRED" })
   let out
   try {
     out = await (env.exec as ExecClient & { read: NonNullable<ExecClient["read"]> }).read({
@@ -294,9 +301,50 @@ async function runFunctionRead(env: ReadEnv, fn: string, params: Record<string, 
   throw fail(out.http, why, out.missing.length ? `Missing or wrong: ${out.missing.join(", ")}.` : undefined, { code: out.code, ...(out.missing.length ? { missing: out.missing } : {}) })
 }
 
+const PROJECT_ID_RE = /^[A-Za-z0-9_.:-]{1,128}$/
+
+/**
+ * The env of ONE project of this link: for a link made for a person the database binds the project now (organisation and readability re-checked, 404 for
+ * any project that does not bind, whatever the reason); a link made for one project accepts its own project's id and nothing else (404). The bound
+ * env's base is `<base>/projects/<id>`, so every address the answers build (next pages, draft status) stays inside the project.
+ */
+async function bindProject(env: ReadEnv, projectId: string): Promise<ReadEnv> {
+  if (!PROJECT_ID_RE.test(projectId)) throw fail(404, "Not found")
+  let ctx: LinkCtx
+  if (env.ctx.scope === "user") {
+    if (env.ctx.project_id !== null) throw fail(404, "Not found")
+    ctx = await resolveInProject(env.rpc, env.token, projectId)
+  } else if (env.ctx.project_id === projectId) {
+    ctx = env.ctx
+  } else {
+    throw fail(404, "Not found")
+  }
+  return { ...env, ctx, base: `${env.base}/projects/${encodeURIComponent(projectId)}` }
+}
+
 async function route(id: EndpointId, params: Record<string, string>, req: Request, url: URL, env: ReadEnv): Promise<Out> {
+  const inner = underlyingOf(id)
+  if (inner !== null) {
+    const { pid, ...rest } = params
+    return await route(inner, rest, req, url, await bindProject(env, pid))
+  }
+  if ((id === "projects" || id === "portfolio") && (env.ctx.scope !== "user" || env.ctx.project_id !== null)) {
+    throw fail(403, "This needs a link for all of a person's projects.", "This link is for one project.", { code: "USER_LINK_REQUIRED" })
+  }
+  // a link for a person has no project until it names one: what needs a project is refused with the way to choose one, not answered from nothing
+  if (env.ctx.scope === "user" && env.ctx.project_id === null && !USER_LEVEL_IDS.has(id)) {
+    throw fail(400, "Choose a project first.", "GET /projects lists the person's projects; then use /projects/{id}/records/{kind}, /projects/{id}/context and the rest.", { code: "PROJECT_REQUIRED" })
+  }
   const { ctx, config } = env
   switch (id) {
+    case "projects": {
+      const doc = await readProjects(env, url.searchParams.get("limit"))
+      return formatOf(req, url, ["md", "json"]) === "json" ? json(200, doc) : text("md", projectsMarkdown(doc))
+    }
+    case "portfolio": {
+      const doc = await readPortfolio(env)
+      return formatOf(req, url, ["md", "json"]) === "json" ? json(200, doc) : text("md", portfolioMarkdown(doc))
+    }
     case "manual": {
       const f = formatOf(req, url, ["md", "json"])
       return f === "json" ? json(200, renderManualJson(manualInput(env))) : text("md", renderManualMarkdown(manualInput(env)))
@@ -369,15 +417,23 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
     }
     case "mcp":
     case "mcp_path": {
+      // every tool may name a project (list_projects gives the ids): the project is bound per call, exactly like /projects/{id}/..., so one connection
+      // works in any of the person's projects and a project that does not bind is the one 404
+      const at = async (project: string | undefined): Promise<ReadEnv> => (project ? await bindProject(env, project) : env)
       const reads: McpReads = {
-        context: () => readContext(env),
-        records: (k, q) => readRecords(env, k, q),
-        record: (k, i) => readRecord(env, k, i),
+        projects: (limit) => readProjects(env, limit),
+        portfolio: () => readPortfolio(env),
+        context: async (p) => readContext(await at(p)),
+        records: async (k, q, p) => readRecords(await at(p), k, q),
+        record: async (k, i, p) => readRecord(await at(p), k, i),
         history: (l) => readHistory(env, l),
-        search: (q) => searchRecords(env, q),
-        fetch: (i) => fetchRecord(env, i),
-        check: (fn, p) => checkChange({ ctx, config }, fn, p),
-        propose: (fn, p) => proposeChange({ ctx, config, token: env.mode === "path" ? env.token : null }, fn, p),
+        search: async (q, p) => searchRecords(await at(p), q),
+        fetch: async (i, p) => fetchRecord(await at(p), i),
+        check: async (fn, params, p) => checkChange(await at(p), fn, params),
+        propose: async (fn, params, p) => {
+          const e = await at(p)
+          return proposeChange({ ctx: e.ctx, config, token: env.mode === "path" ? env.token : null }, fn, params)
+        },
       }
       const res = await handleMcp({ headers: req.headers, bodyText: await req.text() }, reads)
       return res.body === null ? { status: res.status, contentType: null, body: null } : json(res.status, res.body)
@@ -394,5 +450,8 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
       const doc = await draftGet(env, params.id)
       return formatOf(req, url, ["md", "json"]) === "json" ? json(200, doc) : text("md", intentMarkdown(doc))
     }
+    default:
+      // a /projects/{pid}/... id was resolved to its endpoint above; nothing else reaches here
+      throw fail(404, "No such path")
   }
 }

@@ -15,6 +15,9 @@
 //   about/index.html          the full facts for people
 //   partner/index.html        the Sales Partner page (the public face of the
 //                             in-app Refer & Earn), from facts.sales_partner
+//   ai-assistant/index.html   the free AI assistant page, from facts.ai_assistant
+//                             (the home page's highlight is the generated block
+//                             "ai-assistant" in index.html)
 //   proof/index.html          from data/proof.yaml; noindex + hidden until
 //                             facts.proof.enabled is true
 //   public/llms.txt           short: what the home page says, plus the list of
@@ -26,7 +29,8 @@
 //   index.html, dpdp-firm/index.html, dpdp-institution/index.html
 //                             ONLY between the marker comments
 //                             <!-- BEGIN generated: X --> ... <!-- END generated: X -->
-//                             (X = brand-line, facts), plus <title>, the meta
+//                             (X = brand-line, facts, footer-links, and on the home
+//                             page ai-assistant), plus <title>, the meta
 //                             description, og:title / og:description and the
 //                             Organization + WebSite + SoftwareApplication +
 //                             BreadcrumbList nodes of the JSON-LD (a landing's
@@ -51,7 +55,7 @@ import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
-import { FOOTER_LINKS, HIDDEN_PAGES, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
+import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
 
@@ -275,13 +279,15 @@ function head(facts, { path, title, description, nodes, hidden = false }) {
   return lines.map((l) => "    " + l).join("\n")
 }
 
-/** The top-right of the header on every public page: "Sales Partner" (the
- * page that explains Refer & Earn) next to "Sign in" (owner, 2026-10-01). The
- * three hand-kept pages (/, /dpdp-firm/, /dpdp-institution/) carry the same two
- * links in their own headers; src/lib/public-surface.test.ts proves they agree. */
+/** The top-right of the header on every public page: the "Free AI assistant"
+ * pill, then "Sales Partner" (the page that explains Refer & Earn), then "Sign in"
+ * (owner, 2026-10-01). The three hand-kept pages (/, /dpdp-firm/,
+ * /dpdp-institution/) carry the same links in their own headers;
+ * src/lib/public-surface.test.ts proves they agree. */
 function navActions(current) {
   return [
     `<div class="nav-actions">`,
+    `  <a class="nav-ai"${current === NAV_AI.href ? ' aria-current="page"' : ""} href="${NAV_AI.href}">${esc(NAV_AI.label)}</a>`,
     `  <a class="nav-partner"${current === NAV_PARTNER.href ? ' aria-current="page"' : ""} href="${NAV_PARTNER.href}">${esc(NAV_PARTNER.label)}</a>`,
     `  <a class="nav-signin" href="${NAV_SIGN_IN.href}">${esc(NAV_SIGN_IN.label)}</a>`,
     `</div>`,
@@ -454,6 +460,51 @@ function partnerPage(facts) {
     body,
   })
 }
+// ---------------------------------------------------------- /ai-assistant/
+// 2026-10-01 (owner): the free AI assistant. The "assistant" is the person's own
+// AI, opened with their personal AI work link; we run no model for it. Plain
+// English, short sentences, the real rules only (data/veridian-facts.yaml,
+// ai_assistant). The button opens the sign-in, /app/. No address, path or token
+// of the link itself appears (the wall, scripts/check-two-doors.mjs).
+function aiAssistantPage(facts) {
+  const ai = facts.ai_assistant
+  const button = `<a class="btn" href="/app/">${esc(ai.button)}</a>`
+  const body = [
+    `<main class="container facts-page">`,
+    `  <h1>${esc(ai.heading)}</h1>`,
+    `  <p class="lead lead-strong">${esc(ai.tagline)}</p>`,
+    `  <p class="lead">${esc(ai.lead)}</p>`,
+    `  <p class="partner-cta">${button}</p>`,
+    `  <p class="partner-note">${esc(ai.sign_in_note)}</p>`,
+    sectionsHtml([...ai.sections, { h2: "Contact", bullets: contactBullets(facts) }]),
+    `  <p class="partner-cta">${button}</p>`,
+    `  <!-- BEGIN generated: facts -->`,
+    indent(factBlock(facts), 2),
+    `  <!-- END generated: facts -->`,
+    `</main>`,
+  ].join("\n")
+  return page(facts, {
+    path: "/ai-assistant/",
+    description: pageDescription(facts, "/ai-assistant/"),
+    nodes: pageNodes(facts, "/ai-assistant/"),
+    shareAsk: true,
+    body,
+  })
+}
+
+/** The highlight on the home page, between the two ways in and "Already have an
+ * account?": the heading, one line, a button to the sign-in and a link to the page. */
+function homeAiSection(facts) {
+  const ai = facts.ai_assistant
+  return [
+    `<section class="ai-highlight" aria-labelledby="ai-highlight-title">`,
+    `  <h2 class="ai-highlight-title" id="ai-highlight-title">${esc(ai.heading)}</h2>`,
+    `  <p class="ai-highlight-tagline">${esc(ai.tagline)}</p>`,
+    `  <p class="ai-highlight-line">${esc(ai.home_line)}</p>`,
+    `  <p class="ai-highlight-actions"><a class="btn btn-sm" href="/app/">${esc(ai.button)}</a> <a class="ai-highlight-more" href="${NAV_AI.href}">${esc(ai.home_more)}</a></p>`,
+    `</section>`,
+  ].join("\n")
+}
 // ---------------------------------------------------------------- /proof/
 function proofPage(facts, proof) {
   const hidden = !facts.proof.enabled
@@ -553,6 +604,7 @@ export function applyToLanding(facts, html, path, file) {
   out = out.slice(0, block.index) + jsonLdScript(nodes) + out.slice(block.index + block[0].length)
 
   out = replaceBetween(out, "brand-line", brandLine(facts, { shareAsk: true }), file)
+  if (path === "/") out = replaceBetween(out, "ai-assistant", homeAiSection(facts), file)
   out = replaceBetween(out, "facts", factBlock(facts, { compact: path === "/" }), file)
   out = replaceBetween(out, "footer-links", footerLinks(), file)
   return out
@@ -635,6 +687,7 @@ export function buildOutputs() {
   for (const [source, html] of landings) files.set(source, html)
   files.set("about/index.html", aboutPage(facts))
   files.set("partner/index.html", partnerPage(facts))
+  files.set("ai-assistant/index.html", aiAssistantPage(facts))
   files.set("proof/index.html", proofPage(facts, proof))
   files.set("public/llms.txt", llmsTxt(facts))
 

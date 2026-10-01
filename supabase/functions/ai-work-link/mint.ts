@@ -6,6 +6,7 @@
 //   POST /links/{id}/revoke         revoke one
 //   GET|POST /warning?level=&project=   the true warning sentence for the current state
 //   POST /new-project               "New project with my AI": a shell project and a level 0 link for the same person, in one action
+//   POST /user-link                 a link for ALL the person's projects (drizzle/0668): level 0 for ever, no project, params days and label only
 //
 // ORDER OF CHECKS, each before anything is written
 //   no Bearer, or a link token as Bearer (401) -> the session token (401; 503 when a key set cannot be read)
@@ -67,7 +68,7 @@ const TOKEN_RE = /^pxa_[0-9a-f]{64}$/
 const NOT_LINKED_REASONS = new Set(["not_linked", "deactivated", "ambiguous"])
 const DAYS = [1, 7, 30]
 
-export type MintRoute = "mint" | "links" | "revoke" | "warning" | "new-project"
+export type MintRoute = "mint" | "links" | "revoke" | "warning" | "new-project" | "user-link"
 
 /** Which of this file's routes an app path is, or null (drafts and everything else belong to other files). */
 export function mintRouteOf(route: string[]): MintRoute | null {
@@ -76,6 +77,7 @@ export function mintRouteOf(route: string[]): MintRoute | null {
   if (route.length === 3 && route[0] === "links" && route[2] === "revoke") return "revoke"
   if (route.length === 1 && route[0] === "warning") return "warning"
   if (route.length === 1 && route[0] === "new-project") return "new-project"
+  if (route.length === 1 && route[0] === "user-link") return "user-link"
   return null
 }
 
@@ -230,9 +232,12 @@ function parseMintBody(body: Record<string, unknown>): { ok: true; value: MintAr
 function mintedBody(config: AwlConfig, created: unknown): Record<string, unknown> | null {
   if (!isObject(created) || typeof created.token !== "string" || !TOKEN_RE.test(created.token) || typeof created.link_id !== "string") return null
   const token = created.token
-  const inbox = config.confirmHost === DEFAULT_CONFIRM_HOST ? null : `https://${config.confirmHost}/ai-inbox.html#t=${token}`
+  const user = created.scope === "user"
+  // the inbox page is the paste-back page of ONE project's link: a link for a person has none
+  const inbox = user || config.confirmHost === DEFAULT_CONFIRM_HOST ? null : `https://${config.confirmHost}/ai-inbox.html#t=${token}`
   return {
     link_id: created.link_id,
+    ...(user ? { scope: "user" } : {}),
     level: created.level,
     allowed_functions: created.allowed_functions,
     hide_personal: created.hide_personal,
@@ -245,7 +250,7 @@ function mintedBody(config: AwlConfig, created: unknown): Record<string, unknown
   }
 }
 
-const LINK_FIELDS = ["id", "project_id", "project_name", "label", "level", "allowed_functions", "hide_personal", "created_at", "expires_at", "revoked_at", "last_used_at", "call_count", "write_count", "active"]
+const LINK_FIELDS = ["id", "scope", "project_id", "project_name", "label", "level", "allowed_functions", "hide_personal", "created_at", "expires_at", "revoked_at", "last_used_at", "call_count", "write_count", "active"]
 const WARNING_FIELDS = ["project", "lines", "tasks", "people", "money_visible", "level", "can_record", "writes_enabled", "rank", "max_level", "functions", "sentence"]
 
 function pick(row: Record<string, unknown>, fields: string[]): Record<string, unknown> {
@@ -265,12 +270,13 @@ type Parsed =
   | { kind: "revoke"; id: string }
   | { kind: "warning"; project: string; level: number }
   | { kind: "new-project"; product: string | null; days: number }
+  | { kind: "user-link"; days: number; label: string | null }
 
 type Who = { sub: string; email: string | null; issuer: string; iat: number | null }
 
 /** The session, a fresh one for the two routes that create a credential, and the per-person brake. */
 async function gate(req: Request, kind: MintRoute, deps: MintDeps, log: (l: string) => void, at: number): Promise<{ ok: true; who: Who } | { ok: false; out: MintAnswer }> {
-  const creates = kind === "mint" || kind === "new-project"
+  const creates = kind === "mint" || kind === "new-project" || kind === "user-link"
   // 1. THE SESSION ------------------------------------------------------------------------------------------------------------------
   const bearer = bearerOf(req)
   if (!bearer || bearer.startsWith("pxa_")) {
@@ -337,6 +343,18 @@ async function parseParams(req: Request, route: string[], kind: MintRoute, metho
     const level = intOf(source.level, [0, 1], 0)
     return level === null ? bad("BAD_LEVEL", "level must be 0 or 1.") : { ok: true, value: { kind, project, level } }
   }
+  if (kind === "user-link") {
+    const body = await readObject(req)
+    if (!body.ok) return body
+    // a link for a person has no project and no level: it takes days and label, and refuses anything else rather than ignore it (a projectId or a level sent by mistake is an error, not a silent drop)
+    const unknown = Object.keys(body.value).filter((k) => k !== "days" && k !== "label")
+    if (unknown.length > 0) return bad("USER_LINK_PARAMS", "A link for all your projects takes days and label only: it has no project, and it is always level 0.")
+    const days = intOf(body.value.days, DAYS, 7)
+    if (days === null) return bad("BAD_DAYS", "days must be 1, 7 or 30.")
+    const label = body.value.label
+    if (label !== undefined && label !== null && (typeof label !== "string" || label.length > 80 || /[\u0000-\u001f\u007f]/.test(label))) return bad("BAD_LABEL", "label must be plain text of at most 80 characters.")
+    return { ok: true, value: { kind, days, label: typeof label === "string" && label.trim() !== "" ? label.trim() : null } }
+  }
   const body = await readObject(req)
   if (!body.ok) return body
   let product: string | null = null
@@ -379,7 +397,7 @@ async function run(req: Request, route: string[], deps: MintDeps): Promise<MintA
   const kind = mintRouteOf(route)
   if (!kind) return answer(404, "No such path", "NOT_FOUND")
   const method = req.method === "HEAD" ? "GET" : req.method
-  const allowed = kind === "mint" || kind === "revoke" || kind === "new-project" ? ["POST"] : kind === "warning" ? ["GET", "POST"] : ["GET"]
+  const allowed = kind === "mint" || kind === "revoke" || kind === "new-project" || kind === "user-link" ? ["POST"] : kind === "warning" ? ["GET", "POST"] : ["GET"]
   if (!allowed.includes(method)) return answer(405, "Wrong method for this path.", "METHOD_NOT_ALLOWED", undefined, { Allow: allowed.join(", ") })
 
   const gated = await gate(req, kind, deps, log, (deps.now ?? Date.now)())
@@ -407,6 +425,17 @@ async function execute(parsed: Parsed, userId: string, deps: MintDeps, log: (l: 
     }
     log("ai-work-link: mint -> 201")
     return { status: 201, body }
+  }
+  if (parsed.kind === "user-link") {
+    const done = await call(deps, kind, "ai_work_link_mint_user_for", { p_user_id: userId, p_days: parsed.days, p_label: parsed.label }, log)
+    if (!done.ok) return done.out
+    const body = mintedBody(deps.config, done.data)
+    if (!body || body.scope !== "user" || body.project !== null) {
+      log("ai-work-link: user-link: answered an unknown shape -> 503")
+      return unavailable()
+    }
+    log("ai-work-link: user-link -> 201")
+    return { status: 201, body: { shell: false, ...body } }
   }
   if (parsed.kind === "new-project") {
     const done = await call(deps, kind, "ai_work_link_new_project_for", { p_user_id: userId, p_product_id: parsed.product, p_days: parsed.days }, log)

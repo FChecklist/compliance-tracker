@@ -441,6 +441,114 @@ describe("/partner/ (Sales Partner): the page says what the database does", () =
   })
 })
 
+// Owner, 2026-10-01: "Get the DPDP AI assistant absolutely free, who does all the work for you." Kept as an idea, made true: the assistant is
+// the person's OWN AI, opened with their personal AI work link; VERIDIAN runs no AI model for it. Every statement on the page is tied below to
+// the code or the SQL that makes it true, and the over-claims the owner's wording invites are pinned OUT.
+describe("/ai-assistant/ (the free AI assistant): the page says what the AI work link really does", () => {
+  const sql = readFileSync(join(APP, "..", "drizzle", "0610_dpdp_wo013_ai_work_link.sql"), "utf8")
+  const linkUi = read("src/components/AiWorkLink.tsx")
+  const html = read("ai-assistant/index.html")
+  const toText = (h: string) => h.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<header class="nav"[\s\S]*?<\/header>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/\s+/g, " ")
+  const text = toText(html)
+  // the page's own words, without the shared fact block, the footer and the contact section (those are the same on every page)
+  const mainHtml = /<main[\s\S]*<\/main>/.exec(html)![0]
+  const own = toText(mainHtml.slice(0, mainHtml.indexOf("<h2>Contact</h2>")))
+  const createFn = /create or replace function public\.dpdp_ai_link_create\([\s\S]*?\n\$\$/.exec(sql)?.[0] ?? ""
+
+  test("the numbers on the page are the numbers in the code: 1, 7 or 30 days; undo for 24 hours; small edits off by default", () => {
+    expect(createFn.length, "found dpdp_ai_link_create in drizzle/0610").toBeGreaterThan(200)
+    expect(createFn).toContain("The link can last 1, 7 or 30 days")
+    expect(sql).toContain("the 24 hours have passed")
+    expect(linkUi).toContain("const [level1, setLevel1] = useState(false)")
+    expect(linkUi).toContain("Hide other people")
+    expect(own).toContain("1, 7 or 30 days")
+    expect(own).toContain("Each can be undone for 24 hours.")
+    expect(own).toContain("If you switch it on when you make the link")
+    expect(own).toContain("You can hide other people's emails when you make it.")
+    // no other duration or hour count is claimed (30 is the longest choice, 24 is the undo window)
+    expect([...own.matchAll(/(\d+) (?:hours?|days?)/g)].map((m) => m[1])).toEqual(["30", "24"])
+  })
+
+  test("'we charge nothing' rests on the SQL: making a link checks membership and nothing about a plan, a payment or a trial", () => {
+    expect(createFn).toContain("Not a member of this organisation")
+    expect(createFn).not.toMatch(/\bplan\b|payment|subscription|invoice|trial|billing|paid|entitle/i)
+    expect(own).toContain("We charge nothing for the AI work link. We run no AI for it.")
+    expect(own).toContain("Your own AI account, and what it costs to use, is between you and that provider.")
+  })
+
+  test("it does not over-claim: not 'all the work', no superlative, no guarantee, no speed, accuracy or saving, no price", () => {
+    expect(own).toContain("It does the routine work. You stay in charge.")
+    expect(own).not.toMatch(/\ball (?:the|your) work\b|\beverything\b|\bautomatically\b|\bautonomous|\bhands[- ]free|\binstant|\bfaster|\bsave(?:s|d)? (?:you )?(?:time|hours|money|days)|\bnever (?:miss|late)|\bno (?:effort|work)\b|\bzero\b|\bperfect|\baccurate|\bsmart|\bpowerful|\bmagic/i)
+    expect(own).not.toMatch(/\bbest\b|\bonly\b|\bleading\b|\bguarantee|\bcertif|\b100%|\bfastest\b|\bunmatched\b|\bworld.?class\b/i)
+    expect(own).not.toMatch(/₹|\bRs\.?\s?\d|\bINR\b|\bper (?:month|year)\b|\bGST\b/i)
+    // "absolutely free" is the owner's phrase for the idea; the page says what is free and what is not, in plain words
+    expect(own).not.toMatch(/absolutely|totally|completely|forever|unlimited|no strings|no catch|lifetime/i)
+  })
+
+  test("it names no AI product or company, and says nothing that implies an assistant built into VERIDIAN (the in-app AI is switched off)", () => {
+    expect(text).not.toMatch(/chatgpt|openai|gpt|claude|anthropic|gemini|google ai|copilot|microsoft|perplexity|llama|mistral|deepseek|grok|\bbard\b/i)
+    expect(own).not.toMatch(/built[- ]in|in[- ]app (?:AI|assistant)|\bour (?:own )?(?:AI|assistant|model)|VERIDIAN AI|VERIDIAN'?s AI|chat (?:with|inside) VERIDIAN/i)
+    expect(own).toContain("Paste it into your own AI assistant.")
+  })
+
+  test("the limits are stated plainly: cannot send email, a chat that just reads web pages cannot save, cannot decide for you, cannot sign in or see another organisation, not legal advice", () => {
+    for (const s of [
+      "It cannot send email or messages for you.",
+      "A chat that just reads web pages cannot save changes. It will say so and tell you what to do by hand.",
+      "It cannot decide for you. Anything with legal weight is a draft that you confirm.",
+      "It cannot sign in for you, and it cannot see another organisation's data.",
+      "It is not legal advice. For a legal question, ask your CA or a lawyer.",
+    ]) expect(own, s).toContain(s)
+  })
+
+  test("the limits exist in what the AI is actually told (the manual it is handed)", () => {
+    const manual = readFileSync(join(APP, "..", "supabase", "functions", "dpdp-ai-link", "manual.ts"), "utf8")
+    expect(manual).toContain("You cannot send email or messages.")
+    expect(manual).toContain("Use this link to sign in. It is not a sign-in link")
+    expect(manual).toContain("See any other person's data beyond what this person already sees, or any other organisation's data.")
+    expect(manual).toContain("Level 2 — anything with legal weight, as a draft")
+    expect(manual).toContain("undoable for 24 hours")
+    expect(manual).toContain("IF YOU CANNOT SEND REQUESTS FROM WHERE YOU ARE")
+  })
+
+  test("the page does not show how the link is built or reached (the wall): no address, path or token", () => {
+    expect(html).not.toMatch(/\/ai\/|manual\.(?:md|json)|#token|supabase\.co|functions\/v1|[0-9a-f]{32,}/i)
+    expect(own).not.toMatch(/\bAPI\b|\btoken\b|\bendpoint\b|https?:\/\//i)
+  })
+
+  test("the primary button 'Get your free AI assistant' opens the sign-in at /app/, above and below the text", () => {
+    expect(html.match(/<a class="btn" href="\/app\/">Get your free AI assistant<\/a>/g)).toHaveLength(2)
+  })
+
+  test("it is a public, indexable page: canonical on the apex, a Home > page breadcrumb, no noindex", () => {
+    expect(html).toContain('<link rel="canonical" href="https://veridian-aios.com/ai-assistant/" />')
+    expect(html).not.toMatch(/<meta\s+name="robots"/i)
+    const graph = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)![1])["@graph"] as Array<{ "@type": string; itemListElement?: Array<{ item: string; name: string }> }>
+    const crumbs = graph.find((n) => n["@type"] === "BreadcrumbList")!
+    expect(crumbs.itemListElement!.map((i) => i.item)).toEqual(["https://veridian-aios.com/", "https://veridian-aios.com/ai-assistant/"])
+    expect(crumbs.itemListElement![1].name).toBe("Your DPDP AI Assistant")
+    expect(html).toContain("<h1>Your free DPDP AI assistant</h1>")
+  })
+
+  test("the address on the page is wrapped in email_off, and the page carries no AI-crawler boilerplate", () => {
+    expect(html).toMatch(/<!--email_off-->[^<]*dpdp@veridian-aios\.com[^<]*<!--\/email_off-->/)
+    expect(html).not.toMatch(/fact sheet for ai|for ai systems|for-ai|dear (?:ai|assistant|model)|as an ai\b|ignore (?:all )?(?:previous|prior)|llms\.txt/i)
+  })
+
+  test("the home page highlight says the same as the facts file and sends the reader to the page and to the sign-in", () => {
+    const f = loadFacts()
+    const home = read("index.html")
+    const block = /<!-- BEGIN generated: ai-assistant -->([\s\S]*?)<!-- END generated: ai-assistant -->/.exec(home)![1]
+    const t = toText(block)
+    for (const s of [f.ai_assistant.heading, f.ai_assistant.tagline, f.ai_assistant.home_line, f.ai_assistant.button, f.ai_assistant.home_more]) expect(t, s).toContain(s)
+    expect(block).toContain('<a class="btn btn-sm" href="/app/">Get your free AI assistant</a>')
+    expect(block).toContain('<a class="ai-highlight-more" href="/ai-assistant/">See how it works</a>')
+    expect(f.ai_assistant.nav_label).toBe("Free AI assistant")
+    // one highlight, one place: it is in the home page's main column, once
+    expect(home.match(/class="ai-highlight"/g)).toHaveLength(1)
+  })
+})
+
 describe("/proof/ (WO-013 §2.1): built and hidden until the owner switches it on", () => {
   test("is exactly one of: a public page, or a hidden page -- never both, never neither", () => {
     const isPublic = PUBLIC_PAGES.some((p) => p.path === "/proof/")

@@ -26,7 +26,9 @@ export type Manifest = {
   ai_work_link: 1
   product: string
   base: string
-  project: { id: string; name: string }
+  project: { id: string; name: string } | null
+  /** `user` for a link made for a person (all their projects); absent on a project link, as it always was. */
+  scope?: "user"
   level: number
   allowed_functions: string[]
   urls: {
@@ -43,11 +45,51 @@ export type Manifest = {
     drafts: string
     inbox: string
     card: string
+    /** Only on a link made for a person: the numbered list, the report on all, and where a project's own addresses are. */
+    projects?: string
+    portfolio?: string
+    project?: string
+    project_context?: string
+    project_records?: string
+    project_drafts?: string
   }
 }
 
 export function buildManifest(input: ManualInput): Manifest {
   const { base, ctx, functions } = input
+  if (ctx.scope === "user" && ctx.project_id === null) {
+    // a link made for a person: no project of its own, so the project-bound addresses are patterns with {id}, filled from the list at /projects
+    return {
+      ai_work_link: 1,
+      product: PRODUCT,
+      scope: "user",
+      base,
+      project: null,
+      level: ctx.effective_level,
+      allowed_functions: ctx.effective_functions,
+      urls: {
+        context: `${base}/context`,
+        openapi: `${base}/openapi.json`,
+        swagger: `${base}/swagger.json`,
+        mcp: base,
+        records: {},
+        functions: `${base}/functions`,
+        check: `${base}/check`,
+        propose_example: `${base}/propose?fn=create_project&p.name=${encodeURIComponent("Example project")}`,
+        history: `${base}/history`,
+        actions: `${base}/actions`,
+        drafts: `${base}/drafts`,
+        inbox: `https://${input.config.confirmHost}/ai-inbox.html${input.token ? `#t=${input.token}` : ""}`,
+        card: `${base}/card.md`,
+        projects: `${base}/projects`,
+        portfolio: `${base}/portfolio`,
+        project: `${base}/projects/{id}`,
+        project_context: `${base}/projects/{id}/context`,
+        project_records: `${base}/projects/{id}/records/{kind}`,
+        project_drafts: `${base}/projects/{id}/drafts`,
+      },
+    }
+  }
   const example = functions.find((f) => f.id === "record_work_progress") ?? functions.find((f) => f.kind === "write") ?? functions[0]
   const params = example ? Object.entries(example.example_params).filter(([, v]) => typeof v !== "string" || !String(v).startsWith("<")) : []
   const query = params.map(([k, v]) => `p.${k}=${encodeURIComponent(String(v))}`).join("&")
@@ -57,7 +99,7 @@ export function buildManifest(input: ManualInput): Manifest {
     ai_work_link: 1,
     product: PRODUCT,
     base,
-    project: { id: ctx.project_id, name: cleanText(ctx.project_name, 120) },
+    project: { id: String(ctx.project_id), name: cleanText(ctx.project_name ?? "", 120) },
     level: ctx.effective_level,
     allowed_functions: ctx.effective_functions,
     urls: {
@@ -102,7 +144,7 @@ function whoBlock(ctx: LinkCtx): string {
   return fenceRows([{
     person: cleanText(ctx.user_name, 120),
     role: ctx.live_role,
-    project: cleanText(ctx.project_name, 120),
+    project: ctx.project_name === null ? "all the projects this person can read: choose one from the list" : cleanText(ctx.project_name, 120),
     level: ctx.effective_level,
     link_level_when_made: ctx.authority_level,
     direct_changes_switched_on: ctx.writes_enabled,
@@ -169,7 +211,91 @@ function functionCatalogue(functions: FunctionView[], base: string): string {
 
 export type ManualSection = { id: string; title: string; body: string }
 
+/** The rules of a link made for a person: the project link's, with the one about "one project" said for what this link really is. */
+const USER_RULES: ReadonlyArray<string> = RULES.map((r, i) =>
+  i === 6 ? "You cannot create users, change permissions, or touch other organisations or projects this person cannot see. You work in one project at a time, through that project's own address." : r,
+)
+
+/**
+ * The manual of a link made for a person (drizzle/0668): the START HERE steps (list the projects, the two options after them, work in the chosen one), then
+ * the project addresses as patterns. It prints no catalogue of kinds' summaries and no table of functions (they are one address away, per project), so it
+ * is much smaller than a project link's manual and stays inside the same 20,000-byte budget with room to spare.
+ */
+export function buildUserManualSections(input: ManualInput): ManualSection[] {
+  const { base, ctx, config } = input
+  const manifest = buildManifest(input)
+  const av = availabilityOf({ ctx, config })
+  const canCreate = ctx.effective_functions.includes("create_project")
+  const createLine = canCreate
+    ? `5. "Create New Project": ask the person for the project name (and a description if they have one), then \`POST ${base}/drafts\` with \`{"function":"create_project","params":{"name":"<the name>"}}\` and give the person \`confirm_url\`: they open it, sign in and confirm. Nothing is created until they do. Then \`GET ${base}/drafts/<draft_id>\`: when its status is \`done\`, \`project.id\` is the new project and \`continue_at\` is its address: say which project you are in and continue there (section D).`
+    : "5. This person's role cannot create projects, so the list has no Create New Project line: do not offer it."
+  return [
+    {
+      id: "A", title: "Who you work for",
+      body: [
+        "You work for the person below, in ALL the projects they can read, with exactly what they can see. Level 0 means read, check and draft: the person confirms every change.",
+        "",
+        whoBlock(ctx),
+        "",
+        levelNote(ctx, av),
+        ...(ctx.money_visible ? [] : ["", "Money figures (rates, amounts, budgets) are hidden for this role."]),
+      ].join("\n"),
+    },
+    { id: "B", title: "Rules", body: USER_RULES.map((r, i) => `${i + 1}. ${r}`).join("\n") },
+    {
+      id: "C", title: "Start here: when the person gives you this link, do this first",
+      body: [
+        `1. \`GET ${base}/projects\`. It answers the person's projects as a numbered list, then the options after them.`,
+        "2. Show the person that list, numbered exactly as the answer numbers it (n), and the options after the projects: \"Report on all above\" is the second to last line and \"Create New Project\" the last. Then ask which number they want, and wait.",
+        "3. A project number: work in that project with its id (section D). Tell the person which project you are in.",
+        `4. "Report on all above": \`GET ${base}/portfolio\`, summarise every project for the person, then show the list again.`,
+        createLine,
+        "If the person already named a project or a task, find that project in the list and go to it.",
+      ].join("\n"),
+    },
+    {
+      id: "D", title: "Work inside a project (use its id from the list; every address answers Markdown, add Accept: application/json for JSON)",
+      body: [
+        `- Context: ${base}/projects/{id}/context`,
+        `- Records: ${base}/projects/{id}/records/<kind>?limit=${LIMITS.keysetDefault} (one record: ${base}/projects/{id}/records/<kind>/<id>). Kinds: ${KIND_NAMES.join(", ")}.`,
+        `- Functions: ${base}/projects/{id}/functions (a read is a \`POST\` to \`/projects/{id}/functions/<fn>\`)`,
+        `- History: ${base}/history`,
+        "A record page has `next` when more rows follow. Filters are written `<field>_<op>=<value>` (op eq, gt, lt, in) and `sort=<field>`; the project's `/context` lists the fields hidden for this role. A project id that is not one of this person's projects answers 404, whatever the reason.",
+      ].join("\n"),
+    },
+    {
+      id: "E", title: "Change",
+      body: [
+        "This link is level 0 for ever: `POST /actions` is never available. Every change is a draft the person confirms.",
+        `- \`POST ${base}/projects/{id}/check\` with \`{"function":"<id>","params":{}}\` checks a change and records nothing. \`POST ${base}/projects/{id}/drafts\` (the same body, optional \`idempotency_key\`) records a draft and answers \`confirm_url\`: give that address to the person, who opens it, signs in, types the code the page shows and confirms. A draft is kept 48 hours; \`GET ${base}/projects/{id}/drafts/<draft_id>\` shows its state.`,
+        `- You can only open web addresses: \`GET ${base}/projects/{id}/propose?fn=<id>&p.<param>=<value>\` returns a confirm link. Give it to the person. Nothing is recorded.`,
+        `- A new project needs no project: \`POST ${base}/drafts\` as in section C.`,
+      ].join("\n"),
+    },
+    {
+      id: "F", title: "Tool setup",
+      body: [
+        `This same address is an MCP server (Streamable HTTP, no authentication): ${base} . Tools: list_projects, get_portfolio, and every other tool takes \`project\` (an id from list_projects).`,
+        `OpenAPI 3.0: ${base}/openapi.json . Swagger 2.0: ${base}/swagger.json . Paste card for an AI that cannot open addresses: ${base}/card.md`,
+        `Header mode, for a tool that stores a key apart: base ${config.functionBase}/header with the header \`Link-Token\` (or \`Authorization: Bearer\`) set to the token. Do not use a query string.`,
+        "Install it only in a tool this person alone uses (rule 8).",
+      ].join("\n"),
+    },
+    {
+      id: "G", title: "Errors and limits",
+      body: [
+        "| Status | Meaning |", "| --- | --- |",
+        ...ERRORS.map((e) => `| ${e.status} | ${e.meaning} |`),
+        "",
+        `Limits: ${LIMITS.linkPerMinute} calls a minute per link; a body of at most ${kb(LIMITS.bodyMaxBytes)}${bodyLimitNote()}; a record page of 1 to ${LIMITS.keysetMax} rows; 5 new projects a day. A call that needs a project and names none answers 400 PROJECT_REQUIRED. Every call, a GET too, adds one call-log row and moves no business counter.`,
+      ].join("\n"),
+    },
+    { id: "H", title: "Manifest", body: "```json ai-link-manifest\n" + JSON.stringify(manifest) + "\n```" },
+  ]
+}
+
 export function buildManualSections(input: ManualInput): ManualSection[] {
+  if (input.ctx.scope === "user" && input.ctx.project_id === null) return buildUserManualSections(input)
   const { base, ctx, functions, config } = input
   const manifest = buildManifest(input)
   const av = availabilityOf({ ctx, config })
@@ -235,7 +361,10 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
 
 export function renderManualMarkdown(input: ManualInput): string {
   const secs = buildManualSections(input)
-  const head = "# PROJEXA work link\n\nA private address for one project. Read this page first: it lists every address you may use, and section H is the same list for a program.\n"
+  const forPerson = input.ctx.scope === "user" && input.ctx.project_id === null
+  const head = forPerson
+    ? "# PROJEXA work link for all your projects\n\nA private address for one person and all the projects they can read. Read this page first: section C says what to do when it is given to you, and section H is the address list for a program.\n"
+    : "# PROJEXA work link\n\nA private address for one project. Read this page first: it lists every address you may use, and section H is the same list for a program.\n"
   return head + "\n" + secs.map((s) => `## ${s.id}. ${s.title}\n\n${s.body}\n`).join("\n") + "\n" + DATA_CLOSING + "\n"
 }
 
@@ -254,18 +383,19 @@ export function renderManualJson(input: ManualInput): Record<string, unknown> {
 
 export function renderCard(input: Pick<ManualInput, "ctx" | "functions">): string {
   const { ctx, functions } = input
+  const forPerson = ctx.scope === "user" && ctx.project_id === null
   return [
     "# PROJEXA work link: paste card",
     "",
     "This card holds no address and no token. It is for an AI that cannot open web addresses. Work only from what the person pastes to you with it.",
     "",
-    "## Project",
+    forPerson ? "## Person" : "## Project",
     "",
-    fenceRows([{ project: cleanText(ctx.project_name, 120), level: ctx.effective_level, money_figures_shown: ctx.money_visible }]),
+    fenceRows([{ project: ctx.project_name === null ? "all this person's projects: the person pastes the data of the one they choose" : cleanText(ctx.project_name, 120), level: ctx.effective_level, money_figures_shown: ctx.money_visible }]),
     "",
     "## Rules",
     "",
-    rulesText(true),
+    forPerson ? USER_RULES.map((r, i) => `${i + 1}. ${r.replace("through that project's own address", "from the data the person pastes")}`).join("\n").replace("the methods in section D", "the proposal blocks below") : rulesText(true),
     "",
     "## Functions you may propose",
     "",
@@ -276,7 +406,9 @@ export function renderCard(input: Pick<ManualInput, "ctx" | "functions">): strin
     "Print one block per change. The person pastes your blocks into the inbox page and confirms each one there. Nothing changes until they do.",
     "",
     "```projexa-proposal",
-    "{\"v\":1,\"function\":\"record_work_progress\",\"params\":{\"itemCode\":\"EX-01\",\"percent\":40},\"note\":\"slab poured\"}",
+    forPerson
+      ? "{\"v\":1,\"function\":\"create_project\",\"params\":{\"name\":\"Marina Club\"},\"note\":\"a new project\"}"
+      : "{\"v\":1,\"function\":\"record_work_progress\",\"params\":{\"itemCode\":\"EX-01\",\"percent\":40},\"note\":\"slab poured\"}",
     "```",
     "",
     DATA_CLOSING,

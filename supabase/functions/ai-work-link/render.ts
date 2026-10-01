@@ -29,6 +29,50 @@ export function contextMarkdown(doc: Record<string, unknown>): string {
   return docMarkdown("Context: who you work for", doc, note)
 }
 
+/**
+ * GET /projects as Markdown. The projects are DATA (names are written by people), so they sit in a fenced block, each row with its number n; the two options
+ * after them are ours, so they are plain text with the number each takes. The AI shows the person the numbered list and asks which one.
+ */
+export function projectsMarkdown(doc: Record<string, unknown>): string {
+  const projects = Array.isArray(doc.projects) ? (doc.projects as Array<Record<string, unknown>>) : []
+  const extra = Array.isArray(doc.extra_options) ? (doc.extra_options as Array<Record<string, unknown>>) : []
+  const lines = [
+    "# Your projects",
+    "",
+    `${projects.length} project${projects.length === 1 ? "" : "s"} of the person you work for${doc.truncated === true ? ` (the first ${projects.length} of ${String(doc.total)})` : ""}. Nothing has been changed.`,
+    "",
+    "Show the person this list, numbered exactly as below (the number is n), then the options after it, and ask which number they want:",
+    "",
+    projects.length ? fenceRows(projects) : "The person has no project yet.",
+    "",
+    "After the projects, offer these, with these numbers:",
+    ...extra.map((o) => `- ${String(o.n)}. ${String(o.label)}: ${String(o.method)} ${String(o.url)}. ${String(o.then)}`),
+    "",
+    `To work in a project, use its id in the address: ${String(doc.project_url ?? "/projects/{id}/context")} (with the id in place of {id}), then /projects/{id}/records/<kind> and the rest of the manual's list.`,
+  ]
+  if (typeof doc.note === "string") lines.push("", doc.note)
+  lines.push("", DATA_CLOSING, "")
+  return lines.join("\n")
+}
+
+/** GET /portfolio as Markdown: the rows are data in a fenced block, the totals are ours. */
+export function portfolioMarkdown(doc: Record<string, unknown>): string {
+  const projects = Array.isArray(doc.projects) ? (doc.projects as Array<Record<string, unknown>>) : []
+  const totals = (doc.totals && typeof doc.totals === "object" ? doc.totals : {}) as Record<string, unknown>
+  const lines = [
+    "# Report on all projects",
+    "",
+    String(doc.how_to_report ?? ""),
+    "",
+    projects.length ? fenceRows(projects) : "The person has no project yet.",
+    "",
+    `Totals of the ${projects.length} project${projects.length === 1 ? "" : "s"} shown: ${String(totals.tasks_total ?? 0)} tasks, ${String(totals.tasks_open ?? 0)} open, ${String(totals.tasks_overdue ?? 0)} overdue; ${String(totals.boq_lines ?? 0)} BOQ lines.`,
+  ]
+  if (typeof doc.note === "string") lines.push("", doc.note)
+  lines.push("", DATA_CLOSING, "")
+  return lines.join("\n")
+}
+
 export function recordsMarkdown(page: RecordsPage): string {
   const lines = [`# Records: ${page.kind}`, "", `${page.items.length} row${page.items.length === 1 ? "" : "s"} on this page. ${page.next ? `Next page: ${page.next}` : page.next_after ? `More rows follow: pass after=${page.next_after}.` : "This is the last page."}`]
   if (page.redacted) {

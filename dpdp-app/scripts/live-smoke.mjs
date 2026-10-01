@@ -34,7 +34,7 @@ async function get(path, init) {
 }
 
 // 1. Every public page answers, as HTML.
-for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
   const r = await get(p)
   check(r.status === 200 && /text\/html/.test(r.type), `${p} answers 200 as HTML`, `${r.status} ${r.type}`)
 }
@@ -83,7 +83,15 @@ check(sitemap.body.includes("/dpdp-firm/") && sitemap.body.includes("/dpdp-insti
 check(sitemap.body.includes("/partner/"), "the sitemap lists the Sales Partner page")
 const refJs = await get("/ref.js")
 check(refJs.status === 200 && /javascript/i.test(refJs.type) && refJs.body.includes("dpdp-referral"), "/ref.js is served as JavaScript and keeps the referral code", `${refJs.status} ${refJs.type}`)
-for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/"]) check((await get(p)).body.includes('<script defer src="/ref.js"></script>'), `${p} loads /ref.js`)
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/"]) check((await get(p)).body.includes('<script defer src="/ref.js"></script>'), `${p} loads /ref.js`)
+// The free AI assistant (owner, 2026-10-01): its own public page, the pill in the top right of every public page, the highlight on the home page.
+check(sitemap.body.includes("/ai-assistant/"), "the sitemap lists the free AI assistant page")
+const aiPage = await get("/ai-assistant/")
+check(!/noindex/i.test(aiPage.headers.get("x-robots-tag") || "") && !/<meta name="robots"/i.test(aiPage.body), "/ai-assistant/ is indexable (no noindex header, no robots meta)")
+check(aiPage.body.includes('class="btn" href="/app/">Get your free AI assistant</a>'), '/ai-assistant/: "Get your free AI assistant" opens /app/')
+check(aiPage.body.includes('<link rel="canonical" href="https://veridian-aios.com/ai-assistant/" />'), "/ai-assistant/ is canonical on the apex")
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/"]) check((await get(p)).body.includes('class="nav-ai"'), `${p} has the Free AI assistant pill in the header`)
+check(root.body.includes("Your free DPDP AI assistant") && root.body.includes('href="/ai-assistant/"'), "/: the free AI assistant highlight is on the home page and links to /ai-assistant/")
 const partner = await get("/partner/")
 check(!/noindex/i.test(partner.headers.get("x-robots-tag") || "") && !/<meta name="robots"/i.test(partner.body), "/partner/ is indexable (no noindex header, no robots meta)")
 check(partner.body.includes('class="btn" href="/app/">Become a Sales Partner</a>'), '/partner/: "Become a Sales Partner" opens /app/')
