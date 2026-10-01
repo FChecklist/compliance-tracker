@@ -55,7 +55,7 @@
 -- Existing callers are not broken: dpdp_record_confirmed_payment and
 -- dpdp_mark_commission_paid keep their signatures and every key they returned
 -- before; they only gain behaviour (the two rules above, the payable date, the
--- TDS snapshot). dpdp_create_my_org is NOT touched: the sign-up rules are a
+-- TDS snapshot). dpdp_create_my_org changes only by two enum casts (see the fix at the end of this file); the sign-up rules are a
 -- trigger on dpdp.referral_event, so every path that records a referral is
 -- covered, including the older Next.js one.
 
@@ -1418,7 +1418,7 @@ $$;
 -- that arrives with a referral code raised 42804. The only change below is the two ::dpdp.referral_outcome casts;
 -- the body is otherwise the live definition, byte for byte. Grants are kept by create or replace.
 -- ---------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.dpdp_create_my_org(p_name text, p_product text, p_referral_code text DEFAULT NULL::text)
+create or replace function public.dpdp_create_my_org(p_name text, p_product text, p_referral_code text default null)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
