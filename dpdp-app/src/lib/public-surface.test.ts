@@ -275,26 +275,27 @@ describe("the home page offers exactly two ways in (owner, 2026-10-01)", () => {
   })
 })
 
-// Owner, 2026-10-01: the home page says FOUR things and shows four, numbered 1-4.
-describe("the home page's four things (owner, 2026-10-01)", () => {
+// Owner, 2026-10-01 (edited the same day): the home page shows THREE numbered points.
+describe("the home page's three points (owner, 2026-10-01)", () => {
   const html = read("index.html")
   const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
 
-  test("the h1 says four things and an ordered list shows exactly four, 1 to 4, in the owner's words", () => {
-    expect(main).toContain("<h1 class=\"chooser-title\">The DPDP Act asks every organisation for four things</h1>")
+  test("the h1 and an ordered list of exactly three, 1 to 3, in the owner's words", () => {
+    expect(main).toContain("<h1 class=\"chooser-title\">Three things to know about DPDP compliance</h1>")
     const list = /<ol class="lead-list">([\s\S]*?)<\/ol>/.exec(main)![1]
     const items = [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])
-    expect(items).toEqual(["Know what data you hold.", "Tell people about it.", "Keep it safe.", "Prove it — with a record that outlasts the person who set it up."])
-    expect(items).toEqual([...FACTS.four_things])
+    expect(items).toEqual(["People change. When they leave, what they knew about your data leaves with them.", "Know what data you hold, and who else holds it for you.", "Prove it — with a record that outlasts the person who set it up."])
+    expect(items).toEqual([...FACTS.three_things])
   })
 
-  test("the old three-things-plus-a-proof wording is gone from every public surface", () => {
+  test("the old four-things and three-things-plus-a-proof wording is gone from every public surface", () => {
     for (const rel of [...PUBLIC_PAGES.map((p) => p.source), "public/llms.txt", "public/llms-full.txt"]) {
       const body = read(rel)
       expect(body, `${rel} still says "Prove all three"`).not.toContain("Prove all three")
       expect(body, `${rel} still has the three things on one line`).not.toContain("Know what data you hold. Tell people about it. Keep it safe.")
+      expect(body, `${rel} still has the old four things`).not.toContain("Tell people about it.")
     }
-    expect(read("public/llms-full.txt")).toContain("1. Know what data you hold.\n2. Tell people about it.\n3. Keep it safe.\n4. Prove it — with a record that outlasts the person who set it up.")
+    expect(read("public/llms-full.txt")).toContain("1. People change. When they leave, what they knew about your data leaves with them.\n2. Know what data you hold, and who else holds it for you.\n3. Prove it — with a record that outlasts the person who set it up.")
   })
 })
 
