@@ -214,8 +214,8 @@ storage:
 # registered company name, address, GSTIN." Legal name, CIN and registered
 # office are stated as facts on the company's own published disclaimer page
 # (src/app/disclaimer/page.tsx, veridian-aios.com/disclaimer) and are copied
-# from there. GSTIN is stated nowhere in the repository: null, owner_required,
-# rendered nowhere.
+# from there. GSTIN was given by the owner in chat on 2026-10-01
+# (09AAZCS4477M1Z3); the CIN was already stated and is unchanged.
 # ---------------------------------------------------------------------------
 company:
   owner_approved: false
@@ -224,7 +224,7 @@ company:
   legal_name: SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED
   cin: U74999UP2017PTC098453
   registered_office: B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India
-  gstin: null
+  gstin: 09AAZCS4477M1Z3
   incorporation: incorporated in India under the Companies Act, 2013
 
 # Public contact point. Since 2026-09-29 the public sees ONE address,

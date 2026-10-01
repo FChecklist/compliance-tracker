@@ -108,11 +108,11 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.storage.stored_in_india_wording).toContain("Resend, a US company")
   })
 
-  test("company: legal name + CIN + registered office from the published disclaimer; GSTIN null and owner_required", () => {
+  test("company: legal name + CIN + registered office from the published disclaimer; GSTIN as given by the owner (2026-10-01)", () => {
     expect(facts.company.legal_name).toBe("SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED")
     expect(facts.company.cin).toBe("U74999UP2017PTC098453")
     expect(facts.company.registered_office).toContain("Ghaziabad")
-    expect(facts.company.gstin).toBeNull()
+    expect(facts.company.gstin).toBe("09AAZCS4477M1Z3")
     expect(facts.company.owner_required).toBe(true)
     expect(facts.company.source).toContain("src/app/disclaimer/page.tsx")
   })
