@@ -8,7 +8,7 @@
 //   bun test --isolate supabase/functions/_shared/mail-taxonomy.test.ts
 import { describe, expect, test } from "bun:test"
 import {
-  CLASS_LABEL, CLASS_TAG, LEGAL_CLOCK_CLASSES, MAILBOX, MAILBOX_DOMAIN, MAILBOX_LOCAL, MAIL_CLASSES, NOTIFY_CLASSES, REF_LENGTH,
+  CLASS_LABEL, CLASS_TAG, DIGEST_CLASSES, LEGAL_CLOCK_CLASSES, SALES_FORWARD_CLASS, MAILBOX, MAILBOX_DOMAIN, MAILBOX_LOCAL, MAIL_CLASSES, NOTIFY_CLASSES, REF_LENGTH,
   isValidRef, newRef, notificationSubject, outboundHeaders, parseRecipient, replyToAddress, subjectPrefix, withSubjectPrefix,
   type MailClass,
 } from "./mail-taxonomy.ts"
@@ -47,17 +47,23 @@ describe("constants", () => {
       data_request: "dsr", partner: "prt", support: "sup", auto: "aut", review: "rev",
     })
   })
-  test("legal-clock classes are grievance, data_request and review; only auto is not notified", () => {
+  test("legal-clock classes are grievance, data_request and review; the operator is emailed per message for grievance and data_request ONLY (owner, 2026-10-01)", () => {
     expect([...LEGAL_CLOCK_CLASSES].sort()).toEqual(["data_request", "grievance", "review"])
-    expect([...NOTIFY_CLASSES].sort()).toEqual(MAIL_CLASSES.filter((c) => c !== "auto").sort())
-    expect(NOTIFY_CLASSES).not.toContain("auto")
-    for (const c of LEGAL_CLOCK_CLASSES) expect(NOTIFY_CLASSES).toContain(c)
+    expect([...NOTIFY_CLASSES].sort()).toEqual(["data_request", "grievance"])
+    for (const c of MAIL_CLASSES.filter((x) => x !== "grievance" && x !== "data_request")) expect(NOTIFY_CLASSES).not.toContain(c)
   })
-  test("clock (a statutory notice WE sent): tag clk, label Statutory, notified, and NOT a legal-clock class -- a reply is escalated by keyword instead", () => {
+  test("the daily digest lists every class but auto", () => {
+    expect([...DIGEST_CLASSES].sort()).toEqual(MAIL_CLASSES.filter((c) => c !== "auto").sort())
+    expect(DIGEST_CLASSES).not.toContain("auto")
+    for (const c of NOTIFY_CLASSES) expect(DIGEST_CLASSES).toContain(c)
+    expect(SALES_FORWARD_CLASS).toBe("sales")
+  })
+  test("clock (a statutory notice WE sent): tag clk, label Statutory, digest only, and NOT a legal-clock class -- a reply is escalated by keyword instead", () => {
     expect(MAIL_CLASSES).toContain("clock")
     expect(CLASS_TAG.clock).toBe("clk")
     expect(CLASS_LABEL.clock).toBe("Statutory")
-    expect(NOTIFY_CLASSES).toContain("clock")
+    expect(NOTIFY_CLASSES).not.toContain("clock")
+    expect(DIGEST_CLASSES).toContain("clock")
     expect(LEGAL_CLOCK_CLASSES).not.toContain("clock")
   })
 })

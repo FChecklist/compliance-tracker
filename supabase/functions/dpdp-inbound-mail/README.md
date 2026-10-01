@@ -16,7 +16,9 @@ OPTIONAL  person -> Cloudflare Email Routing -> Email Worker (workers/dpdp-inbou
        auth -> parse -> [look up the outbound message it answers] -> classify
        -> insert dpdp.mail_inbound (ticket)            drizzle/0662
        -> [acknowledge the sender: legal-clock classes only]
-       -> [email the operator: every class but auto]
+       -> [email the operator AT ONCE: grievance and data_request only]
+       -> [forward a `sales` message to DPDP_SALES_FORWARD_TO, if that secret is set]
+   (every other class waits for the daily digest, see "Operator digest and sales forward")
 ```
 
 | File | What it is |
@@ -25,24 +27,27 @@ OPTIONAL  person -> Cloudflare Email Routing -> Email Worker (workers/dpdp-inbou
 | `handler.ts` | The request handler (auth, parse, pipeline, emails). Database and mail provider are injected. |
 | `index.ts` | Deno wiring only: `Deno.serve`, the service-role client, Resend. |
 | `resend-inbound.ts` | The Resend inbound adapter: Svix signature check, fetch of the received email, recipient policy, mapping to the Worker's payload, the reconcile job, and the routing of the three kinds of caller. |
-| `classify.test.ts`, `handler.test.ts`, `resend-inbound.test.ts` | Offline proof (see "Tests"). |
+| `operator-digest.ts` | The once-a-day operator digest (`{"job":"operator_digest"}` from pg_cron, drizzle/0667) and its renderer. |
+| `classify.test.ts`, `handler.test.ts`, `resend-inbound.test.ts`, `operator-digest.test.ts` | Offline proof (see "Tests"). |
 | `../../../drizzle/0662_dpdp_single_mailbox_mail_log.sql` | The mail log: `dpdp.mail_outbound`, `dpdp.mail_inbound`, ticket counter, `public.dpdp_mail_*` incl. `dpdp_mail_close` (service_role only). |
 
 ## The classes
 
 | Class | Ticket | Legal clock + acknowledged | Operator emailed | How it is reached |
 | --- | --- | --- | --- | --- |
-| `grievance` | `G-2026-0042` | yes | yes | tag `grv`, thread, keyword, or **escalation** |
-| `data_request` | `D-...` | yes | yes | tag `dsr`, thread, keyword, or **escalation** |
-| `review` | `R-...` | yes | yes | tag `rev`, thread, or **the default when nothing matched** |
-| `monday` | `M-...` | no | yes | tag `mon` or thread (a reply to the Monday digest) |
-| `clock` | `K-...` | no | yes | tag `clk` or thread (a reply to a **statutory notice we sent**: the 72-hour leak clock or the 90-day rights clock, `[VERIDIAN DPDP · Statutory]`) |
-| `sales` | `S-...` | no | yes | tag `sal`, or keyword |
-| `sales_chain` | `T-...` | no | yes | tag `sch`, or a reply to something we sent as `sales` |
-| `invoice` | `I-...` | no | yes | tag `inv`, thread, or keyword |
-| `partner` | `P-...` | no | yes | tag `prt`, or keyword |
-| `support` | `H-...` | no | yes | tag `sup`, or keyword |
+| `grievance` | `G-2026-0042` | yes | **yes, at once** | tag `grv`, thread, keyword, or **escalation** |
+| `data_request` | `D-...` | yes | **yes, at once** | tag `dsr`, thread, keyword, or **escalation** |
+| `review` | `R-...` | yes | daily digest (at once only if the classifier threw) | tag `rev`, thread, or **the default when nothing matched** |
+| `monday` | `M-...` | no | daily digest | tag `mon` or thread (a reply to the Monday digest) |
+| `clock` | `K-...` | no | daily digest | tag `clk` or thread (a reply to a **statutory notice we sent**: the 72-hour leak clock or the 90-day rights clock, `[VERIDIAN DPDP · Statutory]`) |
+| `sales` | `S-...` | no | daily digest (+ forwarded to `DPDP_SALES_FORWARD_TO` if set) | tag `sal`, or keyword |
+| `sales_chain` | `T-...` | no | daily digest | tag `sch`, or a reply to something we sent as `sales` |
+| `invoice` | `I-...` | no | daily digest | tag `inv`, thread, or keyword |
+| `partner` | `P-...` | no | daily digest | tag `prt`, or keyword |
+| `support` | `H-...` | no | daily digest | tag `sup`, or keyword |
 | `auto` | `A-...` | no | **no (logged only)** | our own mailbox as sender, a machine signal, or an auto header with nothing legal in the text |
+
+**Operator emails (owner decision 2026-10-01).** Only `grievance` and `data_request` (the two classes with a legal clock that arrive one by one) email the operator the moment they arrive; the others are only recorded in `dpdp.mail_inbound` and appear in the daily digest below. `auto` is never surfaced. A classifier that throws still emails at once (nobody knows what the message is). The answer for a digest-class message is `200` with `notified: "digest"`: nobody is owed a per-message email, so it is not a 502 even with no `DPDP_OPERATOR_EMAIL` set.
 
 First match wins, in this order: (0) sender is our own mailbox -> `auto`; (1) **machine-only**
 signals -> `auto`, before the plus-tag, **never escalated**: a delivery-status / multipart-report /
@@ -156,7 +161,7 @@ person -> dpdp@ / dpdp+<tag>.<ref>@ / anything@veridian-aios.com
 
 | Status | Meaning |
 | --- | --- |
-| `200` | The ticket exists and the operator has been told (or the class is `auto`); or the event type is not `email.received` (`ignored: true`); or this email id was already recorded by this instance (`cached: true`). |
+| `200` | The ticket exists and the operator has been told (or the class waits for the daily digest, or is `auto`); or the event type is not `email.received` (`ignored: true`); or this email id was already recorded by this instance (`cached: true`). |
 | `400` | Signed, but not an event we can use (not JSON, no usable `email_id`). |
 | `401` | Signature missing, wrong, stale or from the future. Nothing was fetched or written. |
 | `405` / `413` | Not a POST / body over 256 KB (read only up to that, whatever Content-Length says). A signed event that big is retried by Svix in vain; the message stays in Resend and the reconcile job below ingests it. |
@@ -210,9 +215,9 @@ Among several recipients the best one wins: `dpdp@` / `dpdp+tag@` (one that name
 | Received for | Filed as | Operator emailed | Acknowledged |
 | --- | --- | --- | --- |
 | `dpdp@`, `dpdp+<tag>[.<ref>]@` | whatever the classifier says (the normal pipeline) | as for that class | as for that class |
-| `grievance@` | the tag `grv` (a grievance) | yes | yes |
-| `partners@` | the tag `prt` (a partner enquiry) | yes | no |
-| `postmaster@`, `abuse@` | `support` (reason `role-mailbox:<name>`) | yes | **never** |
+| `grievance@` | the tag `grv` (a grievance) | yes, at once | yes |
+| `partners@` | the tag `prt` (a partner enquiry) | daily digest | no |
+| `postmaster@`, `abuse@` | `support` (reason `role-mailbox:<name>`) | daily digest | **never** |
 | any other local part at the domain | `auto`, reason **`unknown-recipient`** | **no (logged only)** | no |
 | an address at another domain | `auto`, reason `recipient-not-on-our-domain` | no | no |
 
@@ -305,6 +310,7 @@ Nothing below was applied, deployed or sent by the session that wrote it.
 | `DPDP_INBOUND_SECRET` | everything | The bearer the Worker presents. 48+ random characters (`openssl rand -hex 32`); the function refuses **every** request with 503 if it is unset or shorter than 24. Set the same value as a Worker secret. |
 | `RESEND_API_KEY` | sending | **Absent = dry run** (see below). **Function secrets are per PROJECT, not per function**: this is the same `RESEND_API_KEY` that `dpdp-monday-email` and `dpdp-invoice-email` read, so if it is already set for them this function is NOT in dry run the moment it is deployed. Set it only once Resend has verified `veridian-aios.com` as a sending domain, because the default From is `dpdp@veridian-aios.com`; until then Resend refuses every send (acknowledgements and notices fail, the message is still recorded, the answer is 502 and the Worker forwards it natively). Check with `supabase secrets list` before deploying. |
 | `DPDP_OPERATOR_EMAIL` | the operator notice | Where notices go. If unset the message is still recorded but the answer is 502. Must **not** be `dpdp@veridian-aios.com` itself (a notice would arrive as inbound mail; the self-sender rule stops the loop but the operator would see nothing). |
+| `DPDP_SALES_FORWARD_TO` | optional | One plain address (no name, no list). Set: every message the classifier files as `sales` is ALSO forwarded there (From `DPDP_EMAIL_FROM`, **Reply-To the original sender**, subject `[Fwd Sales S-2026-0042] original subject`, the original text, Resend `Idempotency-Key` per ticket). Unset, blank or invalid: sales mail is only recorded and listed in the daily digest. A failed forward never changes the answer (the message is recorded and in the digest). Not hardcoded anywhere. |
 | `DPDP_EMAIL_FROM` | optional | Default `VERIDIAN AI DPDP <dpdp@veridian-aios.com>`. |
 | `DPDP_LEGAL_RESPONSE_DAYS` | optional | Whole days, 1-365, default **90**. Becomes `due_at = received_at + N days` on grievance / data_request / review tickets. **The number is the owner's and counsel's to confirm.** The code asserts nothing legal; it only stops a ticket sitting unnoticed. |
 
@@ -390,13 +396,20 @@ message; it carries `{ ok, ticket, class, rule, duplicate, dryRun, ack, notified
   to anyone in the last hour** (a global brake against a flood of forged senders). When a limit
   holds the acknowledgement back the ticket is still created and due-dated and the operator is
   still told; the notice then says which limit it was and to answer by hand.
-* **Operator notice** (every class but auto). To `DPDP_OPERATOR_EMAIL`, subject
+* **Operator notice** (`grievance` and `data_request` only, plus a classifier failure; every other class is in the daily digest). To `DPDP_OPERATOR_EMAIL`, subject
   `[GRIEVANCE G-2026-0042] original subject`, `Reply-To` the original sender (replying
   answers the sender directly, from the operator's own address), a summary block (class
   and why, ticket, respond-by date, from, to, related ticket, acknowledgement status) and
   the original message quoted. Sent with `Idempotency-Key` so a retried delivery cannot
   send it twice.
-* **Raw forward** (database down): the message itself, subject `[CLASS UNRECORDED] ...`.
+* **Raw forward** (database down): the message itself, subject `[CLASS UNRECORDED] ...`. Sent for every class: with no ticket there is nothing for a digest to list.
+* **Operator digest** (see below). **Sales forward** (see below).
+
+## Operator digest and sales forward
+
+**Daily digest.** pg_cron job `dpdp-operator-digest` (drizzle/0667, `30 3 * * *` = 09:00 IST) POSTs `{"job":"operator_digest"}` to this function with the Vault timer secret as bearer (the same `dpdp_timer_secret` every DPDP cron job uses, checked through `public.dpdp_timer_check_bearer`; `DPDP_INBOUND_SECRET` also works for a manual run). The function reads `public.dpdp_mail_digest_pending` (class not `auto`, not closed, never digested, recorded in the last 25 hours), and **only if there is at least one ticket** sends ONE plain-text email to `DPDP_OPERATOR_EMAIL`: subject `[DPDP daily digest] N new tickets`, one line per ticket with ticket number, class, age, sender and subject (sender and subject flattened to one line and cut; never the message text). After the provider accepts it, `public.dpdp_mail_digest_mark` sets `dpdp.mail_inbound.digested_at` on exactly the listed tickets, so none is ever listed twice. A quiet day sends nothing. Answers: `200` (sent, or nothing new), `401` bad bearer, `502` (could not read, send failed - nothing marked, tomorrow lists them again - or sent but not marked), `503` (dry run or no operator address). A manual run: `curl -X POST <function url> -H "Authorization: Bearer <DPDP_INBOUND_SECRET>" -d '{"job":"operator_digest"}'`.
+
+**Sales forward.** See `DPDP_SALES_FORWARD_TO` in the secrets table.
 
 ## Closing a ticket, and retention
 

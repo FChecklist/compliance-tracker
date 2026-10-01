@@ -691,7 +691,8 @@ describe("recipient policy: Resend accepts every address at the domain", () => {
     expect(pb.class).toBe("partner")
     expect(pb.rule).toBe("tag")
     expect(p.acks()).toHaveLength(0)
-    expect(p.notices()).toHaveLength(1)
+    expect(p.notices()).toHaveLength(0) // a partner enquiry is recorded for the daily digest, no per-message email
+    expect(pb.notified).toBe("digest")
   })
 
   test("among several recipients the best one decides: a message to info@ AND grievance@ is a grievance; to info@ AND dpdp@ is normal", async () => {
@@ -704,14 +705,14 @@ describe("recipient policy: Resend accepts every address at the domain", () => {
     expect(b2.class).toBe("review") // the default: nothing matched, and nothing is dropped
   })
 
-  test("postmaster@ and abuse@ are support: the operator is told, the sender is NEVER acknowledged", async () => {
+  test("postmaster@ and abuse@ are support: left for the daily digest (no per-message email), the sender is NEVER acknowledged", async () => {
     for (const role of ["postmaster", "abuse"]) {
       const r = rig()
       const res = await r.receive(email({ to: [`${role}@veridian-aios.com`], received_for: [`${role}@veridian-aios.com`], text: "Hello, this is a report." }))
       const b = await body(res)
       expect(b.class, role).toBe("support")
-      expect(b.notified, role).toBe("sent")
-      expect(r.notices(), role).toHaveLength(1)
+      expect(b.notified, role).toBe("digest")
+      expect(r.notices(), role).toHaveLength(0)
       expect(r.acks(), role).toHaveLength(0)
       expect(String(inserts(r.db)[0].p_classifier_reason)).toContain(`role-mailbox:${role}`)
     }
@@ -774,7 +775,7 @@ describe("recipient policy: Resend accepts every address at the domain", () => {
     const r = rig()
     const b = await body(await r.receive(email({ to: [], received_for: [], text: "Hello there." })))
     expect(b.class).toBe("review")
-    expect(b.notified).toBe("sent")
+    expect(b.notified).toBe("digest") // review is acknowledged but surfaces in the daily digest
   })
 
   test("if the classifier throws, an unknown address is NOT demoted: it stays review and the operator is told", async () => {
@@ -874,13 +875,13 @@ describe("authentication: the verdicts are Resend's, and a failed one is never a
 
   test("every Resend-sourced notice states the verdicts and the Resend id, also for a class that is not acknowledged", async () => {
     const r = rig()
-    await r.receive(email({ to: ["dpdp+sal@veridian-aios.com"], received_for: ["dpdp+sal@veridian-aios.com"], text: "We would like a demo.", authentication: { spf: "pass", dkim: "pass", dmarc: "pass" } }))
+    await r.receive(email({ to: ["abuse@veridian-aios.com"], received_for: ["abuse@veridian-aios.com"], text: "Please delete my data.", authentication: { spf: "pass", dkim: "pass", dmarc: "pass" } }))
     const t = r.notices()[0].text
     expect(t.split("\n")[0]).toBe(`A message reached ${MAILBOX}.`)
     expect(t).toContain(`Resend received-email id: ${EID}`)
     expect(t).toContain("Authentication as reported by Resend: SPF pass, DKIM pass, DMARC pass")
     const none = rig()
-    await none.receive(email({ authentication: undefined, text: "Hello." }))
+    await none.receive(email({ authentication: undefined, text: "I have a complaint about my account." }))
     expect(none.notices()[0].text).toContain("Resend reported no SPF / DKIM / DMARC verdicts")
   })
 })
@@ -1460,7 +1461,8 @@ describe("recipient policy: bulk mail to a guessed address, and the wording of t
       const r = rig()
       const b = await body(await r.receive(email({ from, text: "Please send me your pricing brochure." })))
       expect(b.class, JSON.stringify(from)).toBe("sales") // was `auto`: logged, nobody told
-      expect(r.notices(), JSON.stringify(from)).toHaveLength(1)
+      expect(b.notified, JSON.stringify(from)).toBe("digest") // read as a sales enquiry: recorded for the daily digest, no per-message email
+      expect(r.notices(), JSON.stringify(from)).toHaveLength(0)
       expect("envelope_from" in mapReceivedEmail({ emailId: EID, data: {}, email: email({ from }), now: NOW }).payload).toBe(false)
     }
     const bounce = mapReceivedEmail({ emailId: EID, data: {}, email: email({ headers: { "return-path": "<>", "message-id": "<a@b>" } }), now: NOW })

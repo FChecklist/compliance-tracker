@@ -4,7 +4,8 @@
 //
 // THE PIPELINE (one POST per message, from the Cloudflare Email Worker in workers/dpdp-inbound-mail):
 //   auth -> parse -> [outbound lookup] -> classify -> record (dpdp.mail_inbound, ticket) ->
-//   [acknowledge the sender: legal-clock classes only] -> [tell the operator: every class but auto]
+//   [acknowledge the sender: legal-clock classes only] -> [tell the operator NOW: grievance and data_request only; every other
+//   class waits for the once-a-day digest, operator-digest.ts] -> [forward a `sales` message to DPDP_SALES_FORWARD_TO, if set]
 //
 // FAIL-CLOSED ON AUTH. The bearer is compared, as SHA-256 digests in constant time, with
 // DPDP_INBOUND_SECRET. No secret configured (or a short one) refuses everything with 503; a wrong or
@@ -47,7 +48,7 @@
 // LOGGING: one JSON line per message with the ticket, class, rule and outcomes. Never the bearer, an
 // address, a subject or any text of the message.
 import {
-  CLASS_LABEL, LEGAL_CLOCK_CLASSES, MAILBOX, MAIL_CLASSES, NOTIFY_CLASSES, newRef, notificationSubject, outboundHeaders, parseRecipient,
+  CLASS_LABEL, LEGAL_CLOCK_CLASSES, MAILBOX, MAIL_CLASSES, NOTIFY_CLASSES, SALES_FORWARD_CLASS, newRef, notificationSubject, outboundHeaders, parseRecipient,
   replyToAddress, withSubjectPrefix, type MailClass,
 } from "../_shared/mail-taxonomy.ts"
 import { autoSignals, bareAddress, classify, extractMessageIds, readTag, type Classification, type OutboundMatch } from "./classify.ts"
@@ -83,6 +84,11 @@ export type InboundConfig = {
   legalResponseDays: number
   /** True when there is no RESEND_API_KEY. */
   dryRun: boolean
+  /**
+   * DPDP_SALES_FORWARD_TO. When set to one valid address, a message classified `sales` is also forwarded there (original sender in
+   * Reply-To). Unset / empty / not a plain address: sales mail is only recorded and listed in the daily digest, as every other class.
+   */
+  salesForwardTo?: string
 }
 
 export type InboundDeps = {
@@ -692,9 +698,11 @@ export async function handleInbound(req: Request, deps: InboundDeps, policy?: In
     }
   }
 
-  // 5. Tell the operator (every class but auto).
-  let notified = "skipped_auto"
-  if (NOTIFY_CLASSES.includes(c.cls)) {
+  // 5. Tell the operator, per message, ONLY for the classes that start a legal clock (grievance, data_request) -- or when the classifier
+  //    itself threw, because then nobody knows what the message is (owner decision 2026-10-01). Every other class is recorded and reaches
+  //    the operator in the once-a-day digest (operator-digest.ts); `auto` is never surfaced. "digest" is a normal outcome: 200, nobody owed.
+  let notified = c.cls === "auto" ? "skipped_auto" : cfg.dryRun ? "dry_run" : "digest" // dry run: nobody could be told, so the Worker still forwards natively
+  if (NOTIFY_CLASSES.includes(c.cls) || classifierFailed) {
     if (rec.duplicate && rec.operatorNotified) {
       notified = "already"
     } else if (cfg.dryRun) {
@@ -726,9 +734,28 @@ export async function handleInbound(req: Request, deps: InboundDeps, policy?: In
     }
   }
 
-  log(JSON.stringify({ evt: "dpdp-inbound-mail", ticket: rec.ticketNo, class: c.cls, rule: c.rule, duplicate: rec.duplicate, messageIdReused: rec.messageIdReused === true, ack: ackStatus, notified, dryRun: cfg.dryRun }))
+  // 6. Sales forward (optional). Only a message the classifier put in `sales`, only when DPDP_SALES_FORWARD_TO is set and valid. A failure
+  //    here never changes the answer: the message is recorded and is in the daily digest, so nothing is lost. A redelivery sends again, but the
+  //    idempotency key (one per ticket) makes the provider drop the second mail.
+  let salesForward = "not_applicable"
+  if (c.cls === SALES_FORWARD_CLASS) {
+    const target = salesForwardTarget(cfg.salesForwardTo)
+    if (target === null) salesForward = "not_configured"
+    else if (cfg.dryRun) salesForward = "dry_run"
+    else {
+      try {
+        await deps.send(renderSalesForward(mail, rec.ticketNo, target, cfg.from, receivedAt))
+        salesForward = "sent"
+      } catch (e) {
+        salesForward = "failed"
+        log(JSON.stringify({ evt: "dpdp-inbound-mail", ticket: rec.ticketNo, warn: "sales forward failed", detail: message(e).slice(0, 200) }))
+      }
+    }
+  }
 
-  const body = { ok: true, ticket: rec.ticketNo, class: c.cls, rule: c.rule, duplicate: rec.duplicate, dryRun: cfg.dryRun, ack: ackStatus, notified, degraded: false }
+  log(JSON.stringify({ evt: "dpdp-inbound-mail", ticket: rec.ticketNo, class: c.cls, rule: c.rule, duplicate: rec.duplicate, messageIdReused: rec.messageIdReused === true, ack: ackStatus, notified, salesForward, dryRun: cfg.dryRun }))
+
+  const body = { ok: true, ticket: rec.ticketNo, class: c.cls, rule: c.rule, duplicate: rec.duplicate, dryRun: cfg.dryRun, ack: ackStatus, notified, salesForward, degraded: false }
   if (notified === "failed" || notified === "no_operator_email") {
     return json({ ...body, ok: false, error: "the message is recorded but the operator could not be told; forward it natively" }, 502)
   }
@@ -736,6 +763,32 @@ export async function handleInbound(req: Request, deps: InboundDeps, policy?: In
     return json({ ...body, ok: false, error: "dry run: the message is recorded but nobody was told; forward it natively" }, 502)
   }
   return json(body, 200)
+}
+
+/** DPDP_SALES_FORWARD_TO as one plain address, or null (unset, blank, a list, a display name, anything with a control character or space). Never throws. */
+export function salesForwardTarget(raw: string | undefined | null): string | null {
+  const s = (raw ?? "").trim()
+  if (!s || s.length > 254) return null
+  return /^[^\s@<>,;"()[\]\\]+@[^\s@<>,;"()[\]\\]+\.[^\s@<>,;"()[\]\\]+$/.test(s) ? s : null
+}
+
+/**
+ * The forwarded copy of a sales enquiry. Original sender in Reply-To (so Reply goes to them, not to our mailbox), subject prefixed with the
+ * ticket, the original text as the body under one short line that says what this is. Nothing else is added: the body was already passed
+ * through redactSecrets by parseInbound. Stamped Auto-Submitted so a compliant responder at the destination does not answer us.
+ */
+export function renderSalesForward(mail: InboundMail, ticket: string, to: string, from: string, receivedAt: Date): OutMessage {
+  const original = mail.subject.replace(/^\s*(re|fwd?)\s*:\s*/i, "").trim() || "(no subject)"
+  const who = mail.fromName && mail.replyAddress ? `${mail.fromName} <${mail.replyAddress}>` : mail.replyAddress || "(unknown sender)"
+  return {
+    from,
+    to,
+    subject: `[Fwd Sales ${ticket}] ${original}`,
+    text: [`Forwarded sales enquiry ${ticket} from ${who}, received ${formatIst(receivedAt)}. Reply to this email to answer them directly.`, "", mail.text.trim() || "(empty)"].join("\n"),
+    replyTo: mail.replyAddress && parseRecipient(mail.replyAddress).ours === false ? mail.replyAddress : undefined,
+    headers: { "X-Veridian-Class": "sales", "X-Veridian-Ticket": ticket, "X-Veridian-Origin": "sales-forward", "Auto-Submitted": "auto-generated" },
+    idempotencyKey: `dpdp-inbound-salesfwd-${ticket}`,
+  }
 }
 
 /** Sends the acknowledgement and logs it in dpdp.mail_outbound so a reply to it lands on the same class. Throws if the send fails. */
