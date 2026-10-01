@@ -34,6 +34,7 @@
 // WHAT THIS FILE NEVER DOES: build SQL, read a table, decide who may read a project or what rank a function needs (all SQL), echo the text of
 // a database error, or take an organisation from the caller.
 import { errorBody, linkBase } from "../_shared/ai-link/core.ts"
+import { ensureFirstUser } from "./first-user.ts"
 import { DEFAULT_CONFIRM_HOST } from "./config.ts"
 import type { AwlConfig, Rpc } from "./reads.ts"
 import type { SessionVerifier } from "./session.ts"
@@ -42,6 +43,8 @@ export type MintDeps = {
   rpc: Rpc
   session: SessionVerifier
   config: AwlConfig
+  /** The fetch of the first-user self-heal (first-user.ts); the test passes its own. */
+  fetch?: typeof fetch
   log?: (line: string) => void
   /** Milliseconds since the epoch; the test passes its own clock. */
   now?: () => number
@@ -367,13 +370,17 @@ async function parseParams(req: Request, route: string[], kind: MintRoute, metho
 }
 
 /** 5. Who the person is: one active user of one organisation, through the gateway's own lookup. */
-async function resolvePerson(deps: MintDeps, who: Who, kind: MintRoute, log: (l: string) => void): Promise<{ ok: true; userId: string } | { ok: false; out: MintAnswer }> {
-  let res
-  try {
-    res = await deps.rpc("projexa_read_resolve_user", { p_sub: who.sub, p_email: who.email })
-  } catch {
-    res = { data: null, error: { message: "rpc threw" } }
+async function resolvePerson(deps: MintDeps, who: Who, kind: MintRoute, log: (l: string) => void, token: string | null = null): Promise<{ ok: true; userId: string } | { ok: false; out: MintAnswer }> {
+  const lookup = async () => {
+    try {
+      return await deps.rpc("projexa_read_resolve_user", { p_sub: who.sub, p_email: who.email })
+    } catch {
+      return { data: null, error: { message: "rpc threw" } }
+    }
   }
+  let res = await lookup()
+  // a brand-new signup has an organisation but no user yet: make the person its first user (only when the PROJEXA project says they own it), then look again
+  if (token && !res.error && firstRow(res.data)?.reason === "not_linked" && (await ensureFirstUser(token, who, { rpc: deps.rpc, fetch: deps.fetch, log }))) res = await lookup()
   const row = res.error ? null : firstRow(res.data)
   if (!row) {
     log(`ai-work-link: ${kind}: identity lookup failed -> 503`)
@@ -404,7 +411,7 @@ async function run(req: Request, route: string[], deps: MintDeps): Promise<MintA
   if (!gated.ok) return gated.out
   const parsed = await parseParams(req, route, kind, method)
   if (!parsed.ok) return parsed.out
-  const person = await resolvePerson(deps, gated.who, kind, log)
+  const person = await resolvePerson(deps, gated.who, kind, log, bearerOf(req))
   if (!person.ok) return person.out
   return execute(parsed.value, person.userId, deps, log)
 }
