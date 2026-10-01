@@ -353,8 +353,7 @@ sales_partner:
         - We see the money and confirm the payment by hand. Until then, no commission is created.
         - Your commission is created and shows as pending.
       bullets:
-        - "Yearly plan: you earn 20% of the payment. You earn it again on every yearly renewal, for as long as that client stays."
-        - "Monthly plan: you earn 5% of the first month's payment. Later months earn nothing."
+        - "You earn 20% of each yearly payment, including every yearly renewal, for as long as that client stays."
         - Your own organisation never counts. If you sign up through your own link, you earn nothing.
     - h2: How you are paid
       paragraphs:

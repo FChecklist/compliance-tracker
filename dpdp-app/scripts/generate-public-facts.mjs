@@ -51,7 +51,7 @@ import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
-import { FOOTER_LINKS, HIDDEN_PAGES, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, pageUrl } from "../src/lib/public-surface.mjs"
+import { FOOTER_LINKS, HIDDEN_PAGES, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
 
@@ -269,6 +269,7 @@ function head(facts, { path, title, description, nodes, hidden = false }) {
     `<link rel="preload" href="/fonts/sora-latin-wght.woff2" as="font" type="font/woff2" crossorigin />`,
     `<link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />`,
     `<link rel="stylesheet" href="/src/site.css" />`,
+    REF_SCRIPT.tag,
     jsonLdScript(nodes),
   )
   return lines.map((l) => "    " + l).join("\n")
@@ -528,6 +529,15 @@ export function applyToLanding(facts, html, path, file) {
     (m) => `${m[1]}${m[2]}\n${socialLines(facts, { title, description }).map((l) => m[1] + l).join("\n")}\n`,
     file,
     "og:description (to attach the image and card tags)",
+  )
+
+  // The one allowed script besides JSON-LD: /ref.js, right after the stylesheet link (idempotent).
+  out = replaceOne(
+    out,
+    /^([ \t]*)(<link rel="stylesheet" href="\/src\/site\.css" \/>)\r?\n(?:[ \t]*<script defer src="\/ref\.js"><\/script>\r?\n)?/m,
+    (m) => `${m[1]}${m[2]}\n${m[1]}${REF_SCRIPT.tag}\n`,
+    file,
+    "the stylesheet link (to attach /ref.js)",
   )
 
   const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/i.exec(out)

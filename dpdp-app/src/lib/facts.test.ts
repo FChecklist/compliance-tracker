@@ -400,14 +400,15 @@ describe("/partner/ (Sales Partner): the page says what the database does", () =
   const html = read("partner/index.html")
   const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ")
 
-  test("the yearly and monthly percentages on the page equal v_rate in dpdp_record_confirmed_payment", () => {
+  test("the yearly percentage on the page equals v_rate in dpdp_record_confirmed_payment; the monthly rule is not on the page (monthly is not sold today)", () => {
     const rates = [...sql.matchAll(/v_rate := (0\.\d+);/g)].map((m) => Math.round(Number(m[1]) * 100))
     expect(rates).toEqual([20, 5]) // yearly first, then the first monthly payment
     const [yearly, monthly] = rates
-    expect(text).toContain(`Yearly plan: you earn ${yearly}% of the payment. You earn it again on every yearly renewal, for as long as that client stays.`)
-    expect(text).toContain(`Monthly plan: you earn ${monthly}% of the first month's payment. Later months earn nothing.`)
-    // every percentage on the page is one of the two
-    expect([...text.matchAll(/(\d+)%/g)].map((m) => Number(m[1])).sort()).toEqual([monthly, yearly].sort())
+    expect(text).toContain(`You earn ${yearly}% of each yearly payment, including every yearly renewal, for as long as that client stays.`)
+    // the only percentage on the page is the yearly one; nothing about a monthly plan
+    expect([...text.matchAll(/(\d+)%/g)].map((m) => Number(m[1]))).toEqual([yearly])
+    expect(text).not.toContain(`${monthly}%`)
+    expect(text).not.toMatch(/monthly|first month|per month/i)
   })
 
   test("the rules it states exist in the database: self-referral blocked, payment confirmed by hand, payout by hand", () => {

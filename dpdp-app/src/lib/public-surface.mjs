@@ -76,6 +76,14 @@ export const NAV_SIGN_IN = { href: "/app/", label: "Sign in" }
 const HEADER_COPY = [`href="${NAV_PARTNER.href}">${NAV_PARTNER.label}</a>`, `class="nav-signin" href="${NAV_SIGN_IN.href}">${NAV_SIGN_IN.label}</a>`]
 FACT_COPY.push(...HEADER_COPY)
 
+/** The ONE script a public page may load besides its JSON-LD (owner/coordinator,
+ * 2026-10-01): public/ref.js, same origin, deferred. It remembers a ?ref=<code>
+ * from a Sales Partner's shared link in localStorage (the key src/lib/landing.ts
+ * reads) so the code survives the click to /app/. No cookie, no network. Every
+ * public and hidden page carries exactly this tag; no private page does. */
+export const REF_SCRIPT = { src: "/ref.js", tag: '<script defer src="/ref.js"></script>', open: '<script defer src="/ref.js">' }
+FACT_COPY.push(REF_SCRIPT.tag)
+
 /** Every crawler WO-012 §3 names. Each must appear as its own User-agent
  * line in robots.txt's public group. */
 export const REQUIRED_BOTS = [

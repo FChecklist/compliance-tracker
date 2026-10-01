@@ -195,8 +195,7 @@ You do not have an organisation yet? Sign in with your email and open your own. 
 2. The organisation pays us.
 3. We see the money and confirm the payment by hand. Until then, no commission is created.
 4. Your commission is created and shows as pending.
-- Yearly plan: you earn 20% of the payment. You earn it again on every yearly renewal, for as long as that client stays.
-- Monthly plan: you earn 5% of the first month's payment. Later months earn nothing.
+- You earn 20% of each yearly payment, including every yearly renewal, for as long as that client stays.
 - Your own organisation never counts. If you sign up through your own link, you earn nothing.
 ### How you are paid
 We pay by hand, by UPI or bank transfer. Payment is not automatic, and this page does not fix a payout date.
