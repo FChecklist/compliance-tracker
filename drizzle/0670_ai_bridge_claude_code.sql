@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner (Rajat Agarwal) approved in a live Claude Code session on 2026-10-01: "yes build the in-app AI bridge too and also complete all work, merge, go green" and "apply the migration after green and tell me"; the bridge's two tables and five SECURITY DEFINER/GRANT functions are that work.
 -- PROJEXA test-mode "AI bridge" (owner directive 2026-10-01): while PROJEXA is being tested before go-live, the in-app model calls
 -- are answered by Claude Code running on the owner's own laptop instead of a paid model API. A Vercel function cannot reach a laptop, so
 -- the bridge is a QUEUE in the database: the function enqueues a request and waits briefly; a worker on the laptop (scripts/ai-bridge-worker.mjs)
