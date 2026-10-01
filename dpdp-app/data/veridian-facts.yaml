@@ -50,10 +50,8 @@ one_line: >-
   institutions, schools and NGOs.
 
 # The heading of the fact block on every public page (owner-approved
-# 2026-10-01). "VERy Indian" is the owner's spelling for this one heading;
-# scripts/check-two-doors.mjs exempts exactly this string from the
-# "VERy INDIAN" spelling rule and nothing else.
-fact_block_title: What VERIDIAN (VERy Indian) is
+# 2026-10-01). The brand spelling is "VERy INDIAN" everywhere (owner, 2026-10-01).
+fact_block_title: What VERIDIAN (VERy INDIAN) is
 
 # The audience clause of the one line, as the owner wrote it, and as a list.
 who_for_line: for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs

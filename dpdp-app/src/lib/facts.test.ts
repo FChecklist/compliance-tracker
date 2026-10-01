@@ -41,7 +41,7 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.one_line).toBe(
       "dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.",
     )
-    expect(facts.fact_block_title).toBe("What VERIDIAN (VERy Indian) is")
+    expect(facts.fact_block_title).toBe("What VERIDIAN (VERy INDIAN) is")
     expect(facts.what_it_does).toBe(
       "It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords. Each answer is recorded with a date and cannot be edited, building the proof an organisation needs. Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.",
     )
@@ -322,7 +322,7 @@ describe("no internal-process wording on any public surface", () => {
   test("the heading and copy of the fact block are the owner's, on every public page", () => {
     for (const p of PUBLIC_PAGES) {
       const html = read(p.source)
-      expect(html, p.source).toContain('<h2 class="facts-title" id="facts-title">What VERIDIAN (VERy Indian) is</h2>')
+      expect(html, p.source).toContain('<h2 class="facts-title" id="facts-title">What VERIDIAN (VERy INDIAN) is</h2>')
       expect(html, p.source).toContain("<b>Who it is for:</b> CA, CS, audit and legal firms · their clients · companies, institutions, schools and NGOs")
       expect(html, p.source).toContain('<p class="facts-links"><a href="/about/">About VERIDIAN</a></p>')
     }

@@ -110,13 +110,11 @@ describe("the committed sources", () => {
     expect(read("public/llms.txt")).toContain(FULL)
   })
 
-  // Owner, 2026-10-01: the fact-block heading is the one place "VERy Indian" is
-  // written that way. The exemption is the exact heading and nothing else.
-  test("the owner's one heading is exempt from the spelling rule; any other variant still fails", () => {
-    expect(findSpellingVariants("What VERIDIAN (VERy Indian) is")).toEqual([])
-    expect(findSpellingVariants("What VERIDIAN (VERy Indian) is. VERy Indian").map((v) => v.variant)).toEqual(["VERy Indian"])
-    expect(findSpellingVariants("What VERIDIAN (Very Indian) is").map((v) => v.variant)).toEqual(["Very Indian"])
+  // Owner, 2026-10-01: "VERy INDIAN" is correct everywhere, including the fact-block heading; no exemption exists.
+  test("no spelling exemption: the fact-block heading uses VERy INDIAN and every other variant fails", () => {
     expect(findSpellingVariants("What VERIDIAN (VERy INDIAN) is")).toEqual([])
+    expect(findSpellingVariants("What VERIDIAN (VERy Indian) is").map((v) => v.variant)).toEqual(["VERy Indian"])
+    expect(findSpellingVariants("What VERIDIAN (Very Indian) is").map((v) => v.variant)).toEqual(["Very Indian"])
   })
 
   test("tab titles on public pages are 'VERIDIAN · VERy INDIAN — <page>'", () => {
