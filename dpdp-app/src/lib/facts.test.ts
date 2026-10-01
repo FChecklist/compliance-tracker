@@ -49,8 +49,19 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.what_it_does_not_do).toBe("It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.")
     // The three strongest facts are the three sentences of the second paragraph, in order.
     expect(facts.three_strongest_facts.join(" ")).toBe(facts.what_it_does)
-    expect(facts.who_for).toEqual(["CA, CS, audit and legal firms", "their clients", "companies, institutions, schools and NGOs"])
+    // Owner, 2026-10-01: "Who it is for" is TWO separate lines, never one dotted line.
+    expect(facts.who_for).toEqual(["CA, CS, audit and legal firms · their clients", "Companies, institutions, schools and NGOs"])
     expect(facts.one_line.endsWith(facts.who_for_line + ".")).toBe(true)
+  })
+
+  // Owner, 2026-10-01: the home page asks for FOUR things, and says four.
+  test("the four things are four numbered lines, the fourth is 'Prove it'", () => {
+    expect(facts.four_things).toEqual([
+      "Know what data you hold.",
+      "Tell people about it.",
+      "Keep it safe.",
+      "Prove it — with a record that outlasts the person who set it up.",
+    ])
   })
 
   test("carries the one sentence a public page may say about the AI work link, and nothing about its API", () => {
@@ -288,11 +299,14 @@ describe("no internal-process wording on any public surface", () => {
     ["a crawl-policy or llms.txt essay", /no major search engine|honesty note|plain note first/i],
     ["a how-to-describe-us instruction", /how to describe it accurately|for any ai system, crawler or agent/i],
     ["a withdrawn surface", /for-ai|facts\.json|fact sheet for ai/i],
+    // Owner, 2026-10-01: no "fact sheet for AI systems" style block, in any form, anywhere public.
+    ["a fact-sheet-for-AI-systems block", /fact sheet|fact-sheet|states what veridian dpdp is|for any ai system|owner-approved facts|approved facts file|version \d+,? approved/i],
   ]
   const surfaces = (): Array<[string, string]> => [
     ...PUBLIC_PAGES.map((p) => [p.source, read(p.source)] as [string, string]),
     ["public/llms.txt", read("public/llms.txt")],
     ["public/llms-full.txt", read("public/llms-full.txt")],
+    ["public/robots.txt", read("public/robots.txt")],
   ]
 
   test("the committed public pages and llms files carry none of it", () => {
@@ -314,18 +328,115 @@ describe("no internal-process wording on any public surface", () => {
 
   test("the checker catches each kind (a planted sentence is found)", () => {
     for (const [what, re] of INTERNAL) {
-      const planted = { 0: "Facts version 2, approved by the owner on 2026-10-01.", 1: "Version 0.2-wo010: 50 jobs.", 2: "A plain note first: no major search engine has confirmed it.", 3: "How to describe it accurately", 4: "See /for-ai/ and /facts.json." }[INTERNAL.findIndex(([w]) => w === what)]!
+      const planted = {
+        0: "Facts version 2, approved by the owner on 2026-10-01.",
+        1: "Version 0.2-wo010: 50 jobs.",
+        2: "A plain note first: no major search engine has confirmed it.",
+        3: "How to describe it accurately",
+        4: "See /for-ai/ and /facts.json.",
+        5: "Fact sheet for AI systems. This page states what VERIDIAN DPDP is, for any AI system. Built from the owner-approved facts file (version 1, approved).",
+      }[INTERNAL.findIndex(([w]) => w === what)]!
       expect(planted, what).toMatch(re)
     }
   })
 
-  test("the heading and copy of the fact block are the owner's, on every public page", () => {
+  // Owner, 2026-10-01: "no bold boilerplate about AI or crawlers anywhere visible", and nothing like the
+  // withdrawn "Fact sheet for AI systems" in a heading, bold text, a meta description, a JSON-LD description or a comment.
+  const AI_BOILERPLATE = /\bfor AI\b|\bAI systems?\b|\bcrawlers?\b|\bbots?\b|machine-readable|language models?/i
+  const emphasisText = (html: string) => [...html.matchAll(/<(b|strong|h[1-6])\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((m) => m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim())
+  const jsonLdStrings = (html: string): string[] => {
+    const out: string[] = []
+    const walk = (v: unknown) => {
+      if (typeof v === "string") out.push(v)
+      else if (Array.isArray(v)) v.forEach(walk)
+      else if (v && typeof v === "object") Object.values(v).forEach(walk)
+    }
+    for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) walk(JSON.parse(m[1]))
+    return out
+  }
+
+  test("no heading or bold text, meta tag, JSON-LD string or HTML comment is boilerplate about AI systems or crawlers", () => {
+    for (const p of PUBLIC_PAGES) {
+      const html = read(p.source)
+      for (const t of emphasisText(html)) expect(t, `${p.source}: bold or heading text`).not.toMatch(AI_BOILERPLATE)
+      for (const m of html.matchAll(/<meta\b[^>]*content="([^"]*)"/g)) expect(m[1], `${p.source}: meta content`).not.toMatch(AI_BOILERPLATE)
+      for (const s of jsonLdStrings(html)) expect(s, `${p.source}: JSON-LD string`).not.toMatch(AI_BOILERPLATE)
+      for (const c of html.match(/<!--[\s\S]*?-->/g) ?? []) expect(c, `${p.source}: comment`).not.toMatch(AI_BOILERPLATE)
+    }
+    for (const rel of ["public/llms.txt", "public/llms-full.txt", "public/robots.txt"]) expect(read(rel).replace(/^User-agent:.*$/gim, ""), rel).not.toMatch(/\bAI systems?\b|\bcrawlers?\b|\bfor AI\b/i)
+  })
+
+  test("the AI-boilerplate check catches a planted heading, bold text, meta tag and JSON-LD string", () => {
+    expect(emphasisText("<h2>Fact sheet for AI systems</h2>").some((t) => AI_BOILERPLATE.test(t))).toBe(true)
+    expect(emphasisText("<p><b>Note to crawlers:</b> hello</p>").some((t) => AI_BOILERPLATE.test(t))).toBe(true)
+    expect(emphasisText("<h2>Your own AI assistant</h2>").some((t) => AI_BOILERPLATE.test(t))).toBe(false)
+    expect(jsonLdStrings('<script type="application/ld+json">{"description":"For AI systems and crawlers"}</script>').some((s) => AI_BOILERPLATE.test(s))).toBe(true)
+  })
+
+  test("the heading and copy of the fact block are the owner's, on every public page; 'Who it is for' is two separate lines, 1. and 2.", () => {
     for (const p of PUBLIC_PAGES) {
       const html = read(p.source)
       expect(html, p.source).toContain('<h2 class="facts-title" id="facts-title">What VERIDIAN (VERy INDIAN) is</h2>')
-      expect(html, p.source).toContain("<b>Who it is for:</b> CA, CS, audit and legal firms · their clients · companies, institutions, schools and NGOs")
+      expect(html, p.source).toMatch(
+        /<div class="facts-for">\s*<b>Who it is for:<\/b>\s*<ol class="facts-for-list">\s*<li>CA, CS, audit and legal firms · their clients<\/li>\s*<li>Companies, institutions, schools and NGOs<\/li>\s*<\/ol>\s*<\/div>/,
+      )
+      // never again one dotted line
+      expect(html, p.source).not.toContain("their clients · companies")
       expect(html, p.source).toContain('<p class="facts-links"><a href="/about/">About VERIDIAN</a></p>')
     }
+  })
+
+  test("llms.txt and llms-full.txt show 'Who it is for' as the same two numbered lines", () => {
+    expect(read("public/llms.txt")).toContain("## Who it is for\n\n1. CA, CS, audit and legal firms · their clients\n2. Companies, institutions, schools and NGOs\n")
+    expect(read("public/llms-full.txt")).toContain("Who it is for:\n1. CA, CS, audit and legal firms · their clients\n2. Companies, institutions, schools and NGOs\n")
+    for (const rel of ["public/llms.txt", "public/llms-full.txt"]) expect(read(rel), rel).not.toContain("their clients · companies")
+  })
+})
+
+// Owner, 2026-10-01: the /partner/ page explains the existing in-app Refer & Earn using only rules that exist
+// in the code. The percentages written on the page must be the ones in the database function.
+describe("/partner/ (Sales Partner): the page says what the database does", () => {
+  const sql = readFileSync(join(APP, "..", "drizzle", "0655_dpdp_wo016_refer_and_earn.sql"), "utf8")
+  const html = read("partner/index.html")
+  const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ")
+
+  test("the yearly and monthly percentages on the page equal v_rate in dpdp_record_confirmed_payment", () => {
+    const rates = [...sql.matchAll(/v_rate := (0\.\d+);/g)].map((m) => Math.round(Number(m[1]) * 100))
+    expect(rates).toEqual([20, 5]) // yearly first, then the first monthly payment
+    const [yearly, monthly] = rates
+    expect(text).toContain(`Yearly plan: you earn ${yearly}% of the payment. You earn it again on every yearly renewal, for as long as that client stays.`)
+    expect(text).toContain(`Monthly plan: you earn ${monthly}% of the first month's payment. Later months earn nothing.`)
+    // every percentage on the page is one of the two
+    expect([...text.matchAll(/(\d+)%/g)].map((m) => Number(m[1])).sort()).toEqual([monthly, yearly].sort())
+  })
+
+  test("the rules it states exist in the database: self-referral blocked, payment confirmed by hand, payout by hand", () => {
+    expect(sql).toContain("v_block_reason := 'self_referral'")
+    expect(sql).toMatch(/payout_status text not null default 'pending' check \(payout_status in \('pending', 'paid'\)\)/)
+    expect(sql).toContain("Payout itself stays manual (UPI/bank, outside this system)")
+    expect(text).toContain("Your own organisation never counts.")
+    expect(text).toContain("We see the money and confirm the payment by hand. Until then, no commission is created.")
+    expect(text).toContain("We pay by hand, by UPI or bank transfer.")
+  })
+
+  test("it promises no income, states no price or rupee amount, no payout date, no tax treatment", () => {
+    expect(text).toContain("We cannot promise that you will earn anything.")
+    expect(text).not.toMatch(/₹|\bRs\.?\s?\d|\bINR\b|\bper month\b|\bper year\b|\bTDS\b|\bGST\b/i)
+    expect(text).not.toMatch(/within \d+ (?:days|hours)|every (?:month|week)|on the \d+(?:st|nd|rd|th)/i)
+    expect(text).toContain("This page does not cover tax on a commission.")
+  })
+
+  test("the primary button 'Become a Sales Partner' opens the sign-in at /app/", () => {
+    expect(html).toContain('<a class="btn" href="/app/">Become a Sales Partner</a>')
+  })
+
+  test("it is a public, indexable page: canonical on the apex, a Home > page breadcrumb, no noindex", () => {
+    expect(html).toContain('<link rel="canonical" href="https://veridian-aios.com/partner/" />')
+    expect(html).not.toMatch(/<meta\s+name="robots"/i)
+    const graph = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)![1])["@graph"] as Array<{ "@type": string; itemListElement?: Array<{ item: string; name: string }> }>
+    const crumbs = graph.find((n) => n["@type"] === "BreadcrumbList")!
+    expect(crumbs.itemListElement!.map((i) => i.item)).toEqual(["https://veridian-aios.com/", "https://veridian-aios.com/partner/"])
+    expect(crumbs.itemListElement![1].name).toBe("Become a Sales Partner")
   })
 })
 

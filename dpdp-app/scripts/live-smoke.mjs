@@ -34,7 +34,7 @@ async function get(path, init) {
 }
 
 // 1. Every public page answers, as HTML.
-for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
   const r = await get(p)
   check(r.status === 200 && /text\/html/.test(r.type), `${p} answers 200 as HTML`, `${r.status} ${r.type}`)
 }
@@ -80,6 +80,10 @@ const root = await get("/")
 check(!/\/dpdp\/login/.test(root.body), "/: no link to the old /dpdp/login")
 const sitemap = await get("/sitemap.xml")
 check(sitemap.body.includes("/dpdp-firm/") && sitemap.body.includes("/dpdp-institution/"), "the sitemap lists both edition pages")
+check(sitemap.body.includes("/partner/"), "the sitemap lists the Sales Partner page")
+const partner = await get("/partner/")
+check(!/noindex/i.test(partner.headers.get("x-robots-tag") || "") && !/<meta name="robots"/i.test(partner.body), "/partner/ is indexable (no noindex header, no robots meta)")
+check(partner.body.includes('class="btn" href="/app/">Become a Sales Partner</a>'), '/partner/: "Become a Sales Partner" opens /app/')
 
 // 3. The external AI work link: an unknown token is refused the same way on every route, and nothing leaks.
 const zero = "0".repeat(64)
