@@ -3502,6 +3502,13 @@
       "when": 1790486000000,
       "tag": "0671_dpdp_ai_suggestions",
       "breakpoints": true
+    },
+    {
+      "idx": 502,
+      "version": "7",
+      "when": 1790487000000,
+      "tag": "0672_awl_suggestions_board",
+      "breakpoints": true
     }
   ]
 }
