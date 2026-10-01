@@ -1,4 +1,6 @@
-# app.veridian-aios.com -- WO-DPDP-012 §3. Explicit, not left to defaults.
+# veridian-aios.com (the public pages) -- WO-DPDP-012 §3. Explicit, not left to defaults.
+# One Pages project answers on two hostnames with the same files; the public
+# pages carry a canonical link to veridian-aios.com on both.
 #
 # Public: the root chooser (/), /dpdp-firm/, /dpdp-institution/, /about/,
 # /for-ai/ (+ /for-ai.md, /facts.json, WO-DPDP-013 v2), and the site's own
@@ -43,4 +45,4 @@ Disallow: /p/
 Disallow: /copy/
 Disallow: /ai/
 
-Sitemap: https://app.veridian-aios.com/sitemap.xml
+Sitemap: https://veridian-aios.com/sitemap.xml

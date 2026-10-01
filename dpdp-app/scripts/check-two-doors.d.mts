@@ -43,3 +43,5 @@ export function findSpellingVariants(text: string): SpellingVariant[]
 export function findBrandLineDeviations(text: string, brand: Facts["brand"]): BrandLineDeviation[]
 export function sourceFiles(root?: string): string[]
 export function publicSurfaceFiles(): string[]
+export const PUBLIC_HOST: string
+export function findAppHost(text: string): Array<{ host: string; snippet: string }>

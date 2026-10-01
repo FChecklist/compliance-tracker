@@ -10,7 +10,10 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
+  FOOTER_LINKS,
+  OG_IMAGE,
   PRIVATE_PAGES,
+  PUBLIC_ORIGIN,
   PUBLIC_PAGES,
   REQUIRED_BOTS,
   SITE_ORIGIN,
@@ -85,8 +88,34 @@ describe("public/robots.txt (WO-012 §3: explicit, not left to defaults)", () =>
     for (const g of groups) for (const d of g.disallow) for (const pub of PUBLIC_PAGES) expect(d && pub.path.startsWith(d)).toBe(false)
   })
 
-  test("lists exactly this host's sitemap", () => {
-    expect(sitemaps).toEqual([`${SITE_ORIGIN}/sitemap.xml`])
+  // SEO (2026-10-01): the public pages are indexed under the apex. The
+  // sitemap the robots file announces is the apex's, never the app host's.
+  test("lists exactly the public host's sitemap (the apex, not the app host)", () => {
+    expect(sitemaps).toEqual([`${PUBLIC_ORIGIN}/sitemap.xml`])
+    expect(PUBLIC_ORIGIN).toBe("https://veridian-aios.com")
+    expect(sitemaps[0]).not.toContain(new URL(SITE_ORIGIN).host)
+  })
+})
+
+describe("two origins, one bundle (SEO canonical host)", () => {
+  test("pageUrl() is on the apex; SITE_ORIGIN is still the app host, which api.ts needs for AI-link URLs", () => {
+    expect(SITE_ORIGIN).toBe("https://app.veridian-aios.com")
+    for (const p of PUBLIC_PAGES) expect(pageUrl(p.path)).toBe(`${PUBLIC_ORIGIN}${p.path}`)
+    expect(pageUrl("/")).toBe("https://veridian-aios.com/")
+  })
+
+  test("no public page source, llms file, facts.json or for-ai.md names the app host", () => {
+    const host = new URL(SITE_ORIGIN).host
+    for (const rel of [...PUBLIC_PAGES.map((p) => p.source), "public/llms.txt", "public/llms-full.txt", "public/facts.json", "public/for-ai.md", "public/robots.txt"]) {
+      expect(read(rel), rel).not.toContain(host)
+    }
+  })
+
+  test("the sitemap renderer emits apex URLs only", () => {
+    const xml = renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
+    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
+    expect(locs.length).toBe(PUBLIC_PAGES.length)
+    for (const l of locs) expect(l.startsWith(`${PUBLIC_ORIGIN}/`), l).toBe(true)
   })
 })
 
@@ -121,6 +150,36 @@ describe("public/_headers (WO-012 §2 over HTTP, on Cloudflare Pages)", () => {
   })
 })
 
+describe("public/_headers: caching (speed) without breaking the private prefixes", () => {
+  const rules = parseHeadersFile(read("public/_headers"))
+
+  test("hashed build output and the frozen fonts are cached for a year, immutable", () => {
+    for (const path of ["/assets/site-BN48JZUe.css", "/assets/app-C9wmjQ_q.js", "/fonts/sora-latin-wght.woff2", "/fonts/instrument-sans-latin-wght.woff2", "/original/fonts/x.woff2"]) {
+      expect(resolveHeaders(rules, path)["cache-control"], path).toBe("public, max-age=31536000, immutable")
+    }
+  })
+
+  test("the brand images get a day, not a year (their names never change)", () => {
+    for (const path of [OG_IMAGE.path, "/logo.png", "/favicon-48.png"]) expect(resolveHeaders(rules, path)["cache-control"], path).toBe("public, max-age=86400")
+  })
+
+  test("public HTML pages stay on the Pages default (revalidate): no Cache-Control rule matches them", () => {
+    for (const pub of PUBLIC_PAGES) expect(resolveHeaders(rules, pub.path)["cache-control"], pub.path).toBeUndefined()
+  })
+
+  test("no Cache-Control rule can reach a private prefix except the private rule itself (a broad rule would comma-join with no-store)", () => {
+    for (const rule of rules) {
+      if (!rule.set.some(([n]) => n.toLowerCase() === "cache-control")) continue
+      for (const priv of PRIVATE_PAGES) {
+        for (const path of [priv.prefix, `${priv.prefix}index.html`, `${priv.prefix}x`]) {
+          const hit = new RegExp("^" + rule.path.split("*").map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$").test(path)
+          if (hit) expect(rule.path, `${path} is matched by ${rule.path}`).toBe(`${priv.prefix}*`)
+        }
+      }
+    }
+  })
+})
+
 describe("sitemap renderer (WO-012 §1: public pages only, real lastmod)", () => {
   const all = PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22T10:00:00+05:30" }))
 
@@ -151,15 +210,53 @@ describe("public/llms.txt and llms-full.txt (WO-012 §3: honest, existing pages 
 })
 
 describe("page sources", () => {
-  test("public: lang en-IN, canonical = this host's URL, no noindex, no script but JSON-LD", () => {
+  test("public: lang en-IN, canonical = the apex URL, no noindex, no script but JSON-LD", () => {
     for (const pub of PUBLIC_PAGES) {
       const html = read(pub.source)
+      expect(html).toContain(`<link rel="canonical" href="${PUBLIC_ORIGIN}${pub.path}" />`)
+      expect(html).toContain(`<meta property="og:url" content="${PUBLIC_ORIGIN}${pub.path}" />`)
       expect(html).toMatch(/<html[^>]*\slang="en-IN"/)
       expect(html).toContain(`<link rel="canonical" href="${pageUrl(pub.path)}" />`)
       expect(html).not.toMatch(/<meta\s+name="robots"[^>]*no(index|follow)/i)
       const scripts = html.match(/<script\b[^>]*>/g) ?? []
       for (const s of scripts) expect(s).toContain('type="application/ld+json"')
       expect(html).not.toMatch(/https?:\/\/fonts\.(googleapis|gstatic)\.com/)
+    }
+  })
+
+  test("public: Open Graph image + Twitter card + icon on every page, the image a real 1200x630 PNG", () => {
+    const image = `${PUBLIC_ORIGIN}${OG_IMAGE.path}`
+    for (const pub of PUBLIC_PAGES) {
+      const html = read(pub.source)
+      expect(html, pub.source).toContain(`<meta property="og:image" content="${image}" />`)
+      expect(html, pub.source).toContain(`<meta property="og:image:width" content="${OG_IMAGE.width}" />`)
+      expect(html, pub.source).toContain(`<meta property="og:image:height" content="${OG_IMAGE.height}" />`)
+      expect(html, pub.source).toContain('<meta name="twitter:card" content="summary_large_image" />')
+      expect(html, pub.source).toContain(`<meta name="twitter:image" content="${image}" />`)
+      expect(html, pub.source).toContain('<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />')
+    }
+    const png = readFileSync(join(root, "public", OG_IMAGE.path.slice(1)))
+    expect(png.subarray(1, 4).toString("latin1")).toBe("PNG")
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([OG_IMAGE.width, OG_IMAGE.height])
+  })
+
+  test("public: JSON-LD ids and urls are on the apex; non-root pages carry Home > page breadcrumbs; FAQPage only on the landings that show it", () => {
+    for (const pub of PUBLIC_PAGES) {
+      const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(read(pub.source))![1]
+      const graph = JSON.parse(block)["@graph"] as Array<Record<string, unknown>>
+      const types = graph.map((n) => n["@type"])
+      expect(types, pub.path).toEqual(pub.jsonLd.filter((t) => t !== "FAQPage").concat(pub.jsonLd.includes("FAQPage") ? ["FAQPage"] : []))
+      for (const n of graph) for (const k of ["@id", "url", "logo"]) if (typeof n[k] === "string") expect(n[k] as string, `${pub.path} ${n["@type"]}.${k}`).toStartWith(`${PUBLIC_ORIGIN}/`)
+      const crumbs = graph.find((n) => n["@type"] === "BreadcrumbList") as { itemListElement: Array<{ position: number; item: string }> } | undefined
+      if (pub.path === "/") expect(crumbs).toBeUndefined()
+      else expect(crumbs!.itemListElement.map((i) => [i.position, i.item])).toEqual([[1, pageUrl("/")], [2, pageUrl(pub.path)]])
+    }
+  })
+
+  test("public: every page's footer links the fact surfaces", () => {
+    for (const pub of PUBLIC_PAGES) {
+      const footer = /<footer[\s\S]*<\/footer>/.exec(read(pub.source))![0]
+      for (const [href, label] of FOOTER_LINKS) expect(footer, `${pub.path} footer`).toContain(`<a href="${href}">${label}</a>`)
     }
   })
 

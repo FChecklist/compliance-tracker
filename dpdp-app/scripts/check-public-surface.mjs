@@ -21,7 +21,9 @@ import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
   HIDDEN_PAGES,
+  OG_IMAGE,
   PRIVATE_PAGES,
+  PUBLIC_ORIGIN,
   PUBLIC_PAGES,
   REQUIRED_BOTS,
   SITE_ORIGIN,
@@ -171,6 +173,24 @@ for (const page of PUBLIC_PAGES) {
   const robotsMeta = meta(html, "name", "robots")
   expect(!robotsMeta || !/noindex|nofollow/i.test(robotsMeta), `${label}: PUBLIC page carries <meta name="robots" content="${robotsMeta}">`)
 
+  // One host: every public page is indexed under PUBLIC_ORIGIN and never
+  // mentions the signed-in app's host (SITE_ORIGIN) -- not in a canonical, an
+  // og:url, the JSON-LD, a link, or the copy.
+  expect(!html.includes(new URL(SITE_ORIGIN).host), `${label}: mentions the app host ${new URL(SITE_ORIGIN).host} -- public pages are indexed under ${PUBLIC_ORIGIN}`)
+
+  // Social card: Open Graph image + Twitter card (SEO). The image is a real file in dist/.
+  const ogImage = `${PUBLIC_ORIGIN}${OG_IMAGE.path}`
+  expect(meta(html, "property", "og:image") === ogImage, `${label}: og:image is ${meta(html, "property", "og:image")}, expected ${ogImage}`)
+  expect(meta(html, "property", "og:image:width") === String(OG_IMAGE.width), `${label}: og:image:width is not ${OG_IMAGE.width}`)
+  expect(meta(html, "property", "og:image:height") === String(OG_IMAGE.height), `${label}: og:image:height is not ${OG_IMAGE.height}`)
+  expect(!!meta(html, "property", "og:image:alt"), `${label}: og:image:alt missing`)
+  expect(meta(html, "name", "twitter:card") === "summary_large_image", `${label}: twitter:card is not summary_large_image`)
+  expect(meta(html, "name", "twitter:title") === title, `${label}: twitter:title differs from <title>`)
+  expect(meta(html, "name", "twitter:description") === description, `${label}: twitter:description differs from the meta description`)
+  expect(meta(html, "name", "twitter:image") === ogImage, `${label}: twitter:image is not ${ogImage}`)
+  const icon = linkHref(html, "icon")
+  expect(!!icon && icon.startsWith("/") && has(icon.slice(1)), `${label}: <link rel="icon"> ${icon} is not a file in dist/`)
+
   for (const s of page.mustContain) expect(html.includes(s), `${label}: raw HTML lacks the copy "${s.length > 70 ? s.slice(0, 70) + "…" : s}"`)
 
   // JSON-LD (WO-012 §4)
@@ -194,6 +214,19 @@ for (const page of PUBLIC_PAGES) {
     expect(app?.applicationCategory === "BusinessApplication", `${label}: SoftwareApplication.applicationCategory is not "BusinessApplication"`)
     expect(app?.operatingSystem === "Web browser", `${label}: SoftwareApplication.operatingSystem is not "Web browser"`)
     expect(!!app?.audience, `${label}: SoftwareApplication.audience missing`)
+  }
+  for (const n of nodes) {
+    for (const key of ["@id", "url", "item", "logo"]) {
+      if (typeof n[key] === "string") expect(n[key].startsWith(PUBLIC_ORIGIN + "/"), `${label}: JSON-LD ${n["@type"]}.${key} is ${n[key]}, not under ${PUBLIC_ORIGIN}`)
+    }
+  }
+  const orgNode = nodes.find((n) => n["@type"] === "Organization")
+  expect(typeof orgNode?.logo === "string" && has(new URL(orgNode.logo).pathname.slice(1)), `${label}: Organization.logo is not a file in dist/`)
+  if (page.jsonLd.includes("BreadcrumbList")) {
+    const items = nodes.find((n) => n["@type"] === "BreadcrumbList")?.itemListElement ?? []
+    expect(items.length === 2, `${label}: BreadcrumbList should be Home > this page, found ${items.length} item(s)`)
+    items.forEach((it, i) => expect(it.position === i + 1 && typeof it.name === "string" && it.name.length > 0, `${label}: BreadcrumbList item ${i + 1} has the wrong position or no name`))
+    expect(items[0]?.item === pageUrl("/") && items[items.length - 1]?.item === pageUrl(page.path), `${label}: BreadcrumbList does not run from ${pageUrl("/")} to ${pageUrl(page.path)}`)
   }
   const bad = priceKeys(nodes)
   expect(bad.length === 0, `${label}: JSON-LD carries price/offer keys (${bad.join(", ")}) -- owner rule: no price on public pages`)
@@ -296,6 +329,18 @@ for (const font of ["sora-latin-wght", "instrument-sans-latin-wght"]) {
 }
 for (const licence of ["fonts/OFL-Sora.txt", "fonts/OFL-InstrumentSans.txt"]) expect(has(licence), `dist/${licence} missing (SIL OFL requires the licence to travel with the font)`)
 
+// ------------------------------------------------------------ brand images
+// The Open Graph card must really be a 1200x630 PNG (a wrong-sized or missing
+// image makes a link preview fall back to nothing). PNG IHDR: width/height are
+// the big-endian words at byte 16 and 20.
+expect(has(OG_IMAGE.path.slice(1)), `dist${OG_IMAGE.path} missing`)
+if (has(OG_IMAGE.path.slice(1))) {
+  const png = readFileSync(join(dist, OG_IMAGE.path.slice(1)))
+  const isPng = png.length > 24 && png.subarray(1, 4).toString("latin1") === "PNG"
+  expect(isPng, `dist${OG_IMAGE.path} is not a PNG`)
+  if (isPng) expect(png.readUInt32BE(16) === OG_IMAGE.width && png.readUInt32BE(20) === OG_IMAGE.height, `dist${OG_IMAGE.path} is ${png.readUInt32BE(16)}x${png.readUInt32BE(20)}, expected ${OG_IMAGE.width}x${OG_IMAGE.height}`)
+}
+
 // ------------------------------------------------------------------ robots.txt
 expect(has("robots.txt"), "dist/robots.txt missing")
 if (has("robots.txt")) {
@@ -315,7 +360,7 @@ if (has("robots.txt")) {
       for (const pub of PUBLIC_PAGES) expect(!(d && pub.path.startsWith(d)), `robots.txt: Disallow: ${d} (${g.agents.join(", ")}) would block the public page ${pub.path}`)
     }
   }
-  expect(sitemaps.length === 1 && sitemaps[0] === `${SITE_ORIGIN}/sitemap.xml`, `robots.txt: Sitemap is ${JSON.stringify(sitemaps)}, expected ["${SITE_ORIGIN}/sitemap.xml"]`)
+  expect(sitemaps.length === 1 && sitemaps[0] === `${PUBLIC_ORIGIN}/sitemap.xml`, `robots.txt: Sitemap is ${JSON.stringify(sitemaps)}, expected ["${PUBLIC_ORIGIN}/sitemap.xml"]`)
 }
 
 // ----------------------------------------------------------------- sitemap.xml
@@ -350,6 +395,12 @@ if (has("_headers")) {
     expect(!h["x-robots-tag"], `_headers: PUBLIC ${pub.path} gets X-Robots-Tag "${h["x-robots-tag"]}"`)
     expect(h["referrer-policy"] === "strict-origin-when-cross-origin", `_headers: ${pub.path} gets Referrer-Policy "${h["referrer-policy"]}"`)
     expect(h["x-content-type-options"] === "nosniff", `_headers: ${pub.path} lacks X-Content-Type-Options: nosniff`)
+    // HTML stays on the Pages default (revalidate); a public page must never be sent no-store or cached hard.
+    expect(!h["cache-control"], `_headers: PUBLIC ${pub.path} gets Cache-Control "${h["cache-control"]}" -- public HTML is left on the default on purpose`)
+  }
+  // Hashed build output and the frozen fonts: cached for a year, immutable.
+  for (const path of ["/assets/index-abc123.js", "/fonts/sora-latin-wght.woff2", "/original/fonts/x.woff2"]) {
+    expect(resolveHeaders(rules, path)["cache-control"] === "public, max-age=31536000, immutable", `_headers: ${path} gets Cache-Control "${resolveHeaders(rules, path)["cache-control"]}"`)
   }
   for (const hidden of HIDDEN_PAGES) {
     for (const path of [hidden.prefix, `${hidden.prefix}index.html`]) {

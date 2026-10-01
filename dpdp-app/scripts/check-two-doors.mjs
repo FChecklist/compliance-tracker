@@ -30,6 +30,10 @@
 //     AI-facing surfaces (/for-ai/, for-ai.md, llms*.txt, facts.json).
 // (e) SAME CONTENT FOR MACHINES AND PEOPLE: no <script> on a public page
 //     other than JSON-LD (check-public-surface.mjs proves the rest).
+// (g) ONE PUBLIC HOST (SEO, 2026-10-01): no public surface names the signed-in
+//     app's host (app.veridian-aios.com) -- the public pages are indexed under
+//     veridian-aios.com alone, so a canonical, sitemap entry, llms.txt line,
+//     facts.json value or link that still says app. is a split-index bug.
 // (f) THE BRAND LINE (WO-014 §1): no variant spelling of "VERy INDIAN" and
 //     no "Made in India" anywhere in dist/ or in the sources; every
 //     occurrence of the line on a public surface is byte-identical to the
@@ -39,7 +43,7 @@ import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, loadFacts } from "../src/lib/facts.mjs"
-import { HIDDEN_PAGES, PRIVATE_PAGES, PUBLIC_PAGES, parseHeadersFile, parseRobots, resolveHeaders } from "../src/lib/public-surface.mjs"
+import { HIDDEN_PAGES, PRIVATE_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES, SITE_ORIGIN, parseHeadersFile, parseRobots, resolveHeaders } from "../src/lib/public-surface.mjs"
 import { decodeEntities } from "./generate-public-facts.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
@@ -75,6 +79,18 @@ export function scanWall(text, { robots = false } = {}) {
   }
   return out
 }
+
+// ------------------------------------------------- (g) one public host
+/** Every place `text` names the signed-in app's host. */
+export function findAppHost(text) {
+  const host = new URL(SITE_ORIGIN).host
+  const out = []
+  for (const m of text.matchAll(new RegExp(host.replace(/\./g, "\\."), "gi"))) out.push({ host, snippet: text.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30).replace(/\s+/g, " ") })
+  return out
+}
+
+/** The host the public pages must be under, for the tests to pin. */
+export const PUBLIC_HOST = new URL(PUBLIC_ORIGIN).host
 
 // --------------------------------------------------------- (c) hidden text
 const HIDING = [
@@ -392,6 +408,17 @@ function main() {
     }
     const hits = scanWall(read(rel), { robots: rel === "robots.txt" })
     expect(hits.length === 0, `${rel}: the wall -- ${hits.map((h) => `${h.pattern} (…${h.snippet}…)`).join("; ")}`)
+  }
+
+  // (g) one public host
+  for (const rel of publicSurfaceFiles()) {
+    if (!has(rel)) continue
+    const hits = findAppHost(read(rel))
+    expect(hits.length === 0, `${rel}: names the app host -- ${hits.map((h) => `${h.host} (…${h.snippet}…)`).join("; ")} (public pages are indexed under ${PUBLIC_HOST})`)
+  }
+  if (has("sitemap.xml")) {
+    const locs = [...read("sitemap.xml").matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
+    expect(locs.length > 0 && locs.every((u) => u.startsWith(`${PUBLIC_ORIGIN}/`)), `sitemap.xml: a <loc> is not under ${PUBLIC_ORIGIN}: ${JSON.stringify(locs)}`)
   }
 
   // (b) /ai/* fenced off

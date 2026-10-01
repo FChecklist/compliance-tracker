@@ -10,15 +10,25 @@
       two edition links carry the same ?for= query the original does.
       scripts/check-public-surface.mjs proves the above after every build.
     -->
-    <title>VERIDIAN · VERy INDIAN — DPDP and Digital Data Compliance</title>
-    <meta name="description" content="VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions." />
-    <link rel="canonical" href="https://app.veridian-aios.com/" />
+    <title>VERIDIAN · VERy INDIAN — DPDP Compliance Management Software for India</title>
+    <meta name="description" content="DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients and schools." />
+    <link rel="canonical" href="https://veridian-aios.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="VERIDIAN DPDP" />
     <meta property="og:locale" content="en_IN" />
-    <meta property="og:url" content="https://app.veridian-aios.com/" />
-    <meta property="og:title" content="VERIDIAN · VERy INDIAN — DPDP and Digital Data Compliance" />
-    <meta property="og:description" content="VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions." />
+    <meta property="og:url" content="https://veridian-aios.com/" />
+    <meta property="og:title" content="VERIDIAN · VERy INDIAN — DPDP Compliance Management Software for India" />
+    <meta property="og:description" content="DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients and schools." />
+    <meta property="og:image" content="https://veridian-aios.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="VERIDIAN · VERy INDIAN — DPDP Compliance Management Software for India" />
+    <meta name="twitter:description" content="DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients and schools." />
+    <meta name="twitter:image" content="https://veridian-aios.com/og-image.png" />
+    <meta name="twitter:image:alt" content="VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India." />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
     <link rel="preload" href="/fonts/sora-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/src/site.css" />
@@ -28,9 +38,10 @@
       "@graph": [
         {
           "@type": "Organization",
-          "@id": "https://app.veridian-aios.com/#organization",
+          "@id": "https://veridian-aios.com/#organization",
           "name": "VERIDIAN",
           "url": "https://veridian-aios.com/",
+          "logo": "https://veridian-aios.com/logo.png",
           "contactPoint": [
             {
               "@type": "ContactPoint",
@@ -62,18 +73,18 @@
         },
         {
           "@type": "WebSite",
-          "@id": "https://app.veridian-aios.com/#website",
+          "@id": "https://veridian-aios.com/#website",
           "name": "VERIDIAN DPDP",
-          "url": "https://app.veridian-aios.com/",
+          "url": "https://veridian-aios.com/",
           "inLanguage": "en-IN",
           "publisher": {
-            "@id": "https://app.veridian-aios.com/#organization"
+            "@id": "https://veridian-aios.com/#organization"
           }
         },
         {
           "@type": "SoftwareApplication",
           "name": "VERIDIAN DPDP",
-          "url": "https://app.veridian-aios.com/",
+          "url": "https://veridian-aios.com/",
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web browser",
           "inLanguage": "en-IN",
@@ -83,7 +94,7 @@
             "audienceType": "CA, CS, audit and legal firms, their clients, and schools and institutions"
           },
           "publisher": {
-            "@id": "https://app.veridian-aios.com/#organization"
+            "@id": "https://veridian-aios.com/#organization"
           }
         }
       ]
@@ -143,5 +154,12 @@
         <!-- END generated: facts -->
       </div>
     </main>
+    <!-- The footer carries the internal links to the fact surfaces (generated from FOOTER_LINKS in src/lib/public-surface.mjs) and the legal links. -->
+    <footer class="footer">
+      <!-- BEGIN generated: footer-links -->
+      <p class="footer-legal footer-legal-links"><a href="/about/">About VERIDIAN</a> · <a href="/for-ai/">Fact sheet for AI systems</a> · <a href="/for-ai.md">Fact sheet as plain text</a> · <a href="/facts.json">Facts as JSON</a> · <a href="/llms.txt">llms.txt</a></p>
+      <!-- END generated: footer-links -->
+      <p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a></p>
+    </footer>
   </body>
 </html>

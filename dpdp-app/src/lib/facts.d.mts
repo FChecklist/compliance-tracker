@@ -9,6 +9,8 @@ export interface KeyDate {
 
 export interface FactPage {
   name: string
+  /** Optional per-page meta description / og:description; the one line is used when absent. */
+  description?: string
   summary: string
   audience: string
 }
@@ -92,6 +94,7 @@ export function getPath(obj: unknown, path: string): unknown
 export function loadFacts(): Facts
 export function publicFacts(facts: Facts): Record<string, unknown>
 export function pageTitle(facts: Facts, path: string): string
+export function pageDescription(facts: Facts, path: string): string
 export function subjectTopicsClause(facts: Facts): string
 export function contactSentence(facts: Facts): string
 export function grievanceOfficerLine(facts: Facts): string

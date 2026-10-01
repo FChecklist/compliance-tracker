@@ -40,6 +40,18 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (DPDP SEO session; worktree C:/ct/ct/.claude/worktrees/agent-a2536956e2fa2158d, branch feat/dpdp-seo-canonical-apex) -- dpdp-app public-page SEO and AI-search friendliness [IN PROGRESS]"
+    claimed_at: "2026-10-01T05:00:00Z"
+    claim: |
+      Owner goal 2026-10-01: make veridian-aios.com findable for "DPDP compliance
+      management software India" and friendly to AI search agents. File scope:
+      dpdp-app/** only (public pages, data/veridian-facts.yaml, the generator
+      scripts/generate-public-facts.mjs, public/{robots.txt,_headers,_redirects},
+      new brand images public/{og-image,logo,favicon-48}.png, the guard tests under
+      dpdp-app/src/lib). Moves the public canonical host from app.veridian-aios.com
+      to the apex veridian-aios.com (the signed-in app, /copy/, /act/, /p/, /ai/
+      stay on app.). No deploy, no DNS change, no Vercel. Does not touch
+      supabase/functions, drizzle/, the Next.js app, or the lawyer-gated drafts/.
   - session_label: "claude-code (interactive, PROJEXA server-merge session; worktree C:/ct/ct/.claude/worktrees/agent-a1a35a08a954477cf (reused -- branch feat/projexa-merge-invoices already merged as #1973, reset to origin/main and rebranched for this module; node_modules retained from that reuse, matching lockfile confirmed, no fresh bun install), branch feat/projexa-merge-sales-orders) -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md: port PROJEXA's Sales Orders module (list/detail/create) into compliance-tracker as native src/app/(app)/sales-orders/** pages, calling the already-live /api/v1/projexa/sales-orders*, /api/v1/projexa/sales-order-document-flow/[id] routes directly (route.ts files + erp-selling-service.ts read and verified field-for-field before writing any page). Natural next step after quotations (#1975, sent quotations convert here via the already-wired POST .../quotations/[id]/convert). New top-level route (no /sales-orders page existed before this), so no shadow-routing collision. Checked this file for an existing sales-orders claim (grep, none found) before starting. [IN PROGRESS]"
     claimed_at: "2026-09-29T (this session)"
     claim: |

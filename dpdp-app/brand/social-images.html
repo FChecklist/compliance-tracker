@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+  Source of the three static brand images in public/ (SEO, 2026-10-01):
+    og-image.png     1200x630  Open Graph / Twitter card         social-images.html?m=og
+    logo.png          512x512  Organization.logo in the JSON-LD  social-images.html?m=logo
+    favicon-48.png     48x48   <link rel="icon">                 social-images.html?m=icon
+  Not part of the site (this folder is outside public/ and is not built). Only
+  existing brand material is used: the VERIDIAN logo mark (public/original/logo-mark.svg),
+  the two self-hosted fonts, the site's own colours (src/site.css) and the brand line
+  exactly as in data/veridian-facts.yaml. No claim, no statistic, no rating.
+
+  Re-render (Chrome or Edge, headless), from dpdp-app/:
+    chrome --headless=new --hide-scrollbars --window-size=1200,630 --screenshot=public/og-image.png "file:///<abs path>/brand/social-images.html?m=og"
+    chrome --headless=new --hide-scrollbars --window-size=512,512  --screenshot=public/logo.png      "file:///<abs path>/brand/social-images.html?m=logo"
+    chrome --headless=new --hide-scrollbars --window-size=48,48    --screenshot=public/favicon-48.png "file:///<abs path>/brand/social-images.html?m=icon"
+-->
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <title>VERIDIAN brand images</title>
+    <style>
+      @font-face { font-family: "Sora"; font-weight: 400 800; src: url("../public/fonts/sora-latin-wght.woff2") format("woff2"); }
+      @font-face { font-family: "Instrument Sans"; font-weight: 400 700; src: url("../public/fonts/instrument-sans-latin-wght.woff2") format("woff2"); }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { background: #160f2e; overflow: hidden; }
+      body { font-family: "Instrument Sans", system-ui, sans-serif; color: #fff; }
+      .og, .logo, .icon { display: none; }
+      body[data-m="og"] .og { display: flex; }
+      body[data-m="logo"] .logo { display: flex; }
+      body[data-m="icon"] .icon { display: flex; }
+      .og { width: 1200px; height: 630px; padding: 72px 80px; flex-direction: column; justify-content: space-between; background: linear-gradient(135deg, #160f2e 0%, #231848 100%); }
+      .og-top { display: flex; align-items: center; gap: 36px; }
+      .og-top img { width: 190px; height: 190px; }
+      .og-word { font-family: "Sora", sans-serif; font-weight: 800; font-size: 104px; letter-spacing: 0.01em; line-height: 1; }
+      .og-sub { font-family: "Sora", sans-serif; font-weight: 700; font-size: 38px; letter-spacing: 0.34em; color: #f5820a; margin-top: 14px; }
+      .og-head { font-family: "Sora", sans-serif; font-weight: 700; font-size: 52px; line-height: 1.2; max-width: 980px; }
+      .og-line { font-size: 26px; color: #9d94c4; }
+      .logo { width: 512px; height: 512px; align-items: center; justify-content: center; background: #160f2e; }
+      .logo img { width: 380px; height: 380px; }
+      .icon { width: 48px; height: 48px; align-items: center; justify-content: center; background: #160f2e; }
+      .icon img { width: 40px; height: 40px; }
+    </style>
+  </head>
+  <body>
+    <div class="og">
+      <div class="og-top">
+        <img src="../public/original/logo-mark.svg" alt="" />
+        <div>
+          <div class="og-word">VERIDIAN</div>
+          <div class="og-sub">VERy INDIAN</div>
+        </div>
+      </div>
+      <div class="og-head">DPDP compliance management software for India</div>
+      <div class="og-line">VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India.</div>
+    </div>
+    <div class="logo"><img src="../public/original/logo-mark.svg" alt="" /></div>
+    <div class="icon"><img src="../public/original/logo-mark.svg" alt="" /></div>
+    <script>
+      document.body.dataset.m = new URLSearchParams(location.search).get("m") || "og"
+    </script>
+  </body>
+</html>
