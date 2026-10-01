@@ -307,6 +307,26 @@ for (const hidden of HIDDEN_PAGES) {
   checkCrossOrigin(label, html)
 }
 
+// ------------------------------------------------------------------ 404 page
+// Cloudflare Pages answers an unknown address with 200 + the home page unless
+// the build ships a root 404.html. Prove the file is in dist/, is noindex, has
+// no canonical and no script, and that every internal link on it is a page
+// that exists in dist/.
+expect(has("404.html"), "dist/404.html missing -- unknown addresses would answer 200 with the home page instead of a real 404")
+if (has("404.html")) {
+  const html = read("404.html")
+  expect(/<html\b[^>]*\slang="en-IN"/i.test(html), "404.html: <html lang=\"en-IN\"> missing")
+  expect(meta(html, "name", "robots") === "noindex, nofollow", "404.html: <meta name=\"robots\" content=\"noindex, nofollow\"> missing")
+  expect(linkHref(html, "canonical") === null, "404.html: a 404 page must not declare a canonical")
+  expect(tagsOf(html, /<script\b[^>]*>/gi).length === 0, "404.html: must carry no script")
+  checkCrossOrigin("404.html", html)
+  for (const m of html.matchAll(/href="(\/[^"#?]*)"/g)) {
+    const target = m[1]
+    if (target === "/legal/legal.css" || target === "/favicon-48.png") { expect(has(target.slice(1)), `404.html: ${target} missing from dist/`); continue }
+    expect(has(target === "/" ? "index.html" : target.replace(/^\//, "") + (target.endsWith("/") ? "index.html" : "")), `404.html links to ${target}, which is not in dist/`)
+  }
+}
+
 // ------------------------------------------------ whole dist: no third parties
 const TRACKER_HOSTS = [
   "googletagmanager.com",

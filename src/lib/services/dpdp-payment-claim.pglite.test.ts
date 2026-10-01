@@ -23,6 +23,8 @@ function fnFrom(file: string, name: string): string {
   return all[all.length - 1]
 }
 const F658 = 'drizzle/0658_dpdp_payment_confirmation_flow.sql'
+// 0676 supersedes two of 0658's functions (reject keeps an active org active; approve says plainly when there is no edition).
+const F676 = 'drizzle/0676_dpdp_claim_reject_and_ai_link_billing_notice.sql'
 
 const BASE_SQL = `
 create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls; create role app_runtime nologin;
@@ -75,8 +77,8 @@ ${fnFrom(F658, 'dpdp__is_platform_admin')}
 ${fnFrom(F658, 'dpdp_declare_payment')}
 ${fnFrom(F658, 'dpdp__require_platform_admin')}
 ${fnFrom(F658, 'dpdp_owner_pending_claims')}
-${fnFrom(F658, 'dpdp_owner_approve_payment')}
-${fnFrom(F658, 'dpdp_owner_reject_payment')}
+${fnFrom(F676, 'dpdp_owner_approve_payment')}
+${fnFrom(F676, 'dpdp_owner_reject_payment')}
 `
 
 let db: PGlite
@@ -255,13 +257,50 @@ describe('the platform owner reviews claims', () => {
     expect((await db.query<{ n: number }>(`select count(*)::int as n from dpdp.referral_commission where referral_event_id = 're2'`)).rows[0].n).toBe(0)
   })
 
-  test('an organisation with no edition cannot have a claim approved into a payment (plan is required)', async () => {
+  test('an organisation with no edition cannot have a claim approved: a plain message, not a database error, and nothing booked', async () => {
     await org('b3', null)
     await as('b3@owner.test')
     await db.query(`select public.dpdp_declare_payment('year', 999900)`)
     await as('admin@veridian.test')
-    await expect(db.query(`select public.dpdp_owner_approve_payment('b3')`)).rejects.toThrow(/plan/) // NULL slips past `p_plan not in (...)` and is stopped by the NOT NULL column instead: a raw constraint message, but nothing is booked (see TEST-REPORT.md, low)
+    const err = await db.query(`select public.dpdp_owner_approve_payment('b3')`).then(() => null, (e: Error) => e)
+    expect(err).not.toBeNull()
+    expect(err!.message).toMatch(/has not chosen an edition/)
+    expect(err!.message).not.toMatch(/null value|violates|column/i)
     expect((await sub('b3')).state).toBe('awaiting_confirmation') // nothing half-booked
     expect((await db.query<{ n: number }>(`select count(*)::int as n from dpdp.payment where org_id = 'b3'`)).rows[0].n).toBe(0)
+  })
+
+  test('REJECT keeps an already-active organisation active (a refused renewal is not a return to trial), and clears the claim', async () => {
+    await org('c1', 'firm', 'trial')
+    await as('admin@veridian.test')
+    // c1 pays and is confirmed once (state active, last_confirmed_at set, a payment row).
+    await as('c1@owner.test')
+    await db.query(`select public.dpdp_declare_payment('year', 999900, null, 'FIRST')`)
+    await as('admin@veridian.test')
+    await db.query(`select public.dpdp_owner_approve_payment('c1')`)
+    expect((await sub('c1')).state).toBe('active')
+    // A year later it claims the renewal, and the claim is refused.
+    await as('c1@owner.test')
+    await db.query(`select public.dpdp_declare_payment('year', 999900, null, 'RENEWAL')`)
+    expect((await sub('c1')).state).toBe('awaiting_confirmation')
+    await as('admin@veridian.test')
+    const r = await one(`select public.dpdp_owner_reject_payment('c1', 'not received') as r`)
+    expect(r).toEqual({ ok: true, state: 'active' })
+    const s = await sub('c1')
+    expect(s.state).toBe('active')
+    expect(s.interval).toBe('year') // the plan it already had is untouched
+    expect(s.last_confirmed_at).not.toBeNull()
+    expect(s.self_declared_reference).toBeNull() // the claim is cleared
+    expect(await events('c1', 'payment_rejected')).toBe(1)
+    expect((await db.query<{ n: number }>(`select count(*)::int as n from dpdp.payment where org_id = 'c1'`)).rows[0].n).toBe(1) // the first payment stays; the refused one never became money
+  })
+
+  test('REJECT of a first-ever claim (nothing ever confirmed) still goes back to trial', async () => {
+    await org('c2')
+    await as('c2@owner.test')
+    await db.query(`select public.dpdp_declare_payment('month', 199900, null, 'X')`)
+    await as('admin@veridian.test')
+    expect(await one(`select public.dpdp_owner_reject_payment('c2') as r`)).toEqual({ ok: true, state: 'trial' })
+    expect((await sub('c2')).state).toBe('trial')
   })
 })
