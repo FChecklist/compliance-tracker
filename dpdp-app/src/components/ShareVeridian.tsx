@@ -32,7 +32,7 @@ function formatRupees(paise: number): string {
   return `Rs ${(paise / 100).toLocaleString("en-IN")}`
 }
 
-export function ShareVeridian({ client, orgId, role }: { client: DpdpClient; orgId: string; role: ShareRole }) {
+export function ShareVeridian({ client, orgId, role, onOpenPartner }: { client: DpdpClient; orgId: string; role: ShareRole; onOpenPartner?: () => void }) {
   const [code, setCode] = useState<string | null | undefined>(undefined)
   const [panel, setPanel] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -107,6 +107,9 @@ export function ShareVeridian({ client, orgId, role }: { client: DpdpClient; org
             </p>
           )}
           <a href={`mailto:?subject=${encodeURIComponent(SHARE_TITLE)}&body=${encodeURIComponent(message(panel))}`}>Email</a>
+          {onOpenPartner && (
+            <button type="button" onClick={() => { setPanel(null); onOpenPartner() }}>Sales Partner: terms, payouts, statement</button>
+          )}
           <button type="button" className="dpdp-sharepanel__close" onClick={() => setPanel(null)}>Close</button>
         </div>
       )}

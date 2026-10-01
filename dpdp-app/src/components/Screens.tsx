@@ -126,8 +126,9 @@ export function Loading() {
  * who was invited by an owner is told what to ask for instead.
  */
 export function OpenOrganisation({
-  email, initialEdition, busy, error, onCreate, onSignOut,
+  email, initialEdition, busy, error, onCreate, onSignOut, onOpenPartner,
 }: {
+  onOpenPartner?: () => void
   email: string | null
   initialEdition: "firm" | "institution" | null
   busy: boolean
@@ -176,6 +177,12 @@ export function OpenOrganisation({
       <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "18px auto 4px", maxWidth: "44ch" }}>
         Invited by someone else? Ask the owner of your organisation to name this email on a job, then open the link they send.
       </p>
+      {onOpenPartner && (
+        <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "8px auto 4px", maxWidth: "44ch" }}>
+          Want to earn by telling others about VERIDIAN?{" "}
+          <button type="button" onClick={onOpenPartner} style={{ ...linkButton, padding: 0, display: "inline" }}>Become a Sales Partner</button>
+        </p>
+      )}
       <button type="button" onClick={onSignOut} style={linkButton}>Use a different email</button>
     </Card>
   )

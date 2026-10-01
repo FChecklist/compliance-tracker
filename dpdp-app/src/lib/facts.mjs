@@ -37,7 +37,7 @@ function need(cond, msg) {
 // The public pages the facts file must name (titles, audiences). The list
 // of what is PUBLIC lives in public-surface.mjs; this only says which paths
 // need a `pages` entry.
-export const FACT_PAGE_PATHS = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/", "/proof/"]
+export const FACT_PAGE_PATHS = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/partner/terms/", "/ai-assistant/", "/proof/"]
 
 /**
  * Load and validate data/veridian-facts.yaml. Adds two derived values that
@@ -68,6 +68,13 @@ export function loadFacts() {
   for (const s of sp.sections) {
     need(isStr(s.h2), "each sales_partner section needs an h2")
     for (const k of ["paragraphs", "steps", "bullets"]) need(s[k] === undefined || isStrList(s[k]), `sales_partner section "${s.h2}": ${k} must be a list of strings`)
+  }
+  need(isStr(sp.terms_link_text), "sales_partner.terms_link_text missing")
+  const spt = f.sales_partner_terms
+  need(spt && typeof spt === "object" && ["version", "effective_on", "heading", "status_line", "lead", "back_link_text"].every((k) => isStr(spt[k])) && Array.isArray(spt.sections) && spt.sections.length > 0, "sales_partner_terms needs version/effective_on/heading/status_line/lead/back_link_text/sections")
+  for (const s of spt.sections) {
+    need(isStr(s.h2), "each sales_partner_terms section needs an h2")
+    for (const k of ["paragraphs", "steps", "bullets"]) need(s[k] === undefined || isStrList(s[k]), `sales_partner_terms section "${s.h2}": ${k} must be a list of strings`)
   }
   const ai = f.ai_assistant
   need(ai && typeof ai === "object" && ["nav_label", "button", "heading", "tagline", "home_line", "home_more", "lead", "sign_in_note"].every((k) => isStr(ai[k])) && Array.isArray(ai.sections) && ai.sections.length > 0, "ai_assistant needs nav_label/button/heading/tagline/home_line/home_more/lead/sign_in_note/sections")

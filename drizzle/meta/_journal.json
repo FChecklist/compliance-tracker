@@ -3502,6 +3502,13 @@
       "when": 1790486000000,
       "tag": "0671_dpdp_ai_suggestions",
       "breakpoints": true
+    },
+    {
+      "idx": 504,
+      "version": "7",
+      "when": 1790489000000,
+      "tag": "0674_dpdp_sales_partner_lifecycle",
+      "breakpoints": true
     }
   ]
 }

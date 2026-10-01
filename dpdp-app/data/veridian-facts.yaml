@@ -300,6 +300,11 @@ pages:
     description: Become a VERIDIAN Sales Partner. Get a personal link, share it with firms and organisations, and earn a commission when an organisation you referred pays.
     summary: "who can be a Sales Partner, how to get a personal link, what is earned when a referred organisation pays, and how payment is made"
     audience: People who introduce VERIDIAN to CA, CS, audit and legal firms, companies, institutions, schools and NGOs
+  "/partner/terms/":
+    name: Sales Partner terms
+    description: The VERIDIAN Sales Partner terms in plain English. Who can join, what you may say, how commission is earned and paid, tax, ending the partnership and changes.
+    summary: "the Sales Partner agreement: who can join, what a partner may and may not say, how commission is earned and paid, tax, ending, changes"
+    audience: People who introduce VERIDIAN to CA, CS, audit and legal firms, companies, institutions, schools and NGOs
   "/ai-assistant/":
     name: Your DPDP AI Assistant
     description: Your DPDP AI assistant. Open your personal VERIDIAN link in your own AI. It reads your jobs, answers questions and drafts updates. You stay in charge of every change.
@@ -323,11 +328,18 @@ pages:
 #   * your own organisation never counts: self_referral is blocked (drizzle/0655);
 #   * payout is by hand, outside the system (UPI or bank): drizzle/0655 header,
 #     dpdp_admin_pending_payouts / dpdp_mark_commission_paid.
-# NOT stated, because no code or owner text defines it: a payout date or minimum,
-# tax and TDS treatment of the commission, a partner agreement. The page says so
-# in plain words and sends the reader to the one published address.
+#   * payout cycle, minimum and TDS columns (2026-10-01, owner: "COMPLETE THE FULL SALES
+#     PARTNER LIFECYCLE"): drizzle/0674 dpdp.partner_setting -- payable 30 days after the
+#     payment is confirmed, paid once a month on the 10th, minimum Rs 500, carried
+#     forward below it. src/lib/facts.test.ts compares the numbers written below with
+#     that SQL. The page states NO tax rate and gives no tax advice: only the fixed
+#     sentence "Tax (TDS) is deducted where the law requires it and shown on your
+#     statement."; the rate is a settings row the Owner / the Owner's CA sets.
+#   * the agreement is /partner/terms/ (sales_partner_terms below).
 # `owner_approved` stays false: the owner has approved the programme's rules in
-# chat (see the migration header), not this page's wording.
+# chat (see the migration headers), not this page's wording; the payout terms are
+# defaults chosen by the building session, marked "current terms, may change with
+# 30 days' notice".
 # ---------------------------------------------------------------------------
 sales_partner:
   owner_approved: false
@@ -336,38 +348,142 @@ sales_partner:
   button: Become a Sales Partner
   lead: Tell CA, CS, audit and legal firms, companies, institutions, schools and NGOs about VERIDIAN. When an organisation you referred pays, you earn a commission.
   sign_in_note: You sign in with your email. We send you a link. There is no password.
+  terms_link_text: Read the Sales Partner terms
   sections:
     - h2: Who can be a Sales Partner
       paragraphs:
-        - Anyone with a VERIDIAN account. Every person who belongs to an organisation in VERIDIAN has a personal link to share.
-        - You do not have an organisation yet? Sign in with your email and open your own. It is free to start.
-    - h2: How you get your personal link
+        - Anyone with a VERIDIAN sign-in. You do not need an organisation of your own. It is free to join.
+    - h2: How to join
       steps:
         - Sign in at /app/ with your email.
-        - Open the page of your organisation.
-        - Press Share, in the bar at the very top of the page.
-        - Copy your link, or send it by WhatsApp or email.
+        - Open Sales Partner. It is in the bar at the top of your page. If you have no organisation yet, it is on the "Open your organisation" screen.
+        - Read the Sales Partner terms and accept them. We record the version and the date.
+        - Add your UPI id or your bank details, so that we can pay you.
       bullets:
-        - The link opens our public website. It holds your personal code and nothing else.
-        - Your code stays the same every time.
+        - When both are done, you are an active partner and your personal link appears.
+        - Your code stays the same every time. The link opens our public website. It holds your code and nothing else.
     - h2: What happens when someone you referred pays
       steps:
         - A person opens an organisation in VERIDIAN with your code. We note that you referred them.
         - The organisation pays us.
         - We see the money and confirm the payment by hand. Until then, no commission is created.
-        - Your commission is created and shows as pending.
+        - Your commission is created. It shows as waiting.
       bullets:
         - "You earn 20% of each yearly payment, including every yearly renewal, for as long as that client stays."
-        - Your own organisation never counts. If you sign up through your own link, you earn nothing.
-    - h2: How you are paid
+        - Your own organisation, and any organisation you belong to, never counts. If you sign up through your own link, you earn nothing.
+        - A sign-up through your link counts while your status is active.
+    - h2: How and when you are paid
       paragraphs:
-        - We pay by hand, by UPI or bank transfer. Payment is not automatic, and this page does not fix a payout date.
-        - Each commission is marked pending. We mark it paid after we send the money.
-        - After your first referral you can see what you have earned, and what is still pending, in the Share box in the app.
+        - A commission becomes payable 30 days after we confirm the client's payment.
+        - We pay once a month, on the 10th, for everything that became payable before the end of the month before.
+        - If your balance is under Rs 500, it carries forward to the next month.
+        - We pay by UPI or bank transfer, to the details you gave us. We mark each commission paid after we send the money.
+        - Tax (TDS) is deducted where the law requires it and shown on your statement.
+        - These are the current terms. We may change them with 30 days' notice.
+    - h2: Your dashboard and your statement
+      bullets:
+        - You see how many organisations signed up, how many are in their free trial and how many pay. We show counts, never names.
+        - You see what you have earned, what is waiting, what is payable and what was paid.
+        - You get a statement by email on the 11th of each month. You can also download any month as a file. It shows gross, TDS and net.
+    - h2: What we never do
+      bullets:
+        - We never tell you the name of an organisation you referred.
+        - We never show your payout details in full, and we never put them in an email.
+        - We never create a commission before we have seen the client's money.
+        - We never ask you to pay to join.
     - h2: Please note
       paragraphs:
         - We cannot promise that you will earn anything. What you earn depends on whom you refer and whether they pay.
-        - This page does not cover tax on a commission. For a question about a payout or about tax, write to us with the subject "Partner".
+        - We do not give tax advice. For a question about a payout or about tax, write to us with the subject "Partner".
+
+# ---------------------------------------------------------------------------
+# /partner/terms/ (owner, 2026-10-01): the Sales Partner agreement in plain English.
+# Written by the building session under the owner's standing authority to choose
+# sensible, conservative terms; the commission rules are EXACTLY the ones in the
+# database (drizzle/0655, extended by drizzle/0674) and src/lib/facts.test.ts compares
+# the percentages, the 30 days, the payout day, the minimum and the terms version
+# with that SQL. No tax rate, no tax advice (only the fixed TDS sentence). The
+# version below is what dpdp.partner_setting.terms_version holds; a new version is a
+# new row of dpdp.partner_terms_acceptance. Publication: the commercial pages that
+# already exist (/terms/, /privacy/, /refund/) are published without a lawyer's
+# review, the site says nowhere that a lawyer reviewed them, and the unpublished
+# pattern (the unpublished drafts folder of this app) covers the pages that quote section numbers of the law.
+# This page quotes none, so it follows the first pattern: published, with its version
+# and date. `owner_approved` stays false.
+# ---------------------------------------------------------------------------
+sales_partner_terms:
+  owner_approved: false
+  source: drizzle/0655_dpdp_wo016_refer_and_earn.sql, drizzle/0674_dpdp_sales_partner_lifecycle.sql
+  version: "1.0"
+  effective_on: "2026-10-01"
+  heading: Sales Partner terms
+  status_line: "Version 1.0. In force from 1 October 2026. We may change these terms with 30 days' notice."
+  lead: These terms are the agreement between you and us when you become a VERIDIAN Sales Partner. They are short and in plain English.
+  back_link_text: Back to Become a Sales Partner
+  sections:
+    - h2: Who we are
+      paragraphs:
+        - "In these terms, \"we\" and \"us\" mean Shobha Kamal Solutions Private Limited, the company that runs VERIDIAN DPDP. \"You\" means the person who accepts these terms."
+    - h2: Joining
+      paragraphs:
+        - Anyone with a VERIDIAN sign-in can join. It is free.
+        - You join by accepting these terms in the app and by giving us your payout details. We record the version you accepted and when.
+        - When both are done, you are an active partner. Until then, your status is "applied" and a sign-up through your code does not count.
+        - You are an independent partner. You are not our employee, agent or representative. You cannot sign anything for us or promise anything for us. You may work with others too.
+    - h2: What you may say
+      bullets:
+        - You may say what VERIDIAN is and does, in the words of our public pages.
+        - You may share your personal link.
+        - Tell the truth. Do not say that VERIDIAN gives legal advice, certifies anyone as compliant, or promises that nobody will be fined.
+        - Do not invent prices, discounts, offers or results. Send people to our public pages for what is true.
+        - Do not say that you speak for us.
+    - h2: What you must not do
+      bullets:
+        - No spam. Do not send messages in bulk to people who did not ask for them, by email, SMS or WhatsApp.
+        - Do not sign up through your own code, or through the code of anyone acting for you, to earn a commission on yourself.
+        - Do not create fake sign-ups or fake organisations.
+        - Do not collect personal data about the people you refer on our behalf.
+        - Do not pay to advertise using our name or brand.
+    - h2: How commission is earned
+      bullets:
+        - "You earn 20% of each yearly payment from an organisation you referred, including every yearly renewal, for as long as that organisation stays a client."
+        - If an organisation pays by the month, you earn 5% of its first confirmed monthly payment. Nothing is earned on later months.
+        - A commission exists after we have seen the money and confirmed the payment by hand. We do not create a commission before that.
+        - The percentage is taken on the amount we confirm.
+        - You earn nothing on an organisation you own or belong to.
+        - A sign-up counts while your status is active. If your status is paused or ended when a payment is confirmed, no commission is created for that payment.
+        - If a payment is refunded or reversed before we pay the commission on it, we cancel that commission.
+    - h2: When and how you are paid
+      bullets:
+        - A commission becomes payable 30 days after we confirm the client's payment.
+        - We pay once a month, on the 10th, for everything that became payable before the end of the month before. If the 10th is not a working day, we pay on the next working day.
+        - If your balance is under Rs 500, it carries forward to the next month.
+        - We pay by UPI or bank transfer, to the details you gave us. Keep them correct. We do not pay to details you did not give us.
+        - You get an email when we pay, with the reference number of the payment.
+    - h2: Tax
+      paragraphs:
+        - Tax (TDS) is deducted where the law requires it and shown on your statement.
+        - Your statement shows gross, TDS and net for every commission.
+        - You are responsible for your own tax on what you earn. We do not give tax advice.
+    - h2: Your statement and your data
+      bullets:
+        - We email you a statement on the 11th of each month. You can also download any month in the app.
+        - We keep your payout details to pay you and for no other use. We show them to you masked. We never put them in an email or in a link.
+        - We show you counts of the organisations you referred. We never show you their names or any of their personal data.
+    - h2: How long this lasts, and ending it
+      bullets:
+        - These terms start when you become an active partner and continue until one of us ends them.
+        - You can end them at any time. Write to us with the subject "Partner".
+        - We can pause or end them at any time. If you break these terms, we can do it at once and hold back the commission linked to the breach.
+        - If we pause or end them, you earn no commission on payments we confirm after that date.
+        - While your partnership is paused, we hold your payouts. When it ends, a commission that already exists is still paid, on the dates above.
+    - h2: Changes
+      paragraphs:
+        - We may change these terms and the payout terms. We will tell you by email at least 30 days before a change takes effect.
+        - We may ask you to accept the new version in the app. If you do not agree, you can end the partnership before the change takes effect.
+    - h2: Law
+      paragraphs:
+        - These terms are governed by the laws of India. If we disagree, write to us first. We will try in good faith to settle it within 30 days. After that, the dispute clause in our Terms of Service applies.
 
 # ---------------------------------------------------------------------------
 # /ai-assistant/ and the home-page highlight (owner, 2026-10-01): "Get the DPDP AI

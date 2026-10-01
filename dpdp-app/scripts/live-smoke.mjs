@@ -34,7 +34,7 @@ async function get(path, init) {
 }
 
 // 1. Every public page answers, as HTML.
-for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/partner/terms/", "/ai-assistant/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
   const r = await get(p)
   check(r.status === 200 && /text\/html/.test(r.type), `${p} answers 200 as HTML`, `${r.status} ${r.type}`)
 }
@@ -95,6 +95,12 @@ check(root.body.includes("Your free DPDP AI assistant") && root.body.includes('h
 const partner = await get("/partner/")
 check(!/noindex/i.test(partner.headers.get("x-robots-tag") || "") && !/<meta name="robots"/i.test(partner.body), "/partner/ is indexable (no noindex header, no robots meta)")
 check(partner.body.includes('class="btn" href="/app/">Become a Sales Partner</a>'), '/partner/: "Become a Sales Partner" opens /app/')
+check(partner.body.includes('href="/partner/terms/"') && partner.body.includes("on the 10th") && partner.body.includes("Rs 500"), "/partner/: links the terms and states the payout day and the minimum")
+const partnerTerms = await get("/partner/terms/")
+check(!/noindex/i.test(partnerTerms.headers.get("x-robots-tag") || "") && !/<meta name="robots"/i.test(partnerTerms.body), "/partner/terms/ is indexable (no noindex header, no robots meta)")
+check(partnerTerms.body.includes("Version 1.0.") && partnerTerms.body.includes("Tax (TDS) is deducted where the law requires it and shown on your statement."), "/partner/terms/ shows its version and the TDS sentence")
+check(partnerTerms.body.includes('<link rel="canonical" href="https://veridian-aios.com/partner/terms/" />'), "/partner/terms/ is canonical on the apex")
+check(sitemap.body.includes("/partner/terms/"), "the sitemap lists the Sales Partner terms")
 
 // 3. The external AI work link: an unknown token is refused the same way on every route, and nothing leaks.
 const zero = "0".repeat(64)

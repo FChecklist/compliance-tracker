@@ -18,6 +18,8 @@ import { OwnerReview } from "./components/OwnerReview"
 import { AiWorkLink } from "./components/AiWorkLink"
 import { BillingPanel } from "./components/BillingPanel"
 import { OwnerPaymentAdmin } from "./components/OwnerPaymentAdmin"
+import { OwnerPartnerPayouts } from "./components/OwnerPartnerPayouts"
+import { SalesPartner } from "./components/SalesPartner"
 import { DraftConfirm } from "./components/DraftConfirm"
 import { AiUndoConfirm } from "./components/AiUndoConfirm"
 import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type ResendState } from "./components/Screens"
@@ -77,6 +79,8 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   const [draft, setDraft] = useState<DraftFragment | null>(initialDraft)
   const [undo, setUndo] = useState<UndoFragment | null>(initialUndo)
   const [view, setView] = useState<"page" | "clients">("page")
+  // The Sales Partner screen (drizzle/0673). Open from the Share box, the top bar, or "open your organisation".
+  const [partnerOpen, setPartnerOpen] = useState(false)
   // Written only from the auth-event handler, never during render: whether
   // this session's first page fetch has been kicked off, so supabase-js's
   // SIGNED_IN re-emits on tab focus don't fetch the page again.
@@ -204,6 +208,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
     await client.auth.signOut()
     orgRef.current = null
     setView("page")
+    setPartnerOpen(false)
     setPhase(SIGNED_OUT)
   }
 
@@ -248,7 +253,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       screen = <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} />
       break
     case "no-membership":
-      screen = <OpenOrganisation email={email} initialEdition={landing.edition ?? recallEdition()} busy={phase.busy} error={phase.error} onCreate={openMyOrg} onSignOut={signOut} />
+      screen = <OpenOrganisation email={email} initialEdition={landing.edition ?? recallEdition()} busy={phase.busy} error={phase.error} onCreate={openMyOrg} onSignOut={signOut} onOpenPartner={() => setPartnerOpen(true)} />
       break
     case "error":
       screen = <ErrorScreen message={phase.message} onRetry={load} onSignOut={signOut} />
@@ -258,10 +263,14 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
         <Page
           client={client} page={phase.page} clients={phase.clients} refetch={load} email={email} onSignOut={signOut}
           view={view} onView={setView} onOpenOrg={openOrg} draft={draft} onDraftDone={() => setDraft(null)}
-          undo={undo} onUndoDone={() => setUndo(null)}
+          undo={undo} onUndoDone={() => setUndo(null)} onOpenPartner={() => setPartnerOpen(true)}
         />
       )
       break
+  }
+  // Signed in (with or without an organisation): the Sales Partner screen replaces whatever is shown.
+  if (partnerOpen && (phase.name === "app" || phase.name === "no-membership")) {
+    screen = <SalesPartner client={client} email={email} onClose={() => setPartnerOpen(false)} />
   }
 
   // WO-DPDP-014 §2/§3, widened by WO-DPDP-016 §1: the brand line above
@@ -270,15 +279,16 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   const shareRole = phase.name === "app" ? shareRoleFor(phase.page.viewer) : null
   return (
     <>
-      <BrandLine share={phase.name === "app" && shareRole ? { client, orgId: phase.page.org.id, role: shareRole } : null} />
+      <BrandLine share={phase.name === "app" && shareRole ? { client, orgId: phase.page.org.id, role: shareRole, onOpenPartner: () => setPartnerOpen(true) } : null} />
       {screen}
     </>
   )
 }
 
 function Page({
-  client, page, clients, refetch, email, onSignOut, view, onView, onOpenOrg, draft, onDraftDone, undo, onUndoDone,
+  client, page, clients, refetch, email, onSignOut, view, onView, onOpenOrg, draft, onDraftDone, undo, onUndoDone, onOpenPartner,
 }: {
+  onOpenPartner: () => void
   client: DpdpClient
   page: MyPage
   clients: CaClient[]
@@ -361,6 +371,9 @@ function Page({
             🧾 My clients ({clients.length})
           </button>
         )}
+        <button type="button" onClick={onOpenPartner} className="font-semibold rounded-lg" style={{ background: "var(--dpdp-vL)", color: "var(--dpdp-v)", fontSize: 12.5, padding: "5px 10px" }}>
+          🤝 Sales Partner
+        </button>
         {email && <span>Signed in as <b>{email}</b></span>}
         <button type="button" onClick={onSignOut} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", padding: "4px 6px" }}>Sign out</button>
       </div>
@@ -371,6 +384,8 @@ function Page({
       {viewer.kind === "owner" && <BillingPanel client={client} orgId={org.id} />}
       {/* Payment confirmation flow follow-on: lower-right, VERIDIAN's own team only -- the component checks dpdp__is_platform_admin() itself, unrelated to viewer.kind here. */}
       <OwnerPaymentAdmin client={client} />
+      {/* Sales Partner payouts (drizzle/0673): the same VERIDIAN-team-only check, stacked above the payments pill. */}
+      <OwnerPartnerPayouts client={client} />
     </div>
   )
 }
