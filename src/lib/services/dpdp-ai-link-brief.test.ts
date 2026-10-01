@@ -189,6 +189,11 @@ describe("aiBrief: personal to this link", () => {
     }
   })
 
+  test("the expiry names the time of day when it is known, so a short link is not read as lasting the whole day (external-AI simulation, 2026-10-02)", () => {
+    const text = aiBrief(input({ expiresOn: "2026-10-03", expiresTime: "00:43" })).now.join(NL)
+    expect(text).toContain("It works until 00:43 on 3 October 2026 (India time).")
+  })
+
   test("the expiry is in India time, and the person can turn it off", () => {
     expect(aiBrief(input({ expiresOn: "2026-11-02" })).now.join(NL)).toContain("It works until 2 November 2026 (India time). The person can turn it off at any time.")
   })
@@ -559,7 +564,7 @@ describe("the manual opens with Start here and carries the whole briefing", () =
     const md = renderManualMarkdown(buildManual({ context: context({ expiresAt: "2026-10-11T19:00:00Z" }), base: BASE, now: new Date("2026-10-05T20:00:00Z"), summary: summary() }))
     expect(md).toContain("As on 6 October 2026 (India time).")
     expect(md).toContain("DPDP-status-acme-and-co-2026-10-06.md")
-    expect(md).toContain("It works until 12 October 2026 (India time).")
+    expect(md).toContain("It works until 00:30 on 12 October 2026 (India time).")
     expect(md).toContain("Subject: DPDP status for Acme & Co as on 6 October 2026")
   })
 })
@@ -878,7 +883,7 @@ describe("the real handler serves Start here first, from this link's own numbers
     expect(md).toContain(NL + "1. Do not fetch anything yet")
     expect(md).not.toContain("- 1. ")
     expect(md).not.toContain("-   ")
-    expect(md).toContain("It works until 12 October 2026 (India time).")
+    expect(md).toContain("It works until 06:00 on 12 October 2026 (India time).")
     expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_jobs", "dpdp_ai_link_log_call_result"])
     expect(calls[2].args).toEqual({ p_token: TOKEN, p_filters: {} })
   })
