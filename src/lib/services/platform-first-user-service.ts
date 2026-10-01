@@ -25,6 +25,7 @@
 import { and, eq } from "drizzle-orm"
 import { db, users, departments } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { ServiceError } from "./service-error"
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -108,7 +109,14 @@ async function attempt(input: FirstUserInput, deps: FirstUserDeps): Promise<Firs
   const departmentId = await deps.defaultDepartmentId(orgId)
   const actorId = (input.actorId ?? "").trim()
   const name = (input.actorName ?? "").trim() || email.split("@")[0]
-  const id = await deps.insertUser({ name, email, orgId, departmentId, authUserId: UUID_RE.test(actorId) ? actorId.toLowerCase() : null })
+  let id: string | null
+  try {
+    id = await deps.insertUser({ name, email, orgId, departmentId, authUserId: UUID_RE.test(actorId) ? actorId.toLowerCase() : null })
+  } catch (err) {
+    // The caller (ensureFirstPlatformUser) logs this and lets the request proceed unlinked: never a 500 for the person.
+    console.warn("First-user insert failed:", err)
+    throw new ServiceError("The first user of this organisation could not be created", 500, { code: "FIRST_USER_CREATE_FAILED" })
+  }
   if (!id) return "email_taken" // someone (a parallel call) already owns this email: nothing was written
   orgsWithUsers.add(orgId)
   if (deps.afterCreate) {

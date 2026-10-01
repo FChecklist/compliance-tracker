@@ -96,6 +96,9 @@ describe("ensureFirstPlatformUser", () => {
     const { deps } = fakeDb()
     const boom: FirstUserDeps = { ...deps, orgHasUsers: async () => { throw new Error("pool timeout") } }
     expect(await ensureFirstPlatformUser(input, boom)).toBe("skipped")
+    resetFirstUserMemo()
+    const boomInsert: FirstUserDeps = { ...deps, insertUser: async () => { throw new Error("pool timeout") } }
+    expect(await ensureFirstPlatformUser(input, boomInsert)).toBe("skipped")
   })
 })
 
