@@ -387,8 +387,24 @@ export type CombinedAuthContext = {
   // read them, for assertKeyProjectScope() at the routes that run work on a
   // project. Optional so every existing constructor of this shape still
   // compiles; one without them is treated as an org_service key.
-  apiKey: { id: string; name: string; scopes: string[]; keyKind?: ApiKeyKind; projectId?: string | null } | null
+  apiKey: { id: string; name: string; scopes: string[]; keyKind?: ApiKeyKind; projectId?: string | null; issuedForApplicationId?: string } | null
   response: NextResponse | null
+}
+
+// fix/signup-first-user-link: a platform-issued key (provision-org's) whose org has no user yet makes the person
+// named by PROJEXA's acting-user headers the org's first user, so "not linked to a user" never greets a fresh
+// signup. Imported lazily and fully non-fatal: it only runs for a platform key that carries the headers, and
+// platform-first-user-service.ts explains why it cannot add a second person to an org.
+async function linkFirstPlatformUser(request: Request, orgId: string | null, issuedForApplicationId: string | undefined): Promise<void> {
+  if (!orgId || !issuedForApplicationId) return
+  const actorEmail = readActingUserEmail(request)
+  if (!actorEmail) return
+  try {
+    const { ensureFirstPlatformUser } = await import("@/lib/services/platform-first-user-service")
+    await ensureFirstPlatformUser({ orgId, issuedForApplicationId, actorEmail, actorId: readActingUserId(request) })
+  } catch (err) {
+    console.warn("First-user link failed (non-fatal):", err)
+  }
 }
 
 export async function requireAuthOrApiKey(request: Request): Promise<CombinedAuthContext> {
@@ -416,6 +432,7 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
     const fastApiKeyResult = await validateApiKey(request)
     if (fastApiKeyResult.status === "ok") {
       const { context } = fastApiKeyResult
+      await linkFirstPlatformUser(request, context.orgId, context.issuedForApplicationId)
       return {
         orgId: context.orgId,
         dbUser: null,
@@ -437,6 +454,7 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
   const apiKeyResult = await validateApiKey(request)
   if (apiKeyResult.status === "ok") {
     const { context } = apiKeyResult
+    await linkFirstPlatformUser(request, context.orgId, context.issuedForApplicationId)
     return {
       orgId: context.orgId,
       dbUser: null,
@@ -541,7 +559,7 @@ export function readActingUserEmail(request: { headers: Headers }): string | nul
 }
 
 /** The single sentence a caller whose acting-user id maps to nothing is shown. */
-export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a VERIDIAN user - ask your admin"
+export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a PROJEXA user - ask your admin"
 
 export async function resolveActingUser(
   ctx: CombinedAuthContext,

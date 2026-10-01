@@ -50,7 +50,7 @@ export type MintDeps = {
 export type MintAnswer = { status: number; body: unknown; headers?: Record<string, string> }
 
 // The same sentence as src/lib/supabase/auth-guard.ts USER_NOT_LINKED_MESSAGE and confirm.ts.
-export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a VERIDIAN user - ask your admin"
+export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a PROJEXA user - ask your admin"
 
 // The PROJEXA browser origins of supabase/functions/projexa-read/handler.ts ALLOWED_ORIGINS (production and the local dev server).
 export const PROJEXA_ORIGINS: ReadonlyArray<string> = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100"]
