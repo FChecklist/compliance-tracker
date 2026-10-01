@@ -1,3 +1,11 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-10-01 -- "EXTERNAL AI
+-- CAN SUGGEST - FEATURES, IMPROVEMENTS TO THE SOFTWARE ... COLLATED IN A PLACE
+-- ACCESSIBLE TO ALL EXTERNAL AI ... THE EXTERNAL AI WORK LINK ... CAN NOT DO
+-- CODING IN THE APP ... CANNOT CORRUPT / EDIT / DELETE OTHERS DATA". The GRANT /
+-- REVOKE / SECURITY DEFINER here exist to enforce exactly that boundary:
+-- service_role-only access, RLS on, no grant to anon/authenticated. Applied
+-- live after CI is green, per the owner's standing "apply the migration after
+-- green" instruction (2026-10-01).
 -- AI work link: a shared pool of improvement ideas.
 --
 -- While an outside AI works for a person through their link, it may notice
