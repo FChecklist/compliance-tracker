@@ -37,6 +37,8 @@ const config = {
   from: env("DPDP_EMAIL_FROM") || "VERIDIAN AI DPDP <dpdp@veridian-aios.com>",
   legalResponseDays: parseLegalDays(env("DPDP_LEGAL_RESPONSE_DAYS")),
   dryRun: RESEND_API_KEY === "",
+  // Optional. Set: a `sales` message is also forwarded to this one address. Unset: sales mail is only recorded and listed in the daily digest.
+  salesForwardTo: env("DPDP_SALES_FORWARD_TO"),
 }
 
 const client = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })

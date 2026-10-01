@@ -53,8 +53,20 @@ export const CLASS_LABEL: Record<MailClass, string> = {
  */
 export const LEGAL_CLOCK_CLASSES: readonly MailClass[] = ["grievance", "data_request", "review"]
 
-/** Classes the operator is told about by email (`clock` included). `auto` is logged only. */
-export const NOTIFY_CLASSES: readonly MailClass[] = MAIL_CLASSES.filter((c) => c !== "auto")
+/**
+ * Classes the operator is emailed about ONE MESSAGE AT A TIME, the moment it arrives: only the two that start a legal
+ * response clock (owner decision 2026-10-01). Every other class is only recorded in dpdp.mail_inbound and reaches the
+ * operator in the once-a-day digest (DIGEST_CLASSES, drizzle/0667). `review` is NOT here: it is acknowledged to the sender
+ * like the legal classes, but it is the "could not classify" bucket, so it rides the daily digest unless the classifier itself
+ * threw (handler.ts then emails the raw message at once).
+ */
+export const NOTIFY_CLASSES: readonly MailClass[] = ["grievance", "data_request"]
+
+/** Classes the daily digest lists (everything but `auto`, which is logged and never surfaced). */
+export const DIGEST_CLASSES: readonly MailClass[] = MAIL_CLASSES.filter((c) => c !== "auto")
+
+/** The class whose messages are forwarded to DPDP_SALES_FORWARD_TO when that secret is set. */
+export const SALES_FORWARD_CLASS: MailClass = "sales"
 
 export const MAILBOX_LOCAL = "dpdp"
 export const MAILBOX_DOMAIN = "veridian-aios.com"

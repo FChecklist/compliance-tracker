@@ -34,6 +34,7 @@
 import { CLASS_TAG, MAILBOX, MAILBOX_DOMAIN, MAILBOX_LOCAL, parseRecipient } from "../_shared/mail-taxonomy.ts"
 import { bareAddress } from "./classify.ts"
 import { handleInbound, htmlToText, secretMatches, type InboundDeps, type InboundPolicy } from "./handler.ts"
+import { runOperatorDigest } from "./operator-digest.ts"
 
 export const RESEND_API = "https://api.resend.com"
 /** Svix rejects a delivery whose timestamp is more than this far from our clock, in either direction. */
@@ -777,10 +778,32 @@ async function peekJob(req: Request): Promise<Record<string, unknown> | null> {
   }
 }
 
+/**
+ * The cron's bearer for the operator digest: the Vault secret `dpdp_timer_secret` that every DPDP cron job already presents, checked through
+ * the service_role-only RPC of drizzle/0608 (the Edge Function never sees the secret). Any failure is "not authorised".
+ */
+async function timerBearerOk(deps: RouteDeps, bearer: string): Promise<boolean> {
+  if (bearer.length < 24) return false
+  try {
+    const { data, error } = await deps.inbound.rpc("dpdp_timer_check_bearer", { p_bearer: bearer })
+    return !error && data === true
+  } catch {
+    return false
+  }
+}
+
 async function handleJob(req: Request, job: Record<string, unknown>, deps: RouteDeps): Promise<Response> {
   const secret = deps.inbound.config.secret
-  if (secret.length < 24) return json({ ok: false, error: "not configured" }, 503)
   const bearer = /^Bearer\s+(.+)$/i.exec((req.headers.get("authorization") ?? "").trim())?.[1]?.trim() ?? ""
+  if (job.job === "operator_digest") {
+    // The cron presents the timer secret; an operator running it by hand may present DPDP_INBOUND_SECRET instead. Either one, nothing else runs first.
+    const ok = !!bearer && ((secret.length >= 24 && (await secretMatches(bearer, secret))) || (await timerBearerOk(deps, bearer)))
+    if (!ok) return json({ ok: false, error: "unauthorized" }, 401)
+    const out = await runOperatorDigest(deps.inbound)
+    const { status, ...body } = out
+    return json(body, status)
+  }
+  if (secret.length < 24) return json({ ok: false, error: "not configured" }, 503)
   if (!bearer || !(await secretMatches(bearer, secret))) return json({ ok: false, error: "unauthorized" }, 401)
   if (job.job !== "reconcile") return json({ ok: false, error: "unknown job" }, 400)
 
@@ -803,7 +826,7 @@ async function handleJob(req: Request, job: Record<string, unknown>, deps: Route
 /**
  * The Edge Function's one entry point.
  *   svix-* headers        -> the Resend webhook (signature, not bearer)
- *   {"job": ...} + bearer -> an operator job (reconcile)
+ *   {"job": ...} + bearer -> an operator job (reconcile; operator_digest, from the daily pg_cron job)
  *   anything else         -> the Cloudflare Worker's bearer POST, unchanged (handler.ts)
  */
 export async function routeInbound(req: Request, deps: RouteDeps): Promise<Response> {

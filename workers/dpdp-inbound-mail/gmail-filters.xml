@@ -3,12 +3,17 @@
   Gmail filters for the operator's inbox (the address in DPDP_OPERATOR_EMAIL).
 
   WHAT THIS IS. The dpdp-inbound-mail Edge Function emails the operator one notice
-  per incoming message, From dpdp@veridian-aios.com, with a subject that starts with
-  the class label and the ticket number, for example
+  per incoming message ONLY for the two legal-clock classes that arrive one by one
+  (GRIEVANCE and DATA REQUEST; owner decision 2026-10-01) and for a classifier failure,
+  From dpdp@veridian-aios.com, with a subject that starts with the class label and the
+  ticket number, for example
       [GRIEVANCE G-2026-0042] original subject
+  Every other class is recorded and listed in ONE digest a day,
+      [DPDP daily digest] N new tickets
   The subject formats come from supabase/functions/_shared/mail-taxonomy.ts
-  (notificationSubject and CLASS_LABEL). One filter below per class the operator is
-  told about, each applying one label, plus one for the classifier-failure notice.
+  (notificationSubject and CLASS_LABEL). One filter below per class that had a per-message
+  notice (the other class filters stay: they cost nothing and apply to any old or hand-forwarded
+  notice), one for the classifier-failure notice and one for the daily digest.
 
   WHAT THE FILTERS DO
     * Apply the label DPDP/Grievance, DPDP/Data request, DPDP/Review, DPDP/Sales,
@@ -114,6 +119,25 @@
     <apps:property name='label' value='DPDP/Review'/>
     <apps:property name='shouldStar' value='true'/>
     <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!--
+    The once-a-day digest (drizzle/0667, about 09:00 IST): one email listing the tickets of every class
+    but auto that arrived since the last digest, subject [DPDP daily digest] N new tickets. Labelled and
+    never sent to Spam; not starred (the legal-clock classes, GRIEVANCE and DATA REQUEST, still arrive
+    one by one and are starred above). The subject carries no class word on purpose, so none of the
+    filters above also matches it.
+  -->
+  <entry>
+    <category term='filter'></category>
+    <title>DPDP [DPDP daily digest ...]</title>
+    <id>tag:mail.google.com,2008:filter:dpdp-daily-digest</id>
+    <updated>2026-10-01T00:00:00Z</updated>
+    <content></content>
+    <apps:property name='from' value='dpdp@veridian-aios.com'/>
+    <apps:property name='subject' value='"DPDP daily digest"'/>
+    <apps:property name='label' value='DPDP/Daily digest'/>
     <apps:property name='shouldNeverSpam' value='true'/>
   </entry>
 

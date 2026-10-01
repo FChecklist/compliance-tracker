@@ -20,7 +20,7 @@ import { describe, expect, test } from "bun:test"
 import { MAILBOX, replyToAddress, type MailClass } from "../_shared/mail-taxonomy.ts"
 import {
   DEFAULT_LEGAL_RESPONSE_DAYS, EXCERPT_CHARS, MAX_BODY_CHARS, MESSAGE_ID_REUSED_NOTE, ackBlocker, ackSubject, formatIst, handleInbound, htmlToText, parseInbound, parseLegalDays,
-  redactSecrets, renderAck, receivedAtOf, secretMatches, type InboundConfig, type InboundDeps, type OutMessage, type Rpc,
+  redactSecrets, renderAck, receivedAtOf, salesForwardTarget, secretMatches, type InboundConfig, type InboundDeps, type OutMessage, type Rpc,
 } from "./handler.ts"
 
 const SECRET = "test-secret-" + "x".repeat(24)
@@ -411,12 +411,15 @@ describe("each class through the pipeline", () => {
       const res = await h.run(payload(c.over))
       const body = await bodyOf(res)
       expect(res.status).toBe(200)
-      expect(body).toMatchObject({ ticket: c.ticket, class: c.cls, notified: "sent", ack: c.legal ? "sent" : "not_applicable" })
+      // Owner decision 2026-10-01: the operator is emailed per message ONLY for grievance and data_request; every other class (review and
+      // clock included) is recorded and waits for the daily digest. The sender is acknowledged only when a legal clock starts.
+      const perMessage = c.cls === "grievance" || c.cls === "data_request"
+      expect(body).toMatchObject({ ticket: c.ticket, class: c.cls, notified: perMessage ? "sent" : "digest", ack: c.legal ? "sent" : "not_applicable" })
       const insert = h.calls.find((x) => x.fn === "dpdp_mail_insert_inbound")!.args
       expect(insert.p_due_days).toBe(c.legal ? 90 : null)
       expect(insert.p_wants_ack).toBe(c.legal)
-      // The operator is always told; the sender is acknowledged only when a legal clock starts.
-      expect(h.sent.filter((m) => m.to === OPERATOR).length).toBe(1)
+      expect(h.sent.filter((m) => m.to === OPERATOR).length).toBe(perMessage ? 1 : 0)
+      expect(h.calls.some((x) => x.fn === "dpdp_mail_mark_notified")).toBe(perMessage)
       expect(h.sent.filter((m) => m.to === "asha@example.org").length).toBe(c.legal ? 1 : 0)
     })
   }
@@ -428,7 +431,7 @@ describe("each class through the pipeline", () => {
     expect(h.calls[0].fn).toBe("dpdp_mail_lookup_outbound")
     expect(h.calls[0].args).toEqual({ p_ref: null, p_message_ids: ["sent-1@veridian-aios.com", "old@x"] })
     expect(h.calls[1].args).toMatchObject({ p_matched_outbound_ref: "m8n4p2qrs5", p_in_reply_to: "<Sent-1@Veridian-AIOS.com>" })
-    expect(h.sent[0].text).toContain("In reply to:   our Sales message (ref m8n4p2qrs5)")
+    expect(h.sent).toEqual([]) // sales_chain: recorded for the daily digest, no per-message email
   })
 
   test("a tagged reply to our acknowledgement is tied back to the ticket it acknowledged", async () => {
@@ -477,18 +480,17 @@ describe("escalation: a legal request is ticketed, due-dated and acknowledged wh
   test("a plain 'thanks for the invoice' stays an invoice reply: no due date, no acknowledgement", async () => {
     const h = harness({ outbound: [{ ref: "m8n4p2qrs5", class: "invoice", ticketNo: null, providerId: "prov-inv-1", headerId: null, to: "asha@example.org" }] })
     const res = await h.run(payload({ envelope_to: MAILBOX, subject: "Re: [VERIDIAN DPDP · Invoice] Your VERIDIAN receipt", in_reply_to: "<prov-inv-1>", text: "Thanks for the invoice, received." }))
-    expect(await bodyOf(res)).toMatchObject({ ticket: "I-2026-0001", class: "invoice", rule: "thread", ack: "not_applicable", notified: "sent" })
+    expect(await bodyOf(res)).toMatchObject({ ticket: "I-2026-0001", class: "invoice", rule: "thread", ack: "not_applicable", notified: "digest" })
     expect(h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args).toMatchObject({ p_due_days: null, p_wants_ack: false })
-    expect(h.sent.map((m) => m.to)).toEqual([OPERATOR])
+    expect(h.sent).toEqual([]) // recorded; the operator hears of it in the daily digest
   })
 
-  test("a reply to a statutory notice (class clock) is ticketed K-, notified, not acknowledged; a complaint in it is raised", async () => {
+  test("a reply to a statutory notice (class clock) is ticketed K-, left for the daily digest, not acknowledged; a complaint in it is raised", async () => {
     const outbound = [{ ref: REF, class: "clock" as MailClass, ticketNo: null, providerId: null, headerId: null, to: "asha@example.org" }]
     const thanks = harness({ outbound })
     expect(await bodyOf(await thanks.run(payload({ envelope_to: replyToAddress("clock", REF), subject: "Re: [VERIDIAN DPDP · Statutory] 72-hour clock: data leak at Acme - tell the Data Protection Board", text: "Done, thanks." }))))
-      .toMatchObject({ ticket: "K-2026-0001", class: "clock", ack: "not_applicable", notified: "sent" })
-    expect(thanks.sent.map((m) => m.to)).toEqual([OPERATOR])
-    expect(thanks.sent[0].subject).toBe("[Statutory K-2026-0001] [VERIDIAN DPDP · Statutory] 72-hour clock: data leak at Acme - tell the Data Protection Board")
+      .toMatchObject({ ticket: "K-2026-0001", class: "clock", ack: "not_applicable", notified: "digest" })
+    expect(thanks.sent).toEqual([])
     expect(thanks.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args).toMatchObject({ p_class: "clock", p_due_days: null, p_wants_ack: false })
 
     const angry = harness({ outbound })
@@ -540,8 +542,8 @@ describe("escalation: a legal request is ticketed, due-dated and acknowledged wh
   test("X-Veridian-Origin without a thread match is only a header anyone can type: the message is read, not hidden", async () => {
     const h = harness()
     const res = await h.run(payload({ envelope_to: MAILBOX, subject: "hello", text: "hello", headers: { "x-veridian-origin": "acknowledgement" } }))
-    expect(await bodyOf(res)).toMatchObject({ class: "review", notified: "sent" })
-    expect(h.sent.some((m) => m.to === OPERATOR)).toBe(true)
+    expect(await bodyOf(res)).toMatchObject({ class: "review", notified: "digest" })
+    expect(h.calls.some((c) => c.fn === "dpdp_mail_insert_inbound")).toBe(true) // read = recorded as a ticket for the digest, not hidden as auto
   })
 
   test("a bounce that quotes our mail and someone's 'delete my data' stays auto: never escalated, nobody emailed", async () => {
@@ -563,15 +565,15 @@ describe("the acknowledgement of a review message shows no REVIEW label", () => 
     expect(ackSubject("grievance", "G-2026-0001")).toBe("[VERIDIAN DPDP · GRIEVANCE] We received your message (ticket G-2026-0001)")
     expect(ackSubject("data_request", "D-2026-0001")).toBe("[VERIDIAN DPDP · DATA REQUEST] We received your message (ticket D-2026-0001)")
   })
-  test("through the pipeline: an unclassifiable message is acknowledged as '[VERIDIAN DPDP] We received your message (ticket R-...)', the operator's notice still says REVIEW", async () => {
+  test("through the pipeline: an unclassifiable message is acknowledged as '[VERIDIAN DPDP] We received your message (ticket R-...)'; the operator gets no per-message notice (daily digest)", async () => {
     const h = harness()
     await h.run(payload({ envelope_to: MAILBOX, subject: "hello", text: "hello" }))
-    const [ack, notice] = h.sent
+    expect(h.sent.length).toBe(1)
+    const [ack] = h.sent
     expect(ack.to).toBe("asha@example.org")
     expect(ack.subject).toBe("[VERIDIAN DPDP] We received your message (ticket R-2026-0001)")
     expect(ack.subject).not.toMatch(/review/i)
     expect(ack.text).not.toMatch(/review/i)
-    expect(notice.subject).toBe("[REVIEW R-2026-0001] hello")
     // The class is still on the Reply-To tag and the headers, so a reply to it is filed as review.
     expect(ack.replyTo).toMatch(/^dpdp\+rev\./)
     expect(ack.headers["X-Veridian-Class"]).toBe("review")
@@ -655,7 +657,7 @@ describe("auto mail: logged, never announced, never acknowledged", () => {
     const h = harness()
     const p = payload({ envelope_to: MAILBOX, subject: "Hello", text: "Thanks for your time last week.", message_id: "<null3@example.org>" }) as Record<string, unknown>
     delete p.envelope_from
-    expect(await bodyOf(await h.run(p))).toMatchObject({ class: "review", notified: "sent" })
+    expect(await bodyOf(await h.run(p))).toMatchObject({ class: "review", notified: "digest" })
   })
 })
 
@@ -788,20 +790,19 @@ describe("parseInbound: the null sender and the truncation flag", () => {
 
 describe("a message the Worker cut short (item: truncated + too little of the person's own text -> review)", () => {
   const MON = replyToAddress("monday", REF)
-  test("through the pipeline: a truncated Monday reply with (almost) no readable text is a review: ticket R-, due date, acknowledged, operator told", async () => {
+  test("through the pipeline: a truncated Monday reply with (almost) no readable text is a review: ticket R-, due date, acknowledged, left for the daily digest", async () => {
     const h = harness()
     const res = await h.run(payload({ envelope_to: MON, subject: "Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week", text: "ok", truncated: true, message_id: "<trunc1@example.org>" }))
-    expect(await bodyOf(res)).toMatchObject({ ok: true, ticket: "R-2026-0001", class: "review", rule: "escalation", ack: "sent", notified: "sent" })
+    expect(await bodyOf(res)).toMatchObject({ ok: true, ticket: "R-2026-0001", class: "review", rule: "escalation", ack: "sent", notified: "digest" })
     const insert = h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args
     expect(insert).toMatchObject({ p_class: "review", p_due_days: 90, p_wants_ack: true })
     expect(String(insert.p_classifier_reason)).toBe("tag:mon; the message was cut short and too little of the person's own text was read to classify it")
-    expect(h.sent.map((m) => m.to)).toEqual(["asha@example.org", OPERATOR])
-    expect(h.sent[1].text).toContain("larger than the Worker reads")
+    expect(h.sent.map((m) => m.to)).toEqual(["asha@example.org"]) // the operator's per-message notice is gone; the digest lists the ticket
   })
   test("the same message NOT cut short is a plain Monday reply: no ticket clock, no acknowledgement", async () => {
     const h = harness()
     const res = await h.run(payload({ envelope_to: MON, subject: "Re: [VERIDIAN DPDP · Monday] Acme: DPDP this week", text: "ok", message_id: "<trunc2@example.org>" }))
-    expect(await bodyOf(res)).toMatchObject({ class: "monday", ack: "not_applicable", notified: "sent" })
+    expect(await bodyOf(res)).toMatchObject({ class: "monday", ack: "not_applicable", notified: "digest" })
     expect(h.calls.find((c) => c.fn === "dpdp_mail_insert_inbound")!.args).toMatchObject({ p_due_days: null, p_wants_ack: false })
   })
   test("a truncated message with real text is read as usual", async () => {
@@ -1188,5 +1189,133 @@ describe("redactSecrets: a reply that quotes our email must not carry its creden
     redactSecrets("a".repeat(64_000))
     redactSecrets(("https://" + "a".repeat(190) + "/ai/").repeat(300))
     expect(Date.now() - t0).toBeLessThan(1500)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Owner decision 2026-10-01: per-message operator email only for grievance and data_request; a `sales` message is forwarded when
+// DPDP_SALES_FORWARD_TO is set. (The daily digest itself is proven in operator-digest.test.ts.)
+// ---------------------------------------------------------------------------
+describe("per-message operator email: grievance and data_request only", () => {
+  const OTHER: Array<{ name: string; over: Record<string, unknown>; cls: MailClass }> = [
+    { name: "review", over: { envelope_to: MAILBOX, subject: "hello", text: "hello" }, cls: "review" },
+    { name: "monday", over: { envelope_to: replyToAddress("monday", REF), subject: "Re: your week", text: "done" }, cls: "monday" },
+    { name: "clock", over: { envelope_to: replyToAddress("clock", REF), subject: "Re: statutory", text: "done, thanks" }, cls: "clock" },
+    { name: "sales", over: { envelope_to: MAILBOX, subject: "Hello", text: "what is your pricing?" }, cls: "sales" },
+    { name: "invoice", over: { envelope_to: replyToAddress("invoice", REF), subject: "Re: your receipt", text: "thanks" }, cls: "invoice" },
+    { name: "partner", over: { envelope_to: MAILBOX, subject: "Hello", text: "we are a reseller" }, cls: "partner" },
+    { name: "support", over: { envelope_to: MAILBOX, subject: "Hello", text: "I need help with login" }, cls: "support" },
+  ]
+  for (const c of OTHER) {
+    test(`${c.name}: recorded, the operator is NOT emailed, the answer is 200 "digest"`, async () => {
+      const h = harness()
+      const res = await h.run(payload(c.over))
+      expect(res.status).toBe(200)
+      expect(await bodyOf(res)).toMatchObject({ ok: true, class: c.cls, notified: "digest" })
+      expect(h.calls.some((x) => x.fn === "dpdp_mail_insert_inbound")).toBe(true)
+      expect(h.sent.filter((m) => m.to === OPERATOR)).toEqual([])
+      expect(h.calls.some((x) => x.fn === "dpdp_mail_mark_notified")).toBe(false)
+    })
+  }
+  for (const [cls, over] of [
+    ["grievance", {}],
+    ["data_request", { envelope_to: MAILBOX, subject: "Please delete my data", text: "delete my data" }],
+  ] as const) {
+    test(`${cls}: still emailed to the operator at once, exactly one notice`, async () => {
+      const h = harness()
+      const res = await h.run(payload(over))
+      expect(await bodyOf(res)).toMatchObject({ class: cls, notified: "sent" })
+      expect(h.sent.filter((m) => m.to === OPERATOR).length).toBe(1)
+    })
+  }
+  test("a digest-class message with NO operator email configured is still 200 (nothing is owed per message); a grievance with none is 502", async () => {
+    const none = harness({ config: { operatorEmail: "" } })
+    const res = await none.run(payload({ envelope_to: MAILBOX, subject: "Hello", text: "we are a reseller" }))
+    expect(res.status).toBe(200)
+    expect(await bodyOf(res)).toMatchObject({ class: "partner", notified: "digest" })
+    const legal = harness({ config: { operatorEmail: "" } })
+    expect((await legal.run(payload())).status).toBe(502)
+  })
+  test("a classifier that throws is still emailed to the operator at once, whatever class it would have been", async () => {
+    const h = harness({ classify: () => { throw new Error("boom") } })
+    const res = await h.run(payload({ envelope_to: MAILBOX, subject: "Hello", text: "we are a reseller" }))
+    expect(await bodyOf(res)).toMatchObject({ class: "review", notified: "sent" })
+    expect(h.sent.find((m) => m.to === OPERATOR)!.subject).toMatch(/^\[CLASSIFIER FAILED /)
+  })
+  test("dry run: a digest-class message is recorded and the answer is 502, so the Worker still forwards natively", async () => {
+    const h = harness({ config: { dryRun: true } })
+    const res = await h.run(payload({ envelope_to: MAILBOX, subject: "Hello", text: "we are a reseller" }))
+    expect(res.status).toBe(502)
+    expect(await bodyOf(res)).toMatchObject({ notified: "dry_run" })
+    expect(h.sent).toEqual([])
+  })
+})
+
+describe("sales forward (DPDP_SALES_FORWARD_TO)", () => {
+  const TARGET = "sales-desk@example.test"
+  const SALES = { envelope_to: MAILBOX, subject: "Re: Pricing question", text: "what is your pricing?\nWe are 40 people.", message_id: "<sales1@example.org>" }
+
+  test("set: the sales message is forwarded once, original sender in Reply-To, original body, subject prefixed; the operator is not emailed", async () => {
+    const h = harness({ config: { salesForwardTo: TARGET } })
+    const res = await h.run(payload(SALES))
+    expect(res.status).toBe(200)
+    expect(await bodyOf(res)).toMatchObject({ class: "sales", ticket: "S-2026-0001", notified: "digest", salesForward: "sent" })
+    expect(h.sent.length).toBe(1)
+    const m = h.sent[0]
+    expect(m.to).toBe(TARGET)
+    expect(m.from).toBe("VERIDIAN AI DPDP <dpdp@veridian-aios.com>")
+    expect(m.replyTo).toBe("asha@example.org")
+    expect(m.subject).toBe("[Fwd Sales S-2026-0001] Pricing question")
+    expect(m.text).toContain("what is your pricing?\nWe are 40 people.")
+    expect(m.text).toContain("Asha M <asha@example.org>")
+    expect(m.headers).toMatchObject({ "X-Veridian-Origin": "sales-forward", "Auto-Submitted": "auto-generated", "X-Veridian-Class": "sales" })
+    expect(m.idempotencyKey).toBe("dpdp-inbound-salesfwd-S-2026-0001")
+    expect(h.sent.some((x) => x.to === OPERATOR)).toBe(false)
+  })
+  test("unset, blank or not a single plain address: behaves as before -- recorded only, nothing sent", async () => {
+    for (const bad of [undefined, "", "   ", "a@b.test, c@d.test", "Sales <s@x.test>", "not-an-address", "x@y.test\r\nBcc: z@evil.test"]) {
+      const h = harness({ config: { salesForwardTo: bad } })
+      const res = await h.run(payload(SALES))
+      expect(res.status).toBe(200)
+      expect(await bodyOf(res)).toMatchObject({ class: "sales", salesForward: "not_configured" })
+      expect(h.sent).toEqual([])
+    }
+  })
+  test("only the `sales` class is forwarded: sales_chain, grievance, partner, auto are not", async () => {
+    const chain = harness({ config: { salesForwardTo: TARGET }, outbound: [{ ref: "m8n4p2qrs5", class: "sales", ticketNo: null, providerId: null, headerId: "sent-1@veridian-aios.com", to: "asha@example.org" }] })
+    await chain.run(payload({ envelope_to: MAILBOX, subject: "Re: our proposal", text: "sounds good", in_reply_to: "<sent-1@veridian-aios.com>" }))
+    const grievance = harness({ config: { salesForwardTo: TARGET } })
+    await grievance.run(payload())
+    const partner = harness({ config: { salesForwardTo: TARGET } })
+    await partner.run(payload({ envelope_to: MAILBOX, subject: "Hello", text: "we are a reseller" }))
+    const auto = harness({ config: { salesForwardTo: TARGET } })
+    await auto.run(payload({ envelope_to: MAILBOX, subject: "Automatic reply: pricing", text: "what is your pricing?", auto_submitted: "auto-replied", headers: { "auto-submitted": "auto-replied" } }))
+    for (const h of [chain, grievance, partner, auto]) expect(h.sent.some((m) => m.to === TARGET)).toBe(false)
+  })
+  test("a failed forward never changes the answer: 200, recorded, logged without the address", async () => {
+    const h = harness({ config: { salesForwardTo: TARGET }, failSend: (m) => m.to === TARGET })
+    const res = await h.run(payload(SALES))
+    expect(res.status).toBe(200)
+    expect(await bodyOf(res)).toMatchObject({ ok: true, class: "sales", salesForward: "failed" })
+    expect(h.calls.some((x) => x.fn === "dpdp_mail_insert_inbound")).toBe(true)
+    expect(h.logs.join("\n")).toContain("sales forward failed")
+    expect(h.logs.join("\n")).not.toContain(TARGET)
+  })
+  test("dry run: nothing is forwarded", async () => {
+    const h = harness({ config: { salesForwardTo: TARGET, dryRun: true } })
+    await h.run(payload(SALES))
+    expect(h.sent).toEqual([])
+  })
+  test("a redelivery re-sends under the SAME idempotency key, so the provider drops the second mail", async () => {
+    const h = harness({ config: { salesForwardTo: TARGET } })
+    await h.run(payload(SALES))
+    await h.run(payload(SALES))
+    const keys = h.sent.filter((m) => m.to === TARGET).map((m) => m.idempotencyKey)
+    expect(keys).toEqual(["dpdp-inbound-salesfwd-S-2026-0001", "dpdp-inbound-salesfwd-S-2026-0001"])
+  })
+  test("salesForwardTarget accepts exactly one plain address", () => {
+    expect(salesForwardTarget(" a@b.test ")).toBe("a@b.test")
+    expect(salesForwardTarget("first.last+tag@sub.example.test")).toBe("first.last+tag@sub.example.test")
+    for (const bad of [null, undefined, "", "a@b", "a b@c.test", "a@b.test,c@d.test", "<a@b.test>", "x@y.test\nBcc: z@q.test", "a@b.test;c@d.test"]) expect(salesForwardTarget(bad)).toBeNull()
   })
 })

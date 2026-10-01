@@ -49,6 +49,7 @@ import "../../../supabase/functions/_shared/mail-taxonomy.test"
 import "../../../supabase/functions/dpdp-inbound-mail/classify.test"
 import "../../../supabase/functions/dpdp-inbound-mail/handler.test"
 import "../../../supabase/functions/dpdp-inbound-mail/resend-inbound.test"
+import "../../../supabase/functions/dpdp-inbound-mail/operator-digest.test"
 
 import { classify } from "../../../supabase/functions/dpdp-inbound-mail/classify"
 import { DEFAULT_LEGAL_RESPONSE_DAYS } from "../../../supabase/functions/dpdp-inbound-mail/handler"
@@ -312,6 +313,16 @@ describe("operator Gmail filters (workers/dpdp-inbound-mail/gmail-filters.xml) m
       expect(f.props.from).toBe(MAILBOX)
       expect(f.props.shouldNeverSpam).toBe("true")
     }
+  })
+
+  test("the daily digest (subject '[DPDP daily digest] N new tickets', operator-digest.ts) has its own label, is never Spam, and matches no class filter", async () => {
+    const { renderDigest } = await import("../../../supabase/functions/dpdp-inbound-mail/operator-digest.ts")
+    const subject = renderDigest([{ ticketNo: "H-2026-0001", cls: "support", from: "a@b.test", subject: "x", receivedAt: null }], new Date()).subject
+    const f = filters().find((x) => subjectWord(x) === "DPDP daily digest")
+    expect(f?.props.label).toBe("DPDP/Daily digest")
+    expect(f?.props.shouldNeverSpam).toBe("true")
+    expect(subject.startsWith(`[${subjectWord(f!)}] `)).toBe(true)
+    for (const cls of MAIL_CLASSES) expect(subject.toLowerCase(), `the digest subject must not contain the ${cls} label word`).not.toContain(CLASS_LABEL[cls].toLowerCase())
   })
 
   test("the legal-clock classes are starred and marked Important", () => {

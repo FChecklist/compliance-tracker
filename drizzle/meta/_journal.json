@@ -3467,6 +3467,13 @@
       "when": 1790481000000,
       "tag": "0666_dpdp_page_job_controls",
       "breakpoints": true
+    },
+    {
+      "idx": 497,
+      "version": "7",
+      "when": 1790482000000,
+      "tag": "0667_dpdp_operator_daily_digest",
+      "breakpoints": true
     }
   ]
 }
