@@ -62,7 +62,7 @@ export function loadFacts() {
     need(isStr(f[key]), `${key} missing`)
   }
   need(isStrList(f.who_for) && f.who_for.length === 2, "who_for must be exactly two lines (owner, 2026-10-01): firms and their clients; companies, institutions, schools and NGOs")
-  need(isStrList(f.four_things) && f.four_things.length === 4, "four_things must be exactly four lines (the home page's numbered 1-4)")
+  need(isStrList(f.three_things) && f.three_things.length === 3, "three_things must be exactly three lines (the home page's numbered 1-4)")
   const sp = f.sales_partner
   need(sp && typeof sp === "object" && isStr(sp.nav_label) && isStr(sp.button) && isStr(sp.lead) && isStr(sp.sign_in_note) && Array.isArray(sp.sections) && sp.sections.length > 0, "sales_partner needs nav_label/button/lead/sign_in_note/sections")
   for (const s of sp.sections) {

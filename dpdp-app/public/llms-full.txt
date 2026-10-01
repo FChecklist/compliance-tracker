@@ -6,11 +6,10 @@ This is the visible text of every public page of https://veridian-aios.com.
 
 ## DPDP Compliance Management Software for India — https://veridian-aios.com/
 
-### The DPDP Act asks every organisation for four things
-1. Know what data you hold.
-2. Tell people about it.
-3. Keep it safe.
-4. Prove it — with a record that outlasts the person who set it up.
+### Three things to know about DPDP compliance
+1. People change. When they leave, what they knew about your data leaves with them.
+2. Know what data you hold, and who else holds it for you.
+3. Prove it — with a record that outlasts the person who set it up.
 🧑‍⚖️ I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS 🏭 I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES
 ### Your free DPDP AI assistant
 It does the routine work. You stay in charge.
