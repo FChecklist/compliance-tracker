@@ -37,6 +37,9 @@ export type McpReads = {
   fetch(id: string, project?: string): Promise<SearchHit>
   check(fn: unknown, params: unknown, project?: string): Promise<CheckResult>
   propose(fn: string, params: Record<string, unknown>, project?: string): Promise<Proposal>
+  /** The suggestions board (drizzle/0672): record one suggestion for the PROJEXA team (changes no data and no part of the app), and read the board. */
+  suggest(args: Record<string, unknown>): Promise<Record<string, unknown>>
+  suggestions(limit: string | null): Promise<Record<string, unknown>>
 }
 
 export type McpInput = { headers: { get(name: string): string | null }; bodyText: string }
@@ -149,6 +152,10 @@ async function runTool(name: string, args: Record<string, unknown>, reads: McpRe
         const fn = typeof args.function === "string" ? args.function : ""
         return toolText(await reads.propose(fn, asObject(args.params), project) as unknown as Record<string, unknown>)
       }
+      case "suggest_improvement":
+        return toolText(await reads.suggest(args))
+      case "list_suggestions":
+        return toolText(await reads.suggestions(args.limit === undefined ? null : String(args.limit)))
       default:
         return toolError(`Unknown tool ${name}.`)
     }
