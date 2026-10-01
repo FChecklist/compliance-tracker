@@ -3509,6 +3509,13 @@
       "when": 1790487000000,
       "tag": "0672_awl_suggestions_board",
       "breakpoints": true
+    },
+    {
+      "idx": 503,
+      "version": "7",
+      "when": 1790489000000,
+      "tag": "0674_dpdp_sales_partner_lifecycle",
+      "breakpoints": true
     }
   ]
 }

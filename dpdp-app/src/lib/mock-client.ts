@@ -241,7 +241,15 @@ type State = {
   orgs: Record<string, OrgState>
   spentTokens: string[]; consentAnswered: boolean; unsubscribed: boolean; draftConfirmed: boolean; aiLinks: number
   aiWorkLinkSeq: number; aiActionUndone: boolean
+  /** Sales Partner lifecycle preview (drizzle/0674): the signed-in person's own profile. The real arithmetic lives in Postgres. */
+  partner?: MockPartner
+  partnerTdsPercent?: number | null
 }
+type MockPartner = {
+  status: "applied" | "active" | "paused" | "ended"; name: string | null; termsVersion: string | null; termsAcceptedAt: string | null
+  details: { method: "upi" | "bank"; upiId?: string; accountName?: string; accountNumber?: string; ifsc?: string; pan?: string; updatedAt: string } | null
+}
+const MOCK_TERMS_VERSION = "1.0"
 
 function daysFromNow(n: number): string {
   const d = new Date()
@@ -1085,6 +1093,83 @@ export function createMockClient(scenario?: string): DpdpClient {
           log(org, "payment_rejected", "Payment claim could not be confirmed")
           save(state)
           return ok({ ok: true, state: "trial" })
+        }
+        // --- Sales Partner lifecycle preview (drizzle/0674) ---
+        case "dpdp_partner_dashboard": {
+          const p = state.partner
+          const base = {
+            email: me, currentTermsVersion: MOCK_TERMS_VERSION, payableAfterDays: 30, payoutDay: 10, minPayoutPaise: 50000,
+            nextPayoutOn: daysFromNow(10).slice(0, 10), tdsPercentSet: state.partnerTdsPercent != null,
+          }
+          if (!p) return ok({ ...base, status: null, needsTerms: true })
+          const d = p.details
+          const mask = d && {
+            method: d.method,
+            upiMasked: d.upiId ? `${d.upiId.slice(0, 2)}****@${d.upiId.split("@")[1] ?? ""}` : null,
+            nameMasked: d.accountName ? d.accountName.split(/\s+/).map((w) => `${w[0]}***`).join(" ") : null,
+            accountMasked: d.accountNumber ? `${"X".repeat(Math.max(d.accountNumber.length - 4, 0))}${d.accountNumber.slice(-4)}` : null,
+            ifscMasked: d.ifsc ? `${d.ifsc.slice(0, 4)}*******` : null,
+            panMasked: d.pan ? `${d.pan.slice(0, 2)}*******${d.pan.slice(-1)}` : null,
+            updatedAt: d.updatedAt,
+          }
+          return ok({
+            ...base, status: p.status, displayName: p.name, termsVersion: p.termsVersion, termsAcceptedAt: p.termsAcceptedAt,
+            needsTerms: p.termsVersion !== MOCK_TERMS_VERSION, hasPayoutDetails: !!d, payoutDetails: mask, code: p.status === "active" ? MOCK_REFERRAL_CODE : null,
+            funnel: { signedUp: 0, inTrial: 0, paying: 0, notCounted: 0 },
+            money: { earnedPaise: 0, waitingPaise: 0, payablePaise: 0, paidGrossPaise: 0, paidTdsPaise: 0, paidNetPaise: 0 },
+            lines: [], payableBefore: daysFromNow(0).slice(0, 8) + "01",
+          })
+        }
+        case "dpdp_partner_accept_terms": {
+          if (String(args?.p_version ?? "") !== MOCK_TERMS_VERSION) return fail(`These are not the current partner terms (the current version is ${MOCK_TERMS_VERSION}). Reload the page and read them again.`)
+          if (state.partner?.status === "ended") return fail("Your partnership has ended. Write to us if you want to join again.")
+          const name = String(args?.p_display_name ?? "").trim() || null
+          state.partner = { status: "applied", name, details: null, ...state.partner, termsVersion: MOCK_TERMS_VERSION, termsAcceptedAt: new Date().toISOString() }
+          if (state.partner.details && state.partner.status === "applied") state.partner.status = "active"
+          save(state)
+          return ok({ ok: true, status: state.partner.status, activated: state.partner.status === "active" })
+        }
+        case "dpdp_partner_save_payout_details": {
+          if (!state.partner) return fail("Accept the partner terms first, then add your payout details.")
+          const method = String(args?.p_method ?? "")
+          if (method !== "upi" && method !== "bank") return fail("Choose how you want to be paid: UPI or bank transfer.")
+          const upi = String(args?.p_upi_id ?? "").trim().toLowerCase()
+          if (method === "upi" && !/^[a-z0-9._-]{2,64}@[a-z][a-z0-9]{1,31}$/.test(upi)) return fail("That UPI id does not look right. It looks like name@bank.")
+          state.partner.details = {
+            method, updatedAt: new Date().toISOString(),
+            ...(method === "upi" ? { upiId: upi } : { accountName: String(args?.p_account_name ?? ""), accountNumber: String(args?.p_account_number ?? ""), ifsc: String(args?.p_ifsc ?? "").toUpperCase() }),
+            ...(args?.p_pan ? { pan: String(args.p_pan).toUpperCase() } : {}),
+          }
+          if (state.partner.status === "applied" && state.partner.termsVersion === MOCK_TERMS_VERSION) state.partner.status = "active"
+          save(state)
+          return ok({ ok: true, status: state.partner.status, activated: state.partner.status === "active" })
+        }
+        case "dpdp_partner_get_code": {
+          if (state.partner?.status !== "active") return fail("Your personal link appears when your partner set-up is finished and active.")
+          return ok({ code: MOCK_REFERRAL_CODE })
+        }
+        case "dpdp_partner_statement": {
+          if (!state.partner) return fail("You are not a Sales Partner yet.")
+          const period = String(args?.p_period ?? "")
+          if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) return fail("Choose a month like 2026-09.")
+          return ok({ period, email: me, lines: [], payouts: [], totals: { madePaise: 0, paidGrossPaise: 0, paidTdsPaise: 0, paidNetPaise: 0, stillWaitingPaise: 0 } })
+        }
+        case "dpdp_admin_partner_settings":
+        case "dpdp_admin_partner_set_settings": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          if (fn === "dpdp_admin_partner_set_settings" && args?.p_tds_percent != null) state.partnerTdsPercent = Number(args.p_tds_percent)
+          save(state)
+          return ok({ payableAfterDays: 30, payoutDay: 10, minPayoutPaise: 50000, tdsPercent: state.partnerTdsPercent ?? 0, tdsPercentSet: state.partnerTdsPercent != null, termsVersion: MOCK_TERMS_VERSION, updatedAt: new Date().toISOString() })
+        }
+        case "dpdp_admin_partner_list":
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          return ok([])
+        case "dpdp_admin_partner_payout_run": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          return ok({
+            period: String(args?.p_period ?? "") || daysFromNow(-30).slice(0, 7), payableBefore: daysFromNow(0).slice(0, 8) + "01",
+            tdsPercentSet: state.partnerTdsPercent != null, tdsPercent: state.partnerTdsPercent ?? 0, minPayoutPaise: 50000, payoutDay: 10, partners: [], held: [],
+          })
         }
         default:
           return fail(`Unknown RPC ${fn}`)

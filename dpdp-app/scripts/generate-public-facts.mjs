@@ -445,6 +445,7 @@ function partnerPage(facts) {
     `  <p class="lead">${esc(sp.lead)}</p>`,
     `  <p class="partner-cta">${button}</p>`,
     `  <p class="partner-note">${esc(sp.sign_in_note)}</p>`,
+    `  <p class="partner-note"><a href="/partner/terms/">${esc(sp.terms_link_text)}</a></p>`,
     sectionsHtml([...sp.sections, { h2: "Contact", bullets: contactBullets(facts) }]),
     `  <p class="partner-cta">${button}</p>`,
     `  <!-- BEGIN generated: facts -->`,
@@ -456,6 +457,31 @@ function partnerPage(facts) {
     path: "/partner/",
     description: pageDescription(facts, "/partner/"),
     nodes: pageNodes(facts, "/partner/"),
+    shareAsk: true,
+    body,
+  })
+}
+// ---------------------------------------------------------- /partner/terms/
+// 2026-10-01 (owner): the Sales Partner agreement, from facts.sales_partner_terms. Public and
+// indexable; shows its version and date. No script of its own.
+function partnerTermsPage(facts) {
+  const t = facts.sales_partner_terms
+  const body = [
+    `<main class="container facts-page">`,
+    `  <h1>${esc(t.heading)}</h1>`,
+    `  <p class="lead">${esc(t.status_line)}</p>`,
+    `  <p class="partner-note">${esc(t.lead)}</p>`,
+    sectionsHtml([...t.sections, { h2: "The company", paragraphs: companyLines(facts) }, { h2: "Contact", bullets: contactBullets(facts) }]),
+    `  <p class="partner-note"><a href="/partner/">${esc(t.back_link_text)}</a> · <a href="/terms/">Terms of Service</a></p>`,
+    `  <!-- BEGIN generated: facts -->`,
+    indent(factBlock(facts), 2),
+    `  <!-- END generated: facts -->`,
+    `</main>`,
+  ].join("\n")
+  return page(facts, {
+    path: "/partner/terms/",
+    description: pageDescription(facts, "/partner/terms/"),
+    nodes: pageNodes(facts, "/partner/terms/"),
     shareAsk: true,
     body,
   })
@@ -687,6 +713,7 @@ export function buildOutputs() {
   for (const [source, html] of landings) files.set(source, html)
   files.set("about/index.html", aboutPage(facts))
   files.set("partner/index.html", partnerPage(facts))
+  files.set("partner/terms/index.html", partnerTermsPage(facts))
   files.set("ai-assistant/index.html", aiAssistantPage(facts))
   files.set("proof/index.html", proofPage(facts, proof))
   files.set("public/llms.txt", llmsTxt(facts))

@@ -1,4 +1,4 @@
-﻿# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working
 # across this codebase at once, with no existing mechanism for one session
@@ -40,6 +40,15 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (DPDP sales partner lifecycle; worktree agent-a70b403b3a440f5ce, branch feat/dpdp-partner-lifecycle)"
+    claimed_at: "2026-10-01T12:00:00Z"
+    claim: |
+      Owner request 2026-10-01: complete the Sales Partner lifecycle (apply / terms / payout details / dashboard /
+      monthly payout run with TDS fields / partner emails / public /partner/ + /partner/terms/ pages / referral
+      carry-through test). File scope: drizzle/0674_dpdp_sales_partner_lifecycle.sql (+ journal), new Edge function
+      supabase/functions/dpdp-partner-email, dpdp-app (SalesPartner.tsx, OwnerPartnerPayouts.tsx, api.ts, rpc-types.ts,
+      mock-client.ts, facts yaml + generator + public-surface for /partner/terms/), their tests. Does NOT touch the
+      Razorpay / dpdp-pay / migration 0672 work, DNS, Vercel or secrets. No live apply, no function deploy.
   - session_label: "claude-code (DPDP host move; worktree agent-adbd44b1864f28984, branch feat/dpdp-host-dpdp-subdomain)"
     claimed_at: "2026-10-01T09:00:00Z"
     claim: |

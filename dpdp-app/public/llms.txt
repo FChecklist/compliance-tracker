@@ -24,6 +24,7 @@ It is not a law firm, does not certify (no DPDP certification exists in India), 
 - [DPDP Act Compliance for Companies, Institutions, Schools and NGOs](https://veridian-aios.com/dpdp-institution/): for a company, institution, school or NGO doing DPDP compliance for itself
 - [About VERIDIAN](https://veridian-aios.com/about/): what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company
 - [Become a Sales Partner](https://veridian-aios.com/partner/): who can be a Sales Partner, how to get a personal link, what is earned when a referred organisation pays, and how payment is made
+- [Sales Partner terms](https://veridian-aios.com/partner/terms/): the Sales Partner agreement: who can join, what a partner may and may not say, how commission is earned and paid, tax, ending, changes
 - [Your DPDP AI Assistant](https://veridian-aios.com/ai-assistant/): how to get the free AI assistant, what it can and cannot do, what it costs, and how you stay in charge
 - The sitemap: https://veridian-aios.com/sitemap.xml
 
