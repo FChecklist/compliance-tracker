@@ -318,14 +318,9 @@ export const CORRECT_SPELLING = "VERy INDIAN"
 
 /** Every spelling of "very indian" that is not exactly "VERy INDIAN", and
  * every "Made in India" (banned outright, WO-014 §1). */
-/** The one heading the owner wrote with the spelling "VERy Indian"
- * (2026-10-01, data/veridian-facts.yaml fact_block_title). It is exempt as an
- * exact string; every other variant is still a failure. */
-export const OWNER_SPELLING_EXCEPTION = "What VERIDIAN (VERy Indian) is"
-
 export function findSpellingVariants(text) {
   const out = []
-  const scan = text.split(OWNER_SPELLING_EXCEPTION).join(" ".repeat(OWNER_SPELLING_EXCEPTION.length))
+  const scan = text
   for (const m of scan.matchAll(/very\s*indian/giu)) if (m[0] !== CORRECT_SPELLING) out.push({ variant: m[0], index: m.index })
   for (const m of scan.matchAll(/made\s+in\s+india/giu)) out.push({ variant: m[0], index: m.index })
   return out

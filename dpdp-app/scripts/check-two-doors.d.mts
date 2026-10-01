@@ -44,6 +44,5 @@ export function findBrandLineDeviations(text: string, brand: Facts["brand"]): Br
 export function sourceFiles(root?: string): string[]
 export function publicSurfaceFiles(): string[]
 export const PUBLIC_HOST: string
-export const OWNER_SPELLING_EXCEPTION: string
 export const WITHDRAWN_SURFACES: readonly RegExp[]
 export function findAppHost(text: string): Array<{ host: string; snippet: string }>
