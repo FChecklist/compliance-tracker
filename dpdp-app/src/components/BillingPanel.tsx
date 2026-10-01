@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
-import { declarePayment, myBilling, uploadPaymentProof } from "@/lib/api"
+import { declarePayment, myBilling, startOnlinePayment, uploadPaymentProof } from "@/lib/api"
 import type { BillingStatusPayload } from "@/lib/rpc-types"
 import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
 
@@ -31,8 +31,48 @@ const PAY_WHATSAPP_NUMBER = "" // e.g. "919999999999" -- wa.me link is hidden un
 const MONTHLY_PAISE = 199_900
 const YEARLY_PAISE = 999_900
 
+// Online payment (Razorpay, supabase/functions/dpdp-pay). The yearly price below must equal the server's own (dpdp_plan_price_paise in
+// drizzle/0673): the server charges ITS number, this one is only what is shown, and src/lib/services/dpdp-pay-logic.test.ts fails if they differ.
+const PENDING_KEY = (orgId: string) => `dpdp-pay-pending:${orgId}`
+const POLL_TRIES = 15
+const POLL_EVERY_MS = 4000
+const PENDING_MAX_AGE_MS = 30 * 60_000
+/** The last-confirmed date as it was before the owner left for Razorpay, or null if there is no recent pending payment (a marker older than 30 minutes is dropped, so an abandoned payment does not re-open this panel on every page load). */
+function readPending(orgId: string): string | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY(orgId))
+    if (!raw) return null
+    const v = JSON.parse(raw) as { b?: string; t?: number }
+    if (typeof v.b !== "string" || typeof v.t !== "number" || Date.now() - v.t > PENDING_MAX_AGE_MS) {
+      sessionStorage.removeItem(PENDING_KEY(orgId))
+      return null
+    }
+    return v.b
+  } catch { return null }
+}
+function writePending(orgId: string, baseline: string) {
+  try { sessionStorage.setItem(PENDING_KEY(orgId), JSON.stringify({ b: baseline, t: Date.now() })) } catch { /* no storage: the page still pays, it just will not auto-check on return */ }
+}
+function clearPending(orgId: string) {
+  try { sessionStorage.removeItem(PENDING_KEY(orgId)) } catch { /* nothing to clear */ }
+}
+
 function formatRupees(paise: number): string {
   return `Rs ${(paise / 100).toLocaleString("en-IN")}`
+}
+
+/** A yearly plan is up for renewal from 45 days before its anniversary (latest confirmed payment + 1 year). */
+function renewalDue(lastConfirmedAt: string | null): boolean {
+  if (!lastConfirmedAt) return false
+  const renews = new Date(lastConfirmedAt)
+  renews.setFullYear(renews.getFullYear() + 1)
+  return Date.now() >= renews.getTime() - 45 * 86_400_000
+}
+function renewalDate(lastConfirmedAt: string | null): string {
+  if (!lastConfirmedAt) return ""
+  const renews = new Date(lastConfirmedAt)
+  renews.setFullYear(renews.getFullYear() + 1)
+  return renews.toLocaleDateString("en-IN")
 }
 
 function daysLeft(iso: string | null): number | null {
@@ -50,6 +90,8 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [onlineOff, setOnlineOff] = useState(false)
+  const [payStatus, setPayStatus] = useState<"idle" | "waiting" | "received" | "slow">("idle")
 
   useEffect(() => {
     let cancelled = false
@@ -60,7 +102,54 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
     return () => { cancelled = true }
   }, [client, orgId])
 
+  // Coming back from Razorpay's page: payOnline() left a marker holding the last-confirmed date as it was BEFORE paying. The webhook (not this
+  // browser) is what records the payment, so we poll the owner's own billing until that date changes, a few times, then stop and say so honestly.
+  const loaded = billing !== undefined && billing !== null
+  useEffect(() => {
+    if (!loaded) return
+    const baseline = readPending(orgId)
+    if (baseline === null) return
+    let cancelled = false
+    setOpen(true)
+    setPayStatus("waiting")
+    ;(async () => {
+      for (let i = 0; i < POLL_TRIES && !cancelled; i++) {
+        try {
+          const b = await myBilling(client, orgId)
+          if (cancelled) return
+          setBilling(b)
+          if (b.state === "active" && (b.lastConfirmedAt ?? "none") !== baseline) {
+            clearPending(orgId)
+            setPayStatus("received")
+            return
+          }
+        } catch { /* keep trying: a blip must not look like a failed payment */ }
+        await new Promise((r) => setTimeout(r, POLL_EVERY_MS))
+      }
+      if (!cancelled) {
+        clearPending(orgId)
+        setPayStatus("slow")
+      }
+    })()
+    return () => { cancelled = true }
+  }, [loaded, client, orgId])
+
   if (billing === undefined || billing === null) return null
+
+  async function payOnline() {
+    if (!billing) return
+    setBusy(true)
+    setError(null)
+    const r = await startOnlinePayment(client, orgId)
+    if (!r.ok) {
+      if (r.notEnabled) setOnlineOff(true)
+      else setError(r.error)
+      setBusy(false)
+      return
+    }
+    writePending(orgId, billing.lastConfirmedAt ?? "none")
+    window.location.assign(r.url)
+  }
 
   async function pay() {
     setBusy(true)
@@ -82,7 +171,11 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
   const proofMailto = paymentProofMailto({ orgId, amountLabel: formatRupees(amountDue), interval: chosen, reference })
 
   const trialDays = billing.state === "trial" ? daysLeft(billing.trialEndsAt) : null
-  const pillLabel = billing.state === "active"
+  const pillLabel = payStatus === "waiting"
+    ? "Billing: checking your payment…"
+    : payStatus === "received"
+    ? "Billing: payment received"
+    : billing.state === "active"
     ? `Billing: active (${billing.interval === "year" ? "yearly" : "monthly"})`
     : billing.state === "awaiting_confirmation"
     ? "Billing: confirming your payment…"
@@ -109,10 +202,34 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
             padding: 16, boxShadow: "0 8px 28px rgba(0,0,0,0.14)", fontSize: 13.5, color: "var(--dpdp-ink2)",
           }}
         >
+          {payStatus === "waiting" && (
+            <p role="status" style={{ margin: "0 0 10px", fontWeight: 600, color: "var(--dpdp-ink)" }}>Waiting for your payment to be confirmed… this usually takes under a minute.</p>
+          )}
+          {payStatus === "received" && (
+            <p role="status" style={{ margin: "0 0 10px", fontWeight: 700, color: "var(--dpdp-g, #0a7d4f)" }}>Payment received, thank you. We email a receipt to the owner's address.</p>
+          )}
+          {payStatus === "slow" && (
+            <p role="status" style={{ margin: "0 0 10px" }}>
+              We have not seen the confirmation yet. If you finished paying, it can take a few minutes: you can close this page and we will email your receipt.
+              If nothing arrives within a day, write to {PAY_EMAIL}.
+            </p>
+          )}
           {billing.state === "active" ? (
             <>
               <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--dpdp-ink)" }}>You're on the {billing.interval === "year" ? "yearly" : "monthly"} plan</p>
               {billing.lastConfirmedAt && <p style={{ margin: 0 }}>Confirmed {new Date(billing.lastConfirmedAt).toLocaleDateString("en-IN")}.</p>}
+              {billing.interval === "year" && renewalDue(billing.lastConfirmedAt) && (
+                <div style={{ marginTop: 10 }}>
+                  <p style={{ margin: "0 0 6px" }}>Your yearly plan comes up for renewal on {renewalDate(billing.lastConfirmedAt)}.</p>
+                  {onlineOff
+                    ? <p style={{ margin: 0 }}>Online payment is not switched on yet. Please pay by bank transfer and email {PAY_EMAIL} with the reference.</p>
+                    : (
+                      <button type="button" onClick={payOnline} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
+                        {busy ? "Opening…" : `Renew online -- ${formatRupees(YEARLY_PAISE)}`}
+                      </button>
+                    )}
+                </div>
+              )}
             </>
           ) : billing.state === "awaiting_confirmation" ? (
             <>
@@ -138,8 +255,24 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
                   <input type="radio" name="dpdp-plan" checked={chosen === "month"} onChange={() => setChosen("month")} /> Monthly -- {formatRupees(MONTHLY_PAISE)}
                 </label>
               </div>
+              {chosen === "year" && (
+                <div style={{ margin: "0 0 10px" }}>
+                  {onlineOff ? (
+                    <p style={{ margin: 0, fontSize: 12.5 }}>Online payment is not switched on yet. Please pay by bank transfer below.</p>
+                  ) : (
+                    <>
+                      <button type="button" onClick={payOnline} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
+                        {busy ? "Opening…" : `Pay online -- ${formatRupees(YEARLY_PAISE)} a year`}
+                      </button>
+                      <p style={{ margin: "6px 0 0", fontSize: 12 }}>
+                        You go to Razorpay's own page to pay. Your card or UPI details are entered there, not on this site. We email a receipt once the payment is confirmed.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
               <div style={{ background: "var(--dpdp-bg2, #f6f5fb)", borderRadius: 10, padding: "10px 12px", margin: "0 0 10px", fontSize: 12.5 }}>
-                <p style={{ margin: "0 0 6px", fontWeight: 600, color: "var(--dpdp-ink)" }}>Pay by UPI or bank transfer</p>
+                <p style={{ margin: "0 0 6px", fontWeight: 600, color: "var(--dpdp-ink)" }}>{chosen === "year" ? "Or pay by UPI or bank transfer" : "Pay by UPI or bank transfer"}</p>
                 <img src={PAY_QR_IMAGE} alt="UPI QR code" style={{ width: 96, height: 96, borderRadius: 8, marginBottom: 6 }}
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }} />
                 <p style={{ margin: "0 0 2px" }}>UPI: <strong>{PAY_UPI_ID}</strong></p>
@@ -162,7 +295,7 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
               </label>
               <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                 <button type="button" onClick={pay} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
-                  {busy ? "Saving…" : "I've paid"}
+                  {busy ? "Saving…" : "I have paid by bank transfer"}
                 </button>
                 {PAY_WHATSAPP_NUMBER && (
                   <a href={`https://wa.me/${PAY_WHATSAPP_NUMBER}?text=${waMessage}`} target="_blank" rel="noreferrer"

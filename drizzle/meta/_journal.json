@@ -3502,6 +3502,13 @@
       "when": 1790486000000,
       "tag": "0671_dpdp_ai_suggestions",
       "breakpoints": true
+    },
+    {
+      "idx": 503,
+      "version": "7",
+      "when": 1790487100000,
+      "tag": "0673_dpdp_razorpay_sales_lifecycle",
+      "breakpoints": true
     }
   ]
 }

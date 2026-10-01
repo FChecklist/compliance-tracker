@@ -227,6 +227,35 @@ Nothing on this list had been done when it was written. Steps 1 and 2 are decisi
 
 **If the Cloudflare Worker is used instead of Resend inbound** (the optional path): replace steps 5 to 7 by the following, and keep the rest. Deploy the function as in step 5 (the Worker needs no webhook, only `DPDP_INBOUND_SECRET`); deploy the Worker (`cd workers/dpdp-inbound-mail`, `bun install`, `bunx wrangler login`, `bunx wrangler secret put DPDP_INBOUND_SECRET`, `bunx wrangler deploy`; its vars `DPDP_INBOUND_URL`, `FALLBACK_FORWARD_TO`, `MAX_RAW_BYTES = "131072"` come from `wrangler.toml`); in Cloudflare Email Routing look at the domain's existing MX records first, add and **verify the fallback Gmail as a destination address**, create rules `dpdp`, `postmaster`, `abuse`, `grievance` and `partners` → **Send to a Worker** → `dpdp-inbound-mail`, and give every live human address its own rule to a verified destination *before* any catch-all is turned on, because the Worker refuses addresses it does not own; then run the drills in `workers/dpdp-inbound-mail/README.md`, "Verify after deploy", including **the fallback drill** (a deliberately wrong secret must land the mail in the fallback Gmail with `post_http_401`).
 
+## Online payment (Razorpay)
+
+**What it is.** The owner's Billing panel has a "Pay online" button (yearly plan, Rs 9,999). It calls the Edge Function `dpdp-pay`, which makes a Razorpay Payment Link and sends the browser to Razorpay's own page; no card field exists on our site. Razorpay then calls `dpdp-pay/webhook`; the function checks the signature, checks that amount and currency equal what we asked for, records the payment exactly once through the existing `dpdp_record_confirmed_payment` (org goes active, referral commission is created) and emails a receipt. The manual path ("I have paid by bank transfer" and your own confirmation screen) is unchanged and is what the app shows until the keys below exist (the function then answers 503 "Online payment is not switched on yet").
+
+**What you do (6 steps, all yours; nobody else needs to see a key):**
+
+1. Create a Razorpay account at razorpay.com and finish KYC for the company. Start in **Test mode**.
+2. Dashboard > Account & Settings > API Keys > generate a key. You get a Key Id and a Key Secret.
+3. Dashboard > Account & Settings > Webhooks > add `https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/dpdp-pay/webhook`, choose a webhook secret you invent, and tick exactly: `payment.captured`, `payment_link.paid`, `order.paid`.
+4. Supabase dashboard > Edge Functions > Secrets: set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (the one from step 3). Type them there yourself; never paste them in chat or a file.
+5. Test in Test mode: press Pay online from a trial organisation and pay with Razorpay's test card or test UPI. Within a minute the panel says "Payment received, thank you", the organisation shows active, and `select * from dpdp.razorpay_event order by created_at desc limit 5;` shows `recorded`.
+6. Go live: in Razorpay switch to Live mode, generate Live keys and a Live webhook (same URL, same three events), replace the three secrets with the Live values.
+
+**Deploy (PM, after CI is green and 0673 is applied):** `dpdp-pay` with `verify_jwt: false` (Razorpay cannot send a Supabase JWT; the create endpoint checks the caller's own JWT in the database), files `index.ts`, `logic.ts`, `../_shared/mail-outbound.ts`, `../_shared/mail-taxonomy.ts`, `../_shared/billing-mail.ts`. Same for `dpdp-lifecycle-email` (verify_jwt false, cron bearer).
+
+**What to look at when something is wrong.**
+
+| Symptom | Where |
+|---|---|
+| Money arrived but the org is not active | `select * from dpdp.razorpay_event order by created_at desc;` outcomes: `amount_mismatch`, `currency_mismatch`, `unknown_order`, `attempt_already_paid` mean it was NOT booked on purpose; the org's event log also gets a `payment_review_needed` line. Confirm by hand (the owner screen) after checking the Razorpay dashboard. |
+| Razorpay shows webhook failures | Edge Function logs for `dpdp-pay`; 401 = wrong `RAZORPAY_WEBHOOK_SECRET`, 503 = a secret is missing. Razorpay retries for about 24 hours. |
+| Same payment sent twice | Booked once; the repeat is logged `duplicate`. |
+
+**Trial and renewal reminders.** Job `dpdp-sales-lifecycle` (04:00 UTC daily) posts to `dpdp-lifecycle-email`: trial ends in 10 days, in 3 days, and the day it ends ("your data is safe, access unchanged"); yearly renewal 30 and 7 days ahead. Owner only, one send per reminder (`dpdp.sales_reminder_sent`), each with a 3-day catch-up window so an organisation whose trial ended long ago gets nothing. An owner who unsubscribed from the weekly email is skipped. With no `RESEND_API_KEY` it only counts what it would send. Preview: `select public.dpdp_sales_due_reminders();` (service role). **Before the first live run, read that list:** it is exactly who would be mailed.
+
+**Cost.** Nothing monthly on our side: the Edge Functions and cron are inside the existing Supabase plan. Razorpay charges a per-transaction fee (about 2% plus GST at the time of writing; check razorpay.com/pricing) and no monthly fee.
+
+**Honest limits.** The yearly price lives in two places that must match (`dpdp_plan_price_paise` in 0673, and what the panel shows); a test fails if they differ. The webhook is verified, but no test here has talked to Razorpay itself: do step 5 before telling anyone it works.
+
 ## Where the website lives (since 2026-09-28)
 
 `veridian-aios.com`, `www.veridian-aios.com`, `dpdp.veridian-aios.com` (the signed-in app, since 2026-10-01) and the legacy `app.veridian-aios.com` (kept working for links in emails already sent) are all served by the one Cloudflare Pages project `veridian-dpdp-app` (free plan, no server). The domain's DNS is on Cloudflare (zone `veridian-aios.com`, free plan); the registration (renewal 14 July each year) is still held at Vercel, which only stores the registration and the two Cloudflare nameservers `dina.ns.cloudflare.com` / `toby.ns.cloudflare.com`. Vercel does not serve any page for this domain and is not needed for it. Email-sending records for Resend live in the same Cloudflare zone. The sending identity is `dpdp@veridian-aios.com` (Resend sending domain `veridian-aios.com`, once it shows Verified in Resend; see the go-live list above). Historical note: until 2026-09-29 mail was sent from the subdomain `send.veridian-aios.com`; those records were created under that name and can stay in the zone until nothing sends from it, but nothing new should use `send.`. If a page ever shows a Vercel "DEPLOYMENT_PAUSED" 503 again, the nameservers at the registrar have been changed back: set them to the two above.
