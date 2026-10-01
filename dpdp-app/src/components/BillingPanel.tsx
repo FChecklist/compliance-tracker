@@ -181,6 +181,8 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
     ? "Billing: confirming your payment…"
     : trialDays === null
     ? "Billing"
+    : trialDays === 0
+    ? "Payment pending"
     : `Free trial -- ${trialDays} day${trialDays === 1 ? "" : "s"} left`
 
   return (
@@ -244,9 +246,9 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
           ) : (
             <>
               <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--dpdp-ink)" }}>
-                {trialDays === null ? "Choose a plan" : `${trialDays} day${trialDays === 1 ? "" : "s"} left in your free trial`}
+                {trialDays === null ? "Choose a plan" : trialDays === 0 ? "Payment pending -- your free trial has ended" : `${trialDays} day${trialDays === 1 ? "" : "s"} left in your free trial`}
               </p>
-              <p style={{ margin: "0 0 10px" }}>Nothing stops working when the trial ends -- this is just so you can plan ahead.</p>
+              <p style={{ margin: "0 0 10px" }}>{trialDays === 0 ? "You can keep signing in and your data is safe. Please choose a plan below to continue." : "Nothing stops working when the trial ends -- this is just so you can plan ahead."}</p>
               <div className="flex gap-2 mb-3" role="radiogroup" aria-label="Plan">
                 <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                   <input type="radio" name="dpdp-plan" checked={chosen === "year"} onChange={() => setChosen("year")} /> Yearly -- {formatRupees(YEARLY_PAISE)}
