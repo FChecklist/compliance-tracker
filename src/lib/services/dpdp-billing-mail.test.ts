@@ -2,6 +2,8 @@
 // DPDP billing emails (supabase/functions/_shared/billing-mail.ts): the receipt and the five
 // reminders. Pure rendering, no network. Checks the owner's own rules (access never locks, the
 // card is entered on Razorpay's page) and that nothing a reminder says is a claim we cannot back.
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { describe, expect, test } from "bun:test"
 import { isDeliverableAddress as mondayDeliverable } from "../../../supabase/functions/dpdp-monday-email/render"
 import { REMINDER_KINDS, type ReminderKind, dateLabel, isDeliverableAddress, SELLER, renderReceipt, renderReminder, rupees } from "../../../supabase/functions/_shared/billing-mail"
@@ -105,7 +107,7 @@ describe("the receipt names who issued it", () => {
     expect(text).toContain("GSTIN: 09AAZCS4477M1Z3")
     expect(text).toContain("CIN: U74999UP2017PTC098453")
     expect(text).toContain("SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED")
-    const facts = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../../dpdp-app/data/veridian-facts.yaml"), "utf8") as string
+    const facts = readFileSync(join(__dirname, "../../../dpdp-app/data/veridian-facts.yaml"), "utf8") as string
     expect(facts).toContain(`gstin: ${SELLER.gstin}`)
     expect(facts).toContain(`cin: ${SELLER.cin}`)
     expect(facts).toContain(`legal_name: ${SELLER.legalName}`)
