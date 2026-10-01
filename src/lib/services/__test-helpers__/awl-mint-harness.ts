@@ -12,7 +12,7 @@ import { configFromEnv } from "../../../../supabase/functions/ai-work-link/confi
 import { handleAwl } from "../../../../supabase/functions/ai-work-link/handler"
 import { PROJEXA_ISSUER, VERIDIAN_ISSUER } from "../../../../supabase/functions/ai-work-link/jwt"
 import { resetMintLimits } from "../../../../supabase/functions/ai-work-link/mint"
-import type { AwlConfig, Rpc, RpcResult } from "../../../../supabase/functions/ai-work-link/reads"
+import type { AwlConfig, ExecClient, Rpc, RpcResult } from "../../../../supabase/functions/ai-work-link/reads"
 import { createSessionVerifier, type JoseLike, type KeyResolver } from "../../../../supabase/functions/ai-work-link/session"
 import { createAwlDb, forwardSql } from "./awl-pglite"
 
@@ -119,6 +119,8 @@ export type CallOpts = {
   session?: "real" | "none"
   /** The PROJEXA key set cannot be read (a timeout): the verifier must answer unavailable, not invalid. */
   brokenKeyset?: boolean
+  /** The client of the ai-work-link-exec function (confirm runs a confirmed draft through it when config.execPresent is true). */
+  exec?: ExecClient
 }
 
 export type Answer = { res: Response; json: J; text: string }
@@ -186,6 +188,7 @@ export async function makeHarness(db: PGlite): Promise<Harness> {
         : { session: createSessionVerifier({ jose: joseLike, keys: o.brokenKeyset ? { ...keys, [PROJEXA_ISSUER]: brokenKey } : keys }) }),
       log: (l) => logLines.push(l),
       now: o.now,
+      ...(o.exec ? { exec: o.exec } : {}),
     })
     const text = await res.text()
     bodiesSeen.push(text)

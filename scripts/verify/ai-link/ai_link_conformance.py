@@ -48,7 +48,7 @@ REQUIRED_URL_KEYS = ("context", "openapi", "swagger", "mcp", "records", "check",
 READ_URL_KEYS = ("context", "functions", "history", "propose_example", "records")
 # Tools every link may list besides its allowed function ids (spec section 7.2).
 READ_TOOL_NAMES = {"get_context", "list_records", "get_record", "get_history", "search", "fetch",
-                   "check_change", "propose_change"}
+                   "check_change", "propose_change", "list_projects", "get_portfolio"}
 BUSINESS = ("intents", "submissions")
 
 

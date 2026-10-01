@@ -1353,11 +1353,14 @@
     "module": "projects",
     "product": "projexa",
     "kind": "write",
-    "link_level": null,
+    "link_level": 2,
     "money_sensitive": false,
-    "min_role_rank": 0,
-    "excluded_reason": "A link is bound to one project, so it cannot make another one: the New project with my AI flow and the internal pipeline do.",
-    "text_params": [],
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "description"
+    ],
     "declared_params": [
       "clientId",
       "description",

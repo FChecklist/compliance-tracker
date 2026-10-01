@@ -21,9 +21,19 @@ export const TOKENS = {
   expired: tok("f"),
   unknown: tok("9"),
   levelZero: tok("7"), // a manager whose link was made at level 0
+  // links made for a PERSON (drizzle/0668): all the projects the person may read, level 0
+  userManager: tok("8"), // rank 3 (not tok("1"): the throttle test of the router makes tokens from the pairs 01 to 1f, and 11 is "1" 64 times): proj_a, proj_b (public) and nothing private of someone else
+  userMember: tok("2"), // rank 2: money hidden, may draft create_project
+  userViewer: tok("3"), // rank 1: no create_project
+  userAdmin: tok("4"), // rank 5: also the private project proj_c
+  userOrgTwo: tok("5"), // a manager of organisation 2: sees proj_x only
 } as const
 
 const RANK: Record<string, number> = { viewer: 1, member: 2, manager: 3, admin: 5 }
+
+/** The projects of the fake: proj_a and proj_b (organisation 1, public, led by the manager), proj_c (private, led by the admin) and proj_x (organisation 2). */
+export type FakeProject = { id: string; name: string; org: string; private?: boolean; lead: string; status: string }
+const readableBy = (l: { role: string; user_id: string; org: string }, p: FakeProject): boolean => p.org === l.org && (!p.private || RANK[l.role] >= 5 || p.lead === l.user_id)
 
 type Reg = { function_id: string; kind: string; link_level: number | null; money_sensitive: boolean; min_role_rank: number; text_params: string[] }
 type Kind = { kind: string; money_columns: string[]; filters: { omit_when_hidden?: string[] } }
@@ -33,10 +43,14 @@ const KINDS = KINDS_JSON as unknown as Kind[]
 export type FakeLink = {
   id: string
   token: string
+  /** `user`: a link made for a person, with no project of its own. */
+  scope?: "project" | "user"
+  /** The organisation of the person (default org_1). */
+  org?: string
   user_id: string
   user_name: string
-  project_id: string
-  project_name: string
+  project_id: string | null
+  project_name: string | null
   role: string
   authority_level: number
   allowed: string[]
@@ -71,6 +85,8 @@ export type FakeOptions = {
   notes?: string
   projectName?: string
   writesEnabled?: boolean
+  /** SQL forgets to leave create_project off a link for one project (proves the Edge refuses it on its own). */
+  leaksCreateProject?: boolean
 }
 
 export type FakeCall = { name: string; args: Record<string, unknown> }
@@ -86,10 +102,15 @@ export type FakeIntent = {
   status: string
   confirm_token: string | null
   at: number
+  project_id?: string | null
+  user_id?: string
+  /** The outcome a test sets to say the intent is done: the record it made. */
+  result?: { id?: string; route?: string } | null
 }
 
 export type Fake = {
   rpc: Rpc
+  projects: FakeProject[]
   calls: FakeCall[]
   logRows: LogRow[]
   intents: FakeIntent[]
@@ -131,6 +152,19 @@ export function makeFake(opts: FakeOptions = {}): Fake {
   add(linkFor(TOKENS.revoked, { role: "manager", status: "revoked" }))
   add(linkFor(TOKENS.expired, { role: "manager", expired: true }))
   add(linkFor(TOKENS.levelZero, { role: "manager", authority_level: 0 }))
+  const person = (token: string, role: string, name: string, over: Partial<FakeLink> = {}) =>
+    add(linkFor(token, { role, user_name: name, scope: "user", project_id: null, project_name: null, authority_level: 0, ...over }))
+  person(TOKENS.userManager, "manager", "Asha Rao")
+  person(TOKENS.userMember, "member", "Ravi Nair")
+  person(TOKENS.userViewer, "viewer", "Meera Iyer")
+  person(TOKENS.userAdmin, "admin", "Ada Admin", { user_id: "usr_admin" })
+  person(TOKENS.userOrgTwo, "manager", "Xavier Org Two", { user_id: "usr_x", org: "org_2" })
+  const PROJECTS: FakeProject[] = [
+    { id: "proj_a", name: opts.projectName ?? "Tower A fit-out", org: "org_1", lead: "usr_manager", status: "active" },
+    { id: "proj_b", name: "Warehouse B shell", org: "org_1", lead: "usr_manager", status: "planning" },
+    { id: "proj_c", name: "Private C", org: "org_1", private: true, lead: "usr_admin", status: "active" },
+    { id: "proj_x", name: "Other org tower", org: "org_2", lead: "usr_x", status: "active" },
+  ]
 
   const state: Fake["state"] = { clock: 1_800_000_000_000, failLog: null, leaksMoney: opts.leaksMoney ?? false, writesEnabled: opts.writesEnabled ?? false }
   const calls: FakeCall[] = []
@@ -138,7 +172,7 @@ export function makeFake(opts: FakeOptions = {}): Fake {
   const n = opts.rowsPerKind ?? 3
   const notes = opts.notes ?? "site note"
   const data = new Map<string, Map<string, Array<Record<string, unknown>>>>()
-  for (const projectId of ["proj_a", "proj_b"]) {
+  for (const projectId of ["proj_a", "proj_b", "proj_c", "proj_x"]) {
     const byKind = new Map<string, Array<Record<string, unknown>>>()
     for (const k of KINDS) byKind.set(k.kind, rowsFor(k, projectId, n, notes))
     data.set(projectId, byKind)
@@ -146,22 +180,38 @@ export function makeFake(opts: FakeOptions = {}): Fake {
 
   const live = (l: FakeLink | undefined): l is FakeLink => !!l && l.status === "active" && !l.expired
 
-  function effective(l: FakeLink) {
+  /** `bound`: a link made for a person that has chosen a project (create_project is for a person with none, every other function for one with a project). */
+  function effective(l: FakeLink, bound = false) {
     const rank = RANK[l.role]
     const level = !state.writesEnabled || rank < 2 ? 0 : l.authority_level
-    const fns = REGISTRY.filter((f) => f.link_level !== null && l.allowed.includes(f.function_id) && f.min_role_rank <= rank).map((f) => f.function_id).sort()
+    const base = REGISTRY.filter((f) => f.link_level !== null && l.allowed.includes(f.function_id) && f.min_role_rank <= rank).map((f) => f.function_id).sort()
+    const fns = l.scope === "user" && !bound ? base.filter((f) => f === "create_project") : opts.leaksCreateProject ? base : base.filter((f) => f !== "create_project")
     return { rank, level, fns }
   }
 
-  function resolve(token: string): Record<string, unknown> {
+  const orgOf = (l: FakeLink) => l.org ?? "org_1"
+
+  function resolve(token: string, project: FakeProject | null = null): Record<string, unknown> {
     const l = links.get(token)
     if (!live(l)) return { status: "gone" }
-    const e = effective(l)
+    const e = effective(l, project !== null)
     return {
-      status: "ok", link_id: l.id, org_id: "org_1", user_id: l.user_id, user_name: l.user_name, project_id: l.project_id, project_name: l.project_name,
+      status: "ok", link_id: l.id, scope: l.scope ?? "project", org_id: orgOf(l), user_id: l.user_id, user_name: l.user_name,
+      project_id: project ? project.id : l.project_id, project_name: project ? project.name : l.project_name,
       live_role: l.role, live_rank: e.rank, authority_level: l.authority_level, allowed_functions: l.allowed, effective_level: e.level, effective_functions: e.fns,
       money_visible: e.rank >= 3, hide_personal: true, label: null, expires_at: "2026-10-02T00:00:00Z", writes_enabled: state.writesEnabled,
     }
+  }
+
+  /** The project of a call: a person's link binds the named project (404 when the person may not read it, whatever the reason), a project link is its own. */
+  function projectOf(l: FakeLink, projectId: unknown, needProject: boolean): { project: FakeProject | null } | RpcResult {
+    if (l.scope === "user") {
+      if (projectId === undefined || projectId === null) return needProject ? codeErr("AW400", "PROJECT_REQUIRED") : { project: null }
+      const p = PROJECTS.find((x) => x.id === projectId)
+      return p && readableBy({ role: l.role, user_id: l.user_id, org: orgOf(l) }, p) ? { project: p } : codeErr("AW404", "PROJECT_NOT_FOUND")
+    }
+    if (projectId !== undefined && projectId !== null && projectId !== l.project_id) return codeErr("AW404", "PROJECT_NOT_FOUND")
+    return { project: PROJECTS.find((x) => x.id === l.project_id) ?? null }
   }
 
   const need = (token: string): FakeLink | RpcResult => {
@@ -198,6 +248,9 @@ export function makeFake(opts: FakeOptions = {}): Fake {
   function records(a: Record<string, unknown>, one: string | null): RpcResult {
     const l = need(String(a.p_token))
     if ("error" in l) return l
+    const where = projectOf(l, a.p_project_id, true)
+    if ("error" in where) return where
+    const projectId = where.project?.id ?? ""
     const kind = KINDS.find((k) => k.kind === a.p_kind)
     if (!kind) return codeErr("AW400", "UNKNOWN_KIND")
     const filters = (a.p_filters ?? {}) as Record<string, string>
@@ -206,7 +259,7 @@ export function makeFake(opts: FakeOptions = {}): Fake {
       const field = key === "sort" ? filters[key].replace(/^-/, "") : key.replace(/_(eq|gt|lt|in)$/, "")
       if (hidden.includes(field) && !state.leaksMoney) return codeErr("AW403", "HIDDEN_FIELD")
     }
-    const all = (data.get(l.project_id)!.get(kind.kind) ?? []).slice()
+    const all = (data.get(projectId)?.get(kind.kind) ?? []).slice()
     let rows = all
     if (one !== null) rows = all.filter((r) => r.id === one)
     const after = typeof a.p_after === "string" ? a.p_after : null
@@ -227,12 +280,15 @@ export function makeFake(opts: FakeOptions = {}): Fake {
   function context(a: Record<string, unknown>): RpcResult {
     const l = need(String(a.p_token))
     if ("error" in l) return l
-    const e = effective(l)
+    const where = projectOf(l, a.p_project_id, false)
+    if ("error" in where) return where
+    const e = effective(l, where.project !== null)
     const byKind: Record<string, string[]> = {}
     for (const k of KINDS) if (hiddenFor(l, k).length) byKind[k.kind] = hiddenFor(l, k)
     return ok({
       product: "projexa",
-      project: { id: l.project_id, name: l.project_name },
+      scope: l.scope ?? "project",
+      project: where.project ? { id: where.project.id, name: where.project.name } : null,
       acting_for: { name: l.user_name, role: l.role, money_visible: e.rank >= 3 },
       level: e.level,
       expires_at: "2026-10-02T00:00:00Z",
@@ -254,26 +310,32 @@ export function makeFake(opts: FakeOptions = {}): Fake {
     if ("error" in l) return l
     const kind = String(a.p_kind)
     if (kind !== "action" && kind !== "draft") return codeErr("AW400", "BAD_KIND")
+    const where = projectOf(l, a.p_project_id, false)
+    if ("error" in where) return where
+    const project = where.project
     const fnId = String(a.p_function_id)
-    const e = effective(l)
+    const e = effective(l, project !== null)
     if (!e.fns.includes(fnId)) return codeErr("AW403", "FUNCTION_NOT_ON_LINK")
     const def = REGISTRY.find((f) => f.function_id === fnId)
     if (!def || def.kind !== "write") return codeErr("AW400", "NOT_A_WRITE")
     if (kind === "action" && !(e.level >= 1 && def.link_level === 1)) return codeErr("AW403", "LEVEL_NOT_ALLOWED")
     const params = (a.p_params ?? {}) as Record<string, unknown>
-    const key = typeof a.p_idempotency_key === "string" && a.p_idempotency_key !== "" ? a.p_idempotency_key : `${fnId}:${JSON.stringify(params)}`
+    const key0 = typeof a.p_idempotency_key === "string" && a.p_idempotency_key !== "" ? a.p_idempotency_key : `${fnId}:${JSON.stringify(params)}`
+    const key = l.scope === "user" ? `${project?.id ?? ""}:${key0}` : key0
     const shape = (i: FakeIntent, replayed: boolean) => ({
       intent_id: i.id, status: i.status, kind: i.kind, function_id: i.function_id, replayed, confirm_token: replayed ? null : i.confirm_token,
       expires_at: "2026-10-02T00:00:00Z", submission_id: null, result: null, failure: null,
     })
     const held = intents.find((i) => i.link_id === l.id && i.key === key && HELD.includes(i.status))
     if (held) return ok(shape(held, true))
+    if (fnId === "create_project" && intents.filter((i) => i.user_id === l.user_id && i.function_id === "create_project" && i.at > state.clock - 86_400_000).length >= 5) return codeErr("AW429", "PROJECT_CAP_DAY")
     const mine = intents.filter((i) => i.link_id === l.id)
     if (mine.filter((i) => i.at > state.clock - 3_600_000).length >= 30) return codeErr("AW429", "WRITE_CAP_HOUR")
     if (mine.filter((i) => i.at > state.clock - 86_400_000).length >= 200) return codeErr("AW429", "WRITE_CAP_DAY")
     const made: FakeIntent = {
       id: `int_${intents.length + 2}`, link_id: l.id, kind, function_id: fnId, params, key,
       status: kind === "draft" ? "awaiting_confirmation" : "recorded", confirm_token: kind === "draft" ? "c".repeat(64) : null, at: state.clock,
+      project_id: project?.id ?? null, user_id: l.user_id, result: null,
     }
     intents.push(made)
     return ok(shape(made, false))
@@ -293,6 +355,26 @@ export function makeFake(opts: FakeOptions = {}): Fake {
       }
       case "ai_work_link__resolve":
         return ok(resolve(String(args.p_token)))
+      case "ai_work_link__resolve_in": {
+        const l = links.get(String(args.p_token))
+        if (!live(l)) return ok({ status: "gone" })
+        const where = projectOf(l, args.p_project_id, true)
+        return "error" in where ? where : ok(resolve(String(args.p_token), where.project))
+      }
+      case "ai_work_link_projects": {
+        const l = need(String(args.p_token))
+        if ("error" in l) return l
+        if (l.scope !== "user") return codeErr("AW403", "USER_LINK_REQUIRED")
+        const rank = RANK[l.role]
+        const limit = Math.min(Math.max(Number(args.p_limit ?? 100), 1), 100)
+        const mine = PROJECTS.filter((p) => readableBy({ role: l.role, user_id: l.user_id, org: orgOf(l) }, p))
+        const shown = mine.slice(0, limit)
+        const rows = shown.map((p, i) => ({
+          id: p.id, name: p.name, status: p.status, is_active: true, lead: p.lead === l.user_id, health_status: null, progress_percent: 10 * (i + 1), start_date: null, target_date: "2026-12-31",
+          project_value: rank >= 3 || state.leaksMoney ? 1000000 + i : null, tasks_total: 4 + i, tasks_open: 3 + i, tasks_overdue: i, boq_lines: 10 * (i + 1),
+        }))
+        return ok({ projects: rows, total: mine.length, shown: rows.length, truncated: mine.length > rows.length, money_hidden: rank < 3 })
+      }
       case "ai_work_link_context":
         return context(args)
       case "ai_work_link_records":
@@ -307,7 +389,7 @@ export function makeFake(opts: FakeOptions = {}): Fake {
         const l = need(String(args.p_token))
         if ("error" in l) return l
         const made = intents.find((i) => i.id === args.p_intent_id && i.link_id === l.id)
-        if (made) return ok({ intent_id: made.id, kind: made.kind, function_id: made.function_id, status: made.status })
+        if (made) return ok({ intent_id: made.id, kind: made.kind, function_id: made.function_id, status: made.status, result: made.result ?? null })
         return ok(args.p_intent_id === "int_1" ? { intent_id: "int_1", kind: "draft", status: "awaiting_confirmation" } : null)
       }
       default:
@@ -315,7 +397,7 @@ export function makeFake(opts: FakeOptions = {}): Fake {
     }
   }
 
-  return { rpc, calls, logRows, intents, links, state, names: () => calls.map((c) => c.name) }
+  return { rpc, projects: PROJECTS, calls, logRows, intents, links, state, names: () => calls.map((c) => c.name) }
 }
 
 /**
