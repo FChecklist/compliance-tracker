@@ -348,10 +348,11 @@ describe("a valid webhook whose fetch goes wrong: 502 so Svix retries, and the o
     const res = await r.deliver(r.resend.event("em_big", { subject: "Big one" }))
     const b = await J(res)
     const ok = res.status === 200 && typeof b.ticket === "string"
-    note("C-huge", "answer > 20M characters", "200, metadata-only ticket (review), operator told", `${res.status} ${String(b.ticket)} ${String(b.class)}`, ok && b.class === "review")
+    note("C-huge", "answer > 20M characters", "200, metadata-only ticket (review), left for the daily digest", `${res.status} ${String(b.ticket)} ${String(b.class)}`, ok && b.class === "review")
     expect(ok).toBe(true)
     expect(b.class).toBe("review")
-    expect(r.notices().some((m) => m.text.includes("too large to read"))).toBe(true)
+    expect(b.notified).toBe("digest") // review rides the daily digest (owner decision 2026-10-01): no per-message email, the row exists
+    expect(r.notices()).toHaveLength(0)
   })
 })
 
@@ -685,9 +686,10 @@ describe("hostile transport and headers (added by the fixes of the 2026-09-30 re
   test("H2 a message whose From has no readable address is read like any other (sales), not filed auto", async () => {
     const r = rig()
     const b = await J((await r.receive(email({ from: "undisclosed-recipients:;", text: "Please send me your pricing brochure.", message_id: "<h2@example.org>", headers: { "message-id": "<h2@example.org>" } }))).res)
-    note("H2", "From: undisclosed-recipients:; and a sales question", "sales, operator told", `${String(b.class)}, notices=${r.notices().length}`, b.class === "sales" && r.notices().length === 1)
+    note("H2", "From: undisclosed-recipients:; and a sales question", "sales, recorded for the daily digest (no per-message email)", `${String(b.class)}, notices=${r.notices().length}`, b.class === "sales" && r.notices().length === 0)
     expect(b.class).toBe("sales")
-    expect(r.notices()).toHaveLength(1)
+    expect(b.notified).toBe("digest")
+    expect(r.notices()).toHaveLength(0)
   })
 
   test("G6 a malformed but parseable message object does not crash the function", async () => {
