@@ -176,12 +176,12 @@ export const PUBLIC_PAGES = [
     path: "/",
     source: "index.html",
     title: pageTitle(FACTS, "/"),
-    h1: "The DPDP Act asks every organisation for four things",
+    h1: "Three things to know about DPDP compliance",
     jsonLd: ["Organization", "WebSite", "SoftwareApplication"],
     mustContain: [
       "VERy INDIAN",
-      // The four things, numbered 1-4 (owner, 2026-10-01): exactly the facts file's list.
-      ...FACTS.four_things,
+      // The three points, numbered 1-3 (owner, 2026-10-01): exactly the facts file's list.
+      ...FACTS.three_things,
       // Exactly two ways in, with exactly these labels (owner, 2026-10-01).
       "I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS",
       "I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES",

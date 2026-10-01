@@ -60,7 +60,7 @@ export interface Facts {
   /** Exactly two lines, shown as an ordered list 1. 2. */
   who_for: [string, string]
   /** Exactly four lines, shown as a numbered list 1-4 under the home h1. */
-  four_things: [string, string, string, string]
+  three_things: [string, string, string]
   what_it_does: string
   three_strongest_facts: [string, string, string]
   deadline_line: string
