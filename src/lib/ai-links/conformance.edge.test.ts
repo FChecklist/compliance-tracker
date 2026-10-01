@@ -58,6 +58,9 @@ const ALL_23 = [
 const EDGE_RPCS = [
   "ai_work_link_context", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_log_call", "ai_work_link_log_call_result",
   "ai_work_link_record", "ai_work_link_records", "ai_work_link__resolve",
+  // the suggestions board (drizzle/0672): its address is in the manifest, so H13 reads it with a plain GET; that is the list, a read that writes nothing.
+  // ai_suggestion_add is NOT here: the harness never records a suggestion (asserted below)
+  "ai_suggestion_list",
 ]
 const PATH = "/functions/v1/ai-work-link"
 
@@ -160,6 +163,8 @@ describe("the BR-229 harness against the real Edge handler (BR-523, BR-490)", ()
     // read-only at the Edge (BR-582's edge half): the run called only the 8 read and log SQL functions, and none was refused as unknown
     const called = [...new Set(edge.fake.names())]
     for (const name of called) expect(EDGE_RPCS).toContain(name)
+    expect(called).not.toContain("ai_suggestion_add")
+    expect(edge.fake.suggestions).toHaveLength(0)
     for (const name of ["ai_work_link_log_call", "ai_work_link__resolve", "ai_work_link_context", "ai_work_link_records"]) expect(called).toContain(name)
     expect(edge.fake.calls.length).toBeGreaterThan(100)
     // the manager really is level 1 and the demoted person really is level 0 on this run (so H23 tested a difference)

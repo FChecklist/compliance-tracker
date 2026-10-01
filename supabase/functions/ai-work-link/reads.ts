@@ -88,10 +88,14 @@ export function mapRpcError(e: RpcError): AwlError {
     if (word === "WRITE_CAP_HOUR") return fail(429, "Over the hourly limit of 30 changes and drafts for this link. Try again in an hour.", undefined, { code: "WRITE_CAP_HOUR" })
     if (word === "WRITE_CAP_DAY") return fail(429, "Over the daily limit of 200 changes and drafts for this link. Try again tomorrow.", undefined, { code: "WRITE_CAP_DAY" })
     if (word === "PROJECT_CAP_DAY") return fail(429, "Over the limit of 5 new projects a day for this person. Try again tomorrow.", undefined, { code: "PROJECT_CAP_DAY" })
+    if (word === "SUGGESTION_CAP_DAY") return fail(429, "Over the limit of 20 suggestions a day for this link (100 for this person). Try again tomorrow.", undefined, { code: "SUGGESTION_CAP_DAY" })
     return fail(429, "Over the change limit for this link. Try again later.")
   }
   if (code === "AW400") {
     if (word === "PROJECT_REQUIRED") return fail(400, "Choose a project first.", "GET /projects lists the person's projects; then use /projects/{id}/....", { code: "PROJECT_REQUIRED" })
+    if (word === "BAD_TITLE") return fail(400, "title must be one line of 1 to 120 characters and hold no link address.", undefined, { code: "BAD_TITLE" })
+    if (word === "BAD_BODY") return fail(400, "body must be at most 2,000 characters and hold no link address.", undefined, { code: "BAD_BODY" })
+    if (word === "BAD_KIND") return fail(400, "kind must be one of the listed kinds.", undefined, { code: "BAD_KIND" })
     if (word === "UNKNOWN_KIND") return fail(404, "No such record kind")
     if (word === "UNKNOWN_FILTER") return fail(400, "Unknown filter")
     if (word === "BAD_CURSOR") return fail(400, "after must be the next_after value of the previous page.")

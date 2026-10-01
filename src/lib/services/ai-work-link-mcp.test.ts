@@ -13,7 +13,7 @@ import { F, TOKENS, makeFake, req, testConfig, type FakeOptions } from "./__test
 
 const ACCEPT = "application/json, text/event-stream"
 const META = "io.modelcontextprotocol/protocolVersion"
-const READ_TOOL_NAMES = new Set(["list_projects", "get_portfolio", "get_context", "list_records", "get_record", "get_history", "search", "fetch", "check_change", "propose_change"])
+const READ_TOOL_NAMES = new Set(["list_projects", "get_portfolio", "get_context", "list_records", "get_record", "get_history", "search", "fetch", "check_change", "propose_change", "suggest_improvement", "list_suggestions"])
 
 function setup(opts: FakeOptions = {}) {
   const fake = makeFake(opts)
@@ -62,13 +62,15 @@ describe("legacy era (initialize, tools/list, tools/call)", () => {
     for (const t of tools) {
       expect(scope.has(t.name)).toBe(true)
       expect(t.inputSchema).toBeDefined()
-      expect(t.annotations.readOnlyHint).toBe(true)
+      // suggest_improvement records an idea for the PROJEXA team (drizzle/0672): it is the one tool that is not read-only, and it destroys nothing
+      expect(t.annotations.readOnlyHint).toBe(t.name !== "suggest_improvement")
       expect(t.annotations.destructiveHint).toBe(false)
     }
     // every advertised tool runs (no "Unknown tool", no protocol error) with minimal valid arguments
     const args: Record<string, Record<string, unknown>> = {
       list_projects: {}, get_portfolio: {}, get_context: {}, list_records: { kind: "tasks" }, get_record: { kind: "tasks", id: "tasks-a001" }, get_history: {}, search: { query: "" }, fetch: { id: "tasks:tasks-a001" },
       check_change: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } }, propose_change: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } },
+      suggest_improvement: { kind: "feature", title: "Export a BOQ to PDF" }, list_suggestions: {},
     }
     for (const t of tools) {
       const r = await call(TOKENS.manager, t.name, args[t.name])
