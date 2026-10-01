@@ -288,7 +288,7 @@ describe("resolveActingUser -- D-05 X-Acting-User bridge", () => {
     expect(error!.status).toBe(400)
     const body = await error!.json()
     expect(body.code).toBe("USER_NOT_LINKED")
-    expect(body.error).toBe("Your PROJEXA account is not linked to a VERIDIAN user - ask your admin")
+    expect(body.error).toBe("Your PROJEXA account is not linked to a PROJEXA user - ask your admin")
   })
 
   test("an X-Acting-User id that maps to an active user in this org resolves to that real person", async () => {

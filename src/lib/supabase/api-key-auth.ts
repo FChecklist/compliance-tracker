@@ -48,6 +48,8 @@ export type ApiKeyContext = {
   keyName: string
   keyKind: ApiKeyKind
   projectId: string | null
+  /** Set only for a key minted for a platform application (provision-org); absent on every customer-made key. */
+  issuedForApplicationId?: string
 }
 
 /** The key facts assertKeyProjectScope() reads; both are absent on a caller that is not an API key. */
@@ -274,6 +276,7 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
       keyName: row.name,
       keyKind,
       projectId,
+      ...(row.issuedForApplicationId ? { issuedForApplicationId: row.issuedForApplicationId } : {}),
     },
   }
 }
