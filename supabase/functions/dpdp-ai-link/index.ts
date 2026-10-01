@@ -1,7 +1,7 @@
 // WO-DPDP-013 Part 1 -- the AI work link's API, as a Supabase Edge Function
 // (Deno). Vercel is not in this path. See README.md alongside.
 //
-// Relative to the link base (https://app.veridian-aios.com/ai/<token>,
+// Relative to the link base (https://dpdp.veridian-aios.com/ai/<token>,
 // proxied by dpdp-app/functions/ai/[[path]].ts; on this function the same
 // paths sit under /functions/v1/dpdp-ai-link/<token>):
 //
@@ -48,7 +48,7 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 // Defaults to the production static-app origin so the function works with
 // only the platform-injected env (function secrets cannot be set from the
 // PM's machine -- same reason as dpdp-monday-email).
-const APP_ORIGIN = (Deno.env.get("APP_ORIGIN") || "https://app.veridian-aios.com").replace(/\/+$/, "")
+const APP_ORIGIN = (Deno.env.get("APP_ORIGIN") || "https://dpdp.veridian-aios.com").replace(/\/+$/, "")
 
 function privateHeaders(contentType: string, extra?: Record<string, string>): HeadersInit {
   return {

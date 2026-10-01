@@ -9,7 +9,7 @@ import { aiPasteText } from "../../../supabase/functions/_shared/ai-link/prompt"
 import { aiPasteText as aiPasteTextFromEmail } from "../../../supabase/functions/dpdp-monday-email/render"
 
 const TOKEN = "ab".repeat(32) // 64 hex characters, low entropy on purpose (gitleaks)
-const BASE = `https://app.veridian-aios.com/ai/${TOKEN}`
+const BASE = `https://dpdp.veridian-aios.com/ai/${TOKEN}`
 
 type Call = { fn: string; args: Record<string, unknown> }
 const calls: Call[] = []

@@ -72,7 +72,7 @@ const EMAIL_FROM = resolveFrom(env("DPDP_EMAIL_FROM"))
 // A stale DPDP_EMAIL_FROM secret naming the old send. subdomain would silently override the new default.
 const SENDER_WARNING = foreignSenderWarning(EMAIL_FROM)
 if (SENDER_WARNING) console.warn(SENDER_WARNING)
-const APP_ORIGIN = (env("APP_ORIGIN") || "https://app.veridian-aios.com").replace(/\/+$/, "")
+const APP_ORIGIN = (env("APP_ORIGIN") || "https://dpdp.veridian-aios.com").replace(/\/+$/, "")
 const FUNCTION_URL = (env("DPDP_FUNCTION_URL") || `${SUPABASE_URL}/functions/v1/dpdp-monday-email`).replace(/\/+$/, "")
 const ACTION_PATH = env("DPDP_ACTION_PATH") || "/act/"
 const UNSUBSCRIBE_PATH = env("DPDP_UNSUBSCRIBE_PATH") || "/unsubscribe/"

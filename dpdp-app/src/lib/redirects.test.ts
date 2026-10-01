@@ -57,7 +57,7 @@ describe("public/_redirects (WO-013 §2.4)", () => {
   })
 
   // SEO (2026-10-01): the public pages are canonical to veridian-aios.com, but
-  // this ONE file is served on app.veridian-aios.com as well, and a Pages rule
+  // this ONE file is served on dpdp.veridian-aios.com and the legacy app.veridian-aios.com as well, and a Pages rule
   // matches a path, never a host. So no rule here may move a visitor between
   // hosts (an absolute URL on either side), and none may match a prefix the
   // signed-in app, the Monday email or the AI work link depend on staying put.

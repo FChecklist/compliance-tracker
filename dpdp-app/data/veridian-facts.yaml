@@ -30,7 +30,7 @@ approved_by: owner (WO-DPDP-013 v2 text, WO-DPDP-014 §1 text)
 product: VERIDIAN DPDP
 # `site` is the host the PUBLIC pages are indexed under (canonical, sitemap,
 # llms.txt, facts.json). Since 2026-10-01 that is the apex; the signed-in app
-# and the Monday email's links stay on app.veridian-aios.com (see
+# and the Monday email's links stay on dpdp.veridian-aios.com (see
 # src/lib/site-origin.mjs: SITE_ORIGIN = app host, PUBLIC_ORIGIN = this).
 site: https://veridian-aios.com
 company_site: https://veridian-aios.com/

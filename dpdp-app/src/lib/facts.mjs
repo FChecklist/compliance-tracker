@@ -72,7 +72,7 @@ export function loadFacts() {
   need(isStr(f.approved_by), "approved_by missing")
   need(isStr(f.product) && isStr(f.site) && isStr(f.company_site), "product/site/company_site missing")
   // 2026-10-01 (SEO): the public pages are indexed under the apex, not the
-  // app host. The signed-in app stays on app.veridian-aios.com (see
+  // app host. The signed-in app stays on dpdp.veridian-aios.com (see
   // src/lib/site-origin.mjs) -- that is NOT this field.
   need(f.site === "https://veridian-aios.com", "site must be https://veridian-aios.com (the host the public pages are indexed under)")
 

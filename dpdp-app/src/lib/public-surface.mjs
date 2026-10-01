@@ -1,4 +1,4 @@
-// WO-DPDP-012 §0/§1/§3 for the STATIC host (app.veridian-aios.com): the ONE
+// WO-DPDP-012 §0/§1/§3 for the STATIC host (dpdp.veridian-aios.com): the ONE
 // list of what is public and what is private. robots.txt, _headers,
 // llms.txt, the build-time sitemap, vite.config.ts's page inputs and the
 // post-build check (scripts/check-public-surface.mjs) are all tested against
@@ -26,11 +26,11 @@
 // crawler that finds it can still read the noindex).
 import { loadFacts, pageTitle, subjectTopicsClause } from "./facts.mjs"
 
-import { PUBLIC_ORIGIN, SITE_ORIGIN } from "./site-origin.mjs"
+import { LEGACY_APP_ORIGIN, PUBLIC_ORIGIN, SITE_ORIGIN } from "./site-origin.mjs"
 // SITE_ORIGIN is the signed-in app's host (kept for the /app/ bundle and the
 // tests that pin it); PUBLIC_ORIGIN is the host every public page is
 // indexed under -- canonical, og:url, sitemap, JSON-LD, llms.txt all use it.
-export { PUBLIC_ORIGIN, SITE_ORIGIN }
+export { LEGACY_APP_ORIGIN, PUBLIC_ORIGIN, SITE_ORIGIN }
 
 export const FACTS = loadFacts()
 

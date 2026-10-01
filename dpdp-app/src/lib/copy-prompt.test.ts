@@ -8,7 +8,7 @@ import { PRIVATE_PAGES, parseHeadersFile, resolveHeaders, parseRobots } from "./
 // private page like /act/ and /unsubscribe/: never indexed, no referrer, no third-party anything, token only in the fragment.
 const TOKEN = "ab".repeat(32) // 64 hex characters, low entropy on purpose (gitleaks)
 const APP = join(import.meta.dir, "..", "..")
-const PROMPT = "You are my DPDP compliance assistant. Help me finish this week's DPDP jobs at Acme & Co.\n\nMy link (works until 12 October 2026):\nhttps://app.veridian-aios.com/ai/" + TOKEN
+const PROMPT = "You are my DPDP compliance assistant. Help me finish this week's DPDP jobs at Acme & Co.\n\nMy link (works until 12 October 2026):\nhttps://dpdp.veridian-aios.com/ai/" + TOKEN
 
 describe("promptTokenFromHash", () => {
   test("a token in the fragment, with or without the #", () => {

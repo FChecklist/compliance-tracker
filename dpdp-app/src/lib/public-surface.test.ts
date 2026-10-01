@@ -17,6 +17,7 @@ import {
   PUBLIC_PAGES,
   REQUIRED_BOTS,
   SITE_ORIGIN,
+  LEGACY_APP_ORIGIN,
   pageUrl,
   parseHeadersFile,
   parseRobots,
@@ -98,16 +99,18 @@ describe("public/robots.txt (WO-012 §3: explicit, not left to defaults)", () =>
 })
 
 describe("two origins, one bundle (SEO canonical host)", () => {
-  test("pageUrl() is on the apex; SITE_ORIGIN is still the app host, which api.ts needs for AI-link URLs", () => {
-    expect(SITE_ORIGIN).toBe("https://app.veridian-aios.com")
+  test("pageUrl() is on the apex; SITE_ORIGIN is the app host (dpdp., since 2026-10-01), which api.ts needs for AI-link URLs; app. is only the legacy host", () => {
+    expect(SITE_ORIGIN).toBe("https://dpdp.veridian-aios.com")
+    expect(LEGACY_APP_ORIGIN).toBe("https://app.veridian-aios.com")
     for (const p of PUBLIC_PAGES) expect(pageUrl(p.path)).toBe(`${PUBLIC_ORIGIN}${p.path}`)
     expect(pageUrl("/")).toBe("https://veridian-aios.com/")
   })
 
   test("no public page source, llms file, facts.json or for-ai.md names the app host", () => {
-    const host = new URL(SITE_ORIGIN).host
-    for (const rel of [...PUBLIC_PAGES.map((p) => p.source), "public/llms.txt", "public/llms-full.txt", "public/facts.json", "public/for-ai.md", "public/robots.txt"]) {
-      expect(read(rel), rel).not.toContain(host)
+    for (const host of [new URL(SITE_ORIGIN).host, new URL(LEGACY_APP_ORIGIN).host]) {
+      for (const rel of [...PUBLIC_PAGES.map((p) => p.source), "public/llms.txt", "public/llms-full.txt", "public/facts.json", "public/for-ai.md", "public/robots.txt"]) {
+        expect(read(rel), `${rel} names ${host}`).not.toContain(host)
+      }
     }
   })
 

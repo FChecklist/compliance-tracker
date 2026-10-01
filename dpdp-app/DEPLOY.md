@@ -73,9 +73,12 @@ Pages → "Upload assets" once, or `wrangler pages project create veridian-dpdp-
 
 ## 3. Domain and DNS (OWNER)
 
-1. Cloudflare → the Pages project → Custom domains → add `app.veridian-aios.com`.
-2. DNS (zone `veridian-aios.com`): `CNAME app → veridian-dpdp-app.pages.dev`,
-   proxied (orange cloud). Cloudflare issues the certificate automatically.
+1. Cloudflare → the Pages project → Custom domains → add `dpdp.veridian-aios.com`
+   (the signed-in app host since 2026-10-01). The previous host
+   `app.veridian-aios.com` stays attached and keeps serving the same files:
+   links in emails already sent, AI work links and copy pages point at it.
+2. DNS (zone `veridian-aios.com`): `CNAME dpdp → veridian-dpdp-app.pages.dev`
+   (and the existing `CNAME app → veridian-dpdp-app.pages.dev`), proxied (orange cloud). Cloudflare issues the certificate automatically.
 3. Until DNS exists, test on `https://veridian-dpdp-app.pages.dev` (the WO allows
    `*.pages.dev` for all testing).
 4. Email domains (`send.` / `reply.veridian-aios.com`) are Resend's records, not
@@ -84,8 +87,10 @@ Pages → "Upload assets" once, or `wrangler pages project create veridian-dpdp-
 ## 4. Supabase settings that must match (OWNER)
 
 Authentication → URL Configuration:
-- **Site URL**: `https://app.veridian-aios.com`
-- **Redirect URLs**: `https://app.veridian-aios.com/app/**`,
+- **Site URL**: `https://dpdp.veridian-aios.com`
+- **Redirect URLs**: `https://dpdp.veridian-aios.com/app/**`,
+  `https://app.veridian-aios.com/app/**` (legacy host: magic links already
+  emailed still redirect there, so keep this entry),
   `https://veridian-dpdp-app.pages.dev/app/**`,
   `https://*.veridian-dpdp-app.pages.dev/app/**` (previews),
   `http://localhost:4173/**` (local `vite preview`).
@@ -115,23 +120,25 @@ the Step 2 spike), so a missing entry looks like "the link opens the wrong site"
 ## 6. One public host for search engines (SEO, 2026-10-01)
 
 The same Pages project answers on `veridian-aios.com`, `www.veridian-aios.com`
-(301 to the apex, set at the zone) and `app.veridian-aios.com`, with identical
-files. Search engines are told **one** host:
+(301 to the apex, set at the zone) and `dpdp.veridian-aios.com` (the signed-in app), plus the legacy
+`app.veridian-aios.com`, with identical files. Search engines are told **one** host:
 
 - every public page's `<link rel="canonical">`, `og:url`, JSON-LD `@id`/`url`,
   the sitemap, `robots.txt`'s `Sitemap:` line, `llms*.txt`, `facts.json` and
   `for-ai.md` say `https://veridian-aios.com/...` (`PUBLIC_ORIGIN` in
   `src/lib/site-origin.mjs`);
 - the signed-in app, the Monday email's links and the AI work link stay on
-  `app.veridian-aios.com` (`SITE_ORIGIN`, same file) and are `noindex`/`no-store`.
+  `dpdp.veridian-aios.com` (`SITE_ORIGIN`, same file) and are `noindex`/`no-store`.
+  `app.veridian-aios.com` (`LEGACY_APP_ORIGIN`) keeps answering with the same
+  files and the same headers so old links work; nothing new is built from it.
 
-There is **no** `app.` to apex redirect, on purpose: a Pages `_redirects` rule
+There is **no** `dpdp.`/`app.` to apex redirect, on purpose: a Pages `_redirects` rule
 matches a path, never a host, so it would also bounce the apex and swallow
 `/app/`, `/act/`, `/copy/`, `/p/`, `/unsubscribe/` and `/ai/`. If the owner ever
 wants one, it must be a zone-level Cloudflare Redirect Rule with the host
-condition `http.host eq "app.veridian-aios.com"` AND a path exclusion for those
+condition `http.host eq "dpdp.veridian-aios.com"` (or the legacy `app.`) AND a path exclusion for those
 six prefixes -- never a file rule. `scripts/check-two-doors.mjs` (g) fails the
-build if any public surface names the app host.
+build if any public surface names either app host.
 
 Brand images (`public/og-image.png` 1200x630, `logo.png`, `favicon-48.png`) are
 rendered from `brand/social-images.html` (the recipe is in its header comment).

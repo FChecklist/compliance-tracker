@@ -31,7 +31,7 @@
 // (e) SAME CONTENT FOR MACHINES AND PEOPLE: no <script> on a public page
 //     other than JSON-LD (check-public-surface.mjs proves the rest).
 // (g) ONE PUBLIC HOST (SEO, 2026-10-01): no public surface names the signed-in
-//     app's host (app.veridian-aios.com) -- the public pages are indexed under
+//     app's host (dpdp.veridian-aios.com, nor the legacy app.veridian-aios.com) -- the public pages are indexed under
 //     veridian-aios.com alone, so a canonical, sitemap entry, llms.txt line,
 //     facts.json value or link that still says app. is a split-index bug.
 // (f) THE BRAND LINE (WO-014 §1): no variant spelling of "VERy INDIAN" and
@@ -43,7 +43,7 @@ import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, loadFacts } from "../src/lib/facts.mjs"
-import { HIDDEN_PAGES, PRIVATE_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES, SITE_ORIGIN, parseHeadersFile, parseRobots, resolveHeaders } from "../src/lib/public-surface.mjs"
+import { HIDDEN_PAGES, LEGACY_APP_ORIGIN, PRIVATE_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES, SITE_ORIGIN, parseHeadersFile, parseRobots, resolveHeaders } from "../src/lib/public-surface.mjs"
 import { decodeEntities } from "./generate-public-facts.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
@@ -81,11 +81,14 @@ export function scanWall(text, { robots = false } = {}) {
 }
 
 // ------------------------------------------------- (g) one public host
-/** Every place `text` names the signed-in app's host. */
+/** Every place `text` names the signed-in app's host -- the current one
+ * (SITE_ORIGIN, dpdp.) and the legacy one (app.), which still serves the same
+ * files but must not appear on a public surface either. */
 export function findAppHost(text) {
-  const host = new URL(SITE_ORIGIN).host
   const out = []
-  for (const m of text.matchAll(new RegExp(host.replace(/\./g, "\\."), "gi"))) out.push({ host, snippet: text.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30).replace(/\s+/g, " ") })
+  for (const host of [new URL(SITE_ORIGIN).host, new URL(LEGACY_APP_ORIGIN).host]) {
+    for (const m of text.matchAll(new RegExp(host.replace(/\./g, "\\."), "gi"))) out.push({ host, snippet: text.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30).replace(/\s+/g, " ") })
+  }
   return out
 }
 

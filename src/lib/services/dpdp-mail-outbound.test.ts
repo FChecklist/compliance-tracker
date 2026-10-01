@@ -659,12 +659,12 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
     expect(fetchCalls).toHaveLength(1)
     const text = fetchCalls[0].body.text as string
     const html = fetchCalls[0].body.html as string
-    expect(text).toContain(`https://app.veridian-aios.com/ai/${TOKEN}`)
+    expect(text).toContain(`https://dpdp.veridian-aios.com/ai/${TOKEN}`)
     // the paste is two lines: "open this link and follow the page", then the link; the instructions live on the page it opens
     expect(text).toContain(`Please open this link and follow the instructions on that page exactly.`)
     expect(text).not.toContain("You are my DPDP compliance assistant")
     expect(text).toContain("BEFORE YOU PASTE.")
-    expect(text.indexOf("BEFORE YOU PASTE.")).toBeLessThan(text.indexOf(`https://app.veridian-aios.com/ai/${TOKEN}`))
+    expect(text.indexOf("BEFORE YOU PASTE.")).toBeLessThan(text.indexOf(`https://dpdp.veridian-aios.com/ai/${TOKEN}`))
     expect(html).toContain("Before you paste.")
     expect(callsTo("dpdp_timer_mint_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_level: 1, p_days: 7 })
     // order: made before the send; retired after the row is marked sent
@@ -723,7 +723,7 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
     expect(await res.json()).toMatchObject({ sent: 1, ai: { changesListed: 2 } })
     const text = fetchCalls[0].body.text as string
     expect(text).toContain("WHAT YOUR AI CHANGED FOR YOU (2)")
-    expect(text).toContain(`Undo: https://app.veridian-aios.com/app/#undo=act1.${UNDO}`)
+    expect(text).toContain(`Undo: https://dpdp.veridian-aios.com/app/#undo=act1.${UNDO}`)
     expect(callsTo("dpdp_timer_issue_undo_token")).toHaveLength(1) // only the still-undoable one
     const shown = callsTo("dpdp_timer_ai_actions_mark_shown")
     expect(shown).toHaveLength(1)

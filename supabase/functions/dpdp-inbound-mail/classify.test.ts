@@ -661,7 +661,7 @@ describe("what the keyword rules read", () => {
       signIn: "https://x.supabase.co/auth/v1/verify?token=abc",
       actions: null,
       unsubscribeUrl: "https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=u1",
-      appHome: "https://app.veridian-aios.com/app/",
+      appHome: "https://dpdp.veridian-aios.com/app/",
     }
     const digest: Digest = {
       membershipId: "m1", identityId: "i1", orgId: "o1", orgName: "Acme & Co", orgProduct: "firm", email: "staff@example.test", level: "owner", roleKind: "owner",
@@ -1029,7 +1029,7 @@ describe("review: withdrawals and requests as people really type them, on the tw
   })
 
   test("none of the subjects we really send contains a data_request word (the rules that are run on an echoed subject)", () => {
-    const links: RenderLinks = { signIn: null, actions: null, unsubscribeUrl: "https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=u1", appHome: "https://app.veridian-aios.com/app/" }
+    const links: RenderLinks = { signIn: null, actions: null, unsubscribeUrl: "https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=u1", appHome: "https://dpdp.veridian-aios.com/app/" }
     const recipient = { membershipId: "m1", identityId: "i1", email: "owner@example.test", role: "owner" as const }
     const digest: Digest = {
       membershipId: "m1", identityId: "i1", orgId: "o1", orgName: "Acme & Co", orgProduct: "firm", email: "staff@example.test", level: "owner", roleKind: "owner",
@@ -1422,8 +1422,8 @@ describe("review 3: a message the Worker cut short with too little of the person
 describe("review 3: our own words in a marker-less echo, in full, are boilerplate (drift test over the WHOLE rendered emails)", () => {
   const MON = [replyToAddress("monday", REF)]
   const links: RenderLinks = {
-    signIn: "https://x.supabase.co/auth/v1/verify?token=abc", actions: { ob1: { done: "https://app.veridian-aios.com/act/#t1", cannot: "https://app.veridian-aios.com/act/#t2", neverHadAny: "https://app.veridian-aios.com/act/#t3" } },
-    unsubscribeUrl: "https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=u1", appHome: "https://app.veridian-aios.com/app/",
+    signIn: "https://x.supabase.co/auth/v1/verify?token=abc", actions: { ob1: { done: "https://dpdp.veridian-aios.com/act/#t1", cannot: "https://dpdp.veridian-aios.com/act/#t2", neverHadAny: "https://dpdp.veridian-aios.com/act/#t3" } },
+    unsubscribeUrl: "https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=u1", appHome: "https://dpdp.veridian-aios.com/app/",
   }
   const recipient = { membershipId: "m1", identityId: "i1", email: "owner@example.test", role: "owner" as const }
   // Job TITLES are the organisation's own data ("Publish the grievance officer's details") and cannot be recognised as ours: neutral ones here.

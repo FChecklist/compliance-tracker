@@ -22,7 +22,7 @@ import { BRAND_LINE, FACTS, aboutSystem } from "../../../supabase/functions/dpdp
 import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "../../../supabase/functions/dpdp-ai-link/manual"
 
 const NOW = new Date("2026-09-22T09:00:00Z")
-const BASE = "https://app.veridian-aios.com/ai/" + "a".repeat(64)
+const BASE = "https://dpdp.veridian-aios.com/ai/" + "a".repeat(64)
 
 function context(over: Partial<ContextPayload["link"]> = {}, viewerKind = "owner"): ContextPayload {
   return {

@@ -41,12 +41,12 @@ function digest(over: Partial<Digest> = {}): Digest {
   }
 }
 
-const dry: RenderLinks = { signIn: null, actions: null, unsubscribeUrl: null, appHome: "https://app.veridian-aios.com/app/" }
+const dry: RenderLinks = { signIn: null, actions: null, unsubscribeUrl: null, appHome: "https://dpdp.veridian-aios.com/app/" }
 const live: RenderLinks = {
   signIn: "https://x.supabase.co/auth/v1/verify?token=abc",
-  actions: { j1: { done: "https://app.veridian-aios.com/act/#d1", cannot: "https://app.veridian-aios.com/act/#c1", neverHadAny: null } },
+  actions: { j1: { done: "https://dpdp.veridian-aios.com/act/#d1", cannot: "https://dpdp.veridian-aios.com/act/#c1", neverHadAny: null } },
   unsubscribeUrl: "https://x.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=u1",
-  appHome: "https://app.veridian-aios.com/app/",
+  appHome: "https://dpdp.veridian-aios.com/app/",
 }
 
 describe("WO-DPDP-011 §2.5 escalation thresholds (TS mirror of dpdp.build_monday_digests)", () => {
@@ -119,12 +119,12 @@ describe("the Monday email's copy", () => {
     expect(out.html).toContain("required by today's law")
     expect(out.html).toContain("This link works for 24 hours — if it has stopped working, open the page and press 'Send me a new link'.")
     expect(out.html).toContain("https://x.supabase.co/auth/v1/verify?token=abc")
-    expect(out.html).toContain("https://app.veridian-aios.com/act/#d1")
-    expect(out.html).toContain("https://app.veridian-aios.com/act/#c1")
+    expect(out.html).toContain("https://dpdp.veridian-aios.com/act/#d1")
+    expect(out.html).toContain("https://dpdp.veridian-aios.com/act/#c1")
     expect(out.html).toContain("Stop these weekly emails")
     expect(out.text).toContain("[LATE] Write down where <it> is kept")
-    expect(out.text).toContain("Yes, it is done: https://app.veridian-aios.com/act/#d1")
-    expect(out.text).toContain("I can't: https://app.veridian-aios.com/act/#c1")
+    expect(out.text).toContain("Yes, it is done: https://dpdp.veridian-aios.com/act/#d1")
+    expect(out.text).toContain("I can't: https://dpdp.veridian-aios.com/act/#c1")
     // Not my job -> no buttons at all.
     const other = renderDigest(digest({ level: "owner", roleKind: "owner", jobs: [job({ obligationId: "x", isMine: false, assigneeEmail: "someone@example.test" })] }), live)
     expect(other.html).not.toContain("/act/#")

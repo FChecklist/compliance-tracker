@@ -40,6 +40,12 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (DPDP host move; worktree agent-adbd44b1864f28984, branch feat/dpdp-host-dpdp-subdomain)"
+    claimed_at: "2026-10-01T09:00:00Z"
+    claim: |
+      Owner decision 2026-10-01: the signed-in app host moves from app. to dpdp.veridian-aios.com (app. kept
+      working for old links). SITE_ORIGIN, Edge function defaults, _proxy.ts, live-smoke, guards and docs.
+      Supersedes the 'stay on app.' wording in the SEO claim below. No deploy, no DNS, no secrets.
   - session_label: "claude-code (DPDP SEO session; worktree C:/ct/ct/.claude/worktrees/agent-a2536956e2fa2158d, branch feat/dpdp-seo-canonical-apex) -- dpdp-app public-page SEO and AI-search friendliness [IN PROGRESS]"
     claimed_at: "2026-10-01T05:00:00Z"
     claim: |

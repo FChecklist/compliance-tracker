@@ -114,7 +114,8 @@ function assertClean(label: string, s: string) {
   expect(s, `${label}: contains a private path`).not.toMatch(/\/app\b|\/act\b|\/ai\/|\/unsubscribe\b|\/p\/|\/draft\b/)
   expect(s, `${label}: contains a mock token`).not.toContain("mock-")
   expect(s, `${label}: contains a token-like string`).not.toMatch(/[A-Za-z0-9_-]{24,}/)
-  expect(s, `${label}: mentions the app host`).not.toContain("app.veridian-aios.com")
+  expect(s, `${label}: mentions the app host`).not.toContain("dpdp.veridian-aios.com")
+  expect(s, `${label}: mentions the legacy app host`).not.toContain("app.veridian-aios.com")
   expect(s, `${label}: mentions localhost`).not.toMatch(/127\.0\.0\.1|localhost|4173/)
   // Any URL in it is the public site, possibly with the referral code.
   for (const m of s.matchAll(/https?:\/\/\S+/g)) expect(m[0], `${label}: URL`).toMatch(SHARE_URL)

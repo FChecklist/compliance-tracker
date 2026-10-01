@@ -198,6 +198,7 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.site).toBe("https://veridian-aios.com")
     expect(PUBLIC_ORIGIN).toBe(facts.site)
     expect(facts.company_site).toBe(`${facts.site}/`)
+    expect(JSON.stringify(publicFacts(facts))).not.toContain("dpdp.veridian-aios.com")
     expect(JSON.stringify(publicFacts(facts))).not.toContain("app.veridian-aios.com")
   })
 })

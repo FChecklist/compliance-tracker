@@ -115,4 +115,4 @@ domains:
 # `veridian-dpdp-app`. The domain was detached from the Vercel project `veridian-compliance-ai` with the
 # project-scoped Remove (never `vercel domains rm`); registration stays at Vercel (renewal only).
 # Deliberately NOT listed under `domains:` above, so domain-drift-check.yml (Vercel API poll) does not apply to it.
-# Live-checked daily by .github/workflows/dpdp-live-smoke.yml (both veridian-aios.com and app.veridian-aios.com).
+# Live-checked daily by .github/workflows/dpdp-live-smoke.yml (veridian-aios.com, dpdp.veridian-aios.com and the legacy app.veridian-aios.com). 2026-10-01 owner decision: dpdp.veridian-aios.com is now the signed-in app host (Cloudflare Pages custom domain of the same project); app. is kept working for links already sent.

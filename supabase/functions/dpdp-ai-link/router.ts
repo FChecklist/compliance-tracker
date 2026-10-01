@@ -5,7 +5,7 @@
 // src/lib/services/dpdp-ai-link-router.test.ts covers it under `bun test`.
 // index.ts is the thin Deno half: it calls the database and maps errors.
 //
-// The link base is https://app.veridian-aios.com/ai/<token>; on the
+// The link base is https://dpdp.veridian-aios.com/ai/<token>; on the
 // Edge Function itself the same paths sit under
 // /functions/v1/dpdp-ai-link/<token>. Both are parsed here.
 
@@ -49,7 +49,7 @@ export function parseRoute(pathname: string): Parsed {
   let at = parts.lastIndexOf(FUNCTION_NAME)
   if (at < 0) at = parts.indexOf("ai")
   const rest = at >= 0 ? parts.slice(at + 1) : parts
-  if (rest.length === 0) return { error: 401, message: "No token in the address. The link is https://app.veridian-aios.com/ai/<token>." }
+  if (rest.length === 0) return { error: 401, message: "No token in the address. The link is https://dpdp.veridian-aios.com/ai/<token>." }
   let token = rest[0]
   let legacyMd = false
   if (token.endsWith(".md")) { token = token.slice(0, -3); legacyMd = true }

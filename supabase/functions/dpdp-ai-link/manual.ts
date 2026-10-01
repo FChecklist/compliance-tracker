@@ -31,7 +31,7 @@ export type ContextPayload = {
 
 export type ManualInput = {
   context: ContextPayload
-  /** The link base as the person pasted it, e.g. https://app.veridian-aios.com/ai/<token>. */
+  /** The link base as the person pasted it, e.g. https://dpdp.veridian-aios.com/ai/<token>. */
   base: string
   now: Date
   /** Today's numbers and the most urgent jobs for the "Start here" section; absent (the AI is told to fetch them) when they could not be read. */

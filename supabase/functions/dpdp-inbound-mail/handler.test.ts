@@ -1139,10 +1139,10 @@ describe("redactSecrets: a reply that quotes our email must not carry its creden
     "Thanks, please delete my data.",
     "",
     "> Please open this link and help me finish my DPDP jobs for this week:",
-    `> https://app.veridian-aios.com/ai/${HEX}`,
-    "> Yes, it is done: https://app.veridian-aios.com/act/#one-time-token-123",
-    `> Undo: https://app.veridian-aios.com/app/#undo=action1.${HEX}`,
-    "> Open my page: https://pcrjmlpuqsbocqfwoxod.supabase.co/auth/v1/verify?token=abc123&type=magiclink&redirect_to=https://app.veridian-aios.com/app/",
+    `> https://dpdp.veridian-aios.com/ai/${HEX}`,
+    "> Yes, it is done: https://dpdp.veridian-aios.com/act/#one-time-token-123",
+    `> Undo: https://dpdp.veridian-aios.com/app/#undo=action1.${HEX}`,
+    "> Open my page: https://pcrjmlpuqsbocqfwoxod.supabase.co/auth/v1/verify?token=abc123&type=magiclink&redirect_to=https://dpdp.veridian-aios.com/app/",
     `> Stop these weekly emails: https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/dpdp-monday-email?action=unsubscribe&t=${"cd".repeat(16)}`,
   ].join("\n")
 
