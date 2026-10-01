@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner (Rajat Agarwal) approved in a live Claude Code session on 2026-10-01: "do step 1 and 2 both, build it in local" (the user-wide AI work link, listing projects, reporting on all, and Create New Project) and "apply the migration after green and tell me"; this migration is that work.
 -- PROJEXA USER-WIDE AI WORK LINK (owner requirement, 2026-10-01): a link that belongs to a PERSON, not to one project. When the person pastes it
 -- into any AI, that AI lists the person's projects (a numbered list), can report on all of them, can work inside the one the person picks
 -- and can make a new project. Everything else of the project link stays: read and draft at level 0, a person's own click confirms every

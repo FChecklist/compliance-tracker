@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner (Rajat Agarwal) approved in a live Claude Code session on 2026-10-01: "do step 1 and 2 both, build it in local" (the user-wide AI work link, listing projects, reporting on all, and Create New Project) and "apply the migration after green and tell me"; this migration is that work.
 -- Down-migration for drizzle/0668_awl_user_wide_link.sql (PROJEXA user-wide AI work link). Convention: docs/ROLLBACK_RUNBOOK.md section 3.
 -- Not auto-applied by any script or CI job; the PM runs it deliberately, after the same always-aborted rehearsal as the forward file.
 --

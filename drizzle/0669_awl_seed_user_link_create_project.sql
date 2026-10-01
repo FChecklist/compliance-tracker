@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner (Rajat Agarwal) approved in a live Claude Code session on 2026-10-01: "do step 1 and 2 both, build it in local" (the user-wide AI work link, listing projects, reporting on all, and Create New Project) and "apply the migration after green and tell me"; this migration is that work.
 -- PROJEXA USER-WIDE AI WORK LINK: the eighth generated seed of the Universal AI Work Link's function allow-list. It changes ONE row: create_project
 -- moves from "on no link" to level 2 (a draft the person confirms), no money, rank 2, text parameters name and description, so the AI of a USER link
 -- can propose a new project and the signed-in person confirms it. It follows drizzle/0644, 0643, 0650, 0647, 0648, 0649 and 0651, which stay as
