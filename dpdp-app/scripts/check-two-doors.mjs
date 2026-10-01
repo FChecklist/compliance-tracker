@@ -358,15 +358,17 @@ export function findBrandLineDeviations(text, brand) {
 }
 
 // ------------------------------------------------------------------ files
-function walk(dir) {
+function walk(dir, skipTop = null) {
   const out = []
   for (const name of readdirSync(dir)) {
+    if (skipTop && skipTop.has(name)) continue
     const p = join(dir, name)
     if (statSync(p).isDirectory()) out.push(...walk(p))
     else out.push(p)
   }
   return out
 }
+const SKIP_TOP = new Set(["node_modules", "dist", ".git", "playwright-report", "test-results"])
 const TEXT_EXT = /\.(html|htm|js|mjs|ts|tsx|css|txt|md|json|xml|yaml|yml|toml)$/i
 
 /** Files that DEFINE the spelling rule and therefore name the banned
@@ -389,7 +391,9 @@ export const SPELLING_SCAN_EXEMPT = new Map([
  * product spec, copied verbatim -- reported, not scanned) and the
  * rule-defining files above. */
 export function sourceFiles(root = APP_DIR) {
-  return walk(root).filter((f) => {
+  // Skip the heavy dirs while walking (node_modules is tens of thousands of files; walking it then
+  // filtering made this scan take ~90s and time the brand-line test out), not after.
+  return walk(root, SKIP_TOP).filter((f) => {
     const rel = relative(root, f).split("\\").join("/")
     if (/^(node_modules|dist|\.git|spec|playwright-report|test-results)\//.test(rel)) return false
     if (SPELLING_SCAN_EXEMPT.has(rel)) return false
