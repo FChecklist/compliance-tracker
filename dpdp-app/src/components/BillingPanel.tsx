@@ -110,9 +110,9 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
     const baseline = readPending(orgId)
     if (baseline === null) return
     let cancelled = false
-    setOpen(true)
-    setPayStatus("waiting")
     ;(async () => {
+      setOpen(true)
+      setPayStatus("waiting")
       for (let i = 0; i < POLL_TRIES && !cancelled; i++) {
         try {
           const b = await myBilling(client, orgId)
