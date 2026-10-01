@@ -3481,6 +3481,27 @@
       "when": 1790483000000,
       "tag": "0670_ai_bridge_claude_code",
       "breakpoints": true
+    },
+    {
+      "idx": 499,
+      "version": "7",
+      "when": 1790484000000,
+      "tag": "0668_awl_user_wide_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 500,
+      "version": "7",
+      "when": 1790485000000,
+      "tag": "0669_awl_seed_user_link_create_project",
+      "breakpoints": true
+    },
+    {
+      "idx": 501,
+      "version": "7",
+      "when": 1790486000000,
+      "tag": "0671_dpdp_ai_suggestions",
+      "breakpoints": true
     }
   ]
 }

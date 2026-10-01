@@ -1,11 +1,11 @@
 /// <reference types="bun-types" />
 // PROJEXA-BUILD-002 WP-03, register row AW-201: create_project makes a shell project attributed to the person, and update_project renames
 // and fills it. Both are registered pipeline writes with executors (src/lib/pipeline/executors/project.ts) and update_project is on a link
-// for its own project only; create_project is on no link.
+// for its own project only; create_project is on a link made for a PERSON only (a level 2 draft, drizzle/0668), never on a project link.
 //
 // PROVEN HERE
 //   - registry and link policy: both are writes with executors; create_project needs no project, update_project needs one; the generated
-//     link registry has update_project at level 2 (a draft), rank 2, and create_project excluded with a reason;
+//     link registry has update_project at level 2 (a draft), rank 2, and create_project at level 2, rank 2 (only a user-wide link may use it);
 //   - create_project with `shell: true` and no name writes ONE project named SHELL_PROJECT_NAME, in status 'planning', in the task's org,
 //     under the org's only active product, led by the acting PERSON (never the org API key's id), and isAiSetupShell() says so;
 //   - a task that names no person, a role below member and an absent role are refused with nothing written; no name and no shell is
@@ -112,7 +112,7 @@ describe("AW-201: registry and link policy", () => {
     expect(functionSpec("update_project")!.requiredParams.map((p) => p.name)).toEqual(["projectId"]);
   });
 
-  test("on the link: update_project is a level-2 draft at rank 2 for the link's own project; create_project is on no link", () => {
+  test("on the link: update_project is a level-2 draft at rank 2 for the link's own project; create_project is a level-2 draft at rank 2 for a link made for a person", () => {
     const registry = JSON.parse(readFileSync(new URL("../../../supabase/functions/ai-work-link/function-registry.generated.json", import.meta.url), "utf8")) as Array<{
       function_id: string; link_level: number | null; min_role_rank: number; declared_params: string[]; excluded_reason: string | null
     }>;
@@ -120,8 +120,9 @@ describe("AW-201: registry and link policy", () => {
     expect({ level: upd.link_level, rank: upd.min_role_rank }).toEqual({ level: 2, rank: 2 });
     expect(upd.declared_params).toEqual(expect.arrayContaining(["name", "description", "startDate", "targetDate", "projectValue", "vatRatePercent", "retentionPercent", "clientId"]));
     const cre = registry.find((f) => f.function_id === "create_project")!;
-    expect(cre.link_level).toBeNull();
-    expect((cre.excluded_reason ?? "").length).toBeGreaterThan(20);
+    expect({ level: cre.link_level, rank: cre.min_role_rank }).toEqual({ level: 2, rank: 2 });
+    expect(cre.excluded_reason).toBeNull();
+    expect(cre.declared_params).toEqual(expect.arrayContaining(["name", "description", "shell", "productId", "clientId"]));
   });
 });
 

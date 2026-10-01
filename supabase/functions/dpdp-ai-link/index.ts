@@ -33,7 +33,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
 import {
-  LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
+  LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodsFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
   maskEmails, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
   type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
 } from "./router.ts"
@@ -237,6 +237,29 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
         next: "Done, under the person's own authority. Tell them what changed and give them undoUrl -- it undoes this one change for 24 hours, in their own browser.",
       })
     }
+    case "suggestions": {
+      if (req.method === "POST") {
+        const raw = await req.text()
+        if (raw.length > MAX_BODY_BYTES) return fail(413, "Request body is too large (8 KB at most).")
+        let b: { kind?: unknown; title?: unknown; body?: unknown; endorse?: unknown }
+        try { b = JSON.parse(raw || "{}") } catch { return fail(400, "Body must be JSON: { kind, title, body } or { endorse }.") }
+        if (!b || typeof b !== "object" || Array.isArray(b)) return fail(400, "Body must be a JSON object: { kind, title, body } or { endorse }.")
+        const str = (v: unknown) => (typeof v === "string" ? v : null)
+        const r = await rpc<{ suggestionId: string; status: string; duplicate: boolean; endorseCount: number; alreadyEndorsed?: boolean }>(
+          "dpdp_ai_link_suggest", { p_token: token, p_kind: str(b.kind), p_title: str(b.title), p_body: str(b.body), p_endorse_id: str(b.endorse) },
+        )
+        if (r.error) return mapDbError(r.error)
+        return json(201, {
+          ...r.data,
+          next: r.data.duplicate
+            ? "Already in the shared pool; your voice is counted once. Tell the person you passed it on."
+            : "Added to the shared pool for the VERIDIAN team to review. Nothing in this organisation changed. Tell the person you passed it on.",
+        })
+      }
+      const r = await rpc<unknown[]>("dpdp_ai_link_suggestions", { p_token: token })
+      if (r.error) return mapDbError(r.error)
+      return json(200, r.data)
+    }
     case "drafts": {
       const body = await readBody(req)
       if (body instanceof Response) return body
@@ -286,8 +309,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!begun.error && isRateLimited(begun.data.callsLastMinute)) {
     return finish(fail(429, `Over the rate limit (${RATE_LIMIT.perMinute} calls per minute per link). Wait a minute.`))
   }
-  const expected = methodFor(route)
-  if (method !== expected) return finish(new Response(JSON.stringify(errorBody(405, `Use ${expected} for this path.`)), { status: 405, headers: privateHeaders("application/json; charset=utf-8", { allow: expected }) }))
+  const allowed = methodsFor(route)
+  if (!(allowed as ReadonlyArray<string>).includes(method)) {
+    const allow = allowed.join(", ")
+    return finish(new Response(JSON.stringify(errorBody(405, `Use ${allow} for this path.`)), { status: 405, headers: privateHeaders("application/json; charset=utf-8", { allow }) }))
+  }
 
   try {
     const res = await handle(req, token, route, url)

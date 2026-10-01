@@ -1,6 +1,6 @@
 # ai-work-link (PROJEXA-BUILD-001 U-46b1, first half)
 
-The universal AI work link. One capability URL per person and project:
+The universal AI work link. One capability URL per person and project (a link of scope `project`), or one for a person and ALL the projects they may read (a link of scope `user`, `drizzle/0668`: level 0 for ever, it lists the person's projects, reports on all of them, works inside the one chosen and can draft a new project):
 
 `https://<project>.supabase.co/functions/v1/ai-work-link/pxa_<64 hex>`
 
@@ -47,6 +47,9 @@ Relative to the link base `B` (`F/<token>`) or the header-mode base `F/header` (
 | `GET /links[?project=]`, `POST /links/{id}/revoke` | the person's own links (no token, no hash); revoke by the link's person or an org admin |
 | `GET` or `POST /warning?level=&project=` | the warning sentence, true for the current state: it promises direct entries only when writes are switched on |
 | `POST /new-project` | "New project with my AI": a shell project named "New project (AI setup)" and a level 0 link for the same person in one transaction; rank 2 and above; fresh session; 5 a day |
+| `POST /user-link` | signed-in person; fresh session; body `{days?, label?}` ONLY (anything else is 400 `USER_LINK_PARAMS`: no project, level always 0); 201 with the SAME shape as `/mint` plus `scope: "user"`, `project: null`, `shell: false`, `links.inbox: null`; 403 `USER_NOT_LINKED`; 429 caps and brake; the person's previous user link stops (`drizzle/0668`) |
+| `GET /projects[?limit=]`, `GET /portfolio` | a link made for a PERSON only (a project link answers 403 `USER_LINK_REQUIRED`): the numbered list of the person's projects then the options "Report on all above" and "Create New Project"; and one summary row per project (first 25) with totals. Only projects of the link's organisation that the person may read; money nulled by role |
+| `/projects/{id}/context`, `/records/{kind}[/{id}]`, `/functions[/{fn}]`, `/check`, `/propose`, `/drafts[/{id}]`, `/actions`, `/history`, `/intents/{id}` | the same endpoints inside one project: the project is bound per call (organisation and readability re-checked in SQL); a foreign, an unreadable and a missing project all answer the same 404; a link for one project accepts its own id only. A user link outside a project may only draft `create_project` (a level 2 draft the person confirms); everything else is 400 `PROJECT_REQUIRED` |
 | `GET|POST /drafts/{id}/preview` | a signed-in person and the confirm code: the function, every parameter and a BOQ total, before confirming; 401, 403 not the draft's person, 409 wrong code, 429 (shared brake), 503; works while writes are off (`drafts.ts`) |
 | `OPTIONS` | 204 preflight; `PUT`, `PATCH`, `DELETE` 405 |
 

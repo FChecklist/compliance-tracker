@@ -35,6 +35,7 @@ export type Route =
   | { kind: "history" }
   | { kind: "actions" }
   | { kind: "drafts" }
+  | { kind: "suggestions" }
 
 export type Parsed = { token: string; route: Route } | { error: 401 | 404; message: string }
 
@@ -75,6 +76,7 @@ export function parseRoute(pathname: string): Parsed {
       case "actions": return { token, route: { kind: "actions" } }
       case "drafts": return { token, route: { kind: "drafts" } }
       case "draft": return { token, route: { kind: "drafts" } }
+      case "suggestions": return { token, route: { kind: "suggestions" } }
       default: return { error: 404, message: "No such path" }
     }
   }
@@ -99,6 +101,11 @@ export function relativePathOf(pathname: string): string {
 /** The method each route accepts. */
 export function methodFor(route: Route): "GET" | "POST" {
   return route.kind === "actions" || route.kind === "drafts" ? "POST" : "GET"
+}
+
+/** The methods a route accepts: one, except /suggestions, which is read (GET) and written (POST). */
+export function methodsFor(route: Route): ReadonlyArray<"GET" | "POST"> {
+  return route.kind === "suggestions" ? ["GET", "POST"] : [methodFor(route)]
 }
 
 /**
