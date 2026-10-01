@@ -222,7 +222,9 @@ describe("(e) same content for machines and people", () => {
   test("no <script> on any public or hidden page but JSON-LD; the fact block is plain visible HTML", () => {
     for (const p of [...PUBLIC_PAGES, ...HIDDEN_PAGES]) {
       const html = read(p.source)
-      for (const s of html.match(/<script\b[^>]*>/g) ?? []) expect(s, p.source).toContain('type="application/ld+json"')
+      // JSON-LD, plus exactly one same-origin deferred script: /ref.js (the Sales Partner code keeper).
+      const others = (html.match(/<script\b[^>]*>/g) ?? []).filter((s) => !s.includes('type="application/ld+json"'))
+      expect(others, p.source).toEqual(['<script defer src="/ref.js">'])
       expect(html).toContain('<section class="facts')
       expect(html).toContain(FACTS.one_line)
       expect(html).toContain(FACTS.what_it_does_not_do)

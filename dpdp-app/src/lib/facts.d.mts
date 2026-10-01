@@ -15,6 +15,37 @@ export interface FactPage {
   audience: string
 }
 
+export interface PartnerSection {
+  h2: string
+  paragraphs?: string[]
+  steps?: string[]
+  bullets?: string[]
+}
+
+export interface SalesPartner {
+  owner_approved: boolean
+  source: string
+  nav_label: string
+  button: string
+  lead: string
+  sign_in_note: string
+  sections: PartnerSection[]
+}
+
+export interface AiAssistant {
+  owner_approved: boolean
+  source: string
+  nav_label: string
+  button: string
+  heading: string
+  tagline: string
+  home_line: string
+  home_more: string
+  lead: string
+  sign_in_note: string
+  sections: PartnerSection[]
+}
+
 export interface Facts {
   version: 2
   owner_approved: true
@@ -26,7 +57,10 @@ export interface Facts {
   one_line: string
   fact_block_title: string
   who_for_line: string
-  who_for: string[]
+  /** Exactly two lines, shown as an ordered list 1. 2. */
+  who_for: [string, string]
+  /** Exactly four lines, shown as a numbered list 1-4 under the home h1. */
+  four_things: [string, string, string, string]
   what_it_does: string
   three_strongest_facts: [string, string, string]
   deadline_line: string
@@ -47,6 +81,8 @@ export interface Facts {
   company: { owner_approved: boolean; owner_required: boolean; source: string; legal_name: string | null; cin: string | null; registered_office: string | null; gstin: string | null; incorporation: string }
   contact: { owner_approved: boolean; address_approved_on: string; source: string; contact_email: string; subject_topics: string[] }
   ai_work_link_public_sentence: string
+  sales_partner: SalesPartner
+  ai_assistant: AiAssistant
   pages: Record<string, FactPage> & { owner_approved: boolean }
   proof: { enabled: boolean; content: string }
 }

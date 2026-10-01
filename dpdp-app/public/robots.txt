@@ -1,23 +1,11 @@
-# veridian-aios.com (the public pages) -- WO-DPDP-012 §3. Explicit, not left to defaults.
-# One Pages project answers on three hostnames with the same files, so this
-# robots.txt is identical on all three; the public pages carry a canonical link
-# to veridian-aios.com on each.
+# veridian-aios.com: the public pages are open to every bot; the pages that
+# belong to a signed-in person are closed to every bot.
 #
-# Public: the home page (/), /dpdp-firm/, /dpdp-institution/, /about/, and the
-# site's own CSS, JS and fonts under /assets/ and /fonts/.
-# Private: /app/ (the signed-in one-page app), /act/ and /unsubscribe/ (the
-# Monday email's one-click pages, token in the fragment), /p/ (the parent
-# consent page), /copy/ (the one-tap Copy page behind the Monday email's
-# Copy button), and the remaining prefix in the Disallow lines below. Never
-# indexed, by any bot. Nothing private is described here (WO-DPDP-013 v2
-# §2.3: the wall); scripts/check-two-doors.mjs scans this file too.
-#
-# This file must say the same thing as public/_headers (X-Robots-Tag over
-# HTTP) and the pages' own <meta name="robots">; src/lib/public-surface.mjs
-# is the one list all three are tested against.
+# Public: the home page (/), /dpdp-firm/, /dpdp-institution/, /about/,
+# /partner/, and the site's CSS, JS and fonts under /assets/ and /fonts/.
+# Private: the prefixes in the Disallow lines below.
 
-# Search and AI-assistant crawlers, each named: allowed on public paths,
-# kept out of the private prefixes.
+# The named bots: allowed on public paths, kept out of the private prefixes.
 User-agent: Googlebot
 User-agent: Bingbot
 User-agent: Applebot

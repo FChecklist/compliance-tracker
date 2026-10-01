@@ -53,12 +53,22 @@ one_line: >-
 # 2026-10-01). The brand spelling is "VERy INDIAN" everywhere (owner, 2026-10-01).
 fact_block_title: What VERIDIAN (VERy INDIAN) is
 
-# The audience clause of the one line, as the owner wrote it, and as a list.
+# The audience clause of the one line, as the owner wrote it...
 who_for_line: for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs
+# ...and "Who it is for" as it is shown: TWO separate lines, an ordered list
+# 1. 2. (owner, 2026-10-01), never one dotted line.
 who_for:
-  - CA, CS, audit and legal firms
-  - their clients
-  - companies, institutions, schools and NGOs
+  - CA, CS, audit and legal firms · their clients
+  - Companies, institutions, schools and NGOs
+
+# The four things the home page says the DPDP Act asks of every organisation
+# (owner, 2026-10-01): shown as a numbered list 1-4 under the home h1. The h1
+# says "four things"; the list is exactly four.
+four_things:
+  - Know what data you hold.
+  - Tell people about it.
+  - Keep it safe.
+  - Prove it — with a record that outlasts the person who set it up.
 
 # §2.2 second paragraph, verbatim (one string), and the same three sentences
 # as the "three strongest facts" the fact block shows (§2.1).
@@ -286,10 +296,150 @@ pages:
     description: About VERIDIAN, DPDP compliance software for India. The SPDI Rules 2011 apply until 13 May 2027; compliance with the DPDP Act 2023 and DPDP Rules 2025 is due from 13 May 2027.
     summary: "what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company"
     audience: CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs
+  "/partner/":
+    name: Become a Sales Partner
+    description: Become a VERIDIAN Sales Partner. Get a personal link, share it with firms and organisations, and earn a commission when an organisation you referred pays.
+    summary: "who can be a Sales Partner, how to get a personal link, what is earned when a referred organisation pays, and how payment is made"
+    audience: People who introduce VERIDIAN to CA, CS, audit and legal firms, companies, institutions, schools and NGOs
+  "/ai-assistant/":
+    name: Your DPDP AI Assistant
+    description: Your DPDP AI assistant. Open your personal VERIDIAN link in your own AI. It reads your jobs, answers questions and drafts updates. You stay in charge of every change.
+    summary: "how to get the free AI assistant, what it can and cannot do, what it costs, and how you stay in charge"
+    audience: People who manage DPDP compliance jobs in VERIDIAN, in firms, companies, institutions, schools and NGOs
   "/proof/":
     name: Proof
     summary: "evidence from real use: real-tenant aggregates, consented case studies, the library reviewer"
     audience: CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs
+# ---------------------------------------------------------------------------
+# /partner/ (owner, 2026-10-01): the public page for the in-app Refer & Earn.
+# Every rule on it is a rule that already exists in code; nothing is invented:
+#   * who gets a link and where the Share button is: drizzle/0655 (dpdp__share_role
+#     returns a role for EVERY member), src/components/ShareVeridian.tsx;
+#   * 20% on a yearly payment, on every renewal, with no time limit; 5% on the
+#     first confirmed monthly payment only: drizzle/0655 dpdp_record_confirmed_payment
+#     (v_rate := 0.20 / 0.05) -- src/lib/facts.test.ts compares the percentages
+#     written below with that SQL, so the page cannot drift from the database;
+#   * a payment counts only once the company confirms it by hand:
+#     dpdp_record_confirmed_payment / dpdp_owner_approve_payment (drizzle/0658);
+#   * your own organisation never counts: self_referral is blocked (drizzle/0655);
+#   * payout is by hand, outside the system (UPI or bank): drizzle/0655 header,
+#     dpdp_admin_pending_payouts / dpdp_mark_commission_paid.
+# NOT stated, because no code or owner text defines it: a payout date or minimum,
+# tax and TDS treatment of the commission, a partner agreement. The page says so
+# in plain words and sends the reader to the one published address.
+# `owner_approved` stays false: the owner has approved the programme's rules in
+# chat (see the migration header), not this page's wording.
+# ---------------------------------------------------------------------------
+sales_partner:
+  owner_approved: false
+  source: drizzle/0655_dpdp_wo016_refer_and_earn.sql, drizzle/0658_dpdp_payment_confirmation_flow.sql, src/components/ShareVeridian.tsx, src/components/BillingPanel.tsx
+  nav_label: Sales Partner
+  button: Become a Sales Partner
+  lead: Tell CA, CS, audit and legal firms, companies, institutions, schools and NGOs about VERIDIAN. When an organisation you referred pays, you earn a commission.
+  sign_in_note: You sign in with your email. We send you a link. There is no password.
+  sections:
+    - h2: Who can be a Sales Partner
+      paragraphs:
+        - Anyone with a VERIDIAN account. Every person who belongs to an organisation in VERIDIAN has a personal link to share.
+        - You do not have an organisation yet? Sign in with your email and open your own. It is free to start.
+    - h2: How you get your personal link
+      steps:
+        - Sign in at /app/ with your email.
+        - Open the page of your organisation.
+        - Press Share, in the bar at the very top of the page.
+        - Copy your link, or send it by WhatsApp or email.
+      bullets:
+        - The link opens our public website. It holds your personal code and nothing else.
+        - Your code stays the same every time.
+    - h2: What happens when someone you referred pays
+      steps:
+        - A person opens an organisation in VERIDIAN with your code. We note that you referred them.
+        - The organisation pays us.
+        - We see the money and confirm the payment by hand. Until then, no commission is created.
+        - Your commission is created and shows as pending.
+      bullets:
+        - "You earn 20% of each yearly payment, including every yearly renewal, for as long as that client stays."
+        - Your own organisation never counts. If you sign up through your own link, you earn nothing.
+    - h2: How you are paid
+      paragraphs:
+        - We pay by hand, by UPI or bank transfer. Payment is not automatic, and this page does not fix a payout date.
+        - Each commission is marked pending. We mark it paid after we send the money.
+        - After your first referral you can see what you have earned, and what is still pending, in the Share box in the app.
+    - h2: Please note
+      paragraphs:
+        - We cannot promise that you will earn anything. What you earn depends on whom you refer and whether they pay.
+        - This page does not cover tax on a commission. For a question about a payout or about tax, write to us with the subject "Partner".
+
+# ---------------------------------------------------------------------------
+# /ai-assistant/ and the home-page highlight (owner, 2026-10-01): "Get the DPDP AI
+# assistant absolutely free, who does all the work for you." Kept, but made true:
+# the "assistant" is the person's OWN AI, opened with their personal AI work link;
+# VERIDIAN runs no AI model for it (the in-app AI is switched off, PR #1941), so
+# there is nothing for us to charge for. Every statement below is a rule that
+# already exists in code; nothing is invented:
+#   * the person makes the link in the app and chooses 1, 7 or 30 days, hides other
+#     people's emails if they like, and may switch on small edits (off by default):
+#     src/components/AiWorkLink.tsx, drizzle/0610_dpdp_wo013_ai_work_link.sql;
+#   * any member of an organisation may make one; the SQL has no plan or payment
+#     check, which is what "we charge nothing for it" rests on;
+#   * what the AI may do and may not do (read, explain, summarise, draft emails for
+#     the person to send, draft updates the person confirms, four small edits only
+#     when switched on, undo for 24 hours, no sign-in, no other organisation's data,
+#     cannot send email): the manual the AI is handed, supabase/functions/dpdp-ai-link;
+#   * a chat that cannot send requests is told to say so once and to write down what
+#     to do by hand: the same manual, "If you cannot send requests".
+# The page TITLE and DESCRIPTION leave out the word "free" on purpose: the existing SEO
+# guard (src/lib/facts.test.ts, "no superlative and no price") keeps "free" out of every
+# title and description. "Free" is in the header pill, the home highlight, the h1 and the button.
+# NOT stated: any AI product by name (no fact says which assistants work), a speed,
+# an accuracy, "all the work", any saving of time or money. Banned words stay out
+# (data/claims-register.yaml), including the word that means "just this and nothing else".
+# `owner_approved` stays false: the owner asked for the idea in chat, not for this wording.
+# The wall (scripts/check-two-doors.mjs) still applies: no address, path or token of
+# the link itself appears on any public page.
+# ---------------------------------------------------------------------------
+ai_assistant:
+  owner_approved: false
+  source: src/components/AiWorkLink.tsx, drizzle/0610_dpdp_wo013_ai_work_link.sql, supabase/functions/dpdp-ai-link
+  nav_label: Free AI assistant
+  button: Get your free AI assistant
+  heading: Your free DPDP AI assistant
+  tagline: It does the routine work. You stay in charge.
+  home_line: Open your personal link in your own AI. It reads your jobs and drafts the updates. You confirm them.
+  home_more: See how it works
+  lead: It reads your jobs, answers your questions and drafts the updates. You confirm what counts.
+  sign_in_note: You sign in with your email. We send you a link. There is no password.
+  sections:
+    - h2: How you get it
+      steps:
+        - Sign in with your email.
+        - In the app, open your AI work link and press Copy link. You choose how long it lasts, 1, 7 or 30 days. The same link comes in your Monday email.
+        - Paste it into your own AI assistant.
+        - Say what you want. For example, "What is late, and who should I chase?"
+    - h2: What it can do
+      bullets:
+        - Read your jobs and answer your questions about them.
+        - Explain a job in plain English, with the law behind it.
+        - Write a status note or a reminder for you to send.
+        - Draft an update, such as marking a job done. You confirm it on your own page before anything changes.
+        - If you switch it on when you make the link, make small changes straight away. These are a note, a due date, who a job is given to, or not applicable. Each can be undone for 24 hours.
+    - h2: What it cannot do
+      bullets:
+        - It cannot send email or messages for you.
+        - A chat that just reads web pages cannot save changes. It will say so and tell you what to do by hand.
+        - It cannot decide for you. Anything with legal weight is a draft that you confirm.
+        - It cannot sign in for you, and it cannot see another organisation's data.
+        - It is not legal advice. For a legal question, ask your CA or a lawyer.
+    - h2: What it costs
+      paragraphs:
+        - We charge nothing for the AI work link. We run no AI for it.
+        - Your own AI account, and what it costs to use, is between you and that provider.
+    - h2: You stay in charge
+      bullets:
+        - The AI can read your jobs, and the names or emails of the people on them. Give the link to an AI you trust, and to nobody else. You can hide other people's emails when you make it.
+        - The link expires on its own, and you can switch it off at any time.
+        - Every change is written to your history, with a note that an AI assistant made it.
+
 # ---------------------------------------------------------------------------
 # /proof (WO-DPDP-013 v2 §2.1): built from data/proof.yaml, hidden until the
 # owner switches this on. While false the page is noindex,nofollow, carries
