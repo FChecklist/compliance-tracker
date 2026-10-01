@@ -47,7 +47,7 @@ test.describe("WO-DPDP-011 Step 5 -- the remaining WO-010 screens, by accessible
     // Copy AI work link (WO-DPDP-013 §4 item 6): shown once, on this host's
     // /ai/ route.
     await page.getByRole("button", { name: "Copy link", exact: true }).click()
-    await expect(page.getByText(/^https:\/\/app\.veridian-aios\.com\/ai\/[A-Za-z0-9_-]+$/)).toBeVisible()
+    await expect(page.getByText(/^https:\/\/dpdp\.veridian-aios\.com\/ai\/[A-Za-z0-9_-]+$/)).toBeVisible()
     await expect(page.getByRole("button", { name: "📋 Copy", exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "Copy link", exact: true })).toHaveCount(0)
   })
