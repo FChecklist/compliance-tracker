@@ -37,6 +37,14 @@ export function dateLabel(ymdOrIso: string): string {
   return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`
 }
 
+/** Who issues the receipt. Same values as company.* in dpdp-app/data/veridian-facts.yaml (owner gave the GSTIN in chat, 2026-10-01); a test pins them equal. */
+export const SELLER = {
+  legalName: "SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED",
+  gstin: "09AAZCS4477M1Z3",
+  cin: "U74999UP2017PTC098453",
+  registeredOffice: "B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India",
+} as const
+
 export type ReceiptInput = {
   orgName: string
   plan: "firm" | "institution"
@@ -64,6 +72,10 @@ export function renderReceipt(d: ReceiptInput): Rendered {
     `This is your receipt -- keep it for your records. Questions? Just reply to this email.`,
     ``,
     `-- VERIDIAN AI DPDP`,
+    ``,
+    `Issued by ${SELLER.legalName}`,
+    `GSTIN: ${SELLER.gstin} | CIN: ${SELLER.cin}`,
+    `Registered office: ${SELLER.registeredOffice}`,
   ].filter((l): l is string => l !== null)
   return { subject, text: lines.join("\n"), html: toHtml(lines) }
 }

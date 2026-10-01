@@ -4,7 +4,7 @@
 // card is entered on Razorpay's page) and that nothing a reminder says is a claim we cannot back.
 import { describe, expect, test } from "bun:test"
 import { isDeliverableAddress as mondayDeliverable } from "../../../supabase/functions/dpdp-monday-email/render"
-import { REMINDER_KINDS, type ReminderKind, dateLabel, isDeliverableAddress, renderReceipt, renderReminder, rupees } from "../../../supabase/functions/_shared/billing-mail"
+import { REMINDER_KINDS, type ReminderKind, dateLabel, isDeliverableAddress, SELLER, renderReceipt, renderReminder, rupees } from "../../../supabase/functions/_shared/billing-mail"
 import { buildOutbound } from "../../../supabase/functions/_shared/mail-outbound"
 
 const base = { orgName: "Acme Associates", daysLeft: 10, dueDate: "2026-10-31T00:00:00Z", priceLabel: rupees(999900), appUrl: "https://dpdp.veridian-aios.com/app/" }
@@ -96,5 +96,19 @@ describe("recipient guard", () => {
     for (const a of addrs) expect(isDeliverableAddress(a)).toBe(mondayDeliverable(a))
     expect(isDeliverableAddress("x@example.com")).toBe(false)
     expect(isDeliverableAddress("owner@acme.in")).toBe(true)
+  })
+})
+
+describe("the receipt names who issued it", () => {
+  test("legal name, GSTIN, CIN and registered office are on the receipt and equal the facts file", () => {
+    const text = renderReceipt({ orgName: "A", plan: "firm", interval: "year", amountPaise: 999900, periodStart: "2026-10-01", confirmedAt: "2026-10-01T05:00:00Z" }).text
+    expect(text).toContain("GSTIN: 09AAZCS4477M1Z3")
+    expect(text).toContain("CIN: U74999UP2017PTC098453")
+    expect(text).toContain("SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED")
+    const facts = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../../dpdp-app/data/veridian-facts.yaml"), "utf8") as string
+    expect(facts).toContain(`gstin: ${SELLER.gstin}`)
+    expect(facts).toContain(`cin: ${SELLER.cin}`)
+    expect(facts).toContain(`legal_name: ${SELLER.legalName}`)
+    expect(facts).toContain(SELLER.registeredOffice)
   })
 })
