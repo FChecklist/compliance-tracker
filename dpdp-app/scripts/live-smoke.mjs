@@ -2,10 +2,15 @@
 // WO-DPDP-015: the deployed DPDP site and its two public doors, checked from
 // the outside with no credentials, no database and no Vercel. Runs daily from
 // .github/workflows/dpdp-live-smoke.yml (a red run is the alarm) and by hand:
-//   node scripts/live-smoke.mjs [https://app.veridian-aios.com]
+//   node scripts/live-smoke.mjs [https://dpdp.veridian-aios.com]
+// The workflow runs it against all three hostnames of the one Pages project:
+// the apex, dpdp. (the signed-in app, since 2026-10-01) and the legacy app.
+// host, whose links are already in sent emails and must keep working.
+// DPDP_PEERS=<comma-separated origins> additionally requires the peers to serve
+// a byte-identical /robots.txt and the same private-prefix headers.
 // It makes GET requests only, plus one POST that must be refused for want of a
 // bearer. It changes nothing.
-const ORIGIN = (process.argv[2] || process.env.DPDP_ORIGIN || "https://app.veridian-aios.com").replace(/\/+$/, "")
+const ORIGIN = (process.argv[2] || process.env.DPDP_ORIGIN || "https://dpdp.veridian-aios.com").replace(/\/+$/, "")
 const FUNCTIONS = process.env.DPDP_FUNCTIONS || "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1"
 const failures = []
 let checks = 0
@@ -29,13 +34,39 @@ async function get(path, init) {
 }
 
 // 1. Every public page answers, as HTML.
-for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/for-ai/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/proof/", "/app/", "/act/", "/unsubscribe/", "/copy/"]) {
   const r = await get(p)
   check(r.status === 200 && /text\/html/.test(r.type), `${p} answers 200 as HTML`, `${r.status} ${r.type}`)
 }
-for (const p of ["/facts.json", "/llms.txt", "/robots.txt", "/sitemap.xml"]) {
+for (const p of ["/llms.txt", "/robots.txt", "/sitemap.xml"]) {
   const r = await get(p)
   check(r.status === 200, `${p} answers 200`, String(r.status))
+}
+
+// 1a. Withdrawn on 2026-10-01 (owner): the AI-only fact sheet, its plain-text copy and facts.json answer a 301 to /about/, never a page.
+for (const p of ["/for-ai/", "/for-ai.md", "/facts.json"]) {
+  const r = await get(p)
+  check(r.status === 301 && /\/about\/$/.test(r.headers.get("location") || ""), `${p} is withdrawn (301 to /about/)`, `${r.status} ${r.headers.get("location") || ""}`)
+}
+
+// 1b. One file, three hosts: the private prefixes are never indexed and never cached on ANY of them.
+for (const p of ["/app/", "/act/", "/copy/", "/unsubscribe/"]) {
+  const r = await get(p)
+  check(/noindex/i.test(r.headers.get("x-robots-tag") || ""), `${p} carries X-Robots-Tag noindex`, r.headers.get("x-robots-tag") || "(none)")
+  check(/no-store/i.test(r.headers.get("cache-control") || ""), `${p} is Cache-Control no-store`, r.headers.get("cache-control") || "(none)")
+}
+{
+  const robots = await get("/robots.txt")
+  check(/^\s*disallow\s*:\s*\/ai\/\s*$/im.test(robots.body), "/robots.txt disallows /ai/")
+  for (const peer of (process.env.DPDP_PEERS || "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean)) {
+    const other = await get(`${peer}/robots.txt`)
+    check(other.status === 200 && other.body === robots.body, `/robots.txt is identical on ${peer} and ${ORIGIN}`, `${other.status}`)
+    for (const p of ["/app/", "/act/", "/copy/", "/unsubscribe/"]) {
+      const a = await get(p)
+      const b = await get(`${peer}${p}`)
+      for (const h of ["x-robots-tag", "cache-control", "referrer-policy"]) check((a.headers.get(h) || "") === (b.headers.get(h) || ""), `${p} ${h} is identical on ${peer} and ${ORIGIN}`)
+    }
+  }
 }
 
 // 2. The two edition landing pages open the app, never the old Next.js login.

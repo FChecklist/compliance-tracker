@@ -124,13 +124,13 @@ describe("findViolations() verdicts", () => {
 })
 
 describe("the committed sources carry 0 banned words outside approved claims", () => {
-  test("every public page, the hidden page, for-ai.md, llms.txt, llms-full.txt, facts.json", () => {
+  test("every public page, the hidden page, llms.txt, llms-full.txt", () => {
     const surfaces = surfaceFiles().map((rel: string) => {
       const isPage = [...PUBLIC_PAGES, ...HIDDEN_PAGES].some((p) => p.source === rel)
       const body = read(isPage ? rel : `public/${rel}`)
       return { file: rel, texts: isPage ? htmlTexts(body) : fileTexts(rel, body) }
     })
-    expect(surfaces.length).toBeGreaterThanOrEqual(10)
+    expect(surfaces.length).toBeGreaterThanOrEqual(7)
     const violations = findViolations(surfaces, register)
     expect(violations, violations.map((v) => `${v.file}: "${v.word}" in: ${v.sentence}`).join("\n")).toEqual([])
   })

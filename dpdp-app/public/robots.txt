@@ -1,10 +1,10 @@
 # veridian-aios.com (the public pages) -- WO-DPDP-012 §3. Explicit, not left to defaults.
-# One Pages project answers on two hostnames with the same files; the public
-# pages carry a canonical link to veridian-aios.com on both.
+# One Pages project answers on three hostnames with the same files, so this
+# robots.txt is identical on all three; the public pages carry a canonical link
+# to veridian-aios.com on each.
 #
-# Public: the root chooser (/), /dpdp-firm/, /dpdp-institution/, /about/,
-# /for-ai/ (+ /for-ai.md, /facts.json, WO-DPDP-013 v2), and the site's own
-# CSS, JS and fonts under /assets/ and /fonts/.
+# Public: the home page (/), /dpdp-firm/, /dpdp-institution/, /about/, and the
+# site's own CSS, JS and fonts under /assets/ and /fonts/.
 # Private: /app/ (the signed-in one-page app), /act/ and /unsubscribe/ (the
 # Monday email's one-click pages, token in the fragment), /p/ (the parent
 # consent page), /copy/ (the one-tap Copy page behind the Monday email's

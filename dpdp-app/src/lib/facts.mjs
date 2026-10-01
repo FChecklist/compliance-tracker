@@ -12,6 +12,8 @@
 // carry the owner-approved text, or names a public field that does not
 // exist, or claims `owner_approved` for a block that has no owner text,
 // must stop the build rather than generate a page that says something else.
+// (The public-fields / facts.json machinery was removed 2026-10-01: the owner
+// withdrew /for-ai/, /for-ai.md and /facts.json from the public site.)
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -32,30 +34,10 @@ function need(cond, msg) {
   if (!cond) throw new Error(`${FACTS_FILE}: ${msg}`)
 }
 
-/** Read a dotted path ("storage.database.sentence") from an object. */
-export function getPath(obj, path) {
-  let cur = obj
-  for (const key of path.split(".")) {
-    if (cur === null || typeof cur !== "object" || !(key in cur)) return undefined
-    cur = cur[key]
-  }
-  return cur
-}
-
-function setPath(obj, path, value) {
-  const keys = path.split(".")
-  let cur = obj
-  for (const key of keys.slice(0, -1)) {
-    if (!(key in cur)) cur[key] = {}
-    cur = cur[key]
-  }
-  cur[keys[keys.length - 1]] = value
-}
-
 // The public pages the facts file must name (titles, audiences). The list
 // of what is PUBLIC lives in public-surface.mjs; this only says which paths
 // need a `pages` entry.
-export const FACT_PAGE_PATHS = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/for-ai/", "/proof/"]
+export const FACT_PAGE_PATHS = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/proof/"]
 
 /**
  * Load and validate data/veridian-facts.yaml. Adds two derived values that
@@ -66,17 +48,17 @@ export const FACT_PAGE_PATHS = ["/", "/dpdp-firm/", "/dpdp-institution/", "/abou
 export function loadFacts() {
   const f = readYaml(FACTS_FILE)
   need(f && typeof f === "object", "not a mapping")
-  need(f.version === 1, "version must be 1")
+  need(f.version === 2, "version must be 2 (the 2026-10-01 owner-approved home-page block)")
   need(f.owner_approved === true, "owner_approved must be true (the §2.2 / §1.3-A / WO-014 §1 text is owner text)")
   need(/^\d{4}-\d{2}-\d{2}$/.test(String(f.approved_on)), "approved_on must be YYYY-MM-DD")
   need(isStr(f.approved_by), "approved_by missing")
   need(isStr(f.product) && isStr(f.site) && isStr(f.company_site), "product/site/company_site missing")
   // 2026-10-01 (SEO): the public pages are indexed under the apex, not the
-  // app host. The signed-in app stays on app.veridian-aios.com (see
+  // app host. The signed-in app stays on dpdp.veridian-aios.com (see
   // src/lib/site-origin.mjs) -- that is NOT this field.
   need(f.site === "https://veridian-aios.com", "site must be https://veridian-aios.com (the host the public pages are indexed under)")
 
-  for (const key of ["one_line", "who_for_line", "what_it_does", "deadline_line", "what_it_does_not_do", "ai_work_link_public_sentence"]) {
+  for (const key of ["one_line", "fact_block_title", "who_for_line", "what_it_does", "deadline_line", "what_it_does_not_do", "ai_work_link_public_sentence"]) {
     need(isStr(f[key]), `${key} missing`)
   }
   need(isStrList(f.who_for), "who_for must be a non-empty list of strings")
@@ -129,32 +111,14 @@ export function loadFacts() {
   f.library.job_count = lib.templates.length
   f.brand_line = f.brand.full
 
-  need(isStrList(f.public_fields), "public_fields must be a non-empty list of dotted paths")
-  for (const path of f.public_fields) need(getPath(f, path) !== undefined, `public_fields names "${path}", which does not exist`)
-  const forbiddenPublic = ["about_this_system", "company.gstin", "brand.share_url", "storage.database.source", "storage.email.source", "company.source", "library.file"]
-  for (const path of forbiddenPublic) need(!f.public_fields.includes(path), `public_fields must not include "${path}"`)
-
   return f
-}
-
-/** The public view of the facts: exactly the dotted paths in public_fields
- * (WO-013 §2.1 "public fields only"), as a nested object, null values
- * dropped (a null is "not yet recorded", never a fact to publish). */
-export function publicFacts(facts) {
-  const out = {}
-  for (const path of facts.public_fields) {
-    const v = getPath(facts, path)
-    if (v === null || v === undefined) continue
-    setPath(out, path, v)
-  }
-  return out
 }
 
 /**
  * The clause that asks a sender to name the topic in the subject line, built
  * from contact.subject_topics: "and put the topic in the subject: Grievance,
  * Data request, Sales or Partner". The one place this wording is made -- the
- * generator (footers, /about/, /for-ai/, llms*.txt), the hand-kept landing
+ * generator (footers, /about/, llms*.txt), the hand-kept landing
  * footers' must-contain list in public-surface.mjs and the tests all use it.
  */
 export function subjectTopicsClause(facts) {

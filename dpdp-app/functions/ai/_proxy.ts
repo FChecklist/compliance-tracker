@@ -1,5 +1,5 @@
 // WO-DPDP-012 §7 / WO-DPDP-013 Part 1 on the app's own host: the AI work
-// link at app.veridian-aios.com/ai/<token>[/...]. Supabase serves Edge
+// link at dpdp.veridian-aios.com/ai/<token>[/...] (the legacy app.veridian-aios.com/ai/<token> is served by this same function and must keep working). Supabase serves Edge
 // Function HTML on *.supabase.co as text/plain with a sandboxing CSP
 // (verified live 2026-09-22), so every path of the link -- the manual a
 // person opens, the JSON an AI fetches, the reports -- is served from this
@@ -8,7 +8,7 @@
 // Edge Function UNCHANGED and sets the correct content-type and the
 // private-page headers itself (Pages' _headers file applies to static
 // assets only). The token stays in the path segment exactly as before:
-// the person pastes https://app.veridian-aios.com/ai/<token>.
+// the person pastes https://dpdp.veridian-aios.com/ai/<token>.
 //
 // This module is PURE -- no Cloudflare globals, only the WHATWG Request /
 // Response / fetch types -- so src/lib/ai-proxy.test.ts can exercise every

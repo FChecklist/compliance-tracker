@@ -23,7 +23,7 @@ export const BRAND_LINE = "VERIDIAN · VERy INDIAN — Built for India's DPDP Ac
 export const PREPARED_WITH = "Prepared with VERIDIAN · veridian-aios.com"
 
 export const SITE_ORIGIN = "https://veridian-aios.com"
-export const APP_ORIGIN = "https://app.veridian-aios.com"
+export const APP_ORIGIN = "https://dpdp.veridian-aios.com"
 
 export type LibraryFacts = {
   version: string | null

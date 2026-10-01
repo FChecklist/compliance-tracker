@@ -16,7 +16,7 @@ export interface FactPage {
 }
 
 export interface Facts {
-  version: 1
+  version: 2
   owner_approved: true
   approved_on: string
   approved_by: string
@@ -24,6 +24,7 @@ export interface Facts {
   site: string
   company_site: string
   one_line: string
+  fact_block_title: string
   who_for_line: string
   who_for: string[]
   what_it_does: string
@@ -47,7 +48,6 @@ export interface Facts {
   contact: { owner_approved: boolean; address_approved_on: string; source: string; contact_email: string; subject_topics: string[] }
   ai_work_link_public_sentence: string
   pages: Record<string, FactPage> & { owner_approved: boolean }
-  public_fields: string[]
   proof: { enabled: boolean; content: string }
 }
 
@@ -90,9 +90,7 @@ export const FACTS_FILE: string
 export const CLAIMS_FILE: string
 export const PROOF_FILE: string
 export const FACT_PAGE_PATHS: string[]
-export function getPath(obj: unknown, path: string): unknown
 export function loadFacts(): Facts
-export function publicFacts(facts: Facts): Record<string, unknown>
 export function pageTitle(facts: Facts, path: string): string
 export function pageDescription(facts: Facts, path: string): string
 export function subjectTopicsClause(facts: Facts): string

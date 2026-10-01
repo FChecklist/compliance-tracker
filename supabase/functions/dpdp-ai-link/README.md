@@ -9,7 +9,7 @@ in this path; the browser side (making, listing, revoking a link; confirming
 a draft; undoing an action) talks to Postgres through the RPCs in
 `drizzle/0610_dpdp_wo013_ai_work_link.sql`.
 
-The link a person pastes is `https://app.veridian-aios.com/ai/<token>`.
+The link a person pastes is `https://dpdp.veridian-aios.com/ai/<token>`.
 `dpdp-app/functions/ai/[[path]].ts` (Cloudflare Pages) forwards every
 method, sub-path, query string and body of it to this function unchanged and
 restores the intended content-type (the `*.supabase.co` gateway serves HTML
@@ -146,13 +146,13 @@ supabase functions deploy dpdp-ai-link --no-verify-jwt --project-ref pcrjmlpuqsb
 (or `verify_jwt: false` through the Supabase MCP / dashboard). Apply
 `drizzle/0610_dpdp_wo013_ai_work_link.sql` **before** deploying -- the
 function calls RPCs that only exist after it. `APP_ORIGIN` defaults to
-`https://app.veridian-aios.com`.
+`https://dpdp.veridian-aios.com`.
 
 ## Smoke test after deploy
 
 1. Sign in to the dpdp-app as any member and call
    `supabase.rpc('dpdp_ai_link_create', { p_level: 1, p_days: 1 })`; copy `token`.
-2. `curl -s https://app.veridian-aios.com/ai/<token>/manual.md` -- the manual,
+2. `curl -s https://dpdp.veridian-aios.com/ai/<token>/manual.md` -- the manual,
    section B naming that person and "authority level: 1".
 3. `curl -s .../ai/<token>/jobs?late=1` -- JSON `{ items, total, ... }`.
 4. `curl -s '.../ai/<token>/report/summary?format=csv'` -- ends with the

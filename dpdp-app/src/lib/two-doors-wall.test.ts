@@ -43,7 +43,8 @@ function surfaceSource(rel: string): string {
   return read(`public/${rel}`)
 }
 
-// (g) SEO, 2026-10-01: the public pages are indexed under the apex alone.
+// (g) SEO, 2026-10-01: the public pages are indexed under the apex alone, and
+// name neither app host (dpdp., the signed-in app; app., the legacy host).
 describe("(g) one public host: findAppHost()", () => {
   test("catches the app host in a canonical, a sitemap loc, an llms line and a JSON-LD id", () => {
     for (const planted of [
@@ -51,9 +52,18 @@ describe("(g) one public host: findAppHost()", () => {
       `<loc>https://app.veridian-aios.com/</loc>`,
       `- [About](https://app.veridian-aios.com/about/)`,
       `{"@id":"https://app.veridian-aios.com/#organization"}`,
+      `<link rel="canonical" href="https://dpdp.veridian-aios.com/about/" />`,
+      `<loc>https://dpdp.veridian-aios.com/</loc>`,
+      `- [About](https://dpdp.veridian-aios.com/about/)`,
+      `{"@id":"https://dpdp.veridian-aios.com/#organization"}`,
     ]) {
       expect(findAppHost(`clean. ${planted}. clean`).length, planted).toBe(1)
     }
+  })
+
+  test("names the host it found: the current app host (dpdp.) and the legacy one (app.) are both refused", () => {
+    expect(findAppHost("see https://dpdp.veridian-aios.com/app/").map((h) => h.host)).toEqual(["dpdp.veridian-aios.com"])
+    expect(findAppHost("see https://app.veridian-aios.com/app/").map((h) => h.host)).toEqual(["app.veridian-aios.com"])
   })
 
   test("does not fire on the apex, the mail address or the bare word app", () => {
@@ -69,7 +79,7 @@ describe("(g) one public host: findAppHost()", () => {
 describe("(a) the wall: scanWall()", () => {
   test("catches every forbidden pattern individually", () => {
     const plants: Record<string, string> = {
-      "/ai/": "see https://app.veridian-aios.com/ai/abc",
+      "/ai/": "see https://dpdp.veridian-aios.com/ai/abc",
       "manual.md": "read manual.md first",
       "manual.json": "or manual.json",
       "/context": "GET /context returns who",
@@ -110,7 +120,7 @@ describe("(a) the wall: scanWall()", () => {
   })
 
   test("the facts sheet says the one allowed sentence about the AI work link, and the pages carry it", () => {
-    for (const rel of ["for-ai/index.html", "about/index.html", "for-ai.md", "llms.txt"]) expect(surfaceSource(rel)).toContain(FACTS.ai_work_link_public_sentence)
+    expect(surfaceSource("about/index.html")).toContain(FACTS.ai_work_link_public_sentence)
   })
 })
 
@@ -197,7 +207,7 @@ describe("(d) no instruction to an AI: findAiInstructions()", () => {
   test('"share VERIDIAN" is flagged on an AI-facing surface and allowed on a page for people', () => {
     expect(findAiInstructions("Know a firm that needs this? Share VERIDIAN", { aiSurface: true }).length).toBe(1)
     expect(findAiInstructions("Know a firm that needs this? Share VERIDIAN", { aiSurface: false })).toEqual([])
-    expect(AI_SURFACES).toEqual(["for-ai/index.html", "for-ai.md", "llms.txt", "llms-full.txt", "facts.json"])
+    expect(AI_SURFACES).toEqual(["llms.txt", "llms-full.txt"])
   })
 
   test("every committed public surface carries none; the AI-facing ones carry no share ask", () => {

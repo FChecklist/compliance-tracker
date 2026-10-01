@@ -103,12 +103,20 @@ describe("the committed sources", () => {
   test("the share ask is on the pages for people and on none of the AI-facing surfaces (WO-014 §4)", () => {
     const withShare = ["index.html", "dpdp-firm/index.html", "dpdp-institution/index.html", "about/index.html", "proof/index.html"]
     for (const rel of withShare) expect(read(rel), rel).toContain(`<a class="brand-line-share" href="${FACTS.brand.share_url}">${SHARE_ASK}</a>`)
-    for (const rel of ["for-ai/index.html", "public/for-ai.md", "public/llms.txt", "public/llms-full.txt", "public/facts.json"]) expect(read(rel), rel).not.toMatch(/share veridian/i)
+    for (const rel of ["public/llms.txt", "public/llms-full.txt"]) expect(read(rel), rel).not.toMatch(/share veridian/i)
   })
 
-  test("the AI-facing fact surfaces carry the full line as a fact (WO-014 §4)", () => {
-    for (const rel of ["for-ai/index.html", "public/for-ai.md", "public/llms.txt", "public/facts.json"]) expect(read(rel), rel).toContain(FULL)
-    expect(JSON.parse(read("public/facts.json")).brand_line).toBe(FULL)
+  test("llms.txt carries the full line as a fact (WO-014 §4)", () => {
+    expect(read("public/llms.txt")).toContain(FULL)
+  })
+
+  // Owner, 2026-10-01: the fact-block heading is the one place "VERy Indian" is
+  // written that way. The exemption is the exact heading and nothing else.
+  test("the owner's one heading is exempt from the spelling rule; any other variant still fails", () => {
+    expect(findSpellingVariants("What VERIDIAN (VERy Indian) is")).toEqual([])
+    expect(findSpellingVariants("What VERIDIAN (VERy Indian) is. VERy Indian").map((v) => v.variant)).toEqual(["VERy Indian"])
+    expect(findSpellingVariants("What VERIDIAN (Very Indian) is").map((v) => v.variant)).toEqual(["Very Indian"])
+    expect(findSpellingVariants("What VERIDIAN (VERy INDIAN) is")).toEqual([])
   })
 
   test("tab titles on public pages are 'VERIDIAN · VERy INDIAN — <page>'", () => {

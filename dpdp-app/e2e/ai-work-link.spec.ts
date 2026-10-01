@@ -26,7 +26,7 @@ test.describe("WO-DPDP-013 Part 1 -- the Copy-AI-link screen", () => {
     )).toBeVisible()
     // Never a sign-in token: the form never mentions signing in, and no
     // link is shown until "Copy link" is pressed.
-    await expect(page.getByText(/^https:\/\/app\.veridian-aios\.com\/ai\//)).toHaveCount(0)
+    await expect(page.getByText(/^https:\/\/dpdp\.veridian-aios\.com\/ai\//)).toHaveCount(0)
   })
 
   test("Level 1 is off by default; switching it on shows the plain explanation, off hides it again", async ({ page }) => {
@@ -56,7 +56,7 @@ test.describe("WO-DPDP-013 Part 1 -- the Copy-AI-link screen", () => {
     await page.getByLabel("Label (optional)", { exact: true }).fill("ChatGPT")
     await page.getByRole("button", { name: "Copy link", exact: true }).click()
 
-    const url = page.getByText(/^https:\/\/app\.veridian-aios\.com\/ai\/[A-Za-z0-9_-]+$/)
+    const url = page.getByText(/^https:\/\/dpdp\.veridian-aios\.com\/ai\/[A-Za-z0-9_-]+$/)
     await expect(url).toBeVisible()
     await expect(page.getByRole("button", { name: "📋 Copy", exact: true })).toBeVisible()
     await expect(page.getByText("Shown once — never stored in a way that could be shown again. Copy it now.", { exact: true })).toBeVisible()
@@ -64,7 +64,7 @@ test.describe("WO-DPDP-013 Part 1 -- the Copy-AI-link screen", () => {
     // Never a sign-in link: the URL is /ai/<token> only, never /app/ or a
     // magic-link path, and nothing about the page ever says "sign in".
     const shownUrl = await url.textContent()
-    expect(shownUrl).toMatch(/^https:\/\/app\.veridian-aios\.com\/ai\/[A-Za-z0-9_-]+$/)
+    expect(shownUrl).toMatch(/^https:\/\/dpdp\.veridian-aios\.com\/ai\/[A-Za-z0-9_-]+$/)
     expect(shownUrl).not.toContain("/app/")
 
     await expect(page.getByRole("heading", { name: "Your AI links", exact: true })).toBeVisible()

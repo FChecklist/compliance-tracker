@@ -16,7 +16,7 @@ import { PLAYBOOK_DATA } from "../../../supabase/functions/dpdp-ai-link/playbook
 import { summariseJobs, type JobRow } from "../../../supabase/functions/dpdp-ai-link/router"
 
 const TOKEN = "cd".repeat(32)
-const BASE = `https://app.veridian-aios.com/ai/${TOKEN}`
+const BASE = `https://dpdp.veridian-aios.com/ai/${TOKEN}`
 const NOW = new Date("2026-10-05T01:00:00Z")
 
 const KEYS = ["firm-01", "firm-03", "firm-11", "firm-15", "firm-20", "firm-22", "firm-27", "firm-29"]
@@ -63,7 +63,7 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
   test("WHERE to do it: the calls, the person's own page, and where proof is kept", () => {
     expect(md).toContain("## W · Where things are")
     expect(md).toContain("| GET /jobs/{id} |")
-    expect(md).toContain("THE PERSON'S OWN PAGE is https://app.veridian-aios.com/app/")
+    expect(md).toContain("THE PERSON'S OWN PAGE is https://dpdp.veridian-aios.com/app/")
     expect(md).toContain("DPDP proof/3 - Tell people & take consent/")
   })
 

@@ -27,11 +27,15 @@ import { test, expect, type Locator, type Page } from "@playwright/test"
 // last step of the public journey and is audited the same way.
 const PUBLIC_PAGES = [
   { path: "/", h1: "The DPDP Act asks every organisation for four things" },
-  { path: "/dpdp-firm/", h1: "Your DPDP proof — not just your DPDP policy." },
-  { path: "/dpdp-institution/", h1: "Your DPDP proof — not just a policy nobody reads." },
+  { path: "/dpdp-firm/", h1: "DPDP compliance for all your clients, in one place" },
+  { path: "/dpdp-institution/", h1: "DPDP compliance for your own organisation, with proof you can show" },
 ] as const
 
 const SIGN_IN = { path: "/app/", h1: "VERIDIAN DPDP" } as const
+
+// The two ways in on the home page, word for word (owner, 2026-10-01).
+const FOR_CLIENTS = "I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS"
+const FOR_US = "I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES"
 
 const ALL_SURFACES = [...PUBLIC_PAGES, SIGN_IN] as const
 
@@ -62,23 +66,20 @@ test.describe("WO-DPDP-012 §6 -- an assistant can use the public site by access
   // (a) + (b) + (c): the one journey, root chooser -> firm landing -> sign-in
   // up to the email step, and not one step further.
   test("root chooser -> firm landing -> sign-in, stopping at 'check your email'", async ({ page }) => {
-    // (a) The root chooser offers two editions, each a real link with a
-    // name that starts with its own label. The full name is the link's
-    // whole text (title + one-line body), which is what an assistant
-    // reads; \s+ between the two parts because the accessible-name
-    // algorithm joins the block-level <b> and <span> with whitespace.
+    // (a) The root chooser offers exactly two ways in (owner, 2026-10-01),
+    // each a real link whose accessible name is its whole label.
     await open(page, PUBLIC_PAGES[0])
-    const forClients = page.getByRole("link", { name: /^I do this for clients\s+A CA, CS, audit or legal firm\. Your own file is free, always\.$/ })
-    const forUs = page.getByRole("link", { name: /^I do this for us\s+A company, NGO or firm of our own\.$/ })
+    const forClients = page.getByRole("link", { name: FOR_CLIENTS, exact: true })
+    const forUs = page.getByRole("link", { name: FOR_US, exact: true })
     await expect(forClients).toBeVisible()
     await expect(forUs).toBeVisible()
-    await expect(page.getByRole("link", { name: "Running a school instead? →", exact: true })).toBeVisible()
+    await expect(page.getByRole("link", { name: /school instead/i })).toHaveCount(0)
     await expect(page.getByRole("link", { name: "Already have an account? Sign in", exact: true })).toBeVisible()
     await forClients.click()
 
     // (b) The firm landing: one h1 with the expected name, the primary
     // call-to-action reachable by role + name, nothing hover-only.
-    await expect(page).toHaveURL(/\/dpdp-firm\/\?for=clients$/)
+    await expect(page).toHaveURL(/\/dpdp-firm\/$/)
     const firm = PUBLIC_PAGES[1]
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1)
     await expect(page.getByRole("heading", { level: 1, name: firm.h1, exact: true })).toBeVisible()
@@ -127,8 +128,8 @@ test.describe("WO-DPDP-012 §6 -- an assistant can use the public site by access
       if (surface.path === "/") {
         // The chooser's primary actions are the two edition links (tested
         // by full name in the journey above); here, that both exist by role.
-        await expect(page.getByRole("link", { name: /^I do this for clients\b/ })).toBeVisible()
-        await expect(page.getByRole("link", { name: /^I do this for us\b/ })).toBeVisible()
+        await expect(page.getByRole("link", { name: FOR_CLIENTS, exact: true })).toBeVisible()
+        await expect(page.getByRole("link", { name: FOR_US, exact: true })).toBeVisible()
       } else {
         await expectPrimaryCallToAction(page)
       }

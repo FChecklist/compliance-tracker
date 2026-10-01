@@ -36,6 +36,7 @@ export interface HiddenPage {
 import type { Facts } from "./facts.mjs"
 
 export declare const SITE_ORIGIN: string
+export declare const LEGACY_APP_ORIGIN: string
 export declare const PUBLIC_ORIGIN: string
 export declare const OG_IMAGE: { readonly path: string; readonly width: number; readonly height: number; readonly alt: string }
 export declare const FOOTER_LINKS: readonly (readonly [string, string])[]

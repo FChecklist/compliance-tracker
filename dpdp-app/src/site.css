@@ -1,4 +1,4 @@
-/* The public pages of app.veridian-aios.com (WO-DPDP-012 §1): the root
+/* The public pages of dpdp.veridian-aios.com (WO-DPDP-012 §1): the root
    chooser and the two edition landings. Plain CSS, no framework -- these
    pages run no script, so this stylesheet and the two self-hosted fonts are
    everything they load. Values mirror the Tailwind classes the Next.js
@@ -208,7 +208,7 @@ b {
   margin-top: 40px;
 }
 
-/* ---- generated fact pages: /about/, /for-ai/, /proof/ ---- */
+/* ---- generated fact pages: /about/, /proof/ ---- */
 .nav-links {
   display: flex;
   flex-wrap: wrap;
@@ -316,7 +316,7 @@ b {
   border: 1.5px solid var(--line);
   border-radius: 16px;
   background: #fff;
-  padding: 24px;
+  padding: 28px 24px;
   text-align: left;
   transition:
     border-color 0.15s,
@@ -333,8 +333,10 @@ b {
 }
 .choice-title {
   display: block;
-  font-size: 1.125rem;
-  font-weight: 700;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
   margin-bottom: 4px;
 }
 .choice-body {
@@ -432,6 +434,12 @@ b {
 }
 .hero-cta .btn {
   font-size: 0.9375rem;
+}
+.hero-note {
+  margin: 14px auto 0;
+  max-width: 34rem;
+  font-size: 0.875rem;
+  color: var(--ink2);
 }
 
 /* ---- landing: penalty band ---- */

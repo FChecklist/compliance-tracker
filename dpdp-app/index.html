@@ -3,29 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!--
-      The root chooser (WO-DPDP-012 §1/§4): a complete public page -- every
-      word is in this file, no JavaScript runs on it, and the copy is verbatim
-      from src/app/dpdp/_components/RootChooser.tsx on the Next.js side. The
-      two edition links carry the same ?for= query the original does.
-      scripts/check-public-surface.mjs proves the above after every build.
-    -->
     <title>VERIDIAN · VERy INDIAN — DPDP Compliance Management Software for India</title>
-    <meta name="description" content="DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients and schools." />
+    <meta name="description" content="DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients, companies, schools and NGOs." />
     <link rel="canonical" href="https://veridian-aios.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="VERIDIAN DPDP" />
     <meta property="og:locale" content="en_IN" />
     <meta property="og:url" content="https://veridian-aios.com/" />
     <meta property="og:title" content="VERIDIAN · VERy INDIAN — DPDP Compliance Management Software for India" />
-    <meta property="og:description" content="DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients and schools." />
+    <meta property="og:description" content="DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients, companies, schools and NGOs." />
     <meta property="og:image" content="https://veridian-aios.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="VERIDIAN · VERy INDIAN — DPDP Compliance Management Software for India" />
-    <meta name="twitter:description" content="DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients and schools." />
+    <meta name="twitter:description" content="DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients, companies, schools and NGOs." />
     <meta name="twitter:image" content="https://veridian-aios.com/og-image.png" />
     <meta name="twitter:image:alt" content="VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India." />
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
@@ -88,10 +81,10 @@
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web browser",
           "inLanguage": "en-IN",
-          "description": "VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions.",
+          "description": "dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.",
           "audience": {
             "@type": "Audience",
-            "audienceType": "CA, CS, audit and legal firms, their clients, and schools and institutions"
+            "audienceType": "CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs"
           },
           "publisher": {
             "@id": "https://veridian-aios.com/#organization"
@@ -115,49 +108,37 @@
         <p class="lead">Know what data you hold. Tell people about it. Keep it safe.</p>
         <p class="lead lead-last">Prove all three — with a record that outlasts the person who set it up.</p>
         <div class="chooser-grid">
-          <!-- The emoji are decoration: aria-hidden keeps them out of each
-               link's accessible name, so an assistant (or a screen reader)
-               finds "I do this for clients", not "man judge I do this for
-               clients" (WO-DPDP-012 §6, proven by e2e/agent-by-role.spec.ts). -->
-          <a class="choice" href="/dpdp-firm/?for=clients">
+          <a class="choice" href="/dpdp-firm/">
             <span class="choice-icon" aria-hidden="true">🧑‍⚖️</span>
-            <b class="choice-title">I do this for clients</b>
-            <span class="choice-body">A CA, CS, audit or legal firm. Your own file is free, always.</span>
+            <b class="choice-title">I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS</b>
           </a>
-          <a class="choice" href="/dpdp-firm/?for=us">
+          <a class="choice" href="/dpdp-institution/">
             <span class="choice-icon" aria-hidden="true">🏭</span>
-            <b class="choice-title">I do this for us</b>
-            <span class="choice-body">A company, NGO or firm of our own.</span>
+            <b class="choice-title">I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES</b>
           </a>
         </div>
-        <a class="link-violet" href="/dpdp-institution/">Running a school instead? →</a>
         <div class="chooser-signin">
-          <!-- The sign-in lives on /app/ (a visitor with no organisation is asked to open theirs there: WO-DPDP-015). -->
           <a href="/app/">Already have an account? Sign in</a>
         </div>
-        <!-- The fact block (WO-DPDP-013 v2 §2.1) and the brand line above are
-             generated from data/veridian-facts.yaml by
-             scripts/generate-public-facts.mjs -- edit the facts file, not this. -->
         <!-- BEGIN generated: facts -->
         <section class="facts facts-compact" aria-labelledby="facts-title">
-          <h2 class="facts-title" id="facts-title">What VERIDIAN is</h2>
-          <p class="facts-line">VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions.</p>
-          <p class="facts-for"><b>Who it is for:</b> CA, CS, audit and legal firms · their clients · schools and institutions</p>
+          <h2 class="facts-title" id="facts-title">What VERIDIAN (VERy Indian) is</h2>
+          <p class="facts-line">dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.</p>
+          <p class="facts-for"><b>Who it is for:</b> CA, CS, audit and legal firms · their clients · companies, institutions, schools and NGOs</p>
           <ul class="facts-list">
             <li>It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.</li>
             <li>Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.</li>
             <li>Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.</li>
           </ul>
           <p class="facts-not">It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.</p>
-          <p class="facts-links"><a href="/about/">About VERIDIAN</a> · <a href="/for-ai/">Fact sheet for AI systems</a></p>
+          <p class="facts-links"><a href="/about/">About VERIDIAN</a></p>
         </section>
         <!-- END generated: facts -->
       </div>
     </main>
-    <!-- The footer carries the internal links to the fact surfaces (generated from FOOTER_LINKS in src/lib/public-surface.mjs) and the legal links. -->
     <footer class="footer">
       <!-- BEGIN generated: footer-links -->
-      <p class="footer-legal footer-legal-links"><a href="/about/">About VERIDIAN</a> · <a href="/for-ai/">Fact sheet for AI systems</a> · <a href="/for-ai.md">Fact sheet as plain text</a> · <a href="/facts.json">Facts as JSON</a> · <a href="/llms.txt">llms.txt</a></p>
+      <p class="footer-legal footer-legal-links"><a href="/about/">About VERIDIAN</a></p>
       <!-- END generated: footer-links -->
       <p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a></p>
     </footer>

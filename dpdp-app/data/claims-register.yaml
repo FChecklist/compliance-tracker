@@ -11,8 +11,7 @@
 #
 #   1. Every public surface in dist/ is read: the public pages (visible text,
 #      meta description, Open Graph, every string inside the JSON-LD), the
-#      hidden /proof/ page, /for-ai.md, /llms.txt, /llms-full.txt and
-#      /facts.json.
+#      hidden /proof/ page, /llms.txt and /llms-full.txt.
 #   2. The text is split into sentences. Any sentence containing a banned
 #      word (whole word, case-insensitive; "#1" and "100%" literally) FAILS
 #      the build unless that exact sentence is either
@@ -104,7 +103,7 @@ claims:
   - id: CLM-003
     sentence: "Each answer is recorded with a date and cannot be edited, building the proof an organisation needs."
     words: []
-    where: The fact block on every public page; /about/; /for-ai/ (WO-DPDP-013 v2 §2.2).
+    where: The fact block on every public page; /about/ (WO-DPDP-013 v2 §2.2).
     evidence: Append-only event log dpdp.event with a hash chain (dpdp-app/DEPLOY.md go-live check 7, "an intact chain"; src/lib/services/dpdp-cross-tenant-rpc.test.ts).
     owner_approved: true
     approved_on: "2026-09-22"
@@ -112,7 +111,7 @@ claims:
   - id: CLM-004
     sentence: "Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027."
     words: []
-    where: The fact block on every public page; /about/; /for-ai/ (WO-DPDP-013 v2 §2.2).
+    where: The fact block on every public page; /about/ (WO-DPDP-013 v2 §2.2).
     evidence: Every template in data/dpdp-library-0.2-wo010.json carries law_codes ("d:§…" for the Act, "r:…" for the Rules, "s:…" for SPDI); src/lib/facts.test.ts counts them.
     owner_approved: true
     approved_on: "2026-09-22"
@@ -120,7 +119,7 @@ claims:
   - id: CLM-005
     sentence: "Every CA firm whose clients hold personal data will need to show DPDP compliance by 13 May 2027 — VERIDIAN is built for exactly that work."
     words: []
-    where: /about/; /for-ai/ (WO-DPDP-013 v2 §2.2).
+    where: /about/ (WO-DPDP-013 v2 §2.2).
     evidence: Owner statement, WO-DPDP-013 v2 §2.2. The date is the DPDP Rules 2025 commencement the public pages already carry ("Compliance due 13 May 2027"). Legal review pending.
     owner_approved: true
     approved_on: "2026-09-22"

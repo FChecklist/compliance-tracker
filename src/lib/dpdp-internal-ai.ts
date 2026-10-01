@@ -1,5 +1,5 @@
 // Owner directive 2026-09-28: the DPDP product's work flow is email plus the
-// EXTERNAL AI work link (app.veridian-aios.com/ai/<token>, served by the
+// EXTERNAL AI work link (dpdp.veridian-aios.com/ai/<token>, served by the
 // dpdp-ai-link Edge Function, made from the static app's "Copy AI link"
 // screen). The two older in-app AI surfaces of this Next.js app --
 // /dpdp/ai-link (its own token, read through /api/dpdp/ai/[token]) and

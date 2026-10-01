@@ -43,7 +43,7 @@ which is what Cloudflare Pages serves):
 
 | § 6 clause | Test | Surface |
 |---|---|---|
-| an assistant can complete the sign-up up to the email step | the journey: root chooser -> "I do this for clients" -> firm landing -> `/app/` -> `Your email` -> `Email me a sign-in link` -> **Check your email** | `/`, `/dpdp-firm/`, `/app/` |
+| an assistant can complete the sign-up up to the email step | the journey: home -> "I AM A CA / CS / LEGAL / AUDIT FIRM" -> firm landing -> `/app/` -> `Your email` -> `Email me a sign-in link` -> **Check your email** | `/`, `/dpdp-firm/`, `/app/` |
 | the email click stays with the human | the journey stops on the check-your-email screen and asserts it is **not** signed in (no "Signed in as", no "Sign out") | `/app/` |
 | real `<a>`/`<button>`/`<label>`/`<form>`, clear accessible names | one `<h1>` per page with its exact name; the primary call-to-action ("Start free →") found by role + name; the email field found by its `<label>`; every button, link and textbox has a non-empty accessible name, failing with the element's `outerHTML` | all four |
 | nothing works only on hover | every `<a>` and `<button>` -- including any hidden from the accessibility tree -- is visible with the pointer parked at (0,0) | all four |

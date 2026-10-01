@@ -19,7 +19,7 @@ import { oneLine } from "../../../supabase/functions/_shared/ai-link/prompt"
 
 const NL = String.fromCharCode(10)
 const TOKEN = "ab".repeat(32) // 64 hex characters, low entropy on purpose (gitleaks)
-const BASE = `https://app.veridian-aios.com/ai/${TOKEN}`
+const BASE = `https://dpdp.veridian-aios.com/ai/${TOKEN}`
 const NOW = new Date("2026-10-05T01:00:00Z")
 
 const summary = (over: Partial<BriefSummary> = {}): BriefSummary => ({
@@ -698,7 +698,7 @@ describe("section P (jobs to do first), T (talk), M (emails), W (paths and files
     expect(w).toContain("DPDP proof/1 - Basics/")
     expect(w).toContain("DPDP proof/7 - Sign off/")
     expect(w).toContain("VERIDIAN records the dated answer and a fingerprint of a document, not the document itself")
-    expect(w).toContain("THE PERSON'S OWN PAGE is https://app.veridian-aios.com/app/")
+    expect(w).toContain("THE PERSON'S OWN PAGE is https://dpdp.veridian-aios.com/app/")
     // a Level 0 link is not shown the direct-edit call, and is told the small edits are drafts there
     const ro = renderManualMarkdown(buildManual({ context: context({ level: 0 }), base: BASE, now: NOW, summary: summary() }))
     const rw = ro.slice(ro.indexOf("## W · "), ro.indexOf("## A · "))

@@ -5,7 +5,7 @@
 // so `bun test` covers it from the repo root.
 //
 // Paths are relative to the link's base, which is what the person pasted:
-// https://app.veridian-aios.com/ai/<token>. JSON by default; `?format=md`
+// https://dpdp.veridian-aios.com/ai/<token>. JSON by default; `?format=md`
 // (and `csv` for reports) where listed.
 
 export const API_VERSION = "2026-09-22"
@@ -154,7 +154,7 @@ export type ApiError = { status: number; meaning: string }
 
 export const ERRORS: ReadonlyArray<ApiError> = [
   { status: 400, meaning: "the request is malformed, or the database refused it for a reason it states in plain English -- read `error` and fix the request" },
-  { status: 401, meaning: "no token in the address (the link base is https://app.veridian-aios.com/ai/<token>)" },
+  { status: 401, meaning: "no token in the address (the link base is https://dpdp.veridian-aios.com/ai/<token>)" },
   { status: 403, meaning: "this link may not do that: a write on a Level 0 link, a Level 2 verb on any link, or an action outside the person's own authority" },
   { status: 404, meaning: "no such path, or no such job in this view" },
   { status: 405, meaning: "wrong method for the path" },

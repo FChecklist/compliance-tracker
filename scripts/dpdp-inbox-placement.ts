@@ -51,7 +51,7 @@ export type Rendered = { subject: string; html: string; text: string }
 const BRAND = "VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India."
 const ASK = "Know a firm that needs this? Share VERIDIAN"
 /** The https half of List-Unsubscribe, as the real digest carries it. */
-export const PLACEMENT_UNSUBSCRIBE_URL = "https://app.veridian-aios.com/unsubscribe/"
+export const PLACEMENT_UNSUBSCRIBE_URL = "https://dpdp.veridian-aios.com/unsubscribe/"
 const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 
 const job = (today: string, o: Partial<DigestJob>): DigestJob => ({
@@ -75,7 +75,7 @@ export function sampleDigest(to: string, today: string): Digest {
 
 /** The links a signed-in owner's digest carries (no action tokens: this is a look-alike, not a live send). */
 export const SAMPLE_LINKS: RenderLinks = {
-  signIn: "https://app.veridian-aios.com/app/", actions: null, unsubscribeUrl: PLACEMENT_UNSUBSCRIBE_URL, appHome: "https://app.veridian-aios.com/app/",
+  signIn: "https://dpdp.veridian-aios.com/app/", actions: null, unsubscribeUrl: PLACEMENT_UNSUBSCRIBE_URL, appHome: "https://dpdp.veridian-aios.com/app/",
 }
 
 /**

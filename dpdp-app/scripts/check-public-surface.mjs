@@ -15,6 +15,9 @@
 // and llms*.txt against the same list, and a whole-dist scan for tracker
 // hostnames and Google Fonts.
 //
+// Owner decision 2026-10-01: /for-ai/, /for-ai.md and /facts.json are not built;
+// llms*.txt carry no crawl-policy note.
+//
 // Exit 1 with every failure named; exit 2 if dist/ is missing.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
@@ -27,6 +30,7 @@ import {
   PUBLIC_PAGES,
   REQUIRED_BOTS,
   SITE_ORIGIN,
+  LEGACY_APP_ORIGIN,
   isW3cDatetime,
   pageUrl,
   parseHeadersFile,
@@ -176,7 +180,10 @@ for (const page of PUBLIC_PAGES) {
   // One host: every public page is indexed under PUBLIC_ORIGIN and never
   // mentions the signed-in app's host (SITE_ORIGIN) -- not in a canonical, an
   // og:url, the JSON-LD, a link, or the copy.
-  expect(!html.includes(new URL(SITE_ORIGIN).host), `${label}: mentions the app host ${new URL(SITE_ORIGIN).host} -- public pages are indexed under ${PUBLIC_ORIGIN}`)
+  // The owner-approved product sentence names the dpdp. host as a plain word (no link); an address is refused.
+  const appHost = new URL(SITE_ORIGIN).host
+  expect(!html.includes("//" + appHost) && !html.includes(appHost + "/"), `${label}: links to the app host ${appHost} -- public pages are indexed under ${PUBLIC_ORIGIN}`)
+  expect(!html.includes(new URL(LEGACY_APP_ORIGIN).host), `${label}: mentions the legacy app host ${new URL(LEGACY_APP_ORIGIN).host}`)
 
   // Social card: Open Graph image + Twitter card (SEO). The image is a real file in dist/.
   const ogImage = `${PUBLIC_ORIGIN}${OG_IMAGE.path}`
@@ -418,8 +425,11 @@ for (const f of ["llms.txt", "llms-full.txt"]) {
   for (const pub of PUBLIC_PAGES) expect(body.includes(pageUrl(pub.path)), `${f}: does not list ${pageUrl(pub.path)}`)
   for (const priv of PRIVATE_PAGES) expect(!body.includes(pageUrl(priv.prefix)), `${f}: names the private URL ${pageUrl(priv.prefix)}`)
   for (const hidden of HIDDEN_PAGES) expect(!body.includes(hidden.prefix), `${f}: names the hidden page ${hidden.prefix}`)
-  expect(/no major search engine has confirmed/i.test(body), `${f}: lacks the honesty note WO-012 §3 asks for`)
+  // Owner, 2026-10-01: no crawl-policy essay and no internal-process wording in the llms files.
+  expect(!/no major search engine has confirmed/i.test(body), `${f}: still carries the crawl-policy note the owner removed`)
 }
+// Owner, 2026-10-01: the AI-only surfaces are withdrawn, not merely unlinked.
+for (const gone of ["for-ai/index.html", "for-ai.md", "facts.json"]) expect(!has(gone), `dist/${gone} is a withdrawn surface (owner, 2026-10-01) but was built`)
 
 // --------------------------------------------------------------------- summary
 if (failures.length) {

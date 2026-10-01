@@ -6,8 +6,8 @@
 #
 # Part 2 (the outside door) is generated from this file by
 # scripts/generate-public-facts.mjs: the fact block on /, /dpdp-firm/ and
-# /dpdp-institution/, the pages /about/ and /for-ai/ (+ /for-ai.md),
-# /llms.txt, /llms-full.txt, /facts.json, the JSON-LD, the meta description
+# /dpdp-institution/, the page /about/, /llms.txt, /llms-full.txt, the
+# JSON-LD, the meta description
 # and Open Graph tags, the tab titles, the brand line, and the hidden /proof/.
 # Part 1 (the AI work link's manual, WO-013 §1.3) reads the same file.
 # Nothing in this file is retyped anywhere; src/lib/facts.mjs loads it and
@@ -22,15 +22,15 @@
 # the owner must supply before it may appear anywhere is `null` with
 # `owner_required: true`, and the generator renders nothing for it.
 
-version: 1
+version: 2
 owner_approved: true
-approved_on: "2026-09-22"
-approved_by: owner (WO-DPDP-013 v2 text, WO-DPDP-014 §1 text)
+approved_on: "2026-10-01"
+approved_by: owner (WO-DPDP-013 v2 text, WO-DPDP-014 §1 text; the home-page "What VERIDIAN is" block, 2026-10-01)
 
 product: VERIDIAN DPDP
 # `site` is the host the PUBLIC pages are indexed under (canonical, sitemap,
-# llms.txt, facts.json). Since 2026-10-01 that is the apex; the signed-in app
-# and the Monday email's links stay on app.veridian-aios.com (see
+# llms.txt). Since 2026-10-01 that is the apex; the signed-in app
+# and the Monday email's links stay on dpdp.veridian-aios.com (see
 # src/lib/site-origin.mjs: SITE_ORIGIN = app host, PUBLIC_ORIGIN = this).
 site: https://veridian-aios.com
 company_site: https://veridian-aios.com/
@@ -39,17 +39,28 @@ company_site: https://veridian-aios.com/
 # WO-DPDP-013 v2 §2.2 -- "The facts -- what an evaluating AI should come away
 # knowing". Verbatim. Do not edit without the owner.
 # ---------------------------------------------------------------------------
+# Owner-approved 2026-10-01 (supersedes the 2026-09-22 wording of the first
+# sentence and of the audience clause: "VERIDIAN is ..." / "schools and
+# institutions" became the app host and "companies, institutions, schools and
+# NGOs").
 one_line: >-
-  VERIDIAN is Indian software for running DPDP compliance, purpose-built for
-  the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA,
-  CS, audit and legal firms, their clients, and schools and institutions.
+  dpdp.veridian-aios.com is Indian software for running DPDP compliance,
+  purpose-built for the Digital Personal Data Protection Act 2023 and DPDP
+  Rules 2025, for CA, CS, audit and legal firms, their clients, and companies,
+  institutions, schools and NGOs.
+
+# The heading of the fact block on every public page (owner-approved
+# 2026-10-01). "VERy Indian" is the owner's spelling for this one heading;
+# scripts/check-two-doors.mjs exempts exactly this string from the
+# "VERy INDIAN" spelling rule and nothing else.
+fact_block_title: What VERIDIAN (VERy Indian) is
 
 # The audience clause of the one line, as the owner wrote it, and as a list.
-who_for_line: for CA, CS, audit and legal firms, their clients, and schools and institutions
+who_for_line: for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs
 who_for:
   - CA, CS, audit and legal firms
   - their clients
-  - schools and institutions
+  - companies, institutions, schools and NGOs
 
 # §2.2 second paragraph, verbatim (one string), and the same three sentences
 # as the "three strongest facts" the fact block shows (§2.1).
@@ -188,7 +199,7 @@ storage:
     sentence: The public website is served by Cloudflare Pages, a global content delivery network.
     source: dpdp-app/DEPLOY.md
   # The public pages' footer says "Stored in India". Verified TRUE for the
-  # database; this is the qualified wording /about and /for-ai use.
+  # database; this is the qualified wording /about and the footers use.
   stored_in_india_wording: "Stored in India: the database is in Mumbai. Email goes through Resend, a US company."
 
 # ---------------------------------------------------------------------------
@@ -235,7 +246,7 @@ contact:
     - Partner
 
 # ---------------------------------------------------------------------------
-# WO-DPDP-013 v2 §2.1: the ONE sentence /for-ai may say about the AI work
+# WO-DPDP-013 v2 §2.1: the ONE sentence a public page may say about the AI work
 # link. Nothing about its API, format, paths or token -- the wall test
 # (scripts/check-two-doors.mjs) scans every public surface for those.
 # ---------------------------------------------------------------------------
@@ -259,66 +270,28 @@ pages:
   owner_approved: false
   "/":
     name: DPDP Compliance Management Software for India
-    description: DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients and schools.
-    summary: "the root chooser — \"I do this for clients\", \"I do this for us\", or running a school instead"
-    audience: CA, CS, audit and legal firms, their clients, and schools and institutions
+    description: DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients, companies, schools and NGOs.
+    summary: "the home page: choose CA, CS, legal or audit firm doing it for clients, or company, institution, school or NGO doing it for itself"
+    audience: CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs
   "/dpdp-firm/":
-    name: DPDP Act Compliance for CA Firms and Businesses
-    description: DPDP Act compliance for CA, CS and audit firms, their clients and companies. Jobs mapped to the law and a dated record nobody can edit. Compliance due 13 May 2027.
-    summary: "for a company, NGO, trading firm or a CA/CS/audit practice's own file"
-    audience: Companies, NGOs, trading firms, and CA/CS/audit practices keeping their own file
+    name: DPDP Act Compliance for CA, CS, Audit and Legal Firms
+    description: DPDP Act compliance for CA, CS, audit and legal firms working for their clients. Jobs mapped to the law and a dated record nobody can edit. Compliance due 13 May 2027.
+    summary: "for a CA, CS, audit or legal firm doing DPDP compliance for its clients"
+    audience: CA, CS, audit and legal firms doing DPDP compliance for their clients
   "/dpdp-institution/":
-    name: DPDP Act Compliance for Schools and Institutions
-    description: DPDP Act compliance for schools and institutions. Jobs mapped to the law for the students', parents' and staff's data you hold, most of it belonging to minors.
-    summary: "the same product for a school handling students', parents' and staff's data — most of it belonging to minors"
-    audience: Schools handling students', parents' and staff's personal data
+    name: DPDP Act Compliance for Companies, Institutions, Schools and NGOs
+    description: DPDP Act compliance for companies, institutions, schools and NGOs doing it for themselves. Jobs mapped to the law and a dated record nobody can edit. Compliance due 13 May 2027.
+    summary: "for a company, institution, school or NGO doing DPDP compliance for itself"
+    audience: Companies, institutions, schools and NGOs handling personal data
   "/about/":
     name: About VERIDIAN
     description: About VERIDIAN, DPDP compliance software for India. The SPDI Rules 2011 apply until 13 May 2027; compliance with the DPDP Act 2023 and DPDP Rules 2025 is due from 13 May 2027.
-    summary: "the full facts for people: what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company"
-    audience: CA, CS, audit and legal firms, their clients, and schools and institutions
-  "/for-ai/":
-    name: Fact sheet for AI systems
-    description: Fact sheet for AI systems and crawlers. What VERIDIAN, DPDP compliance software for India, is, who it is for, what it does and does not do, and the key date 13 May 2027.
-    summary: "what VERIDIAN is, who it is for, what it does and does not do, key dates, and how to describe it accurately — also as plain text at /for-ai.md"
-    audience: CA, CS, audit and legal firms, their clients, and schools and institutions
+    summary: "what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company"
+    audience: CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs
   "/proof/":
     name: Proof
     summary: "evidence from real use: real-tenant aggregates, consented case studies, the library reviewer"
-    audience: CA, CS, audit and legal firms, their clients, and schools and institutions
-
-# ---------------------------------------------------------------------------
-# /facts.json carries EXACTLY these dotted paths and nothing else
-# (WO-DPDP-013 v2 §2.1: "public fields only"). A path not listed here never
-# reaches facts.json; src/lib/facts.test.ts pins the list.
-# ---------------------------------------------------------------------------
-public_fields:
-  - version
-  - approved_on
-  - product
-  - site
-  - one_line
-  - who_for
-  - what_it_does
-  - three_strongest_facts
-  - deadline_line
-  - what_it_does_not_do
-  - brand_line
-  - key_dates.items
-  - library.version
-  - library.job_count
-  - library.reviewer
-  - library.reviewed_on
-  - storage.database.sentence
-  - storage.email.sentence
-  - storage.website.sentence
-  - company.legal_name
-  - company.cin
-  - company.registered_office
-  - contact.contact_email
-  - contact.subject_topics
-  - ai_work_link_public_sentence
-
+    audience: CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs
 # ---------------------------------------------------------------------------
 # /proof (WO-DPDP-013 v2 §2.1): built from data/proof.yaml, hidden until the
 # owner switches this on. While false the page is noindex,nofollow, carries

@@ -1,5 +1,5 @@
-# veridian-aios.com and app.veridian-aios.com (one Pages project, two
-# hostnames, the same files) -- Cloudflare Pages response headers.
+# veridian-aios.com, dpdp.veridian-aios.com and the legacy app.veridian-aios.com
+# (one Pages project, three hostnames, the same files) -- Cloudflare Pages response headers.
 # WO-DPDP-012 §2 for the private prefixes, §1 for everything.
 #
 # How Cloudflare applies this file (its own docs): a request inherits the

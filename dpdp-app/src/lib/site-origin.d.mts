@@ -1,3 +1,4 @@
 // Types for site-origin.mjs (see that file's header for why it is plain ESM).
 export declare const SITE_ORIGIN: string
+export declare const LEGACY_APP_ORIGIN: string
 export declare const PUBLIC_ORIGIN: string
