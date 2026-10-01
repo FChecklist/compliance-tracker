@@ -106,17 +106,20 @@ afterAll(() => {
   rmSync(repo, { recursive: true, force: true })
 })
 
-describe("Vercel deploy gate (2026-09-30, owner-directed go-live) -- branch + path", () => {
+// 2026-10-02 (owner directive: spend no money, use Vercel as little as possible): Vercel's own build machine ran out of memory on
+// `next build`, so releases now build on GitHub Actions and ship prebuilt output (.github/workflows/deploy-prebuilt.yml). Git-triggered
+// Vercel builds are therefore skipped on EVERY ref including main (`ignoreCommand` is unconditional `exit 0`); the only path to
+// production is the prebuilt workflow. `vercel deploy --prebuilt` does not run ignoreCommand, so it is unaffected.
+describe("Vercel deploy gate (2026-10-02) -- Git builds always skipped, prebuilt workflow is the only deploy path", () => {
   test("git.deploymentEnabled is not relied upon (still gone since R87)", () => {
     const v = readVercelJson()
     expect(v.git).toBeUndefined()
   })
 
-  test("ignoreCommand exists and branches on both VERCEL_GIT_COMMIT_REF and git diff", () => {
+  test("ignoreCommand is a string that skips unconditionally", () => {
     const v = readVercelJson()
     expect(typeof v.ignoreCommand).toBe("string")
-    expect(v.ignoreCommand).toContain("VERCEL_GIT_COMMIT_REF")
-    expect(v.ignoreCommand).toContain("git diff")
+    expect(v.ignoreCommand.trim()).toBe("exit 0")
   })
 
   test("a non-main branch is skipped (exit 0) regardless of what changed", () => {
@@ -124,40 +127,27 @@ describe("Vercel deploy gate (2026-09-30, owner-directed go-live) -- branch + pa
     expect(runIgnoreCommand(v.ignoreCommand, repo, "some-feature-branch")).toBe(0)
   })
 
-  test("main with real code changes proceeds (non-zero), even mixed with a skippable path", () => {
+  test("main with real code changes is ALSO skipped (exit 0): Vercel must never build, the prebuilt workflow deploys", () => {
     const v = readVercelJson()
-    // HEAD^ HEAD in the fixture repo is commit-4 (mixed) vs commit-3 (DPDP-only) -- real code present, must proceed.
-    expect(runIgnoreCommand(v.ignoreCommand, repo, "main")).not.toBe(0)
+    expect(runIgnoreCommand(v.ignoreCommand, repo, "main")).toBe(0)
+  })
+})
+
+describe("prebuilt deploy workflow -- guard", () => {
+  const wf = () => readFileSync(join(import.meta.dir, "..", "..", ".github", "workflows", "deploy-prebuilt.yml"), "utf8")
+
+  test("exists, never triggers on pull_request, and deploys with --prebuilt", () => {
+    const text = wf()
+    expect(text).not.toMatch(/^\s*pull_request(_target)?\s*:/m)
+    expect(text).toContain("workflow_dispatch")
+    expect(text).toContain("vercel deploy --prebuilt --prod")
+    expect(text).toContain("vercel build --prod")
   })
 
-  test("main with a docs/governance-only commit is skipped (exit 0)", () => {
-    const v = readVercelJson()
-    sh(repo, "git checkout -q HEAD~3") // land on commit-1 (docs-only vs commit-0, real code)
-    try {
-      expect(runIgnoreCommand(v.ignoreCommand, repo, "main")).toBe(0)
-    } finally {
-      sh(repo, "git checkout -q -")
-    }
-  })
-
-  test("main with a kt-only commit is skipped (exit 0)", () => {
-    const v = readVercelJson()
-    sh(repo, "git checkout -q HEAD~2") // land on commit-2 (kt-only vs commit-1, docs-only) -- still all-skippable
-    try {
-      expect(runIgnoreCommand(v.ignoreCommand, repo, "main")).toBe(0)
-    } finally {
-      sh(repo, "git checkout -q -")
-    }
-  })
-
-  test("main with a DPDP-only commit is skipped (exit 0) -- DPDP deploys via Cloudflare Pages only, never Vercel", () => {
-    const v = readVercelJson()
-    sh(repo, "git checkout -q HEAD~1") // land on commit-3 (DPDP-only vs commit-2, kt-only) -- still all-skippable
-    try {
-      expect(runIgnoreCommand(v.ignoreCommand, repo, "main")).toBe(0)
-    } finally {
-      sh(repo, "git checkout -q -")
-    }
+  test("deploy step is gated (push or explicit deploy=true) and runs are serialized", () => {
+    const text = wf()
+    expect(text).toContain("inputs.deploy == 'true'")
+    expect(text).toContain("group: deploy-prebuilt")
   })
 })
 

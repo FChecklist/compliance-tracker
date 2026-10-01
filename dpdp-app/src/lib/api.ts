@@ -397,6 +397,34 @@ export async function ownerRejectPayment(client: DpdpClient, orgId: string, note
   return data as RejectPaymentResult
 }
 
+export type OnlinePaymentStart =
+  | { ok: true; url: string; amountPaise: number }
+  /** notEnabled: the Owner has not yet added the Razorpay keys (HTTP 503). The panel then shows only the bank-transfer path. */
+  | { ok: false; notEnabled: boolean; error: string }
+
+/**
+ * "Pay online": asks supabase/functions/dpdp-pay for a Razorpay-hosted Payment Link for the YEARLY plan. The browser is then sent to
+ * Razorpay's own page, so no card field and no Razorpay script ever exists on our site. The amount is never sent from here: the server
+ * charges its own price (dpdp_plan_price_paise), so a tampered browser cannot choose what it pays. Owner-only (the database refuses anyone else).
+ */
+export async function startOnlinePayment(client: DpdpClient, orgId?: string | null): Promise<OnlinePaymentStart> {
+  const token = await client.accessToken()
+  if (!token) return { ok: false, notEnabled: false, error: "Sign in first" }
+  try {
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/dpdp-pay`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ interval: "year", ...(orgId ? { orgId } : {}) }),
+    })
+    const body = (await res.json().catch(() => ({}))) as { url?: string; amountPaise?: number; error?: string; code?: string }
+    if (res.ok && typeof body.url === "string" && body.url.startsWith("https://")) return { ok: true, url: body.url, amountPaise: Number(body.amountPaise ?? 0) }
+    return { ok: false, notEnabled: res.status === 503 || body.code === "not_enabled", error: body.error || `HTTP ${res.status}` }
+  } catch (e) {
+    // Offline, blocked, or the function is not deployed yet: the bank-transfer path still works.
+    return { ok: false, notEnabled: true, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 /** Fires the invoice email (supabase/functions/dpdp-invoice-email) right after approval. Best-effort: a failure here never undoes the approval -- the Owner can re-send from the same row (idempotent per paymentId). */
 export async function sendInvoiceEmail(client: DpdpClient, paymentId: string): Promise<{ ok: boolean; error?: string }> {
   const token = await client.accessToken()
