@@ -87,6 +87,8 @@ export type BriefInput = {
   level: 0 | 1
   /** The last day the link works, YYYY-MM-DD in India time. */
   expiresOn: string
+  /** The time of day the link stops, HH:MM in India time. Optional: when absent the brief names only the day. */
+  expiresTime?: string
   counts: { jobs: number; people: number }
   /** Today's numbers and the most urgent jobs, when the caller could read them. Null: the brief tells the AI to fetch them. */
   summary?: BriefSummary | null
@@ -247,7 +249,7 @@ export function aiBrief(i: BriefInput): Brief {
   now.push(i.level === 1
     ? `Level 1: this link may read everything in the view, ${editsFor(i.viewerKind)}. Anything with legal weight (marking a job done, adding a person${i.viewerKind === "owner" ? ", and, on a job that today's law requires, marking it not applicable" : ""}) is only ever a draft that the person confirms themselves.${ownerOnly}`
     : `Level 0: this link may read everything in the view and prepare drafts. It may not change anything directly; every change, even a note, is a draft that the person confirms themselves.${ownerOnly}`)
-  now.push(`It works until ${longDate(i.expiresOn)} (India time). The person can turn it off at any time. A draft you make lapses after 48 hours.`)
+  now.push(`It works until ${i.expiresTime ? `${i.expiresTime} on ` : ""}${longDate(i.expiresOn)} (India time). The person can turn it off at any time. A draft you make lapses after 48 hours.`)
 
   const first: string[] = s && s.open === 0
     ? [
