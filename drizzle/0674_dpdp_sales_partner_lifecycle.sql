@@ -1410,3 +1410,129 @@ begin
   end if;
 end
 $$;
+
+-- ---------------------------------------------------------------------
+-- FIX (found by the rolled-back live rehearsal, 2026-10-01): dpdp_create_my_org (0655)
+-- inserts `case when .. then signed_up else blocked end` into referral_event.outcome.
+-- Those literals resolve to text, which Postgres will not assign to the enum, so EVERY sign-up
+-- that arrives with a referral code raised 42804. The only change below is the two ::dpdp.referral_outcome casts;
+-- the body is otherwise the live definition, byte for byte. Grants are kept by create or replace.
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.dpdp_create_my_org(p_name text, p_product text, p_referral_code text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_email text := lower(trim(coalesce(auth.jwt() ->> 'email', '')));
+  v_name text := trim(coalesce(p_name, ''));
+  v_identity text;
+  v_base text;
+  v_slug text;
+  v_n int := 1;
+  v_org_id text;
+  v_membership_id text;
+  v_jobs int;
+  v_existing record;
+  v_ref dpdp.referral;
+  v_block_reason text;
+  v_event_id text;
+begin
+  if v_email = '' then
+    raise exception 'Sign in first' using errcode = '42501';
+  end if;
+  if v_name = '' then
+    raise exception 'An organisation name is required' using errcode = '22023';
+  end if;
+  if length(v_name) > 120 then
+    raise exception 'The organisation name is too long (120 characters at most)' using errcode = '22023';
+  end if;
+  if p_product is null or p_product not in ('firm', 'institution') then
+    raise exception 'product must be ''firm'' or ''institution''' using errcode = '22023';
+  end if;
+
+  v_identity := public.dpdp__find_or_create_identity(v_email);
+
+  -- A double click, a refresh or a retry returns the organisation just made.
+  select o.id, o.slug, m.id as membership_id into v_existing
+  from dpdp.membership m join dpdp.organisation o on o.id = m.org_id
+  where m.identity_id = v_identity and m.level = 'owner' and m.joined_via = 'created'
+    and o.name = v_name and o.product = p_product and o.created_at > (clock_timestamp() at time zone 'UTC') - interval '10 minutes'
+  order by o.created_at desc limit 1;
+  if v_existing.id is not null then
+    return jsonb_build_object('ok', true, 'orgId', v_existing.id, 'slug', v_existing.slug, 'membershipId', v_existing.membership_id, 'jobs', 0, 'existing', true);
+  end if;
+
+  if (select count(*) from dpdp.membership m join dpdp.organisation o on o.id = m.org_id
+      where m.identity_id = v_identity and m.level = 'owner' and m.joined_via = 'created'
+        and o.created_at > (clock_timestamp() at time zone 'UTC') - interval '1 day') >= 5 then
+    raise exception 'That is enough new organisations for one day. Try again tomorrow.' using errcode = '22023';
+  end if;
+
+  v_base := trim(both '-' from regexp_replace(lower(v_name), '[^a-z0-9]+', '-', 'g'));
+  if v_base = '' then
+    v_base := 'org';
+  end if;
+  v_slug := v_base;
+  while exists (select 1 from dpdp.organisation o where o.slug = v_slug) loop
+    v_n := v_n + 1;
+    v_slug := v_base || '-' || v_n;
+  end loop;
+
+  v_org_id := replace(gen_random_uuid()::text, '-', '');
+  insert into dpdp.organisation (id, name, slug, product) values (v_org_id, v_name, v_slug, p_product);
+
+  v_membership_id := replace(gen_random_uuid()::text, '-', '');
+  insert into dpdp.membership (id, identity_id, org_id, level, joined_via)
+  values (v_membership_id, v_identity, v_org_id, 'owner', 'created');
+  -- can_sign is never set at join time (membership_no_sign_at_join): a deliberate, separate update.
+  update dpdp.membership set can_sign = true where id = v_membership_id;
+
+  perform public.dpdp__append_event(v_org_id, v_identity, v_email, 'organisation_created', 'Organisation "' || v_name || '" created');
+  v_jobs := public.dpdp__instantiate_obligations(v_org_id, v_identity);
+
+  -- §7: 30 free days from registration, not from any calendar boundary.
+  insert into dpdp.subscription (org_id, trial_ends_at, state)
+  values (v_org_id, (clock_timestamp() at time zone 'UTC') + interval '30 days', 'trial')
+  on conflict (org_id) do nothing;
+
+  -- Referral attribution (WO-016), ported from src/lib/services/dpdp-
+  -- referral-service.ts's decideReferralConflict/recordReferralAttempt so
+  -- the static app never has to call back into the Next.js path:
+  --   self_referral  -- the code belongs to the very person who just
+  --                     signed up (their own new org is, trivially, one of
+  --                     their own active orgs).
+  --   shared_advisor -- one of the referrer's own orgs already 'advises'
+  --                     this brand-new org, which cannot happen for an org
+  --                     that is seconds old -- kept anyway so the two paths
+  --                     (this one and the legacy Next.js route) can never
+  --                     disagree if that ever changes.
+  -- A code that does not resolve to an active dpdp.referral row is ignored
+  -- (typo, revoked code, or simply none given): silently, the org is still
+  -- created, exactly as the legacy path's best-effort recordReferralAttempt
+  -- swallows a bad code rather than failing the signup over it.
+  if p_referral_code is not null and trim(p_referral_code) <> '' then
+    select r.* into v_ref from dpdp.referral r where upper(r.code) = upper(trim(p_referral_code)) and r.state = 'active';
+    if v_ref.identity_id is not null then
+      if v_ref.identity_id = v_identity then
+        v_block_reason := 'self_referral';
+      elsif exists (
+        select 1 from dpdp.relationship rel
+        join dpdp.membership rm on rm.org_id = rel.from_org and rm.identity_id = v_ref.identity_id and rm.state = 'active'
+        where rel.to_org = v_org_id and rel.kind = 'advises' and rel.ended_at is null
+      ) then
+        v_block_reason := 'shared_advisor';
+      else
+        v_block_reason := null;
+      end if;
+      v_event_id := replace(gen_random_uuid()::text, '-', '');
+      insert into dpdp.referral_event (id, referral_id, referred_org_id, at, outcome, block_reason)
+      values (v_event_id, v_ref.identity_id, v_org_id, (clock_timestamp() at time zone 'UTC'),
+        case when v_block_reason is null then 'signed_up'::dpdp.referral_outcome else 'blocked'::dpdp.referral_outcome end, v_block_reason);
+    end if;
+  end if;
+
+  return jsonb_build_object('ok', true, 'orgId', v_org_id, 'slug', v_slug, 'membershipId', v_membership_id, 'jobs', v_jobs, 'existing', false);
+end
+$function$;

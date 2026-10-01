@@ -127,7 +127,9 @@ describe('drizzle/0674_dpdp_sales_partner_lifecycle.sql on PGlite', () => {
   test('the older money functions keep their signatures (existing callers are not broken)', () => {
     expect(MIGRATION).toContain('create or replace function public.dpdp_record_confirmed_payment(\n  p_org_id text, p_plan text, p_interval text, p_amount_paise integer, p_period_start date default current_date, p_note text default null\n)')
     expect(MIGRATION).toContain('create or replace function public.dpdp_mark_commission_paid(p_commission_id text, p_note text default null)')
-    // and nothing in this migration redefines the sign-up RPC, which the older Next.js path and another work stream share
-    expect(MIGRATION).not.toMatch(/create or replace function public\.dpdp_create_my_org/i)
+    // The sign-up RPC is redefined for ONE reason only (found by the live rehearsal, 2026-10-01): its referral_event insert used text literals for an enum column, so every referred sign-up raised 42804. The only change is the two enum casts.
+    expect(MIGRATION).toMatch(/create or replace function public\.dpdp_create_my_org/i)
+    expect(MIGRATION).toContain("'signed_up'::dpdp.referral_outcome")
+    expect(MIGRATION).toContain("'blocked'::dpdp.referral_outcome")
   })
 })

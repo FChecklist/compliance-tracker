@@ -42,13 +42,16 @@ const res = await fetch(`https://api.supabase.com/v1/projects/${PROJECT}/databas
   body: JSON.stringify({ query: sql }),
 })
 const body = await res.text()
-const m = /RESULT\\n([\s\S]*?)(?:"|$)/.exec(body)
+let message = ""
+try { message = String(JSON.parse(body).message ?? "") } catch { message = body }
+const at = message.indexOf("RESULT\n")
+const m = at < 0 ? null : [null, message.slice(at + "RESULT\n".length).split(/\nCONTEXT:/)[0]]
 if (!m) {
   console.error(`The request did not return the scenario's results (HTTP ${res.status}):`)
   console.error(body.slice(0, 2500))
   process.exit(2)
 }
-const lines = m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').split("\n").filter((l) => l.trim())
+const lines = m[1].split("\n").filter((l) => l.trim())
 for (const l of lines) console.log(l)
 const fail = lines.filter((l) => l.startsWith("FAIL")).length
 console.log(`\n${lines.filter((l) => l.startsWith("PASS")).length} PASS, ${fail} FAIL, ${lines.filter((l) => l.startsWith("SKIP")).length} SKIP (rolled back; nothing was kept)`)

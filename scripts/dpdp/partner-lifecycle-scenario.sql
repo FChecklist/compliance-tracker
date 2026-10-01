@@ -370,7 +370,8 @@ begin
     r := public.dpdp_create_my_org('Own Org ' || v_sfx, 'firm', v_code);
     perform pg_temp.chk('real sign-up through your own code is blocked as a self-referral',
       (select outcome::text || '/' || block_reason from dpdp.referral_event where referred_org_id = r->>'orgId') = 'blocked/self_referral');
-    perform pg_temp.as_user(e_p3);
+    -- a DIFFERENT newcomer (the applied partner themself would hit the self-referral rule first)
+    perform pg_temp.as_user('newcomer-' || v_sfx || '@partner-test.invalid');
     r := public.dpdp_create_my_org('Via Applied ' || v_sfx, 'firm', (select code from dpdp.referral where identity_id = v_p3));
     perform pg_temp.chk('real sign-up through a not-yet-active partner code is blocked',
       (select outcome::text || '/' || block_reason from dpdp.referral_event where referred_org_id = r->>'orgId') = 'blocked/partner_not_active');
