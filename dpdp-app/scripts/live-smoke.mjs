@@ -81,6 +81,30 @@ check(!/\/dpdp\/login/.test(root.body), "/: no link to the old /dpdp/login")
 const sitemap = await get("/sitemap.xml")
 check(sitemap.body.includes("/dpdp-firm/") && sitemap.body.includes("/dpdp-institution/"), "the sitemap lists both edition pages")
 
+// 2b. The share link's ?ref=<code> survives the click (functions/_middleware.ts): with a valid code every
+// next-step link on a public page carries it; with none, the page is the plain static file; /app/ is never rewritten.
+{
+  const REF = "SMOKE234"
+  const hrefs = (html) => [...html.matchAll(/<a\b[^>]*\shref="([^"]*)"/g)].map((m) => m[1])
+  const cc = (r) => r.headers.get("cache-control") || ""
+  const home = await get(`/?ref=${REF}`)
+  const homeLinks = hrefs(home.body)
+  for (const door of ["/dpdp-firm/", "/dpdp-institution/", "/app/"]) {
+    check(homeLinks.includes(`${door}?ref=${REF}`), `/?ref= carries the code to ${door}`)
+  }
+  check(/private/i.test(cc(home)) && /no-store/i.test(cc(home)), "a page served with a ref is Cache-Control private, no-store", cc(home) || "(none)")
+  const firm = await get(`/dpdp-firm/?ref=${REF}`)
+  check(hrefs(firm.body).includes(`/app/?edition=firm&ref=${REF}`), "/dpdp-firm/?ref= carries the code into the app link, keeping ?edition=firm")
+  const inst = await get(`/dpdp-institution/?ref=${REF}`)
+  check(hrefs(inst.body).includes(`/app/?edition=institution&ref=${REF}`), "/dpdp-institution/?ref= carries the code into the app link, keeping ?edition=institution")
+  const plain = await get("/")
+  check(!/[?&]ref=/.test(plain.body), "/ without a ref has no ref in any link")
+  const bad = await get("/?ref=x")
+  check(!/[?&]ref=/.test(bad.body), "an invalid ref is not carried")
+  const app = await get(`/app/?ref=${REF}`)
+  check(/no-store/i.test(cc(app)) && !/private/i.test(cc(app)) && !/[?&]ref=/.test(app.body), "/app/ is served unchanged by the carry")
+}
+
 // 3. The external AI work link: an unknown token is refused the same way on every route, and nothing leaks.
 const zero = "0".repeat(64)
 for (const sub of ["", "/manual.md", "/context", "/jobs", "/snapshot.md"]) {

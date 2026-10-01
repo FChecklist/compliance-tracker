@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "include": [
+    "/",
+    "/dpdp-firm/",
+    "/dpdp-institution/",
+    "/about/",
+    "/proof/",
+    "/pricing/",
+    "/contact/",
+    "/privacy/",
+    "/terms/",
+    "/refund/",
+    "/shipping/",
+    "/disclaimer/",
+    "/ai/*"
+  ],
+  "exclude": []
+}
