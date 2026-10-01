@@ -23,15 +23,23 @@ const META_VERSION = "io.modelcontextprotocol/protocolVersion"
 const META_SERVER = "io.modelcontextprotocol/serverInfo"
 const SERVER_INFO = { name: "PROJEXA work link", version: "1" }
 
+/** `project` (the last argument of the tools that work inside a project) is a project id from `projects()`: a link made for a person needs it, a link for one project may leave it out. */
 export type McpReads = {
-  context(): Promise<Record<string, unknown>>
-  records(kind: string, params: URLSearchParams): Promise<RecordsPage>
-  record(kind: string, id: string): Promise<Record<string, unknown>>
+  /** A link made for a person only: its numbered list of projects (limit as text, or null). */
+  projects(limit: string | null): Promise<Record<string, unknown>>
+  /** A link made for a person only: the report on all of its projects. */
+  portfolio(): Promise<Record<string, unknown>>
+  context(project?: string): Promise<Record<string, unknown>>
+  records(kind: string, params: URLSearchParams, project?: string): Promise<RecordsPage>
+  record(kind: string, id: string, project?: string): Promise<Record<string, unknown>>
   history(limit: string | null): Promise<Record<string, unknown>>
-  search(query: string): Promise<{ results: SearchHit[]; note: string }>
-  fetch(id: string): Promise<SearchHit>
-  check(fn: unknown, params: unknown): CheckResult
-  propose(fn: string, params: Record<string, unknown>): Proposal
+  search(query: string, project?: string): Promise<{ results: SearchHit[]; note: string }>
+  fetch(id: string, project?: string): Promise<SearchHit>
+  check(fn: unknown, params: unknown, project?: string): Promise<CheckResult>
+  propose(fn: string, params: Record<string, unknown>, project?: string): Promise<Proposal>
+  /** The suggestions board (drizzle/0672): record one suggestion for the PROJEXA team (changes no data and no part of the app), and read the board. */
+  suggest(args: Record<string, unknown>): Promise<Record<string, unknown>>
+  suggestions(limit: string | null): Promise<Record<string, unknown>>
 }
 
 export type McpInput = { headers: { get(name: string): string | null }; bodyText: string }
@@ -84,6 +92,14 @@ function withoutLinkUrls(doc: Record<string, unknown>): Record<string, unknown> 
   return out
 }
 
+/** The list and the report as an MCP tool answers them: no address of the link anywhere (project_url, the url of each extra option), only what to do. */
+function withoutAddresses(doc: Record<string, unknown>): Record<string, unknown> {
+  const out = withoutLinkUrls(doc)
+  delete out.project_url
+  if (Array.isArray(out.extra_options)) out.extra_options = out.extra_options.map((o) => { const { url: _url, method: _method, ...rest } = asObject(o); return rest })
+  return out
+}
+
 function toolText(structured: Record<string, unknown>): Record<string, unknown> {
   return { content: [{ type: "text", text: JSON.stringify(structured) }], structuredContent: structured, isError: false }
 }
@@ -101,10 +117,16 @@ function asObject(v: unknown): Record<string, unknown> {
 }
 
 async function runTool(name: string, args: Record<string, unknown>, reads: McpReads): Promise<Record<string, unknown>> {
+  // an empty or missing `project` is no project; anything else is passed on as text and bound (or refused as not found) by the router
+  const project = typeof args.project === "string" && args.project !== "" ? args.project : undefined
   try {
     switch (name) {
+      case "list_projects":
+        return toolText(withoutAddresses(await reads.projects(args.limit === undefined ? null : String(args.limit))))
+      case "get_portfolio":
+        return toolText(withoutAddresses(await reads.portfolio()))
       case "get_context":
-        return toolText(withoutLinkUrls(await reads.context()))
+        return toolText(withoutLinkUrls(await reads.context(project)))
       case "list_records": {
         const kind = typeof args.kind === "string" ? args.kind : ""
         const q = new URLSearchParams()
@@ -112,24 +134,28 @@ async function runTool(name: string, args: Record<string, unknown>, reads: McpRe
         if (args.limit !== undefined) q.set("limit", String(args.limit))
         if (typeof args.sort === "string" && args.sort) q.set("sort", args.sort)
         for (const [k, v] of Object.entries(asObject(args.filters))) q.set(k, String(v))
-        return toolText(withoutLinkUrls(await reads.records(kind, q) as unknown as Record<string, unknown>))
+        return toolText(withoutLinkUrls(await reads.records(kind, q, project) as unknown as Record<string, unknown>))
       }
       case "get_record":
-        return toolText(await reads.record(typeof args.kind === "string" ? args.kind : "", typeof args.id === "string" ? args.id : ""))
+        return toolText(await reads.record(typeof args.kind === "string" ? args.kind : "", typeof args.id === "string" ? args.id : "", project))
       case "get_history":
         return toolText(await reads.history(args.limit === undefined ? null : String(args.limit)))
       case "search": {
-        const found = await reads.search(typeof args.query === "string" ? args.query : "")
+        const found = await reads.search(typeof args.query === "string" ? args.query : "", project)
         return toolText({ results: found.results, note: found.note })
       }
       case "fetch":
-        return toolText(await reads.fetch(typeof args.id === "string" ? args.id : "") as unknown as Record<string, unknown>)
+        return toolText(await reads.fetch(typeof args.id === "string" ? args.id : "", project) as unknown as Record<string, unknown>)
       case "check_change":
-        return toolText(reads.check(args.function, args.params) as unknown as Record<string, unknown>)
+        return toolText(await reads.check(args.function, args.params, project) as unknown as Record<string, unknown>)
       case "propose_change": {
         const fn = typeof args.function === "string" ? args.function : ""
-        return toolText(reads.propose(fn, asObject(args.params)) as unknown as Record<string, unknown>)
+        return toolText(await reads.propose(fn, asObject(args.params), project) as unknown as Record<string, unknown>)
       }
+      case "suggest_improvement":
+        return toolText(await reads.suggest(args))
+      case "list_suggestions":
+        return toolText(await reads.suggestions(args.limit === undefined ? null : String(args.limit)))
       default:
         return toolError(`Unknown tool ${name}.`)
     }

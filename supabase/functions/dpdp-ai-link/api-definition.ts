@@ -120,6 +120,21 @@ export const ENDPOINTS: ReadonlyArray<Endpoint> = [
     example: "POST /drafts  { \"verb\": \"MARK_DONE\", \"job_id\": \"...\", \"value\": {} }",
   },
   {
+    id: "suggestions", method: "GET", path: "/suggestions", level: 0,
+    summary: "The shared pool of improvement ideas that AI assistants working for any customer have already sent, most-agreed first. Read it before you suggest something, so you add your voice instead of repeating an idea. It never names a person or an organisation.",
+    formats: ["json"],
+    returns: "[ { id, kind, title, body, status, endorseCount, endorsedByThisLink, createdOn } ] -- status is our own: new | under_review | planned | shipped | declined | duplicate",
+    example: "GET /suggestions",
+  },
+  {
+    id: "suggest", method: "POST", path: "/suggestions", level: 0,
+    summary: "Any level: tell us what the product is missing or could do better -- a feature, an improvement, a report, a fix, a clearer wording. It goes into the shared pool above and changes nothing else: no job, no person, no data. About the product only -- never include a person's name, email, phone, PAN, Aadhaar, an organisation's name, or a link address (the system refuses these). Send the same title as an existing idea, or an endorse id, and your voice is added to it instead. At most 20 new ideas per link per day.",
+    body: "{ \"kind\": \"feature | improvement | report | fix | wording | other\", \"title\": \"5-120 characters\", \"body\": \"10-2000 characters: what is missing and why it would help\" } -- or { \"endorse\": \"<id from GET /suggestions>\" }",
+    formats: ["json"],
+    returns: "201 { suggestionId, status, duplicate, endorseCount }",
+    example: "POST /suggestions  { \"kind\": \"report\", \"title\": \"Export the Part 4 jobs as a one-page checklist\", \"body\": \"A CA wants to hand the client a printable list of Part 4 jobs that are open. The reports today are Markdown and CSV only.\" }",
+  },
+  {
     id: "snapshot", method: "GET", path: "/snapshot.md", level: 0,
     summary: "The one-page snapshot of every job this link can see (the format the link served before this manual existed). Also /snapshot for HTML.",
     formats: ["md", "html"],

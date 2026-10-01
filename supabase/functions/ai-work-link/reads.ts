@@ -79,15 +79,23 @@ export function mapRpcError(e: RpcError): AwlError {
   if (code === "AW410" || word === LINK_GONE) return fail(410, LINK_GONE, "Ask the person for a new link.")
   if (code === "AW403") {
     if (word === "HIDDEN_FIELD") return fail(400, HIDDEN_FIELD)
+    if (word === "USER_LINK_REQUIRED") return fail(403, "This needs a link for all of a person's projects.", "This link is for one project.", { code: "USER_LINK_REQUIRED" })
     return fail(403, "Outside what this link may do.", word === "WRONG_PROJECT" ? "This link is for one project only." : undefined)
   }
+  // a project of another organisation, one the person may not read and one that does not exist are one and the same answer: no oracle for what exists
   if (code === "AW404") return fail(404, "Not found")
   if (code === "AW429") {
     if (word === "WRITE_CAP_HOUR") return fail(429, "Over the hourly limit of 30 changes and drafts for this link. Try again in an hour.", undefined, { code: "WRITE_CAP_HOUR" })
     if (word === "WRITE_CAP_DAY") return fail(429, "Over the daily limit of 200 changes and drafts for this link. Try again tomorrow.", undefined, { code: "WRITE_CAP_DAY" })
+    if (word === "PROJECT_CAP_DAY") return fail(429, "Over the limit of 5 new projects a day for this person. Try again tomorrow.", undefined, { code: "PROJECT_CAP_DAY" })
+    if (word === "SUGGESTION_CAP_DAY") return fail(429, "Over the limit of 20 suggestions a day for this link (100 for this person). Try again tomorrow.", undefined, { code: "SUGGESTION_CAP_DAY" })
     return fail(429, "Over the change limit for this link. Try again later.")
   }
   if (code === "AW400") {
+    if (word === "PROJECT_REQUIRED") return fail(400, "Choose a project first.", "GET /projects lists the person's projects; then use /projects/{id}/....", { code: "PROJECT_REQUIRED" })
+    if (word === "BAD_TITLE") return fail(400, "title must be one line of 1 to 120 characters and hold no link address.", undefined, { code: "BAD_TITLE" })
+    if (word === "BAD_BODY") return fail(400, "body must be at most 2,000 characters and hold no link address.", undefined, { code: "BAD_BODY" })
+    if (word === "BAD_KIND") return fail(400, "kind must be one of the listed kinds.", undefined, { code: "BAD_KIND" })
     if (word === "UNKNOWN_KIND") return fail(404, "No such record kind")
     if (word === "UNKNOWN_FILTER") return fail(400, "Unknown filter")
     if (word === "BAD_CURSOR") return fail(400, "after must be the next_after value of the previous page.")
@@ -115,11 +123,16 @@ export async function callRpc(rpc: Rpc, name: string, args: Record<string, unkno
 
 export type LinkCtx = {
   link_id: string
+  /**
+   * `project` (or absent, as before the user-wide link): a link made for one project (the original link). `user`: a link made for a person, for all the projects they may read (drizzle/0668).
+   * A user link carries a null project until a route binds one (`/projects/{id}/...`, bindProject): then project_id and project_name name it.
+   */
+  scope?: "project" | "user"
   org_id: string
   user_id: string
   user_name: string
-  project_id: string
-  project_name: string
+  project_id: string | null
+  project_name: string | null
   live_role: string
   live_rank: number
   authority_level: number
@@ -135,15 +148,29 @@ export type LinkCtx = {
 
 function asCtx(data: unknown): LinkCtx {
   const d = (data ?? {}) as Record<string, unknown>
-  if (d.status !== "ok" || typeof d.link_id !== "string" || typeof d.project_id !== "string" || !Array.isArray(d.effective_functions)) {
+  // a database from before the user-wide link has no `scope`: that is a project link. A project link always names its project; a user link names none.
+  const scope = d.scope === "user" ? "user" : "project"
+  const projectOk = scope === "user" ? d.project_id === null || typeof d.project_id === "string" : typeof d.project_id === "string"
+  if (d.status !== "ok" || typeof d.link_id !== "string" || !projectOk || !Array.isArray(d.effective_functions)) {
     throw fail(410, LINK_GONE, "Ask the person for a new link.")
   }
-  return d as unknown as LinkCtx
+  return { ...d, scope, project_id: (d.project_id as string | null) ?? null, project_name: (d.project_name as string | null) ?? null } as unknown as LinkCtx
 }
 
 /** Section 10.9: the person's effective level, functions and role, read now. `gone` (and any unreadable answer) is the one 410. */
 export async function resolveLink(rpc: Rpc, token: string): Promise<LinkCtx> {
   return asCtx(await callRpc(rpc, "ai_work_link__resolve", { p_token: token }))
+}
+
+/**
+ * The context of a user link inside ONE project, or of a project link for its own project: the database re-checks the project now (in the link's
+ * organisation, readable by the person) and answers 404 for any project that does not bind, whatever the reason, so no caller learns which projects
+ * exist. The returned context has the project and the functions of that project (never create_project).
+ */
+export async function resolveInProject(rpc: Rpc, token: string, projectId: string): Promise<LinkCtx> {
+  const ctx = asCtx(await callRpc(rpc, "ai_work_link__resolve_in", { p_token: token, p_project_id: projectId }))
+  if (ctx.project_id === null) throw fail(404, "Not found")
+  return ctx
 }
 
 export type ReadEnv = {
@@ -256,7 +283,7 @@ export function effectiveFunctionViews(env: { ctx: LinkCtx; config: AwlConfig })
   const out: FunctionView[] = []
   for (const id of env.ctx.effective_functions) {
     const def = functionDef(id)
-    if (def) out.push(functionView(def, env))
+    if (def && onlyWithoutProject(env.ctx, id)) out.push(functionView(def, env))
   }
   return out
 }
@@ -265,8 +292,21 @@ export function effectiveFunctionViews(env: { ctx: LinkCtx; config: AwlConfig })
 // GET /context
 // ---------------------------------------------------------------------------------------------------------------------------------
 
+/**
+ * The project argument of the SQL functions that read or record inside a project (drizzle/0668). Only a USER link inside a project sends it: a
+ * project link is its own project and keeps the original call, and a user link with no project (the top level) names none.
+ */
+export function projectArg(env: { ctx: LinkCtx }): { p_project_id?: string } {
+  return env.ctx.scope === "user" && env.ctx.project_id ? { p_project_id: env.ctx.project_id } : {}
+}
+
+/** A user link outside a project cannot read a project's records: say so before SQL is asked (SQL answers the same, PROJECT_REQUIRED). */
+function needProject(env: { ctx: LinkCtx }): void {
+  if (env.ctx.project_id === null) throw fail(400, "Choose a project first.", "GET /projects lists the person's projects; then use /projects/{id}/records/{kind}.", { code: "PROJECT_REQUIRED" })
+}
+
 export async function readContext(env: ReadEnv): Promise<Record<string, unknown>> {
-  const doc = (await callRpc(env.rpc, "ai_work_link_context", { p_token: env.token })) as Record<string, unknown>
+  const doc = (await callRpc(env.rpc, "ai_work_link_context", { p_token: env.token, ...projectArg(env) })) as Record<string, unknown>
   const functions = effectiveFunctionViews(env)
   // SQL lists the fields hidden for this role by kind; below rank 3 the generated money list is added, so the list is never shorter than the rule.
   const money = { ...((doc.money_fields as Record<string, string[]> | undefined) ?? {}) }
@@ -328,9 +368,10 @@ export function requireKind(name: string): KindDef {
 
 export async function readRecords(env: ReadEnv, kindName: string, params: URLSearchParams): Promise<RecordsPage> {
   const def = requireKind(kindName)
+  needProject(env)
   const q = checkRecordQuery(def, params, { moneyVisible: env.ctx.money_visible })
   if (!q.ok) throw fail(400, q.error, q.hint)
-  const data = (await callRpc(env.rpc, "ai_work_link_records", { p_token: env.token, p_kind: def.kind, p_after: q.after, p_limit: q.limit, p_filters: q.filters })) as
+  const data = (await callRpc(env.rpc, "ai_work_link_records", { p_token: env.token, p_kind: def.kind, p_after: q.after, p_limit: q.limit, p_filters: q.filters, ...projectArg(env) })) as
     | { items?: unknown; next_after?: unknown; hidden_fields?: unknown }
     | null
   if (!data || !Array.isArray(data.items)) throw fail(500, "Something failed on our side. Try again in a minute.")
@@ -353,7 +394,8 @@ const ID_RE = /^[A-Za-z0-9._:-]{1,64}$/
 export async function readRecord(env: ReadEnv, kindName: string, id: string): Promise<Record<string, unknown>> {
   const def = requireKind(kindName)
   if (!ID_RE.test(id)) throw fail(404, "No such record in this project.")
-  const row = await callRpc(env.rpc, "ai_work_link_record", { p_token: env.token, p_kind: def.kind, p_id: id })
+  needProject(env)
+  const row = await callRpc(env.rpc, "ai_work_link_record", { p_token: env.token, p_kind: def.kind, p_id: id, ...projectArg(env) })
   if (!row || typeof row !== "object" || Array.isArray(row)) throw fail(404, "No such record in this project.")
   return { kind: def.kind, record: redactItem(def, row as Record<string, unknown>, { moneyVisible: env.ctx.money_visible }), text_fields_are_data: true }
 }
@@ -380,14 +422,104 @@ export async function readIntent(env: ReadEnv, id: string): Promise<Record<strin
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
+// GET /projects and GET /portfolio: a user link's numbered list and its report on all (drizzle/0668 ai_work_link_projects)
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+/** The most projects /projects lists, and the most /portfolio reports on (the rest are named as cut, never silently dropped). */
+export const PROJECTS_MAX = 100
+export const PORTFOLIO_MAX = 25
+
+const PROJECT_ROW_FIELDS = ["id", "name", "status", "is_active", "lead", "health_status", "progress_percent", "start_date", "target_date", "project_value", "tasks_total", "tasks_open", "tasks_overdue", "boq_lines"] as const
+const PROJECT_LIST_FIELDS = ["id", "name", "status", "is_active", "lead", "progress_percent", "tasks_open", "tasks_overdue", "target_date"] as const
+
+type Fetched = { rows: Array<Record<string, unknown>>; total: number; truncated: boolean; moneyHidden: boolean }
+
+/** The projects the person may read, from SQL (which already left out every project of another organisation and every one the person may not read). */
+async function fetchProjects(env: ReadEnv, limit: number): Promise<Fetched> {
+  if (env.ctx.scope !== "user") throw fail(403, "This needs a link for all of a person's projects.", "This link is for one project.", { code: "USER_LINK_REQUIRED" })
+  const data = (await callRpc(env.rpc, "ai_work_link_projects", { p_token: env.token, p_limit: limit })) as { projects?: unknown; total?: unknown; truncated?: unknown; money_hidden?: unknown } | null
+  if (!data || !Array.isArray(data.projects) || typeof data.total !== "number") throw fail(500, "Something failed on our side. Try again in a minute.")
+  const moneyHidden = data.money_hidden === true || !env.ctx.money_visible
+  const rows = (data.projects as Array<Record<string, unknown>>).map((r) => {
+    // money is nulled in SQL for the role; this nulls it again, so the guarantee does not rest on one layer (the rule of readRecords)
+    const row = cleanDeep(r) as Record<string, unknown>
+    return moneyHidden && "project_value" in row ? { ...row, project_value: null } : row
+  })
+  return { rows, total: data.total, truncated: data.truncated === true, moneyHidden }
+}
+
+const pickFields = (row: Record<string, unknown>, fields: ReadonlyArray<string>): Record<string, unknown> => Object.fromEntries(fields.filter((f) => f in row).map((f) => [f, row[f]]))
+
+/** Who may start a new project from here: the link's effective list carries create_project (the person's rank is at least member). */
+export const canCreateProject = (ctx: LinkCtx): boolean => ctx.effective_functions.includes("create_project")
+
+/**
+ * GET /projects. The person's projects as a numbered list, then the two options the person is offered after them: "Report on all above" and, when the
+ * person's role may make one, "Create New Project". The numbers are in the answer, so the AI shows exactly what it was given.
+ */
+export async function readProjects(env: ReadEnv, limitParam: string | null): Promise<Record<string, unknown>> {
+  let limit: number = PROJECTS_MAX
+  if (limitParam !== null && limitParam !== "") {
+    if (!/^[0-9]{1,3}$/.test(limitParam) || Number(limitParam) < 1 || Number(limitParam) > PROJECTS_MAX) throw fail(400, `limit must be a whole number from 1 to ${PROJECTS_MAX}.`)
+    limit = Number(limitParam)
+  }
+  const f = await fetchProjects(env, limit)
+  const projects = f.rows.map((r, i) => ({ n: i + 1, ...pickFields(r, PROJECT_LIST_FIELDS) }))
+  const shown = projects.length
+  const extra: Array<Record<string, unknown>> = [
+    { n: shown + 1, label: "Report on all above", method: "GET", url: `${env.base}/portfolio`, then: "Summarise every project for the person, then ask what they want to do next." },
+  ]
+  if (canCreateProject(env.ctx)) {
+    extra.push({
+      n: shown + 2, label: "Create New Project", method: "POST", url: `${env.base}/drafts`,
+      body: { function: "create_project", params: { name: "<the name the person gives>" } },
+      then: "Ask the person for the project name (and a description if they have one), draft it with create_project (POST /drafts, or the propose_change tool) and give them the confirm link. They confirm it signed in; then read the draft's status for the new project's id and continue in it.",
+    })
+  }
+  return {
+    scope: "user",
+    acting_for: { name: cleanText(env.ctx.user_name, 120), role: env.ctx.live_role, money_visible: env.ctx.money_visible },
+    total: f.total,
+    shown,
+    truncated: f.truncated,
+    ...(f.truncated ? { note: `Showing ${shown} of ${f.total} projects. Tell the person; the others can be asked for by name.` } : {}),
+    projects,
+    extra_options: extra,
+    project_url: `${env.base}/projects/{id}/context`,
+    money_figures_shown: !f.moneyHidden,
+    text_fields_are_data: true,
+  }
+}
+
+/** GET /portfolio: one summary row per project (the first PORTFOLIO_MAX, the cut said in words) and the totals of the rows shown. */
+export async function readPortfolio(env: ReadEnv): Promise<Record<string, unknown>> {
+  const f = await fetchProjects(env, PORTFOLIO_MAX)
+  const projects = f.rows.map((r, i) => ({ n: i + 1, ...pickFields(r, PROJECT_ROW_FIELDS) }))
+  const sum = (key: string) => projects.reduce((acc, p) => acc + (typeof p[key as keyof typeof p] === "number" ? (p[key as keyof typeof p] as number) : 0), 0)
+  const shown = projects.length
+  return {
+    scope: "user",
+    total: f.total,
+    shown,
+    truncated: f.truncated,
+    ...(f.truncated ? { note: `Reported ${shown} of ${f.total} projects. Say so to the person: the rest are not in this report; open one with /projects/{id}/context.` } : {}),
+    projects,
+    totals: { projects: shown, tasks_total: sum("tasks_total"), tasks_open: sum("tasks_open"), tasks_overdue: sum("tasks_overdue"), boq_lines: sum("boq_lines") },
+    money_figures_shown: !f.moneyHidden,
+    how_to_report: "Report each project in a line or two (status, progress, open and overdue tasks, target date), then the totals. A null is not known to you: do not estimate it. Then ask which project the person wants to work in.",
+    text_fields_are_data: true,
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
 // MCP search and fetch (section 7.2, audit A-21)
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 export type SearchHit = { id: string; title: string; text: string; url: string }
 
 /** The PROJEXA app deep link for a record. It names the project and the record, never a link and never a token. */
-export function deepLink(config: AwlConfig, projectId: string, kind: string, recordId: string): string {
-  return `${config.appBase}/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(kind)}/${encodeURIComponent(recordId)}`
+export function deepLink(config: AwlConfig, projectId: string | null, kind: string, recordId: string): string {
+  return `${config.appBase}/projects/${encodeURIComponent(projectId ?? "")}/${encodeURIComponent(kind)}/${encodeURIComponent(recordId)}`
 }
 
 function hitFrom(env: ReadEnv, kind: string, row: Record<string, unknown>): SearchHit {
@@ -404,6 +536,7 @@ function hitFrom(env: ReadEnv, kind: string, row: Record<string, unknown>): Sear
 
 /** Searches the first SEARCH_ROWS rows of the main kinds, from the same redacted row sets /records returns. An empty query matches everything. */
 export async function searchRecords(env: ReadEnv, query: string): Promise<{ results: SearchHit[]; note: string }> {
+  needProject(env)
   const needle = query.trim().toLowerCase()
   const params = () => new URLSearchParams({ limit: String(SEARCH_ROWS) })
   const settled = await Promise.allSettled(SEARCH_KINDS.map((k) => readRecords(env, k, params())))
@@ -435,14 +568,29 @@ export async function fetchRecord(env: ReadEnv, id: string): Promise<SearchHit> 
 // POST /check and GET /propose (section 6.4): validation only, nothing is recorded
 // ---------------------------------------------------------------------------------------------------------------------------------
 
+/**
+ * create_project is the one function of a link made for a PERSON that has chosen NO project (it makes a project, so it belongs to none). SQL leaves it off every other
+ * effective list; this is the same rule again at the Edge, so a fault in one layer does not put it on a project link (the guarantee does not rest on one layer).
+ */
+export const onlyWithoutProject = (ctx: LinkCtx, fnId: string): boolean => fnId !== "create_project" || (ctx.scope === "user" && ctx.project_id === null)
+
+/** Why a function is not on the list: for a link made for a person that has chosen no project, almost every function needs one. */
+function noFunctionHint(ctx: LinkCtx): string {
+  return ctx.scope === "user" && ctx.project_id === null
+    ? "Outside a project this link may only make a new project (create_project). Choose a project (GET /projects) and use /projects/{id}/functions for what it may use."
+    : "GET /functions lists what this link may use now."
+}
+
 /** Scope of a change request (section 4.3): the function must be on the effective list and any projectId must be the link's own. */
 export function requireScope(ctx: LinkCtx, fn: unknown, params: Record<string, unknown>): void {
   const id = typeof fn === "string" ? fn : ""
-  if (!id || !ctx.effective_functions.includes(id)) throw fail(403, "This link may not use that function.", "GET /functions lists what this link may use now.", { code: "FUNCTION_NOT_ON_LINK" })
+  if (!id || !ctx.effective_functions.includes(id) || !onlyWithoutProject(ctx, id)) throw fail(403, "This link may not use that function.", noFunctionHint(ctx), { code: "FUNCTION_NOT_ON_LINK" })
   if (params.projectId !== undefined && params.projectId !== null && params.projectId !== ctx.project_id) {
     throw fail(403, "This link is for one project only.", "Leave projectId out: the link supplies it.", { code: "WRONG_PROJECT" })
   }
 }
+
+const NO_PROJECT_SAID_HINT = "Leave projectId out. Work in a project through /projects/{id}/..., and a new project needs no project."
 
 export type CheckResult = {
   valid: boolean
@@ -467,15 +615,15 @@ function isEmpty(v: unknown): boolean {
  */
 export function checkChange(env: { ctx: LinkCtx; config: AwlConfig }, fn: unknown, params: unknown): CheckResult {
   const fnId = typeof fn === "string" ? fn : ""
-  const def = fnId && env.ctx.effective_functions.includes(fnId) ? functionDef(fnId) : null
-  if (!def) throw fail(403, `This link may not use ${cleanText(redactToken(fnId || "that function"), 64)}.`, "GET /functions lists what this link may use now.", { code: "FUNCTION_NOT_ON_LINK" })
+  const def = fnId && env.ctx.effective_functions.includes(fnId) && onlyWithoutProject(env.ctx, fnId) ? functionDef(fnId) : null
+  if (!def) throw fail(403, `This link may not use ${cleanText(redactToken(fnId || "that function"), 64)}.`, noFunctionHint(env.ctx), { code: "FUNCTION_NOT_ON_LINK" })
   const p = params === undefined || params === null ? {} : params
   if (typeof p !== "object" || Array.isArray(p)) throw fail(400, "params must be a JSON object.")
   const obj = p as Record<string, unknown>
   const cap = bodyLimitFor(def.function_id)
   if (JSON.stringify(obj).length > cap) throw fail(413, `params are over ${kb(cap)}.`)
   if (obj.projectId !== undefined && obj.projectId !== null && obj.projectId !== env.ctx.project_id) {
-    throw fail(403, "This link is for one project only.", "Leave projectId out: the link supplies it.", { code: "WRONG_PROJECT" })
+    throw fail(403, "This link is for one project only.", env.ctx.scope === "user" ? NO_PROJECT_SAID_HINT : "Leave projectId out: the link supplies it.", { code: "WRONG_PROJECT" })
   }
   const problems: string[] = []
   for (const name of Object.keys(obj)) {

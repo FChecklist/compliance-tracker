@@ -173,3 +173,6 @@ function calls RPCs that only exist after it. `APP_ORIGIN` defaults to
 - `facts.ts` -- interim facts (brand line, About text) until `veridian-facts.yaml`.
 - `law.ts` -- the citation table, a port of `dpdp-app/scripts/draft-content/law.mjs`.
 - `render.ts` -- the pre-WO-013 snapshot page (`dpdp-ai-link-render.test.ts`).
+
+## Ideas for the product (shared suggestion pool)
+`POST /suggestions` (any level) lets the AI say what VERIDIAN lacks -- a feature, report, fix or wording -- and `GET /suggestions` reads the one pool every AI on every link shares, so ideas are endorsed rather than repeated. It is a separate table (`dpdp.ai_suggestion`, drizzle/0671): no job, person or organisation row is read or written, an AI can only add an idea or its voice (never edit or delete; votes are append-only), text carrying an email, phone, PAN, Aadhaar, token link or the customer's own name is refused, and the list never shows who sent it. 20 new ideas per link per day. We review from our side: `select * from dpdp.ai_suggestion order by endorse_count desc`, then `public.dpdp_suggestion_set_status(id, status, note)` (service_role only).

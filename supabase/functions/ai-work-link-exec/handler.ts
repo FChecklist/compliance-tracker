@@ -28,7 +28,8 @@ export type ExecRpc = (fn: string, args?: Record<string, unknown>) => Promise<{ 
 /** What the claim returns on success (drizzle/0629 ai_work_link_intent_claim). The same shape as src/lib/pipeline/link-exec-entry.ts ClaimedIntent. */
 export type Claimed = {
   intent: { id: string; kind: string; function_id: string; params: unknown }
-  ctx: { link_id: string; org_id: string; user_id: string; project_id: string; live_role: string; live_rank?: number; effective_level?: number; money_visible?: boolean }
+  /** project_id is null only for create_project on a user-wide link (drizzle/0668): a draft made before any project was picked. */
+  ctx: { link_id: string; org_id: string; user_id: string; project_id: string | null; live_role: string; live_rank?: number; effective_level?: number; money_visible?: boolean }
 }
 
 /** What the pipeline answers (link-exec-entry.ts LinkRunOutcome). */
@@ -97,7 +98,9 @@ function claimIsOk(v: unknown): v is { status: "ok" } & Claimed {
   const i = c.intent as Record<string, unknown> | undefined
   const x = c.ctx as Record<string, unknown> | undefined
   const t = (o: unknown) => typeof o === "string" && o !== ""
-  return c.status === "ok" && !!i && !!x && t(i.id) && t(i.function_id) && t(x.link_id) && t(x.org_id) && t(x.user_id) && t(x.project_id) && t(x.live_role)
+  // the project is named, except for create_project (it makes one) and then it must be null: any other function with no project is refused here, before the run
+  const projectOk = !!i && !!x && (i.function_id === "create_project" ? x.project_id === null : t(x.project_id))
+  return c.status === "ok" && !!i && !!x && t(i.id) && t(i.function_id) && t(x.link_id) && t(x.org_id) && t(x.user_id) && projectOk && t(x.live_role)
 }
 
 async function readIntentId(req: Request): Promise<string | null> {

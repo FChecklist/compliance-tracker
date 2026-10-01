@@ -8,7 +8,7 @@ import { ENDPOINTS, PAGINATION, RATE_LIMIT } from "../../../supabase/functions/d
 import { BRAND_LINE, PREPARED_WITH } from "../../../supabase/functions/dpdp-ai-link/facts"
 import { citeLawCode } from "../../../supabase/functions/dpdp-ai-link/law"
 import {
-  LINK_GONE, contentTypeFor, csvEscape, errorBody, isRateLimited, jobFilters, lawWithWords, methodFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
+  LINK_GONE, contentTypeFor, csvEscape, errorBody, isRateLimited, jobFilters, lawWithWords, methodsFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
   renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderReportCsv, renderReportMarkdown, reportFooterCsv, reportFooterMarkdown,
   type JobDetail, type JobRow, type ReportPayload,
 } from "../../../supabase/functions/dpdp-ai-link/router"
@@ -71,7 +71,7 @@ describe("parseRoute", () => {
       const path = ep.path.replace("{id}", "x").replace("{code}", "g:").replace("{kind}", "summary")
       const p = parseRoute(`${FN}${path === "/" ? "" : path}`)
       if (!("route" in p)) throw new Error(`unparsed ${ep.path}`)
-      expect(methodFor(p.route), ep.path).toBe(ep.method)
+      expect(methodsFor(p.route), ep.path).toContain(ep.method)
     }
   })
 })

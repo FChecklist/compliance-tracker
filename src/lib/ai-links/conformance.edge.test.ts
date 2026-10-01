@@ -58,6 +58,9 @@ const ALL_23 = [
 const EDGE_RPCS = [
   "ai_work_link_context", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_log_call", "ai_work_link_log_call_result",
   "ai_work_link_record", "ai_work_link_records", "ai_work_link__resolve",
+  // the suggestions board (drizzle/0672): its address is in the manifest, so H13 reads it with a plain GET; that is the list, a read that writes nothing.
+  // ai_suggestion_add is NOT here: the harness never records a suggestion (asserted below)
+  "ai_suggestion_list",
 ]
 const PATH = "/functions/v1/ai-work-link"
 
@@ -160,6 +163,8 @@ describe("the BR-229 harness against the real Edge handler (BR-523, BR-490)", ()
     // read-only at the Edge (BR-582's edge half): the run called only the 8 read and log SQL functions, and none was refused as unknown
     const called = [...new Set(edge.fake.names())]
     for (const name of called) expect(EDGE_RPCS).toContain(name)
+    expect(called).not.toContain("ai_suggestion_add")
+    expect(edge.fake.suggestions).toHaveLength(0)
     for (const name of ["ai_work_link_log_call", "ai_work_link__resolve", "ai_work_link_context", "ai_work_link_records"]) expect(called).toContain(name)
     expect(edge.fake.calls.length).toBeGreaterThan(100)
     // the manager really is level 1 and the demoted person really is level 0 on this run (so H23 tested a difference)
@@ -317,19 +322,21 @@ describe("detail rows of BR-523 that need no deployed function (BR-581, BR-583 a
   // BUILD-002 WP-03/04/07 added five functions to the spec's ten (create_boq, add_boq_lines, seal_boq, update_project, create_activity), WP-05a
   // waves 1 and 2 added 19 more and WP-05c/WP-05d the eighteen of coverage waves 3 and 4, so the count was 52 before waves 5 and 6;
   // scripts/gen-ai-link-registry.data.ts is the one place it changes.
-  // BUILD-002 WP-05e/05f and AW-312 added 21 more (waves 5 and 6 and the exception-capture functions): 73; WP-05g/05h added the 20 of waves 7, 8 and 9: 93; the persona-run finding 3 added submit_timesheet: 94 in all.
-  test("BR-581: exactly 94 functions are offered on links (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9 and submit_timesheet), a manager sees all 94, a member only what its rank allows, none offered twice", async () => {
+  // BUILD-002 WP-05e/05f and AW-312 added 21 more (waves 5 and 6 and the exception-capture functions): 73; WP-05g/05h added the 20 of waves 7, 8 and 9: 93; the persona-run finding 3 added submit_timesheet: 94; the user-wide link added create_project: 95 in all.
+  test("BR-581: exactly 95 functions are offered on links (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9 submit_timesheet and the user link's create_project), a manager sees all 95, a member only what its rank allows, none offered twice", async () => {
     const edge = startEdge({ writesEnabled: true })
-    expect(onLinks).toHaveLength(94)
+    expect(onLinks).toHaveLength(95)
+    // create_project is offered on a USER link only (never on a project link), so a project link sees the other 94
+    const onProjectLinks = onLinks.filter((f) => f.function_id !== "create_project")
     const allowed = async (token: string) => ((await (await fetch(edge.link(token) + "/context", { headers: { accept: "application/json" } })).json()) as { allowed_functions: string[] }).allowed_functions
     const manager = await allowed(TOKENS.manager)
-    expect(sorted(manager)).toEqual(sorted(onLinks.map((f) => f.function_id)))
+    expect(sorted(manager)).toEqual(sorted(onProjectLinks.map((f) => f.function_id)))
     expect(new Set(manager).size).toBe(94)
     const member = await allowed(TOKENS.member)
-    expect(sorted(member)).toEqual(sorted(onLinks.filter((f) => f.min_role_rank <= 2).map((f) => f.function_id)))
+    expect(sorted(member)).toEqual(sorted(onProjectLinks.filter((f) => f.min_role_rank <= 2).map((f) => f.function_id)))
     expect(member).not.toContain("get_construction_budget_status")
     const viewer = await allowed(TOKENS.viewer)
-    expect(sorted(viewer)).toEqual(sorted(onLinks.filter((f) => f.min_role_rank <= 1).map((f) => f.function_id)))
+    expect(sorted(viewer)).toEqual(sorted(onProjectLinks.filter((f) => f.min_role_rank <= 1).map((f) => f.function_id)))
     // a function that is not on links at all (any name outside the registry) is never offered
     for (const list of [manager, member, viewer]) expect(list.every((id) => onLinks.some((f) => f.function_id === id))).toBe(true)
     edge.stop()
