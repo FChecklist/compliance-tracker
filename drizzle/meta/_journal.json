@@ -3530,6 +3530,13 @@
       "when": 1790491000000,
       "tag": "0673_dpdp_razorpay_sales_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 506,
+      "version": "7",
+      "when": 1790492000000,
+      "tag": "0676_projexa_sync_read",
+      "breakpoints": true
     }
   ]
 }
