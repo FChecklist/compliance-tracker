@@ -148,7 +148,8 @@ export function buildManual(input: ManualInput): Manual {
   const today = new Date(now.getTime() + 330 * 60_000).toISOString().slice(0, 10)
   const bi: BriefInput = {
     orgName, orgProduct: c.org.product, viewerEmail, viewerKind: c.viewer.kind, level: c.link.authorityLevel === 1 ? 1 : 0,
-    expiresOn: new Date(new Date(c.link.expiresAt).getTime() + 330 * 60_000).toISOString().slice(0, 10), counts: c.counts, summary: input.summary ?? null,
+    expiresOn: new Date(new Date(c.link.expiresAt).getTime() + 330 * 60_000).toISOString().slice(0, 10),
+    expiresTime: new Date(new Date(c.link.expiresAt).getTime() + 330 * 60_000).toISOString().slice(11, 16), counts: c.counts, summary: input.summary ?? null,
   }
   const brief = aiBrief(bi)
   const summary = input.summary ?? null
