@@ -3474,6 +3474,13 @@
       "when": 1790482000000,
       "tag": "0667_dpdp_operator_daily_digest",
       "breakpoints": true
+    },
+    {
+      "idx": 498,
+      "version": "7",
+      "when": 1790483000000,
+      "tag": "0670_ai_bridge_claude_code",
+      "breakpoints": true
     }
   ]
 }

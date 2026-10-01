@@ -588,6 +588,12 @@ function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, syste
   // before. Anthropic/Google keep their own non-OpenAI-compatible shapes
   // and ignore this (a tenant BYO model routed through OpenRouter never
   // lands on those branches anyway).
+  // PROJEXA test-mode AI BRIDGE (2026-10-01): with AI_BRIDGE=queue every model call is answered by Claude Code on the owner's own laptop through
+  // a database queue instead of a paid provider -- see src/lib/ai/claude-code-bridge.ts. Unset (the default) this branch is never taken and
+  // every provider call below is exactly as before. Imported lazily because the bridge imports this file's error class.
+  if (process.env.AI_BRIDGE === "queue") {
+    return import("@/lib/ai/claude-code-bridge").then((m) => m.callViaBridge({ model, systemPrompt, userMessage, options }))
+  }
   const overrideUrl = options?.baseUrl
   switch (provider) {
     case "groq":
