@@ -37,7 +37,7 @@ function need(cond, msg) {
 // The public pages the facts file must name (titles, audiences). The list
 // of what is PUBLIC lives in public-surface.mjs; this only says which paths
 // need a `pages` entry.
-export const FACT_PAGE_PATHS = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/proof/"]
+export const FACT_PAGE_PATHS = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/proof/"]
 
 /**
  * Load and validate data/veridian-facts.yaml. Adds two derived values that
@@ -61,7 +61,14 @@ export function loadFacts() {
   for (const key of ["one_line", "fact_block_title", "who_for_line", "what_it_does", "deadline_line", "what_it_does_not_do", "ai_work_link_public_sentence"]) {
     need(isStr(f[key]), `${key} missing`)
   }
-  need(isStrList(f.who_for), "who_for must be a non-empty list of strings")
+  need(isStrList(f.who_for) && f.who_for.length === 2, "who_for must be exactly two lines (owner, 2026-10-01): firms and their clients; companies, institutions, schools and NGOs")
+  need(isStrList(f.four_things) && f.four_things.length === 4, "four_things must be exactly four lines (the home page's numbered 1-4)")
+  const sp = f.sales_partner
+  need(sp && typeof sp === "object" && isStr(sp.nav_label) && isStr(sp.button) && isStr(sp.lead) && isStr(sp.sign_in_note) && Array.isArray(sp.sections) && sp.sections.length > 0, "sales_partner needs nav_label/button/lead/sign_in_note/sections")
+  for (const s of sp.sections) {
+    need(isStr(s.h2), "each sales_partner section needs an h2")
+    for (const k of ["paragraphs", "steps", "bullets"]) need(s[k] === undefined || isStrList(s[k]), `sales_partner section "${s.h2}": ${k} must be a list of strings`)
+  }
   need(isStrList(f.three_strongest_facts) && f.three_strongest_facts.length === 3, "three_strongest_facts must be exactly three sentences")
   need(isStrList(f.about_this_system) && f.about_this_system.length === 5, "about_this_system must be the five §1.3-A paragraphs")
 

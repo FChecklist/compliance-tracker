@@ -28,6 +28,7 @@ import {
   PRIVATE_PAGES,
   PUBLIC_ORIGIN,
   PUBLIC_PAGES,
+  REF_SCRIPT,
   REQUIRED_BOTS,
   SITE_ORIGIN,
   LEGACY_APP_ORIGIN,
@@ -250,8 +251,10 @@ for (const page of PUBLIC_PAGES) {
   }
 
   // Complete HTML on arrival: no script runs on a public page at all.
+  // The one allowed script besides JSON-LD is /ref.js (same origin, deferred), exactly once.
   const scripts = tagsOf(html, /<script\b[^>]*>/gi).filter((t) => !/type="application\/ld\+json"/i.test(t))
-  expect(scripts.length === 0, `${label}: public page has ${scripts.length} <script> tag(s) besides JSON-LD`)
+  expect(scripts.length === 1 && scripts[0] === REF_SCRIPT.open, `${label}: public page must have exactly the one <script> ${REF_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
+  expect(has(REF_SCRIPT.src.slice(1)), `dist${REF_SCRIPT.src} missing`)
   checkCrossOrigin(label, html)
 
   // Fonts: both self-hosted files preloaded, with crossorigin (fonts fetch
@@ -300,7 +303,7 @@ for (const hidden of HIDDEN_PAGES) {
   expect(linkHref(html, "canonical") === null, `${label}: a hidden page must not declare a canonical`)
   expect(meta(html, "property", "og:url") === null, `${label}: a hidden page must not carry Open Graph tags`)
   const scripts = tagsOf(html, /<script\b[^>]*>/gi).filter((t) => !/type="application\/ld\+json"/i.test(t))
-  expect(scripts.length === 0, `${label}: hidden page has ${scripts.length} <script> tag(s) besides JSON-LD`)
+  expect(scripts.length === 1 && scripts[0] === REF_SCRIPT.open, `${label}: hidden page must have exactly the one <script> ${REF_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
   checkCrossOrigin(label, html)
 }
 

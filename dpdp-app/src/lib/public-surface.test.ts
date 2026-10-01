@@ -12,7 +12,10 @@ import { join } from "node:path"
 import {
   FACTS,
   FOOTER_LINKS,
+  NAV_PARTNER,
+  NAV_SIGN_IN,
   OG_IMAGE,
+  REF_SCRIPT,
   PRIVATE_PAGES,
   PUBLIC_ORIGIN,
   PUBLIC_PAGES,
@@ -270,6 +273,114 @@ describe("the home page offers exactly two ways in (owner, 2026-10-01)", () => {
   })
 })
 
+// Owner, 2026-10-01: the home page says FOUR things and shows four, numbered 1-4.
+describe("the home page's four things (owner, 2026-10-01)", () => {
+  const html = read("index.html")
+  const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
+
+  test("the h1 says four things and an ordered list shows exactly four, 1 to 4, in the owner's words", () => {
+    expect(main).toContain("<h1 class=\"chooser-title\">The DPDP Act asks every organisation for four things</h1>")
+    const list = /<ol class="lead-list">([\s\S]*?)<\/ol>/.exec(main)![1]
+    const items = [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])
+    expect(items).toEqual(["Know what data you hold.", "Tell people about it.", "Keep it safe.", "Prove it — with a record that outlasts the person who set it up."])
+    expect(items).toEqual([...FACTS.four_things])
+  })
+
+  test("the old three-things-plus-a-proof wording is gone from every public surface", () => {
+    for (const rel of [...PUBLIC_PAGES.map((p) => p.source), "public/llms.txt", "public/llms-full.txt"]) {
+      const body = read(rel)
+      expect(body, `${rel} still says "Prove all three"`).not.toContain("Prove all three")
+      expect(body, `${rel} still has the three things on one line`).not.toContain("Know what data you hold. Tell people about it. Keep it safe.")
+    }
+    expect(read("public/llms-full.txt")).toContain("1. Know what data you hold.\n2. Tell people about it.\n3. Keep it safe.\n4. Prove it — with a record that outlasts the person who set it up.")
+  })
+})
+
+// Owner, 2026-10-01: a "Sales Partner" link in the TOP RIGHT of the header of every public page, next to Sign in.
+describe("the header of every public page: Sales Partner next to Sign in, top right", () => {
+  const headerOf = (html: string) => /<header class="nav">([\s\S]*?)<\/header>/.exec(html)?.[1] ?? ""
+
+  test("every public page has a header whose last two links are Sales Partner (/partner/) then Sign in (/app/)", () => {
+    for (const p of PUBLIC_PAGES) {
+      const header = headerOf(read(p.source))
+      expect(header, `${p.path} has no <header class="nav">`).not.toBe("")
+      const links = [...header.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map((m) => ({ attrs: m[1], href: /href="([^"]*)"/.exec(m[1])![1], text: m[2].replace(/<[^>]+>/g, "").trim() }))
+      const last2 = links.slice(-2)
+      expect(last2.map((l) => [l.href, l.text]), p.path).toEqual([
+        [NAV_PARTNER.href, "Sales Partner"],
+        [NAV_SIGN_IN.href, "Sign in"],
+      ])
+      expect(last2[0].attrs, p.path).toContain('class="nav-partner"')
+      expect(last2[1].attrs, p.path).toContain('class="nav-signin"')
+    }
+    expect(NAV_PARTNER).toEqual({ href: "/partner/", label: "Sales Partner" })
+  })
+
+  test("both links sit inside the right-hand .nav-actions group, which is the last child of the header row", () => {
+    for (const p of PUBLIC_PAGES) {
+      const header = headerOf(read(p.source))
+      const row = /<div class="nav-inner">([\s\S]*)<\/div>\s*$/.exec(header)![1]
+      const actions = /<div class="nav-actions">([\s\S]*?)<\/div>\s*$/.exec(row.trimEnd())
+      expect(actions, `${p.path}: .nav-actions is not the last thing in the header row`).not.toBeNull()
+      expect(actions![1]).toContain('href="/partner/"')
+      expect(actions![1]).toContain('href="/app/">Sign in</a>')
+    }
+  })
+
+  test("the stylesheet keeps the group on the right (space-between row, flex group)", () => {
+    const css = read("src/site.css")
+    expect(css).toMatch(/\.nav-inner \{[^}]*justify-content: space-between/)
+    expect(css).toMatch(/\.nav-actions \{[^}]*display: flex/)
+  })
+})
+
+// Owner, 2026-10-01: /partner/ is public and indexable; everything private stays private. The lists are pinned
+// EXACTLY, so adding a public page or opening a private one is a deliberate edit of this test, not a side effect.
+describe("what is public and what is private, pinned exactly (with /partner/ public)", () => {
+  test("the public pages are exactly these (+ /proof/ only if the owner switched it on)", () => {
+    const expected = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/"].concat(FACTS.proof.enabled ? ["/proof/"] : [])
+    expect(PUBLIC_PAGES.map((p) => p.path)).toEqual(expected)
+  })
+
+  test("the private prefixes are exactly these six; /partner/ is not under any of them", () => {
+    expect(PRIVATE_PAGES.map((p) => p.prefix)).toEqual(["/app/", "/act/", "/unsubscribe/", "/copy/", "/p/", "/ai/"])
+    for (const priv of PRIVATE_PAGES) expect("/partner/".startsWith(priv.prefix), `/partner/ is under ${priv.prefix}`).toBe(false)
+  })
+
+  test("/partner/ is indexable everywhere: in the sitemap, allowed by every robots group, no X-Robots-Tag, listed in llms.txt", () => {
+    const rules = parseHeadersFile(read("public/_headers"))
+    const h = resolveHeaders(rules, "/partner/")
+    expect(h["x-robots-tag"]).toBeUndefined()
+    expect(h["cache-control"]).toBeUndefined()
+    expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin")
+    for (const sub of ["/partner/index.html"]) expect(resolveHeaders(rules, sub)["x-robots-tag"]).toBeUndefined()
+    const { groups } = parseRobots(read("public/robots.txt"))
+    for (const g of groups) {
+      expect(g.allow).toContain("/")
+      for (const d of g.disallow) expect("/partner/".startsWith(d), `Disallow: ${d} would block /partner/`).toBe(false)
+    }
+    const sitemap = renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
+    expect(sitemap).toContain("<loc>https://veridian-aios.com/partner/</loc>")
+    expect(read("public/llms.txt")).toContain("](https://veridian-aios.com/partner/)")
+    expect(read("public/llms-full.txt")).toContain("https://veridian-aios.com/partner/")
+  })
+
+  test("the private paths stay noindex, no-store, no-referrer; nothing a /partner/ page links to is a new private prefix", () => {
+    const rules = parseHeadersFile(read("public/_headers"))
+    for (const path of ["/app/", "/act/", "/unsubscribe/", "/copy/", "/p/", "/ai/", "/app/x", "/p/anything"]) {
+      const h = resolveHeaders(rules, path)
+      expect(h["x-robots-tag"], path).toBe("noindex, nofollow")
+      expect(h["cache-control"], path).toBe("no-store")
+    }
+    // "/partner/..." must never match the /p/ rule: the splat is "/p/*", not "/p*".
+    expect(rules.some((r) => r.path === "/p*" || r.path === "/pa*")).toBe(false)
+  })
+
+  test("the live smoke script checks /partner/ as a public page", () => {
+    expect(read("scripts/live-smoke.mjs")).toContain('"/partner/"')
+  })
+})
+
 describe("page sources", () => {
   test("public: lang en-IN, canonical = the apex URL, no noindex, no script but JSON-LD", () => {
     for (const pub of PUBLIC_PAGES) {
@@ -280,7 +391,7 @@ describe("page sources", () => {
       expect(html).toContain(`<link rel="canonical" href="${pageUrl(pub.path)}" />`)
       expect(html).not.toMatch(/<meta\s+name="robots"[^>]*no(index|follow)/i)
       const scripts = html.match(/<script\b[^>]*>/g) ?? []
-      for (const s of scripts) expect(s).toContain('type="application/ld+json"')
+      for (const s of scripts) expect(s === REF_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
       expect(html).not.toMatch(/https?:\/\/fonts\.(googleapis|gstatic)\.com/)
     }
   })
