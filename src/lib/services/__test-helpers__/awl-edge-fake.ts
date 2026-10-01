@@ -108,12 +108,31 @@ export type FakeIntent = {
   result?: { id?: string; route?: string } | null
 }
 
+/** A row of platform.ai_suggestion (drizzle/0672) as the fake keeps it. */
+export type FakeSuggestion = {
+  id: string
+  link_id: string
+  org_id: string
+  user_id: string
+  project_id: string | null
+  kind: string
+  title: string
+  body: string
+  status: string
+  public_ok: boolean
+  duplicate_of: string | null
+  internal_note: string | null
+  at: number
+  source: string | null
+}
+
 export type Fake = {
   rpc: Rpc
   projects: FakeProject[]
   calls: FakeCall[]
   logRows: LogRow[]
   intents: FakeIntent[]
+  suggestions: FakeSuggestion[]
   links: Map<string, FakeLink>
   state: { clock: number; failLog: null | "error" | "throw" | "shape"; leaksMoney: boolean; writesEnabled: boolean }
   names(): string[]
@@ -341,9 +360,51 @@ export function makeFake(opts: FakeOptions = {}): Fake {
     return ok(shape(made, false))
   }
 
+  const suggestions: FakeSuggestion[] = []
+  const SUGGESTION_KINDS = ["feature", "improvement", "report", "workflow", "integration", "bug", "other"]
+
+  /** ai_suggestion_add, the parts the Edge layer depends on (the real SQL is proven on PGlite): link and project check, validation, same-title replay, the caps. */
+  function suggestionAdd(a: Record<string, unknown>): RpcResult {
+    const l = need(String(a.p_token))
+    if ("error" in l) return l
+    const where = projectOf(l, a.p_project_id, false)
+    if ("error" in where) return where
+    const kind = String(a.p_kind ?? "").trim().toLowerCase()
+    if (!SUGGESTION_KINDS.includes(kind)) return codeErr("AW400", "BAD_KIND")
+    const title = String(a.p_title ?? "").replace(/\s+/g, " ").trim()
+    if (title.length < 1 || title.length > 120 || /pxa_[0-9A-Za-z]{6,}/.test(title)) return codeErr("AW400", "BAD_TITLE")
+    const body = String(a.p_body ?? "").trim()
+    if (body.length > 2000 || /pxa_[0-9A-Za-z]{6,}/.test(body)) return codeErr("AW400", "BAD_BODY")
+    const note = "Recorded for review by the PROJEXA team. It becomes visible to other assistants only after internal approval."
+    const same = suggestions.find((s) => s.link_id === l.id && s.title.toLowerCase() === title.toLowerCase() && s.at > state.clock - 86_400_000)
+    if (same) return ok({ suggestion_id: same.id, status: same.status, replayed: true, visible_to_others: same.public_ok, note })
+    if (suggestions.filter((s) => s.link_id === l.id && s.at > state.clock - 86_400_000).length >= 20 || suggestions.filter((s) => s.user_id === l.user_id && s.at > state.clock - 86_400_000).length >= 100) return codeErr("AW429", "SUGGESTION_CAP_DAY")
+    const made: FakeSuggestion = { id: `sug_${suggestions.length + 1}`, link_id: l.id, org_id: orgOf(l), user_id: l.user_id, project_id: where.project?.id ?? null, kind, title, body, status: "new", public_ok: false, duplicate_of: null, internal_note: "internal only", at: state.clock, source: (a.p_source_label as string | null) ?? null }
+    suggestions.push(made)
+    return ok({ suggestion_id: made.id, status: "new", replayed: false, visible_to_others: false, note })
+  }
+
+  /** ai_suggestion_list: the link's own rows, and the shared ones (public_ok only). The fake leaks nothing it should not; a test that wants SQL to leak edits the rows. */
+  function suggestionList(a: Record<string, unknown>): RpcResult {
+    const l = need(String(a.p_token))
+    if ("error" in l) return l
+    const limit = Math.min(Math.max(Number(a.p_limit ?? 50), 1), 100)
+    const mine = suggestions.filter((s) => s.link_id === l.id)
+    const shared = suggestions.filter((s) => s.public_ok)
+    return ok({
+      mine: mine.slice(0, limit).map((s) => ({ id: s.id, kind: s.kind, title: s.title, status: s.status, created_at: "2026-10-01T00:00:00Z" })),
+      shared: shared.slice(0, limit).map((s) => ({ id: s.id, kind: s.kind, title: s.title, status: s.status, also_suggested_count: suggestions.filter((d) => d.duplicate_of === s.id).length })),
+      counts: { mine: mine.length, shared: shared.length },
+    })
+  }
+
   const rpc: Rpc = async (name, args = {}) => {
     calls.push({ name, args })
     switch (name) {
+      case "ai_suggestion_add":
+        return suggestionAdd(args)
+      case "ai_suggestion_list":
+        return suggestionList(args)
       case "ai_work_link_record_intent":
         return recordIntent(args)
       case "ai_work_link_log_call":
@@ -397,7 +458,7 @@ export function makeFake(opts: FakeOptions = {}): Fake {
     }
   }
 
-  return { rpc, projects: PROJECTS, calls, logRows, intents, links, state, names: () => calls.map((c) => c.name) }
+  return { rpc, projects: PROJECTS, calls, logRows, intents, suggestions, links, state, names: () => calls.map((c) => c.name) }
 }
 
 /**

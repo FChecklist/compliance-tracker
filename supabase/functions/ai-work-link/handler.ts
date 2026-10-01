@@ -32,6 +32,7 @@ import {
   parseTarget, privateHeaders, relativePathOf, remainingCalls, throttleAddress, tokenFromHeaders, uaFamilyOf, type Format,
 } from "../_shared/ai-link/core.ts"
 import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, USER_LEVEL_IDS, bodyLimitFor, functionDef, kb, matchEndpoint, underlyingOf, type EndpointId } from "./api-definition.ts"
+import { suggestionAdd, suggestionList } from "./suggestions.ts"
 import { renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
 import { handleConfirm } from "./confirm.ts"
 import { actionCreate, draftCreate, draftGet, draftPreview } from "./drafts.ts"
@@ -43,7 +44,7 @@ import {
   requireScope, resolveInProject, resolveLink, searchRecords, fetchRecord, type AwlConfig, type ExecClient, type LinkCtx, type ReadEnv, type Rpc,
 } from "./reads.ts"
 import type { SessionVerifier } from "./session.ts"
-import { contextMarkdown, functionsMarkdown, historyMarkdown, intentMarkdown, portfolioMarkdown, projectsMarkdown, proposalMarkdown, recordMarkdown, recordsCsv, recordsMarkdown } from "./render.ts"
+import { contextMarkdown, functionsMarkdown, historyMarkdown, intentMarkdown, portfolioMarkdown, projectsMarkdown, proposalMarkdown, recordMarkdown, recordsCsv, recordsMarkdown, suggestionsMarkdown } from "./render.ts"
 
 export type { AwlConfig, Rpc } from "./reads.ts"
 
@@ -434,6 +435,9 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
           const e = await at(p)
           return proposeChange({ ctx: e.ctx, config, token: env.mode === "path" ? env.token : null }, fn, params)
         },
+        // the suggestions board: the project, when named, is bound by SQL itself (a project that does not bind is the one 404)
+        suggest: async (args) => (await suggestionAdd(env, args, req.headers.get("user-agent"))).body as Record<string, unknown>,
+        suggestions: (limit) => suggestionList(env, limit),
       }
       const res = await handleMcp({ headers: req.headers, bodyText: await req.text() }, reads)
       return res.body === null ? { status: res.status, contentType: null, body: null } : json(res.status, res.body)
@@ -450,6 +454,12 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
       const doc = await draftGet(env, params.id)
       return formatOf(req, url, ["md", "json"]) === "json" ? json(200, doc) : text("md", intentMarkdown(doc))
     }
+    case "suggestions": {
+      const doc = await suggestionList(env, url.searchParams.get("limit"))
+      return formatOf(req, url, ["md", "json"]) === "json" ? json(200, doc) : text("md", suggestionsMarkdown(doc))
+    }
+    case "suggestions_add":
+      return actionOut(await suggestionAdd(env, await readJsonObject(req), req.headers.get("user-agent")))
     default:
       // a /projects/{pid}/... id was resolved to its endpoint above; nothing else reaches here
       throw fail(404, "No such path")

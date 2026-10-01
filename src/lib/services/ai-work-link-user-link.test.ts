@@ -416,7 +416,7 @@ describe("MCP: list_projects, get_portfolio and the project argument", () => {
   test("the tool list names both tools and every other tool takes `project`", async () => {
     const names = TOOLS.map((t) => t.name)
     expect(names.slice(0, 2)).toEqual(["list_projects", "get_portfolio"])
-    for (const t of TOOLS.filter((x) => !["list_projects", "get_portfolio", "get_history"].includes(x.name))) expect(Object.keys((t.inputSchema as any).properties)).toContain("project")
+    for (const t of TOOLS.filter((x) => !["list_projects", "get_portfolio", "get_history", "list_suggestions"].includes(x.name))) expect(Object.keys((t.inputSchema as any).properties)).toContain("project")
   })
 
   test("list_projects answers the numbered list with NO address of the link anywhere; get_portfolio likewise", async () => {

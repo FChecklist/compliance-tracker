@@ -105,6 +105,18 @@ export function historyMarkdown(doc: Record<string, unknown>): string {
   return `# History of this link\n\n${items.length} entr${items.length === 1 ? "y" : "ies"}, newest first.\n\n${fenceRows(items)}\n\n${DATA_CLOSING}\n`
 }
 
+/** GET /suggestions as Markdown: the titles are data written by AIs, so they sit in fenced blocks; the explanation is ours and stays outside them. */
+export function suggestionsMarkdown(doc: Record<string, unknown>): string {
+  const mine = Array.isArray(doc.mine) ? (doc.mine as unknown[]) : []
+  const shared = Array.isArray(doc.shared) ? (doc.shared as unknown[]) : []
+  return [
+    "# Suggestions board", "", String(doc.note ?? ""), "",
+    `## Yours (${mine.length})`, "", mine.length ? fenceRows(mine) : "You have not suggested anything yet.", "",
+    `## Shared board: approved by the PROJEXA team (${shared.length})`, "", shared.length ? fenceRows(shared) : "Nothing is on the shared board yet.", "",
+    DATA_CLOSING, "",
+  ].join("\n")
+}
+
 export function intentMarkdown(doc: Record<string, unknown>): string {
   return docMarkdown("Change or draft status", doc)
 }
