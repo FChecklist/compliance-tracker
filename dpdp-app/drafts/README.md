@@ -79,6 +79,14 @@ Plain Node, zero dependencies, not part of `bun run build`.
    `REVIEW.reviewer` and `REVIEW.date`. Regenerate. In one diff this fills
    "Last reviewed by <lawyer>, <date>", adds `reviewedBy` to the Article JSON-LD,
    and drops the `noindex` meta and the draft banner from every page.
+2b. **Flip the host (added 2026-10-01).** These drafts were written when the public
+   pages were canonical to `https://app.veridian-aios.com/`. The public pages are now
+   indexed under `https://veridian-aios.com/` (`PUBLIC_ORIGIN`, `src/lib/site-origin.mjs`),
+   and `scripts/check-two-doors.mjs` (g) fails the build on a public page that names the
+   app host. Before publishing, change the canonical, hreflang, Open Graph and JSON-LD
+   URLs in `scripts/draft-content/render.mjs` (and `hi.mjs`) to the apex, regenerate,
+   and update the host pinned in `src/lib/drafts.test.ts`. The drafts are untouched in
+   this change because they stay unpublished until the lawyer signs off.
 3. **Move into the site.** Copy `drafts/jobs/<product>/<key>/` to
    `public/jobs/<key>/` (the canonical URL is flat: `/jobs/<key>/`, the key already
    carries the product), `drafts/guides/<slug>/` to `public/guides/<slug>/`, and

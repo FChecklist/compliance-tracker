@@ -71,7 +71,10 @@ export function loadFacts() {
   need(/^\d{4}-\d{2}-\d{2}$/.test(String(f.approved_on)), "approved_on must be YYYY-MM-DD")
   need(isStr(f.approved_by), "approved_by missing")
   need(isStr(f.product) && isStr(f.site) && isStr(f.company_site), "product/site/company_site missing")
-  need(f.site === "https://app.veridian-aios.com", "site must be https://app.veridian-aios.com")
+  // 2026-10-01 (SEO): the public pages are indexed under the apex, not the
+  // app host. The signed-in app stays on app.veridian-aios.com (see
+  // src/lib/site-origin.mjs) -- that is NOT this field.
+  need(f.site === "https://veridian-aios.com", "site must be https://veridian-aios.com (the host the public pages are indexed under)")
 
   for (const key of ["one_line", "who_for_line", "what_it_does", "deadline_line", "what_it_does_not_do", "ai_work_link_public_sentence"]) {
     need(isStr(f[key]), `${key} missing`)
@@ -117,6 +120,7 @@ export function loadFacts() {
   need(f.pages && typeof f.pages === "object", "pages block missing")
   for (const p of FACT_PAGE_PATHS) {
     need(f.pages[p] && isStr(f.pages[p].name) && isStr(f.pages[p].summary) && isStr(f.pages[p].audience), `pages["${p}"] needs name/summary/audience`)
+    need(f.pages[p].description === undefined || (isStr(f.pages[p].description) && f.pages[p].description.length >= 60 && f.pages[p].description.length <= 200), `pages["${p}"].description must be 60-200 characters when present`)
   }
 
   need(f.proof && typeof f.proof.enabled === "boolean" && f.proof.content === `data/${PROOF_FILE}`, `proof.enabled (boolean) and proof.content (data/${PROOF_FILE}) missing`)
@@ -174,6 +178,16 @@ export function pageTitle(facts, path) {
   const page = facts.pages[path]
   if (!page) throw new Error(`${FACTS_FILE}: no pages entry for ${path}`)
   return `${facts.brand.title_prefix} — ${page.name}`
+}
+
+/** The meta description / og:description / twitter:description for a page:
+ * the page's own `description` in the facts file when it has one (a short,
+ * keyword-bearing sentence built from the approved facts), otherwise the
+ * owner-approved one line. */
+export function pageDescription(facts, path) {
+  const page = facts.pages[path]
+  if (!page) throw new Error(`${FACTS_FILE}: no pages entry for ${path}`)
+  return page.description ?? facts.one_line
 }
 
 /** Load and validate data/claims-register.yaml. */

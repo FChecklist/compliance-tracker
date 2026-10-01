@@ -20,8 +20,10 @@ import { FACTS, HIDDEN_PAGES, PRIVATE_PAGES, PUBLIC_PAGES, parseHeadersFile, par
 import {
   AI_SURFACES,
   FORBIDDEN_PATTERNS,
+  PUBLIC_HOST,
   alwaysHiddenClasses,
   findAiInstructions,
+  findAppHost,
   findHiddenText,
   parseCss,
   publicSurfaceFiles,
@@ -40,6 +42,29 @@ function surfaceSource(rel: string): string {
   if (rel === "sitemap.xml") return renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22" })))
   return read(`public/${rel}`)
 }
+
+// (g) SEO, 2026-10-01: the public pages are indexed under the apex alone.
+describe("(g) one public host: findAppHost()", () => {
+  test("catches the app host in a canonical, a sitemap loc, an llms line and a JSON-LD id", () => {
+    for (const planted of [
+      `<link rel="canonical" href="https://app.veridian-aios.com/about/" />`,
+      `<loc>https://app.veridian-aios.com/</loc>`,
+      `- [About](https://app.veridian-aios.com/about/)`,
+      `{"@id":"https://app.veridian-aios.com/#organization"}`,
+    ]) {
+      expect(findAppHost(`clean. ${planted}. clean`).length, planted).toBe(1)
+    }
+  })
+
+  test("does not fire on the apex, the mail address or the bare word app", () => {
+    expect(PUBLIC_HOST).toBe("veridian-aios.com")
+    expect(findAppHost("https://veridian-aios.com/about/ dpdp@veridian-aios.com the app is private")).toEqual([])
+  })
+
+  test("every committed public surface is on the apex", () => {
+    for (const rel of publicSurfaceFiles()) expect(findAppHost(surfaceSource(rel)), rel).toEqual([])
+  })
+})
 
 describe("(a) the wall: scanWall()", () => {
   test("catches every forbidden pattern individually", () => {

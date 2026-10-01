@@ -112,7 +112,41 @@ the Step 2 spike), so a missing entry looks like "the link opens the wrong site"
 | 12 | Each named crawler user agent gets HTTP 200 on public pages, 4xx on `/app/` | `curl -A` table |
 | 13 | Owner sign-off recorded | KT folder |
 
-## 6. Rollback
+## 6. One public host for search engines (SEO, 2026-10-01)
+
+The same Pages project answers on `veridian-aios.com`, `www.veridian-aios.com`
+(301 to the apex, set at the zone) and `app.veridian-aios.com`, with identical
+files. Search engines are told **one** host:
+
+- every public page's `<link rel="canonical">`, `og:url`, JSON-LD `@id`/`url`,
+  the sitemap, `robots.txt`'s `Sitemap:` line, `llms*.txt`, `facts.json` and
+  `for-ai.md` say `https://veridian-aios.com/...` (`PUBLIC_ORIGIN` in
+  `src/lib/site-origin.mjs`);
+- the signed-in app, the Monday email's links and the AI work link stay on
+  `app.veridian-aios.com` (`SITE_ORIGIN`, same file) and are `noindex`/`no-store`.
+
+There is **no** `app.` to apex redirect, on purpose: a Pages `_redirects` rule
+matches a path, never a host, so it would also bounce the apex and swallow
+`/app/`, `/act/`, `/copy/`, `/p/`, `/unsubscribe/` and `/ai/`. If the owner ever
+wants one, it must be a zone-level Cloudflare Redirect Rule with the host
+condition `http.host eq "app.veridian-aios.com"` AND a path exclusion for those
+six prefixes -- never a file rule. `scripts/check-two-doors.mjs` (g) fails the
+build if any public surface names the app host.
+
+Brand images (`public/og-image.png` 1200x630, `logo.png`, `favicon-48.png`) are
+rendered from `brand/social-images.html` (the recipe is in its header comment).
+Cache: `/assets/*` and `/fonts/*` one year `immutable` (fonts are not
+hashed: never replace one in place, ship a new file name); public HTML stays on
+the Pages default (revalidate) on purpose.
+
+After the first deploy that carries this: `curl -s https://veridian-aios.com/ | grep -E 'canonical|og:url|og:image'`,
+`curl -s https://veridian-aios.com/sitemap.xml`, grep the live pages for
+`[email protected]` (must be absent), then in Google Search Console add the
+`veridian-aios.com` domain property, submit `https://veridian-aios.com/sitemap.xml`
+and request indexing of `/`, `/dpdp-firm/`, `/dpdp-institution/`, `/about/`; do the
+same in Bing Webmaster Tools.
+
+## 7. Rollback
 
 Cloudflare → Pages → Deployments → "Rollback to this deployment" on the previous
 production build (instant, no rebuild). Nothing on Vercel changes either way.

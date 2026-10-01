@@ -18,8 +18,8 @@ import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
-import { contactSentence, grievanceOfficerLine, loadFacts, loadProof, publicFacts, pageTitle, getPath, subjectTopicsClause } from "./facts.mjs"
-import { FACTS, HIDDEN_PAGES, PUBLIC_PAGES } from "./public-surface.mjs"
+import { contactSentence, grievanceOfficerLine, loadFacts, loadProof, publicFacts, pageDescription, pageTitle, getPath, subjectTopicsClause } from "./facts.mjs"
+import { FACTS, HIDDEN_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES } from "./public-surface.mjs"
 import { buildOutputs } from "../../scripts/generate-public-facts.mjs"
 
 const APP = resolve(import.meta.dir, "../..")
@@ -164,9 +164,41 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
   })
 
   test("tab titles are '<prefix> — <page>' (WO-014 §4) and every public page has one", () => {
-    expect(pageTitle(facts, "/")).toBe("VERIDIAN · VERy INDIAN — DPDP and Digital Data Compliance")
+    expect(pageTitle(facts, "/")).toBe("VERIDIAN · VERy INDIAN — DPDP Compliance Management Software for India")
     for (const p of PUBLIC_PAGES) expect(p.title).toBe(pageTitle(facts, p.path))
     expect(() => pageTitle(facts, "/nope/")).toThrow(/no pages entry/)
+  })
+
+  // SEO (2026-10-01): the titles and descriptions are what a search for these
+  // phrases matches. Pinned so a later edit cannot quietly drop the keyword --
+  // and so no superlative sneaks in (the claims register also scans them).
+  test("SEO: each landing's title and description carry the words people search for, with no superlative and no price", () => {
+    const title = (p: string) => pageTitle(facts, p).toLowerCase()
+    const desc = (p: string) => pageDescription(facts, p).toLowerCase()
+    expect(title("/")).toContain("dpdp compliance management software")
+    expect(title("/")).toContain("india")
+    expect(desc("/")).toContain("dpdp compliance management software for india")
+    expect(title("/dpdp-firm/")).toContain("ca firms")
+    expect(desc("/dpdp-firm/")).toContain("ca, cs and audit firms")
+    expect(desc("/dpdp-firm/")).toContain("13 may 2027")
+    expect(title("/dpdp-institution/")).toContain("schools")
+    expect(desc("/dpdp-institution/")).toContain("schools")
+    expect(desc("/about/")).toContain("13 may 2027")
+    expect(desc("/about/")).toContain("dpdp rules 2025")
+    for (const p of PUBLIC_PAGES) {
+      const text = `${pageTitle(facts, p.path)} ${pageDescription(facts, p.path)}`
+      expect(text, p.path).not.toMatch(/\b(best|leading|fastest|only|number one|world[- ]class|guarantee[ds]?|certified|unmatched)\b|#1|100%/i)
+      expect(text, p.path).not.toMatch(/₹|\brs\.?\s?\d|\bprice\b|\bfree\b/i)
+      expect(pageDescription(facts, p.path).length, p.path).toBeGreaterThanOrEqual(60)
+      expect(pageDescription(facts, p.path).length, p.path).toBeLessThanOrEqual(200)
+    }
+  })
+
+  test("one public host: facts.site is the apex, and the app host is not a fact", () => {
+    expect(facts.site).toBe("https://veridian-aios.com")
+    expect(PUBLIC_ORIGIN).toBe(facts.site)
+    expect(facts.company_site).toBe(`${facts.site}/`)
+    expect(JSON.stringify(publicFacts(facts))).not.toContain("app.veridian-aios.com")
   })
 })
 
@@ -207,7 +239,7 @@ describe("the generator (scripts/generate-public-facts.mjs)", () => {
     for (const path of ["/", "/dpdp-firm/", "/dpdp-institution/"]) {
       const page = PUBLIC_PAGES.find((p) => p.path === path)!
       const html = read(page.source)
-      for (const name of ["brand-line", "facts"]) {
+      for (const name of ["brand-line", "facts", "footer-links"]) {
         const i = html.indexOf(`<!-- BEGIN generated: ${name} -->`)
         const j = html.indexOf(`<!-- END generated: ${name} -->`)
         expect(i, `${page.source}: ${name} BEGIN`).toBeGreaterThan(-1)

@@ -56,6 +56,23 @@ describe("public/_redirects (WO-013 §2.4)", () => {
     }
   })
 
+  // SEO (2026-10-01): the public pages are canonical to veridian-aios.com, but
+  // this ONE file is served on app.veridian-aios.com as well, and a Pages rule
+  // matches a path, never a host. So no rule here may move a visitor between
+  // hosts (an absolute URL on either side), and none may match a prefix the
+  // signed-in app, the Monday email or the AI work link depend on staying put.
+  test("no rule changes host, and none can capture a private prefix (/app/, /act/, /copy/, /p/, /unsubscribe/, /ai/)", () => {
+    for (const r of rules) {
+      expect(r.from.startsWith("/"), `${r.from} is not a path`).toBe(true)
+      expect(r.to.startsWith("/") && !r.to.startsWith("//"), `${r.to} leaves the host`).toBe(true)
+      expect(r.from.includes("*"), `${r.from} is a splat rule`).toBe(false)
+      expect(r.from.includes(":"), `${r.from} is a placeholder rule`).toBe(false)
+      for (const priv of PRIVATE_PAGES) {
+        expect(r.from.startsWith(priv.prefix) || priv.prefix.startsWith(r.from.endsWith("/") ? r.from : r.from + "/"), `${r.from} touches ${priv.prefix}`).toBe(false)
+      }
+    }
+  })
+
   test("the parser reads the documented format and rejects a malformed line", () => {
     expect(parseRedirects("# c\n/a /b 301\n/c /d\n")).toEqual([
       { from: "/a", to: "/b", status: 301 },

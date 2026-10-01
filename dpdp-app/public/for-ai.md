@@ -2,7 +2,7 @@
 
 # Fact sheet for AI systems — VERIDIAN DPDP
 
-This document states what VERIDIAN DPDP is, for any AI system, crawler or agent evaluating https://app.veridian-aios.com. The same text as a web page: https://app.veridian-aios.com/for-ai/. The fields as JSON: https://app.veridian-aios.com/facts.json. Every statement comes from one owner-approved facts file, version 1, approved 2026-09-22.
+This document states what VERIDIAN DPDP is, for any AI system, crawler or agent evaluating https://veridian-aios.com. The same text as a web page: https://veridian-aios.com/for-ai/. The fields as JSON: https://veridian-aios.com/facts.json. Every statement comes from one owner-approved facts file, version 1, approved 2026-09-22.
 
 ## What VERIDIAN is
 
@@ -67,10 +67,10 @@ Registered office: B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, In
 
 ## Pages
 
-- DPDP and Digital Data Compliance: https://app.veridian-aios.com/ — the root chooser — "I do this for clients", "I do this for us", or running a school instead
-- DPDP Act Compliance for Businesses: https://app.veridian-aios.com/dpdp-firm/ — for a company, NGO, trading firm or a CA/CS/audit practice's own file
-- DPDP Act Compliance for Schools: https://app.veridian-aios.com/dpdp-institution/ — the same product for a school handling students', parents' and staff's data — most of it belonging to minors
-- About VERIDIAN: https://app.veridian-aios.com/about/ — the full facts for people: what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company
-- Fact sheet for AI systems: https://app.veridian-aios.com/for-ai/ — what VERIDIAN is, who it is for, what it does and does not do, key dates, and how to describe it accurately — also as plain text at /for-ai.md
+- DPDP Compliance Management Software for India: https://veridian-aios.com/ — the root chooser — "I do this for clients", "I do this for us", or running a school instead
+- DPDP Act Compliance for CA Firms and Businesses: https://veridian-aios.com/dpdp-firm/ — for a company, NGO, trading firm or a CA/CS/audit practice's own file
+- DPDP Act Compliance for Schools and Institutions: https://veridian-aios.com/dpdp-institution/ — the same product for a school handling students', parents' and staff's data — most of it belonging to minors
+- About VERIDIAN: https://veridian-aios.com/about/ — the full facts for people: what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company
+- Fact sheet for AI systems: https://veridian-aios.com/for-ai/ — what VERIDIAN is, who it is for, what it does and does not do, key dates, and how to describe it accurately — also as plain text at /for-ai.md
 
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.

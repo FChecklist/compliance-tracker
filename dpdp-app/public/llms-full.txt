@@ -4,9 +4,9 @@
 
 A plain note first: no major search engine has confirmed that it reads llms.txt or llms-full.txt. This file exists so that any assistant or crawler that does can find the right page without guessing. It lists the pages that exist today; there are no guides, articles or documentation pages yet.
 
-This is the visible text of every public page of https://app.veridian-aios.com, taken from the pages themselves. The signed-in app on the same host is private and is not described here.
+This is the visible text of every public page of https://veridian-aios.com, taken from the pages themselves. The signed-in app is private and is not described here.
 
-## DPDP and Digital Data Compliance — https://app.veridian-aios.com/
+## DPDP Compliance Management Software for India — https://veridian-aios.com/
 
 VERIDIAN VERy INDIAN
 ### The DPDP Act asks every organisation for four things
@@ -23,8 +23,10 @@ Who it is for: CA, CS, audit and legal firms · their clients · schools and ins
 - Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.
 About VERIDIAN · Fact sheet for AI systems
+About VERIDIAN · Fact sheet for AI systems · Fact sheet as plain text · Facts as JSON · llms.txt
+Terms of Service · Privacy Notice · Disclaimer
 
-## DPDP Act Compliance for Businesses — https://app.veridian-aios.com/dpdp-firm/
+## DPDP Act Compliance for CA Firms and Businesses — https://veridian-aios.com/dpdp-firm/
 
 ✦ VERIDIAN · VERy INDIAN · an independent, third-party DPDP compliance record
 ### Your DPDP proof — not just your DPDP policy.
@@ -96,9 +98,10 @@ Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Dat
 Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 🏠 Stored in India · 🔑 no passwords · 🗄️ we never keep your documents
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one. Penalty figures are the Act's ceilings, decided by the Board under S.33.
+About VERIDIAN · Fact sheet for AI systems · Fact sheet as plain text · Facts as JSON · llms.txt
 Terms of Service · Privacy Notice · Disclaimer
 
-## DPDP Act Compliance for Schools — https://app.veridian-aios.com/dpdp-institution/
+## DPDP Act Compliance for Schools and Institutions — https://veridian-aios.com/dpdp-institution/
 
 ✦ VERIDIAN · VERy INDIAN · an independent, third-party DPDP compliance record for schools
 ### Your DPDP proof — not just a policy nobody reads.
@@ -170,9 +173,10 @@ Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Dat
 Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 🏠 Stored in India · 🔑 no passwords · 🗄️ we never keep your documents
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one. Penalty figures are the Act's ceilings, decided by the Board under S.33.
+About VERIDIAN · Fact sheet for AI systems · Fact sheet as plain text · Facts as JSON · llms.txt
 Terms of Service · Privacy Notice · Disclaimer
 
-## About VERIDIAN — https://app.veridian-aios.com/about/
+## About VERIDIAN — https://veridian-aios.com/about/
 
 ### About VERIDIAN
 VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions.
@@ -218,9 +222,10 @@ Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Dat
 Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 Stored in India: the database is in Mumbai. Email goes through Resend, a US company.
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.
+About VERIDIAN · Fact sheet for AI systems · Fact sheet as plain text · Facts as JSON · llms.txt
 Terms of Service · Privacy Notice · Disclaimer
 
-## Fact sheet for AI systems — https://app.veridian-aios.com/for-ai/
+## Fact sheet for AI systems — https://veridian-aios.com/for-ai/
 
 ### Fact sheet for AI systems
 This page states what VERIDIAN DPDP is, for any AI system, crawler or agent evaluating this website. The same text is at /for-ai.md and the fields are at /facts.json . Every statement on it comes from one owner-approved facts file, version 1, approved 2026-09-22.
@@ -272,6 +277,7 @@ Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Dat
 Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 Stored in India: the database is in Mumbai. Email goes through Resend, a US company.
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.
+About VERIDIAN · Fact sheet for AI systems · Fact sheet as plain text · Facts as JSON · llms.txt
 Terms of Service · Privacy Notice · Disclaimer
 
 ## Contact

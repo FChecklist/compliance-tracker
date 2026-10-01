@@ -26,10 +26,34 @@
 // crawler that finds it can still read the noindex).
 import { loadFacts, pageTitle, subjectTopicsClause } from "./facts.mjs"
 
-import { SITE_ORIGIN } from "./site-origin.mjs"
-export { SITE_ORIGIN }
+import { PUBLIC_ORIGIN, SITE_ORIGIN } from "./site-origin.mjs"
+// SITE_ORIGIN is the signed-in app's host (kept for the /app/ bundle and the
+// tests that pin it); PUBLIC_ORIGIN is the host every public page is
+// indexed under -- canonical, og:url, sitemap, JSON-LD, llms.txt all use it.
+export { PUBLIC_ORIGIN, SITE_ORIGIN }
 
 export const FACTS = loadFacts()
+
+/** The Open Graph / Twitter card image: a static branded PNG, 1200x630,
+ * rendered from the brand wordmark + the brand line (scripts/make-og-image.html
+ * is its source). Served from public/ at this path on the public origin. */
+export const OG_IMAGE = {
+  path: "/og-image.png",
+  width: 1200,
+  height: 630,
+  alt: FACTS.brand.full,
+}
+
+/** The internal-link row every public page's footer carries (SEO: every
+ * public page links the fact surfaces). href -> link text; the post-build
+ * check proves each href is in the raw HTML of each public page. */
+export const FOOTER_LINKS = [
+  ["/about/", FACTS.pages["/about/"].name],
+  ["/for-ai/", FACTS.pages["/for-ai/"].name],
+  ["/for-ai.md", "Fact sheet as plain text"],
+  ["/facts.json", "Facts as JSON"],
+  ["/llms.txt", "llms.txt"],
+]
 
 // The copy generated from the facts file onto EVERY public page (the fact
 // block, WO-013 §2.1; the brand line, WO-014 §2): the post-build check
@@ -40,6 +64,8 @@ const FACT_COPY = [
   FACTS.what_it_does_not_do,
   FACTS.brand.full,
   FACTS.brand.short,
+  // The footer's internal links to the fact surfaces (SEO internal linking).
+  ...FOOTER_LINKS.map(([href]) => `href="${href}"`),
 ]
 
 /** Every crawler WO-012 §3 names. Each must appear as its own User-agent
@@ -169,7 +195,7 @@ export const PUBLIC_PAGES = [
     source: "dpdp-firm/index.html",
     title: pageTitle(FACTS, "/dpdp-firm/"),
     h1: "Your DPDP proof — not just your DPDP policy.",
-    jsonLd: ["Organization", "WebSite", "SoftwareApplication", "FAQPage"],
+    jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
       "an independent, third-party DPDP compliance record",
       "Built for a company, NGO, trading firm or a CA/CS/audit practice's own file.",
@@ -183,7 +209,7 @@ export const PUBLIC_PAGES = [
     source: "dpdp-institution/index.html",
     title: pageTitle(FACTS, "/dpdp-institution/"),
     h1: "Your DPDP proof — not just a policy nobody reads.",
-    jsonLd: ["Organization", "WebSite", "SoftwareApplication", "FAQPage"],
+    jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
       "an independent, third-party DPDP compliance record for schools",
       "Built for a school handling students', parents' and staff's data — most of it belonging to minors.",
@@ -199,7 +225,7 @@ export const PUBLIC_PAGES = [
     source: "about/index.html",
     title: pageTitle(FACTS, "/about/"),
     h1: FACTS.pages["/about/"].name,
-    jsonLd: ["Organization", "WebSite", "SoftwareApplication"],
+    jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList"],
     mustContain: [
       FACTS.what_it_does,
       FACTS.deadline_line,
@@ -221,7 +247,7 @@ export const PUBLIC_PAGES = [
     source: "for-ai/index.html",
     title: pageTitle(FACTS, "/for-ai/"),
     h1: FACTS.pages["/for-ai/"].name,
-    jsonLd: ["Organization", "WebSite", "SoftwareApplication"],
+    jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList"],
     mustContain: [
       FACTS.what_it_does,
       FACTS.deadline_line,
@@ -240,7 +266,7 @@ const PROOF_PAGE = {
   source: "proof/index.html",
   title: pageTitle(FACTS, "/proof/"),
   h1: FACTS.pages["/proof/"].name,
-  jsonLd: ["Organization", "WebSite", "SoftwareApplication"],
+  jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList"],
   mustContain: [FACTS.brand.share_ask, ...FACT_COPY],
 }
 if (FACTS.proof.enabled) PUBLIC_PAGES.push(PROOF_PAGE)
@@ -250,7 +276,7 @@ if (FACTS.proof.enabled) PUBLIC_PAGES.push(PROOF_PAGE)
 export const HIDDEN_PAGES = FACTS.proof.enabled ? [] : [{ prefix: PROOF_PAGE.path, source: PROOF_PAGE.source }]
 
 export function pageUrl(path) {
-  return SITE_ORIGIN + path
+  return PUBLIC_ORIGIN + path
 }
 
 // sitemaps.org's <lastmod> is a W3C datetime: a date, or a date-time with a

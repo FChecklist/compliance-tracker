@@ -28,7 +28,11 @@ approved_on: "2026-09-22"
 approved_by: owner (WO-DPDP-013 v2 text, WO-DPDP-014 §1 text)
 
 product: VERIDIAN DPDP
-site: https://app.veridian-aios.com
+# `site` is the host the PUBLIC pages are indexed under (canonical, sitemap,
+# llms.txt, facts.json). Since 2026-10-01 that is the apex; the signed-in app
+# and the Monday email's links stay on app.veridian-aios.com (see
+# src/lib/site-origin.mjs: SITE_ORIGIN = app host, PUBLIC_ORIGIN = this).
+site: https://veridian-aios.com
 company_site: https://veridian-aios.com/
 
 # ---------------------------------------------------------------------------
@@ -242,26 +246,40 @@ ai_work_link_public_sentence: Users can give their own AI assistant a private, t
 # SoftwareApplication.audience). The edition audiences are the ones the
 # landings already carried. Not owner-approved as wording.
 # ---------------------------------------------------------------------------
+#
+# SEO (2026-10-01): `name` is the tab title after "VERIDIAN · VERy INDIAN — ",
+# and the optional `description` is the page's meta description / og:description
+# / twitter:description (60-200 characters; the one line above is used when a
+# page has none). Both are written to match what people search for -- "DPDP
+# compliance management software India", "DPDP Act compliance for CA firms",
+# "DPDP compliance for schools", "13 May 2027" -- using only facts already
+# stated above. No superlative (best, leading, #1), no price, no rating: the
+# banned-word check (data/claims-register.yaml) scans titles and descriptions.
 pages:
   owner_approved: false
   "/":
-    name: DPDP and Digital Data Compliance
+    name: DPDP Compliance Management Software for India
+    description: DPDP compliance management software for India. It turns the DPDP Act 2023 and DPDP Rules 2025 into jobs with owners, for CA firms, their clients and schools.
     summary: "the root chooser — \"I do this for clients\", \"I do this for us\", or running a school instead"
     audience: CA, CS, audit and legal firms, their clients, and schools and institutions
   "/dpdp-firm/":
-    name: DPDP Act Compliance for Businesses
+    name: DPDP Act Compliance for CA Firms and Businesses
+    description: DPDP Act compliance for CA, CS and audit firms, their clients and companies. Jobs mapped to the law and a dated record nobody can edit. Compliance due 13 May 2027.
     summary: "for a company, NGO, trading firm or a CA/CS/audit practice's own file"
     audience: Companies, NGOs, trading firms, and CA/CS/audit practices keeping their own file
   "/dpdp-institution/":
-    name: DPDP Act Compliance for Schools
+    name: DPDP Act Compliance for Schools and Institutions
+    description: DPDP Act compliance for schools and institutions. Jobs mapped to the law for the students', parents' and staff's data you hold, most of it belonging to minors.
     summary: "the same product for a school handling students', parents' and staff's data — most of it belonging to minors"
     audience: Schools handling students', parents' and staff's personal data
   "/about/":
     name: About VERIDIAN
+    description: About VERIDIAN, DPDP compliance software for India. The SPDI Rules 2011 apply until 13 May 2027; compliance with the DPDP Act 2023 and DPDP Rules 2025 is due from 13 May 2027.
     summary: "the full facts for people: what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company"
     audience: CA, CS, audit and legal firms, their clients, and schools and institutions
   "/for-ai/":
     name: Fact sheet for AI systems
+    description: Fact sheet for AI systems and crawlers. What VERIDIAN, DPDP compliance software for India, is, who it is for, what it does and does not do, and the key date 13 May 2027.
     summary: "what VERIDIAN is, who it is for, what it does and does not do, key dates, and how to describe it accurately — also as plain text at /for-ai.md"
     audience: CA, CS, audit and legal firms, their clients, and schools and institutions
   "/proof/":
