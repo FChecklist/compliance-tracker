@@ -16,9 +16,10 @@
       "@graph": [
         {
           "@type": "Organization",
-          "@id": "https://app.veridian-aios.com/#organization",
+          "@id": "https://veridian-aios.com/#organization",
           "name": "VERIDIAN",
           "url": "https://veridian-aios.com/",
+          "logo": "https://veridian-aios.com/logo.png",
           "contactPoint": [
             {
               "@type": "ContactPoint",
@@ -50,18 +51,18 @@
         },
         {
           "@type": "WebSite",
-          "@id": "https://app.veridian-aios.com/#website",
+          "@id": "https://veridian-aios.com/#website",
           "name": "VERIDIAN DPDP",
-          "url": "https://app.veridian-aios.com/",
+          "url": "https://veridian-aios.com/",
           "inLanguage": "en-IN",
           "publisher": {
-            "@id": "https://app.veridian-aios.com/#organization"
+            "@id": "https://veridian-aios.com/#organization"
           }
         },
         {
           "@type": "SoftwareApplication",
           "name": "VERIDIAN DPDP",
-          "url": "https://app.veridian-aios.com/proof/",
+          "url": "https://veridian-aios.com/proof/",
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web browser",
           "inLanguage": "en-IN",
@@ -71,8 +72,25 @@
             "audienceType": "CA, CS, audit and legal firms, their clients, and schools and institutions"
           },
           "publisher": {
-            "@id": "https://app.veridian-aios.com/#organization"
+            "@id": "https://veridian-aios.com/#organization"
           }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Home",
+              "item": "https://veridian-aios.com/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Proof",
+              "item": "https://veridian-aios.com/proof/"
+            }
+          ]
         }
       ]
     }
@@ -140,6 +158,7 @@
       <p class="footer-line"><!--email_off-->Grievance Officer: <b class="white">dpdp@veridian-aios.com</b> (subject: Grievance)<!--/email_off--></p>
       <p class="footer-line">Stored in India: the database is in Mumbai. Email goes through Resend, a US company.</p>
       <p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>
+      <p class="footer-legal footer-legal-links"><a href="/about/">About VERIDIAN</a> · <a href="/for-ai/">Fact sheet for AI systems</a> · <a href="/for-ai.md">Fact sheet as plain text</a> · <a href="/facts.json">Facts as JSON</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a></p>
     </footer>
   </body>

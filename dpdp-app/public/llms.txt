@@ -33,18 +33,19 @@ Brand line, as a fact: VERIDIAN · VERy INDIAN — Built for India's DPDP Act. F
 
 ## Pages
 
-- [DPDP and Digital Data Compliance](https://app.veridian-aios.com/): the root chooser — "I do this for clients", "I do this for us", or running a school instead
-- [DPDP Act Compliance for Businesses](https://app.veridian-aios.com/dpdp-firm/): for a company, NGO, trading firm or a CA/CS/audit practice's own file
-- [DPDP Act Compliance for Schools](https://app.veridian-aios.com/dpdp-institution/): the same product for a school handling students', parents' and staff's data — most of it belonging to minors
-- [About VERIDIAN](https://app.veridian-aios.com/about/): the full facts for people: what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company
-- [Fact sheet for AI systems](https://app.veridian-aios.com/for-ai/): what VERIDIAN is, who it is for, what it does and does not do, key dates, and how to describe it accurately — also as plain text at /for-ai.md
-- The fact sheet as plain text: https://app.veridian-aios.com/for-ai.md
-- The facts as JSON: https://app.veridian-aios.com/facts.json
+- [DPDP Compliance Management Software for India](https://veridian-aios.com/): the root chooser — "I do this for clients", "I do this for us", or running a school instead
+- [DPDP Act Compliance for CA Firms and Businesses](https://veridian-aios.com/dpdp-firm/): for a company, NGO, trading firm or a CA/CS/audit practice's own file
+- [DPDP Act Compliance for Schools and Institutions](https://veridian-aios.com/dpdp-institution/): the same product for a school handling students', parents' and staff's data — most of it belonging to minors
+- [About VERIDIAN](https://veridian-aios.com/about/): the full facts for people: what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company
+- [Fact sheet for AI systems](https://veridian-aios.com/for-ai/): what VERIDIAN is, who it is for, what it does and does not do, key dates, and how to describe it accurately — also as plain text at /for-ai.md
+- The fact sheet as plain text: https://veridian-aios.com/for-ai.md
+- The facts as JSON: https://veridian-aios.com/facts.json
+- The sitemap: https://veridian-aios.com/sitemap.xml
 
 ## Not on this site
 
 - No prices are published. Pricing after a short conversation, because the right number depends on what you hold.
-- The signed-in app on this host is private: not indexed, not for crawling, and not linked from here.
+- The signed-in app is private: not indexed, not for crawling, and not linked from here.
 - No penalty order has been issued under the Act in India to date.
 - Users can give their own AI assistant a private, time-limited AI work link from inside VERIDIAN.
 
