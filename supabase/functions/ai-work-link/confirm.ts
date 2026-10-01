@@ -49,7 +49,7 @@ export type ConfirmDeps = {
 export type ConfirmAnswer = { status: number; body: unknown; headers?: Record<string, string> }
 
 // The same sentence as src/lib/supabase/auth-guard.ts USER_NOT_LINKED_MESSAGE and projexa-read/handler.ts.
-export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a VERIDIAN user - ask your admin"
+export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a PROJEXA user - ask your admin"
 
 export const CONFIRM_LIMIT_PER_MINUTE = 10
 const WINDOW_MS = 60_000

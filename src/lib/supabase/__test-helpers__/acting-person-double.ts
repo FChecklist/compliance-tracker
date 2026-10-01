@@ -61,7 +61,7 @@ export function actingPersonDouble(resolve: (actorId: string | null, actorEmail:
     if (!person) {
       return {
         acting: null,
-        error: NextResponse.json({ error: "Your PROJEXA account is not linked to a VERIDIAN user - ask your admin", code: "USER_NOT_LINKED" }, { status: 400 }),
+        error: NextResponse.json({ error: "Your PROJEXA account is not linked to a PROJEXA user - ask your admin", code: "USER_NOT_LINKED" }, { status: 400 }),
       }
     }
     return {
