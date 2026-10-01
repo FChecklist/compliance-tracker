@@ -12,6 +12,7 @@ import { join } from "node:path"
 import {
   FACTS,
   FOOTER_LINKS,
+  NAV_AI,
   NAV_PARTNER,
   NAV_SIGN_IN,
   OG_IMAGE,
@@ -265,9 +266,10 @@ describe("the home page offers exactly two ways in (owner, 2026-10-01)", () => {
     ])
   })
 
-  test("no third option or secondary chooser link: the only other link in the page body is the sign-in and About", () => {
+  test("no third option or secondary chooser link: the only other links in the page body are the free AI assistant highlight (its button and its page), the sign-in and About", () => {
     const hrefs = [...main.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1])
-    expect(hrefs.sort()).toEqual(["/about/", "/app/", "/dpdp-firm/", "/dpdp-institution/"].sort())
+    // "/app/" twice: the AI assistant highlight's button and "Already have an account? Sign in".
+    expect(hrefs.sort()).toEqual(["/about/", "/ai-assistant/", "/app/", "/app/", "/dpdp-firm/", "/dpdp-institution/"].sort())
     expect(main).not.toMatch(/school instead/i)
     expect(main).not.toContain("?for=")
   })
@@ -327,6 +329,44 @@ describe("the header of every public page: Sales Partner next to Sign in, top ri
     }
   })
 
+  // Owner, 2026-10-01: ONE feature highlighted separately, on the upper right: the free AI assistant. A filled pill, first in the same
+  // group, so it is visibly different from the two text links beside it, and always on screen (no menu to open on a phone).
+  test("the free AI assistant pill is the FIRST item of the top-right group on every public page, a link to /ai-assistant/", () => {
+    expect(NAV_AI).toEqual({ href: "/ai-assistant/", label: "Free AI assistant" })
+    for (const p of PUBLIC_PAGES) {
+      const header = headerOf(read(p.source))
+      const actions = /<div class="nav-actions">([\s\S]*?)<\/div>\s*<\/div>\s*$/.exec(header)?.[1] ?? ""
+      const links = [...actions.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map((m) => ({ attrs: m[1], href: /href="([^"]*)"/.exec(m[1])![1], text: m[2].replace(/<[^>]+>/g, "").trim() }))
+      const pill = links.find((l) => l.attrs.includes('class="nav-ai"'))
+      expect(pill, `${p.path}: no free AI assistant pill in the top-right group`).toBeDefined()
+      expect([pill!.href, pill!.text], p.path).toEqual([NAV_AI.href, NAV_AI.label])
+      // nothing but the AI pill, Sales Partner and Sign in is allowed to sit between the pill and the right edge
+      const after = links.slice(links.indexOf(pill!) + 1).map((l) => l.href)
+      expect(after, p.path).toEqual([NAV_PARTNER.href, NAV_SIGN_IN.href])
+      // it is a real link in the always-visible group: not hidden, not in a menu, not behind a button
+      expect(actions, p.path).not.toMatch(/hidden|aria-hidden|<button|<details|display\s*:\s*none/i)
+    }
+  })
+
+  test("the pill is styled as a filled accent pill (not a text link), AA contrast, never hidden on a phone", () => {
+    const css = read("src/site.css")
+    const rule = /\.nav-ai\s*\{([^}]*)\}/.exec(css)![1]
+    expect(rule).toMatch(/background:\s*var\(--violet\)/)
+    expect(rule).toMatch(/color:\s*#fff/)
+    expect(rule).toMatch(/border-radius:\s*9999px/)
+    // no rule anywhere hides it, at any width
+    expect(css).not.toMatch(/\.nav-ai[^{]*\{[^}]*display\s*:\s*none/)
+    // the group wraps and stays right-aligned when the row is too narrow for four items
+    const group = [...css.matchAll(/\.nav-actions\s*\{([^}]*)\}/g)].map((m) => m[1]).join("\n")
+    expect(group).toMatch(/flex-wrap:\s*wrap/)
+    expect(group).toMatch(/margin-left:\s*auto/)
+    // white on --violet (#6d28d9): relative luminance contrast, computed here
+    const lin = (h: string) => [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)) as [number, number, number]
+    const lum = (h: string) => { const [r, g, b] = lin(h); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
+    expect(/--violet:\s*#6d28d9/.test(css)).toBe(true)
+    expect((1 + 0.05) / (lum("6d28d9") + 0.05)).toBeGreaterThanOrEqual(4.5)
+  })
+
   test("the stylesheet keeps the group on the right (space-between row, flex group)", () => {
     const css = read("src/site.css")
     expect(css).toMatch(/\.nav-inner \{[^}]*justify-content: space-between/)
@@ -338,7 +378,7 @@ describe("the header of every public page: Sales Partner next to Sign in, top ri
 // EXACTLY, so adding a public page or opening a private one is a deliberate edit of this test, not a side effect.
 describe("what is public and what is private, pinned exactly (with /partner/ public)", () => {
   test("the public pages are exactly these (+ /proof/ only if the owner switched it on)", () => {
-    const expected = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/"].concat(FACTS.proof.enabled ? ["/proof/"] : [])
+    const expected = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/"].concat(FACTS.proof.enabled ? ["/proof/"] : [])
     expect(PUBLIC_PAGES.map((p) => p.path)).toEqual(expected)
   })
 
@@ -378,6 +418,38 @@ describe("what is public and what is private, pinned exactly (with /partner/ pub
 
   test("the live smoke script checks /partner/ as a public page", () => {
     expect(read("scripts/live-smoke.mjs")).toContain('"/partner/"')
+  })
+
+  // Owner, 2026-10-01: /ai-assistant/ is public and indexable. Its name starts with "/ai", so it must never be mistaken for the private
+  // "/ai/" prefix (the AI work link's own address): not by robots.txt, not by _headers, not by the Pages Function that serves /ai/<token>.
+  test("/ai-assistant/ is indexable everywhere and is NOT under the private /ai/ prefix", () => {
+    const rules = parseHeadersFile(read("public/_headers"))
+    for (const path of ["/ai-assistant/", "/ai-assistant/index.html"]) {
+      const h = resolveHeaders(rules, path)
+      expect(h["x-robots-tag"], path).toBeUndefined()
+      expect(h["cache-control"], path).toBeUndefined()
+    }
+    expect("/ai-assistant/".startsWith("/ai/")).toBe(false)
+    const { groups } = parseRobots(read("public/robots.txt"))
+    for (const g of groups) {
+      expect(g.allow).toContain("/")
+      for (const d of g.disallow) expect("/ai-assistant/".startsWith(d), `Disallow: ${d} would block /ai-assistant/`).toBe(false)
+    }
+    // the rule that fences the private prefix is the slashed "/ai/*", never "/ai*"
+    expect(rules.some((r) => r.path === "/ai*" || r.path === "/ai-*")).toBe(false)
+    const sitemap = renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
+    expect(sitemap).toContain("<loc>https://veridian-aios.com/ai-assistant/</loc>")
+    expect(read("public/llms.txt")).toContain("](https://veridian-aios.com/ai-assistant/)")
+    expect(read("public/llms-full.txt")).toContain("https://veridian-aios.com/ai-assistant/")
+    // the Pages Function only answers /ai/<token>: its folder is "ai", not "ai-assistant"
+    expect(existsSync(join(root, "functions", "ai-assistant"))).toBe(false)
+  })
+
+  test("the live smoke script checks /ai-assistant/ as a public page, indexable, with the free-AI pill on the home page", () => {
+    const smoke = read("scripts/live-smoke.mjs")
+    expect(smoke).toContain('"/ai-assistant/"')
+    expect(smoke).toContain("Get your free AI assistant")
+    expect(smoke).toContain("nav-ai")
   })
 })
 
