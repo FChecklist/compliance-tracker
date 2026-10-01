@@ -22,10 +22,17 @@ import { executeRead } from "./execute-read"
 import { functionWrites, hasExecutor } from "./executor"
 import { runDirectTask, type RunDirectTaskInput } from "./run-submission"
 
+/**
+ * `project_id` is null in exactly one case: create_project on a USER-WIDE link (drizzle/0668), a draft made before the person picked any project. Every
+ * other claim names the project it runs in; claimIsWellFormed refuses a null project for any other function.
+ */
 export type ClaimedIntent = {
   intent: { id: string; kind: string; function_id: string; params: unknown }
-  ctx: { link_id: string; org_id: string; user_id: string; project_id: string; live_role: string; live_rank?: number; effective_level?: number; money_visible?: boolean }
+  ctx: { link_id: string; org_id: string; user_id: string; project_id: string | null; live_role: string; live_rank?: number; effective_level?: number; money_visible?: boolean }
 }
+
+/** The one function that runs with no project: it makes one. */
+export const NO_PROJECT_FUNCTION = "create_project"
 
 export type LinkRunOutcome =
   | { status: "done"; submission_id: string | null; record: { id: string | null; route: string | null } }
@@ -54,7 +61,8 @@ export function claimIsWellFormed(c: ClaimedIntent | null | undefined): c is Cla
     isText(ctx.link_id) &&
     isText(ctx.org_id) &&
     isText(ctx.user_id) &&
-    isText(ctx.project_id) &&
+    // a project is named, except for create_project, which has none yet; and create_project never runs INSIDE a project (it would pin the run to it)
+    (intent.function_id === NO_PROJECT_FUNCTION ? ctx.project_id === null : isText(ctx.project_id)) &&
     isText(ctx.live_role) &&
     (intent.params === null || intent.params === undefined || (typeof intent.params === "object" && !Array.isArray(intent.params)))
   )
@@ -76,7 +84,9 @@ export function codeOfThrown(error: unknown): string {
 export function buildRunInput(claimed: ClaimedIntent): RunDirectTaskInput {
   const { intent, ctx } = claimed
   const stored = intent.params && typeof intent.params === "object" && !Array.isArray(intent.params) ? (intent.params as Record<string, unknown>) : {}
-  const params: Record<string, unknown> = typeof stored.projectId === "string" && stored.projectId !== "" ? { ...stored } : { ...stored, projectId: ctx.project_id }
+  // no project (create_project of a user-wide link): nothing is injected and nothing is pinned; the executor makes the project and the person is its lead
+  const params: Record<string, unknown> =
+    ctx.project_id === null ? { ...stored } : typeof stored.projectId === "string" && stored.projectId !== "" ? { ...stored } : { ...stored, projectId: ctx.project_id }
   return {
     orgId: ctx.org_id,
     userId: ctx.user_id,

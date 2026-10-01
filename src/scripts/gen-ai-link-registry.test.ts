@@ -44,7 +44,8 @@ const SPEC_ON_LINKS: Record<string, [number, number]> = {
   add_roster_entry: [2, 2],
   create_boq_revision: [2, 2],
 }
-// BUILD-002 WP-03, WP-04, WP-07 (AW-201 to AW-205, AW-331): function -> [function link level, minimum role rank]. create_project is on no link.
+// BUILD-002 WP-03, WP-04, WP-07 (AW-201 to AW-205, AW-331): function -> [function link level, minimum role rank]. create_project was on no link until the USER-WIDE
+// link (below).
 const B002_ON_LINKS: Record<string, [number, number]> = {
   create_boq: [2, 2],
   add_boq_lines: [2, 2],
@@ -73,7 +74,9 @@ const B002_WAVE_7_9_MONEY = [
   "submit_boq_for_approval", "submit_change_order_for_approval", "submit_kpi_entry", "submit_progress_claim", "update_ffe_status",
 ]
 const B002_WAVE_5_6_MONEY = ["compare_boq_revisions", "get_project_budget_variance", "get_project_exceptions", "record_material_receipt", "record_vendor_dispute"]
-const B002_EXCLUDED = ["create_project", "link_roster_employee"]
+// The USER-WIDE link (drizzle/0668 and 0669): create_project is a level 2 draft at member rank, usable by a link made for a PERSON only (the SQL effective list keeps it off every project link).
+const USER_LINK_ON_LINKS: Record<string, [number, number]> = { create_project: [2, 2] }
+const B002_EXCLUDED = ["link_roster_employee"]
 // BUILD-002 WP-05c and WP-05d (AW-303, AW-304): coverage waves 3 and 4. function -> [function link level, minimum role rank].
 const B002_W34_ON_LINKS: Record<string, [number, number]> = {
   create_rfi: [1, 2], answer_rfi: [2, 2], close_rfi: [1, 2], create_submittal: [1, 2], review_submittal: [2, 3],
@@ -105,7 +108,7 @@ const B002_WAVE_1_2_ON_LINKS: Record<string, [number, number]> = {
 }
 // BUILD-002 persona-run finding 3: an AI-recorded timesheet entry stays a draft; submitting it is a level-2 draft the person confirms, member rank.
 const B002_SUBMIT_TIMESHEET_ON_LINKS: Record<string, [number, number]> = { submit_timesheet: [2, 2] }
-const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS, ...B002_WAVE_7_9_ON_LINKS, ...B002_SUBMIT_TIMESHEET_ON_LINKS }
+const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS, ...B002_WAVE_7_9_ON_LINKS, ...B002_SUBMIT_TIMESHEET_ON_LINKS, ...USER_LINK_ON_LINKS }
 /** How many functions are on links in all: every list above, so a wave that adds its own list changes one line, not a number. */
 const ON_LINKS_COUNT = Object.keys(ALL_ON_LINKS).length
 // spec 9.1: the 17 excluded (the register row AWL-S03 names the first five)
@@ -148,7 +151,7 @@ describe("the committed outputs are current", () => {
     const io = fsIo(ROOT)
     for (const f of [FUNCTIONS_JSON, KINDS_JSON, CURRENT_SEED_MIGRATION]) expect(io.exists(f)).toBe(true)
     expect(FUNCTIONS_JSON).toBe("supabase/functions/ai-work-link/function-registry.generated.json")
-    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0651_build002_awl_seed_submit_timesheet.sql")
+    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0669_awl_seed_user_link_create_project.sql")
   })
 
   test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are every function reviewed onto links, and none of the five bad ones", () => {
@@ -179,7 +182,8 @@ describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 78 of
     )
   })
 
-  test("BUILD-002: create_project is excluded with a reason (a link is bound to one project); the three BOQ functions may take 64 KB, no other function more than 8 KB", () => {
+  test("BUILD-002: link_roster_employee is excluded with a reason; create_project is a level 2 draft at rank 2 with no money and the name and description as text; the three BOQ functions may take 64 KB, no other function more than 8 KB", () => {
+    expect(rows.find((x) => x.function_id === "create_project")).toMatchObject({ link_level: 2, min_role_rank: 2, money_sensitive: false, excluded_reason: null, text_params: ["name", "description"], kind: "write" })
     for (const id of B002_EXCLUDED) {
       const r = rows.find((x) => x.function_id === id)!
       expect({ id, level: r.link_level, reason: (r.excluded_reason ?? "").length > 20 }).toEqual({ id, level: null, reason: true })
@@ -229,7 +233,7 @@ describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 78 of
     expect([...idParams].sort()).toEqual([
       "activityId", "againstBoqId", "assignedToId", "assigneeId", "assigneeIds", "assigneeUserId", "baselineId", "boqId", "boqLineItemId", "budgetId", "categoryId", "changeOrderId", "claimId", "clientId", "customerId", "documentId",
       "drawingDocumentId", "entryId", "evidenceDocumentId", "ffeItemId", "floorPlanId", "issueId", "itemId", "kpiDefinitionId", "materialId", "meetingId", "milestoneId", "moodBoardId", "pageId", "parentBoqId", "parentCategoryId",
-      "parentPageId", "predecessorId", "progressEntryId", "receiptId", "rfiId", "roomId", "rosterId", "sourceChangeOrderId", "statusId", "submittalId", "timeEntryId", "typeId", "vendorId",
+      "parentPageId", "predecessorId", "productId", "progressEntryId", "receiptId", "rfiId", "roomId", "rosterId", "sourceChangeOrderId", "statusId", "submittalId", "timeEntryId", "typeId", "vendorId",
     ])
     expect(on.find((r) => r.function_id === "record_work_progress")!.id_params).toEqual(["boqLineItemId"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params.map((p) => p.name)).toEqual(["projectId", "itemCode", "percent"])

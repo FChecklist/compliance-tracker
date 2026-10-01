@@ -1,6 +1,8 @@
 // BUILD-002 AW-311 (WP-05): after nine coverage waves put ~94 functions on links, the classes that must stay off every link still are:
-// model calls (F-2), organisation-wide reads (F-3), personal HR ids that cannot be checked against a project, creating another project, and
-// anything that deletes, holds a secret or belongs to the platform admin. A wave that allow-lists one of them, or a later edit that drops its reason,
+// model calls (F-2), organisation-wide reads (F-3), personal HR ids that cannot be checked against a project, and
+// anything that deletes, holds a secret or belongs to the platform admin. (Creating another project is no longer in the list: a link made for a PERSON
+// may draft create_project, a level 2 draft the person confirms; a link made for ONE PROJECT never can, which the SQL effective list proves in
+// ai-work-link-user-link.pglite.test.ts.) A wave that allow-lists one of them, or a later edit that drops its reason,
 // fails here by name.
 import { describe, test, expect } from "bun:test"
 import { buildFunctionRows } from "../../../scripts/gen-ai-link-registry"
@@ -15,7 +17,7 @@ const excludedIds = Object.keys(EXCLUDED_REASONS)
 
 describe("what stays off every link", () => {
   test("every excluded function is generated with no link level and its written reason", () => {
-    expect(excludedIds.length).toBeGreaterThanOrEqual(19)
+    expect(excludedIds.length).toBeGreaterThanOrEqual(18)
     for (const id of excludedIds) {
       const row = rows.find((r) => r.function_id === id)
       expect(row, id).toBeDefined()
@@ -47,9 +49,11 @@ describe("what stays off every link", () => {
     }
   })
 
-  test("a link cannot create another project or link an employee (organisation-wide HR record)", () => {
-    expect(onLinks).not.toContain("create_project")
+  test("a link cannot link an employee (organisation-wide HR record); create_project is on links ONLY as a level 2 draft of a link made for a person", () => {
     expect(onLinks).not.toContain("link_roster_employee")
+    const cp = (registry as Array<Row & { min_role_rank: number; kind: string }>).find((r) => r.function_id === "create_project")!
+    expect(cp).toMatchObject({ link_level: 2, min_role_rank: 2, kind: "write", excluded_reason: null })
+    expect("create_project" in EXCLUDED_REASONS).toBe(false)
   })
 
   test("no function on a link is a delete, a secret, a credential, a platform-admin or a model function by name", () => {

@@ -13,7 +13,7 @@ import { F, TOKENS, makeFake, req, testConfig, type FakeOptions } from "./__test
 
 const ACCEPT = "application/json, text/event-stream"
 const META = "io.modelcontextprotocol/protocolVersion"
-const READ_TOOL_NAMES = new Set(["get_context", "list_records", "get_record", "get_history", "search", "fetch", "check_change", "propose_change"])
+const READ_TOOL_NAMES = new Set(["list_projects", "get_portfolio", "get_context", "list_records", "get_record", "get_history", "search", "fetch", "check_change", "propose_change"])
 
 function setup(opts: FakeOptions = {}) {
   const fake = makeFake(opts)
@@ -67,14 +67,17 @@ describe("legacy era (initialize, tools/list, tools/call)", () => {
     }
     // every advertised tool runs (no "Unknown tool", no protocol error) with minimal valid arguments
     const args: Record<string, Record<string, unknown>> = {
-      get_context: {}, list_records: { kind: "tasks" }, get_record: { kind: "tasks", id: "tasks-a001" }, get_history: {}, search: { query: "" }, fetch: { id: "tasks:tasks-a001" },
+      list_projects: {}, get_portfolio: {}, get_context: {}, list_records: { kind: "tasks" }, get_record: { kind: "tasks", id: "tasks-a001" }, get_history: {}, search: { query: "" }, fetch: { id: "tasks:tasks-a001" },
       check_change: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } }, propose_change: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } },
     }
     for (const t of tools) {
       const r = await call(TOKENS.manager, t.name, args[t.name])
       expect(r.status).toBe(200)
       expect(r.body.error).toBeUndefined()
-      expect(r.result.isError).toBe(false)
+      // the two tools of a link made for a person answer a link for one project with a tool error (USER_LINK_REQUIRED), never with data
+      const forPersonOnly = t.name === "list_projects" || t.name === "get_portfolio"
+      expect(r.result.isError).toBe(forPersonOnly)
+      if (forPersonOnly) expect(JSON.stringify(r.result.content)).toContain("403")
     }
     // the tool set does not depend on the person's role: no function tool is advertised while no function can run
     const viewer = await (await legacy(TOKENS.viewer, "tools/list")).json()

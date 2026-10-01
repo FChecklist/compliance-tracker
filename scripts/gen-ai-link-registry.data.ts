@@ -55,6 +55,10 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   seal_boq: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [], bodyMaxBytes: 65536 },
   update_project: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "description"] },
   create_activity: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "unit"] },
+  // The USER-WIDE link (drizzle/0668): create_project is a function of a link that belongs to a person, used before the person has picked a project.
+  // It is a draft the person confirms (level 2) and never a direct write. A PROJECT link can never use it: the SQL effective list
+  // (ai_work_link__fns) leaves it out of every project link and out of every user link that is inside a project, and record_intent and the claim refuse it.
+  create_project: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: ["name", "description"] },
   // BUILD-002 WP-05a wave 1 (AW-301): schedule, milestones and reports. These 10 functions already had an executor (U-38) and were on no link.
   // Each minimum rank is the rank of the route the same action has in the app (PROJEXA schedule and milestones: member to write, no read
   // gate; reports/[reportName]: no read gate except budget-vs-actual; reports/boq-analysis: manager), so an AI never has more authority than
@@ -188,7 +192,6 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */
 export const EXCLUDED_REASONS: Readonly<Record<string, string>> = {
-  create_project: "A link is bound to one project, so it cannot make another one: the New project with my AI flow and the internal pipeline do.",
   review_budget: "An alias that duplicates get_construction_budget_status.",
   generate_construction_progress_summary: "Calls a server-side model (F-2): the internal AI never runs on link traffic.",
   detect_construction_budget_schedule_risk: "Calls a server-side model (F-2): the internal AI never runs on link traffic.",

@@ -185,6 +185,10 @@ async function applyConfirmed(exec: ExecClient, draftId: string, fn: string | nu
   }
   const code = typeof out.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(out.code) ? out.code : "UNKNOWN"
   if (out.status === "done") {
+    // a new project: say so, and carry its id (the person goes back to the AI, which reads it from the draft's status and continues in the project)
+    if (fn === "create_project") {
+      return { status: 200, body: { draft_id: draftId, status: "done", function_id: fn, record: out.record ?? null, project_id: out.record?.id ?? null, submission_id: out.submission_id ?? null, message: "The new project is created. Go back to your AI assistant and ask it to continue in it." } }
+    }
     return { status: 200, body: { draft_id: draftId, status: "done", function_id: fn, record: out.record ?? null, submission_id: out.submission_id ?? null, message: "The change is applied to the project." } }
   }
   if (out.status === "executing") {
