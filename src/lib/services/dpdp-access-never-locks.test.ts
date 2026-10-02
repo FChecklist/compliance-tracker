@@ -22,10 +22,11 @@ const TRIAL_DATE_READERS: Record<string, string> = {
   '0661_dpdp_my_billing_proof_fields.sql': 'dpdp_my_billing report only',
   '0673_dpdp_razorpay_sales_lifecycle.sql': 'the reminder worklist: SELECTS who to e-mail, changes nothing about access',
   '0674_dpdp_sales_partner_lifecycle.sql': 'sign-up paths: writes the 30-day trial; partner stats count orgs in trial',
+  '0676_dpdp_claim_reject_and_ai_link_billing_notice.sql': 'dpdp_ai_link_billing_notice only READS the trial end to return a flag the AI link prints as a notice; it raises nothing about it and no route branches on it to refuse',
 }
 
-/** The "I have paid" claim flow refuses an approve/reject when the org is not awaiting confirmation (0655 declare, 0658 approve/reject). That is the state machine of a payment CLAIM, not a gate on using the product. */
-const CLAIM_FLOW_FILES = new Set(['0655_dpdp_wo016_refer_and_earn.sql', '0658_dpdp_payment_confirmation_flow.sql'])
+/** The "I have paid" claim flow refuses an approve/reject when the org is not awaiting confirmation (0655 declare, 0658 approve/reject, 0676 which supersedes the 0658 approve/reject bodies). That is the state machine of a payment CLAIM, not a gate on using the product. */
+const CLAIM_FLOW_FILES = new Set(['0655_dpdp_wo016_refer_and_earn.sql', '0658_dpdp_payment_confirmation_flow.sql', '0676_dpdp_claim_reject_and_ai_link_billing_notice.sql'])
 
 describe('access never locks over an unpaid invoice', () => {
   test('no migration compares the trial end or the subscription state inside a RAISE/RLS gate', () => {
