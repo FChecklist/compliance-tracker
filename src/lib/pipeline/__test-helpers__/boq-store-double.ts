@@ -191,6 +191,27 @@ function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) =
       expect(")");
       return inner;
     }
+    // lf-b5-ai-crud: `lower(col) = lower($n)` (construction-boq-category-service.ts) and `lower(trim(col)) = lower($n)` (createCustomer's
+    // duplicate check), the case-insensitive matches; NULL matches nothing
+    if (peek() === "lower") {
+      i++;
+      expect("(");
+      const trimmed = peek() === "trim";
+      if (trimmed) {
+        i++;
+        expect("(");
+      }
+      const lowerKey = column();
+      expect(")");
+      if (trimmed) expect(")");
+      expect("=");
+      expect("lower");
+      expect("(");
+      const value = param();
+      expect(")");
+      const norm = (v: string) => (trimmed ? v.trim() : v).toLowerCase();
+      return (r) => typeof r[lowerKey] === "string" && typeof value === "string" && norm(r[lowerKey] as string) === value.toLowerCase();
+    }
     const key = column();
     let read = (r: Row): unknown => r[key];
     if (peek() === "->>") {
@@ -204,6 +225,12 @@ function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) =
     if (op === "=") {
       const value = param();
       return (r) => read(r) === value;
+    }
+    // lf-b5-ai-crud: `col <> $n` (tokenised as "<" ">"); NULL <> x is not true in SQL, so a missing value does not match
+    if (op === "<") {
+      expect(">");
+      const value = param();
+      return (r) => read(r) !== null && read(r) !== undefined && read(r) !== value;
     }
     if (op === "in") {
       expect("(");

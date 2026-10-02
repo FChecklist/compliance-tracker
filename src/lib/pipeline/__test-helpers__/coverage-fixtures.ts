@@ -120,15 +120,21 @@ function withAggregates(db: any): unknown {
     select: (selection?: Record<string, unknown>) => {
       const entries = Object.entries(selection ?? {});
       const sqlOf = entries.length === 1 && is(entries[0][1], SQL) ? dialect.sqlToQuery(entries[0][1] as SQL).sql : null;
-      if (sqlOf === null || !/^(count\(|coalesce\(sum\()/i.test(sqlOf)) return db.select(selection);
+      if (sqlOf === null || !/^(count\(|coalesce\(sum\(|coalesce\(max\()/i.test(sqlOf)) return db.select(selection);
       const alias = entries[0][0];
-      const column = /sum\((?:"\w+"\.)*"(\w+)"\)/i.exec(sqlOf)?.[1];
+      // lf-b5-ai-crud: coalesce(max(col), 0), the next sort order createBoqCategory computes
+      const maxColumn = /max\((?:"\w+"\.)*"(\w+)"\)/i.exec(sqlOf)?.[1];
+      const column = /sum\((?:"\w+"\.)*"(\w+)"\)/i.exec(sqlOf)?.[1] ?? maxColumn;
       if (!/^count\(/i.test(sqlOf) && !column) throw new Error(`coverage-fixtures: cannot read the aggregate ${sqlOf}`);
       return {
         from: (table: any) => {
           const keyOf = column ? Object.entries(getTableColumns(table)).find(([, c]) => (c as { name: string }).name === column)?.[0] : undefined;
           if (column && !keyOf) throw new Error(`coverage-fixtures: no column ${column} on the table`);
-          const answer = (rows: Array<Record<string, unknown>>) => [{ [alias]: keyOf ? String(rows.reduce((sum, r) => sum + Number(r[keyOf]), 0)) : rows.length }];
+          const answer = (rows: Array<Record<string, unknown>>) => [{
+            [alias]: !keyOf ? rows.length
+              : maxColumn ? String(rows.reduce((m, r) => Math.max(m, Number(r[keyOf] ?? 0)), 0))
+              : String(rows.reduce((sum, r) => sum + Number(r[keyOf]), 0)),
+          }];
           return {
             where: (cond: unknown) => ({
               then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
