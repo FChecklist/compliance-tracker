@@ -86,6 +86,12 @@ check(refJs.status === 200 && /javascript/i.test(refJs.type) && refJs.body.inclu
 for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/"]) check((await get(p)).body.includes('<script defer src="/ref.js"></script>'), `${p} loads /ref.js`)
 // First-party monitoring (2026-10-02): the script is served and every public page loads it; the endpoint answers a beacon with 204
 // (an empty batch and a private-path event, so nothing is stored by the smoke), and the report is a 404 without the key.
+// The redesigned home page (2026-10-02): the three-dot colour theme script is served and loaded by the home page only; /new is gone (301 to /).
+const themeJs = await get("/theme.js")
+check(themeJs.status === 200 && /javascript/i.test(themeJs.type) && themeJs.body.includes("veridian-theme"), "/theme.js is served as JavaScript", `${themeJs.status} ${themeJs.type}`)
+check(root.body.includes('<script src="/theme.js"></script>') && root.body.includes("Compliance that <em>outlasts</em>"), "/: the redesigned home page loads /theme.js")
+const oldPreview = await get("/new/", { redirect: "manual" })
+check(oldPreview.status === 301 && (oldPreview.headers.get("location") || "").replace(/^https?:\/\/[^/]+/, "") === "/", "/new/ answers 301 to /", `${oldPreview.status} ${oldPreview.headers.get("location")}`)
 const rumJs = await get("/rum.js")
 check(rumJs.status === 200 && /javascript/i.test(rumJs.type) && rumJs.body.includes("/api/telemetry"), "/rum.js is served as JavaScript and posts to /api/telemetry", `${rumJs.status} ${rumJs.type}`)
 for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/", "/privacy/", "/terms/"]) check((await get(p)).body.includes('<script defer src="/rum.js"></script>'), `${p} loads /rum.js`)

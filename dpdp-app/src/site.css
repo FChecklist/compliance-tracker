@@ -5,6 +5,7 @@
    originals use (src/app/dpdp/_components/RootChooser.tsx and
    DpdpMarketingPage.tsx) so both hosts look the same. */
 @import "./fonts.css";
+@import "./home.css";
 
 :root {
   --bg: #fcfbff;

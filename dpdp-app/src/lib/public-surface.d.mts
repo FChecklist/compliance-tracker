@@ -42,6 +42,9 @@ export declare const OG_IMAGE: { readonly path: string; readonly width: number; 
 export declare const FOOTER_LINKS: readonly (readonly [string, string])[]
 export declare const RUM_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
 export declare const PUBLIC_SCRIPT_OPENS: readonly string[]
+export declare const HOME_SCRIPT_OPENS: readonly string[]
+export declare const THEME_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
+export declare function scriptOpensFor(path: string): readonly string[]
 export declare const COMPANY_FOOTER_COPY: readonly string[]
 export declare const LEGAL_PAGES: readonly { readonly path: string; readonly source: string; readonly h1: string }[]
 export declare const SITEMAP_PAGES: readonly { readonly path: string; readonly source: string }[]

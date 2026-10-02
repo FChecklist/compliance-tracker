@@ -100,8 +100,13 @@ FACT_COPY.push(REF_SCRIPT.tag)
  * and by the static legal pages, and by NO private page (the private
  * prefixes carry tokens and people's own work; they are never measured). */
 export const RUM_SCRIPT = { src: "/rum.js", tag: '<script defer src="/rum.js"></script>', open: '<script defer src="/rum.js">' }
-/** Exactly these two opening tags, in this order, are the only scripts a public page may carry besides its JSON-LD. */
+/** The THIRD script, on the home page only (2026-10-02): public/theme.js, same origin, synchronous in the <head> so the saved colour theme
+ * is on <html data-theme> before the first paint. It keeps the three-dot colour choice in this browser's localStorage and sends nothing. */
+export const THEME_SCRIPT = { src: "/theme.js", tag: '<script src="/theme.js"></script>', open: '<script src="/theme.js">' }
+/** Exactly these opening tags, in this order, are the only scripts a public page may carry besides its JSON-LD: ref.js then rum.js; the home page adds theme.js first. */
 export const PUBLIC_SCRIPT_OPENS = [REF_SCRIPT.open, RUM_SCRIPT.open]
+export const HOME_SCRIPT_OPENS = [THEME_SCRIPT.open, REF_SCRIPT.open, RUM_SCRIPT.open]
+export const scriptOpensFor = (path) => (path === "/" ? HOME_SCRIPT_OPENS : PUBLIC_SCRIPT_OPENS)
 FACT_COPY.push(RUM_SCRIPT.tag)
 
 /** The ownership line at the end of every public footer (coordinator, 2026-10-02), from facts.company. */
@@ -197,15 +202,17 @@ export const PUBLIC_PAGES = [
     path: "/",
     source: "index.html",
     title: pageTitle(FACTS, "/"),
-    h1: "Three things to know about DPDP compliance",
+    h1: "Compliance that outlasts the person who set it up.",
     jsonLd: ["Organization", "WebSite", "SoftwareApplication"],
     mustContain: [
       "VERy INDIAN",
       // The three points, numbered 1-3 (owner, 2026-10-01): exactly the facts file's list.
       ...FACTS.three_things,
-      // Exactly two ways in, with exactly these labels (owner, 2026-10-01).
-      "I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS",
-      "I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES",
+      // Exactly two ways in (owner, 2026-10-01), worded as the redesigned home page words them (owner, 2026-10-02).
+      "CA · CS · Legal · Audit firm",
+      "Doing it for my clients →",
+      "Company · School · NGO",
+      "Doing it for ourselves →",
       'href="/dpdp-firm/"',
       'href="/dpdp-institution/"',
       "Already have an account? Sign in",
