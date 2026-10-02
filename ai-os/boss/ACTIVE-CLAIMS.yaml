@@ -40,6 +40,15 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (sub-agent, isolated worktree C:/ct/wt-dpdp-seo branch feat/dpdp-site-seo-monitoring) -- free SEO + first-party monitoring for veridian-aios.com"
+    claimed_at: "2026-10-02T (this session)"
+    claim: |
+      Scope: dpdp-app/ only (public/rum.js, functions/api/telemetry.ts, wrangler.toml D1 binding,
+      public/_headers, src/lib/public-surface.mjs pins, privacy page + claims register wording,
+      per-page SEO meta/JSON-LD, IndexNow key file, OPERATIONS.md/DEPLOY.md) plus the
+      dpdp-app deploy workflow's post-deploy IndexNow ping. Owner request: every free
+      SEO/analytics/crash/response/timeout measure for veridian-aios.com. Does not touch
+      DNS, domains, Vercel or any paid setting.
   - session_label: "claude-code (DPDP sales partner lifecycle; worktree agent-a70b403b3a440f5ce, branch feat/dpdp-partner-lifecycle)"
     claimed_at: "2026-10-01T12:00:00Z"
     claim: |
