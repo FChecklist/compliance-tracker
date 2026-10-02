@@ -188,6 +188,37 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   create_floor_plan: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "floorLevel"] },
   add_room: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name"] },
   place_furniture: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  // lf-b2-ai-crud (owner order 2026-10-02, requirements R5-R7): "the external AI / internal AI can make the complete project, edit, delete,
+  // update, etc for that user as per role and its organization". This SUPERSEDES the BUILD-002 plan decision that kept every delete off links
+  // (ai-os/AI_CRUD_COVERAGE.md). The rules: every delete, archive and removal is level 2 (a draft the person confirms) by default, and so is every
+  // function that writes money and the two state changes that close something for good (close_sprint, a floor plan marked final). Each minimum
+  // rank is at least the rank of the app route of the same action (requireRoleOrScope): member, except delete_boq and dispose_document (the
+  // routes ask for manager); update_boq_line_amounts asks for manager although its route asks for member, because a line's rate is hidden below
+  // the manager rank on every read. A person can let their AI run the level-2 ones directly with their own switch (drizzle/0685), never more.
+  update_boq: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title"] },
+  delete_boq: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  update_boq_line_amounts: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  delete_progress_entry: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  archive_task: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  create_sprint: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "goal"] },
+  update_sprint: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "goal"] },
+  close_sprint: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  add_sprint_task: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  remove_sprint_task: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  update_time_entry: { linkLevel: 1, moneySensitive: true, minRank: 2, textParams: ["activityType", "comments"] },
+  delete_time_entry: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  dispose_document: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
+  update_mom_details: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "meetingType"] },
+  delete_mom: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  update_meeting: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title"] },
+  update_material: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "unit", "spec"] },
+  update_room: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name"] },
+  remove_room: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  update_placement: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  remove_placement: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  update_floor_plan_status: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  update_mood_board: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "roomOrArea", "description"] },
+  remove_mood_board_item: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
 }
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */

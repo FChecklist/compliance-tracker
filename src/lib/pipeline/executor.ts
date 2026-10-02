@@ -46,6 +46,8 @@ import { executeAddBoqLines, executeSealBoq, withholdBoqMoney } from "./executor
 import { ensureDefaultActivity, executeCreateActivity } from "./executors/activity";
 import { WAVE_3_4_EXECUTORS } from "./executors/coverage-waves-3-4";
 import { WAVE_7_9_EXECUTORS } from "./executors/coverage-waves-7-9";
+// lf-b2-ai-crud: the create/update/delete functions that let the person's AI change everything the person may (ai-os/AI_CRUD_COVERAGE.md).
+import { CRUD_B2_EXECUTORS } from "./executors/coverage-crud-b2";
 import { executeSubmitTimesheet } from "./executors/timesheets";
 import { createBoqLedgerHooks } from "@/lib/services/construction-boq-payload-service";
 import { executeCreateProjectFromDocument } from "./executors/extraction";
@@ -1957,6 +1959,8 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   link_roster_employee: executeLinkRosterEmployee,
   // PROJEXA-BUILD-002 WP-05g/WP-05h: coverage waves 7, 8 and 9 (progress claims, approvals and KPIs as drafts; permits, wiki, interior design, floor plans).
   ...WAVE_7_9_EXECUTORS,
+  // lf-b2-ai-crud: update, delete and archive of BOQs, progress, tasks, sprints, timesheets, documents, minutes, meetings, materials and the design studio.
+  ...CRUD_B2_EXECUTORS,
 };
 
 /**
