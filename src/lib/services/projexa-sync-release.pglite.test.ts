@@ -37,7 +37,7 @@ const fakeFetch = (async (url: string) => {
 async function hit(user: string, path: string, body?: unknown, headers: Record<string, string> = {}, method?: string) {
   const m = method ?? (body === undefined ? "GET" : "POST")
   const req = new Request(`https://x.supabase.co/functions/v1/projexa-sync/${path}`, { method: m, headers: { authorization: `Bearer tok:${SUBS[user]}`, ...headers }, body: m === "GET" ? undefined : JSON.stringify(body ?? {}) })
-  // a fresh releaseBox per call: the one-minute memory is the handler's own (tested separately), the registry is what is under test here
+  // a fresh releaseBox per call: the one-minute memory is the handler's own (tested in "the release is remembered for a minute"), the registry is what is under test here
   const res = await handleSync(req, { rpc, session, limiter: new RateLimiter(100000), now: () => NOW, fetchImpl: fakeFetch, releaseBox: { at: 0, value: null } })
   return { status: res.status, json: (await res.json()) as J }
 }
@@ -143,12 +143,44 @@ describe("registering releases: permanent numbers, versions that move with the b
     expect(Number((await rows(`select count(*) n from platform.projexa_release`))[0].n)).toBe(before)
   })
 
+  test("refused before anything is written: an impossible date, a partial timestamp, a repeated path, a string size, over 5,000 files, a bad bundle size, a bad file at the END", async () => {
+    const before = Number((await rows(`select count(*) n from platform.projexa_release`))[0].n)
+    const maxNo = Number((await rows(`select max(file_no) n from platform.projexa_file`))[0].n)
+    const ok = await manifest("2026.10.08-001", A, { builtAt: "2026-10-08T10:00:00Z" })
+    const many = Array.from({ length: 5001 }, (_, i) => ({ path: `f${i}.js`, sha256: hex("1"), size: 1 }))
+    const bad: Array<[string, unknown]> = [
+      ["impossible date", { ...ok, built_at: "2026-13-45T00:00:00Z" }],
+      ["date only", { ...ok, built_at: "2026-10-08T" }],
+      ["repeated path", { ...ok, files: [{ path: "dup.js", sha256: hex("1"), size: 1 }, { path: "dup.js", sha256: hex("2"), size: 2 }] }],
+      ["size as a string", { ...ok, files: [{ path: "s.js", sha256: hex("1"), size: "1" }] }],
+      ["5001 files", { ...ok, files: many }],
+      ["bundle size", { ...ok, bundle: { path: "/x.tar.gz", size: "big", sha256: hex("b") } }],
+      ["bad file last", { ...ok, files: [{ path: "brand-new-1.js", sha256: hex("1"), size: 1 }, { path: "brand-new-2.js", sha256: hex("1"), size: 1 }, { path: "../x", sha256: hex("1"), size: 1 }] }],
+    ]
+    const codes: Array<[string, string]> = []
+    for (const [name, m] of bad) codes.push([name, (await register(m)).error?.code ?? "no error"])
+    expect(codes).toEqual(bad.map(([name]) => [name, "AW400"]))
+    expect(Number((await rows(`select count(*) n from platform.projexa_release`))[0].n)).toBe(before)
+    // no permanent number was burnt: the next new path gets max + 1
+    const r = await register(await manifest("2026.10.02-002", [{ path: "next-number.js", sha256: hex("6"), size: 1 }], { builtAt: "2026-10-02T11:00:00Z", bundleSha: hex("6") }))
+    expect(r.error).toBeNull()
+    expect(Number((await rows(`select file_no from platform.projexa_file where path = 'next-number.js'`))[0].file_no)).toBe(maxNo + 1)
+    // a fractional, zone-offset timestamp (what the build script writes) is accepted
+    expect((await register(await manifest("2026.10.02-003", [{ path: "z1.js", sha256: hex("7"), size: 1 }], { builtAt: "2026-10-02T11:30:00.000+05:30", bundleSha: hex("7") }))).error).toBeNull()
+  })
+
   test("current is the newest build with its file table in file-number order", async () => {
     const d = (await rpc("projexa_release_current")).data as J
     expect(d.registered).toBe(true)
     expect(d.current.release_version).toBe("2026.10.03-001")
     expect(d.current.files).toEqual([{ path: "_next/static/chunks/main-aaa.js", file_no: 1, file_version: 3, sha256: hex("1"), size: 100 }])
     expect(d.current.bundle).toMatchObject({ path: "/_release/px-2026.10.03-001.tar.gz" })
+  })
+
+  test("a hotfix registered LATER with an EARLIER built_at does not become current (the choice: newest build wins, re-registering an old build never rolls laptops back)", async () => {
+    const r = await register(await manifest("2026.10.04-001", [{ path: "hotfix.js", sha256: hex("8"), size: 1 }], { builtAt: "2026-10-02T23:00:00Z", bundleSha: hex("8") }))
+    expect(r.data).toMatchObject({ registered: true })
+    expect(((await rpc("projexa_release_current")).data as J).current.release_version).toBe("2026.10.03-001")
   })
 })
 
@@ -170,6 +202,65 @@ describe("the update gate (426) and the release routes", () => {
     const proto = await hit("u-mgr", "manifest", undefined, { "x-px-client": "2026.10.03-001; protocol=1; schema=3" })
     expect(proto.status).toBe(426)
     expect(proto.json.reason).toBe("protocol")
+    // WITH the floor active: a dev / local build (not a release number) is never blocked -- the guard, not string order, decides ("1.0.0-local" sorts BELOW the floor)
+    expect("1.0.0-local" < "2026.10.02-001").toBe(true)
+    expect((await hit("u-mgr", "manifest", undefined, { "x-px-client": "1.0.0-local; protocol=2" })).status).toBe(200)
+    expect((await hit("u-mgr", "manifest", undefined, { "x-px-client": "dev; protocol=2" })).status).toBe(200)
+  })
+
+  test("the release is remembered for a minute: one registry read per minute, a fresh read after register, the old value served if the registry fails", async () => {
+    let reads = 0
+    let failing = false
+    const counting: Rpc = async (name, args) => {
+      if (name === "projexa_release_current") {
+        reads++
+        if (failing) throw new Error("db down")
+      }
+      return rpc(name, args)
+    }
+    const box = { at: 0, value: null }
+    let t = new Date("2026-10-02T12:00:00Z").getTime()
+    const call = async (path: string, method = "GET", body?: unknown) => {
+      const client: Record<string, string> = path === "manifest" ? { "x-px-client": "2026.10.01-001; protocol=2" } : {}
+      const req = new Request(`https://x.supabase.co/functions/v1/projexa-sync/${path}`, { method, headers: { authorization: `Bearer tok:${SUBS["u-mgr"]}`, ...client }, body: body === undefined ? undefined : JSON.stringify(body) })
+      const res = await handleSync(req, { rpc: counting, session, limiter: new RateLimiter(100000), now: () => new Date(t), fetchImpl: fakeFetch, releaseBox: box })
+      return { status: res.status, json: (await res.json()) as J }
+    }
+    expect((await call("manifest")).status).toBe(426) // the floor 2026.10.02-001 is still set here
+    expect(reads).toBe(1)
+    t += 59_000
+    await call("manifest")
+    expect(reads).toBe(1)
+    t += 2_000
+    await call("manifest")
+    expect(reads).toBe(2)
+    // a registration refreshes at once (within the minute)
+    // (built before 2026.10.03-001, so the current release does not change for the tests after this one)
+    fetchResult = { ok: true, body: JSON.stringify(await manifest("2026.10.02-004", [{ path: "w.js", sha256: hex("5"), size: 1 }], { builtAt: "2026-10-02T12:00:00Z", bundleSha: hex("5") })) }
+    expect((await call("release/register", "POST", {})).json).toMatchObject({ registered: true })
+    const afterRegister = reads
+    expect(afterRegister).toBeGreaterThan(2)
+    await call("manifest") // still within the minute: no new read
+    expect(reads).toBe(afterRegister)
+    // the registry fails after a good read: the remembered value still gates (426), it does not fail open
+    failing = true
+    t += 61_000
+    expect((await call("manifest")).status).toBe(426)
+    failing = false
+  })
+
+  test("the owner's manifest is fetched with no redirect, no cache and a timeout, from the one fixed URL", async () => {
+    let seen: { url: string; init: RequestInit | undefined } | null = null
+    const spy = (async (url: string, init?: RequestInit) => {
+      seen = { url: String(url), init }
+      throw new Error("network")
+    }) as unknown as typeof fetch
+    const req = new Request("https://x.supabase.co/functions/v1/projexa-sync/release/register", { method: "POST", headers: { authorization: `Bearer tok:${SUBS["u-mgr"]}` }, body: "{}" })
+    await handleSync(req, { rpc, session, limiter: new RateLimiter(100000), now: () => NOW, fetchImpl: spy, releaseBox: { at: 0, value: null } })
+    expect(seen).not.toBeNull()
+    expect(seen!.url).toBe(RELEASE_MANIFEST_URL)
+    expect(seen!.init).toMatchObject({ redirect: "error", cache: "no-store" })
+    expect(seen!.init!.signal).toBeDefined()
   })
 
   test("a too-old laptop can still read the release and record its install (that is how it updates)", async () => {

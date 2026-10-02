@@ -19,6 +19,11 @@
 -- version 4" and keep the number of a path forever. Registration takes a manifest the OWNER published at https://projexa-ai.com/_release/release.json (the Edge function fetches it itself;
 -- nothing a caller sends is trusted), so a caller cannot register a release the owner did not publish.
 --
+-- REVISED IN PLACE 2026-10-02 (package lf-d2-push-sql-fixes, review finding SQL-11) BEFORE it was ever applied to a live database: projexa_release_register now refuses, as AW400 BAD_MANIFEST and before
+-- anything is written, a built_at that is not a full ISO-8601 timestamp or is an impossible date (was an uncoded 22008), a path listed twice (counters were wrong and the second row was silently dropped),
+-- a file size that is not a JSON number, and any bad file anywhere in the list (so a refused manifest never burns a permanent file number). "Current" stays the newest BUILT_AT: a hotfix registered later
+-- with an earlier built_at does not become current (re-registering an old build can never roll every laptop back); the owner publishes a new build to move forward.
+--
 -- ERRORS (coded, same family as 0677): AW400 BAD_MANIFEST / BAD_INSTALL; AW409 VERSION_TAKEN; AW429 INSTALL_CAP_DAY. A person who does not resolve gets {"status": <reason>} and nothing is written.
 -- GRANTS: SECURITY DEFINER, search_path = pg_catalog, pg_temp, timezone UTC; revoked from public, anon, authenticated, app_runtime; granted to service_role alone. The tables are revoked from every role including service_role.
 -- DATA LOSS: none. New tables and functions only; applying it twice changes nothing.
@@ -141,10 +146,26 @@ BEGIN
      OR jsonb_typeof(v_bundle) IS DISTINCT FROM 'object' OR coalesce(v_bundle ->> 'path', '') = '' OR coalesce(v_bundle ->> 'sha256', '') !~ '^[0-9a-f]{64}$'
      OR coalesce(v_bundle ->> 'size', '') !~ '^[0-9]{1,12}$'
      OR coalesce(p_manifest ->> 'protocol', '') !~ '^[0-9]{1,4}$' OR coalesce(p_manifest ->> 'schema', '') !~ '^[0-9]{1,4}$'
-     OR coalesce(p_manifest ->> 'built_at', '') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T' THEN
+     OR coalesce(p_manifest ->> 'built_at', '') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]{1,6})?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)$' THEN
     RAISE EXCEPTION 'BAD_MANIFEST' USING ERRCODE = 'AW400';
   END IF;
-  v_built := (p_manifest ->> 'built_at')::timestamptz;
+  -- a well-shaped but impossible date ('2026-13-45T00:00:00Z') is a BAD_MANIFEST too, never an uncoded 22008
+  BEGIN
+    v_built := (p_manifest ->> 'built_at')::timestamptz;
+  EXCEPTION WHEN others THEN
+    v_built := NULL;
+  END;
+  IF v_built IS NULL THEN
+    RAISE EXCEPTION 'BAD_MANIFEST' USING ERRCODE = 'AW400';
+  END IF;
+  -- EVERY file is checked before anything is written, so a manifest refused half way never burns a permanent file number; a path listed twice is refused
+  IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_files) e
+              WHERE jsonb_typeof(e) IS DISTINCT FROM 'object' OR (e ->> 'path') IS NULL OR char_length(e ->> 'path') NOT BETWEEN 1 AND 400
+                 OR (e ->> 'path') ~ '[[:cntrl:]]' OR (e ->> 'path') ~ '(^|/)\.\.(/|$)'
+                 OR coalesce(e ->> 'sha256', '') !~ '^[0-9a-f]{64}$' OR jsonb_typeof(e -> 'size') IS DISTINCT FROM 'number' OR (e ->> 'size') !~ '^[0-9]{1,12}$')
+     OR (SELECT count(DISTINCT e ->> 'path') FROM jsonb_array_elements(v_files) e) <> jsonb_array_length(v_files) THEN
+    RAISE EXCEPTION 'BAD_MANIFEST' USING ERRCODE = 'AW400';
+  END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext('projexa_release_register'));
 
@@ -164,11 +185,7 @@ BEGIN
   FOR f IN SELECT e FROM jsonb_array_elements(v_files) AS e LOOP
     v_path := f ->> 'path';
     v_fsha := f ->> 'sha256';
-    IF v_path IS NULL OR char_length(v_path) NOT BETWEEN 1 AND 400 OR v_path ~ '[[:cntrl:]]' OR v_path ~ '(^|/)\.\.(/|$)'
-       OR v_fsha IS NULL OR v_fsha !~ '^[0-9a-f]{64}$' OR coalesce(f ->> 'size', '') !~ '^[0-9]{1,12}$' THEN
-      RAISE EXCEPTION 'BAD_MANIFEST' USING ERRCODE = 'AW400';
-    END IF;
-    v_size := (f ->> 'size')::bigint;
+    v_size := (f ->> 'size')::bigint; -- validated above, before the first write
     v_bytes := v_bytes + v_size;
 
     -- look the number up FIRST: an INSERT ... ON CONFLICT DO NOTHING would still burn an identity value and leave holes in the permanent numbers (the advisory lock makes this race-free)
@@ -192,8 +209,7 @@ BEGIN
       v_changed := v_changed + 1;
     END IF;
 
-    INSERT INTO platform.projexa_release_file (release_version, path, file_no, file_version, sha256, size) VALUES (v_ver, v_path, v_no, v_fv, v_fsha, v_size)
-    ON CONFLICT (release_version, path) DO NOTHING;
+    INSERT INTO platform.projexa_release_file (release_version, path, file_no, file_version, sha256, size) VALUES (v_ver, v_path, v_no, v_fv, v_fsha, v_size);
   END LOOP;
 
   UPDATE platform.projexa_release SET files_count = jsonb_array_length(v_files), bytes_total = v_bytes WHERE release_version = v_ver;
