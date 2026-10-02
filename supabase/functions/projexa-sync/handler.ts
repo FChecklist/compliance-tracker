@@ -55,6 +55,7 @@ export const PULL_LIMIT_MAX = 500
 export const SERVER_PROTOCOL = 2
 export const PUSH_BODY_MAX_BYTES = 262_144
 export const PUSH_OPS_MAX = 50
+export const JOB_BODY_MAX_BYTES = 300_000
 export const RELEASE_ORIGIN = "https://projexa-ai.com"
 export const RELEASE_MANIFEST_URL = `${RELEASE_ORIGIN}/_release/release.json`
 export const RELEASE_MANIFEST_MAX_BYTES = 2_000_000
@@ -128,12 +129,12 @@ function respond(req: Request, deps: SyncDeps, status: number, body: unknown, ex
 
 const NOT_FOUND = { error: "Not found" }
 
-const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST", push: "POST", install: "POST", "release/current": "GET", "release/register": "POST" }
+const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST", push: "POST", "jobs/enqueue": "POST", "jobs/claim": "POST", "jobs/heartbeat": "POST", "jobs/result": "POST", "jobs/get": "POST", install: "POST", "release/current": "GET", "release/register": "POST" }
 /** Routes a laptop that is too old must still be able to reach: how else would it learn to update. */
 const UPDATE_EXEMPT = new Set(["release/current", "release/register", "install"])
 
 function routeOf(pathname: string): string {
-  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest|changes|push|install|release\/current|release\/register)$/)
+  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest|changes|push|jobs\/enqueue|jobs\/claim|jobs\/heartbeat|jobs\/result|jobs\/get|install|release\/current|release\/register)$/)
   return m ? m[1] : ""
 }
 
@@ -173,6 +174,7 @@ export async function handleSync(req: Request, deps: SyncDeps): Promise<Response
   if (route === "attest") return attest(req, deps, who, now)
   if (route === "changes") return changes(req, deps, who, now)
   if (route === "push") return push(req, deps, who, now)
+  if (route.startsWith("jobs/")) return jobs(req, deps, who, now, route.slice(5))
   return pull(req, deps, who, now)
 }
 
@@ -683,4 +685,63 @@ async function push(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
   }
 
   return respond(req, deps, 200, { results, server_time: now.toISOString() })
+}
+// ---------------------------------------------------------------------------------------------------------------------------------
+// JOBS: work an online laptop runs for another (drizzle/0682): leased, display-only types, a result is a PROPOSAL the server never writes into a business table
+// ---------------------------------------------------------------------------------------------------------------------------------
+async function jobs(req: Request, deps: SyncDeps, who: Who, now: Date, action: string): Promise<Response> {
+  const parsed = await readBody(req, deps, JOB_BODY_MAX_BYTES)
+  if (!parsed.ok) return parsed.res
+  const b = parsed.body
+  const text = (v: unknown, max: number): string | null => (typeof v === "string" && v.length > 0 && v.length <= max ? v : null)
+
+  if (action === "enqueue") {
+    const project = text(b.project_id, 128)
+    const type = text(b.type, 32)
+    const visibility = b.visibility === undefined ? "requester" : text(b.visibility, 16)
+    if (!project || !type || !visibility || b.params === null || typeof b.params !== "object" || Array.isArray(b.params)) return respond(req, deps, 400, { error: "project_id, type and params are required" })
+    const r = await callSql(deps, "projexa_job_enqueue", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_type: type, p_params: b.params, p_visibility: visibility })
+    if (!r.ok) return respond(req, deps, r.status, r.body)
+    return respond(req, deps, 200, { job_id: r.data.job_id, server_time: now.toISOString() })
+  }
+
+  if (action === "claim") {
+    const device = text(b.device_id, 64)
+    const types = b.types
+    if (!device || !Array.isArray(types) || types.length < 1 || types.length > 8 || !types.every((x) => typeof x === "string" && x.length <= 32)) return respond(req, deps, 400, { error: "device_id and types are required" })
+    const lease = b.lease_seconds === undefined ? 60 : b.lease_seconds
+    if (typeof lease !== "number" || !Number.isInteger(lease) || lease < 10 || lease > 120) return respond(req, deps, 400, { error: "lease_seconds must be 10 to 120" })
+    const r = await callSql(deps, "projexa_job_claim", { p_sub: who.sub, p_email: who.email, p_device_id: device, p_types: types, p_lease_seconds: lease })
+    if (!r.ok) return respond(req, deps, r.status, r.body)
+    return respond(req, deps, 200, { job: r.data.job ?? null, server_time: now.toISOString() })
+  }
+
+  if (action === "heartbeat") {
+    const job = text(b.job_id, 64)
+    const leaseId = text(b.lease_id, 64)
+    if (!job || !leaseId) return respond(req, deps, 400, { error: "job_id and lease_id are required" })
+    const r = await callSql(deps, "projexa_job_heartbeat", { p_sub: who.sub, p_email: who.email, p_job_id: job, p_lease_id: leaseId })
+    if (!r.ok) return respond(req, deps, r.status, r.body)
+    return respond(req, deps, 200, { outcome: r.data.outcome, lease_expires_at: r.data.lease_expires_at ?? null, server_time: now.toISOString() })
+  }
+
+  if (action === "result") {
+    const job = text(b.job_id, 64)
+    const leaseId = text(b.lease_id, 64)
+    if (!job || !leaseId || typeof b.ok !== "boolean") return respond(req, deps, 400, { error: "job_id, lease_id and ok are required" })
+    if (b.ok && (b.result === null || b.result === undefined || typeof b.result !== "object")) return respond(req, deps, 400, { error: "result is required when ok" })
+    const r = await callSql(deps, "projexa_job_result", { p_sub: who.sub, p_email: who.email, p_job_id: job, p_lease_id: leaseId, p_ok: b.ok, p_result: b.ok ? b.result : null, p_error: typeof b.error === "string" ? b.error.slice(0, 64) : null })
+    if (!r.ok) return respond(req, deps, r.status, r.body)
+    return respond(req, deps, 200, { outcome: r.data.outcome, job_status: r.data.job_status ?? null, server_time: now.toISOString() })
+  }
+
+  if (action === "get") {
+    const job = text(b.job_id, 64)
+    if (!job) return respond(req, deps, 400, { error: "job_id is required" })
+    const r = await callSql(deps, "projexa_job_get", { p_sub: who.sub, p_email: who.email, p_job_id: job })
+    if (!r.ok) return respond(req, deps, r.status, r.body)
+    return respond(req, deps, 200, { job_status: r.data.job_status, attempts: r.data.attempts, type: r.data.type, result: r.data.result ?? null, error_code: r.data.error_code ?? null, ran_here: r.data.ran_here === true, server_time: now.toISOString() })
+  }
+
+  return respond(req, deps, 404, NOT_FOUND)
 }

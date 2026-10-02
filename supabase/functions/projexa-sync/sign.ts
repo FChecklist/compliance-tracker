@@ -16,7 +16,8 @@ export type Jwk = JsonWebKey
 export type KeyRecord = { kid: string; alg: "ES256"; public_jwk: Jwk; private_jwk: Jwk }
 
 export const ITEM_MESSAGE_PREFIX = "px2"
-export const ATTEST_TTL_SECONDS = 600
+// 24 hours: two laptops must be able to verify each other while OUR server is down (owner: cost first, ease second, security third), so the statement outlives an outage
+export const ATTEST_TTL_SECONDS = 86_400
 
 const te = new TextEncoder()
 

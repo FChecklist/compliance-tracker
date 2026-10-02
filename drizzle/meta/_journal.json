@@ -3572,6 +3572,13 @@
       "when": 1790497000000,
       "tag": "0681_projexa_sync_push",
       "breakpoints": true
+    },
+    {
+      "idx": 512,
+      "version": "7",
+      "when": 1790498000000,
+      "tag": "0682_projexa_work_jobs",
+      "breakpoints": true
     }
   ]
 }

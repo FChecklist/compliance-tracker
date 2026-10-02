@@ -277,7 +277,7 @@ describe("signed rows", () => {
 })
 
 describe("attestation for peer laptops", () => {
-  test("a signed token states organisation, projects and view class, and expires in ten minutes", async () => {
+  test("a signed token states organisation, projects and view class, and lasts 24 hours (peers must verify each other while our server is down)", async () => {
     const r = await hit("u-mgr", "attest", {})
     expect(r.status).toBe(200)
     const [head, body, sig] = (r.json.token as string).split(".")
@@ -290,7 +290,7 @@ describe("attestation for peer laptops", () => {
     expect(payload.projects).toContain("proj-a")
     expect(payload.projects).not.toContain("proj-b")
     expect(payload.view).toBe((await hit("u-mgr", "manifest")).json.view_class)
-    expect(payload.exp - payload.iat).toBe(600)
+    expect(payload.exp - payload.iat).toBe(86400)
     expect(payload.iat).toBe(Math.floor(NOW.getTime() / 1000))
     expect(await verifyMessage(await importPublic(key.public_jwk), `${head}.${body}`, sig)).toBe(true)
     expect(await verifyMessage(await importPublic(key.public_jwk), `${head}.${body}x`, sig)).toBe(false)
