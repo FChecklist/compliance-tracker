@@ -16,9 +16,9 @@
 --   3. (GROUP 2, below the generated block)
 --      compliance.pms_meetings.deleted_at timestamptz NULL     the soft delete of a project meeting (pms-meeting-service.ts deleteMeeting). Null =
 --                                                              live. Every reader of that service hides a row that has it.
---      platform.projexa_track_meeting_tombstone() + trigger    when deleted_at goes from null to a time, the sync records a TOMBSTONE for the
---                                                              meeting (op 'D', record head deleted) right after 0683's projexa_track_change has
---                                                              recorded the update. Without it a soft delete is an ordinary 'U' and a laptop keeps
+--      meetings re-attached to 0679's tracking in mode `col_unset`   when deleted_at goes from null to a time the meeting LEAVES the project's stream:
+--                                                              ONE tombstone (op 'D', record head deleted) at the next version, no update before it.
+--                                                              Without it a soft delete is an ordinary 'U' and a laptop keeps
 --                                                              the meeting. 0683's trigger and functions are NOT replaced (other packages own them).
 --      enum construction_change_order_status gains 'cancelled' the state cancel_change_order leaves (construction-change-order-service.ts). Every
 --                                                              reader that counts change orders filters on 'approved', so a cancelled one counts nowhere.
@@ -39,8 +39,7 @@
 -- ERRORS. None new. The impact function answers {status:'refused', reason:'not_found'|'not_owner'} like ai_work_link_draft_state.
 --
 -- GRANTS. The generated block grants EXECUTE on public.ai_work_link__registry_version() to service_role only, as every earlier seed did.
--- public.ai_work_link_draft_impact: service_role only. platform.projexa_track_meeting_tombstone(): owner only (a trigger function). The new
--- column inherits the table's grants and RLS.
+-- public.ai_work_link_draft_impact: service_role only. The new column inherits the table's grants and RLS.
 --
 -- GENERATED. The block between the BEGIN and END GENERATED markers is written by scripts/gen-ai-link-registry.ts (CURRENT_SEED_MIGRATION
 -- points here). Do not edit it by hand. `bun scripts/gen-ai-link-registry.ts --check` and src/scripts/gen-ai-link-registry.test.ts fail
@@ -296,49 +295,14 @@ BEGIN
 END
 $do$;
 
--- 2c. the meeting tombstone. Runs AFTER 0683's projexa_track_change on the same UPDATE (triggers of one event fire in name order:
--- "projexa_track_change" < "projexa_track_meeting_tombstone"), so the head already holds the update's version; this bumps it once more as a
--- delete. Best effort like 0683's trigger: tracking must never be the reason a business write fails.
-CREATE OR REPLACE FUNCTION platform.projexa_track_meeting_tombstone()
-RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = pg_catalog, pg_temp
-SET timezone = 'UTC'
-AS $fn$
-DECLARE
-  v_ver bigint;
-  v_hash text;
-BEGIN
-  IF NEW.deleted_at IS NOT NULL AND OLD.deleted_at IS NULL THEN
-    BEGIN
-      UPDATE platform.projexa_record_head h
-      SET version = h.version + 1, deleted = true, updated_at = clock_timestamp(), actor_id = NULL
-      WHERE h.org_id = NEW.org_id AND h.kind = 'meetings' AND h.record_id = NEW.id
-      RETURNING h.version, h.content_hash INTO v_ver, v_hash;
-      IF FOUND THEN
-        INSERT INTO platform.projexa_change_log (org_id, project_id, kind, record_id, version, op, content_hash, actor_id, db_role)
-        VALUES (NEW.org_id, NEW.project_id, 'meetings', NEW.id, v_ver, 'D', v_hash, NULL, session_user::text);
-      END IF;
-    EXCEPTION WHEN OTHERS THEN
-      RAISE WARNING 'projexa_track_meeting_tombstone: % (%)', SQLERRM, SQLSTATE;
-    END;
-  END IF;
-  RETURN NULL;
-END
-$fn$;
-REVOKE ALL ON FUNCTION platform.projexa_track_meeting_tombstone() FROM PUBLIC;
+-- 2c. the meeting tombstone. A soft-deleted meeting LEAVES the project's stream. 0679's one tracking function knows the mode `col_unset` (the project unless a
+-- timestamp column is set), so re-attaching meetings with `deleted_at` as that column makes the soft delete ONE tombstone (D) at the next version and an edit of an
+-- already-deleted row record nothing (it is still outside the stream). No trigger of its own: an earlier draft of this migration had a second trigger that
+-- fired BEFORE the statement-level tracking and left the log ending in an update after the tombstone.
 DO $do$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-    EXECUTE 'REVOKE ALL ON FUNCTION platform.projexa_track_meeting_tombstone() FROM anon, authenticated';
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_runtime') THEN
-    EXECUTE 'REVOKE ALL ON FUNCTION platform.projexa_track_meeting_tombstone() FROM app_runtime';
-  END IF;
-  IF to_regclass('compliance.pms_meetings') IS NOT NULL THEN
-    DROP TRIGGER IF EXISTS projexa_track_meeting_tombstone ON compliance.pms_meetings;
-    CREATE TRIGGER projexa_track_meeting_tombstone AFTER UPDATE OF deleted_at ON compliance.pms_meetings
-      FOR EACH ROW EXECUTE FUNCTION platform.projexa_track_meeting_tombstone();
+  IF to_regclass('compliance.pms_meetings') IS NOT NULL AND to_regprocedure('platform.projexa_track__attach(jsonb)') IS NOT NULL THEN
+    PERFORM platform.projexa_track__attach('[{"k":"meetings","t":"pms_meetings","m":"col_unset","a":"project_id","b":"deleted_at"}]'::jsonb);
   END IF;
 END
 $do$;

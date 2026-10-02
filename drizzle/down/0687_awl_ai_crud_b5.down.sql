@@ -71,7 +71,10 @@ DECLARE
   v_deleted integer;
 BEGIN
   IF to_regclass('compliance.pms_meetings') IS NOT NULL THEN
-    DROP TRIGGER IF EXISTS projexa_track_meeting_tombstone ON compliance.pms_meetings;
+    -- meetings go back to 0683's plain project-column tracking (the soft delete is no longer a tombstone)
+    IF to_regprocedure('platform.projexa_track__attach(jsonb)') IS NOT NULL THEN
+      PERFORM platform.projexa_track__attach('[{"k":"meetings","t":"pms_meetings","m":"col","a":"project_id"}]'::jsonb);
+    END IF;
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'compliance' AND table_name = 'pms_meetings' AND column_name = 'deleted_at') THEN
       EXECUTE 'SELECT count(*)::int FROM compliance.pms_meetings WHERE deleted_at IS NOT NULL' INTO v_deleted;
       IF v_deleted = 0 THEN
@@ -83,6 +86,5 @@ BEGIN
   END IF;
 END
 $do$;
-DROP FUNCTION IF EXISTS platform.projexa_track_meeting_tombstone();
 
 COMMIT;

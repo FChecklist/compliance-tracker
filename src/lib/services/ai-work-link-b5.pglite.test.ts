@@ -126,8 +126,9 @@ describe("the meeting soft delete and its tombstone", () => {
     await db.exec("update compliance.pms_meetings set title = 'Weekly site' where id = 'pm-1'")
     expect(await changes("pm-1")).toEqual([{ op: "I", version: 1 }, { op: "U", version: 2 }])
     await db.exec("update compliance.pms_meetings set deleted_at = now() where id = 'pm-1'")
-    expect(await changes("pm-1")).toEqual([{ op: "I", version: 1 }, { op: "U", version: 2 }, { op: "U", version: 3 }, { op: "D", version: 4 }])
-    expect(await one(db, "select deleted, version::int version from platform.projexa_record_head where kind = 'meetings' and record_id = 'pm-1'")).toEqual({ deleted: true, version: 4 })
+    // the soft delete takes the meeting OUT of the project's stream (0679 mode col_unset): one tombstone at the next version, no update before it, the head says deleted
+    expect(await changes("pm-1")).toEqual([{ op: "I", version: 1 }, { op: "U", version: 2 }, { op: "D", version: 3 }])
+    expect(await one(db, "select deleted, version::int version from platform.projexa_record_head where kind = 'meetings' and record_id = 'pm-1'")).toEqual({ deleted: true, version: 3 })
     // the row itself stays (a soft delete) and the other project's meeting is untouched
     expect((await one<{ n: number }>(db, "select count(*)::int n from compliance.pms_meetings where id = 'pm-1'")).n).toBe(1)
     expect(await changes("pm-2")).toEqual([{ op: "I", version: 1 }])
@@ -175,7 +176,9 @@ describe("idempotent, and reversible without losing data", () => {
     const before = await snap()
     await db.exec(forwardSql("0687_awl_ai_crud_b5"))
     expect(await snap()).toBe(before)
-    expect((await db.query("select 1 from pg_trigger where tgname = 'projexa_track_meeting_tombstone'")).rows).toHaveLength(1)
+    // meetings are tracked in mode col_unset (no trigger of its own): the three statement-level triggers carry the mode in their arguments
+    const modes = async () => (await db.query<{ m: string }>("select distinct encode(t.tgargs, 'escape') m from pg_trigger t join pg_class c on c.oid = t.tgrelid where c.relname = 'pms_meetings' and t.tgname like 'projexa_track_%' and not t.tgisinternal")).rows.map((r) => r.m)
+    expect((await modes()).every((m) => m.includes("col_unset"))).toBe(true)
   })
 
   test("the down file: 19 rows gone, 0685's hash back, the impact function and trigger gone, the column KEPT while a meeting is soft-deleted, the enum value kept", async () => {
@@ -184,7 +187,10 @@ describe("idempotent, and reversible without losing data", () => {
     expect((await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_functions")).n).toBe(140)
     expect((await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v).toBe("1ebba97f7025068298c0f1a5b466e35c30f35ef8b1350ff3b174ad71d1f54763")
     expect((await one<{ f: string | null }>(db, "select to_regprocedure('public.ai_work_link_draft_impact(text,text,text)')::text f")).f).toBeNull()
-    expect((await db.query("select 1 from pg_trigger where tgname = 'projexa_track_meeting_tombstone'")).rows).toHaveLength(0)
+    // meetings are tracked by the plain project column again (the soft delete is no longer a tombstone)
+    const mrows = (await db.query<{ m: string }>("select distinct encode(t.tgargs, 'escape') m from pg_trigger t join pg_class c on c.oid = t.tgrelid where c.relname = 'pms_meetings' and t.tgname like 'projexa_track_%' and not t.tgisinternal")).rows.map((r) => r.m)
+    expect(mrows.length).toBeGreaterThan(0)
+    expect(mrows.some((m) => m.includes("col_unset"))).toBe(false)
     const col = () => db.query("select 1 from information_schema.columns where table_schema = 'compliance' and table_name = 'pms_meetings' and column_name = 'deleted_at'")
     expect((await col()).rows).toHaveLength(1) // pm-1 is soft-deleted: dropping the column would bring it back
     expect((await db.query("select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname = 'construction_change_order_status' and e.enumlabel = 'cancelled'")).rows).toHaveLength(1)

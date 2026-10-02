@@ -156,6 +156,8 @@ AS $fn$
     WHEN 'parent' THEN format('(SELECT p.project_id::text FROM compliance.%I p WHERE p.id = %s.%I AND p.org_id = %s.org_id)', p_a, p_alias, p_b, p_alias)
     WHEN 'link' THEN format('CASE WHEN %1$s.%2$I = ''project'' THEN %1$s.%3$I::text END', p_alias, p_a, p_b)
     WHEN 'col_unless' THEN format('CASE WHEN %1$s.%3$I IS NOT TRUE THEN %1$s.%2$I::text END', p_alias, p_a, p_b)
+    -- the project unless a (timestamp) column is set: a soft delete (`deleted_at`) LEAVES the project's stream, so it is one tombstone
+    WHEN 'col_unset' THEN format('CASE WHEN %1$s.%3$I IS NULL THEN %1$s.%2$I::text END', p_alias, p_a, p_b)
     WHEN 'org' THEN '''__org__''::text'
   END
 $fn$;
@@ -255,7 +257,7 @@ BEGIN
     RETURN NULL;
   END IF;
   BEGIN
-    v_filtered := v_mode IN ('link', 'col_unless');
+    v_filtered := v_mode IN ('link', 'col_unless', 'col_unset');
     v_pn := platform.projexa_track__project_sql(v_mode, v_a, v_b, 'n');
     v_po := platform.projexa_track__project_sql(v_mode, v_a, v_b, 'o');
 
