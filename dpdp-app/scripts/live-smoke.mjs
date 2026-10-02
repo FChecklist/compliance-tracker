@@ -84,6 +84,26 @@ check(sitemap.body.includes("/partner/"), "the sitemap lists the Sales Partner p
 const refJs = await get("/ref.js")
 check(refJs.status === 200 && /javascript/i.test(refJs.type) && refJs.body.includes("dpdp-referral"), "/ref.js is served as JavaScript and keeps the referral code", `${refJs.status} ${refJs.type}`)
 for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/"]) check((await get(p)).body.includes('<script defer src="/ref.js"></script>'), `${p} loads /ref.js`)
+// First-party monitoring (2026-10-02): the script is served and every public page loads it; the endpoint answers a beacon with 204
+// (an empty batch and a private-path event, so nothing is stored by the smoke), and the report is a 404 without the key.
+// The redesigned home page (2026-10-02): the three-dot colour theme script is served and loaded by the home page only; /new is gone (301 to /).
+const themeJs = await get("/theme.js")
+check(themeJs.status === 200 && /javascript/i.test(themeJs.type) && themeJs.body.includes("veridian-theme"), "/theme.js is served as JavaScript", `${themeJs.status} ${themeJs.type}`)
+check(root.body.includes('<script src="/theme.js"></script>') && root.body.includes("Compliance that <em>outlasts</em>"), "/: the redesigned home page loads /theme.js")
+const oldPreview = await get("/new/", { redirect: "manual" })
+check(oldPreview.status === 301 && (oldPreview.headers.get("location") || "").replace(/^https?:\/\/[^/]+/, "") === "/", "/new/ answers 301 to /", `${oldPreview.status} ${oldPreview.headers.get("location")}`)
+const rumJs = await get("/rum.js")
+check(rumJs.status === 200 && /javascript/i.test(rumJs.type) && rumJs.body.includes("/api/telemetry"), "/rum.js is served as JavaScript and posts to /api/telemetry", `${rumJs.status} ${rumJs.type}`)
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/", "/privacy/", "/terms/"]) check((await get(p)).body.includes('<script defer src="/rum.js"></script>'), `${p} loads /rum.js`)
+for (const body of [{ e: [] }, { e: [{ k: "pv", p: "/app/", d: "|desktop" }] }]) {
+  const beacon = await get("/api/telemetry", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+  check(beacon.status === 204, `POST /api/telemetry ${JSON.stringify(body).slice(0, 40)} answers 204`, String(beacon.status))
+}
+const noKey = await get("/api/telemetry")
+check(noKey.status === 404, "GET /api/telemetry without the report key is a 404", String(noKey.status))
+check(/noindex/i.test(noKey.headers.get("x-robots-tag") || "") && /no-store/i.test(noKey.headers.get("cache-control") || ""), "/api/telemetry is noindex and no-store")
+check(sitemap.body.includes("/privacy/") && sitemap.body.includes("/terms/") && sitemap.body.includes("/contact/"), "the sitemap lists the legal pages")
+check(root.body.includes("are owned and operated by") && root.body.includes("All rights reserved."), "/: the company ownership line is in the footer")
 // The free AI assistant (owner, 2026-10-01): its own public page, the pill in the top right of every public page, the highlight on the home page.
 check(sitemap.body.includes("/ai-assistant/"), "the sitemap lists the free AI assistant page")
 const aiPage = await get("/ai-assistant/")

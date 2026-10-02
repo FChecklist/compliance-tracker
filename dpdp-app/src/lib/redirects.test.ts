@@ -41,6 +41,11 @@ describe("public/_redirects (WO-013 §2.4)", () => {
     expect(rule("/dpdp-institutions/")).toEqual({ from: "/dpdp-institutions/", to: "/dpdp-institution/", status: 301 })
   })
 
+  test("/new and /new/ (the design preview, promoted to the home page on 2026-10-02) -> 301 -> /, so there is one page and no duplicate", () => {
+    expect(rule("/new")).toEqual({ from: "/new", to: "/", status: 301 })
+    expect(rule("/new/")).toEqual({ from: "/new/", to: "/", status: 301 })
+  })
+
   test("/home and /home/ -> 301 -> /", () => {
     expect(rule("/home")).toEqual({ from: "/home", to: "/", status: 301 })
     expect(rule("/home/")).toEqual({ from: "/home/", to: "/", status: 301 })
@@ -51,8 +56,8 @@ describe("public/_redirects (WO-013 §2.4)", () => {
     for (const from of ["/for-ai", "/for-ai/", "/for-ai.md", "/facts.json"]) expect(rule(from), from).toEqual({ from, to: "/about/", status: 301 })
   })
 
-  test("exactly these eight rules, every one permanent, every destination a public page", () => {
-    expect(rules).toHaveLength(8)
+  test("exactly these ten rules, every one permanent, every destination a public page", () => {
+    expect(rules).toHaveLength(10)
     for (const r of rules) {
       expect(r.status).toBe(301)
       expect(PUBLIC_PAGES.some((p) => p.path === r.to), `${r.to} is not a public page`).toBe(true)

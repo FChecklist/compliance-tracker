@@ -100,6 +100,16 @@
   Referrer-Policy: no-referrer
   Cache-Control: no-store
 
+# /api/* is the first-party monitoring endpoint (functions/api/telemetry.ts), also served by
+# a Pages Function that sets these headers itself. Never indexed, never cached.
+/api/*
+  ! Referrer-Policy
+
+/api/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+
 # /proof/ (WO-DPDP-013 v2 §2.1) is built but hidden until the owner switches
 # facts.proof.enabled on in data/veridian-facts.yaml. The block between the
 # two markers is written by scripts/generate-public-facts.mjs -- do not edit

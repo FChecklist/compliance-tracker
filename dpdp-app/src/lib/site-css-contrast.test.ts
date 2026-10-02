@@ -131,3 +131,17 @@ describe("WO-DPDP-014 §2: the brand line meets WCAG AA contrast and the 12px fl
     }
   })
 })
+
+describe("2026-10-02: the company ownership line in the footer is readable type with AA contrast", () => {
+  const vars = rootVars()
+
+  test(".footer-company: 13-14px, the footer's muted colour on the footer's own background is >= 4.5:1, links keep that colour", () => {
+    const size = parseFloat(ruleProp(".footer-company", "font-size"))
+    expect(size).toBeGreaterThanOrEqual(13)
+    expect(size).toBeLessThanOrEqual(14)
+    const fg = resolve(ruleProp(".footer-company", "color"), vars)
+    const bg = resolve(ruleProp(".footer", "background"), vars)
+    expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(AA)
+    expect(ruleProp(".footer-company a", "color")).toBe("inherit")
+  })
+})

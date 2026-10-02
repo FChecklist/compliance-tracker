@@ -23,13 +23,20 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
+  COMPANY_FOOTER_COPY,
   HIDDEN_PAGES,
+  LEGAL_PAGES,
   OG_IMAGE,
   PRIVATE_PAGES,
   PUBLIC_ORIGIN,
   PUBLIC_PAGES,
+  PUBLIC_SCRIPT_OPENS,
+  scriptOpensFor,
+  THEME_SCRIPT,
   REF_SCRIPT,
   REQUIRED_BOTS,
+  RUM_SCRIPT,
+  SITEMAP_PAGES,
   SITE_ORIGIN,
   LEGACY_APP_ORIGIN,
   isW3cDatetime,
@@ -250,11 +257,14 @@ for (const page of PUBLIC_PAGES) {
     }
   }
 
-  // Complete HTML on arrival: no script runs on a public page at all.
-  // The one allowed script besides JSON-LD is /ref.js (same origin, deferred), exactly once.
+  // Complete HTML on arrival: the content never depends on a script. The only scripts allowed besides
+  // JSON-LD are /ref.js (the partner-code keeper) then /rum.js (first-party monitoring), same origin,
+  // deferred, each exactly once, in that order.
   const scripts = tagsOf(html, /<script\b[^>]*>/gi).filter((t) => !/type="application\/ld\+json"/i.test(t))
-  expect(scripts.length === 1 && scripts[0] === REF_SCRIPT.open, `${label}: public page must have exactly the one <script> ${REF_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
+  expect(JSON.stringify(scripts) === JSON.stringify(scriptOpensFor(page.path)), `${label}: public page must have exactly the scripts ${JSON.stringify(scriptOpensFor(page.path))} besides JSON-LD, found ${JSON.stringify(scripts)}`)
   expect(has(REF_SCRIPT.src.slice(1)), `dist${REF_SCRIPT.src} missing`)
+  expect(has(RUM_SCRIPT.src.slice(1)), `dist${RUM_SCRIPT.src} missing`)
+  if (page.path === "/") expect(has(THEME_SCRIPT.src.slice(1)), `dist${THEME_SCRIPT.src} missing`)
   checkCrossOrigin(label, html)
 
   // Fonts: both self-hosted files preloaded, with crossorigin (fonts fetch
@@ -283,6 +293,40 @@ for (const priv of PRIVATE_PAGES) {
   expect(meta(html, "name", "robots") === "noindex, nofollow", `${label}: <meta name="robots" content="noindex, nofollow"> missing`)
   expect(meta(html, "name", "referrer") === "no-referrer", `${label}: <meta name="referrer" content="no-referrer"> missing`)
   expect(linkHref(html, "canonical") === null, `${label}: a private page must not declare a canonical`)
+  expect(!html.includes(RUM_SCRIPT.src), `${label}: a private page must never load ${RUM_SCRIPT.src} -- private pages are not measured`)
+  checkCrossOrigin(label, html)
+}
+
+// ----------------------------------------------------------------- legal pages
+// The hand-kept legal pages in public/ (terms, privacy, ...): public, indexable, in the sitemap, measured
+// by /rum.js, and carrying the company ownership line. Smaller rules than the generated pages.
+for (const page of LEGAL_PAGES) {
+  const label = page.path
+  const out = page.source.replace(/^public\//, "")
+  if (!has(out)) {
+    expect(false, `${label}: dist/${out} missing`)
+    continue
+  }
+  const html = read(out)
+  const title = /<title>([^<]*)<\/title>/i.exec(html)?.[1]?.trim() ?? ""
+  const description = meta(html, "name", "description")
+  expect(/<html\b[^>]*\slang="en"/i.test(html), `${label}: <html lang> missing`)
+  expect(title.length > 10 && title.length <= 70, `${label}: <title> "${title}" is empty or longer than 70 characters`)
+  expect(!!description && description.length >= 60 && description.length <= 200, `${label}: meta description missing or not 60-200 characters`)
+  expect(linkHref(html, "canonical") === pageUrl(page.path), `${label}: canonical is ${linkHref(html, "canonical")}, expected ${pageUrl(page.path)}`)
+  expect(meta(html, "property", "og:url") === pageUrl(page.path), `${label}: og:url differs from the canonical`)
+  expect(meta(html, "property", "og:title") === title && meta(html, "property", "og:description") === description, `${label}: og:title/og:description differ from the page's own`)
+  expect(meta(html, "property", "og:image") === `${PUBLIC_ORIGIN}${OG_IMAGE.path}` && meta(html, "name", "twitter:card") === "summary_large_image", `${label}: Open Graph image / Twitter card missing`)
+  const robotsMeta = meta(html, "name", "robots")
+  expect(!robotsMeta || !/noindex|nofollow/i.test(robotsMeta), `${label}: PUBLIC legal page carries <meta name="robots" content="${robotsMeta}">`)
+  const h1s = tagsOf(html, /<h1\b[^>]*>[\s\S]*?<\/h1>/gi)
+  expect(h1s.length === 1 && textOf(h1s[0]) === page.h1, `${label}: expected exactly one <h1> reading "${page.h1}"`)
+  const scripts = tagsOf(html, /<script\b[^>]*>/gi)
+  expect(JSON.stringify(scripts) === JSON.stringify([RUM_SCRIPT.open]), `${label}: legal page must have exactly the one <script> ${RUM_SCRIPT.tag}, found ${JSON.stringify(scripts)}`)
+  const icon = linkHref(html, "icon")
+  expect(!!icon && has(icon.slice(1)), `${label}: <link rel="icon"> ${icon} is not a file in dist/`)
+  const footerHtml = /<footer[\s\S]*<\/footer>/i.exec(html)?.[0] ?? ""
+  for (const s of COMPANY_FOOTER_COPY) expect(footerHtml.includes(s), `${label}: footer lacks the company line part "${s.slice(0, 60)}"`)
   checkCrossOrigin(label, html)
 }
 
@@ -303,7 +347,7 @@ for (const hidden of HIDDEN_PAGES) {
   expect(linkHref(html, "canonical") === null, `${label}: a hidden page must not declare a canonical`)
   expect(meta(html, "property", "og:url") === null, `${label}: a hidden page must not carry Open Graph tags`)
   const scripts = tagsOf(html, /<script\b[^>]*>/gi).filter((t) => !/type="application\/ld\+json"/i.test(t))
-  expect(scripts.length === 1 && scripts[0] === REF_SCRIPT.open, `${label}: hidden page must have exactly the one <script> ${REF_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
+  expect(JSON.stringify(scripts) === JSON.stringify(PUBLIC_SCRIPT_OPENS), `${label}: hidden page must have exactly the scripts ${REF_SCRIPT.tag} ${RUM_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
   checkCrossOrigin(label, html)
 }
 
@@ -387,7 +431,7 @@ if (has("robots.txt")) {
   for (const priv of PRIVATE_PAGES) expect(!!star && star.disallow.includes(priv.prefix), `robots.txt: the * group does not Disallow: ${priv.prefix}`)
   for (const g of groups) {
     for (const d of g.disallow) {
-      for (const pub of PUBLIC_PAGES) expect(!(d && pub.path.startsWith(d)), `robots.txt: Disallow: ${d} (${g.agents.join(", ")}) would block the public page ${pub.path}`)
+      for (const pub of SITEMAP_PAGES) expect(!(d && pub.path.startsWith(d)), `robots.txt: Disallow: ${d} (${g.agents.join(", ")}) would block the public page ${pub.path}`)
     }
   }
   expect(sitemaps.length === 1 && sitemaps[0] === `${PUBLIC_ORIGIN}/sitemap.xml`, `robots.txt: Sitemap is ${JSON.stringify(sitemaps)}, expected ["${PUBLIC_ORIGIN}/sitemap.xml"]`)
@@ -398,7 +442,7 @@ expect(has("sitemap.xml"), "dist/sitemap.xml missing -- run scripts/build-sitema
 if (has("sitemap.xml")) {
   const xml = read("sitemap.xml")
   const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
-  const want = PUBLIC_PAGES.map((p) => pageUrl(p.path))
+  const want = SITEMAP_PAGES.map((p) => pageUrl(p.path))
   expect(locs.length === want.length && want.every((u) => locs.includes(u)), `sitemap.xml lists ${JSON.stringify(locs)}, expected exactly ${JSON.stringify(want)}`)
   for (const hidden of HIDDEN_PAGES) expect(!xml.includes(hidden.prefix), `sitemap.xml: names the hidden page ${hidden.prefix}`)
   const lastmods = [...xml.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1])
@@ -420,7 +464,7 @@ if (has("_headers")) {
       expect(h["x-content-type-options"] === "nosniff", `_headers: ${path} lacks X-Content-Type-Options: nosniff`)
     }
   }
-  for (const pub of PUBLIC_PAGES) {
+  for (const pub of SITEMAP_PAGES) {
     const h = resolveHeaders(rules, pub.path)
     expect(!h["x-robots-tag"], `_headers: PUBLIC ${pub.path} gets X-Robots-Tag "${h["x-robots-tag"]}"`)
     expect(h["referrer-policy"] === "strict-origin-when-cross-origin", `_headers: ${pub.path} gets Referrer-Policy "${h["referrer-policy"]}"`)
@@ -453,6 +497,25 @@ for (const f of ["llms.txt", "llms-full.txt"]) {
 }
 // Owner, 2026-10-01: the AI-only surfaces are withdrawn, not merely unlinked.
 for (const gone of ["for-ai/index.html", "for-ai.md", "facts.json"]) expect(!has(gone), `dist/${gone} is a withdrawn surface (owner, 2026-10-01) but was built`)
+
+// ----------------------------------------------------- IndexNow + monitoring
+// The IndexNow key file (https://www.indexnow.org/documentation): a .txt named after the key whose body is the key.
+const keyFiles = readdirSync(dist).filter((f) => /^[0-9a-f]{32}\.txt$/.test(f))
+expect(keyFiles.length === 1, `dist/ should carry exactly one IndexNow key file (<32 hex>.txt), found ${JSON.stringify(keyFiles)}`)
+for (const f of keyFiles) {
+  expect(read(f).trim() === f.replace(/\.txt$/, ""), `${f}: the IndexNow key file body must equal its own name`)
+  expect(!read("sitemap.xml").includes(f), `sitemap.xml names the IndexNow key file ${f}`)
+}
+// rum.js: the monitoring script must stay first-party, cookieless and query-string-free.
+if (has("rum.js")) {
+  const rum = read("rum.js")
+  for (const bad of ["document.cookie", "localStorage", "sessionStorage", "indexedDB", "location.search", "location.hash", "XMLHttpRequest", "http://", "https://"]) {
+    expect(!rum.includes(bad), `rum.js uses ${bad} -- the monitoring script must stay first-party, cookieless and query-string-free`)
+  }
+  expect(rum.includes('"/api/telemetry"'), "rum.js does not post to /api/telemetry")
+  expect((rum.match(/sendBeacon\(/g) ?? []).length === 1, "rum.js must send through exactly one navigator.sendBeacon call")
+  for (const prefix of PRIVATE_PAGES) expect(rum.includes(`"${prefix.prefix}"`), `rum.js does not refuse the private prefix ${prefix.prefix}`)
+}
 
 // --------------------------------------------------------------------- summary
 if (failures.length) {

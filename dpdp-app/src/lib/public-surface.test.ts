@@ -20,6 +20,9 @@ import {
   PRIVATE_PAGES,
   PUBLIC_ORIGIN,
   PUBLIC_PAGES,
+  SITEMAP_PAGES,
+  RUM_SCRIPT,
+  THEME_SCRIPT,
   REQUIRED_BOTS,
   SITE_ORIGIN,
   LEGACY_APP_ORIGIN,
@@ -127,9 +130,9 @@ describe("two origins, one bundle (SEO canonical host)", () => {
   })
 
   test("the sitemap renderer emits apex URLs only", () => {
-    const xml = renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
+    const xml = renderSitemap(SITEMAP_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
-    expect(locs.length).toBe(PUBLIC_PAGES.length)
+    expect(locs.length).toBe(SITEMAP_PAGES.length)
     for (const l of locs) expect(l.startsWith(`${PUBLIC_ORIGIN}/`), l).toBe(true)
   })
 })
@@ -196,13 +199,13 @@ describe("public/_headers: caching (speed) without breaking the private prefixes
 })
 
 describe("sitemap renderer (WO-012 §1: public pages only, real lastmod)", () => {
-  const all = PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22T10:00:00+05:30" }))
+  const all = SITEMAP_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22T10:00:00+05:30" }))
 
   test("lists exactly the public pages, each with its lastmod", () => {
     const xml = renderSitemap(all)
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
-    expect(locs).toEqual(PUBLIC_PAGES.map((p) => pageUrl(p.path)))
-    expect(xml.match(/<lastmod>/g)?.length).toBe(PUBLIC_PAGES.length)
+    expect(locs).toEqual(SITEMAP_PAGES.map((p) => pageUrl(p.path)))
+    expect(xml.match(/<lastmod>/g)?.length).toBe(SITEMAP_PAGES.length)
   })
 
   test("refuses a private path, a missing page, a duplicate and a bad lastmod", () => {
@@ -244,7 +247,7 @@ describe("withdrawn surfaces: /for-ai/, /for-ai.md, /facts.json", () => {
   })
 
   test("no public page, llms file, robots.txt, _headers or sitemap names them", () => {
-    const sitemap = renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
+    const sitemap = renderSitemap(SITEMAP_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
     const surfaces: Array<[string, string]> = [...PUBLIC_PAGES.map((p) => [p.source, read(p.source)] as [string, string]), ["public/llms.txt", read("public/llms.txt")], ["public/llms-full.txt", read("public/llms-full.txt")], ["public/robots.txt", read("public/robots.txt")], ["sitemap.xml", sitemap]]
     for (const [rel, body] of surfaces) {
       expect(body, `${rel} names /for-ai`).not.toMatch(/for-ai/i)
@@ -261,8 +264,8 @@ describe("the home page offers exactly two ways in (owner, 2026-10-01)", () => {
 
   test("two big choice cards, with exactly these labels and targets", () => {
     expect(choices).toEqual([
-      { href: "/dpdp-firm/", text: "🧑‍⚖️ I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS" },
-      { href: "/dpdp-institution/", text: "🏭 I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES" },
+      { href: "/dpdp-firm/", text: "For professionals CA · CS · Legal · Audit firm Doing it for my clients →" },
+      { href: "/dpdp-institution/", text: "For organisations Company · School · NGO Doing it for ourselves →" },
     ])
   })
 
@@ -281,8 +284,10 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
   const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
 
   test("the h1 and an ordered list of exactly three, 1 to 3, in the owner's words", () => {
-    expect(main).toContain("<h1 class=\"chooser-title\">Three things to know about DPDP compliance</h1>")
-    const list = /<ol class="lead-list">([\s\S]*?)<\/ol>/.exec(main)![1]
+    expect(main).toContain('<h1 class="chooser-title">Compliance that <em>outlasts</em> the person who set it up.</h1>')
+    // The old h1 is kept as the h2 over the three points, so the phrase stays on the page.
+    expect(main).toContain("<h2>Three things to know about DPDP compliance</h2>")
+    const list = /<ol class="lead-list hm-three">([\s\S]*?)<\/ol>/.exec(main)![1]
     const items = [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])
     expect(items).toEqual(["People change. When they leave, what they knew about your data leaves with them.", "Know what data you hold, and who else holds it for you.", "Prove it — with a record that outlasts the person who set it up."])
     expect(items).toEqual([...FACTS.three_things])
@@ -383,8 +388,8 @@ describe("what is public and what is private, pinned exactly (with /partner/ pub
     expect(PUBLIC_PAGES.map((p) => p.path)).toEqual(expected)
   })
 
-  test("the private prefixes are exactly these six; /partner/ is not under any of them", () => {
-    expect(PRIVATE_PAGES.map((p) => p.prefix)).toEqual(["/app/", "/act/", "/unsubscribe/", "/copy/", "/p/", "/ai/"])
+  test("the private prefixes are exactly these seven; /partner/ is not under any of them", () => {
+    expect(PRIVATE_PAGES.map((p) => p.prefix)).toEqual(["/app/", "/act/", "/unsubscribe/", "/copy/", "/p/", "/ai/", "/api/"])
     for (const priv of PRIVATE_PAGES) expect("/partner/".startsWith(priv.prefix), `/partner/ is under ${priv.prefix}`).toBe(false)
   })
 
@@ -400,7 +405,7 @@ describe("what is public and what is private, pinned exactly (with /partner/ pub
       expect(g.allow).toContain("/")
       for (const d of g.disallow) expect("/partner/".startsWith(d), `Disallow: ${d} would block /partner/`).toBe(false)
     }
-    const sitemap = renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
+    const sitemap = renderSitemap(SITEMAP_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
     expect(sitemap).toContain("<loc>https://veridian-aios.com/partner/</loc>")
     expect(read("public/llms.txt")).toContain("](https://veridian-aios.com/partner/)")
     expect(read("public/llms-full.txt")).toContain("https://veridian-aios.com/partner/")
@@ -426,7 +431,7 @@ describe("what is public and what is private, pinned exactly (with /partner/ pub
     const rules = parseHeadersFile(read("public/_headers"))
     for (const sub of ["/partner/terms/", "/partner/terms/index.html"]) expect(resolveHeaders(rules, sub)["x-robots-tag"]).toBeUndefined()
     for (const g of parseRobots(read("public/robots.txt")).groups) for (const d of g.disallow) expect("/partner/terms/".startsWith(d), `Disallow: ${d} would block /partner/terms/`).toBe(false)
-    expect(renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))).toContain("<loc>https://veridian-aios.com/partner/terms/</loc>")
+    expect(renderSitemap(SITEMAP_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))).toContain("<loc>https://veridian-aios.com/partner/terms/</loc>")
     expect(read("public/llms.txt")).toContain("](https://veridian-aios.com/partner/terms/)")
     expect(read("public/llms-full.txt")).toContain("https://veridian-aios.com/partner/terms/")
     expect(read("scripts/live-smoke.mjs")).toContain('"/partner/terms/"')
@@ -449,7 +454,7 @@ describe("what is public and what is private, pinned exactly (with /partner/ pub
     }
     // the rule that fences the private prefix is the slashed "/ai/*", never "/ai*"
     expect(rules.some((r) => r.path === "/ai*" || r.path === "/ai-*")).toBe(false)
-    const sitemap = renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
+    const sitemap = renderSitemap(SITEMAP_PAGES.map((p) => ({ path: p.path, lastmod: "2026-10-01T10:00:00+05:30" })))
     expect(sitemap).toContain("<loc>https://veridian-aios.com/ai-assistant/</loc>")
     expect(read("public/llms.txt")).toContain("](https://veridian-aios.com/ai-assistant/)")
     expect(read("public/llms-full.txt")).toContain("https://veridian-aios.com/ai-assistant/")
@@ -475,7 +480,7 @@ describe("page sources", () => {
       expect(html).toContain(`<link rel="canonical" href="${pageUrl(pub.path)}" />`)
       expect(html).not.toMatch(/<meta\s+name="robots"[^>]*no(index|follow)/i)
       const scripts = html.match(/<script\b[^>]*>/g) ?? []
-      for (const s of scripts) expect(s === REF_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
+      for (const s of scripts) expect(s === REF_SCRIPT.open || s === RUM_SCRIPT.open || s === THEME_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
       expect(html).not.toMatch(/https?:\/\/fonts\.(googleapis|gstatic)\.com/)
     }
   })

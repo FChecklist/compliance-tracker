@@ -40,6 +40,14 @@ export declare const LEGACY_APP_ORIGIN: string
 export declare const PUBLIC_ORIGIN: string
 export declare const OG_IMAGE: { readonly path: string; readonly width: number; readonly height: number; readonly alt: string }
 export declare const FOOTER_LINKS: readonly (readonly [string, string])[]
+export declare const RUM_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
+export declare const PUBLIC_SCRIPT_OPENS: readonly string[]
+export declare const HOME_SCRIPT_OPENS: readonly string[]
+export declare const THEME_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
+export declare function scriptOpensFor(path: string): readonly string[]
+export declare const COMPANY_FOOTER_COPY: readonly string[]
+export declare const LEGAL_PAGES: readonly { readonly path: string; readonly source: string; readonly h1: string }[]
+export declare const SITEMAP_PAGES: readonly { readonly path: string; readonly source: string }[]
 export declare const REF_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
 export declare const NAV_AI: { readonly href: string; readonly label: string }
 export declare const NAV_PARTNER: { readonly href: string; readonly label: string }

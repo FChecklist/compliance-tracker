@@ -65,3 +65,10 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: dpdp-app
           command: pages deploy dist --project-name=veridian-dpdp-app --branch=main --commit-dirty=true
+
+      - name: Tell Bing/Yandex (IndexNow) the public pages changed -- best effort, never fails the deploy
+        if: env.HAS_CLOUDFLARE == 'true'
+        continue-on-error: true
+        run: |
+          sleep 20
+          node scripts/indexnow-ping.mjs

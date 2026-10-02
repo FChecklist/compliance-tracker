@@ -3,7 +3,7 @@
 #
 # Public: the home page (/), /dpdp-firm/, /dpdp-institution/, /about/,
 # /partner/, and the site's CSS, JS and fonts under /assets/ and /fonts/.
-# Private: the prefixes in the Disallow lines below.
+# Private: the prefixes in the Disallow lines below (/api/ is the monitoring beacon target, never linked).
 
 # The named bots: allowed on public paths, kept out of the private prefixes.
 User-agent: Googlebot
@@ -22,6 +22,7 @@ Disallow: /unsubscribe/
 Disallow: /p/
 Disallow: /copy/
 Disallow: /ai/
+Disallow: /api/
 
 # Everything else: the same public paths, the same private prefixes.
 User-agent: *
@@ -32,5 +33,6 @@ Disallow: /unsubscribe/
 Disallow: /p/
 Disallow: /copy/
 Disallow: /ai/
+Disallow: /api/
 
 Sitemap: https://veridian-aios.com/sitemap.xml

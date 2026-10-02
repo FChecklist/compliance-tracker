@@ -9,11 +9,14 @@ actions marked **OWNER** below.
 
 | Path | What | Indexed? |
 |---|---|---|
-| `/` | home: exactly two ways in (CA/CS/legal/audit firm doing it for clients -> `/dpdp-firm/`; company/institution/school/NGO doing it for itself -> `/dpdp-institution/`) | yes |
+| `/` | home (redesigned 2026-10-02, three colour themes): exactly two ways in (CA/CS/legal/audit firm doing it for clients -> `/dpdp-firm/`; company/institution/school/NGO doing it for itself -> `/dpdp-institution/`) | yes |
 | `/dpdp-firm/`, `/dpdp-institution/` | edition landing pages | yes |
 | `/about/` | the full facts for people (WO-DPDP-013 v2 §2.1), generated from `data/veridian-facts.yaml` | yes |
 | `/proof/` | evidence page from `data/proof.yaml`; **built and hidden** until the owner sets `proof.enabled: true` in the facts file | **no** while hidden -- `noindex` meta + `X-Robots-Tag` via the generated block in `public/_headers`; not in the sitemap or llms*.txt; linked from nowhere |
 | `/app/` | the signed-in one-page app (magic-link session in the `#fragment`) | **no** -- `noindex` meta + `X-Robots-Tag` via `public/_headers` |
+| `/terms/`, `/privacy/`, `/disclaimer/`, `/pricing/`, `/refund/`, `/shipping/`, `/contact/` | the hand-kept legal pages (`public/<name>/index.html`); in the sitemap | yes |
+| `/rum.js`, `/api/telemetry` | first-party monitoring: the script on every public page, and its Pages Function (`functions/api/`) writing to the free D1 database `dpdp-telemetry`. `/api/` is a private prefix: `noindex`, `no-store`, `Disallow` in robots. See `OPERATIONS.md` "Search, speed and monitoring" | the script is a file; the endpoint is **not** indexed |
+| `/<32 hex>.txt` | the IndexNow key file (Bing/Yandex ping after each deploy) | not linked, not in the sitemap |
 | `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt` | crawler files (WO-DPDP-012 §3); llms*.txt are generated | -- |
 | `/dpdp-institutions` → `/dpdp-institution/`, `/home` → `/` | 301s in `public/_redirects` (WO-DPDP-013 v2 §2.4) | -- |
 | `/for-ai`, `/for-ai/`, `/for-ai.md`, `/facts.json` | **withdrawn 2026-10-01** (owner: they published internal detail); 301 to `/about/`. Nothing builds or links them; `check-public-surface.mjs` and `check-two-doors.mjs` fail if they come back | -- |
@@ -36,6 +39,10 @@ fact block on every public page, the meta description, Open Graph and the
 Organization + SoftwareApplication JSON-LD all come from the facts file too.
 To change a fact: edit `data/veridian-facts.yaml`, run `bun run generate:facts`,
 run `bun test`, commit the regenerated files with it.
+
+### Bindings and secrets the site needs (since 2026-10-02)
+
+`wrangler.toml` binds the D1 database `dpdp-telemetry` as `DB` (the id in the file is not a secret). The Pages secret `REPORT_KEY` (set once with `wrangler pages secret put REPORT_KEY --project-name veridian-dpdp-app`; it applies from the next deployment) unlocks the monitoring report. The deploy in 2B runs `wrangler pages deploy dist` from this directory, which reads `wrangler.toml` and picks up `functions/` (`ai/` and `api/`) beside it; the project is a direct-upload project, so the binding comes from `wrangler.toml` on every deploy. Without the binding the endpoint still answers 204 and stores nothing; without `REPORT_KEY` the report is a 404. Creating the database was `wrangler d1 create dpdp-telemetry`, then `wrangler d1 execute dpdp-telemetry --remote --file=data/telemetry.sql` (the Function also creates the tables on first use). The API token in the repository secret `CLOUDFLARE_API_TOKEN` must be allowed to deploy Pages; it needs no D1 permission for the deploy itself.
 
 ## 2. Two ways to connect -- pick one (OWNER)
 

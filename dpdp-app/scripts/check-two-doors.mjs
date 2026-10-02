@@ -47,7 +47,7 @@ import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, loadFacts } from "../src/lib/facts.mjs"
-import { HIDDEN_PAGES, LEGACY_APP_ORIGIN, PRIVATE_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, SITE_ORIGIN, parseHeadersFile, parseRobots, resolveHeaders } from "../src/lib/public-surface.mjs"
+import { HIDDEN_PAGES, LEGACY_APP_ORIGIN, PRIVATE_PAGES, PUBLIC_ORIGIN, HOME_SCRIPT_OPENS, PUBLIC_PAGES, PUBLIC_SCRIPT_OPENS, REF_SCRIPT, RUM_SCRIPT, THEME_SCRIPT, SITE_ORIGIN, parseHeadersFile, parseRobots, resolveHeaders } from "../src/lib/public-surface.mjs"
 import { decodeEntities } from "./generate-public-facts.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
@@ -465,7 +465,7 @@ function main() {
     const hiddenText = findHiddenText(html, css)
     expect(hiddenText.length === 0, `${rel}: hidden text -- ${hiddenText.map((h) => `${h.kind}: ${h.detail}`).join("; ")}`)
     const scripts = (html.match(/<script\b[^>]*>/gi) ?? []).filter((t) => !/type="application\/ld\+json"/i.test(t))
-    expect(scripts.length === 1 && scripts[0] === REF_SCRIPT.open, `${rel}: <script> tag(s) besides JSON-LD must be exactly ${REF_SCRIPT.tag}, found ${JSON.stringify(scripts)}`)
+    expect(JSON.stringify(scripts) === JSON.stringify(rel === "index.html" ? HOME_SCRIPT_OPENS : PUBLIC_SCRIPT_OPENS), `${rel}: <script> tag(s) besides JSON-LD must be exactly ${REF_SCRIPT.tag} then ${RUM_SCRIPT.tag} (the home page also ${THEME_SCRIPT.tag} first), found ${JSON.stringify(scripts)}`)
     const spelling = findSpellingVariants(html)
     expect(spelling.length === 0, `${rel}: brand spelling variant(s) ${spelling.map((s) => JSON.stringify(s.variant)).join(", ")}`)
     const deviations = findBrandLineDeviations(html, facts.brand)

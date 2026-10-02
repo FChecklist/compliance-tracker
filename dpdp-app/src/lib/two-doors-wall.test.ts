@@ -16,7 +16,7 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
-import { FACTS, HIDDEN_PAGES, PRIVATE_PAGES, PUBLIC_PAGES, parseHeadersFile, parseRobots, renderSitemap, resolveHeaders } from "./public-surface.mjs"
+import { FACTS, HIDDEN_PAGES, PRIVATE_PAGES, PUBLIC_PAGES, SITEMAP_PAGES, parseHeadersFile, parseRobots, renderSitemap, resolveHeaders } from "./public-surface.mjs"
 import {
   AI_SURFACES,
   FORBIDDEN_PATTERNS,
@@ -39,7 +39,7 @@ const siteCss = read("src/site.css")
 function surfaceSource(rel: string): string {
   const isPage = [...PUBLIC_PAGES, ...HIDDEN_PAGES].some((p) => p.source === rel)
   if (isPage) return read(rel)
-  if (rel === "sitemap.xml") return renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22" })))
+  if (rel === "sitemap.xml") return renderSitemap(SITEMAP_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22" })))
   return read(`public/${rel}`)
 }
 
@@ -132,8 +132,8 @@ describe("(b) /ai/* is fenced off", () => {
   })
 
   test("the sitemap renderer cannot list /ai/ (it is not a public page) and lists no hidden page", () => {
-    expect(() => renderSitemap([...PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22" })), { path: "/ai/", lastmod: "2026-09-22" }])).toThrow(/not a public page/)
-    const xml = renderSitemap(PUBLIC_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22" })))
+    expect(() => renderSitemap([...SITEMAP_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22" })), { path: "/ai/", lastmod: "2026-09-22" }])).toThrow(/not a public page/)
+    const xml = renderSitemap(SITEMAP_PAGES.map((p) => ({ path: p.path, lastmod: "2026-09-22" })))
     expect(xml).not.toContain("/ai/")
     for (const h of HIDDEN_PAGES) expect(xml).not.toContain(h.prefix)
   })
@@ -222,9 +222,9 @@ describe("(e) same content for machines and people", () => {
   test("no <script> on any public or hidden page but JSON-LD; the fact block is plain visible HTML", () => {
     for (const p of [...PUBLIC_PAGES, ...HIDDEN_PAGES]) {
       const html = read(p.source)
-      // JSON-LD, plus exactly one same-origin deferred script: /ref.js (the Sales Partner code keeper).
+      // JSON-LD, plus exactly two same-origin deferred scripts: /ref.js (the Sales Partner code keeper), then /rum.js (first-party monitoring).
       const others = (html.match(/<script\b[^>]*>/g) ?? []).filter((s) => !s.includes('type="application/ld+json"'))
-      expect(others, p.source).toEqual(['<script defer src="/ref.js">'])
+      expect(others, p.source).toEqual(p.source === "index.html" ? ['<script src="/theme.js">', '<script defer src="/ref.js">', '<script defer src="/rum.js">'] : ['<script defer src="/ref.js">', '<script defer src="/rum.js">'])
       expect(html).toContain('<section class="facts')
       expect(html).toContain(FACTS.one_line)
       expect(html).toContain(FACTS.what_it_does_not_do)

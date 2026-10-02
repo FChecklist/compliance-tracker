@@ -30,3 +30,7 @@
 # /home is the root chooser.
 /home                /                    301
 /home/               /                    301
+
+# The /new/ design preview was promoted to the home page (2026-10-02): one page, no duplicate.
+/new   /   301
+/new/  /   301

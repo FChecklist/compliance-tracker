@@ -24,7 +24,7 @@
 // canonical, X-Robots-Tag noindex, absent from the sitemap and llms*.txt,
 // linked from nowhere -- but NOT a private prefix (no robots Disallow, so a
 // crawler that finds it can still read the noindex).
-import { loadFacts, pageTitle, subjectTopicsClause } from "./facts.mjs"
+import { companyFooterParts, loadFacts, pageTitle, subjectTopicsClause } from "./facts.mjs"
 
 import { LEGACY_APP_ORIGIN, PUBLIC_ORIGIN, SITE_ORIGIN } from "./site-origin.mjs"
 // SITE_ORIGIN is the signed-in app's host (kept for the /app/ bundle and the
@@ -91,6 +91,29 @@ FACT_COPY.push(...HEADER_COPY)
 export const REF_SCRIPT = { src: "/ref.js", tag: '<script defer src="/ref.js"></script>', open: '<script defer src="/ref.js">' }
 FACT_COPY.push(REF_SCRIPT.tag)
 
+/** The SECOND script a public page loads (2026-10-02): public/rum.js, same
+ * origin, deferred, right after ref.js. First-party monitoring -- page views,
+ * Core Web Vitals, JavaScript errors, files that failed to load -- posted with
+ * sendBeacon to this site's own /api/telemetry (functions/api/telemetry.ts,
+ * a free Cloudflare D1 table). No cookie, no IP address stored, no query
+ * string, nothing from a third party. Loaded by every public and hidden page
+ * and by the static legal pages, and by NO private page (the private
+ * prefixes carry tokens and people's own work; they are never measured). */
+export const RUM_SCRIPT = { src: "/rum.js", tag: '<script defer src="/rum.js"></script>', open: '<script defer src="/rum.js">' }
+/** The THIRD script, on the home page only (2026-10-02): public/theme.js, same origin, synchronous in the <head> so the saved colour theme
+ * is on <html data-theme> before the first paint. It keeps the three-dot colour choice in this browser's localStorage and sends nothing. */
+export const THEME_SCRIPT = { src: "/theme.js", tag: '<script src="/theme.js"></script>', open: '<script src="/theme.js">' }
+/** Exactly these opening tags, in this order, are the only scripts a public page may carry besides its JSON-LD: ref.js then rum.js; the home page adds theme.js first. */
+export const PUBLIC_SCRIPT_OPENS = [REF_SCRIPT.open, RUM_SCRIPT.open]
+export const HOME_SCRIPT_OPENS = [THEME_SCRIPT.open, REF_SCRIPT.open, RUM_SCRIPT.open]
+export const scriptOpensFor = (path) => (path === "/" ? HOME_SCRIPT_OPENS : PUBLIC_SCRIPT_OPENS)
+FACT_COPY.push(RUM_SCRIPT.tag)
+
+/** The ownership line at the end of every public footer (coordinator, 2026-10-02), from facts.company. */
+const COMPANY_FOOTER = companyFooterParts(FACTS)
+export const COMPANY_FOOTER_COPY = Object.values(COMPANY_FOOTER)
+FACT_COPY.push(...COMPANY_FOOTER_COPY)
+
 /** Every crawler WO-012 §3 names. Each must appear as its own User-agent
  * line in robots.txt's public group. */
 export const REQUIRED_BOTS = [
@@ -125,6 +148,9 @@ export const PRIVATE_PAGES = [
   // Edge Function by functions/ai/[token].ts so it is served with a real
   // text/html content-type from this host.
   { prefix: "/ai/", source: null },
+  // 2026-10-02: the first-party monitoring endpoint (functions/api/telemetry.ts). A write-only beacon target for the public pages' own
+  // /rum.js; a GET without the report key is a 404. It is never linked, never indexed, never cached.
+  { prefix: "/api/", source: null },
 ]
 
 // Copy on BOTH edition landing pages (rewritten 2026-10-01: plain English,
@@ -176,15 +202,17 @@ export const PUBLIC_PAGES = [
     path: "/",
     source: "index.html",
     title: pageTitle(FACTS, "/"),
-    h1: "Three things to know about DPDP compliance",
+    h1: "Compliance that outlasts the person who set it up.",
     jsonLd: ["Organization", "WebSite", "SoftwareApplication"],
     mustContain: [
       "VERy INDIAN",
       // The three points, numbered 1-3 (owner, 2026-10-01): exactly the facts file's list.
       ...FACTS.three_things,
-      // Exactly two ways in, with exactly these labels (owner, 2026-10-01).
-      "I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS",
-      "I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES",
+      // Exactly two ways in (owner, 2026-10-01), worded as the redesigned home page words them (owner, 2026-10-02).
+      "CA · CS · Legal · Audit firm",
+      "Doing it for my clients →",
+      "Company · School · NGO",
+      "Doing it for ourselves →",
       'href="/dpdp-firm/"',
       'href="/dpdp-institution/"',
       "Already have an account? Sign in",
@@ -312,6 +340,24 @@ PUBLIC_PAGES.push({
   ],
 })
 
+/**
+ * The static legal pages in public/ (hand-kept HTML, not generated): public and
+ * indexable, in the sitemap with a real lastmod, and measured by /rum.js like
+ * every other public page. They are NOT in PUBLIC_PAGES because that list also
+ * drives the fact-block / brand-line / JSON-LD rules, which the legal pages do
+ * not carry; the post-build check holds them to their own, smaller rules
+ * (title, description, canonical, Open Graph, the two scripts, the company line).
+ */
+export const LEGAL_PAGES = [
+  { path: "/terms/", source: "public/terms/index.html", h1: "Terms of Service" },
+  { path: "/privacy/", source: "public/privacy/index.html", h1: "Privacy Notice" },
+  { path: "/disclaimer/", source: "public/disclaimer/index.html", h1: "Disclaimer and Notice of Limits" },
+  { path: "/pricing/", source: "public/pricing/index.html", h1: "Pricing" },
+  { path: "/refund/", source: "public/refund/index.html", h1: "Cancellation and Refund Policy" },
+  { path: "/shipping/", source: "public/shipping/index.html", h1: "Delivery Policy" },
+  { path: "/contact/", source: "public/contact/index.html", h1: "Contact Us" },
+]
+
 /** The /proof/ page (WO-013 §2.1): public once facts.proof.enabled is true,
  * otherwise built-and-hidden (see HIDDEN_PAGES). */
 const PROOF_PAGE = {
@@ -327,6 +373,9 @@ if (FACTS.proof.enabled) PUBLIC_PAGES.push(PROOF_PAGE)
 /** Built but hidden: noindex meta + X-Robots-Tag, no canonical, not in the
  * sitemap or llms*.txt, linked from nowhere. Not a private prefix. */
 export const HIDDEN_PAGES = FACTS.proof.enabled ? [] : [{ prefix: PROOF_PAGE.path, source: PROOF_PAGE.source }]
+
+/** Every URL the sitemap lists: the public pages, then the legal pages. */
+export const SITEMAP_PAGES = [...PUBLIC_PAGES, ...LEGAL_PAGES]
 
 export function pageUrl(path) {
   return PUBLIC_ORIGIN + path
@@ -352,12 +401,12 @@ function escapeXml(s) {
 export function renderSitemap(entries) {
   const seen = new Set()
   for (const { path, lastmod } of entries) {
-    if (!PUBLIC_PAGES.some((p) => p.path === path)) throw new Error(`renderSitemap: ${path} is not a public page`)
+    if (!SITEMAP_PAGES.some((p) => p.path === path)) throw new Error(`renderSitemap: ${path} is not a public page`)
     if (seen.has(path)) throw new Error(`renderSitemap: ${path} listed twice`)
     if (!isW3cDatetime(lastmod)) throw new Error(`renderSitemap: lastmod "${lastmod}" for ${path} is not a W3C datetime`)
     seen.add(path)
   }
-  for (const p of PUBLIC_PAGES) if (!seen.has(p.path)) throw new Error(`renderSitemap: public page ${p.path} is missing`)
+  for (const p of SITEMAP_PAGES) if (!seen.has(p.path)) throw new Error(`renderSitemap: public page ${p.path} is missing`)
 
   const lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
   for (const { path, lastmod } of entries) {
