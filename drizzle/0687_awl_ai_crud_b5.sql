@@ -3,8 +3,9 @@
 -- deletes that had no service, and the organisation-scoped function class), plus the three schema facts they need.
 --
 -- WHAT
---   1. platform.ai_work_link_functions   the 140 rows of 0685 plus 18 new functions (158 rows), from src/lib/pipeline/function-registry.ts and
---                                        scripts/gen-ai-link-registry.data.ts:
+--   1. platform.ai_work_link_functions   the 140 rows of 0685 plus 19 new functions (159 rows, 141 on links), from src/lib/pipeline/function-registry.ts
+--                                        and scripts/gen-ai-link-registry.data.ts:
+--                                          level 0 (a read): list_organisation_records (the ids the organisation functions take)
 --                                          level 1 (direct): update_activity, update_progress_category, update_boq_line, create_boq_category
 --                                          level 2 (a draft the person confirms): update_attendance, delete_attendance, update_change_order,
 --                                                            cancel_change_order, delete_meeting, rename_boq_category, delete_boq_category,
@@ -33,7 +34,7 @@
 -- bound link (the project proves the link belongs to this organisation), takes ids checked against the organisation, and is level 2 except adding
 -- a category (src/lib/pipeline/executors/crud-b5-org.ts header). Nothing here lets an AI change code, a release bundle or a file.
 --
--- LINKS ALREADY MINTED KEEP THEIR OLD FUNCTION CEILING (allowed_functions is fixed at mint): people re-mint to give their AI the 18 new functions.
+-- LINKS ALREADY MINTED KEEP THEIR OLD FUNCTION CEILING (allowed_functions is fixed at mint): people re-mint to give their AI the 19 new functions.
 --
 -- ERRORS. None new. The impact function answers {status:'refused', reason:'not_found'|'not_owner'} like ai_work_link_draft_state.
 --
@@ -48,7 +49,7 @@
 -- IDEMPOTENT: rows are upserted by key; ADD COLUMN IF NOT EXISTS; ADD VALUE IF NOT EXISTS; CREATE OR REPLACE; DROP TRIGGER IF EXISTS before
 -- CREATE TRIGGER. Applying this file twice leaves everything as one application does. Each GROUP 2 step is skipped when its table is absent.
 --
--- DATA LOSS: none. 18 registry rows added, one nullable column, one enum value, two functions and one trigger.
+-- DATA LOSS: none. 19 registry rows added, one nullable column, one enum value, two functions and one trigger.
 --
 -- HOW IT IS APPLIED: by the PM through the Supabase MCP, after the always-aborted rehearsal passed and migrations up to 0686 are applied (0685
 -- first: this block includes its rows). Written by an engineer agent (cloud package lf-b5-ai-crud) and not applied by it.
