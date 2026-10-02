@@ -40,6 +40,23 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, PROJEXA LOCAL-FIRST COMPLETION; worktrees C:/ct/ct-claims-update (claims/docs) + C:/ct/ct-lf-backend (backend) in compliance-tracker, C:/ct/pxa-sync in projexa; branches feat/lf-* ) -- WORK_ORDER_PROJEXA-LOCAL-FIRST Phase P + L-xx completion [IN PROGRESS]"
+    claimed_at: "2026-10-02T12:00:00Z"
+    claim: |
+      Owner order 2026-10-02 (verbatim intent): "complete this 100%" -- (1) the user's laptop as daughter server so Vercel is
+      used minimally, (2) full two-way sync laptop <-> our backend, (3) laptop <-> laptop sync, (4) our RAM/server used minimally
+      and the user's RAM used. Sequence ordered by the owner: build and test on local + Supabase + git first, then deploy, and
+      the Vercel deploy is the very LAST step. Until that last step, PROJEXA frontend changes stay off projexa main
+      (integration branch only) so no Vercel build is triggered.
+      File scope (compliance-tracker): supabase/functions/projexa-sync/** (push, ids/reconcile, signed items, attestation,
+      jobs endpoints), supabase/functions/_shared/** only where needed, drizzle/0678..0685_projexa_sync_*.sql (+ down/ + journal;
+      additive only: new tables/functions, no change to existing business tables), src/lib/services/projexa-sync-*.pglite.test.ts,
+      ai-os/boss/ACTIVE-CLAIMS.yaml, R80_PART7_KT work-order tracker. Also the in-app AI OFF gate (Level 1 / free-text lane
+      answers "use your own AI") in src/lib/pipeline/** and src/app/api/v1/projexa/** where WORK_ORDER L-07 requires it.
+      File scope (projexa): src/lib/local-first/** (outbox/push, reconcile deletes, signed-item verify, WebRTC peer sync,
+      presence, job runner + Web Worker), src/components/** screens that switch to local reads, composer AI-off messaging.
+      Not touched: DNS, Vercel plan/caps/add-ons, secrets values, any DPDP file. Live DB: additive migrations only, each with
+      a down file, applied after CI green and reported to the owner.
   - session_label: "claude-code (DPDP sales partner lifecycle; worktree agent-a70b403b3a440f5ce, branch feat/dpdp-partner-lifecycle)"
     claimed_at: "2026-10-01T12:00:00Z"
     claim: |
