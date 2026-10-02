@@ -99,8 +99,9 @@ describe("the whole chain, applied together in order", () => {
     // the member may read vendors, the viewer may not (the role gate), and a member can enqueue a job and a manager claim it
     expect((await hit("u-mem", "pull", { kind: "vendors", after: null, limit: 10 })).status).toBe(200)
     expect((await hit("u-view", "pull", { kind: "vendors", after: null, limit: 10 })).status).toBe(404)
-    expect((await hit("u-mgr", "jobs/enqueue", { project_id: "proj-a", type: "boq_rollup", params: { boqId: "boq1" } })).status).toBe(200)
-    expect((await hit("u-mgr", "jobs/claim", { device_id: "chain-device-01", types: ["boq_rollup"] })).status).toBe(200)
+    // a job type with no record id in its params (an id must belong to the job's project since package D2: a made-up BOQ id is the one 404)
+    expect((await hit("u-mgr", "jobs/enqueue", { project_id: "proj-a", type: "csv_export", params: { kind: "tasks" } })).status).toBe(200)
+    expect((await hit("u-mgr", "jobs/claim", { device_id: "chain-device-01", types: ["csv_export"] })).status).toBe(200)
     // a push without the exec function wired is a clean 503, not a crash
     expect((await hit("u-mgr", "push", { device_id: "chain-device-01", ops: [] })).status).toBeGreaterThanOrEqual(400)
     // the tracker works across the chain

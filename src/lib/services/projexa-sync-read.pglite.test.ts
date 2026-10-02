@@ -385,7 +385,11 @@ describe("the handler: contract and edges", () => {
     for (const res of [r405, r404, ok]) {
       const text = await res.clone().text()
       const heads = JSON.stringify([...res.headers.entries()])
-      expect([text.includes("tok:"), heads.includes("tok:"), text.includes(SUBS["u-mgr"])]).toEqual([false, false, false])
+      // a token never appears in any answer or header. The person's sign-in id appears ONLY in the manifest, as `user.auth_user_id` (client review F01: the laptop
+      // compares it with its own); an error answer never carries it
+      const hasSub = text.includes(SUBS["u-mgr"])
+      expect([text.includes("tok:"), heads.includes("tok:"), hasSub]).toEqual([false, false, res === ok])
+      if (res === ok) expect(text.split(SUBS["u-mgr"]).length - 1).toBe(1)
     }
   })
 })
