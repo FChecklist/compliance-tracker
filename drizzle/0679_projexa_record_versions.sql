@@ -53,8 +53,9 @@
 --
 -- ERRORS (coded, same as 0677): AW404 NOT_FOUND; AW400 BAD_CURSOR / BAD_LIMIT. A person who does not resolve gets {"status": <reason>} and no data.
 -- COST. Per tracked STATEMENT: one trigger call, one subtransaction, one catalog lookup, one set-based head upsert and one set-based log insert (only for rows that really
--- changed). The change log has 2 indexes (PK, (org, project, xid, seq)). Measured on PGlite (projexa-sync-versions.pglite.test.ts, "cost"): a 2,000-row insert in one statement
--- consumes 1 transaction id (the per-row trigger it replaces consumed one per row: a subtransaction per row, which overflows the 64-entry subxid cache after 64 rows).
+-- changed). The change log has 2 indexes (PK, (org, project, xid, seq)). Measured on PGlite (projexa-sync-tracking.pglite.test.ts, "cost"): a 2,000-row insert in one
+-- statement consumes 2 transaction ids, its own and ONE subtransaction (the per-row trigger it replaces consumed 2,001: a subtransaction per row, which overflows the
+-- 64-entry subxid cache after 64 rows and slows every other session's visibility checks on the shared database).
 -- LOCKS. CREATE OR REPLACE TRIGGER takes SHARE ROW EXCLUSIVE (blocks writes, not reads) on each table and the lock is held until COMMIT (they accumulate over the list); see
 -- projexa_track__attach: tables already right are skipped, the rest are locked NOWAIT together with a retry. lock_timeout is 5 s; the whole migration is one transaction.
 -- GRANTS: SECURITY DEFINER functions, search_path = pg_catalog, pg_temp, timezone UTC; revoked from public, anon, authenticated, app_runtime; the sync entry points are granted to
