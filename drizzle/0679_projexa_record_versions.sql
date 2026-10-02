@@ -46,6 +46,13 @@
 -- from columns it does not receive (records_core joins and computes), so hashing only the projected names could MISS a real visible change; a spurious version costs one
 -- re-fetch, a missed one leaves stale data. The first change to a row that was never tracked makes version 1 (the baseline is 0: no backfill of existing data is needed).
 --
+-- HISTORY IS VERSION METADATA ONLY (decision, requirements:F14): the log keeps who changed which record to which version, when, and the content hash, NOT what the
+-- record said at an older version. Keeping old row content (jsonb per version) would multiply the log's size against the 500 MB free database; server-side undo is
+-- therefore not offered, and the losing side of a conflict lives in that laptop's outbox until the person resolves it.
+-- THE CURSOR IS A GLOBAL NUMBER (decision, tenant-and-role:TI-5): head_seq / next_seq are transaction ids of the shared database, so the gaps between them reveal how
+-- many write transactions happened elsewhere (a COUNT, never a record, an id or a project). Accepted under the owner's priority order (cost, then ease, then security):
+-- hiding it would need a per-project sequence or an encrypted cursor for no protection of content.
+--
 -- NOTHING IS REIMPLEMENTED AS AUTHORITY. Who may ask for a project's changes is 0677's rule (projexa_read_resolve_user + ai_work_link__bind: same organisation, readable by the person NOW,
 -- else the one AW404). A row's scope is projexa_sync__src's (organisation AND project). The new tables are readable by nothing except the functions here.
 --
