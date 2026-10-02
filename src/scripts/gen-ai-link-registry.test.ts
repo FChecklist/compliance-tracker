@@ -120,7 +120,16 @@ const CRUD_B2_ON_LINKS: Record<string, [number, number]> = {
   update_permit: [1, 2], delete_permit: [2, 2], archive_project: [2, 3],
 }
 const CRUD_B2_MONEY = ["delete_boq", "update_boq_line_amounts", "update_material", "update_time_entry"]
-const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS, ...B002_WAVE_7_9_ON_LINKS, ...B002_SUBMIT_TIMESHEET_ON_LINKS, ...USER_LINK_ON_LINKS, ...CRUD_B2_ON_LINKS }
+// lf-b5-ai-crud (owner order 2026-10-02): the eight edits/deletes that had no service, and the organisation-scoped class. Every delete, rename and
+// money write is level 2; attendance and the organisation-wide changes (category rename/retire, company, currency, exchange rate) need the manager.
+const CRUD_B5_ON_LINKS: Record<string, [number, number]> = {
+  update_activity: [1, 2], update_progress_category: [1, 2], update_attendance: [2, 3], delete_attendance: [2, 3], update_change_order: [2, 2],
+  cancel_change_order: [2, 2], update_boq_line: [1, 2], delete_meeting: [2, 2],
+  create_boq_category: [1, 2], rename_boq_category: [2, 3], delete_boq_category: [2, 3], create_vendor: [2, 2], update_vendor: [2, 2],
+  create_customer: [2, 2], update_customer: [2, 2], create_company: [2, 3], create_currency: [2, 3], create_exchange_rate: [2, 3],
+}
+const CRUD_B5_MONEY = ["update_attendance", "delete_attendance", "update_change_order", "create_vendor", "update_vendor", "create_customer", "update_customer", "create_currency", "create_exchange_rate"]
+const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS, ...B002_WAVE_7_9_ON_LINKS, ...B002_SUBMIT_TIMESHEET_ON_LINKS, ...USER_LINK_ON_LINKS, ...CRUD_B2_ON_LINKS, ...CRUD_B5_ON_LINKS }
 /** How many functions are on links in all: every list above, so a wave that adds its own list changes one line, not a number. */
 const ON_LINKS_COUNT = Object.keys(ALL_ON_LINKS).length
 // spec 9.1: the 17 excluded (the register row AWL-S03 names the first five)
@@ -163,7 +172,7 @@ describe("the committed outputs are current", () => {
     const io = fsIo(ROOT)
     for (const f of [FUNCTIONS_JSON, KINDS_JSON, CURRENT_SEED_MIGRATION]) expect(io.exists(f)).toBe(true)
     expect(FUNCTIONS_JSON).toBe("supabase/functions/ai-work-link/function-registry.generated.json")
-    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0685_awl_ai_crud.sql")
+    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0687_awl_ai_crud_b5.sql")
   })
 
   test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are every function reviewed onto links, and none of the five bad ones", () => {
@@ -243,9 +252,9 @@ describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 78 of
     // waves 1 and 2 add the ids of a schedule filter and task (statusId, assigneeId, assigneeIds, typeId, predecessorId), a milestone, a change order,
     // a stored document and its parent BOQ, and a vendor; the /Ids?$/ rule of the generator also reads a list of ids (assigneeIds)
     expect([...idParams].sort()).toEqual([
-      "activityId", "againstBoqId", "assignedToId", "assigneeId", "assigneeIds", "assigneeUserId", "baselineId", "boqId", "boqLineItemId", "budgetId", "categoryId", "changeOrderId", "claimId", "clientId", "customerId", "documentId",
-      "drawingDocumentId", "entryId", "evidenceDocumentId", "ffeItemId", "floorPlanId", "issueId", "itemId", "kpiDefinitionId", "lineItemId", "materialId", "meetingId", "milestoneId", "moodBoardId", "pageId", "parentBoqId", "parentCategoryId",
-      "parentPageId", "permitId", "placementId", "predecessorId", "productId", "progressEntryId", "receiptId", "rfiId", "roomId", "rosterId", "sourceChangeOrderId", "sprintId", "statusId", "submittalId", "timeEntryId", "typeId", "vendorId",
+      "activityId", "againstBoqId", "assignedToId", "assigneeId", "assigneeIds", "assigneeUserId", "attendanceId", "baselineId", "boqId", "boqLineItemId", "budgetId", "categoryId", "changeOrderId", "claimId", "clientId", "customerId", "documentId",
+      "drawingDocumentId", "entryId", "evidenceDocumentId", "ffeItemId", "floorPlanId", "fromCurrencyId", "issueId", "itemId", "kpiDefinitionId", "lineItemId", "materialId", "meetingId", "milestoneId", "moodBoardId", "pageId", "parentBoqId", "parentCategoryId",
+      "parentCompanyId", "parentPageId", "permitId", "placementId", "predecessorId", "productId", "progressEntryId", "receiptId", "rfiId", "roomId", "rosterId", "sourceChangeOrderId", "sprintId", "statusId", "submittalId", "timeEntryId", "toCurrencyId", "typeId", "vendorId",
     ])
     expect(on.find((r) => r.function_id === "record_work_progress")!.id_params).toEqual(["boqLineItemId"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params.map((p) => p.name)).toEqual(["projectId", "itemCode", "percent"])
@@ -260,7 +269,7 @@ describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 78 of
       "get_construction_project_dashboard", "get_designer_timesheet_report", "get_manpower_cost_report", "get_material_cost_report",
       "get_project_analysis", "list_billing_claims", "list_change_orders", "preview_boq_import", "record_attendance_batch", "run_named_report",
       "seal_boq", "update_line_item_budget", "update_progress_entry", "update_project", "update_roster_entry", "void_material_receipt",
-      ...B002_WAVE_5_6_MONEY, ...B002_WAVE_7_9_MONEY, ...CRUD_B2_MONEY,
+      ...B002_WAVE_5_6_MONEY, ...B002_WAVE_7_9_MONEY, ...CRUD_B2_MONEY, ...CRUD_B5_MONEY,
     ].sort())
   })
 })
