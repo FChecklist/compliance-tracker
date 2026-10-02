@@ -99,3 +99,30 @@ Since snapshot D: an independent review of the backend (80 findings, 1 blocker) 
 | | **Overall (19 rows)** | **47%** | **53%** |
 
 End-to-end verified (real browser, real backend, CI, live): **0%**.
+## F. STATUS SNAPSHOT 2026-10-02 (3) -- built, TESTED, and the backend LIVE
+Since snapshot E: both integration branches are complete (backend `feat/lf-sync-backend`, laptop `feat/local-first-complete`), migrations 0678-0687 are APPLIED on the live Supabase project and the three Edge functions are DEPLOYED. Tested, with no password or token ever used: the real Edge handler over the live SQL functions for 9 real people of 3 organisations (117 checks: isolation, role visibility, paging, `/heads`); the write side (30: push ledger exactly once, role gates, job lease, tracking health of 37 kinds, a committed change feed); a pushed edit executed by the real exec pipeline on the live database (12: applied, duplicate on replay, conflict on a stale edit, role and organisation refusals, feed + pull); signatures over PostgREST with the service role (14: real grants, key creation, px2/px3 row signatures verify independently); the release registry with a manifest from the laptop app's own builder. The first real-browser run of the offline e2e found that nothing in the app turned local-first on (fixed: default ON for a signed-in person with an opt-out) and a cloud agent then brought the four offline tests (R1, R2, R9, R10) to green in a real Chromium on two clean runs, fixing three real app bugs on the way (the first sign-in never installed the release, a doubled connectivity marker, a crash on every keystroke in the offline BOQ screen). Percentages are my judgment and count only tested work.
+
+| # | Requirement | % completed | % pending (what is left) |
+|---|---|---|---|
+| G1 | Laptop is the daughter server, Vercel minimal | 85% | 15% (the deploy, the owner's real login) |
+| G2 | Two-way sync, versions recorded | 90% | 10% (a real person's token end to end) |
+| G3 | Laptop to laptop sync | 65% | 35% (two real browsers; only unit + conformance so far) |
+| G4 | Our RAM/server minimal | 80% | 20% (measure after launch) |
+| G5 | Whole software + whole org DB on the laptop | 65% | 35% (37 kinds and 14 modules are offline; the other PROJEXA modules are not) |
+| V1 | One versioned download, per-file numbers, history | 85% | 15% (the first release registered after the deploy) |
+| R1 | Works with no internet | 85% | 15% (modules beyond the BOQ proof in a real browser) |
+| R2 | Works when our server is down | 90% | 10% |
+| R3 | Several laptops auto-sync | 75% | 25% (the change feed is live-verified; the peer path is not) |
+| R4 | See own/project/org data as per role | 90% | 10% |
+| R5 | AI cannot change the software | 75% | 25% |
+| R6 | AI can work on it | 75% | 25% (a real Chrome/Edge AI session) |
+| R7 | AI can create/edit/delete as per role | 80% | 20% (draft-confirm and the per-person switch in a live session) |
+| R8 | Complete work possible on the laptop | 40% | 60% (a person can do the offline modules' work; the rest of PROJEXA still needs the server) |
+| R9 | Logged in forever | 85% | 15% (a real long-lived session) |
+| R10 | App not deleted by the browser | 85% | 15% (a real browser eviction cycle) |
+| R11 | Browser AI gets access automatically | 60% | 40% (only tested without a real browser AI) |
+| R12 | User never has to think | 75% | 25% (the owner's first-use walk-through) |
+| R14 | Cost near zero | 80% | 20% (real traffic after launch; Vercel's rate-limit status) |
+| | **Overall (19 rows)** | **77%** | **23%** |
+
+End-to-end verified: real browser against the stand-in services **yes (4 tests, twice)**; the real handler and pipeline against the LIVE database **yes (173 checks)**; a real browser against the LIVE deployed backend with a real person **not yet (0%)**, which needs the deploy and the owner's real login.
