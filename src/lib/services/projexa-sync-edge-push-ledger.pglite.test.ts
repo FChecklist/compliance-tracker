@@ -1,8 +1,9 @@
 /// <reference types="bun-types" />
 // projexa-sync push against the REAL push ledger (drizzle/0681 on PGlite) for the two most dangerous branches no test reached before (review D1
 // tests-quality:F05 a/b) and the transient-code resend (SYNC-04 / tests-quality:F02 "resend calls the pipeline again"):
-//   (a) the write succeeded but projexa_sync_push_finish failed: EXECUTION_UNCERTAIN, the ledger stays `running`, a resend is IN_PROGRESS then
-//       EXECUTION_UNCERTAIN after 10 minutes, and the pipeline is NEVER called a second time; a later op on the record in that batch is held
+//   (a) the write succeeded but projexa_sync_push_finish failed: EXECUTION_UNCERTAIN, the ledger stays `running`, a resend is IN_PROGRESS, and once
+//       the claim is ten minutes old the SQL (package D2) resolves it by the record's version: the write DID happen (head moved past the op's
+//       base) -> `conflict` with `uncertain_prior` and the pipeline is NEVER called a second time; a later op on the record in that batch is held
 //   (b) begin fails for the 2nd op of a batch after the 1st applied: the answer keeps op 1 `applied` (not a bare 503), and a resend of both with a
 //       healthy database answers [duplicate, applied] with the pipeline called once per op in total
 //   BACKEND_UNAVAILABLE / UPSTREAM_TIMEOUT: ledger `failed`, and a resend of the SAME op id runs the pipeline again
@@ -42,7 +43,9 @@ async function push(ops: unknown[], rpc: Rpc = realRpc) {
   const res = await handleSync(req, { rpc, session, limiter: new RateLimiter(100000), now: () => NOW, execRun: stand, log: () => {} })
   return { status: res.status, results: ((await res.json()) as J).results as J[] }
 }
-const op = (id: string, task: string) => ({ op_id: id, function_id: FN, project_id: "proj-a", params: { taskId: task, title: `by ${id}` } })
+const headOf = async (task: string) => Number((await db.query<{ version: unknown }>(`select version from platform.projexa_record_head where kind = 'tasks' and record_id = '${task}'`)).rows[0]?.version ?? 0)
+// an EDIT (update_*) must name the record it edits (drizzle/0681 RECORD_REQUIRED): the base version is the record's current head
+const op = async (id: string, task: string) => ({ op_id: id, function_id: FN, project_id: "proj-a", params: { taskId: task, title: `by ${id}` }, record: { kind: "tasks", id: task, base_version: await headOf(task) } })
 const ledger = async (opId: string) => (await db.query<J>(`select status, error_code from platform.projexa_sync_op where op_id = '${opId}'`)).rows[0]
 const ranFor = (opId: string) => calls.filter((c) => c.op_id === opId).length
 
@@ -67,23 +70,24 @@ afterAll(async () => {
 })
 
 describe("(a) the write landed but its ledger row could not be closed", () => {
-  test("EXECUTION_UNCERTAIN, ledger running, never re-run; IN_PROGRESS, then EXECUTION_UNCERTAIN after 10 minutes; a later op on the record is held", async () => {
+  test("EXECUTION_UNCERTAIN, ledger running, never blindly re-run; IN_PROGRESS, then a version-based resolution once the claim is stale; a later op on the record is held", async () => {
     calls = []
     const failFinish: Rpc = async (fn, args) => (fn === "projexa_sync_push_finish" ? { data: null, error: { message: "statement timeout", code: "57014" } } : realRpc(fn, args))
-    const head = Number((await db.query<{ version: unknown }>(`select version from platform.projexa_record_head where kind = 'tasks' and record_id = 'l1'`)).rows[0]?.version ?? 0)
-    const rec = { record: { kind: "tasks", id: "l1", base_version: head } }
-    const r = await push([{ ...op("op-led-a0001", "l1"), ...rec }, { ...op("op-led-a0002", "l1"), ...rec }], failFinish)
+    const base = await headOf("l1")
+    const first = { ...(await op("op-led-a0001", "l1")), record: { kind: "tasks", id: "l1", base_version: base } }
+    const second = { ...(await op("op-led-a0002", "l1")), record: { kind: "tasks", id: "l1", base_version: base } }
+    const r = await push([first, second], failFinish)
     expect(r.results[0]).toMatchObject({ status: "failed", uncertain: true, error: { code: "EXECUTION_UNCERTAIN" } })
     expect(r.results[1]).toMatchObject({ status: "failed", error: { code: "PREVIOUS_OP_BLOCKED" } })
     expect(await ledger("op-led-a0001")).toMatchObject({ status: "running" })
     expect(ranFor("op-led-a0001")).toBe(1)
 
-    // the SAME op (same content) resent: the ledger answers, the pipeline is not called
-    const same = { ...op("op-led-a0001", "l1"), ...rec }
-    expect((await push([same])).results[0]).toMatchObject({ status: "failed", error: { code: "IN_PROGRESS" } })
+    // the SAME op (same content, same base) resent: the ledger answers, the pipeline is not called
+    expect((await push([first])).results[0]).toMatchObject({ status: "failed", error: { code: "IN_PROGRESS" } })
+    // a claim stuck `running` for over 10 minutes is settled at once (package D2): by the record's version. The write landed (head > base), so the
+    // answer is a conflict and the pipeline is not called a second time
     await db.exec(`update platform.projexa_sync_op set created_at = clock_timestamp() - interval '11 minutes' where op_id = 'op-led-a0001'`)
-    expect((await push([same])).results[0]).toMatchObject({ status: "failed", uncertain: true, error: { code: "EXECUTION_UNCERTAIN" } })
-    expect(await ledger("op-led-a0001")).toMatchObject({ status: "uncertain" })
+    expect((await push([first])).results[0]).toMatchObject({ status: "conflict" })
     expect(ranFor("op-led-a0001")).toBe(1)
   })
 })
@@ -96,7 +100,9 @@ describe("(b) the database fails halfway through a batch", () => {
       if (fn === "projexa_sync_push_begin" && ++begins === 2) throw new Error("connect ECONNREFUSED 10.0.0.5:6543")
       return realRpc(fn, args)
     }
-    const first = await push([op("op-led-b0001", "l2"), op("op-led-b0002", "l3")], secondBeginThrows)
+    const b1 = await op("op-led-b0001", "l2")
+    const b2 = await op("op-led-b0002", "l3")
+    const first = await push([b1, b2], secondBeginThrows)
     expect(first.status).toBe(200)
     expect(first.results.map((x) => x.status)).toEqual(["applied", "failed"])
     expect(first.results[1].error).toMatchObject({ code: "SERVICE_UNAVAILABLE" })
@@ -104,7 +110,7 @@ describe("(b) the database fails halfway through a batch", () => {
     expect(await ledger("op-led-b0001")).toMatchObject({ status: "applied" })
     expect(await ledger("op-led-b0002")).toBeUndefined()
 
-    const again = await push([op("op-led-b0001", "l2"), op("op-led-b0002", "l3")])
+    const again = await push([b1, b2])
     expect(again.results.map((x) => x.status)).toEqual(["duplicate", "applied"])
     expect(ranFor("op-led-b0001")).toBe(1)
     expect(ranFor("op-led-b0002")).toBe(1)
@@ -117,10 +123,11 @@ describe("the pipeline's transient codes may run again (SYNC-04)", () => {
       calls = []
       const id = `op-led-${code.slice(0, 4).toLowerCase()}1`
       script[id] = { kind: "failed", code, missing: [] }
-      expect((await push([op(id, "l3")])).results[0]).toMatchObject({ status: "failed", error: { code } })
+      const o = await op(id, "l3")
+      expect((await push([o])).results[0]).toMatchObject({ status: "failed", error: { code } })
       expect(await ledger(id)).toMatchObject({ status: "failed", error_code: code })
       delete script[id]
-      expect((await push([op(id, "l3")])).results[0]).toMatchObject({ status: "applied" })
+      expect((await push([o])).results[0]).toMatchObject({ status: "applied" })
       expect(ranFor(id)).toBe(2)
     })
   }
@@ -128,9 +135,10 @@ describe("the pipeline's transient codes may run again (SYNC-04)", () => {
   test("a business refusal (VALUE_REQUIRED) is terminal: a resend is answered from the ledger, the pipeline is not called again", async () => {
     calls = []
     script["op-led-biz01"] = { kind: "failed", code: "VALUE_REQUIRED", missing: ["title"] }
-    expect((await push([op("op-led-biz01", "l3")])).results[0]).toMatchObject({ status: "rejected" })
+    const biz = await op("op-led-biz01", "l3")
+    expect((await push([biz])).results[0]).toMatchObject({ status: "rejected" })
     delete script["op-led-biz01"]
-    expect((await push([op("op-led-biz01", "l3")])).results[0]).toMatchObject({ status: "rejected", error: { code: "VALUE_REQUIRED" } })
+    expect((await push([biz])).results[0]).toMatchObject({ status: "rejected", error: { code: "VALUE_REQUIRED" } })
     expect(ranFor("op-led-biz01")).toBe(1)
   })
 })

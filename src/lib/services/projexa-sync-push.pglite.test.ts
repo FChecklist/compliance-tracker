@@ -611,7 +611,10 @@ describe("every refusal branch of begin", () => {
     ]
     calls = []
     const r = await push("u-mgr", bad.map((b) => b[1]))
-    expect((r.json.results as J[]).map((x, i) => [bad[i][0], x.error?.code])).toEqual(bad.map((b) => [b[0], "BAD_OP"]))
+    // an op over the edge's byte cap (60,000 bytes, package D1) is TOO_LARGE at the edge, before any SQL; every other malformed input is the SQL's BAD_OP
+    expect((r.json.results as J[]).map((x, i) => [bad[i][0], x.error?.code])).toEqual(bad.map((b) => [b[0], b[0] === "op over 64 KB" ? "TOO_LARGE" : "BAD_OP"]))
+    // the SQL ceiling (65,536 characters) is still its own refusal: call the function directly, past the edge
+    expect(await begin("u-mgr", { ...op("op-bad-000011"), record: { kind: "tasks", id: "t1", base_version: t1 }, params: { taskId: "t1", title: "x".repeat(66000) } })).toMatchObject({ action: "reject", code: "BAD_OP" })
     expect(calls).toHaveLength(0)
     expect(Number((await db.query<J>(`select count(*) n from platform.projexa_sync_op where op_id like 'op-bad-%'`)).rows[0].n)).toBe(0)
     // a bad device (the handler never sends one, the SQL refuses it anyway)

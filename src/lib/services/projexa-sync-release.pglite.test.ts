@@ -9,7 +9,7 @@
 // Run: bun test --isolate src/lib/services/projexa-sync-release.pglite.test.ts
 import { describe, test, expect, beforeAll, afterAll, setDefaultTimeout } from "bun:test"
 import type { PGlite } from "@electric-sql/pglite"
-import { handleSync, RateLimiter, RELEASE_MANIFEST_URL, SERVER_PROTOCOL, type Rpc } from "../../../supabase/functions/projexa-sync/handler"
+import { handleSync, RateLimiter, RELEASE_MANIFEST_URL, RELEASE_TTL_MS, SERVER_PROTOCOL, type Rpc } from "../../../supabase/functions/projexa-sync/handler"
 import type { SessionVerifier } from "../../../supabase/functions/ai-work-link/session"
 import { canonicalize, sha256Hex } from "../../../supabase/functions/projexa-sync/sign"
 import { forwardSql, downSql } from "./__test-helpers__/awl-pglite"
@@ -208,7 +208,7 @@ describe("the update gate (426) and the release routes", () => {
     expect((await hit("u-mgr", "manifest", undefined, { "x-px-client": "dev; protocol=2" })).status).toBe(200)
   })
 
-  test("the release is remembered for a minute: one registry read per minute, a fresh read after register, the old value served if the registry fails", async () => {
+  test("the release is remembered for RELEASE_TTL_MS: one registry read per window, a fresh read after register, the old value served if the registry fails", async () => {
     let reads = 0
     let failing = false
     const counting: Rpc = async (name, args) => {
@@ -228,7 +228,7 @@ describe("the update gate (426) and the release routes", () => {
     }
     expect((await call("manifest")).status).toBe(426) // the floor 2026.10.02-001 is still set here
     expect(reads).toBe(1)
-    t += 59_000
+    t += RELEASE_TTL_MS - 1_000 // the handler's own memory (5 minutes since package D1): inside it, no new registry read
     await call("manifest")
     expect(reads).toBe(1)
     t += 2_000
@@ -240,11 +240,11 @@ describe("the update gate (426) and the release routes", () => {
     expect((await call("release/register", "POST", {})).json).toMatchObject({ registered: true })
     const afterRegister = reads
     expect(afterRegister).toBeGreaterThan(2)
-    await call("manifest") // still within the minute: no new read
+    await call("manifest") // still within the memory: no new read
     expect(reads).toBe(afterRegister)
     // the registry fails after a good read: the remembered value still gates (426), it does not fail open
     failing = true
-    t += 61_000
+    t += RELEASE_TTL_MS + 1_000
     expect((await call("manifest")).status).toBe(426)
     failing = false
   })
