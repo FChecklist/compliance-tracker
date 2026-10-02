@@ -71,3 +71,31 @@ Each row names the acceptance test that must pass before it is called done. Hone
 | **All 19 measurable rows** | | **~45%** | **~55%** | | **End-to-end verified: 0%** |
 
 **By work stream** (completed): backend migrations/Edge/tests 85%; laptop sync engine 70%; offline shell + bundle + identity 45%; peers + jobs + browser AI 55% (built, unintegrated, unreviewed); module conversions 5% (1 of 21 routes); AI create/edit/delete 15%; in-app AI off 60%; cost model + runbook 70%; integration + CI + browser e2e 0%; deploy 0%.
+
+## E. STATUS SNAPSHOT 2026-10-02 (2) -- only MERGED + TESTED work counts as completed
+Since snapshot D: an independent review of the backend (80 findings, 1 blocker) and of the laptop client (44 findings, 4 blockers: the sync identity guard, the CORS header, the BOQ row shape, the 413 wedge) were run against the REAL code; the backend fixes D1 (Edge handlers) and D2 (push/jobs/release SQL) are merged (16 sync suites green), AI create/edit/delete B2 (27 functions + per-person switch) is merged, and on the laptop the sign-out wiring (E1), delivery (E2), documents (E3) and overview (E5) module clusters are merged. Still in flight (not counted): D3 (change feed/retention), FA/FB (client wire conformance, outbox safety), E4 (design/change), E6 (cost, measured: a working day fell from 14,159 to 209 requests per laptop), B5 (organisation-scoped AI functions).
+
+| # | Requirement | % completed | % pending |
+|---|---|---|---|
+| G1 | Laptop is the daughter server, Vercel minimal | 40% | 60% |
+| G2 | Two-way sync, versions recorded | 50% | 50% |
+| G3 | Laptop to laptop sync | 50% | 50% |
+| G4 | Our RAM/server minimal | 25% | 75% |
+| G5 | Whole software + whole org DB on the laptop | 30% | 70% |
+| V1 | One versioned download, per-file numbers, history | 70% | 30% |
+| R1 | Works with no internet | 38% | 62% |
+| R2 | Works when our server is down | 45% | 55% |
+| R3 | Several laptops auto-sync | 50% | 50% |
+| R4 | See own/project/org data as per role | 42% | 58% |
+| R5 | AI cannot change the software | 60% | 40% |
+| R6 | AI can work on it | 70% | 30% |
+| R7 | AI can create/edit/delete as per role | 50% | 50% |
+| R8 | Complete work possible on the laptop | 10% | 90% |
+| R9 | Logged in forever | 75% | 25% |
+| R10 | App not deleted by the browser | 70% | 30% |
+| R11 | Browser AI gets access automatically | 55% | 45% |
+| R12 | User never has to think | 35% | 65% |
+| R14 | Cost near zero | 30% | 70% |
+| | **Overall (19 rows)** | **47%** | **53%** |
+
+End-to-end verified (real browser, real backend, CI, live): **0%**.
