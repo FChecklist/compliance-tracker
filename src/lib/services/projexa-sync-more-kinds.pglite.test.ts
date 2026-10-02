@@ -12,7 +12,7 @@ import type { PGlite } from "@electric-sql/pglite"
 import { handleSync, RateLimiter, SYNC_KINDS, type Rpc } from "../../../supabase/functions/projexa-sync/handler"
 import type { SessionVerifier } from "../../../supabase/functions/ai-work-link/session"
 import { forwardSql, downSql } from "./__test-helpers__/awl-pglite"
-import { createUserLinkDb, type J } from "./__test-helpers__/awl-user-link-db"
+import { call, createUserLinkDb, mintUser, type J } from "./__test-helpers__/awl-user-link-db"
 import { A2, B, BW, S, insert, pgRpc } from "./__test-helpers__/awl-records-v2-db"
 import RECORD_KINDS from "../../../supabase/functions/ai-work-link/record-kinds.generated.json"
 
@@ -20,7 +20,7 @@ setDefaultTimeout(240_000)
 
 const SUBS: Record<string, string> = {
   "u-mgr": "11111111-1111-4111-8111-111111111111", "u-mem": "22222222-2222-4222-8222-222222222222", "u-b": "44444444-4444-4444-8444-444444444444",
-  "u-sen": "55555555-5555-4555-8555-555555555555", "u-view": "66666666-6666-4666-8666-666666666666",
+  "u-sen": "55555555-5555-4555-8555-555555555555", "u-view": "66666666-6666-4666-8666-666666666666", "u-adm": "33333333-3333-4333-8333-333333333333",
 }
 const MONEY_COLUMNS: Record<string, string[]> = Object.fromEntries((RECORD_KINDS as Array<{ kind: string; money_columns: string[] }>).map((k) => [k.kind, k.money_columns]))
 const NOW = new Date("2026-10-02T00:00:00Z")
@@ -239,6 +239,19 @@ describe("role redaction: money, wages and rates arrive empty below the role tha
     expect(Number(mgrTs.data.hourly_rate_snapshot)).toBe(50)
     const mgrIb = ((await pull("u-mgr", "interim_bills")).json.items as J[]).find((i) => i.id === "ib-1")!
     expect([Number(mgrIb.data.gross_amount), mgrIb.data.sales_invoice_id]).toEqual([100000, "inv-1"])
+  })
+
+  test("for all 28 kinds and five roles a laptop's rows equal the same person's AI work link rows, byte for byte, hidden fields included (tests:F07 (3))", async () => {
+    const byId = (xs: J[]) => Object.fromEntries(xs.map((x) => [x.id, x]))
+    for (const who of ["u-mgr", "u-sen", "u-mem", "u-view", "u-adm"]) {
+      const link = await mintUser(db, who)
+      for (const kind of SYNC_KINDS) {
+        const viaLink = await call(db, "ai_work_link_records", [link.token, kind, null, 200, "{}", "proj-a"])
+        const viaSync = await call(db, "projexa_sync_pull", [SUBS[who], null, "proj-a", kind, null, null, 200])
+        expect({ who, kind, rows: byId(viaSync.items.map((i: J) => i.data)) }).toEqual({ who, kind, rows: byId(viaLink.items) })
+        expect({ who, kind, hidden: viaSync.hidden_fields }).toEqual({ who, kind, hidden: viaLink.hidden_fields })
+      }
+    }
   })
 
   test("the seeded traps never reach a member: money in free text (an expense description) and the attendees' e-mails of a MoM", async () => {
