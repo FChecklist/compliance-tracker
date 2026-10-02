@@ -2161,7 +2161,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     card: {
       fields: [],
       facts: [{ label: "Effect", value: "Only past its disposal date and never under legal hold. The document is marked disposed, not removed.", editable: false }],
-      primaryLabel: "Dispose",
+      primaryLabel: "Dispose of document",
     },
   },
   {

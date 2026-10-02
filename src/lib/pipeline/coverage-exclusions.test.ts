@@ -56,10 +56,22 @@ describe("what stays off every link", () => {
     expect("create_project" in EXCLUDED_REASONS).toBe(false)
   })
 
-  test("no function on a link is a delete, a secret, a credential, a platform-admin or a model function by name", () => {
-    const forbidden = /(^|_)(delete|purge|drop|secret|credential|password|api_key|apikey|token_rotate|platform|admin|impersonate|llm|model_call)(_|$)/
+  test("no function on a link is a purge, a secret, a credential, a platform-admin, a code/release/file change or a model function by name", () => {
+    // lf-b2-ai-crud (owner order 2026-10-02): "delete" left this list. The owner's order "the external AI / internal AI can make the complete project,
+    // edit, delete, update, etc for that user as per role" supersedes the BUILD-002 decision that kept every delete off links; the rule that replaces it
+    // is the test below. "The AI cannot code on this" is the new entry: nothing on a link may change code, a release bundle, a deployment or a file.
+    const forbidden = /(^|_)(purge|drop|secret|credential|password|api_key|apikey|token_rotate|platform|admin|impersonate|llm|model_call|code|deploy|release|bundle|file|migration|sql)(_|$)/
     const offenders = onLinks.filter((id) => forbidden.test(id))
     expect(offenders).toEqual([])
+  })
+
+  test("every delete, removal, archive and disposal on a link is a level 2 draft the person confirms (lf-b2-ai-crud)", () => {
+    // remove_sprint_task deletes no record (the task stays on the schedule): it is the one removal that is a direct write
+    const destructive = (registry as Array<Row & { kind: string }>).filter(
+      (r) => r.link_level !== null && /(^|_)(delete|remove|archive|dispose|void)(_|$)/.test(r.function_id) && r.function_id !== "remove_sprint_task"
+    )
+    expect(destructive.length).toBeGreaterThanOrEqual(10)
+    for (const r of destructive) expect({ id: r.function_id, level: r.link_level }).toEqual({ id: r.function_id, level: 2 })
   })
 
   test("the generator refuses to allow-list an excluded function (a wave cannot slip one in)", () => {
