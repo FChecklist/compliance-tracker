@@ -55,6 +55,10 @@ export const SYNC_KINDS = [
   "roster", "attendance", "timesheets", "meetings", "meeting_minutes", "site_diaries", "site_instructions", "progress_claims", "interim_bills",
   "material_receipts", "material_issues", "expenses", "schedule_baselines", "ffe_items", "wiki_pages",
 ] as const
+// the ORGANISATION kinds of drizzle/0684 (not project-scoped): the SQL list is public.projexa_sync__org_kinds(); a test asserts the two stay equal. Their feed and signatures use the sentinel project.
+export const ORG_KINDS = ["vendors", "customers", "companies", "boq_categories", "currencies", "exchange_rates", "departments", "org_people", "cost_visibility"] as const
+export const ORG_SENTINEL = "__org__"
+const isOrgKind = (k: unknown): boolean => typeof k === "string" && (ORG_KINDS as readonly string[]).includes(k)
 export const PULL_LIMIT_DEFAULT = 200
 export const PULL_LIMIT_MAX = 500
 export const SERVER_PROTOCOL = 2
@@ -220,6 +224,8 @@ async function manifest(req: Request, deps: SyncDeps, who: Who, now: Date): Prom
     projects: r.data.projects,
     kinds,
     view_class: typeof r.data.view_class === "string" ? r.data.view_class : null,
+    org_kinds: Array.isArray(r.data.org_kinds) ? (r.data.org_kinds as Array<Record<string, unknown>>).filter((k) => isOrgKind(k.kind)) : [],
+    org_view_class: typeof r.data.org_view_class === "string" ? r.data.org_view_class : null,
     release: { current: (rel?.current?.release_version as string | undefined) ?? null, min_compatible: rel?.min_compatible || null, protocol: SERVER_PROTOCOL },
     server_time: now.toISOString(),
   })
@@ -258,6 +264,21 @@ async function ids(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<R
   const project = body.project_id
   const kind = body.kind
   const after = body.after_id ?? null
+  if (isOrgKind(kind)) {
+    // the organisation inventory: no project (absent, null or the sentinel); a real project id for an organisation kind is the one 404
+    if (project !== undefined && project !== null && project !== ORG_SENTINEL) return respond(req, deps, 404, NOT_FOUND)
+    const lim = body.limit ?? IDS_LIMIT_DEFAULT
+    if (typeof lim !== "number" || !Number.isInteger(lim) || lim < 1 || lim > IDS_LIMIT_MAX) return respond(req, deps, 400, { error: `limit must be a whole number from 1 to ${IDS_LIMIT_MAX}` })
+    if (after !== null && (typeof after !== "string" || !ID_RE.test(after))) return respond(req, deps, 400, { error: "Bad cursor" })
+    const r = await callSql(deps, "projexa_sync_org_ids", { p_sub: who.sub, p_email: who.email, p_kind: kind, p_after_id: after, p_limit: lim })
+    if (!r.ok) return respond(req, deps, r.status, r.body)
+    return respond(req, deps, 200, {
+      ids: Array.isArray(r.data.ids) ? (r.data.ids as unknown[]).filter((x): x is string => typeof x === "string") : [],
+      has_more: r.data.has_more === true,
+      next_id: typeof r.data.next_id === "string" ? r.data.next_id : null,
+      server_time: now.toISOString(),
+    })
+  }
   const limitIn = body.limit ?? IDS_LIMIT_DEFAULT
   if (typeof project !== "string" || project === "" || project.length > 128 || typeof kind !== "string" || kind === "" || kind.length > 64) return respond(req, deps, 400, { error: "project_id and kind are required" })
   if (typeof limitIn !== "number" || !Number.isInteger(limitIn) || limitIn < 1 || limitIn > IDS_LIMIT_MAX) return respond(req, deps, 400, { error: `limit must be a whole number from 1 to ${IDS_LIMIT_MAX}` })
@@ -316,6 +337,7 @@ async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
   const parsed = await readBody(req, deps)
   if (!parsed.ok) return parsed.res
   const body = parsed.body
+  if (isOrgKind(body.kind)) return orgPull(req, deps, who, now, body)
   const project = body.project_id
   const kind = body.kind
   if (typeof project !== "string" || project === "" || project.length > 128 || typeof kind !== "string" || kind === "" || kind.length > 64) return respond(req, deps, 400, { error: "project_id and kind are required" })
@@ -353,7 +375,8 @@ async function pageResponse(req: Request, deps: SyncDeps, who: Who, now: Date, p
 }
 
 async function buildPage(deps: SyncDeps, who: Who, now: Date, project: string, kind: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const def = kindDef(kind)
+  // an organisation kind has no AI-link kind definition (org_people is NOT the AI link's `people`): its columns and money are decided in SQL (drizzle/0684)
+  const def = isOrgKind(kind) ? null : kindDef(kind)
   const hidden = Array.isArray(data.hidden_fields) ? (data.hidden_fields as unknown[]).filter((x): x is string => typeof x === "string") : []
   const moneyVisible = data.money_visible === true
   const rows = Array.isArray(data.items) ? (data.items as Array<Record<string, unknown>>) : []
@@ -403,12 +426,17 @@ async function changes(req: Request, deps: SyncDeps, who: Who, now: Date): Promi
   if (typeof project !== "string" || project === "" || project.length > 128) return respond(req, deps, 400, { error: "project_id is required" })
   if (typeof limitIn !== "number" || !Number.isInteger(limitIn) || limitIn < 1 || limitIn > CHANGES_LIMIT_MAX) return respond(req, deps, 400, { error: `limit must be a whole number from 1 to ${CHANGES_LIMIT_MAX}` })
   if (after !== null && (typeof after !== "number" || !Number.isSafeInteger(after) || after < 0)) return respond(req, deps, 400, { error: "Bad cursor" })
-  const r = await callSql(deps, "projexa_sync_changes", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_after_seq: after, p_limit: limitIn })
+  // the organisation feed (project "__org__"): only the organisation kinds the person's role may read (decided in SQL)
+  const orgFeed = project === ORG_SENTINEL
+  const r = orgFeed
+    ? await callSql(deps, "projexa_sync_org_changes", { p_sub: who.sub, p_email: who.email, p_after_seq: after, p_limit: limitIn })
+    : await callSql(deps, "projexa_sync_changes", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_after_seq: after, p_limit: limitIn })
   if (!r.ok) return respond(req, deps, r.status, r.body)
   const list = Array.isArray(r.data.changes) ? (r.data.changes as Array<Record<string, unknown>>) : []
+  const allowedKinds: readonly string[] = orgFeed ? ORG_KINDS : SYNC_KINDS
   return respond(req, deps, 200, {
     changes: list
-      .filter((c) => typeof c.kind === "string" && (SYNC_KINDS as readonly string[]).includes(c.kind) && typeof c.id === "string")
+      .filter((c) => typeof c.kind === "string" && allowedKinds.includes(c.kind) && typeof c.id === "string")
       .map((c) => ({ seq: Number(c.seq), kind: c.kind, id: c.id, version: Number(c.version), op: c.op })),
     next_seq: Number(r.data.next_seq ?? 0),
     has_more: r.data.has_more === true,
@@ -749,4 +777,30 @@ async function jobs(req: Request, deps: SyncDeps, who: Who, now: Date, action: s
   }
 
   return respond(req, deps, 404, NOT_FOUND)
+}
+// POST /pull for an ORGANISATION kind {kind, after, limit} or {kind, ids:[...]}: no project (absent, null or the sentinel). Same page, same cursor, same signature (project "__org__").
+async function orgPull(req: Request, deps: SyncDeps, who: Who, now: Date, body: Record<string, unknown>): Promise<Response> {
+  const kind = String(body.kind)
+  const project = body.project_id
+  // a real project id for an organisation kind is the one 404 (it names something that does not exist)
+  if (project !== undefined && project !== null && project !== ORG_SENTINEL) return respond(req, deps, 404, NOT_FOUND)
+  if (body.ids !== undefined) {
+    const idList = body.ids
+    if (!Array.isArray(idList) || idList.length < 1 || idList.length > PULL_IDS_MAX || !idList.every((x) => typeof x === "string" && ID_RE.test(x))) return respond(req, deps, 400, { error: `ids must be 1 to ${PULL_IDS_MAX} valid ids` })
+    const r = await callSql(deps, "projexa_sync_org_pull_ids", { p_sub: who.sub, p_email: who.email, p_kind: kind, p_ids: idList })
+    if (!r.ok) return respond(req, deps, r.status, r.body)
+    return respond(req, deps, 200, await buildPage(deps, who, now, ORG_SENTINEL, kind, r.data))
+  }
+  const after = body.after ?? null
+  const limitIn = body.limit ?? PULL_LIMIT_DEFAULT
+  if (typeof limitIn !== "number" || !Number.isInteger(limitIn) || limitIn < 1 || limitIn > PULL_LIMIT_MAX) return respond(req, deps, 400, { error: `limit must be a whole number from 1 to ${PULL_LIMIT_MAX}` })
+  let cur: { ts: string; id: string } | null = null
+  if (after !== null) {
+    if (typeof after !== "string") return respond(req, deps, 400, { error: "Bad cursor" })
+    cur = decodeCursor(after)
+    if (!cur) return respond(req, deps, 400, { error: "Bad cursor" })
+  }
+  const r = await callSql(deps, "projexa_sync_org_pull", { p_sub: who.sub, p_email: who.email, p_kind: kind, p_after_ts: cur?.ts ?? null, p_after_id: cur?.id ?? null, p_limit: limitIn })
+  if (!r.ok) return respond(req, deps, r.status, r.body)
+  return respond(req, deps, 200, await buildPage(deps, who, now, ORG_SENTINEL, kind, r.data))
 }
