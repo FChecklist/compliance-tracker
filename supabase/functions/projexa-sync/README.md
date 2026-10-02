@@ -36,5 +36,26 @@ bun test --isolate src/lib/services/projexa-sync-push.pglite.test.ts        # 06
 bun test --isolate src/lib/services/ai-work-link-sync-run.test.ts           # the real pipeline run of a pushed write
 bun test --isolate src/lib/services/projexa-sync-jobs.pglite.test.ts        # 0682 job queue
 bun test --isolate src/lib/services/projexa-sync-more-kinds.pglite.test.ts  # 0683 the 15 extra kinds
+bun test --isolate src/lib/services/projexa-sync-org-masters.pglite.test.ts # 0684 organisation masters (SQL functions)
 ```
 Every rule above has a planted-bug (mutation) check recorded in its commit message.
+
+## Organisation kinds (0684)
+Nine kinds are **not project-scoped**: `vendors` (`erp_suppliers`), `customers` (`erp_customers`), `companies` (`erp_companies`), `boq_categories` (`construction_boq_categories`), `currencies` (`erp_currencies`), `exchange_rates` (`erp_exchange_rates`), `departments` (`departments`), `org_people` (`users`; not `people`, which is the AI link's project kind) and `cost_visibility` (`cost_visibility_config`). The SQL list is `public.projexa_sync__org_kinds()`, kept apart from the 28 project kinds of `projexa_sync__kinds()`.
+
+**Status of the Edge routing.** The SQL side is done and tested. The `handler.ts` routing below is the intended wire; it was NOT wired in the 0684 work package (the edit was blocked in that run) and must be added by the integrator before a laptop can reach these kinds over HTTP.
+
+| SQL function (service_role only) | Intended route |
+|---|---|
+| `projexa_sync_manifest` (replaced, superset) | `GET /manifest` adds `org_kinds: [{kind, project_scoped:false, cursor_field, deletes_supported:true, peer_shareable}]` (only the kinds the role may read) and `org_view_class`; `kinds` stays the 28 project kinds |
+| `projexa_sync_org_pull(p_sub, p_email, p_kind, p_after_ts, p_after_id, p_limit)` | `POST /pull {kind, after, limit}`: no `project_id` (absent, null or `"__org__"`); same page shape, items `{id, updated_at, version, data}`, same opaque cursor |
+| `projexa_sync_org_pull_ids(p_sub, p_email, p_kind, p_ids)` | `POST /pull {kind, ids:[<=200]}` |
+| `projexa_sync_org_ids(p_sub, p_email, p_kind, p_after_id, p_limit)` | `POST /ids {kind, after_id, limit}` |
+| `projexa_sync_org_changes(p_sub, p_email, p_after_seq, p_limit)` | `POST /changes {project_id:"__org__", after_seq, limit}`: only the organisation kinds the role may read |
+
+- **Signing.** Items are signed exactly like project rows with `project = "__org__"`. The handler's second money pass for these kinds must null `hidden_fields` itself (`org_people` must NOT go through `kindDef("people")`).
+- **Scope.** Every query is `t.org_id = <person's organisation>` (one scope string, `projexa_sync__org_src.scope_sql`). Versions and tombstones live in `projexa_record_head` / `projexa_change_log` under the sentinel project `__org__`.
+- **Role gate.** Rank (`ai_work_link__role_rank`) ≥ 2 (member) for every kind but `cost_visibility` (≥ 1, so every laptop can hide cost fields the way the server does). Below it: the one 404. A viewer / client_viewer never receives vendor, customer or company data.
+- **Columns.** An explicit allow-list per kind, intersected with the columns that exist; never `select *`. Not sent: tax ids, bank accounts, passwords/passcodes, auth ids, login times, risk/sanction screening, internal notes. `org_people` = `id, name, role, is_active, email`, the email masked by `ai_work_link__mask_email` except the person's own. `credit_limit` (vendors, customers) is NULL below rank 3 (the `ai_work_link__hidden_cols` rule).
+- **Versions.** For organisation kinds the content hash is over the allow-listed columns only: a login or password change is not a new version.
+- **Peers.** Organisation rows may move between laptops only when `org_view_class` is equal; `org_people` rows are `peer_shareable: false` (the person's own row carries their unmasked email).
