@@ -502,9 +502,14 @@ describe("price and wiring parity", () => {
     expect(readme).toContain("1.00")
   })
 
-  test("index.ts wires the model only when OPENROUTER_API_KEY or GROQ_API_KEY is set, and always through a ledger-backed budget that is null when there is no service client (BUILD-002 AW-902)", () => {
+  test("index.ts wires the model only when PROJEXA_INTERNAL_AI_ENABLED is exactly 1 AND OPENROUTER_API_KEY or GROQ_API_KEY is set, and always through a ledger-backed budget that is null when there is no service client (BUILD-002 AW-902, lf-b3-ai-off)", () => {
     const index = source("index.ts")
-    expect(index).toMatch(/model:\s*OPENROUTER_API_KEY\s*\?\s*openRouterModel\(OPENROUTER_API_KEY\)\s*:\s*GROQ_API_KEY\s*\?\s*groqModel\(GROQ_API_KEY\)\s*:\s*null/)
+    // lf-b3-ai-off: index.ts hands the Edge environment to wiring.ts chooseModel, which refuses first on the switch and then prefers
+    // OpenRouter over Groq, else null (chooseModel's behaviour is pinned in src/lib/projexa-internal-ai.transports.test.ts).
+    expect(index).toMatch(/model:\s*chooseModel\(\(name\)\s*=>\s*Deno\.env\.get\(name\)\)/)
+    const wiring = source("wiring.ts")
+    expect(wiring).toMatch(/export function chooseModel\([^)]*\)[^{]*\{\s*if \(env\("PROJEXA_INTERNAL_AI_ENABLED"\) !== "1"\) return null\n/)
+    expect(wiring).toMatch(/return openRouterKey \? openRouterModel\(openRouterKey, fetchImpl\) : groqKey \? groqModel\(groqKey, fetchImpl\) : null/)
     expect(index).toMatch(/budget:\s*client\s*\?/)
     expect(index).toMatch(/:\s*null,\s*\}\),\s*\)/)
     expect(index).toContain("ledger: ledgerOver(")
