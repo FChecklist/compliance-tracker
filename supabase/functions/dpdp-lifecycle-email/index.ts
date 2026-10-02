@@ -13,8 +13,11 @@
 // trial ended months ago, or whose renewal is months away, is in no window and gets nothing. This
 // function only sends what the database lists, once: dpdp_sales_reminder_claim takes a reminder
 // before it is sent and dpdp_sales_reminder_mark records the result, so two overlapping runs, or a
-// retry, cannot send the same reminder twice. A failed send is marked 'failed' and the next day's
-// run (still inside the window) tries it again.
+// retry, cannot send the same reminder twice. A failed SEND is marked 'failed' and the next day's
+// run (still inside the window) tries it again. Anything that goes wrong AFTER Resend accepted the
+// mail (the mail-log write, the 'sent' mark) never makes it 'failed': the mark is retried, and the
+// send carries an Idempotency-Key (org + reminder key) so even a stale-claim repeat is a no-op at Resend.
+// (deliverClaimedReminder in _shared/billing-mail.ts; src/lib/services/dpdp-reminder-delivery.test.ts.)
 //
 // RECIPIENT GUARD: an address on a reserved domain (example.*, *.test, localhost, ...) is skipped
 // without being claimed -- the same isDeliverableAddress rule dpdp-monday-email uses.
@@ -31,7 +34,7 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import type { MailClass } from "../_shared/mail-taxonomy.ts"
-import { type ReminderKind, REMINDER_KINDS, isDeliverableAddress, renderReminder, rupees, sendViaResend } from "../_shared/billing-mail.ts"
+import { type ReminderKind, REMINDER_KINDS, deliverClaimedReminder, isDeliverableAddress, reminderIdempotencyKey, renderReminder, rupees, sendViaResend } from "../_shared/billing-mail.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
 const SUPABASE_URL = env("SUPABASE_URL")
@@ -116,17 +119,25 @@ Deno.serve(async (req: Request) => {
 
     const cls = classFor(d.kind)
     const out = buildOutbound(cls, rendered.subject, { from: EMAIL_FROM })
-    try {
-      const messageId = await sendViaResend(RESEND_API_KEY, d.ownerEmail, out, rendered)
-      await logOutbound(sb, { ref: out.ref, cls, to: d.ownerEmail, subject: out.subject, providerMessageId: messageId || null, membershipId: d.ownerMembershipId, orgId: d.orgId })
-      await sb.rpc("dpdp_sales_reminder_mark", { p_org_id: d.orgId, p_reminder_key: d.reminderKey, p_status: "sent" })
+    const result = await deliverClaimedReminder({
+      send: () => sendViaResend(RESEND_API_KEY, d.ownerEmail, out, rendered, reminderIdempotencyKey(d.orgId, d.reminderKey)),
+      afterSend: async (messageId) => {
+        await logOutbound(sb, { ref: out.ref, cls, to: d.ownerEmail, subject: out.subject, providerMessageId: messageId || null, membershipId: d.ownerMembershipId, orgId: d.orgId })
+      },
+      markSent: async () => {
+        const { error } = await sb.rpc("dpdp_sales_reminder_mark", { p_org_id: d.orgId, p_reminder_key: d.reminderKey, p_status: "sent" })
+        return !error
+      },
+      markFailed: async (message) => {
+        await sb.rpc("dpdp_sales_reminder_mark", { p_org_id: d.orgId, p_reminder_key: d.reminderKey, p_status: "failed", p_error: message })
+      },
+    })
+    if (result.status === "sent") {
       summary.sent++
-      summary.details.push({ orgId: d.orgId, kind: d.kind, status: "sent" })
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
-      await sb.rpc("dpdp_sales_reminder_mark", { p_org_id: d.orgId, p_reminder_key: d.reminderKey, p_status: "failed", p_error: message })
+      summary.details.push({ orgId: d.orgId, kind: d.kind, status: result.markRecorded ? "sent" : "sent_unrecorded" })
+    } else {
       summary.failed++
-      summary.details.push({ orgId: d.orgId, kind: d.kind, status: "failed", error: message.slice(0, 200) })
+      summary.details.push({ orgId: d.orgId, kind: d.kind, status: "failed", error: (result.error ?? "").slice(0, 200) })
     }
   }
   summary.details = summary.details.slice(0, 150)

@@ -135,8 +135,8 @@ describe("aiBrief: personal to this link", () => {
 
   test("the first steps depend on what could be read: jobs open, nothing open, or no numbers at all", () => {
     const b = aiBrief(input())
-    expect(b.first[0]).toContain("Do not fetch anything yet: the numbers and jobs above are current.")
-    expect(b.first[0]).toContain("Send the person your first message now")
+    expect(b.first[0]).toContain("No call is needed for your first message: the numbers and jobs above are current.")
+    expect(b.first[0]).toContain("Send it now (the script under \"What to say\" in section T)")
     expect(b.first[1]).toContain("start with the first job above")
     expect(b.first[1]).toContain("section P")
     const empty = aiBrief(input({ summary: summary({ open: 0, late: 0, requiredToday: 0, nobody: 0, lateUnassigned: 0, defaulters: [], defaulterCount: 0, top: [], openJobs: [] }) }))
@@ -880,11 +880,11 @@ describe("the real handler serves Start here first, from this link's own numbers
     // the first job has its own playbook (by library key), the second falls back to a general one for its part
     expect(md).toContain("JOB j-late · Name the Grievance Officer")
     expect(md).toContain("JOB j-ok · Write a policy · Part 2, Know your data · due 30 October 2026 · for priya@acmeca.in · general playbook for this part of the list")
-    expect(md).toContain(NL + "1. Do not fetch anything yet")
+    expect(md).toContain(NL + "1. No call is needed for your first message")
     expect(md).not.toContain("- 1. ")
     expect(md).not.toContain("-   ")
     expect(md).toContain("It works until 06:00 on 12 October 2026 (India time).")
-    expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_jobs", "dpdp_ai_link_log_call_result"])
+    expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_jobs", "dpdp_ai_link_billing_notice", "dpdp_ai_link_log_call_result"])
     expect(calls[2].args).toEqual({ p_token: TOKEN, p_filters: {} })
   })
   test("the numbers cannot be read: the page is still served, and tells the AI to fetch them", async () => {

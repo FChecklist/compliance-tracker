@@ -16,7 +16,7 @@
 import { API_DEFINITION, LEVEL1_VERBS, LEVEL2_VERBS, type Endpoint, type VerbHelp } from "./api-definition.ts"
 import { FACTS, type LibraryFacts } from "./facts.ts"
 
-import { aiBrief, askOwnerEmail, chaseEmail, faqFor, fileRows, handoverEmail, longDate, menuFor, oneLine, openingQuestions, pathRows, proofFolders, sayScript, seesEveryone, statusEmail, whoCanSayYes, type BriefInput, type BriefSummary } from "./brief.ts"
+import { aiBrief, askOwnerEmail, paymentPendingNotice, type BillingNotice, chaseEmail, faqFor, fileRows, handoverEmail, longDate, menuFor, oneLine, openingQuestions, pathRows, proofFolders, sayScript, seesEveryone, statusEmail, whoCanSayYes, type BriefInput, type BriefSummary } from "./brief.ts"
 import { citeLawCode } from "./law.ts"
 import { PART_NAMES, playbookBullets, playbookEmailText, playbookFor } from "./playbook.ts"
 
@@ -36,6 +36,10 @@ export type ManualInput = {
   now: Date
   /** Today's numbers and the most urgent jobs for the "Start here" section; absent (the AI is told to fetch them) when they could not be read. */
   summary?: BriefSummary | null
+  /** What the database says about the organisation's free trial; absent or a failed lookup means no notice (never invented). */
+  billingNotice?: BillingNotice | null
+  /** The short version (?brief=1): the briefing, what to say and the calls, without the reference sections. */
+  compact?: boolean
 }
 
 export type Block =
@@ -78,6 +82,8 @@ export type Manual = {
   base: string
   apiVersion: string
   sections: Section[]
+  /** True for the short version. */
+  short?: boolean
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -131,6 +137,11 @@ function lawBullet(codes: string[], requiredToday: boolean): string {
 }
 
 export function buildManual(input: ManualInput): Manual {
+  const full = buildFullManual(input)
+  return input.compact === true ? shortManual(full, input.base) : full
+}
+
+function buildFullManual(input: ManualInput): Manual {
   const { context: c, base, now } = input
   const level = c.link.authorityLevel
   const expires = c.link.expiresAt
@@ -154,10 +165,12 @@ export function buildManual(input: ManualInput): Manual {
   const brief = aiBrief(bi)
   const summary = input.summary ?? null
   const everyone = seesEveryone(c.viewer.kind)
+  const notice = paymentPendingNotice(input.billingNotice)
   const S: Section = {
     id: "S", title: "Start here — your task",
     blocks: [
       { type: "p", text: brief.headline },
+      ...(notice ? [{ type: "p", text: `NOTICE: ${notice}` } as Block] : []),
       ...brief.intro.map((text) => ({ type: "p", text }) as Block),
       { type: "p", text: "YOUR ROLE" },
       { type: "ul", items: brief.role },
@@ -174,7 +187,7 @@ export function buildManual(input: ManualInput): Manual {
       ] },
       { type: "p", text: "RULES" },
       { type: "ul", items: brief.rules },
-      { type: "p", text: "This page continues: N where things stand (completion, pending, who is behind, every open job) · P the jobs to do first, each with its law and playbook · T what to say, what to ask, what to answer · M emails you can draft · W paths, files and where proof is kept · then the reference, A to G. Read them when you need them; you do not have to read it all first." },
+      { type: "p", text: `This page continues: N where things stand (completion, pending, who is behind, every open job) · P the jobs to do first, each with its law and playbook · T what to say, what to ask, what to answer · M emails you can draft · W paths, files and where proof is kept · then the reference, A to G. Read them when you need them; you do not have to read it all first. If your tool cuts long pages, a much shorter version of this page is ${base}/manual.md?brief=1 (the briefing, what to say and the calls).` },
     ],
   }
 
@@ -418,6 +431,23 @@ export function buildManual(input: ManualInput): Manual {
     base,
     apiVersion: API_DEFINITION.version,
     sections: [S, N, P, T, M, W, A, B, C, D, E, F, G],
+  }
+}
+
+/** The short version (?brief=1): Start here, what to say and ask, and the list of calls -- the parts an AI needs to begin -- and a pointer to the full manual. */
+function shortManual(full: Manual, base: string): Manual {
+  const byId = (id: Section["id"]) => full.sections.find((s) => s.id === id)!
+  const S = byId("S")
+  const pointer = `This is the SHORT version of the page. The full one, with where things stand, every urgent job's law and playbook, the emails to draft, the file list and the reference sections, is ${base}/manual.md (or ${base}/ as a web page). For any job, GET /jobs/{id} returns its own playbook: why, steps, questions to ask, the note to record.`
+  const sShort: Section = { ...S, blocks: [...S.blocks.filter((b) => !(b.type === "p" && b.text.startsWith("This page continues:"))), { type: "p", text: pointer }] }
+  const T = byId("T")
+  const W = byId("W")
+  return {
+    ...full,
+    title: `${full.title} (short version)`,
+    lead: "AI assistant: this is the short version of your briefing for the person named in the title. Start at \"Start here — your task\" and do what it says; nothing else is needed to begin.",
+    short: true,
+    sections: [sShort, { ...T, blocks: T.blocks.slice(0, 6) }, { ...W, title: "The calls you can make", blocks: W.blocks.slice(0, 2) }],
   }
 }
 

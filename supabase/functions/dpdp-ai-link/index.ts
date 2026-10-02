@@ -41,6 +41,7 @@ import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, 
 import { MAX_BODY_BYTES, RATE_LIMIT, type Format } from "./api-definition.ts"
 import { aiPasteText } from "../_shared/ai-link/prompt.ts"
 import { playbookFor } from "./playbook.ts"
+import { paymentPendingNotice, type BillingNotice } from "./brief.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
@@ -78,12 +79,28 @@ function formatted(format: Format, body: string): Response {
   return new Response(body, { status: 200, headers: privateHeaders(contentTypeFor(format)) })
 }
 
+/** Where a person makes a new link: shown with every 410, so an AI can tell them exactly where to go. */
+const LINK_GONE_HINT = `Ask the person to make a new link: they sign in at ${APP_ORIGIN}/app/ and use "Copy AI link" on their own page. This old address cannot be revived.`
+
+/**
+ * Has this link's organisation's free trial ended with nothing paid? A NOTICE only (owner's rule: access never locks): the lookup
+ * (dpdp_ai_link_billing_notice, drizzle/0676) reads and changes nothing, and a failed or not-yet-deployed lookup means no notice.
+ */
+async function billingFor(token: string): Promise<BillingNotice | null> {
+  try {
+    const r = await rpc<BillingNotice>("dpdp_ai_link_billing_notice", { p_token: token })
+    return r.error ? null : r.data
+  } catch {
+    return null
+  }
+}
+
 // Errors the database raises on purpose, with plain-English messages meant
 // for the caller. Anything else is an internal error and is not echoed.
 type DbError = { code?: string; message: string }
 function mapDbError(e: DbError, notFoundIs404 = false): Response {
   const code = e.code ?? ""
-  if (code === "42501" && e.message.includes(LINK_GONE)) return fail(410, LINK_GONE, "Ask the person for a new link.")
+  if (code === "42501" && e.message.includes(LINK_GONE)) return fail(410, LINK_GONE, LINK_GONE_HINT)
   if (code === "42501") return fail(403, e.message)
   if (code === "P0002") return fail(notFoundIs404 ? 404 : 400, e.message)
   if (code === "22023" || code === "P0001" || code === "22007" || code === "22008" || code === "22P02") return fail(400, e.message)
@@ -135,9 +152,11 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
       if (r.error) return mapDbError(r.error)
       // "Start here" carries today's numbers and the most urgent jobs so the AI does not spend calls finding them. A failure here only
       // means the section tells the AI to fetch them itself.
-      const jr = await rpc<JobRow[]>("dpdp_ai_link_jobs", { p_token: token, p_filters: {} })
+      const [jr, billing] = await Promise.all([rpc<JobRow[]>("dpdp_ai_link_jobs", { p_token: token, p_filters: {} }), billingFor(token)])
       const summary = !jr.error && Array.isArray(jr.data) ? summariseJobs(jr.data) : null
-      const manual = buildManual({ context: r.data, base: linkBase(token), now: new Date(), summary })
+      // ?brief=1 is the short version (the full one stays at the same address without it).
+      const compact = q.get("brief") === "1"
+      const manual = buildManual({ context: r.data, base: linkBase(token), now: new Date(), summary, billingNotice: billing, compact })
       if (format === "json") return formatted("json", renderManualJson(manual))
       if (format === "md") return formatted("md", renderManualMarkdown(manual))
       return formatted("html", renderManualHtml(manual))
@@ -152,14 +171,18 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
     case "context": {
       const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
       if (r.error) return mapDbError(r.error)
-      return json(200, { ...r.data, base: linkBase(token) })
+      const ctxNotice = paymentPendingNotice(await billingFor(token))
+      return json(200, { ...r.data, base: linkBase(token), ...(ctxNotice ? { notice: ctxNotice } : {}) })
     }
     case "prompt": {
       // The two lines the person pastes ("open this link and follow the page"), for the one-tap Copy page. The token must be a live
       // link -- the context call is the check -- but the text carries no personal data: the personal part is the page itself.
       const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
       if (r.error) return mapDbError(r.error)
-      return text(200, aiPasteText(linkBase(token)))
+      const promptNotice = paymentPendingNotice(await billingFor(token))
+      return text(200, (promptNotice ? `Note for you: ${promptNotice}
+
+` : "") + aiPasteText(linkBase(token)))
     }
     case "jobs": {
       const format = negotiateFormat(offeredFormats("jobs"), q.get("format"), accept, "json")
