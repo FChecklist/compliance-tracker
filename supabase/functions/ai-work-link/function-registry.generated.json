@@ -479,6 +479,32 @@
     ]
   },
   {
+    "function_id": "archive_project",
+    "label": "Archive or reopen the project",
+    "module": "projects",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "projectId",
+      "status"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "archive_task",
     "label": "Archive or restore a task",
     "module": "schedule",
@@ -1944,6 +1970,41 @@
     ],
     "id_params": [
       "meetingId"
+    ]
+  },
+  {
+    "function_id": "delete_permit",
+    "label": "Delete a permit",
+    "module": "permits",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "permitId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "permitId",
+        "label": "Permit",
+        "any_of": [
+          "permitId"
+        ]
+      }
+    ],
+    "id_params": [
+      "permitId"
     ]
   },
   {
@@ -4441,6 +4502,52 @@
     ],
     "id_params": [
       "moodBoardId"
+    ]
+  },
+  {
+    "function_id": "update_permit",
+    "label": "Change a permit",
+    "module": "permits",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "permitNumber",
+      "permitAuthority",
+      "notes"
+    ],
+    "declared_params": [
+      "expiryDate",
+      "issueDate",
+      "name",
+      "notes",
+      "permitAuthority",
+      "permitId",
+      "permitNumber",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "permitId",
+        "label": "Permit",
+        "any_of": [
+          "permitId"
+        ]
+      }
+    ],
+    "id_params": [
+      "permitId"
     ]
   },
   {

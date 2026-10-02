@@ -13,6 +13,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { documents } from "@/lib/db/schema"
 import { signDocumentUrl } from "@/lib/storage/signed-document-url"
 import { discardDraft } from "@/lib/screens/draft-service"
+import { deletePermit, ServiceError, updatePermit } from "@/lib/services/permit-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -86,29 +87,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (actingError) return actingError
     const actorId = acting.person.id
 
-    const updated = await withTenantContext({ orgId: ctx.orgId, userId: actorId }, async (db) => {
-      const existing = await db.query.documents.findFirst({ where: and(eq(documents.id, id), eq(documents.orgId, ctx.orgId!), eq(documents.category, "permit")) })
-      if (!existing) return null
-      const existingMetadata = (existing.metadata ?? {}) as Record<string, unknown>
-      const [row] = await db
-        .update(documents)
-        .set({
-          ...(typeof body.name === "string" ? { name: body.name } : {}),
-          ...(body.endDate !== undefined ? { expiryDate: body.endDate ? new Date(body.endDate) : null } : {}),
-          metadata: {
-            ...existingMetadata,
-            ...(body.permitAuthority !== undefined ? { permitAuthority: body.permitAuthority } : {}),
-            ...(body.permitNumber !== undefined ? { permitNumber: body.permitNumber } : {}),
-            ...(body.issueDate !== undefined ? { issueDate: body.issueDate } : {}),
-            ...(body.notes !== undefined ? { notes: body.notes } : {}),
-            ...(body.tags !== undefined ? { tags: body.tags } : {}),
-          },
-        })
-        .where(eq(documents.id, id))
-        .returning()
-      return row
-    })
-    if (!updated) return NextResponse.json({ error: "Permit not found" }, { status: 404 })
+    // lf-b2-ai-crud: the write is permit-service.ts updatePermit, the one the AI's update_permit runs too (the same keys, unchanged)
+    try {
+      await updatePermit({ orgId: ctx.orgId, userId: actorId }, id, {
+        name: body.name, endDate: body.endDate, permitAuthority: body.permitAuthority, permitNumber: body.permitNumber,
+        issueDate: body.issueDate, notes: body.notes, tags: body.tags,
+      })
+    } catch (error) {
+      if (error instanceof ServiceError && error.status === 404) return NextResponse.json({ error: "Permit not found" }, { status: 404 })
+      throw error
+    }
     // RE-SELECT AND CONFIRM PERSISTENCE (E-52) -- fetch fresh rather than trusting the UPDATE...RETURNING alone.
     const reselected = await withTenantContext({ orgId: ctx.orgId }, (db) => db.query.documents.findFirst({ where: eq(documents.id, id) }))
 
@@ -135,11 +123,14 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   try {
-    const deleted = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
-      const [row] = await db.delete(documents).where(and(eq(documents.id, id), eq(documents.orgId, ctx.orgId!), eq(documents.category, "permit"))).returning({ id: documents.id })
-      return row ?? null
-    })
-    if (!deleted) return NextResponse.json({ error: "Permit not found" }, { status: 404 })
+    // lf-b2-ai-crud: permit-service.ts deletePermit, the one the AI's delete_permit runs too
+    let deleted
+    try {
+      deleted = await deletePermit({ orgId: ctx.orgId }, id)
+    } catch (error) {
+      if (error instanceof ServiceError && error.status === 404) return NextResponse.json({ error: "Permit not found" }, { status: 404 })
+      throw error
+    }
     return NextResponse.json({ deleted: true, id: deleted.id })
   } catch (error) {
     console.error("v1 projexa permit delete error:", error)

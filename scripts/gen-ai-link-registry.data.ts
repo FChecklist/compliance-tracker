@@ -219,6 +219,11 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   update_floor_plan_status: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
   update_mood_board: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "roomOrArea", "description"] },
   remove_mood_board_item: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  // lf-b2-ai-crud GROUP 3: a permit's edit and delete (the route's member rank; the delete is a draft), and the project's status (archive or reopen).
+  // The app has no route that changes a project's status, so archive_project asks for the manager rank and is always a draft by default.
+  update_permit: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "permitNumber", "permitAuthority", "notes"] },
+  delete_permit: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  archive_project: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
 }
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */

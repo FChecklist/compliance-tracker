@@ -2360,6 +2360,57 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     ],
     card: { fields: [], primaryLabel: "Remove item" },
   },
+  // lf-b2-ai-crud GROUP 3
+  {
+    functionId: "update_permit",
+    label: "Change a permit",
+    module: "permits",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "permitId", label: "Permit", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: false },
+        { key: "permitNumber", label: "Permit number", type: "text", required: false },
+        { key: "permitAuthority", label: "Authority", type: "text", required: false },
+        { key: "issueDate", label: "Issued", type: "date", required: false },
+        { key: "expiryDate", label: "Expires", type: "date", required: false },
+        { key: "notes", label: "Notes", type: "text", required: false },
+      ],
+      primaryLabel: "Save permit",
+    },
+  },
+  {
+    functionId: "delete_permit",
+    label: "Delete a permit",
+    module: "permits",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "permitId", label: "Permit", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], primaryLabel: "Delete permit" },
+  },
+  {
+    functionId: "archive_project",
+    label: "Archive or reopen the project",
+    module: "projects",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [{ name: "projectId", label: "Project", code: "PROJECT_REQUIRED" }],
+    card: {
+      fields: [{ key: "status", label: "Status", type: "select", required: false, default: "cancelled" }],
+      facts: [{ label: "Effect", value: "Cancelled or completed archives the project; nothing in it is deleted. Active, planning or paused reopens it.", editable: false }],
+      primaryLabel: "Save project status",
+    },
+  },
 
 ];
 

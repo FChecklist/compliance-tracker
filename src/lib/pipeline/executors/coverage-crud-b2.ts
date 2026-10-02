@@ -1,5 +1,6 @@
-// lf-b2-ai-crud (owner order 2026-10-02, requirements R5-R7) -- the 24 create/update/delete executors that let the person's AI change
+// lf-b2-ai-crud (owner order 2026-10-02, requirements R5-R7) -- the 27 create/update/delete executors that let the person's AI change
 // everything the person may change, in one map, so executor.ts carries one import line and one spread line for them.
+//   GROUP 3             update_permit delete_permit archive_project                                     (crud-permits-project.ts)
 //   BOQ and progress    update_boq delete_boq update_boq_line_amounts delete_progress_entry              (crud-boq-progress.ts)
 //   schedule            archive_task create_sprint update_sprint close_sprint add_sprint_task remove_sprint_task
 //   timesheets          update_time_entry delete_time_entry                                             (crud-schedule-time.ts)
@@ -30,6 +31,7 @@ import {
   executeUpdatePlacement,
   executeUpdateRoom,
 } from "./crud-interior";
+import { executeArchiveProject, executeDeletePermit, executeUpdatePermit } from "./crud-permits-project";
 
 export const CRUD_B2_EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   update_boq: executeUpdateBoq,
@@ -56,4 +58,8 @@ export const CRUD_B2_EXECUTORS: Record<string, (task: ExecutableTask) => Promise
   update_floor_plan_status: executeUpdateFloorPlanStatus,
   update_mood_board: executeUpdateMoodBoard,
   remove_mood_board_item: executeRemoveMoodBoardItem,
+  // GROUP 3 (crud-permits-project.ts)
+  update_permit: executeUpdatePermit,
+  delete_permit: executeDeletePermit,
+  archive_project: executeArchiveProject,
 };
