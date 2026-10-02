@@ -30,7 +30,13 @@ import { createInternalExtractCaller, type GatewayModelCall } from "@/lib/ai/int
 import type { InternalAiRoute } from "@/lib/ai/internal-ai-policy"
 import type { LogTokenUsageInput } from "@/lib/services/token-usage-service"
 import type { ModelCall } from "../../../supabase/functions/projexa-document-extract/handler"
+import { withProjexaInternalAiOn, withProjexaInternalAiUnset } from "@/lib/services/__test-helpers__/projexa-internal-ai-switch"
 import { chatText, parseChatAttachment, runChatAttachment, type ChatAttachmentDeps, type ChatAttachmentInput } from "./chat-attachment"
+
+// lf-b3-ai-off: the subject here is the attachment flow WITH the model path available, so every test runs with
+// PROJEXA_INTERNAL_AI_ENABLED="1" (restored after each). The real gateway below refuses when it is unset: pinned by the
+// "the internal AI switched off" test, and in production the route policy refuses even earlier (projexa-internal-ai.transports.test.ts).
+withProjexaInternalAiOn()
 
 const ORG = "org-1"
 const PERSON = "person-1"
@@ -148,6 +154,17 @@ describe("propose: level 2, nothing is created", () => {
     expect(r.counts.runs[0]).toMatchObject({ orgId: ORG, actorId: PERSON, productId: PRODUCT, mode: "prepare", acknowledgeQuestions: false })
     expect(r.rows).toHaveLength(1)
     expect(r.rows[0]).toMatchObject({ scope: "product_orchestra", orgId: ORG, userId: PERSON, providerCostType: "METERED_API", veridianProductId: "projexa_ai" })
+  })
+
+  test("the internal AI switched off (the default), even with a metered route handed in: the real gateway makes no model call, writes no ledger row, and nothing is created", async () => {
+    const r = rig(carefulHumanModel, ZOOMIES)
+    const reply = await withProjexaInternalAiUnset(() => runChatAttachment(input(), r.deps))
+    expect(reply).toMatchObject({ functionId: "create_project_from_document", modelCalls: 0, projectId: null })
+    expect(reply.status).toBe("refused")
+    expect(reply.proposal).toBeNull()
+    expect(r.counts.model).toBe(0)
+    expect(r.rows).toEqual([])
+    expect([r.counts.createProject, r.counts.createBoq]).toEqual([0, 0])
   })
 
   test("acknowledging questions in the propose request does nothing: only confirming can go past them", async () => {
