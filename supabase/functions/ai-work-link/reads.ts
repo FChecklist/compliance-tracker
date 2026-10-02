@@ -144,6 +144,17 @@ export type LinkCtx = {
   label: string | null
   expires_at: string
   writes_enabled: boolean
+  /**
+   * lf-b2-ai-crud (drizzle/0685): the PERSON's own "let my AI act without asking" switch, read now. With it on a level-2 function may be made
+   * directly like a level-1 one (still only while direct changes are open: the kill switch and the link's own level stay). Absent on a database
+   * before 0685, which reads as off.
+   */
+  act_without_asking?: boolean
+}
+
+/** lf-b2-ai-crud: a write this link may make directly (POST /actions): a level-1 function, or a level-2 one with the person's switch on. */
+export function directLevelOk(def: { link_level: number | null }, ctx: Pick<LinkCtx, "act_without_asking">): boolean {
+  return def.link_level === 1 || (def.link_level === 2 && ctx.act_without_asking === true)
 }
 
 function asCtx(data: unknown): LinkCtx {
@@ -253,7 +264,7 @@ export function functionView(def: RegistryFunction, env: { ctx: LinkCtx; config:
   const av = availabilityOf(env)
   const write = def.kind === "write"
   const drafts = write && av.drafts_open
-  const direct = write && def.link_level === 1 && av.direct_open
+  const direct = write && directLevelOk(def, env.ctx) && av.direct_open
   const reads = !write && av.reads_open
   return {
     id: def.function_id,
