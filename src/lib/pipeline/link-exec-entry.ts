@@ -19,6 +19,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { ServiceError } from "@/lib/services/service-error"
 import { codeForServiceError, normaliseThrownError } from "./error-codes"
 import { executeRead } from "./execute-read"
+import { NOT_AVAILABLE_ON_EXEC } from "./link-exec-stubs/unavailable"
 import { functionWrites, hasExecutor } from "./executor"
 import { runDirectTask, type RunDirectTaskInput } from "./run-submission"
 
@@ -70,6 +71,10 @@ export function claimIsWellFormed(c: ClaimedIntent | null | undefined): c is Cla
 
 /** The closed failure code of a thrown error: a service's own code when it is one, else the vocabulary's mapping of its status. */
 export function codeOfThrown(error: unknown): string {
+  // a module the exec bundle stubs out (link-exec-stubs/unavailable.ts) was reached: this function cannot run on the edge, which is a fact about the
+  // function, not a transient fault. FUNCTION_NOT_AVAILABLE makes a laptop push `needs_server` (offer the online path) instead of INTERNAL_ERROR (retry
+  // forever with the same result). Checked before anything else; the message carries only the closed code and a module name.
+  if (error instanceof Error && error.message.startsWith(`${NOT_AVAILABLE_ON_EXEC}:`)) return "FUNCTION_NOT_AVAILABLE"
   if (error instanceof ServiceError) {
     if (typeof error.code === "string" && CODE_RE.test(error.code)) return error.code
     if (error.status < 500) return codeForServiceError(error.status)
