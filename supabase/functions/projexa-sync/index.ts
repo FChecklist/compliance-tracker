@@ -4,11 +4,25 @@
 //
 // The signing key (ES256) lives in platform.projexa_sync_key behind SECURITY DEFINER functions (drizzle/0678). The first isolate to need one creates it
 // (the unique "one active key" index settles a race: the loser re-reads the winner); every isolate then caches it for 5 minutes so a rotation is noticed.
+// The key caches are the pure createKeyCaches() of handler.ts (tested there): a failed refresh keeps serving the last good key, concurrent cold requests
+// share one load, and an errored or empty public-key list is not cached for 5 minutes (review D1 F-11).
 import { createClient } from "npm:@supabase/supabase-js@2"
 import * as jose from "npm:jose@6.2.10"
 import { createKeyResolvers, createSessionVerifier, type JoseLike } from "../ai-work-link/session.ts"
-import { handleSync, RateLimiter, type ExecOutcome, type ExecRunBody, type PublicKeyInfo, type ReleaseInfo } from "./handler.ts"
-import { createSigning, generateKeyRecord, type KeyRecord, type Signing } from "./sign.ts"
+import { createExecRun, createExecRunBatch, createKeyCaches, handleSync, RateLimiter, type ReleaseInfo } from "./handler.ts"
+import { createSigning, generateKeyRecord } from "./sign.ts"
+
+// A driver error that surfaces outside any await would otherwise end the isolate (and every other request in flight on it) with no log line. Log its
+// class and a redacted, shortened message, and keep the isolate alive (the same listeners as ai-work-link-exec/index.ts; review D1 F-14a).
+const redact = (v: unknown): string => String((v as { message?: unknown })?.message ?? v).replace(/postgres(ql)?:\/\/\S+/gi, "<hidden>").replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "<token>").slice(0, 300)
+globalThis.addEventListener("unhandledrejection", (e: PromiseRejectionEvent) => {
+  console.error("projexa-sync: unhandled rejection:", redact(e.reason))
+  e.preventDefault()
+})
+globalThis.addEventListener("error", (e: ErrorEvent) => {
+  console.error("projexa-sync: uncaught error:", redact(e.error ?? e.message))
+  e.preventDefault()
+})
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -20,68 +34,21 @@ const session = createSessionVerifier({ jose: joseLike, keys: createKeyResolvers
 const limiter = new RateLimiter()
 const orgCache = new Map<string, { org: string; exp: number }>()
 const releaseBox: { at: number; value: ReleaseInfo | null } = { at: 0, value: null }
+const registerBox: { at: number; answer: { status: number; body: unknown } | null } = { at: 0, answer: null }
 
 const rpc = async (fn: string, args?: Record<string, unknown>) => {
   const { data, error } = await client.rpc(fn, args)
   return { data, error: error ? { message: error.message, code: error.code ?? undefined } : null }
 }
 
-const KEY_TTL_MS = 5 * 60_000
-let signingCache: { signing: Signing; kid: string; at: number } | null = null
-let publicCache: { keys: PublicKeyInfo[]; at: number } | null = null
+const keys = createKeyCaches({ rpc, createSigning, generateKeyRecord })
 
-async function loadSigning(): Promise<Signing | null> {
-  if (signingCache && Date.now() - signingCache.at < KEY_TTL_MS) return signingCache.signing
-  let res = await rpc("projexa_sync_key_active")
-  let rec = res.data as KeyRecord | null
-  if (!rec) {
-    const fresh = await generateKeyRecord()
-    res = await rpc("projexa_sync_key_put", { p_kid: fresh.kid, p_public: fresh.public_jwk, p_private: fresh.private_jwk })
-    rec = res.data as KeyRecord | null
-  }
-  if (!rec || !rec.private_jwk) return null
-  const signing = await createSigning(rec)
-  signingCache = { signing, kid: rec.kid, at: Date.now() }
-  return signing
-}
-
-async function loadPublicKeys(): Promise<PublicKeyInfo[]> {
-  if (publicCache && Date.now() - publicCache.at < KEY_TTL_MS) return publicCache.keys
-  const res = await rpc("projexa_sync_public_keys")
-  const keys = Array.isArray(res.data) ? (res.data as PublicKeyInfo[]) : []
-  publicCache = { keys, at: Date.now() }
-  return keys
-}
-
-// A pushed write runs in the ai-work-link-exec function (the real pipeline), reached with the same internal secret the ai-work-link function uses. Secrets are project-wide.
-// The answer is mapped to what happened: "unavailable" (nothing ran), "failed" (ran, refused, nothing written) or "uncertain" (sent, no answer: the write may have happened).
-const EXEC_TIMEOUT_MS = 25_000
-async function execRun(body: ExecRunBody): Promise<ExecOutcome> {
-  const secret = Deno.env.get("AWL_EXEC_INTERNAL_SECRET")
-  if (!secret || !SUPABASE_URL) return { kind: "unavailable" }
-  let res: Response
-  try {
-    res = await fetch(`${SUPABASE_URL}/functions/v1/ai-work-link-exec/sync-run`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${secret}` },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(EXEC_TIMEOUT_MS),
-    })
-  } catch {
-    return { kind: "uncertain" }
-  }
-  // not configured / not deployed / refused before anything ran
-  if (res.status === 503 || res.status === 404 || res.status === 401 || res.status === 400) return { kind: "unavailable" }
-  if (!res.ok) return { kind: "uncertain" }
-  try {
-    const j = (await res.json()) as { status?: string; record?: { id?: string | null; route?: string | null }; submission_id?: string | null; code?: string; missing?: string[] }
-    if (j.status === "done") return { kind: "done", record: { id: j.record?.id ?? null, route: j.record?.route ?? null }, submission_id: j.submission_id ?? null }
-    if (j.status === "failed" && typeof j.code === "string") return { kind: "failed", code: j.code, missing: Array.isArray(j.missing) ? j.missing : [] }
-  } catch {
-    // fall through
-  }
-  return { kind: "uncertain" }
-}
+// A pushed write runs in the ai-work-link-exec function (the real pipeline). AWL_SYNC_EXEC_SECRET, when the owner sets it, is a secret for /sync-run only
+// (the AI link's AWL_EXEC_INTERNAL_SECRET is the fallback, so nothing breaks before it is set). The HTTP mapping is execOutcomeOf in handler.ts.
+// Batch mode: the ops of one push run in ONE exec invocation (/sync-run-batch), falling back to one call per op when that route is not deployed yet.
+const execOptions = { url: SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/ai-work-link-exec` : "", secret: Deno.env.get("AWL_SYNC_EXEC_SECRET") || Deno.env.get("AWL_EXEC_INTERNAL_SECRET") }
+const execRun = createExecRun(execOptions)
+const execRunBatch = createExecRunBatch(execOptions)
 
 Deno.serve((req: Request) =>
   handleSync(req, {
@@ -89,9 +56,11 @@ Deno.serve((req: Request) =>
     limiter,
     orgCache,
     releaseBox,
+    registerBox,
     execRun,
+    execRunBatch,
     rpc,
-    signing: () => loadSigning().catch(() => null),
-    publicKeys: () => loadPublicKeys().catch(() => []),
+    signing: keys.signing,
+    publicKeys: keys.publicKeys,
   }),
 )

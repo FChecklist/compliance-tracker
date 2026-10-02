@@ -54,6 +54,50 @@ export function itemMessage(parts: { org: string; project: string; kind: string;
   return [ITEM_MESSAGE_PREFIX, parts.org, parts.project, parts.kind, parts.id, String(parts.version), parts.updatedAt, parts.dataHash].join("|")
 }
 
+// px3 (review D1 TI-2 / F-12): the signature ALSO commits to the view class the row was redacted for, so a row cut for one class cannot be passed off as
+// another class's, and the fields are JSON-encoded (unambiguous whatever an id contains) instead of '|'-joined. The server sends it as `sig3` next to the
+// px2 `sig` until every laptop verifies px3; then `sig` can go. A receiver verifies `sig3` with ITS OWN view class (peers only exchange rows when equal).
+export const ITEM_MESSAGE_PREFIX_V3 = "px3"
+export function itemMessageV3(parts: { org: string; project: string; kind: string; view: string; id: string; version: number; updatedAt: string; dataHash: string }): string {
+  return ITEM_MESSAGE_PREFIX_V3 + JSON.stringify([parts.org, parts.project, parts.kind, parts.view, parts.id, String(parts.version), parts.updatedAt, parts.dataHash])
+}
+
+// HOLDER BINDING (review D1 TI-2): /attest may receive the laptop's own public key (ES256, P-256, generated per install, private half non-extractable on
+// the laptop). The token then carries `cnf: {jkt}` = its RFC 7638 thumbprint. In the peer handshake (offline, no server call) the verifier sends a fresh
+// random nonce; the holder answers with its public JWK and an ES256 signature over holderProofMessage(nonce, verifierId, jkt); the verifier checks that
+// the JWK's thumbprint equals the token's cnf.jkt and that the signature verifies. A token copied by someone without that device key fails the step.
+export type EcPublicJwk = { kty: "EC"; crv: "P-256"; x: string; y: string }
+const B64URL_32 = /^[A-Za-z0-9_-]{43}$/
+/** A P-256 public JWK with exactly the public members, or null. A JWK that carries a private member (`d`) is refused. */
+export async function parseDevicePublicJwk(v: unknown): Promise<EcPublicJwk | null> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null
+  const j = v as Record<string, unknown>
+  if (j.kty !== "EC" || j.crv !== "P-256" || typeof j.x !== "string" || typeof j.y !== "string" || !B64URL_32.test(j.x) || !B64URL_32.test(j.y) || "d" in j) return null
+  const jwk: EcPublicJwk = { kty: "EC", crv: "P-256", x: j.x, y: j.y }
+  try {
+    // importing proves it is a point on the curve, not just two strings
+    await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"])
+  } catch {
+    return null
+  }
+  return jwk
+}
+/** RFC 7638 JWK thumbprint (SHA-256, base64url) of an EC public key: the required members in lexicographic order, no whitespace. */
+export async function jwkThumbprint(jwk: EcPublicJwk): Promise<string> {
+  const text = `{"crv":"${jwk.crv}","kty":"${jwk.kty}","x":"${jwk.x}","y":"${jwk.y}"}`
+  return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", te.encode(text))))
+}
+export function holderProofMessage(nonce: string, verifierId: string, jkt: string): string {
+  return "px-hold" + JSON.stringify([nonce, verifierId, jkt])
+}
+/** The verifier's side of the handshake step: the presented key matches the token's cnf.jkt AND signed this verifier's fresh nonce. */
+export async function verifyHolderProof(p: { cnfJkt: string | null | undefined; holderJwk: unknown; nonce: string; verifierId: string; proof: string }): Promise<boolean> {
+  if (typeof p.cnfJkt !== "string" || p.cnfJkt === "") return false
+  const jwk = await parseDevicePublicJwk(p.holderJwk)
+  if (!jwk || (await jwkThumbprint(jwk)) !== p.cnfJkt) return false
+  return verifyMessage(await importPublic(jwk), holderProofMessage(p.nonce, p.verifierId, p.cnfJkt), p.proof)
+}
+
 export async function generateKeyRecord(): Promise<KeyRecord> {
   const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])) as CryptoKeyPair
   const publicJwk = await crypto.subtle.exportKey("jwk", pair.publicKey)
@@ -72,6 +116,8 @@ export type Signing = {
   /** Compact JWS (ES256) of a JSON payload. */
   signToken(payload: Record<string, unknown>): Promise<string>
   signItem(parts: { org: string; project: string; kind: string; id: string; version: number; updatedAt: string; data: unknown }): Promise<string>
+  /** px3: also commits to the view class the row was redacted for. */
+  signItemV3?(parts: { org: string; project: string; kind: string; view: string; id: string; version: number; updatedAt: string; data: unknown }): Promise<string>
 }
 
 export async function createSigning(rec: KeyRecord): Promise<Signing> {
@@ -92,6 +138,10 @@ export async function createSigning(rec: KeyRecord): Promise<Signing> {
     async signItem(p) {
       const dataHash = await sha256Hex(canonicalize(p.data))
       return sign(itemMessage({ org: p.org, project: p.project, kind: p.kind, id: p.id, version: p.version, updatedAt: p.updatedAt, dataHash }))
+    },
+    async signItemV3(p) {
+      const dataHash = await sha256Hex(canonicalize(p.data))
+      return sign(itemMessageV3({ org: p.org, project: p.project, kind: p.kind, view: p.view, id: p.id, version: p.version, updatedAt: p.updatedAt, dataHash }))
     },
   }
 }

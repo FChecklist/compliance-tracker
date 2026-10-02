@@ -13,7 +13,7 @@
 import { redactItem } from "../_shared/ai-link/core.ts"
 import { kindDef } from "../ai-work-link/api-definition.ts"
 import type { SessionVerifier } from "../ai-work-link/session.ts"
-import { ATTEST_TTL_SECONDS, canonicalize, sha256Hex, type Signing } from "./sign.ts"
+import { ATTEST_TTL_SECONDS, canonicalize, jwkThumbprint, parseDevicePublicJwk, sha256Hex, type KeyRecord, type Signing } from "./sign.ts"
 
 export type RpcResult = { data: unknown; error: { message: string; code?: string } | null }
 export type Rpc = (fn: string, args?: Record<string, unknown>) => Promise<RpcResult>
@@ -28,14 +28,30 @@ export type SyncDeps = {
   signing?: () => Promise<Signing | null>
   /** Public halves a laptop verifies against. */
   publicKeys?: () => Promise<PublicKeyInfo[]>
-  /** per-person organisation memory for signing a pull (one manifest call a minute at most) */
-  orgCache?: Map<string, { org: string; exp: number }>
+  /** per-person organisation (and view class) memory for signing a pull (one manifest call a minute at most) */
+  orgCache?: Map<string, { org: string; exp: number; view?: string; orgView?: string }>
   /** fetch used to read the owner-published release manifest (tests inject a fake); defaults to the global fetch */
   fetchImpl?: typeof fetch
-  /** one-minute memory of the registry's current release, shared by every request of the isolate */
+  /** five-minute memory of the registry's current release, shared by every request of the isolate */
   releaseBox?: { at: number; value: ReleaseInfo | null }
+  /** the isolate's last /release/register answer: replayed for a minute whoever asks, so the owner's manifest is fetched at most once a minute per isolate */
+  registerBox?: { at: number; answer: { status: number; body: unknown } | null }
   /** Runs one pushed write through the real pipeline (the ai-work-link-exec function). Absent: POST /push answers 503. */
   execRun?: (body: ExecRunBody) => Promise<ExecOutcome>
+  /** Runs several pushed writes in ONE exec invocation (ai-work-link-exec /sync-run-batch), one outcome per body in the same order. Preferred over execRun when present. */
+  execRunBatch?: (bodies: ExecRunBody[]) => Promise<ExecOutcome[]>
+  /** Milliseconds for the push deadline (tests advance it); defaults to Date.now. `now` stays the request's one fixed time. */
+  clock?: () => number
+  /** One redacted line (a class and a status, never a token, an email, a row or a message). Defaults to console.error. */
+  log?: (line: string) => void
+}
+
+function logLine(deps: SyncDeps, line: string) {
+  try {
+    ;(deps.log ?? ((l: string) => console.error(l)))(`projexa-sync: ${line}`)
+  } catch {
+    // logging never breaks an answer
+  }
 }
 
 /** What the exec function answered for one pushed write (index.ts maps its HTTP answer to this). "unavailable": nothing ran. "uncertain": it was sent and no answer came back, so the write may have happened. */
@@ -62,13 +78,24 @@ const isOrgKind = (k: unknown): boolean => typeof k === "string" && (ORG_KINDS a
 export const PULL_LIMIT_DEFAULT = 200
 export const PULL_LIMIT_MAX = 500
 export const SERVER_PROTOCOL = 2
+// every body limit is in UTF-8 BYTES, checked on Content-Length before reading and while streaming (review D1 F-10), never after buffering it all
 export const PUSH_BODY_MAX_BYTES = 262_144
 export const PUSH_OPS_MAX = 50
+/** No new op of a push starts after this; with one exec call of at most EXEC_TIMEOUT_MS the push answers inside the laptop's 60 s timeout. */
+export const PUSH_START_CUTOFF_MS = 30_000
+/** This many begin failures in a row (the database failing every op) stops the push; the rest are RETRY_LATER. */
+export const PUSH_MAX_BEGIN_ERRORS_IN_A_ROW = 3
+/** /jobs/result carries the job's output; the other job routes carry a few ids (claim/heartbeat/get) or params the SQL caps at 16 KB (enqueue). */
 export const JOB_BODY_MAX_BYTES = 300_000
+export const JOB_BODY_MAX_BYTES_BY_ACTION: Readonly<Record<string, number>> = { result: JOB_BODY_MAX_BYTES, enqueue: 20_480, claim: 2048, heartbeat: 2048, get: 2048 }
+/** /pull by exact ids: 200 ids of up to 64 characters is about 13.4 KB, so the 4 KB default refused a real batch (review D1 F5). */
+export const PULL_BODY_MAX_BYTES = 16_384
 export const RELEASE_ORIGIN = "https://projexa-ai.com"
 export const RELEASE_MANIFEST_URL = `${RELEASE_ORIGIN}/_release/release.json`
 export const RELEASE_MANIFEST_MAX_BYTES = 2_000_000
-export const RELEASE_TTL_MS = 60_000
+// the gate and the manifest need only version and floor; each refresh reads the release row from the database, so five minutes, not one (review D1 F7)
+export const RELEASE_TTL_MS = 300_000
+export const REGISTER_COOLDOWN_MS = 60_000
 export const IDS_LIMIT_DEFAULT = 5000
 export const IDS_LIMIT_MAX = 5000
 export const PULL_IDS_MAX = 200
@@ -168,6 +195,25 @@ function bearer(req: Request): string | null {
 // The handler
 // ---------------------------------------------------------------------------------------------------------------------------------
 export async function handleSync(req: Request, deps: SyncDeps): Promise<Response> {
+  // an unexpected throw anywhere below is ONE closed 500 with the CORS headers (a browser can read it) and one log line naming the route, never the
+  // error's text (it may carry a row or an address) (review D1 F-14a)
+  try {
+    return await routeRequest(req, deps)
+  } catch {
+    logLine(deps, `unexpected error on ${routeOf(safePath(req))} -> 500`)
+    return respond(req, deps, 500, { error: "Something failed on our side. Try again in a minute." })
+  }
+}
+
+function safePath(req: Request): string {
+  try {
+    return new URL(req.url).pathname
+  } catch {
+    return ""
+  }
+}
+
+async function routeRequest(req: Request, deps: SyncDeps): Promise<Response> {
   const now = (deps.now ?? (() => new Date()))()
   if (req.method === "OPTIONS") return respond(req, deps, 204, null)
   const route = routeOf(new URL(req.url).pathname)
@@ -229,7 +275,7 @@ async function manifest(req: Request, deps: SyncDeps, who: Who, now: Date): Prom
   const r = await callSql(deps, "projexa_sync_manifest", { p_sub: who.sub, p_email: who.email })
   if (!r.ok) return respond(req, deps, r.status, r.body)
   const kinds = Array.isArray(r.data.kinds) ? (r.data.kinds as Array<Record<string, unknown>>).filter((k) => typeof k.kind === "string" && (SYNC_KINDS as readonly string[]).includes(k.kind as string)) : []
-  rememberOrg(deps, who.sub, r.data.user, now)
+  rememberOrg(deps, who.sub, r.data.user, now, r.data)
   const rel = await getRelease(deps, now)
   return respond(req, deps, 200, {
     user: r.data.user,
@@ -243,36 +289,32 @@ async function manifest(req: Request, deps: SyncDeps, who: Who, now: Date): Prom
   })
 }
 
-function rememberOrg(deps: SyncDeps, sub: string, user: unknown, now: Date) {
+function rememberOrg(deps: SyncDeps, sub: string, user: unknown, now: Date, data?: Record<string, unknown>) {
   const org = (user as { org_id?: unknown } | null)?.org_id
   if (typeof org !== "string") return
   deps.orgCache ??= new Map()
-  deps.orgCache.set(sub, { org, exp: now.getTime() + 60_000 })
+  const view = typeof data?.view_class === "string" ? data.view_class : undefined
+  const orgView = typeof data?.org_view_class === "string" ? data.org_view_class : undefined
+  deps.orgCache.set(sub, { org, exp: now.getTime() + 60_000, ...(view ? { view } : {}), ...(orgView ? { orgView } : {}) })
   if (deps.orgCache.size > 5000) for (const [k, v] of deps.orgCache) if (v.exp < now.getTime()) deps.orgCache.delete(k)
 }
 
-/** The organisation of a signed-in person, from a short memory or one manifest call (only needed to sign a pull). */
-async function orgOf(deps: SyncDeps, who: Who, now: Date): Promise<string | null> {
-  const hit = deps.orgCache?.get(who.sub)
-  if (hit && hit.exp > now.getTime()) return hit.org
+type OrgMemory = { org: string; exp: number; view?: string; orgView?: string }
+/** The organisation (and view classes) of a signed-in person, from a short memory or one manifest call (only needed to sign a pull). */
+async function orgOf(deps: SyncDeps, who: Who, now: Date): Promise<OrgMemory | null> {
+  const hit = deps.orgCache?.get(who.sub) as OrgMemory | undefined
+  if (hit && hit.exp > now.getTime()) return hit
   const r = await callSql(deps, "projexa_sync_manifest", { p_sub: who.sub, p_email: who.email })
   if (!r.ok) return null
-  rememberOrg(deps, who.sub, r.data.user, now)
-  return deps.orgCache?.get(who.sub)?.org ?? null
+  rememberOrg(deps, who.sub, r.data.user, now, r.data)
+  return (deps.orgCache?.get(who.sub) as OrgMemory | undefined) ?? null
 }
 
 // POST /ids {project_id, kind, after_id, limit}: one page of the ids of that kind the person may read now (a laptop drops what is no longer listed: deletes)
 async function ids(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
-  const raw = await req.text()
-  if (raw.length > BODY_MAX_BYTES) return respond(req, deps, 413, { error: "Body too large" })
-  let body: Record<string, unknown>
-  try {
-    const v = JSON.parse(raw)
-    if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error("shape")
-    body = v as Record<string, unknown>
-  } catch {
-    return respond(req, deps, 400, { error: "Body must be a JSON object" })
-  }
+  const parsed = await readBody(req, deps)
+  if (!parsed.ok) return parsed.res
+  const body = parsed.body
   const project = body.project_id
   const kind = body.kind
   const after = body.after_id ?? null
@@ -308,7 +350,28 @@ async function ids(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<R
 
 // POST /attest {}: a short-lived signed statement of who this person is to OTHER laptops (organisation, the projects they may read, their view class),
 // the public keys to verify signed rows with, and the organisation's channel name. A peer that cannot present one gets nothing from another laptop.
+// Body (optional): {device_pub_jwk}: the laptop's own ES256 P-256 public key. When sent, the token carries cnf.jkt (its RFC 7638 thumbprint) and a peer
+// must prove possession of that key in the handshake (sign.ts verifyHolderProof): a token copied by another laptop is then useless to it (review D1 TI-2).
+// With no key the old bearer token is issued (holder_bound false) until every laptop sends one; README.md documents the handshake step.
 async function attest(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+  const raw = await readLimited(req, BODY_MAX_BYTES)
+  if (raw === null) return respond(req, deps, 413, { error: "Body too large" })
+  let body: Record<string, unknown> = {}
+  if (raw.trim() !== "") {
+    try {
+      const v = JSON.parse(raw)
+      if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error("shape")
+      body = v as Record<string, unknown>
+    } catch {
+      return respond(req, deps, 400, { error: "Body must be a JSON object" })
+    }
+  }
+  let jkt: string | null = null
+  if (body.device_pub_jwk !== undefined && body.device_pub_jwk !== null) {
+    const jwk = await parseDevicePublicJwk(body.device_pub_jwk)
+    if (!jwk) return respond(req, deps, 400, { error: "device_pub_jwk must be an ES256 (P-256) public key", code: "BAD_DEVICE_KEY" })
+    jkt = await jwkThumbprint(jwk)
+  }
   const signing = deps.signing ? await deps.signing() : null
   if (!signing) return respond(req, deps, 503, { error: "Peer sync is not available right now." })
   const r = await callSql(deps, "projexa_sync_manifest", { p_sub: who.sub, p_email: who.email })
@@ -317,9 +380,10 @@ async function attest(req: Request, deps: SyncDeps, who: Who, now: Date): Promis
   const projects = Array.isArray(r.data.projects) ? (r.data.projects as Array<{ id?: unknown }>).map((p) => p.id).filter((x): x is string => typeof x === "string") : []
   const view = typeof r.data.view_class === "string" ? r.data.view_class : ""
   if (typeof user.id !== "string" || typeof user.org_id !== "string" || view === "") return respond(req, deps, 500, { error: "Something failed on our side. Try again in a minute." })
+  rememberOrg(deps, who.sub, r.data.user, now, r.data)
   const iat = Math.floor(now.getTime() / 1000)
   const exp = iat + ATTEST_TTL_SECONDS
-  const token = await signing.signToken({ typ: "px-peer", v: 1, sub: user.id, org: user.org_id, projects, view, iat, exp })
+  const token = await signing.signToken({ typ: "px-peer", v: 1, sub: user.id, org: user.org_id, projects, view, iat, exp, ...(jkt ? { cnf: { jkt } } : {}) })
   return respond(req, deps, 200, {
     token,
     expires_at: new Date(exp * 1000).toISOString(),
@@ -327,15 +391,49 @@ async function attest(req: Request, deps: SyncDeps, who: Who, now: Date): Promis
     user_id: user.id,
     view_class: view,
     projects,
+    holder_bound: jkt !== null,
     channel: await signing.channelId(user.org_id),
+    // only laptops of the same view class can exchange rows, so they need not hear each other's signalling: a channel per (organisation, view class)
+    // cuts Realtime fan-out to compatible peers (review D1 F15). `channel` (per organisation) stays for laptops that do not use it yet.
+    class_channel: await signing.channelId(`${user.org_id}\u0001view\u0001${view}`),
     public_keys: deps.publicKeys ? await deps.publicKeys() : [],
     server_time: now.toISOString(),
   })
 }
 
+/** The body as text, or null when it is over `max` UTF-8 bytes: refused on Content-Length before reading, and while streaming (never buffered whole first). */
+export async function readLimited(req: { headers: Headers; body: ReadableStream<Uint8Array> | null }, max: number): Promise<string | null> {
+  const cl = req.headers.get("content-length")
+  if (cl !== null && /^[0-9]{1,15}$/.test(cl) && Number(cl) > max) {
+    await req.body?.cancel().catch(() => {})
+    return null
+  }
+  if (!req.body) return ""
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > max) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  const all = new Uint8Array(total)
+  let at = 0
+  for (const c of chunks) {
+    all.set(c, at)
+    at += c.byteLength
+  }
+  return new TextDecoder().decode(all)
+}
+
 async function readBody(req: Request, deps: SyncDeps, max = BODY_MAX_BYTES): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; res: Response }> {
-  const raw = await req.text()
-  if (raw.length > max) return { ok: false, res: respond(req, deps, 413, { error: "Body too large" }) }
+  const raw = await readLimited(req, max)
+  if (raw === null) return { ok: false, res: respond(req, deps, 413, { error: "Body too large" }) }
   try {
     const v = JSON.parse(raw)
     if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error("shape")
@@ -346,7 +444,7 @@ async function readBody(req: Request, deps: SyncDeps, max = BODY_MAX_BYTES): Pro
 }
 
 async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
-  const parsed = await readBody(req, deps)
+  const parsed = await readBody(req, deps, PULL_BODY_MAX_BYTES)
   if (!parsed.ok) return parsed.res
   const body = parsed.body
   if (isOrgKind(body.kind)) return orgPull(req, deps, who, now, body)
@@ -383,10 +481,21 @@ async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
 
 /** One page of rows (keyset or exact ids): the second money pass, the version, the signature. */
 async function pageResponse(req: Request, deps: SyncDeps, who: Who, now: Date, project: string, kind: string, data: Record<string, unknown>): Promise<Response> {
-  return respond(req, deps, 200, await buildPage(deps, who, now, project, kind, data))
+  const built = await buildPageChecked(deps, who, now, project, kind, data)
+  // a key is configured but could not be used right now: answer 503 rather than unsigned rows, because the laptop's cursor would move past them and
+  // they could never be handed to a peer (review D1 F13). The laptop retries the same page later. No key configured at all (deps.signing absent): unsigned, kid null.
+  if (built.signFailed) {
+    logLine(deps, "pull: signing unavailable -> 503")
+    return respond(req, deps, 503, { error: "Service unavailable. Try again in a minute.", code: "SIGNING_UNAVAILABLE" }, { "Retry-After": "60" })
+  }
+  return respond(req, deps, 200, built.page)
 }
 
 async function buildPage(deps: SyncDeps, who: Who, now: Date, project: string, kind: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return (await buildPageChecked(deps, who, now, project, kind, data)).page
+}
+
+async function buildPageChecked(deps: SyncDeps, who: Who, now: Date, project: string, kind: string, data: Record<string, unknown>): Promise<{ page: Record<string, unknown>; signFailed: boolean }> {
   // an organisation kind has no AI-link kind definition (org_people is NOT the AI link's `people`): its columns and money are decided in SQL (drizzle/0684)
   const def = isOrgKind(kind) ? null : kindDef(kind)
   const hidden = Array.isArray(data.hidden_fields) ? (data.hidden_fields as unknown[]).filter((x): x is string => typeof x === "string") : []
@@ -396,13 +505,19 @@ async function buildPage(deps: SyncDeps, who: Who, now: Date, project: string, k
   // only when no key is available: then `kid` is null and a laptop will not pass the rows on to peers.
   let signing: Signing | null = null
   let org: string | null = null
+  let view: string | null = null
+  let signFailed = false
   if (deps.signing) {
     try {
       signing = await deps.signing()
-      org = signing ? await orgOf(deps, who, now) : null
+      // the organisation from the SQL page itself when it carries it (no manifest call), else the one-minute memory / one manifest call
+      const mem = signing ? await orgOf(deps, who, now) : null
+      org = signing ? (typeof data.org_id === "string" ? data.org_id : (mem?.org ?? null)) : null
+      view = (isOrgKind(kind) ? mem?.orgView : mem?.view) ?? null
     } catch {
       signing = null
     }
+    signFailed = rows.length > 0 && (!signing || !org)
   }
   const items = await Promise.all(
     rows.map(async (it) => {
@@ -410,20 +525,25 @@ async function buildPage(deps: SyncDeps, who: Who, now: Date, project: string, k
       // the second money pass, the AI link's own (the SQL already nulled these columns)
       const safe = def ? redactItem(def, row, { moneyVisible, hiddenFields: hidden }) : row
       const version = typeof it.version === "number" && Number.isInteger(it.version) && it.version >= 0 ? it.version : 0
-      const sig = signing && org && typeof it.id === "string" && typeof it.updated_at === "string" ? await signing.signItem({ org, project, kind, id: it.id, version, updatedAt: it.updated_at, data: safe }) : undefined
-      return sig ? { id: it.id, updated_at: it.updated_at, version, data: safe, sig } : { id: it.id, updated_at: it.updated_at, version, data: safe }
+      const signable = signing && org && typeof it.id === "string" && typeof it.updated_at === "string"
+      const sig = signable ? await signing!.signItem({ org: org!, project, kind, id: it.id as string, version, updatedAt: it.updated_at as string, data: safe }) : undefined
+      const sig3 = signable && view && signing!.signItemV3 ? await signing!.signItemV3({ org: org!, project, kind, view, id: it.id as string, version, updatedAt: it.updated_at as string, data: safe }) : undefined
+      return sig ? { id: it.id, updated_at: it.updated_at, version, data: safe, sig, ...(sig3 ? { sig3 } : {}) } : { id: it.id, updated_at: it.updated_at, version, data: safe }
     }),
   )
   const nextTs = typeof data.next_ts === "string" ? data.next_ts : null
   const nextId = typeof data.next_id === "string" ? data.next_id : null
   return {
-    items,
-    kid: signing && org ? signing.kid : null,
-    next_cursor: nextTs && nextId ? encodeCursor(nextTs, nextId) : null,
-    has_more: data.has_more === true,
-    hidden_fields: hidden,
-    redacted: data.redacted === true || hidden.length > 0 || (!moneyVisible && !!def && def.money_columns.length > 0),
-    server_time: now.toISOString(),
+    signFailed,
+    page: {
+      items,
+      kid: signing && org ? signing.kid : null,
+      next_cursor: nextTs && nextId ? encodeCursor(nextTs, nextId) : null,
+      has_more: data.has_more === true,
+      hidden_fields: hidden,
+      redacted: data.redacted === true || hidden.length > 0 || (!moneyVisible && !!def && def.money_columns.length > 0),
+      server_time: now.toISOString(),
+    },
   }
 }
 
@@ -490,12 +610,19 @@ export function parseClientHeader(h: string | null): { release: string | null; p
   return out
 }
 
-/** 426 when the laptop speaks another protocol or its release is below the floor; a laptop with no header, or a dev build, is never blocked. */
+/**
+ * 426 only when the laptop is OLDER than the server: its protocol is below SERVER_PROTOCOL, or its release is below the floor. A laptop with no header,
+ * or a dev build, is never blocked. A NEWER protocol (laptops updated before this function was redeployed, or the function rolled back) is not something
+ * the laptop can fix by updating: it gets a retryable 503 SERVER_UPDATING and keeps its queue (review D1 F-09). Deploy order: server first, then release.
+ */
 async function updateRequired(req: Request, deps: SyncDeps, now: Date): Promise<Response | null> {
   const client = parseClientHeader(req.headers.get("x-px-client"))
   if (!client) return null
+  if (client.protocol !== null && client.protocol > SERVER_PROTOCOL) {
+    return respond(req, deps, 503, { error: "The server is being updated. Try again in a few minutes.", code: "SERVER_UPDATING", protocol: SERVER_PROTOCOL }, { "Retry-After": "300" })
+  }
   const rel = await getRelease(deps, now)
-  const protocolBad = client.protocol !== null && client.protocol !== SERVER_PROTOCOL
+  const protocolBad = client.protocol !== null && client.protocol < SERVER_PROTOCOL
   const floor = rel?.min_compatible ?? ""
   const releaseBad = floor !== "" && client.release !== null && RELEASE_RE.test(client.release) && client.release < floor
   if (!protocolBad && !releaseBad) return null
@@ -505,42 +632,138 @@ async function updateRequired(req: Request, deps: SyncDeps, now: Date): Promise<
 async function releaseCurrent(req: Request, deps: SyncDeps, now: Date): Promise<Response> {
   const rel = await getRelease(deps, now)
   if (!rel) return respond(req, deps, 503, { error: "Service unavailable. Try again in a minute." })
-  return respond(req, deps, 200, { registered: rel.registered, current: rel.current, min_compatible: rel.min_compatible || null, protocol: SERVER_PROTOCOL, server_time: now.toISOString() })
+  // ?files=0: the version, digest and floor without the file table (up to 5,000 rows): what a laptop needs to learn THAT it should update (review D1 F7)
+  let current = rel.current
+  if (current && new URL(req.url).searchParams.get("files") === "0") {
+    const { files: _files, ...light } = current
+    current = light
+  }
+  return respond(req, deps, 200, { registered: rel.registered, current, min_compatible: rel.min_compatible || null, protocol: SERVER_PROTOCOL, server_time: now.toISOString() })
 }
 
-/** Registers what the OWNER published at projexa-ai.com/_release/release.json. Takes no input: nothing a caller sends is registered. */
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Signing-key caches for index.ts (pure: the rpc and the crypto helpers are passed in, so bun tests them; review D1 F-11)
+//   * a refresh that fails keeps serving the last good key (a database blip after the TTL no longer makes /pull answer unsigned rows)
+//   * concurrent cold requests share ONE load (no N x generateKeyRecord + 2 RPCs)
+//   * an errored or empty public-key list is not cached (a transient failure no longer hands out `public_keys: []` for 5 minutes)
+// ---------------------------------------------------------------------------------------------------------------------------------
+export const KEY_TTL_MS = 5 * 60_000
+export function createKeyCaches(o: {
+  rpc: Rpc
+  createSigning: (rec: KeyRecord) => Promise<Signing>
+  generateKeyRecord: () => Promise<KeyRecord>
+  clock?: () => number
+}): { signing: () => Promise<Signing | null>; publicKeys: () => Promise<PublicKeyInfo[]> } {
+  const clock = o.clock ?? (() => Date.now())
+  let signingCache: { signing: Signing; at: number } | null = null
+  let signingLoad: Promise<Signing | null> | null = null
+  let publicCache: { keys: PublicKeyInfo[]; at: number } | null = null
+  let publicLoad: Promise<PublicKeyInfo[]> | null = null
+
+  const loadSigning = async (): Promise<Signing | null> => {
+    let res = await o.rpc("projexa_sync_key_active")
+    if (res.error) throw new Error("key read failed")
+    let rec = res.data as KeyRecord | null
+    if (!rec) {
+      const fresh = await o.generateKeyRecord()
+      res = await o.rpc("projexa_sync_key_put", { p_kid: fresh.kid, p_public: fresh.public_jwk, p_private: fresh.private_jwk })
+      if (res.error) throw new Error("key put failed")
+      rec = res.data as KeyRecord | null
+    }
+    if (!rec || !rec.private_jwk) throw new Error("no key")
+    const signing = await o.createSigning(rec)
+    signingCache = { signing, at: clock() }
+    return signing
+  }
+  const loadPublic = async (): Promise<PublicKeyInfo[]> => {
+    const res = await o.rpc("projexa_sync_public_keys")
+    if (res.error || !Array.isArray(res.data)) throw new Error("public keys failed")
+    const keys = res.data as PublicKeyInfo[]
+    if (keys.length > 0) publicCache = { keys, at: clock() }
+    return keys
+  }
+  return {
+    async signing() {
+      if (signingCache && clock() - signingCache.at < KEY_TTL_MS) return signingCache.signing
+      signingLoad ??= loadSigning().finally(() => {
+        signingLoad = null
+      })
+      try {
+        return await signingLoad
+      } catch {
+        return signingCache?.signing ?? null
+      }
+    },
+    async publicKeys() {
+      if (publicCache && clock() - publicCache.at < KEY_TTL_MS) return publicCache.keys
+      publicLoad ??= loadPublic().finally(() => {
+        publicLoad = null
+      })
+      try {
+        return await publicLoad
+      } catch {
+        return publicCache?.keys ?? []
+      }
+    },
+  }
+}
+
+/**
+ * Registers what the OWNER published at projexa-ai.com/_release/release.json. Takes no input: nothing a caller sends is registered. Laptops call it
+ * (release-client.ts), so it stays person-callable, but it costs an outbound fetch of up to 2 MB from Vercel and an advisory-locked RPC: the isolate
+ * fetches at most once per REGISTER_COOLDOWN_MS whoever asks and replays its last answer meanwhile, and an "already registered" answer no longer forces
+ * a fresh read of the registry (review D1 F-01).
+ */
 async function releaseRegister(req: Request, deps: SyncDeps, now: Date): Promise<Response> {
+  deps.registerBox ??= { at: 0, answer: null }
+  const box = deps.registerBox
+  if (box.answer && now.getTime() - box.at < REGISTER_COOLDOWN_MS) return respond(req, deps, box.answer.status, box.answer.body)
+  const res = await releaseRegisterOnce(deps, now)
+  box.at = now.getTime()
+  box.answer = res
+  return respond(req, deps, res.status, res.body)
+}
+
+async function releaseRegisterOnce(deps: SyncDeps, now: Date): Promise<{ status: number; body: unknown }> {
+  const answer = (status: number, body: unknown) => ({ status, body })
   const doFetch = deps.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
-  let text: string
+  let text: string | null
   try {
     const res = await doFetch(RELEASE_MANIFEST_URL, { redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000), headers: { accept: "application/json" } })
-    if (!res.ok) return respond(req, deps, 502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
-    text = await res.text()
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {})
+      return answer(502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
+    }
+    text = await readLimited(res, RELEASE_MANIFEST_MAX_BYTES)
   } catch {
-    return respond(req, deps, 502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
+    return answer(502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
   }
-  if (text.length > RELEASE_MANIFEST_MAX_BYTES) return respond(req, deps, 502, { error: "The release manifest is too large.", code: "MANIFEST_BAD" })
+  if (text === null) return answer(502, { error: "The release manifest is too large.", code: "MANIFEST_BAD" })
   let manifest: Record<string, unknown>
   try {
     const v = JSON.parse(text)
     if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error("shape")
     manifest = v as Record<string, unknown>
   } catch {
-    return respond(req, deps, 502, { error: "The release manifest is not valid.", code: "MANIFEST_BAD" })
+    return answer(502, { error: "The release manifest is not valid.", code: "MANIFEST_BAD" })
   }
   // the digest must be the digest of the manifest it sits in: a manifest altered in transit, or hand-edited, is refused
   const { manifest_sha256: claimed, ...rest } = manifest
-  if (typeof claimed !== "string" || claimed !== (await sha256Hex(canonicalize(rest)))) return respond(req, deps, 502, { error: "The release manifest does not match its own digest.", code: "MANIFEST_BAD" })
-  const res = await deps.rpc("projexa_release_register", { p_manifest: manifest }).catch(() => null)
-  if (!res) return respond(req, deps, 503, { error: "Service unavailable. Try again in a minute." })
+  if (typeof claimed !== "string" || claimed !== (await sha256Hex(canonicalize(rest)))) return answer(502, { error: "The release manifest does not match its own digest.", code: "MANIFEST_BAD" })
+  const res = await Promise.resolve()
+    .then(() => deps.rpc("projexa_release_register", { p_manifest: manifest }))
+    .catch(() => null)
+  if (!res) return answer(503, { error: "Service unavailable. Try again in a minute." })
   if (res.error) {
     const code = res.error.code ?? ""
-    if (code === "AW409") return respond(req, deps, 409, { error: "That release version is already registered with different content.", code: "VERSION_TAKEN" })
-    if (code === "AW400") return respond(req, deps, 502, { error: "The release manifest is not valid.", code: "MANIFEST_BAD" })
-    return respond(req, deps, 500, { error: "Something failed on our side. Try again in a minute." })
+    if (code === "AW409") return answer(409, { error: "That release version is already registered with different content.", code: "VERSION_TAKEN" })
+    if (code === "AW400") return answer(502, { error: "The release manifest is not valid.", code: "MANIFEST_BAD" })
+    return answer(500, { error: "Something failed on our side. Try again in a minute." })
   }
-  await getRelease(deps, now, true)
-  return respond(req, deps, 200, { ...((res.data ?? {}) as Record<string, unknown>), server_time: now.toISOString() })
+  const data = (res.data ?? {}) as Record<string, unknown>
+  // only a NEW registration changes what is current; "already registered" leaves the memory as it is
+  if (data.registered === true) await getRelease(deps, now, true)
+  return answer(200, { ...data, server_time: now.toISOString() })
 }
 
 // POST /install {device_id, release_version, manifest_sha256, previous_release, downloaded_at, installed_at, files, bytes, status, error}: one row of that laptop's install history
@@ -595,20 +818,184 @@ async function install(req: Request, deps: SyncDeps, who: Who, now: Date): Promi
 // ---------------------------------------------------------------------------------------------------------------------------------
 // PUSH: what a person edited on their laptop (drizzle/0681 decides, the real pipeline writes)
 // ---------------------------------------------------------------------------------------------------------------------------------
-/** Codes of a failed run that mean "this cannot run on the edge": the laptop keeps the op and offers the normal online path. */
-const NEEDS_SERVER_CODES = new Set(["FUNCTION_NOT_AVAILABLE", "NOT_AVAILABLE_ON_EXEC", "NOT_AVAILABLE"])
-/** Codes of a failed run that mean "nothing was written and trying again later may work". */
-const TRANSIENT_CODES = new Set(["INTERNAL_ERROR", "DB_UNREACHABLE", "NOT_CONFIGURED", "SYNC_NOT_AVAILABLE", "CLAIM_UNAVAILABLE", "BAD_CLAIM"])
+// WHAT A FAILED RUN MEANS (review D1 SYNC-04 / tests-quality:F02). The codes are the ones the pipeline REALLY returns (src/lib/pipeline/error-codes.ts
+// PIPELINE_ERROR_CODES, normaliseThrownError) plus the few the exec function and the service layer add; projexa-sync-edge-push.test.ts fails when a pipeline
+// code has no deliberate class here. Three classes:
+//   rejected      a definite business refusal (the request's own fault): sending the same op again gives the same answer. Terminal.
+//   failed        our side (BACKEND_UNAVAILABLE = could not connect, UPSTREAM_TIMEOUT = the statement was cancelled and its transaction rolled back,
+//                 INTERNAL_ERROR, the exec function not reachable): nothing was kept, the SAME op_id may run again, later ops on the record wait.
+//   needs_server  the function cannot run on the edge (FUNCTION_NOT_AVAILABLE): the laptop keeps the op and offers the normal online path.
+// A code NOT in this table defaults to `failed`: an unknown code must never turn a transient fault into a permanent loss of the person's edit (the
+// worst an unknown business code can cost is a bounded retry, never data).
+export type FailureClass = "rejected" | "failed" | "needs_server"
+export const PUSH_FAILURE_CLASS: Readonly<Record<string, FailureClass>> = {
+  // the pipeline's closed vocabulary: what the request is missing / names wrongly / may not do
+  PROJECT_REQUIRED: "rejected", BOQ_LINE_REQUIRED: "rejected", VALUE_REQUIRED: "rejected", DATE_REQUIRED: "rejected", WORKER_REQUIRED: "rejected",
+  TITLE_REQUIRED: "rejected", TASK_REQUIRED: "rejected", ACTIVITY_REQUIRED: "rejected", HOURS_REQUIRED: "rejected", MATERIAL_REQUIRED: "rejected",
+  QUANTITY_REQUIRED: "rejected", CATEGORY_REQUIRED: "rejected", LINK_REQUIRED: "rejected", BOQ_VERSION_REQUIRED: "rejected",
+  BOQ_LINE_NOT_FOUND: "rejected", BOQ_LINE_IS_PARENT: "rejected", PROJECT_NOT_REACHABLE: "rejected", VALUE_OUT_OF_RANGE: "rejected",
+  RECORD_NOT_FOUND: "rejected", ALREADY_RECORDED: "rejected", REQUEST_REJECTED: "rejected",
+  TOTAL_MISMATCH: "rejected", BOQ_SEALED: "rejected", DUPLICATE_ITEM_CODE: "rejected",
+  NOT_PERMITTED: "rejected", READ_AS_QUESTION: "rejected",
+  // a previous step of the same submission failed; for a one-op push that step may have been transient, so it may run again
+  DEPENDENCY_FAILED: "failed",
+  FUNCTION_NOT_AVAILABLE: "needs_server",
+  // our side: never the person's fault, the same op may run again (the pipeline's RETRYABLE_ERROR_CODES are both here)
+  BACKEND_UNAVAILABLE: "failed", UPSTREAM_TIMEOUT: "failed", INTERNAL_ERROR: "failed",
+  // the exec function's own answers (ai-work-link-exec/handler.ts) and this function's
+  BAD_CLAIM: "failed", SYNC_NOT_AVAILABLE: "failed", NOT_CONFIGURED: "failed", RETRY_LATER: "failed",
+  BAD_OP: "rejected", TOO_LARGE: "rejected", BAD_REQUEST: "rejected",
+  // ServiceError codes services raise for a business condition (src/lib/services/*: `new ServiceError(msg, 4xx, "CODE")`)
+  VALIDATION_FAILED: "rejected", VALIDATION: "rejected", TEXT_TOO_LONG: "rejected", NOT_FOUND: "rejected",
+}
+export function classifyFailure(code: string): FailureClass {
+  return Object.prototype.hasOwnProperty.call(PUSH_FAILURE_CLASS, code) ? PUSH_FAILURE_CLASS[code] : "failed"
+}
+
+// THE SHAPE OF AN OP, checked here BEFORE any database call (review D1 F-02, F-03, F-08). The same rules as projexa_sync_push_begin's step 1 (drizzle/0681),
+// so a malformed op costs no RPC, plus three the SQL cannot apply cheaply: the op's size in UTF-8 BYTES (the exec function measures bytes, the SQL
+// measured characters: a 25,000-character Devanagari note passed the SQL and was refused by exec forever), no U+0000 (Postgres jsonb cannot store it, so
+// begin would fail and, before this, fail the whole batch) and a nesting limit. PUSH_OP_MAX_BYTES leaves room under the exec cap (72 KiB) for the context
+// the exec body adds, so an op accepted here can always be sent to exec.
+export const PUSH_OP_MAX_BYTES = 60_000
+export const PUSH_OP_MAX_DEPTH = 32
+const OP_ID_RE = /^[A-Za-z0-9_-]{8,128}$/
+const FN_ID_RE = /^[A-Za-z0-9_-]{1,128}$/
+const te = new TextEncoder()
+export const utf8Bytes = (s: string): number => te.encode(s).length
+
+function depthOf(v: unknown, d = 0): number {
+  if (v === null || typeof v !== "object") return d
+  let m = d + 1
+  for (const x of Array.isArray(v) ? v : Object.values(v as Record<string, unknown>)) {
+    m = Math.max(m, depthOf(x, d + 1))
+    if (m > PUSH_OP_MAX_DEPTH) return m
+  }
+  return m
+}
+
+export type OpCheck = { ok: true; op: Record<string, unknown>; opId: string } | { ok: false; opId: string | null; code: "BAD_OP" | "TOO_LARGE" }
+export function checkOp(raw: unknown): OpCheck {
+  const op = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  const opId = op && typeof op.op_id === "string" ? op.op_id : null
+  if (!op || !opId || !OP_ID_RE.test(opId)) return { ok: false, opId, code: "BAD_OP" }
+  const fn = op.function_id
+  if (typeof fn !== "string" || !FN_ID_RE.test(fn)) return { ok: false, opId, code: "BAD_OP" }
+  if (op.params === null || typeof op.params !== "object" || Array.isArray(op.params)) return { ok: false, opId, code: "BAD_OP" }
+  const project = op.project_id
+  if (fn === "create_project" ? project !== undefined && project !== null : typeof project !== "string" || project === "" || project.length > 128) return { ok: false, opId, code: "BAD_OP" }
+  const rec = op.record
+  if (rec !== undefined && rec !== null) {
+    if (typeof rec !== "object" || Array.isArray(rec)) return { ok: false, opId, code: "BAD_OP" }
+    const r = rec as Record<string, unknown>
+    const bv = r.base_version
+    const bvOk = (typeof bv === "number" && Number.isSafeInteger(bv) && bv >= 0 && String(bv).length <= 15) || (typeof bv === "string" && /^[0-9]{1,15}$/.test(bv))
+    if (typeof r.kind !== "string" || !(SYNC_KINDS as readonly string[]).includes(r.kind) || typeof r.id !== "string" || !ID_RE.test(r.id) || !bvOk) return { ok: false, opId, code: "BAD_OP" }
+  }
+  let text: string
+  try {
+    text = JSON.stringify(op)
+  } catch {
+    return { ok: false, opId, code: "BAD_OP" }
+  }
+  if (text.includes("\\u0000") || depthOf(op) > PUSH_OP_MAX_DEPTH) return { ok: false, opId, code: "BAD_OP" }
+  if (utf8Bytes(text) > PUSH_OP_MAX_BYTES) return { ok: false, opId, code: "TOO_LARGE" }
+  return { ok: true, op, opId }
+}
+
+// THE EXEC FUNCTION'S ANSWER -> what happened (review D1 tests-quality:F06, F-03, F-07, F-14c). Pure and exported so it is tested as a table; index.ts only
+// supplies fetch, the URL and the secret.
+//   network error / abort / timeout, 5xx (500, 502, 504, 546 ...) or an unreadable 200     -> uncertain   (the run may have started: never blindly re-run)
+//   400 BAD_REQUEST (the body was refused before anything ran; it will be refused again)  -> failed BAD_OP (classified rejected, terminal: no poison op)
+//   413 (a gateway refused the size)                                                       -> failed TOO_LARGE (terminal)
+//   401, 404, 405, 429, 503 and any other 4xx (refused before anything ran)                -> unavailable (retry later, nothing was written)
+// Every early return cancels the response body so a failed op does not hold a connection until garbage collection.
+export function execOutcomeOf(status: number, body: unknown): ExecOutcome {
+  if (status === 400) return { kind: "failed", code: "BAD_OP", missing: [] }
+  if (status === 413) return { kind: "failed", code: "TOO_LARGE", missing: [] }
+  if (status >= 500 && status !== 503) return { kind: "uncertain" }
+  if (status !== 200) return { kind: "unavailable" }
+  const j = (body ?? null) as { status?: string; record?: { id?: string | null; route?: string | null }; submission_id?: string | null; code?: string; missing?: unknown } | null
+  if (!j || typeof j !== "object") return { kind: "uncertain" }
+  if (j.status === "done") return { kind: "done", record: { id: j.record?.id ?? null, route: j.record?.route ?? null }, submission_id: j.submission_id ?? null }
+  if (j.status === "failed" && typeof j.code === "string") return { kind: "failed", code: j.code, missing: Array.isArray(j.missing) ? (j.missing as unknown[]).filter((m): m is string => typeof m === "string") : [] }
+  // the batch route's "this op was not started" (the exec function's own time budget ran out before it): nothing ran
+  if (j.status === "not_run") return { kind: "unavailable" }
+  return { kind: "uncertain" }
+}
+
+export const EXEC_TIMEOUT_MS = 25_000
+export const EXEC_BATCH_TIMEOUT_MS = 50_000
+type ExecClientOptions = { url: string; secret: string | undefined; fetchImpl?: typeof fetch; timeoutMs?: number; batchTimeoutMs?: number }
+
+async function execPost(o: ExecClientOptions, path: string, body: unknown, timeoutMs: number): Promise<{ status: number; json: unknown } | null> {
+  const doFetch = o.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
+  let res: Response
+  try {
+    res = await doFetch(`${o.url}/${path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${o.secret}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) })
+  } catch {
+    return null
+  }
+  if (res.status !== 200) {
+    await res.body?.cancel().catch(() => {})
+    return { status: res.status, json: null }
+  }
+  try {
+    return { status: 200, json: await res.json() }
+  } catch {
+    return { status: 200, json: null }
+  }
+}
+
+/** One pushed write through POST {url}/sync-run. */
+export function createExecRun(o: ExecClientOptions): (body: ExecRunBody) => Promise<ExecOutcome> {
+  return async (body) => {
+    if (!o.secret || !o.url) return { kind: "unavailable" }
+    const r = await execPost(o, "sync-run", body, o.timeoutMs ?? EXEC_TIMEOUT_MS)
+    return r ? execOutcomeOf(r.status, r.json) : { kind: "uncertain" }
+  }
+}
+
+/** Several pushed writes through ONE call to POST {url}/sync-run-batch (one Edge invocation instead of one per op; review D1 F8 / F-02). */
+export function createExecRunBatch(o: ExecClientOptions): (bodies: ExecRunBody[]) => Promise<ExecOutcome[]> {
+  return async (bodies) => {
+    if (!o.secret || !o.url) return bodies.map(() => ({ kind: "unavailable" }) as ExecOutcome)
+    const r = await execPost(o, "sync-run-batch", { ops: bodies }, o.batchTimeoutMs ?? EXEC_BATCH_TIMEOUT_MS)
+    if (!r) return bodies.map(() => ({ kind: "uncertain" }) as ExecOutcome)
+    // an exec function deployed before the batch route existed answers 404 NOT_FOUND (nothing ran): fall back to one call per op, so deploy order never breaks push
+    if (r.status === 404) {
+      const one = createExecRun(o)
+      const out: ExecOutcome[] = []
+      for (const b of bodies) out.push(await one(b))
+      return out
+    }
+    if (r.status !== 200) {
+      const one = execOutcomeOf(r.status, null)
+      return bodies.map(() => one)
+    }
+    const list = (r.json as { results?: unknown } | null)?.results
+    if (!Array.isArray(list)) return bodies.map(() => ({ kind: "uncertain" }) as ExecOutcome)
+    // an answer per op, matched by op_id (never by position alone); a missing one is uncertain (it may have run)
+    const byId = new Map<string, unknown>()
+    for (const x of list) if (x && typeof x === "object" && typeof (x as { op_id?: unknown }).op_id === "string") byId.set((x as { op_id: string }).op_id, x)
+    return bodies.map((b) => (byId.has(b.op_id) ? execOutcomeOf(200, byId.get(b.op_id)) : ({ kind: "uncertain" } as ExecOutcome)))
+  }
+}
 
 type PushResult = Record<string, unknown>
 
-/** The signed current row of one record (a conflict shows it; an applied op returns it at its new version). null: the row is gone or not readable. */
-async function signedRow(deps: SyncDeps, who: Who, now: Date, project: string, kind: string, id: string): Promise<Record<string, unknown> | null> {
-  const r = await callSql(deps, "projexa_sync_pull_ids", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_kind: kind, p_ids: [id] })
-  if (!r.ok) return null
+/** The signed current rows of several records of one kind in one call (a conflict shows the row; an applied op returns it at its new version). */
+async function signedRows(deps: SyncDeps, who: Who, now: Date, project: string, kind: string, ids: string[]): Promise<Map<string, Record<string, unknown>>> {
+  const out = new Map<string, Record<string, unknown>>()
+  const list = [...new Set(ids)].filter((x) => ID_RE.test(x)).slice(0, PULL_IDS_MAX)
+  if (list.length === 0) return out
+  const r = await callSql(deps, "projexa_sync_pull_ids", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_kind: kind, p_ids: list })
+  if (!r.ok) return out
   const page = await buildPage(deps, who, now, project, kind, r.data)
-  const it = (page.items as Array<Record<string, unknown>>)[0]
-  return it ? { kind, id, version: it.version, updated_at: it.updated_at, data: it.data, sig: it.sig ?? null, kid: page.kid } : null
+  for (const it of page.items as Array<Record<string, unknown>>) {
+    if (typeof it.id === "string") out.set(it.id, { kind, id: it.id, version: it.version, updated_at: it.updated_at, data: it.data, sig: it.sig ?? null, kid: page.kid })
+  }
+  return out
 }
 
 async function push(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
@@ -619,114 +1006,213 @@ async function push(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
   const ops = body.ops
   if (typeof device !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(device)) return respond(req, deps, 400, { error: "device_id is required" })
   if (!Array.isArray(ops) || ops.length < 1 || ops.length > PUSH_OPS_MAX) return respond(req, deps, 400, { error: `ops must be 1 to ${PUSH_OPS_MAX} operations` })
-  if (!deps.execRun) return respond(req, deps, 503, { error: "Saving to the server is not available right now. Your changes stay on this laptop.", code: "PUSH_NOT_AVAILABLE" })
-  const execRun = deps.execRun
+  if (!deps.execRun && !deps.execRunBatch) return respond(req, deps, 503, { error: "Saving to the server is not available right now. Your changes stay on this laptop.", code: "PUSH_NOT_AVAILABLE" })
+  const clock = deps.clock ?? (() => Date.now())
+  const startedAt = clock()
 
-  const results: PushResult[] = []
+  // results[i] answers ops[i], whatever order they are settled in
+  const results: Array<PushResult | undefined> = new Array(ops.length)
   // a record whose earlier op in this batch did not apply keeps its later ops waiting (order matters), without running them
   const held = new Set<string>()
+  // ops the SQL said to RUN, not yet sent to the exec function (batch mode); never two of the same record (order on one record is kept by flushing first)
+  type Pending = { i: number; opId: string; op: Record<string, unknown>; ctx: ExecRunBody["ctx"]; rec: Record<string, unknown> | null; recKey: string | null; hint: string | null; project: string | null }
+  let pending: Pending[] = []
+  // conflicts whose current server row is fetched once per (project, kind) at the end
+  const conflicts: Array<{ i: number; project: string | null; kind: string; id: string }> = []
+  const applied: Array<{ i: number; project: string; kind: string; id: string }> = []
+  let begunAny = false
+  let beginErrorsInARow = 0
 
-  for (const raw of ops) {
-    const op = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
-    const opId = op && typeof op.op_id === "string" ? op.op_id : null
-    if (!op || !opId) {
-      results.push({ op_id: opId, status: "rejected", error: { code: "BAD_OP" } })
+  const finish = async (p: Pending, status: string, result: unknown, code: string | null, kind: string | null, id: string | null) => {
+    const r = await Promise.resolve()
+      .then(() => deps.rpc("projexa_sync_push_finish", { p_user_id: p.ctx.user_id, p_op_id: p.opId, p_status: status, p_result: result, p_error_code: code, p_record_kind: kind, p_record_id: id }))
+      .catch(() => null)
+    return r && !r.error ? ((r.data ?? {}) as Record<string, unknown>) : null
+  }
+  const holdKey = (k: string | null) => {
+    if (k) held.add(k)
+  }
+  const uncertainResult = (opId: string): PushResult => ({ op_id: opId, status: "failed", uncertain: true, error: { code: "EXECUTION_UNCERTAIN" } })
+
+  /** Sends the pending ops to the exec function (one call in batch mode) and settles each one in the ledger. */
+  const flush = async () => {
+    if (pending.length === 0) return
+    const batch = pending
+    pending = []
+    const bodies = batch.map((p) => ({ op_id: p.opId, function_id: String(p.op.function_id), params: (p.op.params ?? {}) as Record<string, unknown>, ctx: p.ctx }))
+    let outcomes: ExecOutcome[]
+    if (deps.execRunBatch) {
+      try {
+        outcomes = await deps.execRunBatch(bodies)
+        if (!Array.isArray(outcomes) || outcomes.length !== batch.length) outcomes = batch.map(() => ({ kind: "uncertain" }))
+      } catch {
+        outcomes = batch.map(() => ({ kind: "uncertain" }))
+      }
+    } else {
+      outcomes = []
+      for (const b of bodies) {
+        try {
+          outcomes.push(await (deps.execRun as NonNullable<SyncDeps["execRun"]>)(b))
+        } catch {
+          outcomes.push({ kind: "uncertain" })
+        }
+      }
+    }
+    for (let k = 0; k < batch.length; k++) {
+      const p = batch[k]
+      const outcome = outcomes[k]
+      if (outcome.kind === "done") {
+        const kind = p.hint ?? (p.rec && typeof p.rec.kind === "string" ? p.rec.kind : null)
+        const id = outcome.record.id ?? (p.rec && typeof p.rec.id === "string" ? p.rec.id : null)
+        const fin = await finish(p, "applied", { id: outcome.record.id, route: outcome.record.route, submission_id: outcome.submission_id }, null, kind, id)
+        if (!fin) {
+          // the write happened but its ledger row could not be closed: the row reads "uncertain" after 10 minutes, and the laptop must not blindly re-send
+          holdKey(p.recKey)
+          results[p.i] = uncertainResult(p.opId)
+          logLine(deps, "push: finish failed after a done run -> EXECUTION_UNCERTAIN")
+          continue
+        }
+        results[p.i] = { op_id: p.opId, status: "applied", record_id: id, route: outcome.record.route, version: fin.version ?? null, server: null }
+        if (kind && id && p.project) applied.push({ i: p.i, project: p.project, kind, id })
+        continue
+      }
+      if (outcome.kind === "failed") {
+        const cls = classifyFailure(outcome.code)
+        await finish(p, cls, { missing: outcome.missing }, outcome.code, null, null)
+        if (cls !== "rejected") holdKey(p.recKey)
+        results[p.i] = { op_id: p.opId, status: cls, error: { code: outcome.code, missing: outcome.missing } }
+        continue
+      }
+      if (outcome.kind === "unavailable") {
+        holdKey(p.recKey)
+        await finish(p, "failed", null, "SYNC_NOT_AVAILABLE", null, null)
+        results[p.i] = { op_id: p.opId, status: "failed", error: { code: "SYNC_NOT_AVAILABLE" } }
+        continue
+      }
+      // uncertain: the call went out and nothing came back
+      holdKey(p.recKey)
+      await finish(p, "uncertain", null, "EXECUTION_UNCERTAIN", null, null)
+      results[p.i] = uncertainResult(p.opId)
+      logLine(deps, "push: exec answer lost -> EXECUTION_UNCERTAIN")
+    }
+  }
+
+  /** Every op not yet answered gets the same retryable answer (nothing ran for it). */
+  const answerRest = (from: number, code: string) => {
+    for (let j = from; j < ops.length; j++) {
+      if (results[j]) continue
+      const c = checkOp(ops[j])
+      results[j] = { op_id: c.opId, status: c.ok ? "failed" : "rejected", error: { code: c.ok ? code : c.code } }
+    }
+  }
+
+  for (let i = 0; i < ops.length; i++) {
+    const checked = checkOp(ops[i])
+    if (!checked.ok) {
+      results[i] = { op_id: checked.opId, status: "rejected", error: { code: checked.code } }
       continue
     }
+    const { op, opId } = checked
     const rec = op.record !== null && typeof op.record === "object" && !Array.isArray(op.record) ? (op.record as Record<string, unknown>) : null
     const recKey = rec && typeof rec.kind === "string" && typeof rec.id === "string" ? `${rec.kind}:${rec.id}` : null
     const hint = typeof op.record_kind === "string" && (SYNC_KINDS as readonly string[]).includes(op.record_kind) ? op.record_kind : null
     const project = typeof op.project_id === "string" ? op.project_id : null
-    const hold = () => {
-      if (recKey) held.add(recKey)
+
+    // an earlier op on the same record is still waiting to run: run it first, so its outcome decides this one
+    if (recKey && pending.some((p) => p.recKey === recKey)) await flush()
+    if (recKey && held.has(recKey)) {
+      results[i] = { op_id: opId, status: "failed", error: { code: "PREVIOUS_OP_BLOCKED" } }
+      continue
     }
 
-    if (recKey && held.has(recKey)) {
-      results.push({ op_id: opId, status: "failed", error: { code: "PREVIOUS_OP_BLOCKED" } })
-      continue
+    // the DEADLINE (review D1 F-07): no new op starts after PUSH_START_CUTOFF_MS, so a push always answers inside the laptop's 60 s timeout and the
+    // platform's wall clock; the rest come back RETRY_LATER (nothing ran for them, the laptop sends them in its next push)
+    if (clock() - startedAt > PUSH_START_CUTOFF_MS) {
+      await flush()
+      answerRest(i, "RETRY_LATER")
+      break
     }
 
     const begin = await callSql(deps, "projexa_sync_push_begin", { p_sub: who.sub, p_email: who.email, p_device_id: device, p_op: op })
-    if (!begin.ok) return respond(req, deps, begin.status, begin.body) // not linked / service down: the whole batch is refused, nothing ran
+    if (!begin.ok) {
+      // not linked / service down: before anything ran, the whole batch is refused as before; after, the ops already settled keep their answers
+      if (begin.status === 403 || begin.status === 503) {
+        if (!begunAny) return respond(req, deps, begin.status, begin.body)
+        await flush()
+        answerRest(i, begin.status === 403 ? "NOT_LINKED" : "SERVICE_UNAVAILABLE")
+        break
+      }
+      // a failure of THIS op only (an SQL error on its content, a cap): it gets its own answer and the batch goes on (review D1 F-08)
+      beginErrorsInARow++
+      if (begin.status === 400 || begin.status === 404) {
+        results[i] = { op_id: opId, status: "rejected", error: { code: "BAD_OP" } }
+      } else {
+        holdKey(recKey)
+        results[i] = { op_id: opId, status: "failed", error: { code: begin.status === 429 ? "RATE_LIMITED" : "BEGIN_FAILED" } }
+        logLine(deps, `push: begin failed with ${begin.status}`)
+      }
+      // the database is failing every op: stop paying for the rest
+      if (beginErrorsInARow >= PUSH_MAX_BEGIN_ERRORS_IN_A_ROW) {
+        await flush()
+        answerRest(i + 1, "RETRY_LATER")
+        break
+      }
+      continue
+    }
+    beginErrorsInARow = 0
+    begunAny = true
     const action = begin.data.action
 
     if (action === "reject") {
-      results.push({ op_id: opId, status: "rejected", error: { code: String(begin.data.code ?? "REJECTED") } })
+      results[i] = { op_id: opId, status: "rejected", error: { code: String(begin.data.code ?? "REJECTED") } }
       continue
     }
     if (action === "retry") {
-      hold()
-      results.push({ op_id: opId, status: "failed", error: { code: String(begin.data.code ?? "RETRY") } })
+      holdKey(recKey)
+      const code = String(begin.data.code ?? "RETRY")
+      results[i] = code === "EXECUTION_UNCERTAIN" ? uncertainResult(opId) : { op_id: opId, status: "failed", error: { code } }
       continue
     }
     if (action === "duplicate") {
       const stored = (begin.data.result ?? {}) as Record<string, unknown>
       if (begin.data.stored_status === "applied") {
-        results.push({ op_id: opId, status: "duplicate", record_id: stored.id ?? begin.data.record_id ?? null, route: stored.route ?? null, version: begin.data.version ?? null })
+        results[i] = { op_id: opId, status: "duplicate", record_id: stored.id ?? begin.data.record_id ?? null, route: stored.route ?? null, version: begin.data.version ?? null }
       } else {
-        results.push({ op_id: opId, status: "rejected", error: { code: String(begin.data.error_code ?? "REJECTED") } })
+        results[i] = { op_id: opId, status: "rejected", error: { code: String(begin.data.error_code ?? "REJECTED") } }
       }
       continue
     }
     if (action === "conflict") {
-      hold()
+      holdKey(recKey)
       const kind = String(begin.data.kind)
-      const server = project ? await signedRow(deps, who, now, project, kind, String(begin.data.id)) : null
-      results.push({ op_id: opId, status: "conflict", version: begin.data.server_version, base_version: begin.data.base_version, server })
+      results[i] = { op_id: opId, status: "conflict", version: begin.data.server_version, base_version: begin.data.base_version, server: null }
+      conflicts.push({ i, project, kind, id: String(begin.data.id) })
       continue
     }
-    if (action !== "run") {
-      hold()
-      results.push({ op_id: opId, status: "failed", error: { code: "BAD_ANSWER" } })
+    if (action !== "run" || !begin.data.ctx || typeof begin.data.ctx !== "object") {
+      holdKey(recKey)
+      results[i] = { op_id: opId, status: "failed", error: { code: "BAD_ANSWER" } }
       continue
     }
 
     // RUN: the real pipeline, as the person, with the live role the SQL just resolved
-    const ctx = begin.data.ctx as ExecRunBody["ctx"]
-    let outcome: ExecOutcome
-    try {
-      outcome = await execRun({ op_id: opId, function_id: String(op.function_id), params: (op.params ?? {}) as Record<string, unknown>, ctx })
-    } catch {
-      outcome = { kind: "uncertain" }
-    }
+    pending.push({ i, opId, op, ctx: begin.data.ctx as ExecRunBody["ctx"], rec, recKey, hint, project })
+    if (!deps.execRunBatch) await flush()
+  }
+  await flush()
 
-    const finish = async (status: string, result: unknown, code: string | null, kind: string | null, id: string | null) => {
-      const r = await deps.rpc("projexa_sync_push_finish", { p_user_id: ctx.user_id, p_op_id: opId, p_status: status, p_result: result, p_error_code: code, p_record_kind: kind, p_record_id: id }).catch(() => null)
-      return r && !r.error ? ((r.data ?? {}) as Record<string, unknown>) : null
-    }
-
-    if (outcome.kind === "done") {
-      const kind = hint ?? (rec && typeof rec.kind === "string" ? rec.kind : null)
-      const id = outcome.record.id ?? (rec && typeof rec.id === "string" ? rec.id : null)
-      const fin = await finish("applied", { id: outcome.record.id, route: outcome.record.route, submission_id: outcome.submission_id }, null, kind, id)
-      if (!fin) {
-        // the write happened but its ledger row could not be closed: the row reads "uncertain" after 10 minutes, and the laptop must not blindly re-send
-        hold()
-        results.push({ op_id: opId, status: "failed", error: { code: "EXECUTION_UNCERTAIN" } })
-        continue
-      }
-      const server = kind && id && project ? await signedRow(deps, who, now, project, kind, id) : null
-      results.push({ op_id: opId, status: "applied", record_id: id, route: outcome.record.route, version: fin.version ?? null, server })
-      continue
-    }
-    if (outcome.kind === "failed") {
-      const needsServer = NEEDS_SERVER_CODES.has(outcome.code)
-      const transient = TRANSIENT_CODES.has(outcome.code)
-      await finish(needsServer ? "needs_server" : transient ? "failed" : "rejected", { missing: outcome.missing }, outcome.code, null, null)
-      if (needsServer || transient) hold()
-      results.push({ op_id: opId, status: needsServer ? "needs_server" : transient ? "failed" : "rejected", error: { code: outcome.code, missing: outcome.missing } })
-      continue
-    }
-    if (outcome.kind === "unavailable") {
-      hold()
-      await finish("failed", null, "SYNC_NOT_AVAILABLE", null, null)
-      results.push({ op_id: opId, status: "failed", error: { code: "SYNC_NOT_AVAILABLE" } })
-      continue
-    }
-    // uncertain: the call went out and nothing came back
-    hold()
-    await finish("uncertain", null, "EXECUTION_UNCERTAIN", null, null)
-    results.push({ op_id: opId, status: "failed", error: { code: "EXECUTION_UNCERTAIN" } })
+  // the current signed rows: one pull-by-ids per (project, kind) for the whole push, not one per op
+  const groups = new Map<string, { project: string; kind: string; ids: string[] }>()
+  for (const x of [...conflicts.filter((c): c is { i: number; project: string; kind: string; id: string } => c.project !== null), ...applied]) {
+    const g = groups.get(`${x.project}\u0001${x.kind}`) ?? { project: x.project, kind: x.kind, ids: [] }
+    g.ids.push(x.id)
+    groups.set(`${x.project}\u0001${x.kind}`, g)
+  }
+  const rows = new Map<string, Record<string, unknown>>()
+  for (const g of groups.values()) for (const [id, row] of await signedRows(deps, who, now, g.project, g.kind, g.ids)) rows.set(`${g.project}\u0001${g.kind}\u0001${id}`, row)
+  for (const x of [...conflicts, ...applied]) {
+    const r = results[x.i]
+    if (r && x.project) r.server = rows.get(`${x.project}\u0001${x.kind}\u0001${x.id}`) ?? null
   }
 
   return respond(req, deps, 200, { results, server_time: now.toISOString() })
@@ -735,7 +1221,7 @@ async function push(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
 // JOBS: work an online laptop runs for another (drizzle/0682): leased, display-only types, a result is a PROPOSAL the server never writes into a business table
 // ---------------------------------------------------------------------------------------------------------------------------------
 async function jobs(req: Request, deps: SyncDeps, who: Who, now: Date, action: string): Promise<Response> {
-  const parsed = await readBody(req, deps, JOB_BODY_MAX_BYTES)
+  const parsed = await readBody(req, deps, JOB_BODY_MAX_BYTES_BY_ACTION[action] ?? BODY_MAX_BYTES)
   if (!parsed.ok) return parsed.res
   const b = parsed.body
   const text = (v: unknown, max: number): string | null => (typeof v === "string" && v.length > 0 && v.length <= max ? v : null)
@@ -801,7 +1287,7 @@ async function orgPull(req: Request, deps: SyncDeps, who: Who, now: Date, body: 
     if (!Array.isArray(idList) || idList.length < 1 || idList.length > PULL_IDS_MAX || !idList.every((x) => typeof x === "string" && ID_RE.test(x))) return respond(req, deps, 400, { error: `ids must be 1 to ${PULL_IDS_MAX} valid ids` })
     const r = await callSql(deps, "projexa_sync_org_pull_ids", { p_sub: who.sub, p_email: who.email, p_kind: kind, p_ids: idList })
     if (!r.ok) return respond(req, deps, r.status, r.body)
-    return respond(req, deps, 200, await buildPage(deps, who, now, ORG_SENTINEL, kind, r.data))
+    return pageResponse(req, deps, who, now, ORG_SENTINEL, kind, r.data)
   }
   const after = body.after ?? null
   const limitIn = body.limit ?? PULL_LIMIT_DEFAULT
@@ -814,5 +1300,5 @@ async function orgPull(req: Request, deps: SyncDeps, who: Who, now: Date, body: 
   }
   const r = await callSql(deps, "projexa_sync_org_pull", { p_sub: who.sub, p_email: who.email, p_kind: kind, p_after_ts: cur?.ts ?? null, p_after_id: cur?.id ?? null, p_limit: limitIn })
   if (!r.ok) return respond(req, deps, r.status, r.body)
-  return respond(req, deps, 200, await buildPage(deps, who, now, ORG_SENTINEL, kind, r.data))
+  return pageResponse(req, deps, who, now, ORG_SENTINEL, kind, r.data)
 }
