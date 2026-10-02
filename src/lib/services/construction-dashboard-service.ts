@@ -222,6 +222,25 @@ export async function updateProjectDetails(ctx: { orgId: string; userId?: string
   })
 }
 
+// lf-b2-ai-crud GROUP 3 (archive_project): the project's lifecycle status (pms_project_status). "cancelled" or "completed" is how a project is
+// archived; "active", "planning" or "paused" brings it back. Nothing is deleted and every record of the project stays. The project must be in the
+// organisation (404 otherwise); a status outside the list is 400.
+export const PROJECT_STATUSES = ["planning", "active", "paused", "completed", "cancelled"] as const
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
+
+export async function updateProjectStatus(ctx: { orgId: string; userId?: string }, projectId: string, status: string) {
+  if (!(PROJECT_STATUSES as readonly string[]).includes(status)) throw new ServiceError(`status must be one of: ${PROJECT_STATUSES.join(", ")}`, 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+    if (!project) throw new ServiceError("Project not found", 404)
+    const [row] = await db.update(projects)
+      .set({ status: status as ProjectStatus, updatedAt: new Date() })
+      .where(and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)))
+      .returning()
+    return row
+  })
+}
+
 // Point 121: sets (or clears, with null) the user-entered project value.
 // Wins over the PO-derived fallback at read time -- see getProjectDashboard.
 export async function updateProjectValue(ctx: { orgId: string }, projectId: string, projectValue: number | null) {

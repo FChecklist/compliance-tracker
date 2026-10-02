@@ -85,7 +85,14 @@ describe("drizzle/0651 on PGlite over 0621 to 0628, 0644, 0643, 0650, 0647, 0648
     const json = (JSON.parse(read("supabase/functions/ai-work-link/function-registry.generated.json")) as FnJson[]).map((f) => ({
       function_id: f.function_id, link_level: f.link_level, money_sensitive: f.money_sensitive, min_role_rank: f.min_role_rank, text_params: f.text_params, excluded_reason: f.excluded_reason,
     }))
-    const but = (rows: Array<{ function_id: string }>) => rows.filter((r) => r.function_id !== "create_project")
+    // lf-b2-ai-crud: 0685 added 24 functions 0651 never had; they are compared by the current seed's own test (ai-work-link-migrations.pglite)
+    const added0685 = new Set([
+      "update_boq", "delete_boq", "update_boq_line_amounts", "delete_progress_entry", "archive_task", "create_sprint", "update_sprint", "close_sprint",
+      "add_sprint_task", "remove_sprint_task", "update_time_entry", "delete_time_entry", "dispose_document", "update_mom_details", "delete_mom", "update_meeting",
+      "update_material", "update_room", "remove_room", "update_placement", "remove_placement", "update_floor_plan_status", "update_mood_board", "remove_mood_board_item",
+      "update_permit", "delete_permit", "archive_project",
+    ])
+    const but = (rows: Array<{ function_id: string }>) => rows.filter((r) => r.function_id !== "create_project" && !added0685.has(r.function_id))
     expect(but(after)).toEqual(but(json))
     expect(after.find((f) => f.function_id === "create_project")).toMatchObject({ link_level: null, min_role_rank: 0 })
     expect(json.find((f) => f.function_id === "create_project")).toMatchObject({ link_level: 2, min_role_rank: 2 })

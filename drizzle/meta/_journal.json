@@ -3593,6 +3593,13 @@
       "when": 1790500000000,
       "tag": "0684_projexa_sync_org_masters",
       "breakpoints": true
+    },
+    {
+      "idx": 515,
+      "version": "7",
+      "when": 1790501000000,
+      "tag": "0685_awl_ai_crud",
+      "breakpoints": true
     }
   ]
 }

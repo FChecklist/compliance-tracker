@@ -87,6 +87,8 @@ export type FakeOptions = {
   writesEnabled?: boolean
   /** SQL forgets to leave create_project off a link for one project (proves the Edge refuses it on its own). */
   leaksCreateProject?: boolean
+  /** lf-b2-ai-crud (drizzle/0685): the people (user ids) whose own "let my AI act without asking" switch is on. Default: nobody. */
+  actWithoutAsking?: string[]
 }
 
 export type FakeCall = { name: string; args: Record<string, unknown> }
@@ -219,8 +221,12 @@ export function makeFake(opts: FakeOptions = {}): Fake {
       project_id: project ? project.id : l.project_id, project_name: project ? project.name : l.project_name,
       live_role: l.role, live_rank: e.rank, authority_level: l.authority_level, allowed_functions: l.allowed, effective_level: e.level, effective_functions: e.fns,
       money_visible: e.rank >= 3, hide_personal: true, label: null, expires_at: "2026-10-02T00:00:00Z", writes_enabled: state.writesEnabled,
+      act_without_asking: switchOn(l),
     }
   }
+
+  /** lf-b2-ai-crud: the person's own switch (the fake keeps it per user id, as the SQL keeps it per person). */
+  const switchOn = (l: FakeLink): boolean => (opts.actWithoutAsking ?? []).includes(l.user_id)
 
   /** The project of a call: a person's link binds the named project (404 when the person may not read it, whatever the reason), a project link is its own. */
   function projectOf(l: FakeLink, projectId: unknown, needProject: boolean): { project: FakeProject | null } | RpcResult {
@@ -337,7 +343,8 @@ export function makeFake(opts: FakeOptions = {}): Fake {
     if (!e.fns.includes(fnId)) return codeErr("AW403", "FUNCTION_NOT_ON_LINK")
     const def = REGISTRY.find((f) => f.function_id === fnId)
     if (!def || def.kind !== "write") return codeErr("AW400", "NOT_A_WRITE")
-    if (kind === "action" && !(e.level >= 1 && def.link_level === 1)) return codeErr("AW403", "LEVEL_NOT_ALLOWED")
+    // ai_work_link__direct_ok of drizzle/0685: a level-1 function, or a level-2 one with the person's switch on, at effective level 1
+    if (kind === "action" && !(e.level >= 1 && (def.link_level === 1 || (def.link_level === 2 && switchOn(l))))) return codeErr("AW403", "LEVEL_NOT_ALLOWED")
     const params = (a.p_params ?? {}) as Record<string, unknown>
     const key0 = typeof a.p_idempotency_key === "string" && a.p_idempotency_key !== "" ? a.p_idempotency_key : `${fnId}:${JSON.stringify(params)}`
     const key = l.scope === "user" ? `${project?.id ?? ""}:${key0}` : key0

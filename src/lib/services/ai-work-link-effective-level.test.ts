@@ -85,7 +85,9 @@ describe("writes OFF: level 0 with the reason, drafts open, direct changes and r
     // the manual names the modules and what is available now; the per-function rows (id, level, availability) are served at /functions
     expect(manual).toContain("work_progress (1)")
     expect(manual).toContain("Available now: a read: not yet; a level 1 change: draft; a level 2 change: draft.")
-    expect(manual).toContain("`GET " + `${F}/${mgr.token}` + "/functions`")
+    // lf-b2-ai-crud: section F names the path under this address (the full address is in section C and the manifest), to keep the manual in budget
+    expect(manual).toContain("`GET /functions` under this address")
+    expect(manual).toContain(`- Functions: ${F}/${mgr.token}/functions`)
     expect(manual).not.toContain("| record_work_progress |")
     const rows = (await get(mgr, "/functions", base, "text/markdown")).text
     expect(rows).toMatch(/\| record_work_progress \|[^\n]*\| work_progress \| write \| 1 \| draft \|/)

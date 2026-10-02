@@ -35,6 +35,7 @@ import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, USER_LEVEL_IDS, bodyLimitFor, func
 import { suggestionAdd, suggestionList } from "./suggestions.ts"
 import { renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
 import { handleConfirm } from "./confirm.ts"
+import { handlePersonSetting } from "./person-settings.ts"
 import { actionCreate, draftCreate, draftGet, draftPreview } from "./drafts.ts"
 import { handleMcp, type McpReads } from "./mcp.ts"
 import { handleMint, isMintRoute } from "./mint.ts"
@@ -110,6 +111,8 @@ const APP_ROUTES: ReadonlyArray<{ pattern: string[]; methods: string[] }> = [
   { pattern: ["user-link"], methods: ["POST"] },
   { pattern: ["drafts", ":id", "preview"], methods: ["GET", "POST"] },
   { pattern: ["drafts", ":id", "confirm"], methods: ["POST"] },
+  // lf-b2-ai-crud: the signed-in person's own "let my AI act without asking" switch (person-settings.ts)
+  { pattern: ["settings", "act-without-asking"], methods: ["GET", "POST"] },
 ]
 
 /**
@@ -143,6 +146,17 @@ async function appRoute(req: Request, route: string[], deps: AwlDeps): Promise<O
       return plain(500, "Something failed on our side. Try again in a minute.")
     }
     return json(made.status, made.body, made.headers)
+  }
+  if (deps.session && route.length === 2 && route[0] === "settings" && route[1] === "act-without-asking") {
+    // the same session, brake and identity gates as the confirm route; a link token is a 401 there
+    let set
+    try {
+      set = await handlePersonSetting(req, { rpc: deps.rpc, session: deps.session, log: deps.log, now: deps.now })
+    } catch {
+      (deps.log ?? console.log)("ai-work-link: person setting: unhandled error -> 500")
+      return plain(500, "Something failed on our side. Try again in a minute.")
+    }
+    return json(set.status, set.body, set.headers)
   }
   if (deps.session && route.length === 3 && route[0] === "drafts" && route[2] === "preview") {
     // the preview shows a person what they are about to confirm: same session, brake and identity gates as the confirm (drafts.ts)
