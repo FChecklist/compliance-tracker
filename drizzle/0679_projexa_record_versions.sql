@@ -16,8 +16,6 @@
 --                                   `reset_required` instead of silently missing tombstones.
 --   platform.projexa_track_error   per kind: how many times tracking failed (counted at most once a minute) and the last error. Tracking never fails a business write, so this is
 --                                   where a failure becomes visible (see platform.projexa_tracking_health() in 0686).
---   platform.projexa_track_pending a child deleted together with its parent (a cascade) when neither the child nor the parent was tracked yet: the parent's delete trigger, later in
---                                   the same statement, files the child's tombstone under the parent's project.
 --   platform.projexa_track_change() the ONE tracking trigger function for every synced kind, project kinds (13 here, 15 in 0683) and organisation kinds (9 in 0684). It is attached as
 --                                   THREE STATEMENT-LEVEL triggers per table (projexa_track_i / _u / _d, with transition tables): one function call, one subtransaction and two
 --                                   set-based writes PER STATEMENT, whatever the number of rows (a 10,000-line BOQ import is 1 call, not 10,000). How a row finds its project is
@@ -123,24 +121,11 @@ CREATE TABLE IF NOT EXISTS platform.projexa_track_error (
   last_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 
-CREATE TABLE IF NOT EXISTS platform.projexa_track_pending (
-  xid xid8 NOT NULL,
-  org_id text NOT NULL,
-  kind text NOT NULL,
-  record_id text NOT NULL,
-  parent_kind text NOT NULL,
-  parent_id text NOT NULL,
-  content_hash text NOT NULL,
-  actor_id text,
-  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-  PRIMARY KEY (xid, org_id, kind, record_id)
-);
-
 DO $$
 DECLARE
   t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['projexa_record_head', 'projexa_change_log', 'projexa_sync_epoch', 'projexa_change_floor', 'projexa_track_error', 'projexa_track_pending'] LOOP
+  FOREACH t IN ARRAY ARRAY['projexa_record_head', 'projexa_change_log', 'projexa_sync_epoch', 'projexa_change_floor', 'projexa_track_error'] LOOP
     EXECUTE format('ALTER TABLE platform.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE platform.%I FORCE ROW LEVEL SECURITY', t);
     EXECUTE format('REVOKE ALL ON TABLE platform.%I FROM PUBLIC, anon, authenticated, service_role', t);
@@ -198,7 +183,7 @@ AS $fn$
   WHERE EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = p_rel AND a.attname = c.col AND a.attnum > 0 AND NOT a.attisdropped)
 $fn$;
 
--- the writer, shared by the row path and the pending path: `chg` (kind, org, rid, proj, hash, actor, eop, old_proj) holds only REAL changes, one per record.
+-- the writer: `chg` (kind, org, rid, proj, hash, actor, eop, old_proj) holds only REAL changes, one per record.
 -- One upsert of the heads (version + 1, or 1) and one append of the log; a record that moved also gets a tombstone under the project it left.
 CREATE OR REPLACE FUNCTION platform.projexa_track__writer_sql(p_chg text)
 RETURNS text
@@ -320,7 +305,9 @@ BEGIN
           v_pn, v_po, v_jn, v_jo, v_an, v_ao, v_fn, v_fo, CASE WHEN v_filtered THEN ' AND (x.pn IS NOT NULL OR x.po IS NOT NULL)' ELSE '' END);
       END IF;
 
-      -- 2. resolve: the head as laptops know it, the effective op and project, real changes only; an unresolvable cascade child waits in projexa_track_pending
+      -- 2. resolve: the head as laptops know it, the effective op and project, real changes only. A child whose parent is already gone (a cascade, or the
+      --    application deleting the BOQ before its lines) takes the project its own head recorded, else the one the PARENT's head recorded: Postgres fires the
+      --    parent statement's own triggers before the cascaded children's, so a deleted parent always has its tombstone head by then.
       EXECUTE platform.projexa_track__writer_sql(format($q$e AS (%1$s),
 r AS (
   SELECT e.rid, e.org, e.op, e.pn, e.po, e.parent_id, e.actor, encode(sha256(convert_to(e.j::text, 'UTF8')), 'hex') AS hash,
@@ -341,13 +328,6 @@ d AS (
          ELSE coalesce(r.known, r.pp) END AS proj
   FROM r
 ),
-pend AS (
-  INSERT INTO platform.projexa_track_pending (xid, org_id, kind, record_id, parent_kind, parent_id, content_hash, actor_id)
-  SELECT pg_current_xact_id(), d.org, $1, d.rid, $2, d.parent_id, d.hash, d.actor FROM d
-  WHERE d.proj IS NULL AND d.eop = 'D' AND d.hv IS NULL AND $2 IS NOT NULL AND d.parent_id IS NOT NULL
-  ON CONFLICT DO NOTHING
-  RETURNING 1
-),
 chg AS (
   SELECT DISTINCT ON (d.org, d.rid) $1::text AS kind, d.org, d.rid, d.proj, d.hash, d.actor, d.eop,
          CASE WHEN d.eop <> 'D' AND d.known IS DISTINCT FROM d.proj THEN d.known END AS old_proj
@@ -356,21 +336,6 @@ chg AS (
     AND (d.hv IS NULL OR (d.eop = 'D' AND NOT d.hd) OR (d.eop <> 'D' AND (d.hd OR d.hh IS DISTINCT FROM d.hash OR d.known IS DISTINCT FROM d.proj)))
   ORDER BY d.org, d.rid
 )$q$, v_ent, v_pp, v_pjoin)) INTO v_n USING v_kind, v_pkind;
-    END IF;
-
-    -- 3. a deleted parent files the tombstones of its cascade children that could not find their project (same transaction, same statement)
-    IF TG_OP = 'DELETE' AND EXISTS (SELECT 1 FROM platform.projexa_track_pending p WHERE p.xid = pg_current_xact_id() AND p.parent_kind = v_kind) THEN
-      EXECUTE platform.projexa_track__writer_sql(format($q$pd AS (
-  DELETE FROM platform.projexa_track_pending p USING projexa_old o
-  WHERE p.xid = pg_current_xact_id() AND p.parent_kind = $1 AND p.parent_id = o.id::text AND p.org_id = o.org_id::text
-  RETURNING p.org_id, p.kind, p.record_id, p.content_hash, p.actor_id, %1$s AS proj
-),
-chg AS (
-  SELECT DISTINCT ON (pd.org_id, pd.kind, pd.record_id) pd.kind, pd.org_id AS org, pd.record_id AS rid, pd.proj, pd.content_hash AS hash, pd.actor_id AS actor,
-         'D'::text AS eop, NULL::text AS old_proj
-  FROM pd WHERE pd.proj IS NOT NULL
-  ORDER BY pd.org_id, pd.kind, pd.record_id
-)$q$, v_po)) INTO v_n USING v_kind;
     END IF;
   EXCEPTION WHEN OTHERS THEN
     -- tracking is best effort by design: it must never be the reason a business write fails. It is COUNTED (at most once a minute per kind, so a broken

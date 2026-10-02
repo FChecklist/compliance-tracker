@@ -155,7 +155,6 @@ describe("rows that are not a project's, and rows that leave a project (sync:SYN
     }
     expect(await log("boq_lines", "cas-l1")).toEqual([["proj-a", 1, "D"]])
     expect(await log("boq_lines", "cas-l2")).toEqual([["proj-a", 1, "D"]])
-    expect((await q(`select count(*)::int n from platform.projexa_track_pending`))[0].n).toBe(0)
   })
 
   test("the application order (BOQ deleted first, then its untracked lines, no foreign key): the lines find the project through the BOQ's tombstone", async () => {
@@ -250,7 +249,7 @@ describe("retention (sql:SQL-06, sync:SYNC-10, requirements:F9)", () => {
     expect(Number(out.tombstone_heads_deleted)).toBeGreaterThanOrEqual(1)
     expect(await head("boq_lines", "cas-l1")).toBeUndefined()
     expect(await head("tasks", "mv-1")).toBeDefined() // live record, old head: kept
-    expect(Object.keys(out).sort()).toEqual(["change_log_deleted", "tombstone_heads_deleted", "track_pending"])
+    expect(Object.keys(out).sort()).toEqual(["change_log_deleted", "tombstone_heads_deleted"]) // 0680-0682 are not applied in this database
   })
 })
 
@@ -391,7 +390,7 @@ describe("grants of every object of 0678-0686 (tests:F04)", () => {
                               has_table_privilege('app_runtime', c.oid, 'SELECT,INSERT,UPDATE,DELETE') app, has_table_privilege('service_role', c.oid, 'SELECT,INSERT,UPDATE,DELETE') svc
                        from pg_class c join pg_namespace n on n.oid = c.relnamespace
                        where n.nspname = 'platform' and c.relkind = 'r' and c.relname like 'projexa\\_%' and c.relname <> 'projexa_gateway_settings'`) // 0618's table, not of this chain
-    expect(t.map((r) => r.relname).sort()).toEqual(["projexa_change_floor", "projexa_change_log", "projexa_record_head", "projexa_sync_epoch", "projexa_sync_key", "projexa_track_error", "projexa_track_pending"])
+    expect(t.map((r) => r.relname).sort()).toEqual(["projexa_change_floor", "projexa_change_log", "projexa_record_head", "projexa_sync_epoch", "projexa_sync_key", "projexa_track_error"])
     expect(t.filter((r) => !r.rls || !r.force || r.anon || r.auth || r.app || r.svc).map((r) => r.relname)).toEqual([])
   })
   test("the change log is append-only for the service role and the application role (tests:F11 (1))", async () => {

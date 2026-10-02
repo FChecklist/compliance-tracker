@@ -211,7 +211,6 @@ DROP FUNCTION IF EXISTS platform.projexa_track__writer_sql(text);
 DROP FUNCTION IF EXISTS platform.projexa_track__actor_sql(regclass, text);
 DROP FUNCTION IF EXISTS platform.projexa_track__json_sql(regclass, text[], text);
 DROP FUNCTION IF EXISTS platform.projexa_track__project_sql(text, text, text, text);
-DROP TABLE IF EXISTS platform.projexa_track_pending;
 DROP TABLE IF EXISTS platform.projexa_track_error;
 DROP TABLE IF EXISTS platform.projexa_change_floor;
 DROP TABLE IF EXISTS platform.projexa_sync_epoch;

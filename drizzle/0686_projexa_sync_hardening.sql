@@ -24,8 +24,8 @@
 --                                                raises each (organisation, project)'s FLOOR to the newest pruned transaction: a laptop whose cursor is below its
 --                                                floor is told reset_required (a full resync) instead of silently missing a tombstone.
 --   platform.projexa_prune_record_heads(keep, max) deletes TOMBSTONE heads (deleted records) older than `keep` (90 days). Live records keep their head.
---   platform.projexa_prune_sync_tables()         the bounded tables of 0680-0682 and 0679's pending list (each only if the table exists): pending cascade
---                                                children older than 1 day; finished work-job results nulled after 24 hours and the jobs deleted after 7 days;
+--   platform.projexa_prune_sync_tables()         the bounded tables of 0680-0682 (each only if the table exists): finished work-job results nulled after
+--                                                24 hours and the jobs deleted after 7 days;
 --                                                ledger ops applied / rejected / failed after 90 days, uncertain / needs_server / running after 180 days (a laptop
 --                                                retries within hours; an op older than that is re-run as new, as documented); install reports after 365 days
 --                                                (the newest per device is kept). projexa_release_file is NOT pruned (old releases must stay servable).
@@ -331,10 +331,6 @@ DECLARE
   v_out jsonb := '{}'::jsonb;
   v_n bigint;
 BEGIN
-  DELETE FROM platform.projexa_track_pending p WHERE p.created_at < clock_timestamp() - interval '1 day';
-  GET DIAGNOSTICS v_n = ROW_COUNT;
-  v_out := v_out || jsonb_build_object('track_pending', v_n);
-
   IF to_regclass('platform.projexa_work_job') IS NOT NULL THEN
     EXECUTE $q$UPDATE platform.projexa_work_job SET result = NULL, result_bytes = NULL
                WHERE status IN ('done', 'failed', 'cancelled') AND result IS NOT NULL AND coalesce(finished_at, created_at) < clock_timestamp() - interval '24 hours'$q$;
