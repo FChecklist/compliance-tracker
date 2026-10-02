@@ -49,6 +49,7 @@ import {
   repackWithDataDescriptors,
   TRADES,
 } from "./__test-helpers__/document-extraction-fixtures"
+import { withProjexaInternalAiOn } from "./__test-helpers__/projexa-internal-ai-switch"
 
 describe("mime-type gates", () => {
   test("isVisionExtractable stays image-only (ai-report-builder-service.ts and construction-ai-service.ts depend on this exact meaning)", () => {
@@ -667,6 +668,10 @@ describe("extractProjectFromDocument -- the BOQ must be acceptable to createBoq(
 })
 
 describe("createEdgeExtractCaller -- the fetch to the Edge Function, wired from the environment", () => {
+  // lf-b3-ai-off: the caller is a model transport; these pin its wiring with the internal AI switched on. Switched off it answers
+  // internal_ai_off without fetching: src/lib/projexa-internal-ai.transports.test.ts.
+  withProjexaInternalAiOn()
+
   test("without a base URL or a secret it answers not-configured and does not call fetch", async () => {
     let calls = 0
     const fetchImpl = (async () => { calls++; return new Response("{}") }) as unknown as typeof fetch
