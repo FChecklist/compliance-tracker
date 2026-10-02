@@ -43,7 +43,12 @@
 //     financial-redaction.test.ts; the deactivated cases pass either way,
 //     since neither was ever refused. D2 reverted (list_delayed_activities
 //     back to the bare filter) -> 3 fail here, 1 in assistant/route.test.ts.
-import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { beforeEach, describe, expect, mock, test, beforeAll, afterAll } from "bun:test"
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" })
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag })
 
 const ORG = "org-u01b"
 const PROJECT = "p-u01b"

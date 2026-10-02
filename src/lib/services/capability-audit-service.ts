@@ -80,6 +80,8 @@ import { eq, and, desc, sql } from "drizzle-orm"
 // no mapper needed.
 import { runRole } from "@/lib/ai-team/team-service"
 import { dispatchAdvisoryTask } from "@/lib/ai-team/advisory-dispatch-service"
+// lf-b3-ai-off: PROJEXA's internal-AI switch (projexa-internal-ai.ts). This job's work is a model call, so off it returns quietly.
+import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai"
 import type { TightTask } from "@/lib/task-tightening"
 import { ServiceError, type TaskCapability, computeCoverageStats, type CoverageStats } from "./capability-learning-service"
 // Priority 6 (UMR <-> Software Orchestrator integration): before Higher AI
@@ -476,6 +478,8 @@ export type AuditRunResult =
  * shouldAuditCapability() says no.
  */
 export async function runCapabilityAudit(capabilityId: string): Promise<AuditRunResult> {
+  // lf-b3-ai-off: the Auditor's turn is a model call; off, nothing is read, nothing is spent, and the capability keeps its turn.
+  if (!projexaInternalAiEnabled()) return { audited: false, reason: "internal_ai_off: PROJEXA does not run its own AI" }
   const capability = await db.query.taskCapabilities.findFirst({ where: eq(taskCapabilities.id, capabilityId) })
   if (!capability) throw new ServiceError(`No capability found for ${capabilityId}`, 404)
 

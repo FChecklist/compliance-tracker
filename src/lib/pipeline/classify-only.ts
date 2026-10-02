@@ -13,12 +13,13 @@
 import { segment } from "./segment";
 import { classifyL0, type L0Repo } from "./level0";
 import { classifySegment, normaliseForMatch, type ResolvedFunction } from "./classify";
-import { runLevel1, refusalAsUnresolved, level1RefusalCode, type Level1LaneOutcome, type Level1RefusalCode } from "./level1";
+import { runLevel1, refusalAsUnresolved, level1RefusalCode, level1OffRunner, type Level1LaneOutcome, type Level1RefusalCode } from "./level1";
 import { deriveChain, type ChainRepo, type DerivedChain } from "./derive-chain";
 import { functionWrites, hasExecutor, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { makeL0Repo, makeChainRepo, resolveRootLabel, logGapRow } from "./repos";
 import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
 import type { AiProviderRefusalError } from "@/lib/ai/adapter";
+import { projexaInternalAiEnabled, USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai";
 
 export type ClassifyOnlyInput = {
   orgId: string;
@@ -109,9 +110,16 @@ export async function classifyOnly(input: ClassifyOnlyInput): Promise<ClassifyOn
   // U-49 (BR-221): the gate's refusal is "nothing resolved" for the misses,
   // not a throw -- the Level 0 classifications below still come back.
   const refused: { error?: AiProviderRefusalError } = {};
-  const level1 = await refusalAsUnresolved(runLevel1, (error) => {
-    refused.error = error;
-  })(missIndices.map((i) => segs[i].text), {
+  // lf-b3-ai-off: this endpoint calls Level 1 directly (it does not go through
+  // run-submission.ts's effectiveLevel1), so the switch is read here too. Off,
+  // the misses reach no model and no provider: they stay gaps.
+  const internalAiOff = !projexaInternalAiEnabled();
+  const runner = internalAiOff
+    ? level1OffRunner()
+    : refusalAsUnresolved(runLevel1, (error) => {
+        refused.error = error;
+      });
+  const level1 = await runner(missIndices.map((i) => segs[i].text), {
     orgId: input.orgId,
     userId: input.userId,
     personId: input.level1PersonId ?? null,
@@ -199,5 +207,7 @@ export async function classifyOnly(input: ClassifyOnlyInput): Promise<ClassifyOn
     modelCalls: level1.modelCalls,
     executed: false,
     ...level1Fields(refused.error, missIndices.length),
+    // lf-b3-ai-off: a gap the internal AI would have tried is the person's own AI's job now; say so once.
+    ...(internalAiOff && out.some((s) => s.verdict === "gap") ? { message: USE_YOUR_OWN_AI } : {}),
   };
 }

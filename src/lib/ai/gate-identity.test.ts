@@ -32,6 +32,11 @@
 // dry-run.ts and classify-only.ts likewise), the RAJAT_USER_ID-equals-key-id
 // cases fail on every surface -- see the U-49 report for the recorded run.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED;
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" });
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag });
 import {
   aiEnvSnapshot,
   fakeWithTenantContext,

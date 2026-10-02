@@ -12,7 +12,12 @@
 //   5. The sentence a person is told names no environment variable, provider or key.
 //
 // Run: bun test --isolate src/lib/ai/internal-ai-policy.test.ts
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test, beforeAll, afterAll } from "bun:test"
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" })
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag })
 import { CLAUDE_CLI_OWNER_FLAG, claudeCliOwnerFlagOn, claudeCliPermission, refusalSentence, resolveInternalAiRoute, type InternalAiRefusalReason } from "./internal-ai-policy"
 
 const KEYS = ["AI_PROVIDER", "AI_PROVIDER_PIPELINE_L1", "AI_ALLOWED_PROVIDERS", CLAUDE_CLI_OWNER_FLAG, "RAJAT_USER_ID", "OPENROUTER_API_KEY"] as const

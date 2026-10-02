@@ -43,6 +43,7 @@ import { db, sourceObject } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { extractRawTextForMimeType, chunkAndEmbedSourceObject } from "@/lib/services/document-extraction-service"
 import { recordIngestError } from "@/lib/crr/ingest-error"
+import { INTERNAL_AI_OFF_SKIP, projexaInternalAiEnabled } from "@/lib/projexa-internal-ai"
 
 // Not strictly this point's own what_to_do (CRR-089 names only
 // src/app/api/documents/route.ts) but disclosed here for the same real
@@ -181,6 +182,10 @@ export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
+  // lf-b3-ai-off: driving a stuck row forward ends in a real embedding (a paid model call). Off, embeddings are hash pseudo-vectors,
+  // which storeChunkEmbedding refuses (D-1), so every run would only re-record the same ingest error per row. Skip quietly instead;
+  // the rows keep their resumable status for the day the switch is turned on.
+  if (!projexaInternalAiEnabled()) return NextResponse.json(INTERNAL_AI_OFF_SKIP)
   const limitParam = Number(request.nextUrl.searchParams.get("limit"))
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, MAX_LIMIT) : DEFAULT_LIMIT
 

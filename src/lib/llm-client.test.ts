@@ -2,7 +2,12 @@
 // Wave 79: regression test for Wave 23's token-cost estimation -- pure
 // math, no network/DB, cheap to get exactly right and easy to silently
 // break (e.g. a units mix-up between per-1k and per-token pricing).
-import { describe, expect, test, afterEach, mock } from "bun:test"
+import { describe, expect, test, afterEach, mock, beforeAll, afterAll } from "bun:test"
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" })
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag })
 import { estimateCostUsd, estimateCostBreakdownUsd, estimateCacheSavingsUsd, callLLM, logAiSupervisionEvent } from "./llm-client"
 
 // 2026-09-12 production-RAM/resource audit finding: logAiSupervisionEvent

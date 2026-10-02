@@ -72,6 +72,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMVision, callLLMJson, type LLMUsage } from "@/lib/llm-client"
+import { assertProjexaInternalAi, projexaInternalAiEnabled, USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { autoClassifyDocument } from "@/lib/services/document-classification-service"
@@ -296,6 +297,8 @@ export async function extractComplianceFields(
   orgId: string,
   textContent: string
 ): Promise<ExtractedComplianceFields> {
+  // lf-b3-ai-off: the refusal (ProjexaInternalAiOffError, 403, USE_YOUR_OWN_AI) before a model config is resolved.
+  assertProjexaInternalAi("document.extract_compliance_fields")
   const modelConfig = await resolveModelConfig(orgId, "customer_account_oa")
   if (!modelConfig) {
     throw new Error("No AI model configured for document extraction. Configure one in Settings -> AI Configuration.")
@@ -505,6 +508,9 @@ export async function extractDocumentContent(
     businessObjectType?: string | null
   }
 ): Promise<void> {
+  // lf-b3-ai-off: background enrichment, so off is a silent skip (no model resolved, nothing logged) -- the same posture as the
+  // "no model configured" branch below, minus the failed-execution row, since nothing was attempted.
+  if (!projexaInternalAiEnabled()) return
   const startedAt = Date.now()
   const isVision = isVisionExtractable(ctx.mimeType)
   // "vision_document_extraction" routes through orchestra-model-resolver.ts's
@@ -896,6 +902,9 @@ export type EdgeCaller = (bodyJson: string, attribution?: EdgeAttribution) => Pr
 
 const EDGE_EXTRACT_PATH = "/functions/v1/projexa-document-extract"
 
+/** lf-b3-ai-off: the code an EdgeCaller answers with when PROJEXA's internal AI is switched off (same value as internal-model-gateway.ts's). */
+export const INTERNAL_AI_OFF_EDGE_CODE = "internal_ai_off"
+
 /**
  * The real caller, wired only in the route from the server's environment: baseUrl is the Supabase project URL, secret the shared
  * bearer secret (PROJEXA_DOCUMENT_EXTRACT_SECRET). With either missing it answers as the not-configured case, so an environment
@@ -903,6 +912,8 @@ const EDGE_EXTRACT_PATH = "/functions/v1/projexa-document-extract"
  */
 export function createEdgeExtractCaller(config: { baseUrl?: string | null; secret?: string | null; fetchImpl?: typeof fetch; timeoutMs?: number }): EdgeCaller {
   return async (bodyJson, attribution) => {
+    // lf-b3-ai-off: the Edge Function's work is a model call billed to us. Off (projexa-internal-ai.ts), it is not reached at all.
+    if (!projexaInternalAiEnabled()) return { status: 503, body: { ok: false, code: INTERNAL_AI_OFF_EDGE_CODE } }
     const baseUrl = config.baseUrl?.trim()
     const secret = config.secret?.trim()
     if (!baseUrl || !secret) return { status: 503, body: { ok: false, code: "extraction_not_configured" } }
@@ -949,6 +960,10 @@ function readEdgeOutput(res: EdgeCallResult): unknown {
     return (body as { output: unknown }).output
   }
   const code = edgeCode(body)
+  // lf-b3-ai-off: the same stable rejection code as "no model configured", in the plain words of USE_YOUR_OWN_AI.
+  if (res.status === 503 && code === INTERNAL_AI_OFF_EDGE_CODE) {
+    throw new ExtractionRejectedError("model_not_configured", USE_YOUR_OWN_AI)
+  }
   if (res.status === 503 && code === "model_not_configured") {
     throw new ExtractionRejectedError("model_not_configured", "No extraction model is configured yet, so nothing was created")
   }
