@@ -24,6 +24,7 @@
 import { describe, test, expect, beforeAll, afterAll, setDefaultTimeout } from "bun:test"
 import type { PGlite } from "@electric-sql/pglite"
 import { AWL_MIGRATIONS, downSql, failure, forwardSql, one, openAwlPglite, read } from "./__test-helpers__/awl-pglite"
+import { extractBlock } from "../../../scripts/gen-ai-link-registry"
 
 // PGlite tests run real Postgres as WASM: a loaded laptop or CI runner can pass bun's 5 s default for one test
 setDefaultTimeout(60_000)
@@ -387,7 +388,9 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
     await db.exec(forwardSql("0649_build002_awl_seed_waves_7_9"))
     await db.exec(forwardSql("0651_build002_awl_seed_submit_timesheet"))
     await db.exec(forwardSql("0669_awl_seed_user_link_create_project"))
-    await db.exec(forwardSql("0685_awl_ai_crud")) // the current seed (scripts/gen-ai-link-registry.ts CURRENT_SEED_MIGRATION): lf-b2-ai-crud's 24 functions
+    // the current seed (scripts/gen-ai-link-registry.ts CURRENT_SEED_MIGRATION): lf-b2-ai-crud's 24 functions. Only its generated block here: the rest of 0685
+    // (the per-person switch) re-creates functions of 0668, which this base does not have; ai-work-link-person-switch.pglite.test.ts runs the whole file.
+    await db.exec(extractBlock(forwardSql("0685_awl_ai_crud"))!)
     const fnJson = (JSON.parse(read("supabase/functions/ai-work-link/function-registry.generated.json")) as FnJson[]).map((f) => ({
       function_id: f.function_id, product: f.product, kind: f.kind, link_level: f.link_level, money_sensitive: f.money_sensitive, min_role_rank: f.min_role_rank, excluded_reason: f.excluded_reason, text_params: f.text_params,
     }))

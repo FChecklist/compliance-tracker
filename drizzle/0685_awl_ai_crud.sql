@@ -242,4 +242,505 @@ REVOKE ALL ON FUNCTION public.ai_work_link__registry_version() FROM PUBLIC, anon
 GRANT EXECUTE ON FUNCTION public.ai_work_link__registry_version() TO service_role;
 -- END GENERATED
 
+-- =============================================================================================================================================
+-- GROUP 2: "let my AI act without asking", a switch that belongs to ONE PERSON.
+--
+-- Before this file the only switches were the global kill switch (platform.ai_work_link_settings.writes_enabled) and each link's own ceiling
+-- (authority_level 0 or 1, fixed at mint). A level-2 function was a draft on every link, always. Now a person may switch on "act without asking":
+-- then THEIR links (and only theirs) may run a level-2 function directly, exactly as a level-1 one, through POST /actions. Every other rule stays:
+--   - the kill switch: with writes off every link is at effective level 0, nothing runs directly and the claim answers not_enabled first;
+--   - the link's own ceiling: a link made at level 0 stays drafts-only whatever the person's switch says (effective level 0);
+--   - the role: the effective function list is still the person's rank, read now; a person below the member rank has effective level 0;
+--   - the switch is read NOW, at record time and again at claim time, so switching it off stops an action recorded a moment before (ROLE_CHANGED);
+--   - another person's switch has no effect on this person's links, and a switch kept for another organisation has none either (the row names
+--     the organisation, and it must be the person's organisation now).
+-- Default: off. A row exists only once the person has used the switch.
+--
+--   platform.ai_work_link_person_settings (user_id PK, org_id, act_without_asking, updated_at)   RLS forced, no policy, no grant: only the SECURITY
+--       DEFINER functions below read or write it.
+--   public.ai_work_link__acts_without_asking(user_id, org_id)   the person's switch, false when absent (owner-only).
+--   public.ai_work_link__direct_ok(ctx, link_level)   THE predicate a direct action needs: effective level 1, and a level-1 function, or a level-2
+--       function with the person's switch on (owner-only). It replaces `link_level = 1` in record_intent and in intent_claim.
+--   RE-CREATED ai_work_link__resolve and ai_work_link__live (0668 bodies, kept equal): the context also says `act_without_asking`, so the Edge
+--       function can tell the AI that a level-2 change may be made directly. Nothing else in them changes.
+--   RE-CREATED ai_work_link_record_intent and ai_work_link_intent_claim (0668 bodies): the one predicate above, nothing else.
+--   public.ai_work_link_person_setting(user_id)         the person's switch, for the app route that has resolved the person from their PROJEXA
+--       session (supabase/functions/ai-work-link/person-settings.ts, the same session and person gates as the confirm route). service_role only.
+--   public.ai_work_link_person_setting_set(user_id, on)  sets it. Refuses AW403 USER_NOT_ACTIVE for a person who is not an active user of an
+--       organisation. service_role only.
+-- ERRORS: AW403 USER_NOT_ACTIVE (setter); AW400 BAD_VALUE (setter, a null value). The re-created functions raise what they raised.
+-- GRANTS: the helpers are owner-only; the two setting functions are granted to service_role alone.
+-- =============================================================================================================================================
+
+CREATE TABLE IF NOT EXISTS platform.ai_work_link_person_settings (
+  user_id text PRIMARY KEY,
+  org_id text NOT NULL,
+  act_without_asking boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE platform.ai_work_link_person_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform.ai_work_link_person_settings FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE platform.ai_work_link_person_settings FROM PUBLIC, anon, authenticated, app_runtime, service_role;
+
+CREATE OR REPLACE FUNCTION public.ai_work_link__acts_without_asking(p_user_id text, p_org_id text)
+RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $fn$
+BEGIN
+  RETURN coalesce((
+    SELECT s.act_without_asking FROM platform.ai_work_link_person_settings s
+    WHERE s.user_id = p_user_id AND s.org_id = p_org_id), false);
+END
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.ai_work_link__direct_ok(p_ctx jsonb, p_link_level integer)
+RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE
+SET search_path = pg_catalog, pg_temp
+AS $fn$
+BEGIN
+  RETURN coalesce((p_ctx ->> 'effective_level')::integer, 0) >= 1
+     AND (p_link_level = 1 OR (p_link_level = 2 AND coalesce((p_ctx ->> 'act_without_asking')::boolean, false)));
+END
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.ai_work_link__resolve(p_token text)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $fn$
+DECLARE
+  v_hash text := public.ai_work_link__hash_token(p_token);
+  v_l record;
+  v_u record;
+  v_p record;
+  v_pid text;
+  v_pname text;
+  v_rank integer;
+  v_writes boolean;
+  v_level integer;
+  v_fns text[];
+  v_gone constant jsonb := jsonb_build_object('status', 'gone');
+BEGIN
+  IF v_hash IS NULL THEN
+    RETURN v_gone;
+  END IF;
+  SELECT l.id, l.org_id, l.user_id, l.project_id, l.scope, l.status, l.expires_at, l.authority_level, l.allowed_functions, l.hide_personal, l.label
+    INTO v_l
+  FROM platform.user_ai_links l
+  WHERE l.token_hash = v_hash AND l.product = 'projexa';
+  IF NOT FOUND OR v_l.status <> 'active' OR v_l.expires_at IS NULL OR v_l.expires_at <= now() THEN
+    RETURN v_gone;
+  END IF;
+
+  -- PMD-33: a link acts as exactly one person, so it stops when that person is no longer an active user of the organisation
+  SELECT u.id, u.name, u.role::text AS role, u.is_active, u.org_id INTO v_u
+  FROM compliance.users u WHERE u.id = v_l.user_id;
+  IF NOT FOUND OR NOT v_u.is_active OR v_u.org_id IS DISTINCT FROM v_l.org_id THEN
+    RETURN v_gone;
+  END IF;
+
+  IF v_l.scope = 'user' THEN
+    -- a user link has no project of its own: each project it works in is bound and checked by ai_work_link__bind on that call
+    v_pid := NULL;
+    v_pname := NULL;
+  ELSE
+    -- the project still exists in the organisation and is still readable by this person (spec 10.3)
+    SELECT pr.id, pr.name, pr.org_id, pr.access_level::text AS access_level, pr.lead_user_id INTO v_p
+    FROM compliance.projects pr WHERE pr.id = v_l.project_id;
+    IF NOT FOUND OR v_p.org_id IS DISTINCT FROM v_l.org_id
+       OR NOT public.ai_work_link__can_read_project(v_p.access_level, v_p.lead_user_id, v_u.id, v_u.role) THEN
+      RETURN v_gone;
+    END IF;
+    v_pid := v_p.id;
+    v_pname := v_p.name;
+  END IF;
+
+  v_rank := public.ai_work_link__role_rank(v_u.role);
+  SELECT coalesce((SELECT s.writes_enabled FROM platform.ai_work_link_settings s WHERE s.id), false) INTO v_writes;
+
+  -- spec 10.9: level 0 while no executor exists, and for any person below rank 2; otherwise the ceiling chosen at mint
+  v_level := CASE WHEN NOT v_writes OR v_rank < 2 THEN 0 ELSE v_l.authority_level END;
+
+  v_fns := public.ai_work_link__fns(v_l.scope, false, v_l.allowed_functions, v_rank);
+
+  RETURN jsonb_build_object(
+    'status', 'ok',
+    'link_id', v_l.id,
+    'scope', v_l.scope,
+    'org_id', v_l.org_id,
+    'user_id', v_u.id,
+    'user_name', v_u.name,
+    'project_id', v_pid,
+    'project_name', v_pname,
+    'live_role', v_u.role,
+    'live_rank', v_rank,
+    'authority_level', v_l.authority_level,
+    'allowed_functions', to_jsonb(v_l.allowed_functions),
+    'effective_level', v_level,
+    'effective_functions', to_jsonb(v_fns),
+    'money_visible', v_rank >= 3,
+    'hide_personal', v_l.hide_personal,
+    'label', v_l.label,
+    'expires_at', to_char(v_l.expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    'writes_enabled', v_writes,
+    -- lf-b2-ai-crud: the person's own switch, read now (it decides nothing while the effective level is 0)
+    'act_without_asking', public.ai_work_link__acts_without_asking(v_u.id, v_l.org_id));
+END
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.ai_work_link__live(p_link_id text)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $fn$
+DECLARE
+  v_l record;
+  v_u record;
+  v_p record;
+  v_pid text;
+  v_pname text;
+  v_rank integer;
+  v_writes boolean;
+  v_level integer;
+  v_fns text[];
+  v_gone constant jsonb := jsonb_build_object('status', 'gone');
+BEGIN
+  IF p_link_id IS NULL THEN
+    RETURN v_gone;
+  END IF;
+  SELECT l.id, l.org_id, l.user_id, l.project_id, l.scope, l.status, l.expires_at, l.authority_level, l.allowed_functions, l.hide_personal, l.label
+    INTO v_l
+  FROM platform.user_ai_links l
+  WHERE l.id = p_link_id AND l.product = 'projexa';
+  IF NOT FOUND OR v_l.status <> 'active' OR v_l.expires_at IS NULL OR v_l.expires_at <= now() THEN
+    RETURN v_gone;
+  END IF;
+
+  SELECT u.id, u.name, u.role::text AS role, u.is_active, u.org_id INTO v_u
+  FROM compliance.users u WHERE u.id = v_l.user_id;
+  IF NOT FOUND OR NOT v_u.is_active OR v_u.org_id IS DISTINCT FROM v_l.org_id THEN
+    RETURN v_gone;
+  END IF;
+
+  IF v_l.scope = 'user' THEN
+    v_pid := NULL;
+    v_pname := NULL;
+  ELSE
+    SELECT pr.id, pr.name, pr.org_id, pr.access_level::text AS access_level, pr.lead_user_id INTO v_p
+    FROM compliance.projects pr WHERE pr.id = v_l.project_id;
+    IF NOT FOUND OR v_p.org_id IS DISTINCT FROM v_l.org_id
+       OR NOT public.ai_work_link__can_read_project(v_p.access_level, v_p.lead_user_id, v_u.id, v_u.role) THEN
+      RETURN v_gone;
+    END IF;
+    v_pid := v_p.id;
+    v_pname := v_p.name;
+  END IF;
+
+  v_rank := public.ai_work_link__role_rank(v_u.role);
+  SELECT coalesce((SELECT s.writes_enabled FROM platform.ai_work_link_settings s WHERE s.id), false) INTO v_writes;
+  v_level := CASE WHEN NOT v_writes OR v_rank < 2 THEN 0 ELSE v_l.authority_level END;
+
+  v_fns := public.ai_work_link__fns(v_l.scope, false, v_l.allowed_functions, v_rank);
+
+  RETURN jsonb_build_object(
+    'status', 'ok',
+    'link_id', v_l.id,
+    'scope', v_l.scope,
+    'org_id', v_l.org_id,
+    'user_id', v_u.id,
+    'user_name', v_u.name,
+    'project_id', v_pid,
+    'project_name', v_pname,
+    'live_role', v_u.role,
+    'live_rank', v_rank,
+    'authority_level', v_l.authority_level,
+    'allowed_functions', to_jsonb(v_l.allowed_functions),
+    'effective_level', v_level,
+    'effective_functions', to_jsonb(v_fns),
+    'money_visible', v_rank >= 3,
+    'hide_personal', v_l.hide_personal,
+    'label', v_l.label,
+    'expires_at', to_char(v_l.expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    'writes_enabled', v_writes,
+    'act_without_asking', public.ai_work_link__acts_without_asking(v_u.id, v_l.org_id));
+END
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.ai_work_link_record_intent(
+  p_token text, p_kind text, p_function_id text, p_params jsonb, p_idempotency_key text DEFAULT NULL, p_project_id text DEFAULT NULL)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $fn$
+DECLARE
+  v_ctx jsonb := public.ai_work_link__require_in(p_token, p_project_id, false);
+  v_link text := v_ctx ->> 'link_id';
+  v_project text := v_ctx ->> 'project_id';
+  v_now timestamptz := clock_timestamp();
+  v_fn record;
+  v_key text;
+  v_existing record;
+  v_id text := replace(gen_random_uuid()::text, '-', '');
+  v_status text;
+  v_expires timestamptz;
+  v_confirm text;
+  v_confirm_hash text;
+  v_hour integer;
+  v_day integer;
+  v_projects integer;
+  v_inserted text;
+BEGIN
+  IF p_kind IS NULL OR p_kind NOT IN ('action', 'draft') THEN
+    RAISE EXCEPTION 'BAD_KIND' USING ERRCODE = 'AW400';
+  END IF;
+  IF p_params IS NULL OR jsonb_typeof(p_params) <> 'object' OR octet_length(p_params::text) > 8192 THEN
+    RAISE EXCEPTION 'BAD_PARAMS' USING ERRCODE = 'AW400';
+  END IF;
+  -- the effective list of THIS context: a user link outside a project holds create_project and nothing else, inside one every function
+  -- but create_project, a project link every function but create_project. So a draft with no project can only be a new project.
+  IF p_function_id IS NULL
+     OR NOT (p_function_id = ANY (ARRAY(SELECT jsonb_array_elements_text(v_ctx -> 'effective_functions')))) THEN
+    RAISE EXCEPTION 'FUNCTION_NOT_ON_LINK' USING ERRCODE = 'AW403';
+  END IF;
+  SELECT f.function_id, f.kind, f.link_level INTO v_fn
+  FROM platform.ai_work_link_functions f WHERE f.function_id = p_function_id;
+  IF v_fn.kind IS DISTINCT FROM 'write' THEN
+    RAISE EXCEPTION 'NOT_A_WRITE' USING ERRCODE = 'AW400';
+  END IF;
+  IF v_project IS NULL AND p_function_id <> 'create_project' THEN
+    RAISE EXCEPTION 'PROJECT_REQUIRED' USING ERRCODE = 'AW400';
+  END IF;
+  -- with no project in the context this is true for any projectId: a new project is not made inside another one
+  IF p_params ? 'projectId' AND (p_params ->> 'projectId') IS DISTINCT FROM v_project THEN
+    RAISE EXCEPTION 'WRONG_PROJECT' USING ERRCODE = 'AW403';
+  END IF;
+  -- lf-b2-ai-crud: a direct action needs effective level 1 and a level-1 function, or a level-2 function with the PERSON's switch on
+  IF p_kind = 'action' AND NOT public.ai_work_link__direct_ok(v_ctx, v_fn.link_level) THEN
+    RAISE EXCEPTION 'LEVEL_NOT_ALLOWED' USING ERRCODE = 'AW403';
+  END IF;
+
+  v_key := nullif(btrim(coalesce(p_idempotency_key, '')), '');
+  IF v_key IS NULL THEN
+    v_key := encode(sha256(convert_to(jsonb_build_object(
+      'function', p_function_id, 'params', p_params, 'utc_date', to_char(v_now AT TIME ZONE 'UTC', 'YYYY-MM-DD'),
+      'project', CASE WHEN v_ctx ->> 'scope' = 'user' THEN v_project END)::text, 'UTF8')), 'hex');
+  ELSIF char_length(v_key) > 128 THEN
+    RAISE EXCEPTION 'BAD_PARAMS' USING ERRCODE = 'AW400';
+  ELSIF v_ctx ->> 'scope' = 'user' THEN
+    -- a retry key of a user link is per project: the same key in two projects is two changes, never a replay of the first
+    v_key := encode(sha256(convert_to(coalesce(v_project, '') || ':' || v_key, 'UTF8')), 'hex');
+  END IF;
+
+  -- an unexecuted intent past its expiry, and an executing one that ran out of time, must not keep holding a key
+  PERFORM public.ai_work_link__sweep_intents(v_link);
+
+  SELECT i.id, i.status, i.kind, i.expires_at, i.submission_id, i.result, i.failure INTO v_existing
+  FROM platform.ai_work_link_intent i
+  WHERE i.link_id = v_link AND i.idempotency_key = v_key
+    AND i.status IN ('recorded', 'executing', 'done', 'awaiting_confirmation', 'confirmed');
+  IF FOUND THEN
+    RETURN jsonb_build_object(
+      'intent_id', v_existing.id, 'status', v_existing.status, 'kind', v_existing.kind, 'function_id', p_function_id,
+      'replayed', true, 'confirm_token', NULL,
+      'expires_at', to_char(v_existing.expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+      'submission_id', v_existing.submission_id, 'result', v_existing.result, 'failure', v_existing.failure);
+  END IF;
+
+  SELECT count(*) FILTER (WHERE i.created_at > v_now - interval '1 hour'), count(*) INTO v_hour, v_day
+  FROM platform.ai_work_link_intent i WHERE i.link_id = v_link AND i.created_at > v_now - interval '1 day';
+  IF v_hour >= 30 THEN
+    RAISE EXCEPTION 'WRITE_CAP_HOUR' USING ERRCODE = 'AW429';
+  END IF;
+  IF v_day >= 200 THEN
+    RAISE EXCEPTION 'WRITE_CAP_DAY' USING ERRCODE = 'AW429';
+  END IF;
+  -- a new project is rarer than a daily entry: 5 a person a day, over every link the person has (the 5 shell projects a day of 0631)
+  IF p_function_id = 'create_project' THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended('ai_work_link_new_project:' || (v_ctx ->> 'user_id'), 0));
+    SELECT count(*) INTO v_projects
+    FROM platform.ai_work_link_intent i
+    WHERE i.user_id = v_ctx ->> 'user_id' AND i.function_id = 'create_project' AND i.created_at > v_now - interval '1 day';
+    IF v_projects >= 5 THEN
+      RAISE EXCEPTION 'PROJECT_CAP_DAY' USING ERRCODE = 'AW429';
+    END IF;
+  END IF;
+
+  IF p_kind = 'draft' THEN
+    v_status := 'awaiting_confirmation';
+    v_expires := v_now + interval '48 hours';
+    v_confirm := encode(extensions.gen_random_bytes(32), 'hex');
+    v_confirm_hash := encode(sha256(convert_to(v_confirm, 'UTF8')), 'hex');
+  ELSE
+    v_status := 'recorded';
+    v_expires := v_now + interval '1 hour';
+  END IF;
+
+  INSERT INTO platform.ai_work_link_intent (
+    id, link_id, org_id, project_id, user_id, function_id, params, kind, idempotency_key, status,
+    confirm_token_hash, expires_at, created_at)
+  VALUES (
+    v_id, v_link, v_ctx ->> 'org_id', v_project, v_ctx ->> 'user_id', p_function_id, p_params, p_kind, v_key,
+    v_status, v_confirm_hash, v_expires, v_now)
+  ON CONFLICT (link_id, idempotency_key) WHERE status IN ('recorded', 'executing', 'done', 'awaiting_confirmation', 'confirmed')
+  DO NOTHING
+  RETURNING id INTO v_inserted;
+
+  IF v_inserted IS NULL THEN
+    -- a concurrent request recorded the same key between the read above and the insert: report that one
+    SELECT i.id, i.status, i.kind, i.expires_at, i.submission_id, i.result, i.failure INTO v_existing
+    FROM platform.ai_work_link_intent i
+    WHERE i.link_id = v_link AND i.idempotency_key = v_key
+      AND i.status IN ('recorded', 'executing', 'done', 'awaiting_confirmation', 'confirmed');
+    RETURN jsonb_build_object(
+      'intent_id', v_existing.id, 'status', v_existing.status, 'kind', v_existing.kind, 'function_id', p_function_id,
+      'replayed', true, 'confirm_token', NULL,
+      'expires_at', to_char(v_existing.expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+      'submission_id', v_existing.submission_id, 'result', v_existing.result, 'failure', v_existing.failure);
+  END IF;
+
+  UPDATE platform.user_ai_links SET write_count = write_count + 1 WHERE id = v_link;
+
+  RETURN jsonb_build_object(
+    'intent_id', v_id, 'status', v_status, 'kind', p_kind, 'function_id', p_function_id, 'replayed', false,
+    'confirm_token', v_confirm,
+    'expires_at', to_char(v_expires AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    'submission_id', NULL, 'result', NULL, 'failure', NULL);
+END
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.ai_work_link_intent_claim(p_intent_id text)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $fn$
+DECLARE
+  v_link text;
+  v_i record;
+  v_ctx jsonb;
+  v_writes boolean;
+  v_now timestamptz := clock_timestamp();
+  v_fn_level smallint;
+  v_why text;
+BEGIN
+  SELECT i.link_id INTO v_link FROM platform.ai_work_link_intent i WHERE i.id = p_intent_id;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'refused', 'reason', 'not_found');
+  END IF;
+
+  -- the switch first: with writes off nothing about the intent changes (spec 9.5: it waits)
+  SELECT coalesce((SELECT s.writes_enabled FROM platform.ai_work_link_settings s WHERE s.id), false) INTO v_writes;
+  IF NOT v_writes THEN
+    RETURN jsonb_build_object('status', 'not_enabled');
+  END IF;
+
+  PERFORM public.ai_work_link__sweep_intents(v_link);
+
+  SELECT i.id, i.link_id, i.org_id, i.project_id, i.user_id, i.function_id, i.params, i.kind, i.status, i.confirmed_by INTO v_i
+  FROM platform.ai_work_link_intent i WHERE i.id = p_intent_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'refused', 'reason', 'not_found');
+  END IF;
+
+  IF v_i.status = 'executing' THEN
+    RETURN jsonb_build_object('status', 'refused', 'reason', 'already_executing');
+  END IF;
+  IF v_i.status = 'expired' THEN
+    RETURN jsonb_build_object('status', 'refused', 'reason', 'expired');
+  END IF;
+  IF NOT ((v_i.kind = 'action' AND v_i.status = 'recorded') OR (v_i.kind = 'draft' AND v_i.status = 'confirmed')) THEN
+    RETURN jsonb_build_object('status', 'refused', 'reason', 'not_claimable', 'current', v_i.status);
+  END IF;
+  -- a draft runs only after its own person confirmed it
+  IF v_i.kind = 'draft' AND v_i.confirmed_by IS DISTINCT FROM v_i.user_id THEN
+    RETURN jsonb_build_object('status', 'refused', 'reason', 'not_confirmed_by_owner');
+  END IF;
+
+  v_ctx := public.ai_work_link__live(v_i.link_id);
+  -- a user link's intent names its project: the link must still be able to read it (organisation and readability, checked now)
+  IF v_ctx ->> 'status' = 'ok' AND v_ctx ->> 'scope' = 'user' AND v_i.project_id IS NOT NULL THEN
+    v_ctx := coalesce(public.ai_work_link__bind(v_ctx, v_i.project_id), jsonb_build_object('status', 'gone'));
+  END IF;
+  v_why := NULL;
+  IF v_ctx ->> 'status' IS DISTINCT FROM 'ok' OR v_ctx ->> 'user_id' IS DISTINCT FROM v_i.user_id OR v_ctx ->> 'project_id' IS DISTINCT FROM v_i.project_id THEN
+    v_why := 'LINK_GONE';
+  ELSE
+    SELECT f.link_level INTO v_fn_level FROM platform.ai_work_link_functions f WHERE f.function_id = v_i.function_id;
+    -- lf-b2-ai-crud: an action is held to the same predicate as at record time, read NOW (the person may have switched it off since)
+    IF NOT (v_i.function_id = ANY (ARRAY(SELECT jsonb_array_elements_text(v_ctx -> 'effective_functions'))))
+       OR (v_i.kind = 'action' AND NOT public.ai_work_link__direct_ok(v_ctx, coalesce(v_fn_level, 0))) THEN
+      v_why := 'ROLE_CHANGED';
+    END IF;
+  END IF;
+  IF v_why IS NOT NULL THEN
+    UPDATE platform.ai_work_link_intent
+    SET status = 'refused', failure = jsonb_build_object('code', v_why, 'missing', '[]'::jsonb)
+    WHERE id = v_i.id;
+    RETURN jsonb_build_object('status', 'refused', 'reason', v_why);
+  END IF;
+
+  UPDATE platform.ai_work_link_intent SET status = 'executing', claimed_at = v_now WHERE id = v_i.id;
+  RETURN jsonb_build_object(
+    'status', 'ok',
+    'intent', jsonb_build_object('id', v_i.id, 'kind', v_i.kind, 'function_id', v_i.function_id, 'params', v_i.params),
+    'ctx', jsonb_build_object(
+      'link_id', v_i.link_id, 'org_id', v_ctx ->> 'org_id', 'user_id', v_ctx ->> 'user_id', 'project_id', v_ctx ->> 'project_id',
+      'live_role', v_ctx ->> 'live_role', 'live_rank', (v_ctx ->> 'live_rank')::integer,
+      'effective_level', (v_ctx ->> 'effective_level')::integer, 'money_visible', (v_ctx ->> 'money_visible')::boolean));
+END
+$fn$;
+
+-- the person's switch, for the app route that resolved the person from their own PROJEXA session (never from a link token)
+CREATE OR REPLACE FUNCTION public.ai_work_link_person_setting(p_user_id text)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $fn$
+DECLARE
+  v_u record;
+  v_s record;
+BEGIN
+  SELECT u.id, u.org_id, u.is_active INTO v_u FROM compliance.users u WHERE u.id = p_user_id;
+  IF NOT FOUND OR NOT v_u.is_active OR v_u.org_id IS NULL THEN
+    RAISE EXCEPTION 'USER_NOT_ACTIVE' USING ERRCODE = 'AW403';
+  END IF;
+  SELECT s.act_without_asking, s.updated_at INTO v_s
+  FROM platform.ai_work_link_person_settings s WHERE s.user_id = v_u.id AND s.org_id = v_u.org_id;
+  RETURN jsonb_build_object(
+    'act_without_asking', coalesce(v_s.act_without_asking, false),
+    'updated_at', CASE WHEN v_s.updated_at IS NULL THEN NULL ELSE to_char(v_s.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') END);
+END
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.ai_work_link_person_setting_set(p_user_id text, p_act_without_asking boolean)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $fn$
+DECLARE
+  v_u record;
+BEGIN
+  IF p_act_without_asking IS NULL THEN
+    RAISE EXCEPTION 'BAD_VALUE' USING ERRCODE = 'AW400';
+  END IF;
+  SELECT u.id, u.org_id, u.is_active INTO v_u FROM compliance.users u WHERE u.id = p_user_id;
+  IF NOT FOUND OR NOT v_u.is_active OR v_u.org_id IS NULL THEN
+    RAISE EXCEPTION 'USER_NOT_ACTIVE' USING ERRCODE = 'AW403';
+  END IF;
+  -- the row names the person's organisation NOW: a person who moves organisation starts with the switch off there
+  INSERT INTO platform.ai_work_link_person_settings (user_id, org_id, act_without_asking, updated_at)
+  VALUES (v_u.id, v_u.org_id, p_act_without_asking, now())
+  ON CONFLICT (user_id) DO UPDATE SET org_id = EXCLUDED.org_id, act_without_asking = EXCLUDED.act_without_asking, updated_at = EXCLUDED.updated_at;
+  RETURN public.ai_work_link_person_setting(v_u.id);
+END
+$fn$;
+
+REVOKE ALL ON FUNCTION public.ai_work_link__acts_without_asking(text, text) FROM PUBLIC, anon, authenticated, app_runtime, service_role;
+REVOKE ALL ON FUNCTION public.ai_work_link__direct_ok(jsonb, integer) FROM PUBLIC, anon, authenticated, app_runtime, service_role;
+REVOKE ALL ON FUNCTION public.ai_work_link_person_setting(text) FROM PUBLIC, anon, authenticated, app_runtime;
+GRANT EXECUTE ON FUNCTION public.ai_work_link_person_setting(text) TO service_role;
+REVOKE ALL ON FUNCTION public.ai_work_link_person_setting_set(text, boolean) FROM PUBLIC, anon, authenticated, app_runtime;
+GRANT EXECUTE ON FUNCTION public.ai_work_link_person_setting_set(text, boolean) TO service_role;
+
 COMMIT;
