@@ -203,8 +203,12 @@ describe("AW-312: link_roster_employee is on no link, with a reason; an organisa
       // BUILD-002 WP-05h: a progress claim is billed to a customer, and create_progress_claim is the one function that names one. Its executor accepts a customer only when the
       // project already bills it (linked to the project's client, or the customer of an earlier claim on the project): coverage-wave7.test.ts proves any other reads as absent.
       const billsCustomer = new Set(["create_progress_claim"]);
+      // lf-b5-ai-crud: the ORGANISATION-SCOPED class changes the vendor or customer record itself (organisation masters, not project records): its
+      // executor checks the id against the link's organisation (crud-b5-org.ts orgRecord; coverage-crud-b5.test.ts proves another organisation's reads
+      // as absent). These two, by name, and still no employeeId anywhere.
+      const orgMaster = { vendorId: new Set(["update_vendor"]), customerId: new Set(["update_customer"]) } as Record<string, Set<string>>;
       for (const name of ["vendorId", "customerId", "employeeId"]) {
-        const permitted = (name === "vendorId" && allowed.has(f.function_id)) || (name === "customerId" && billsCustomer.has(f.function_id));
+        const permitted = (name === "vendorId" && allowed.has(f.function_id)) || (name === "customerId" && billsCustomer.has(f.function_id)) || (orgMaster[name]?.has(f.function_id) ?? false);
         expect({ id: f.function_id, name, declared: f.declared_params.includes(name) && !permitted }).toEqual({ id: f.function_id, name, declared: false });
       }
     }

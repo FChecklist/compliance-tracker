@@ -6,6 +6,8 @@ import { constructionLabourRoster, constructionAttendance, erpSuppliers, project
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import type { users } from "@/lib/db"
+import { logActivity } from "@/lib/audit"
 export { ServiceError }
 
 export type RosterInput = {
@@ -605,4 +607,85 @@ export async function recordAttendanceBatch(ctx: { orgId: string }, input: Atten
   }
 
   return result
+}
+
+// ---------------------------------------------------------------------------
+// lf-b5-ai-crud (owner order 2026-10-02, R7) -- the EDIT and the DELETE of one
+// attendance row, which did not exist (recordAttendance creates, the batch
+// sheet upserts a whole day). The conservative rules, chosen here and written
+// into ai-os/AI_CRUD_COVERAGE.md for the owner to veto:
+//   - WHO: a manager (rank 3). This service has no role of its own; every
+//     caller (the AI executors in src/lib/pipeline/executors/crud-b5-project.ts)
+//     checks the rank before calling, like every route checks requireRole.
+//   - WHEN: only a row whose attendance_date is within the last
+//     ATTENDANCE_EDIT_WINDOW_DAYS days (today included, UTC) -- an older day
+//     may already sit in a labour cost report a manager has sent. A row dated
+//     in the future is also refused (attendance is never marked ahead).
+//   - WHAT: status and hours. daily_cost is recomputed from the roster's own
+//     daily rate (computeDailyCost), never taken from the caller, exactly as
+//     the batch sheet does.
+//   - DELETE: a hard delete of the row, with an audit_logs row written through
+//     the existing audit trail (logActivity, the same one deleteVeriMeeting
+//     uses) in the SAME transaction: the worker, the day, the status and the
+//     cost removed. Labour cost reports read attendance rows at request time
+//     (construction-reports-service.ts, read-time aggregation), so nothing
+//     cached is left stale.
+// ---------------------------------------------------------------------------
+export const ATTENDANCE_EDIT_WINDOW_DAYS = 7
+
+/** Pure: is `attendanceDate` (YYYY-MM-DD) within the edit window that ends on `today` (YYYY-MM-DD, UTC)? */
+export function attendanceEditable(attendanceDate: string, today: string): boolean {
+  const day = Date.parse(`${attendanceDate}T00:00:00Z`)
+  const now = Date.parse(`${today}T00:00:00Z`)
+  if (!Number.isFinite(day) || !Number.isFinite(now)) return false
+  const ageDays = Math.round((now - day) / 86_400_000)
+  return ageDays >= 0 && ageDays < ATTENDANCE_EDIT_WINDOW_DAYS
+}
+
+export const ATTENDANCE_WINDOW_MESSAGE = `Attendance can be changed only for the last ${ATTENDANCE_EDIT_WINDOW_DAYS} days`
+
+const todayUtc = () => new Date().toISOString().slice(0, 10)
+
+export async function updateAttendance(
+  ctx: { orgId: string; today?: string },
+  attendanceId: string,
+  patch: { status?: AttendanceStatus; hoursWorked?: number | null }
+) {
+  if (patch.status !== undefined && !isAttendanceStatus(patch.status)) throw new ServiceError(`Unknown attendance status "${String(patch.status)}"`, 400)
+  if (patch.hoursWorked !== undefined && patch.hoursWorked !== null && (!Number.isFinite(patch.hoursWorked) || patch.hoursWorked < 0 || patch.hoursWorked > 24)) {
+    throw new ServiceError("hoursWorked must be between 0 and 24", 400)
+  }
+  if (patch.status === undefined && patch.hoursWorked === undefined) throw new ServiceError("Nothing to change", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionAttendance.findFirst({ where: and(eq(constructionAttendance.id, attendanceId), eq(constructionAttendance.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Attendance not found", 404)
+    if (!attendanceEditable(existing.attendanceDate, ctx.today ?? todayUtc())) throw new ServiceError(ATTENDANCE_WINDOW_MESSAGE, 409)
+    const roster = await db.query.constructionLabourRoster.findFirst({ where: and(eq(constructionLabourRoster.id, existing.rosterId), eq(constructionLabourRoster.orgId, ctx.orgId)) })
+    if (!roster) throw new ServiceError("Roster entry not found", 404)
+    const status = patch.status ?? (existing.status as AttendanceStatus)
+    const [row] = await db.update(constructionAttendance).set({
+      status,
+      ...(patch.hoursWorked !== undefined ? { hoursWorked: patch.hoursWorked === null ? null : String(patch.hoursWorked) } : {}),
+      dailyCost: String(computeDailyCost(roster.dailyRate, status)),
+    }).where(eq(constructionAttendance.id, attendanceId)).returning()
+    return row
+  })
+}
+
+export async function deleteAttendance(
+  ctx: { orgId: string; dbUser: typeof users.$inferSelect; today?: string },
+  attendanceId: string
+) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.dbUser.id }, async (db) => {
+    const existing = await db.query.constructionAttendance.findFirst({ where: and(eq(constructionAttendance.id, attendanceId), eq(constructionAttendance.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Attendance not found", 404)
+    if (!attendanceEditable(existing.attendanceDate, ctx.today ?? todayUtc())) throw new ServiceError(ATTENDANCE_WINDOW_MESSAGE, 409)
+    await db.delete(constructionAttendance).where(eq(constructionAttendance.id, attendanceId))
+    await logActivity({
+      tx: db, action: "construction_attendance.deleted", entityType: "construction_attendance", entityId: attendanceId,
+      details: `Deleted attendance of worker ${existing.rosterId} on ${existing.attendanceDate} (${existing.status}, cost ${existing.dailyCost}) on project ${existing.projectId}`,
+      orgId: ctx.orgId, dbUser: ctx.dbUser,
+    })
+    return { deleted: true, id: attendanceId, rosterId: existing.rosterId, attendanceDate: existing.attendanceDate, projectId: existing.projectId }
+  })
 }

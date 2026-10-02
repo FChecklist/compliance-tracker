@@ -59,8 +59,9 @@ export async function recordInProject(task: ExecutableTask, kind: ProjectRecordK
         return row !== undefined && row.status !== MEETING_DELETED_STATUS && row.contextEntityType === "project" && row.contextEntityId === projectId;
       }
       case "pms_meeting": {
-        const row = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, id), eq(pmsMeetings.orgId, task.orgId)), columns: { projectId: true } });
-        return row?.projectId === projectId;
+        // a soft-deleted meeting (lf-b5-ai-crud, deleted_at) reads as absent
+        const row = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, id), eq(pmsMeetings.orgId, task.orgId)), columns: { projectId: true, deletedAt: true } });
+        return row !== undefined && row.deletedAt == null && row.projectId === projectId;
       }
       case "issue": {
         const row = await db.query.pmsIssues.findFirst({ where: and(eq(pmsIssues.id, id), eq(pmsIssues.orgId, task.orgId)), columns: { projectId: true } });

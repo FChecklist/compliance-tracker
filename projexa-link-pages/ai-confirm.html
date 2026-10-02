@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TPc0ej2bCZkWT4MputgPZNKf6DrSxiACYHbFKDVI6k0='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co https://evpckeuxgvahguwsaeul.supabase.co; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Nc5EUiBir9VWD+cYamZDj130VCiDPsT1rlfu1rMAec4='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co https://evpckeuxgvahguwsaeul.supabase.co; base-uri 'none'; form-action 'none'">
 <title>Confirm a change</title>
 <style>
 body { font: 16px/1.5 system-ui, sans-serif; max-width: 34rem; margin: 2rem auto; padding: 0 1rem; color: #1c2b3a; background: #fffdf9; }
@@ -112,6 +112,7 @@ small { color: #4a5663; }
       add(host, "  " + k + ": " + (typeof v === "object" && v !== null ? JSON.stringify(v) : String(v)), "pv-param");
     });
     if (j.total && typeof j.total.total === "number") add(host, "Total: " + String(j.total.total) + " (" + String(j.total.lines) + " lines; " + String(j.total.basis) + ")", "pv-total");
+    if (j.impact && typeof j.impact.summary === "string") add(host, "Effect: " + String(j.impact.summary), "pv-total");
     if (j.expires_at) add(host, "Kept until " + String(j.expires_at), "pv-note");
     if (j.message) add(host, String(j.message), "pv-note");
   }

@@ -2412,7 +2412,85 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     },
   },
 
+  // ---- lf-b5-ai-crud (owner order 2026-10-02, R7): the eight edits/deletes that had no service, and the ORGANISATION-SCOPED class (an
+  // organisation master changed through a project-bound link; the record is checked against the organisation, executors/crud-b5-org.ts).
+  // Policy (level, rank, money, free text) in scripts/gen-ai-link-registry.data.ts; rules and what is not done in ai-os/AI_CRUD_COVERAGE.md.
+  ...b5Specs(),
 ];
+
+/** A lf-b5-ai-crud write: every one names its project (the link supplies it), then its own required parameters. */
+function b5Write(
+  functionId: string, label: string, module: string, required: Array<[name: string, label: string]>, fields: CardField[], primaryLabel: string, facts?: CardFact[]
+): FunctionSpec {
+  return {
+    functionId, label, module, kind: "write", writes: true, requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      ...required.map(([name, l]) => ({ name, label: l, code: (/Date$/.test(name) ? "DATE_REQUIRED" : "VALUE_REQUIRED") as PipelineErrorCode, field: /Date$/.test(name) ? "date" : "value" })),
+    ],
+    card: { fields, ...(facts ? { facts } : {}), primaryLabel },
+  };
+}
+
+function b5Specs(): FunctionSpec[] {
+  const t = (key: string, label: string, required = false): CardField => ({ key, label, type: "text", required });
+  const n = (key: string, label: string, required = false): CardField => ({ key, label, type: "number", required });
+  const s = (key: string, label: string, required = false): CardField => ({ key, label, type: "select", required });
+  const d = (key: string, label: string, required = false): CardField => ({ key, label, type: "date", required });
+  const org: CardFact = { label: "Scope", value: "An organisation record: it changes for every project of the organisation.", editable: false };
+  return [
+    // the one read of the organisation class: the ids its functions take (boq_categories, vendors, customers, companies, currencies)
+    readSpecNeeding("list_organisation_records", "View the organisation's categories, vendors, customers, companies or currencies", "organisation", true, [
+      { name: "master", label: "Which list", code: "VALUE_REQUIRED", field: "value" },
+    ]),
+    // the eight that had no service (project records)
+    b5Write("update_activity", "Change a work activity", "work_progress", [["activityId", "Activity"]],
+      [t("name", "Name"), t("unit", "Unit"), n("plannedQuantity", "Planned quantity"), s("categoryId", "Category")], "Save activity"),
+    b5Write("update_progress_category", "Change a work category", "work_progress", [["categoryId", "Category"]],
+      [t("name", "Name"), s("parentCategoryId", "Parent category")], "Save category"),
+    b5Write("update_attendance", "Correct an attendance mark", "manpower", [["attendanceId", "Attendance"]],
+      [s("status", "Status"), n("hoursWorked", "Hours worked")], "Save attendance",
+      [{ label: "Rule", value: "Only the last 7 days; the day's cost is recomputed from the worker's rate.", editable: false }]),
+    b5Write("delete_attendance", "Delete an attendance mark", "manpower", [["attendanceId", "Attendance"]], [], "Delete attendance",
+      [{ label: "Rule", value: "Only the last 7 days; the deletion is written to the audit log.", editable: false }]),
+    b5Write("update_change_order", "Change a draft change order", "change_orders", [["changeOrderId", "Change order"]],
+      [t("title", "Title"), t("description", "Description"), t("reason", "Reason"), t("trade", "Trade"), n("costImpact", "Cost impact"), n("scheduleImpactDays", "Schedule impact (days)")],
+      "Save change order"),
+    b5Write("cancel_change_order", "Cancel a change order", "change_orders", [["changeOrderId", "Change order"]], [], "Cancel change order",
+      [{ label: "Effect", value: "A draft or pending change order is cancelled and its pending e-signature request is withdrawn.", editable: false }]),
+    b5Write("update_boq_line", "Change a BOQ line's description or unit", "scope", [["lineItemId", "BOQ line"]],
+      [t("description", "Description"), t("unit", "Unit")], "Save BOQ line",
+      [{ label: "Rule", value: "A draft BOQ only; quantity, rate and amount are never changed here.", editable: false }]),
+    b5Write("delete_meeting", "Delete a project meeting", "meetings", [["meetingId", "Meeting"]], [], "Delete meeting",
+      [{ label: "Effect", value: "The meeting is hidden; its agenda and minutes are kept.", editable: false }]),
+    // the organisation-scoped class
+    b5Write("create_boq_category", "Add a BOQ category", "organisation", [["name", "Name"]], [t("name", "Name", true)], "Add category", [org]),
+    b5Write("rename_boq_category", "Rename a BOQ category", "organisation", [["categoryId", "Category"], ["name", "New name"]], [t("name", "New name", true)], "Rename category",
+      [org, { label: "Effect", value: "Every BOQ line of the organisation with the old name is renamed too; the preview says how many.", editable: false }]),
+    b5Write("delete_boq_category", "Retire a BOQ category", "organisation", [["categoryId", "Category"]], [], "Retire category",
+      [org, { label: "Rule", value: "Refused while any BOQ line uses it; retired, never removed.", editable: false }]),
+    b5Write("create_vendor", "Add a vendor", "organisation", [["vendorName", "Vendor name"]],
+      [t("vendorName", "Vendor name", true), t("vendorType", "Type"), t("gst", "GST number"), t("pan", "PAN"), t("trade", "Trade"), n("defaultPaymentTermsDays", "Payment terms (days)"), n("creditLimit", "Credit limit")],
+      "Add vendor", [org]),
+    b5Write("update_vendor", "Change or retire a vendor", "organisation", [["vendorId", "Vendor"]],
+      [t("vendorName", "Vendor name"), t("vendorType", "Type"), t("gst", "GST number"), t("pan", "PAN"), t("trade", "Trade"), n("defaultPaymentTermsDays", "Payment terms (days)"), n("creditLimit", "Credit limit"), s("isActive", "Active")],
+      "Save vendor", [org]),
+    b5Write("create_customer", "Add a customer", "organisation", [["customerName", "Customer name"]],
+      [t("customerName", "Customer name", true), t("gstin", "GST number"), t("pan", "PAN"), n("defaultPaymentTermsDays", "Payment terms (days)"), n("creditLimit", "Credit limit")],
+      "Add customer", [org]),
+    b5Write("update_customer", "Change or retire a customer", "organisation", [["customerId", "Customer"]],
+      [t("customerName", "Customer name"), t("gstin", "GST number"), t("pan", "PAN"), n("defaultPaymentTermsDays", "Payment terms (days)"), n("creditLimit", "Credit limit"), s("isActive", "Active")],
+      "Save customer", [org]),
+    b5Write("create_company", "Add a company of the organisation", "organisation", [["companyName", "Company name"]],
+      [t("companyName", "Company name", true), t("abbr", "Short name"), t("country", "Country"), s("parentCompanyId", "Parent company"), s("isGroup", "Group company"), d("dateOfIncorporation", "Incorporated on")],
+      "Add company", [org]),
+    b5Write("create_currency", "Add a currency", "organisation", [["code", "Currency code"], ["name", "Name"]],
+      [t("code", "Currency code", true), t("name", "Name", true), t("symbol", "Symbol")], "Add currency", [org]),
+    b5Write("create_exchange_rate", "Record an exchange rate", "organisation", [["fromCurrencyId", "From currency"], ["toCurrencyId", "To currency"], ["rate", "Rate"], ["rateDate", "Rate date"]],
+      // the two currency ids are required parameters, not card picks: no chain-options picker lists currencies (a REQUIRED select must name one)
+      [n("rate", "Rate", true), d("rateDate", "Rate date", true)], "Save rate", [org]),
+  ];
+}
 
 const SPECS: Readonly<Record<string, FunctionSpec>> = Object.fromEntries(SPEC_LIST.map((s) => [s.functionId, s]));
 

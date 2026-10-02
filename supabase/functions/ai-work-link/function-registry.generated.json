@@ -541,6 +541,41 @@
     ]
   },
   {
+    "function_id": "cancel_change_order",
+    "label": "Cancel a change order",
+    "module": "change_orders",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "changeOrderId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "changeOrderId",
+        "label": "Change order",
+        "any_of": [
+          "changeOrderId"
+        ]
+      }
+    ],
+    "id_params": [
+      "changeOrderId"
+    ]
+  },
+  {
     "function_id": "capture_artifact",
     "label": "Save a note",
     "module": "memory",
@@ -824,6 +859,41 @@
     "id_params": []
   },
   {
+    "function_id": "create_boq_category",
+    "label": "Add a BOQ category",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name"
+    ],
+    "declared_params": [
+      "name",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_boq_revision",
     "label": "New BOQ revision",
     "module": "scope",
@@ -903,6 +973,137 @@
         "label": "Title",
         "any_of": [
           "title"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
+    "function_id": "create_company",
+    "label": "Add a company of the organisation",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "companyName",
+      "abbr",
+      "country"
+    ],
+    "declared_params": [
+      "abbr",
+      "companyName",
+      "country",
+      "dateOfIncorporation",
+      "isGroup",
+      "parentCompanyId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "companyName",
+        "label": "Company name",
+        "any_of": [
+          "companyName"
+        ]
+      }
+    ],
+    "id_params": [
+      "parentCompanyId"
+    ]
+  },
+  {
+    "function_id": "create_currency",
+    "label": "Add a currency",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "code",
+      "name",
+      "symbol"
+    ],
+    "declared_params": [
+      "code",
+      "name",
+      "projectId",
+      "symbol"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "code",
+        "label": "Currency code",
+        "any_of": [
+          "code"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "Name",
+        "any_of": [
+          "name"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
+    "function_id": "create_customer",
+    "label": "Add a customer",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "customerName",
+      "gstin",
+      "pan"
+    ],
+    "declared_params": [
+      "creditLimit",
+      "customerName",
+      "defaultPaymentTermsDays",
+      "gstin",
+      "pan",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "customerName",
+        "label": "Customer name",
+        "any_of": [
+          "customerName"
         ]
       }
     ],
@@ -1005,6 +1206,66 @@
       }
     ],
     "id_params": []
+  },
+  {
+    "function_id": "create_exchange_rate",
+    "label": "Record an exchange rate",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "fromCurrencyId",
+      "projectId",
+      "rate",
+      "rateDate",
+      "toCurrencyId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "fromCurrencyId",
+        "label": "From currency",
+        "any_of": [
+          "fromCurrencyId"
+        ]
+      },
+      {
+        "name": "toCurrencyId",
+        "label": "To currency",
+        "any_of": [
+          "toCurrencyId"
+        ]
+      },
+      {
+        "name": "rate",
+        "label": "Rate",
+        "any_of": [
+          "rate"
+        ]
+      },
+      {
+        "name": "rateDate",
+        "label": "Rate date",
+        "any_of": [
+          "rateDate"
+        ]
+      }
+    ],
+    "id_params": [
+      "fromCurrencyId",
+      "toCurrencyId"
+    ]
   },
   {
     "function_id": "create_ffe_item",
@@ -1863,6 +2124,51 @@
     "id_params": []
   },
   {
+    "function_id": "create_vendor",
+    "label": "Add a vendor",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "vendorName",
+      "vendorType",
+      "gst",
+      "pan",
+      "trade"
+    ],
+    "declared_params": [
+      "creditLimit",
+      "defaultPaymentTermsDays",
+      "gst",
+      "pan",
+      "projectId",
+      "trade",
+      "vendorName",
+      "vendorType"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "vendorName",
+        "label": "Vendor name",
+        "any_of": [
+          "vendorName"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "create_wiki_page",
     "label": "New wiki page",
     "module": "wiki",
@@ -1903,6 +2209,41 @@
     ]
   },
   {
+    "function_id": "delete_attendance",
+    "label": "Delete an attendance mark",
+    "module": "manpower",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "attendanceId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "attendanceId",
+        "label": "Attendance",
+        "any_of": [
+          "attendanceId"
+        ]
+      }
+    ],
+    "id_params": [
+      "attendanceId"
+    ]
+  },
+  {
     "function_id": "delete_boq",
     "label": "Delete a draft BOQ",
     "module": "scope",
@@ -1935,6 +2276,76 @@
     ],
     "id_params": [
       "boqId"
+    ]
+  },
+  {
+    "function_id": "delete_boq_category",
+    "label": "Retire a BOQ category",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "categoryId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "categoryId",
+        "label": "Category",
+        "any_of": [
+          "categoryId"
+        ]
+      }
+    ],
+    "id_params": [
+      "categoryId"
+    ]
+  },
+  {
+    "function_id": "delete_meeting",
+    "label": "Delete a project meeting",
+    "module": "meetings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "meetingId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "meetingId",
+        "label": "Meeting",
+        "any_of": [
+          "meetingId"
+        ]
+      }
+    ],
+    "id_params": [
+      "meetingId"
     ]
   },
   {
@@ -2745,6 +3156,31 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
+    "id_params": []
+  },
+  {
+    "function_id": "list_organisation_records",
+    "label": "View the organisation's categories, vendors, customers, companies or currencies",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "master"
+    ],
+    "required_params": [
+      {
+        "name": "master",
+        "label": "Which list",
+        "any_of": [
+          "master"
+        ]
+      }
+    ],
     "id_params": []
   },
   {
@@ -3599,6 +4035,51 @@
     ]
   },
   {
+    "function_id": "rename_boq_category",
+    "label": "Rename a BOQ category",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [
+      "name"
+    ],
+    "declared_params": [
+      "categoryId",
+      "name",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "categoryId",
+        "label": "Category",
+        "any_of": [
+          "categoryId"
+        ]
+      },
+      {
+        "name": "name",
+        "label": "New name",
+        "any_of": [
+          "name"
+        ]
+      }
+    ],
+    "id_params": [
+      "categoryId"
+    ]
+  },
+  {
     "function_id": "review_budget",
     "label": "Review Budget",
     "module": "budget",
@@ -3993,6 +4474,86 @@
     ]
   },
   {
+    "function_id": "update_activity",
+    "label": "Change a work activity",
+    "module": "work_progress",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "unit"
+    ],
+    "declared_params": [
+      "activityId",
+      "categoryId",
+      "name",
+      "plannedQuantity",
+      "projectId",
+      "unit"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "activityId",
+        "label": "Activity",
+        "any_of": [
+          "activityId"
+        ]
+      }
+    ],
+    "id_params": [
+      "activityId",
+      "categoryId"
+    ]
+  },
+  {
+    "function_id": "update_attendance",
+    "label": "Correct an attendance mark",
+    "module": "manpower",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 3,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "attendanceId",
+      "hoursWorked",
+      "projectId",
+      "status"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "attendanceId",
+        "label": "Attendance",
+        "any_of": [
+          "attendanceId"
+        ]
+      }
+    ],
+    "id_params": [
+      "attendanceId"
+    ]
+  },
+  {
     "function_id": "update_boq",
     "label": "Rename a BOQ",
     "module": "scope",
@@ -4038,6 +4599,46 @@
     ]
   },
   {
+    "function_id": "update_boq_line",
+    "label": "Change a BOQ line's description or unit",
+    "module": "scope",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "description",
+      "unit"
+    ],
+    "declared_params": [
+      "description",
+      "lineItemId",
+      "projectId",
+      "unit"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "lineItemId",
+        "label": "BOQ line",
+        "any_of": [
+          "lineItemId"
+        ]
+      }
+    ],
+    "id_params": [
+      "lineItemId"
+    ]
+  },
+  {
     "function_id": "update_boq_line_amounts",
     "label": "Change a BOQ line's quantities and rates",
     "module": "scope",
@@ -4074,6 +4675,97 @@
     ],
     "id_params": [
       "lineItemId"
+    ]
+  },
+  {
+    "function_id": "update_change_order",
+    "label": "Change a draft change order",
+    "module": "change_orders",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "title",
+      "description",
+      "reason",
+      "trade"
+    ],
+    "declared_params": [
+      "changeOrderId",
+      "costImpact",
+      "description",
+      "projectId",
+      "reason",
+      "scheduleImpactDays",
+      "title",
+      "trade"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "changeOrderId",
+        "label": "Change order",
+        "any_of": [
+          "changeOrderId"
+        ]
+      }
+    ],
+    "id_params": [
+      "changeOrderId"
+    ]
+  },
+  {
+    "function_id": "update_customer",
+    "label": "Change or retire a customer",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "customerName",
+      "gstin",
+      "pan"
+    ],
+    "declared_params": [
+      "creditLimit",
+      "customerId",
+      "customerName",
+      "defaultPaymentTermsDays",
+      "gstin",
+      "isActive",
+      "pan",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "customerId",
+        "label": "Customer",
+        "any_of": [
+          "customerId"
+        ]
+      }
+    ],
+    "id_params": [
+      "customerId"
     ]
   },
   {
@@ -4600,6 +5292,46 @@
     ]
   },
   {
+    "function_id": "update_progress_category",
+    "label": "Change a work category",
+    "module": "work_progress",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name"
+    ],
+    "declared_params": [
+      "categoryId",
+      "name",
+      "parentCategoryId",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "categoryId",
+        "label": "Category",
+        "any_of": [
+          "categoryId"
+        ]
+      }
+    ],
+    "id_params": [
+      "categoryId",
+      "parentCategoryId"
+    ]
+  },
+  {
     "function_id": "update_progress_entry",
     "label": "Correct a progress entry",
     "module": "work_progress",
@@ -4910,6 +5642,55 @@
     "id_params": [
       "entryId",
       "issueId"
+    ]
+  },
+  {
+    "function_id": "update_vendor",
+    "label": "Change or retire a vendor",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "vendorName",
+      "vendorType",
+      "gst",
+      "pan",
+      "trade"
+    ],
+    "declared_params": [
+      "creditLimit",
+      "defaultPaymentTermsDays",
+      "gst",
+      "isActive",
+      "pan",
+      "projectId",
+      "trade",
+      "vendorId",
+      "vendorName",
+      "vendorType"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "vendorId",
+        "label": "Vendor",
+        "any_of": [
+          "vendorId"
+        ]
+      }
+    ],
+    "id_params": [
+      "vendorId"
     ]
   },
   {

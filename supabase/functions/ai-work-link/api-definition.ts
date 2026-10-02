@@ -252,6 +252,26 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   update_permit: { permitId: "<id from records/permits>", expiryDate: "2027-05-01", notes: "Renewed for one year" },
   delete_permit: { permitId: "<id from records/permits>" },
   archive_project: { status: "cancelled" },
+  // lf-b5-ai-crud: the eight edits/deletes that had no service, and the organisation masters (a record of the organisation, not of the project).
+  update_activity: { activityId: "<id from records/activities>", name: "Door frames, ground floor", plannedQuantity: 24 },
+  update_progress_category: { categoryId: "<category id of this project>", name: "Joinery (internal)" },
+  update_attendance: { attendanceId: "<id from records/attendance, last 7 days>", status: "half_day" },
+  delete_attendance: { attendanceId: "<id from records/attendance, last 7 days>" },
+  update_change_order: { changeOrderId: "<id of a draft from records/change_orders>", costImpact: 18500, reason: "Client asked for oak" },
+  cancel_change_order: { changeOrderId: "<id of a draft or pending one from records/change_orders>" },
+  update_boq_line: { lineItemId: "<id of a line of a draft BOQ from records/boq_lines>", description: "Gypsum partition, 12.5 mm board", unit: "sqm" },
+  delete_meeting: { meetingId: "<id from records/meetings>" },
+  create_boq_category: { name: "Facade" },
+  list_organisation_records: { master: "boq_categories" },
+  rename_boq_category: { categoryId: "<id from list_organisation_records, master boq_categories>", name: "Civil works" },
+  delete_boq_category: { categoryId: "<id of an unused category, list_organisation_records>" },
+  create_vendor: { vendorName: "Gulf Gypsum Trading", trade: "Gypsum", defaultPaymentTermsDays: 30 },
+  update_vendor: { vendorId: "<id from list_organisation_records, master vendors>", isActive: false },
+  create_customer: { customerName: "Marina Club LLC", defaultPaymentTermsDays: 45 },
+  update_customer: { customerId: "<id from list_organisation_records, master customers>", defaultPaymentTermsDays: 60 },
+  create_company: { companyName: "Zoomies Interiors FZ-LLC", abbr: "ZIF", country: "AE" },
+  create_currency: { code: "EUR", name: "Euro", symbol: "€" },
+  create_exchange_rate: { fromCurrencyId: "<id from list_organisation_records, master currencies>", toCurrencyId: "<another currency id>", rate: 4.02, rateDate: "2026-10-02" },
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

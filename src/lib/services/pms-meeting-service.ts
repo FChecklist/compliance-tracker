@@ -6,7 +6,7 @@ import {
   pmsMeetings, pmsMeetingAgendaItems, pmsMeetingOutcomes, pmsMeetingParticipants, projects,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
@@ -22,13 +22,13 @@ export type PmsContext = { orgId: string; userId: string; dbUser?: typeof users.
 
 export async function listMeetings(ctx: { orgId: string }, projectId: string) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.pmsMeetings.findMany({ where: and(eq(pmsMeetings.orgId, ctx.orgId), eq(pmsMeetings.projectId, projectId)), orderBy: (t, { desc }) => desc(t.scheduledAt) })
+    db.query.pmsMeetings.findMany({ where: and(eq(pmsMeetings.orgId, ctx.orgId), eq(pmsMeetings.projectId, projectId), isNull(pmsMeetings.deletedAt)), orderBy: (t, { desc }) => desc(t.scheduledAt) })
   )
 }
 
 export async function getMeeting(ctx: { orgId: string }, meetingId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const meeting = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, meetingId), eq(pmsMeetings.orgId, ctx.orgId)) })
+    const meeting = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, meetingId), eq(pmsMeetings.orgId, ctx.orgId), isNull(pmsMeetings.deletedAt)) })
     if (!meeting) throw new ServiceError("Meeting not found", 404)
     const agendaItems = await db.query.pmsMeetingAgendaItems.findMany({ where: eq(pmsMeetingAgendaItems.meetingId, meetingId), orderBy: (t, { asc }) => asc(t.position) })
     const outcomes = await db.query.pmsMeetingOutcomes.findMany({ where: eq(pmsMeetingOutcomes.meetingId, meetingId), orderBy: (t, { desc }) => desc(t.createdAt) })
@@ -70,18 +70,16 @@ export async function createMeeting(
 }
 
 // Real-screen conversion (2026-08-30): real update -- a reschedule or
-// duration correction had no path except deleting/re-creating the meeting
-// (and there was no delete either). No status/isCancelled column exists on
-// pms_meetings, so no Delete/Cancel action is offered here -- inventing one
-// without a real schema primitive would be exactly the "fake it" this
-// session's own standard rules out.
+// duration correction had no path except deleting/re-creating the meeting.
+// (lf-b5-ai-crud: the delete now exists, as a SOFT delete on the real
+// deleted_at column drizzle/0687 adds -- see deleteMeeting below.)
 export async function updateMeeting(
   ctx: { orgId: string },
   meetingId: string,
   patch: Partial<{ title: string; scheduledAt: string; durationMinutes: number | null }>
 ) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const existing = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, meetingId), eq(pmsMeetings.orgId, ctx.orgId)) })
+    const existing = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, meetingId), eq(pmsMeetings.orgId, ctx.orgId), isNull(pmsMeetings.deletedAt)) })
     if (!existing) throw new ServiceError("Meeting not found", 404)
     if (patch.title !== undefined && !patch.title.trim()) throw new ServiceError("title cannot be empty", 400)
 
@@ -92,11 +90,24 @@ export async function updateMeeting(
   })
 }
 
+// lf-b5-ai-crud (owner order 2026-10-02, R7) -- the delete of a project meeting, which did not exist (see the note above updateMeeting).
+// A SOFT delete: deleted_at is set and the row, its agenda items, outcomes and participants all stay, so minutes already taken against
+// it are never lost. Every reader in this file hides a deleted meeting (it reads as "not found" afterwards, so it cannot be edited or
+// deleted again). The sync records the change as a tombstone (drizzle/0687's pms_meetings trigger). Not reversible through the app.
+export async function deleteMeeting(ctx: { orgId: string }, meetingId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, meetingId), eq(pmsMeetings.orgId, ctx.orgId), isNull(pmsMeetings.deletedAt)) })
+    if (!existing) throw new ServiceError("Meeting not found", 404)
+    const [row] = await db.update(pmsMeetings).set({ deletedAt: new Date() }).where(eq(pmsMeetings.id, meetingId)).returning()
+    return row
+  })
+}
+
 export async function addMeetingOutcome(ctx: { orgId: string }, meetingId: string, notes: string) {
   if (!notes?.trim()) throw new ServiceError("notes is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const meeting = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, meetingId), eq(pmsMeetings.orgId, ctx.orgId)) })
+    const meeting = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, meetingId), eq(pmsMeetings.orgId, ctx.orgId), isNull(pmsMeetings.deletedAt)) })
     if (!meeting) throw new ServiceError("Meeting not found", 404)
 
     const [row] = await db.insert(pmsMeetingOutcomes).values({ meetingId, notes }).returning()

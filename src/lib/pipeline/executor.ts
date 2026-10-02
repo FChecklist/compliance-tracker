@@ -48,6 +48,8 @@ import { WAVE_3_4_EXECUTORS } from "./executors/coverage-waves-3-4";
 import { WAVE_7_9_EXECUTORS } from "./executors/coverage-waves-7-9";
 // lf-b2-ai-crud: the create/update/delete functions that let the person's AI change everything the person may (ai-os/AI_CRUD_COVERAGE.md).
 import { CRUD_B2_EXECUTORS } from "./executors/coverage-crud-b2";
+// lf-b5-ai-crud: the eight edits/deletes that had no service, and the organisation-scoped functions (ai-os/AI_CRUD_COVERAGE.md).
+import { CRUD_B5_EXECUTORS } from "./executors/coverage-crud-b5";
 import { executeSubmitTimesheet } from "./executors/timesheets";
 import { createBoqLedgerHooks } from "@/lib/services/construction-boq-payload-service";
 import { executeCreateProjectFromDocument } from "./executors/extraction";
@@ -1961,6 +1963,8 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   ...WAVE_7_9_EXECUTORS,
   // lf-b2-ai-crud: update, delete and archive of BOQs, progress, tasks, sprints, timesheets, documents, minutes, meetings, materials and the design studio.
   ...CRUD_B2_EXECUTORS,
+  // lf-b5-ai-crud: activity/category/attendance/change-order/BOQ-line edits, meeting delete, and the organisation masters.
+  ...CRUD_B5_EXECUTORS,
 };
 
 /**
