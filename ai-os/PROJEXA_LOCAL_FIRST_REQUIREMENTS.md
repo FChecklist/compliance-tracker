@@ -126,3 +126,35 @@ Since snapshot E: both integration branches are complete (backend `feat/lf-sync-
 | | **Overall (19 rows)** | **77%** | **23%** |
 
 End-to-end verified: real browser against the stand-in services **yes (4 tests, twice)**; the real handler and pipeline against the LIVE database **yes (173 checks)**; a real browser against the LIVE deployed backend with a real person **not yet (0%)**, which needs the deploy and the owner's real login.
+
+## G. Snapshot G, 2026-10-02 evening (supersedes the Status column above where they differ)
+
+**Decisions closed by the owner today:** (1) R12 "the user never has to think" is an AMBITION, not a pass/fail requirement; it is not scored. (2) R11: the AI is always the user's OWN: the browser AI on their laptop, or any AI they paste the ai-work-link into. Nothing of ours calls a model; all AI work lands in the laptop's own database. (3) Money-sensitive AI creates/updates are NOT confirmed (as per role); deletes stay drafts unless the person's own "act without asking" switch is on. (4) Vercel free plan is the target; the production deploy is the LAST step; no spend; no API deploy (R76).
+
+**What "done" means in this table:** merged to main of both repos AND covered by a committed test that passed in CI (real Chromium with the network OFF against a local stand-in service, the real handler against PGlite, and live-database probe scripts). It does NOT mean a real person used it on the live site: that needs the production deploy (blocked by the Vercel rate limit, owner-only) and the owner's real login. That last step is 0%.
+
+| # | Requirement | Built + tested in CI | Still missing |
+|---|---|---|---|
+| G1 | Laptop is a daughter server | 85% | measured Vercel request count on the live site |
+| G2 | Two-way versioned sync with Supabase | 90% | real-login run (migrations 0678-0687 and edge functions are LIVE; live probes read 117 / write 30 / push 12 / signing 14 pass) |
+| G3 | Laptop-to-laptop sync | 85% | peers across two real machines (WebRTC proven in two browser contexts) |
+| G4 | Our RAM/server minimal | 80% | real-world numbers (harness: 209 requests per laptop per working day; about 108 laptops fit the free 500K quota) |
+| G5 | Whole software + whole role-scoped database on the laptop, bill about zero | 80% | the first real release registered after deploy |
+| V1 | Versioned one-file download, versions recorded in Supabase | 90% | first release auto-registers on the first signed-in laptop after deploy |
+| R1 | Works with no internet | 90% | only the visible modules are offline-complete |
+| R2 | Works when OUR server is down | 85% | |
+| R3 | Laptops auto-sync | 80% | |
+| R4 | Own data, per role | 85% | org kinds beyond the visible screens |
+| R5 | AI cannot change the software | 70% | hash-verified immutable bundle is built; no live check |
+| R6 | AI can work on it | 90% | |
+| R7 | AI complete create/update/delete per role | 85% | deletes are drafts by decision |
+| R8 | Whole work on the laptop, by hand and by AI | 75% | one end-to-end scenario on the live site |
+| R9 | Logged in until logout | 85% | signOutEverywhere wired in all four sign-out paths; real-login proof is the owner's |
+| R10 | App cannot be deleted from the browser | 75% | persistent-storage grant depends on the browser |
+| R11 | The user's own browser AI gets access | 85% | |
+| R12 | (ambition, not scored) | n/a | |
+| R13-R15 | Design rules (cost first, security second, floor stays) | rules, applied | |
+
+Average of the scored rows (G1-G5, V1, R1-R11): about 83% built and tested in CI. Live end to end with a real person: 0%, until the deploy and the owner's login.
+
+Known open item: the e2e "AI-created task shows on the Schedule screen" check was flaky in CI (a pull in flight when a push settles can hide the new row until the next change-feed pass); the spec now reopens and nudges, and prints what the laptop holds on failure. First-sync pacing (100 requests a minute, `rate-pacer.ts`) and the circuit breaker (`replica.ts`) are built, on by default and tested (cost/*.test.ts).
