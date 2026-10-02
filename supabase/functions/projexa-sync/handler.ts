@@ -252,6 +252,7 @@ async function callSql(deps: SyncDeps, fn: string, args: Record<string, unknown>
   try {
     res = await deps.rpc(fn, args)
   } catch {
+    logLine(deps, `${fn}: database unreachable -> 503`)
     return { ok: false, status: 503, body: { error: "Service unavailable. Try again in a minute." } }
   }
   if (res.error) {
@@ -260,6 +261,8 @@ async function callSql(deps: SyncDeps, fn: string, args: Record<string, unknown>
     if (code === "AW409") return { ok: false, status: 409, body: { error: "Conflict" } }
     if (code === "AW429") return { ok: false, status: 429, body: { error: "Too many requests today. Try again tomorrow." } }
     if (code === "AW400") return { ok: false, status: 400, body: { error: res.error.message === "BAD_CURSOR" ? "Bad cursor" : "Bad request" } }
+    // the SQLSTATE only (a class, never the message: it can name a relation or carry a value)
+    logLine(deps, `${fn}: SQL error ${/^[0-9A-Z]{5}$/.test(code) ? code : "?"} -> 500`)
     return { ok: false, status: 500, body: { error: "Something failed on our side. Try again in a minute." } }
   }
   const d = (res.data ?? {}) as Record<string, unknown>
