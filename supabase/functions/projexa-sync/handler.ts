@@ -701,7 +701,14 @@ async function releaseCurrent(req: Request, deps: SyncDeps, now: Date): Promise<
     const { files: _files, ...light } = current
     current = light
   }
-  return respond(req, deps, 200, { registered: rel.registered, current, min_compatible: rel.min_compatible || null, protocol: SERVER_PROTOCOL, server_time: now.toISOString() })
+  // `registered` answers the question the laptop asks: is the release I REPORTED (X-Px-Client) the one the registry holds as current? It used to say
+  // "the registry holds some release", so after the first registration no newer build was ever registered and every install record for it was
+  // refused (400). A laptop that names no release, or a non-release build name (a commit, "dev"), is told what the registry holds.
+  const clientRelease = parseClientHeader(req.headers.get("x-px-client"))?.release ?? null
+  const reportsRelease = clientRelease !== null && /^\d{4}\.\d{2}\.\d{2}-\d{3}$/.test(clientRelease)
+  const currentVersion = current && typeof (current as Record<string, unknown>).release_version === "string" ? ((current as Record<string, unknown>).release_version as string) : null
+  const registered = rel.registered && (!reportsRelease || clientRelease === currentVersion)
+  return respond(req, deps, 200, { registered, current, min_compatible: rel.min_compatible || null, protocol: SERVER_PROTOCOL, server_time: now.toISOString() })
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

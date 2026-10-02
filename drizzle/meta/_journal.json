@@ -3621,6 +3621,20 @@
       "when": 1790504000000,
       "tag": "0688_projexa_prepare_monitor",
       "breakpoints": true
+    },
+    {
+      "idx": 519,
+      "version": "7",
+      "when": 1790505000000,
+      "tag": "0689_projexa_prepare_stuck",
+      "breakpoints": true
+    },
+    {
+      "idx": 520,
+      "version": "7",
+      "when": 1790506000000,
+      "tag": "0690_projexa_prepare_e2e_excluded",
+      "breakpoints": true
     }
   ]
 }
