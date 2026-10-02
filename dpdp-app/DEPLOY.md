@@ -9,7 +9,7 @@ actions marked **OWNER** below.
 
 | Path | What | Indexed? |
 |---|---|---|
-| `/` | home: exactly two ways in (CA/CS/legal/audit firm doing it for clients -> `/dpdp-firm/`; company/institution/school/NGO doing it for itself -> `/dpdp-institution/`) | yes |
+| `/` | home (redesigned 2026-10-02, three colour themes): exactly two ways in (CA/CS/legal/audit firm doing it for clients -> `/dpdp-firm/`; company/institution/school/NGO doing it for itself -> `/dpdp-institution/`) | yes |
 | `/dpdp-firm/`, `/dpdp-institution/` | edition landing pages | yes |
 | `/about/` | the full facts for people (WO-DPDP-013 v2 §2.1), generated from `data/veridian-facts.yaml` | yes |
 | `/proof/` | evidence page from `data/proof.yaml`; **built and hidden** until the owner sets `proof.enabled: true` in the facts file | **no** while hidden -- `noindex` meta + `X-Robots-Tag` via the generated block in `public/_headers`; not in the sitemap or llms*.txt; linked from nowhere |

@@ -224,7 +224,7 @@ describe("(e) same content for machines and people", () => {
       const html = read(p.source)
       // JSON-LD, plus exactly two same-origin deferred scripts: /ref.js (the Sales Partner code keeper), then /rum.js (first-party monitoring).
       const others = (html.match(/<script\b[^>]*>/g) ?? []).filter((s) => !s.includes('type="application/ld+json"'))
-      expect(others, p.source).toEqual(['<script defer src="/ref.js">', '<script defer src="/rum.js">'])
+      expect(others, p.source).toEqual(p.source === "index.html" ? ['<script src="/theme.js">', '<script defer src="/ref.js">', '<script defer src="/rum.js">'] : ['<script defer src="/ref.js">', '<script defer src="/rum.js">'])
       expect(html).toContain('<section class="facts')
       expect(html).toContain(FACTS.one_line)
       expect(html).toContain(FACTS.what_it_does_not_do)

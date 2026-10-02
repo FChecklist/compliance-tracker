@@ -26,7 +26,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test"
 // /app/ is private to crawlers but is where the sign-in lives, so it is the
 // last step of the public journey and is audited the same way.
 const PUBLIC_PAGES = [
-  { path: "/", h1: "Three things to know about DPDP compliance" },
+  { path: "/", h1: "Compliance that outlasts the person who set it up." },
   { path: "/dpdp-firm/", h1: "DPDP compliance for all your clients, in one place" },
   { path: "/dpdp-institution/", h1: "DPDP compliance for your own organisation, with proof you can show" },
 ] as const
@@ -34,8 +34,8 @@ const PUBLIC_PAGES = [
 const SIGN_IN = { path: "/app/", h1: "VERIDIAN DPDP" } as const
 
 // The two ways in on the home page, word for word (owner, 2026-10-01).
-const FOR_CLIENTS = "I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS"
-const FOR_US = "I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES"
+const FOR_CLIENTS = "For professionals CA · CS · Legal · Audit firm Doing it for my clients →"
+const FOR_US = "For organisations Company · School · NGO Doing it for ourselves →"
 
 const ALL_SURFACES = [...PUBLIC_PAGES, SIGN_IN] as const
 

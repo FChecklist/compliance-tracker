@@ -31,6 +31,8 @@ import {
   PUBLIC_ORIGIN,
   PUBLIC_PAGES,
   PUBLIC_SCRIPT_OPENS,
+  scriptOpensFor,
+  THEME_SCRIPT,
   REF_SCRIPT,
   REQUIRED_BOTS,
   RUM_SCRIPT,
@@ -259,9 +261,10 @@ for (const page of PUBLIC_PAGES) {
   // JSON-LD are /ref.js (the partner-code keeper) then /rum.js (first-party monitoring), same origin,
   // deferred, each exactly once, in that order.
   const scripts = tagsOf(html, /<script\b[^>]*>/gi).filter((t) => !/type="application\/ld\+json"/i.test(t))
-  expect(JSON.stringify(scripts) === JSON.stringify(PUBLIC_SCRIPT_OPENS), `${label}: public page must have exactly the scripts ${REF_SCRIPT.tag} ${RUM_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
+  expect(JSON.stringify(scripts) === JSON.stringify(scriptOpensFor(page.path)), `${label}: public page must have exactly the scripts ${JSON.stringify(scriptOpensFor(page.path))} besides JSON-LD, found ${JSON.stringify(scripts)}`)
   expect(has(REF_SCRIPT.src.slice(1)), `dist${REF_SCRIPT.src} missing`)
   expect(has(RUM_SCRIPT.src.slice(1)), `dist${RUM_SCRIPT.src} missing`)
+  if (page.path === "/") expect(has(THEME_SCRIPT.src.slice(1)), `dist${THEME_SCRIPT.src} missing`)
   checkCrossOrigin(label, html)
 
   // Fonts: both self-hosted files preloaded, with crossorigin (fonts fetch

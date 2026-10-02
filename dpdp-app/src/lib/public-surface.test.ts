@@ -22,6 +22,7 @@ import {
   PUBLIC_PAGES,
   SITEMAP_PAGES,
   RUM_SCRIPT,
+  THEME_SCRIPT,
   REQUIRED_BOTS,
   SITE_ORIGIN,
   LEGACY_APP_ORIGIN,
@@ -263,8 +264,8 @@ describe("the home page offers exactly two ways in (owner, 2026-10-01)", () => {
 
   test("two big choice cards, with exactly these labels and targets", () => {
     expect(choices).toEqual([
-      { href: "/dpdp-firm/", text: "🧑‍⚖️ I AM A CA / CS / LEGAL / AUDIT FIRM — DOING FOR MY CLIENTS" },
-      { href: "/dpdp-institution/", text: "🏭 I AM A COMPANY / INSTITUTION / SCHOOL / NGO — DOING FOR OURSELVES" },
+      { href: "/dpdp-firm/", text: "For professionals CA · CS · Legal · Audit firm Doing it for my clients →" },
+      { href: "/dpdp-institution/", text: "For organisations Company · School · NGO Doing it for ourselves →" },
     ])
   })
 
@@ -283,8 +284,10 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
   const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
 
   test("the h1 and an ordered list of exactly three, 1 to 3, in the owner's words", () => {
-    expect(main).toContain("<h1 class=\"chooser-title\">Three things to know about DPDP compliance</h1>")
-    const list = /<ol class="lead-list">([\s\S]*?)<\/ol>/.exec(main)![1]
+    expect(main).toContain('<h1 class="chooser-title">Compliance that <em>outlasts</em> the person who set it up.</h1>')
+    // The old h1 is kept as the h2 over the three points, so the phrase stays on the page.
+    expect(main).toContain("<h2>Three things to know about DPDP compliance</h2>")
+    const list = /<ol class="lead-list hm-three">([\s\S]*?)<\/ol>/.exec(main)![1]
     const items = [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])
     expect(items).toEqual(["People change. When they leave, what they knew about your data leaves with them.", "Know what data you hold, and who else holds it for you.", "Prove it — with a record that outlasts the person who set it up."])
     expect(items).toEqual([...FACTS.three_things])
@@ -477,7 +480,7 @@ describe("page sources", () => {
       expect(html).toContain(`<link rel="canonical" href="${pageUrl(pub.path)}" />`)
       expect(html).not.toMatch(/<meta\s+name="robots"[^>]*no(index|follow)/i)
       const scripts = html.match(/<script\b[^>]*>/g) ?? []
-      for (const s of scripts) expect(s === REF_SCRIPT.open || s === RUM_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
+      for (const s of scripts) expect(s === REF_SCRIPT.open || s === RUM_SCRIPT.open || s === THEME_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
       expect(html).not.toMatch(/https?:\/\/fonts\.(googleapis|gstatic)\.com/)
     }
   })
