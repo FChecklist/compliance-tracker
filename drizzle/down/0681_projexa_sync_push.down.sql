@@ -7,6 +7,7 @@ SET LOCAL lock_timeout = '5s';
 
 DROP FUNCTION IF EXISTS public.projexa_sync_push_finish(text, text, text, jsonb, text, text, text);
 DROP FUNCTION IF EXISTS public.projexa_sync_push_begin(text, text, text, jsonb);
+DROP FUNCTION IF EXISTS platform.projexa_sync__op_claim(text, text, text, text, text, text, text, text, text, bigint, text);
 DROP TABLE IF EXISTS platform.projexa_sync_op;
 
 COMMIT;
