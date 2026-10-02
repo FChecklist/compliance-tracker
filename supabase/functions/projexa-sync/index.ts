@@ -7,7 +7,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import * as jose from "npm:jose@6.2.10"
 import { createKeyResolvers, createSessionVerifier, type JoseLike } from "../ai-work-link/session.ts"
-import { handleSync, RateLimiter, type PublicKeyInfo, type ReleaseInfo } from "./handler.ts"
+import { handleSync, RateLimiter, type ExecOutcome, type ExecRunBody, type PublicKeyInfo, type ReleaseInfo } from "./handler.ts"
 import { createSigning, generateKeyRecord, type KeyRecord, type Signing } from "./sign.ts"
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
@@ -53,12 +53,43 @@ async function loadPublicKeys(): Promise<PublicKeyInfo[]> {
   return keys
 }
 
+// A pushed write runs in the ai-work-link-exec function (the real pipeline), reached with the same internal secret the ai-work-link function uses. Secrets are project-wide.
+// The answer is mapped to what happened: "unavailable" (nothing ran), "failed" (ran, refused, nothing written) or "uncertain" (sent, no answer: the write may have happened).
+const EXEC_TIMEOUT_MS = 25_000
+async function execRun(body: ExecRunBody): Promise<ExecOutcome> {
+  const secret = Deno.env.get("AWL_EXEC_INTERNAL_SECRET")
+  if (!secret || !SUPABASE_URL) return { kind: "unavailable" }
+  let res: Response
+  try {
+    res = await fetch(`${SUPABASE_URL}/functions/v1/ai-work-link-exec/sync-run`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${secret}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(EXEC_TIMEOUT_MS),
+    })
+  } catch {
+    return { kind: "uncertain" }
+  }
+  // not configured / not deployed / refused before anything ran
+  if (res.status === 503 || res.status === 404 || res.status === 401 || res.status === 400) return { kind: "unavailable" }
+  if (!res.ok) return { kind: "uncertain" }
+  try {
+    const j = (await res.json()) as { status?: string; record?: { id?: string | null; route?: string | null }; submission_id?: string | null; code?: string; missing?: string[] }
+    if (j.status === "done") return { kind: "done", record: { id: j.record?.id ?? null, route: j.record?.route ?? null }, submission_id: j.submission_id ?? null }
+    if (j.status === "failed" && typeof j.code === "string") return { kind: "failed", code: j.code, missing: Array.isArray(j.missing) ? j.missing : [] }
+  } catch {
+    // fall through
+  }
+  return { kind: "uncertain" }
+}
+
 Deno.serve((req: Request) =>
   handleSync(req, {
     session,
     limiter,
     orgCache,
     releaseBox,
+    execRun,
     rpc,
     signing: () => loadSigning().catch(() => null),
     publicKeys: () => loadPublicKeys().catch(() => []),

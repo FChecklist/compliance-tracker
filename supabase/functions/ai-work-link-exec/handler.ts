@@ -4,6 +4,7 @@
 //
 //   POST /run     {"intent_id": "..."}   claim the intent, run it through the pipeline, finish it, answer the outcome
 //   POST /read    {"function_id","params","ctx","allowed_functions"}   run one READ function read-only (no intent, no submission, nothing written)
+//   POST /sync-run {"op_id","function_id","params","ctx"}   run one write a LAPTOP pushed (local-first sync, drizzle/0681); projexa-sync already verified the session and decided the live role, project and version
 //   GET  /health                         {ok, db_role} (the role the database connection really has), for the switch-on pre-flight
 //
 // WHO MAY CALL. Only the ai-work-link function: every request must carry `Authorization: Bearer <AWL_EXEC_INTERNAL_SECRET>`, compared in constant
@@ -53,6 +54,8 @@ export type ExecDeps = {
   run: (claimed: Claimed) => Promise<Ran>
   /** The read-only executor mode (POST /read). Absent means reads answer 503 READ_NOT_AVAILABLE. */
   read?: (req: ReadBody) => Promise<ReadRan>
+  /** One write pushed by a laptop (POST /sync-run). Absent means it answers 503 SYNC_NOT_AVAILABLE. */
+  syncRun?: (op: SyncBody) => Promise<Ran>
   /** The role of the database connection the pipeline uses. */
   health: () => Promise<{ db_role: string }>
   log?: (line: string) => void
@@ -66,6 +69,16 @@ export type ReadBody = {
   allowed_functions: string[]
 }
 
+/** The body of POST /sync-run: the context was decided by projexa-sync in the same request (session verified, live role, project readable, version checked). */
+export type SyncBody = {
+  op_id: string
+  function_id: string
+  params: Record<string, unknown>
+  ctx: { org_id: string; user_id: string; project_id: string | null; live_role: string; device_id: string }
+}
+
+const SYNC_BODY_MAX_BYTES = 72 * 1024
+const DEVICE_RE = /^[A-Za-z0-9_-]{8,64}$/
 const READ_BODY_MAX_BYTES = 16 * 1024
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/
 const BODY_MAX_BYTES = 2 * 1024
@@ -133,6 +146,26 @@ async function readReadBody(req: Request): Promise<ReadBody | null> {
   }
 }
 
+async function readSyncBody(req: Request): Promise<SyncBody | null> {
+  const raw = await req.text()
+  if (new TextEncoder().encode(raw).length > SYNC_BODY_MAX_BYTES) return null
+  try {
+    const b = JSON.parse(raw) as Record<string, unknown>
+    const c = b?.ctx as Record<string, unknown> | undefined
+    const t = (o: unknown): o is string => typeof o === "string" && o !== ""
+    if (!b || typeof b !== "object" || Array.isArray(b) || !c || typeof c !== "object" || Array.isArray(c)) return null
+    if (!t(b.op_id) || !ID_RE.test(b.op_id) || !t(b.function_id) || !ID_RE.test(b.function_id)) return null
+    if (!b.params || typeof b.params !== "object" || Array.isArray(b.params)) return null
+    if (!t(c.org_id) || !t(c.user_id) || !t(c.live_role) || !t(c.device_id) || !DEVICE_RE.test(c.device_id)) return null
+    // a project is named, except for create_project (it makes one)
+    const project = c.project_id === null ? null : t(c.project_id) ? c.project_id : undefined
+    if (project === undefined || (b.function_id === "create_project") !== (project === null)) return null
+    return { op_id: b.op_id, function_id: b.function_id, params: b.params as Record<string, unknown>, ctx: { org_id: c.org_id, user_id: c.user_id, project_id: project, live_role: c.live_role, device_id: c.device_id } }
+  } catch {
+    return null
+  }
+}
+
 /** The refusal a claim answered, as the exec answer: the SQL's reason in the closed upper-case vocabulary. */
 function refusalOf(intentId: string, claim: Record<string, unknown>): Response {
   const reason = typeof claim.reason === "string" ? claim.reason : ""
@@ -183,6 +216,23 @@ export async function handleExec(req: Request, deps: ExecDeps): Promise<Response
     // a read writes no intent and no row: the answer is the result, or a closed code and the names of what is missing, never a message
     if (ranRead.status === "ok") return json(200, { status: "ok", function_id: ranRead.function_id, result: ranRead.result })
     return json(200, { status: "failed", code: CODE_RE.test(ranRead.code) ? ranRead.code : "INTERNAL_ERROR", missing: ranRead.missing.slice(0, 20).map((m) => String(m).slice(0, 64)), http: ranRead.http })
+  }
+
+  if (route === "sync-run") {
+    if (method !== "POST") return json(405, { ok: false, code: "METHOD_NOT_ALLOWED" })
+    if (!deps.syncRun) return json(503, { ok: false, code: "SYNC_NOT_AVAILABLE" })
+    const body = await readSyncBody(req)
+    if (!body) return json(400, { ok: false, code: "BAD_REQUEST" })
+    let ranSync: Ran
+    try {
+      ranSync = await deps.syncRun(body)
+    } catch {
+      log("ai-work-link-exec: sync-run: the run threw -> failed INTERNAL_ERROR")
+      ranSync = { status: "failed", code: "INTERNAL_ERROR", missing: [] }
+    }
+    // no intent row exists for a laptop push: the outcome goes back to projexa-sync, which stores it in the push ledger (a closed code, never a message)
+    if (ranSync.status === "done") return json(200, { op_id: body.op_id, status: "done", submission_id: ranSync.submission_id, record: ranSync.record })
+    return json(200, { op_id: body.op_id, status: "failed", code: CODE_RE.test(ranSync.code) ? ranSync.code : "INTERNAL_ERROR", missing: ranSync.missing.slice(0, 20).map((m) => String(m).slice(0, 64)) })
   }
 
   if (route !== "run") return json(404, { ok: false, code: "NOT_FOUND" })

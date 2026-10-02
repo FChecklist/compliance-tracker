@@ -34,7 +34,17 @@ export type SyncDeps = {
   fetchImpl?: typeof fetch
   /** one-minute memory of the registry's current release, shared by every request of the isolate */
   releaseBox?: { at: number; value: ReleaseInfo | null }
+  /** Runs one pushed write through the real pipeline (the ai-work-link-exec function). Absent: POST /push answers 503. */
+  execRun?: (body: ExecRunBody) => Promise<ExecOutcome>
 }
+
+/** What the exec function answered for one pushed write (index.ts maps its HTTP answer to this). "unavailable": nothing ran. "uncertain": it was sent and no answer came back, so the write may have happened. */
+export type ExecRunBody = { op_id: string; function_id: string; params: Record<string, unknown>; ctx: { org_id: string; user_id: string; project_id: string | null; live_role: string; device_id: string } }
+export type ExecOutcome =
+  | { kind: "done"; record: { id: string | null; route: string | null }; submission_id: string | null }
+  | { kind: "failed"; code: string; missing: string[] }
+  | { kind: "unavailable" }
+  | { kind: "uncertain" }
 
 export type ReleaseInfo = { registered: boolean; current: Record<string, unknown> | null; min_compatible: string }
 
@@ -43,6 +53,8 @@ export const SYNC_KINDS = ["project", "tasks", "boqs", "boq_lines", "activities"
 export const PULL_LIMIT_DEFAULT = 200
 export const PULL_LIMIT_MAX = 500
 export const SERVER_PROTOCOL = 2
+export const PUSH_BODY_MAX_BYTES = 262_144
+export const PUSH_OPS_MAX = 50
 export const RELEASE_ORIGIN = "https://projexa-ai.com"
 export const RELEASE_MANIFEST_URL = `${RELEASE_ORIGIN}/_release/release.json`
 export const RELEASE_MANIFEST_MAX_BYTES = 2_000_000
@@ -116,12 +128,12 @@ function respond(req: Request, deps: SyncDeps, status: number, body: unknown, ex
 
 const NOT_FOUND = { error: "Not found" }
 
-const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST", install: "POST", "release/current": "GET", "release/register": "POST" }
+const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST", push: "POST", install: "POST", "release/current": "GET", "release/register": "POST" }
 /** Routes a laptop that is too old must still be able to reach: how else would it learn to update. */
 const UPDATE_EXEMPT = new Set(["release/current", "release/register", "install"])
 
 function routeOf(pathname: string): string {
-  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest|changes|install|release\/current|release\/register)$/)
+  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest|changes|push|install|release\/current|release\/register)$/)
   return m ? m[1] : ""
 }
 
@@ -160,6 +172,7 @@ export async function handleSync(req: Request, deps: SyncDeps): Promise<Response
   if (route === "ids") return ids(req, deps, who, now)
   if (route === "attest") return attest(req, deps, who, now)
   if (route === "changes") return changes(req, deps, who, now)
+  if (route === "push") return push(req, deps, who, now)
   return pull(req, deps, who, now)
 }
 
@@ -280,9 +293,9 @@ async function attest(req: Request, deps: SyncDeps, who: Who, now: Date): Promis
   })
 }
 
-async function readBody(req: Request, deps: SyncDeps): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; res: Response }> {
+async function readBody(req: Request, deps: SyncDeps, max = BODY_MAX_BYTES): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; res: Response }> {
   const raw = await req.text()
-  if (raw.length > BODY_MAX_BYTES) return { ok: false, res: respond(req, deps, 413, { error: "Body too large" }) }
+  if (raw.length > max) return { ok: false, res: respond(req, deps, 413, { error: "Body too large" }) }
   try {
     const v = JSON.parse(raw)
     if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error("shape")
@@ -329,6 +342,10 @@ async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
 
 /** One page of rows (keyset or exact ids): the second money pass, the version, the signature. */
 async function pageResponse(req: Request, deps: SyncDeps, who: Who, now: Date, project: string, kind: string, data: Record<string, unknown>): Promise<Response> {
+  return respond(req, deps, 200, await buildPage(deps, who, now, project, kind, data))
+}
+
+async function buildPage(deps: SyncDeps, who: Who, now: Date, project: string, kind: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
   const def = kindDef(kind)
   const hidden = Array.isArray(data.hidden_fields) ? (data.hidden_fields as unknown[]).filter((x): x is string => typeof x === "string") : []
   const moneyVisible = data.money_visible === true
@@ -357,7 +374,7 @@ async function pageResponse(req: Request, deps: SyncDeps, who: Who, now: Date, p
   )
   const nextTs = typeof data.next_ts === "string" ? data.next_ts : null
   const nextId = typeof data.next_id === "string" ? data.next_id : null
-  return respond(req, deps, 200, {
+  return {
     items,
     kid: signing && org ? signing.kid : null,
     next_cursor: nextTs && nextId ? encodeCursor(nextTs, nextId) : null,
@@ -365,7 +382,7 @@ async function pageResponse(req: Request, deps: SyncDeps, who: Who, now: Date, p
     hidden_fields: hidden,
     redacted: data.redacted === true || hidden.length > 0 || (!moneyVisible && !!def && def.money_columns.length > 0),
     server_time: now.toISOString(),
-  })
+  }
 }
 
 // POST /changes {project_id, after_seq, limit}: what changed in a project since a sequence number, tombstones included (after_seq null: just the head sequence)
@@ -527,4 +544,143 @@ async function install(req: Request, deps: SyncDeps, who: Who, now: Date): Promi
   })
   if (!r.ok) return respond(req, deps, r.status, r.body)
   return respond(req, deps, 200, { recorded: r.data.recorded, server_time: now.toISOString() })
+}
+// ---------------------------------------------------------------------------------------------------------------------------------
+// PUSH: what a person edited on their laptop (drizzle/0681 decides, the real pipeline writes)
+// ---------------------------------------------------------------------------------------------------------------------------------
+/** Codes of a failed run that mean "this cannot run on the edge": the laptop keeps the op and offers the normal online path. */
+const NEEDS_SERVER_CODES = new Set(["FUNCTION_NOT_AVAILABLE", "NOT_AVAILABLE_ON_EXEC", "NOT_AVAILABLE"])
+/** Codes of a failed run that mean "nothing was written and trying again later may work". */
+const TRANSIENT_CODES = new Set(["INTERNAL_ERROR", "DB_UNREACHABLE", "NOT_CONFIGURED", "SYNC_NOT_AVAILABLE", "CLAIM_UNAVAILABLE", "BAD_CLAIM"])
+
+type PushResult = Record<string, unknown>
+
+/** The signed current row of one record (a conflict shows it; an applied op returns it at its new version). null: the row is gone or not readable. */
+async function signedRow(deps: SyncDeps, who: Who, now: Date, project: string, kind: string, id: string): Promise<Record<string, unknown> | null> {
+  const r = await callSql(deps, "projexa_sync_pull_ids", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_kind: kind, p_ids: [id] })
+  if (!r.ok) return null
+  const page = await buildPage(deps, who, now, project, kind, r.data)
+  const it = (page.items as Array<Record<string, unknown>>)[0]
+  return it ? { kind, id, version: it.version, updated_at: it.updated_at, data: it.data, sig: it.sig ?? null, kid: page.kid } : null
+}
+
+async function push(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+  const parsed = await readBody(req, deps, PUSH_BODY_MAX_BYTES)
+  if (!parsed.ok) return parsed.res
+  const body = parsed.body
+  const device = body.device_id
+  const ops = body.ops
+  if (typeof device !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(device)) return respond(req, deps, 400, { error: "device_id is required" })
+  if (!Array.isArray(ops) || ops.length < 1 || ops.length > PUSH_OPS_MAX) return respond(req, deps, 400, { error: `ops must be 1 to ${PUSH_OPS_MAX} operations` })
+  if (!deps.execRun) return respond(req, deps, 503, { error: "Saving to the server is not available right now. Your changes stay on this laptop.", code: "PUSH_NOT_AVAILABLE" })
+  const execRun = deps.execRun
+
+  const results: PushResult[] = []
+  // a record whose earlier op in this batch did not apply keeps its later ops waiting (order matters), without running them
+  const held = new Set<string>()
+
+  for (const raw of ops) {
+    const op = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+    const opId = op && typeof op.op_id === "string" ? op.op_id : null
+    if (!op || !opId) {
+      results.push({ op_id: opId, status: "rejected", error: { code: "BAD_OP" } })
+      continue
+    }
+    const rec = op.record !== null && typeof op.record === "object" && !Array.isArray(op.record) ? (op.record as Record<string, unknown>) : null
+    const recKey = rec && typeof rec.kind === "string" && typeof rec.id === "string" ? `${rec.kind}:${rec.id}` : null
+    const hint = typeof op.record_kind === "string" && (SYNC_KINDS as readonly string[]).includes(op.record_kind) ? op.record_kind : null
+    const project = typeof op.project_id === "string" ? op.project_id : null
+    const hold = () => {
+      if (recKey) held.add(recKey)
+    }
+
+    if (recKey && held.has(recKey)) {
+      results.push({ op_id: opId, status: "failed", error: { code: "PREVIOUS_OP_BLOCKED" } })
+      continue
+    }
+
+    const begin = await callSql(deps, "projexa_sync_push_begin", { p_sub: who.sub, p_email: who.email, p_device_id: device, p_op: op })
+    if (!begin.ok) return respond(req, deps, begin.status, begin.body) // not linked / service down: the whole batch is refused, nothing ran
+    const action = begin.data.action
+
+    if (action === "reject") {
+      results.push({ op_id: opId, status: "rejected", error: { code: String(begin.data.code ?? "REJECTED") } })
+      continue
+    }
+    if (action === "retry") {
+      hold()
+      results.push({ op_id: opId, status: "failed", error: { code: String(begin.data.code ?? "RETRY") } })
+      continue
+    }
+    if (action === "duplicate") {
+      const stored = (begin.data.result ?? {}) as Record<string, unknown>
+      if (begin.data.stored_status === "applied") {
+        results.push({ op_id: opId, status: "duplicate", record_id: stored.id ?? begin.data.record_id ?? null, route: stored.route ?? null, version: begin.data.version ?? null })
+      } else {
+        results.push({ op_id: opId, status: "rejected", error: { code: String(begin.data.error_code ?? "REJECTED") } })
+      }
+      continue
+    }
+    if (action === "conflict") {
+      hold()
+      const kind = String(begin.data.kind)
+      const server = project ? await signedRow(deps, who, now, project, kind, String(begin.data.id)) : null
+      results.push({ op_id: opId, status: "conflict", version: begin.data.server_version, base_version: begin.data.base_version, server })
+      continue
+    }
+    if (action !== "run") {
+      hold()
+      results.push({ op_id: opId, status: "failed", error: { code: "BAD_ANSWER" } })
+      continue
+    }
+
+    // RUN: the real pipeline, as the person, with the live role the SQL just resolved
+    const ctx = begin.data.ctx as ExecRunBody["ctx"]
+    let outcome: ExecOutcome
+    try {
+      outcome = await execRun({ op_id: opId, function_id: String(op.function_id), params: (op.params ?? {}) as Record<string, unknown>, ctx })
+    } catch {
+      outcome = { kind: "uncertain" }
+    }
+
+    const finish = async (status: string, result: unknown, code: string | null, kind: string | null, id: string | null) => {
+      const r = await deps.rpc("projexa_sync_push_finish", { p_user_id: ctx.user_id, p_op_id: opId, p_status: status, p_result: result, p_error_code: code, p_record_kind: kind, p_record_id: id }).catch(() => null)
+      return r && !r.error ? ((r.data ?? {}) as Record<string, unknown>) : null
+    }
+
+    if (outcome.kind === "done") {
+      const kind = hint ?? (rec && typeof rec.kind === "string" ? rec.kind : null)
+      const id = outcome.record.id ?? (rec && typeof rec.id === "string" ? rec.id : null)
+      const fin = await finish("applied", { id: outcome.record.id, route: outcome.record.route, submission_id: outcome.submission_id }, null, kind, id)
+      if (!fin) {
+        // the write happened but its ledger row could not be closed: the row reads "uncertain" after 10 minutes, and the laptop must not blindly re-send
+        hold()
+        results.push({ op_id: opId, status: "failed", error: { code: "EXECUTION_UNCERTAIN" } })
+        continue
+      }
+      const server = kind && id && project ? await signedRow(deps, who, now, project, kind, id) : null
+      results.push({ op_id: opId, status: "applied", record_id: id, route: outcome.record.route, version: fin.version ?? null, server })
+      continue
+    }
+    if (outcome.kind === "failed") {
+      const needsServer = NEEDS_SERVER_CODES.has(outcome.code)
+      const transient = TRANSIENT_CODES.has(outcome.code)
+      await finish(needsServer ? "needs_server" : transient ? "failed" : "rejected", { missing: outcome.missing }, outcome.code, null, null)
+      if (needsServer || transient) hold()
+      results.push({ op_id: opId, status: needsServer ? "needs_server" : transient ? "failed" : "rejected", error: { code: outcome.code, missing: outcome.missing } })
+      continue
+    }
+    if (outcome.kind === "unavailable") {
+      hold()
+      await finish("failed", null, "SYNC_NOT_AVAILABLE", null, null)
+      results.push({ op_id: opId, status: "failed", error: { code: "SYNC_NOT_AVAILABLE" } })
+      continue
+    }
+    // uncertain: the call went out and nothing came back
+    hold()
+    await finish("uncertain", null, "EXECUTION_UNCERTAIN", null, null)
+    results.push({ op_id: opId, status: "failed", error: { code: "EXECUTION_UNCERTAIN" } })
+  }
+
+  return respond(req, deps, 200, { results, server_time: now.toISOString() })
 }

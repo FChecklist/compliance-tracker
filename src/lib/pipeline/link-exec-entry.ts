@@ -130,6 +130,27 @@ export async function runLinkIntent(claimed: ClaimedIntent): Promise<LinkRunOutc
   }
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------------
+// A LAPTOP'S OWN EDIT (local-first push, drizzle/0681). The person edited something on their laptop; projexa-sync verified their session, resolved their LIVE
+// role in SQL, checked the function is a registered write the role may run, checked the project is readable by them and checked the record's version. What arrives here
+// is that already-decided context plus the function and parameters. It runs through EXACTLY the path an AI-link action takes (same guards: an executor must exist and the
+// function must write; same project pin, same validation, same executors, no model call, memory without an embedding), attributed to the person. Only the provenance label
+// differs: the link id is `px-sync:<device>`, so an audit can tell a laptop's push from an outside AI's action. The AI link's own caps (30 writes an hour) are applied in SQL
+// by record_intent, which this path does not use; the push ledger has its own cap (drizzle/0681).
+// ---------------------------------------------------------------------------------------------------------------------------------
+export type SyncOp = {
+  op_id: string
+  function_id: string
+  params: unknown
+  ctx: { org_id: string; user_id: string; project_id: string | null; live_role: string; device_id: string }
+}
+
+export async function runSyncOp(op: SyncOp): Promise<LinkRunOutcome> {
+  return runLinkIntent({
+    intent: { id: op.op_id, kind: "action", function_id: op.function_id, params: op.params },
+    ctx: { link_id: `px-sync:${op.ctx.device_id}`, org_id: op.ctx.org_id, user_id: op.ctx.user_id, project_id: op.ctx.project_id, live_role: op.ctx.live_role },
+  })
+}
 /** The role the exec function's database connection really has: `app_runtime` when APP_RUNTIME_DATABASE_URL is the right credential. */
 export async function linkExecHealth(): Promise<{ db_role: string }> {
   const rows = (await withTenantContext({ orgId: "awl-exec-health" }, (db) => db.execute(sql`select current_user as db_role`))) as unknown as { db_role: string }[]
