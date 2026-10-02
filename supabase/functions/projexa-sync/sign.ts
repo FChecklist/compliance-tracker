@@ -1,7 +1,7 @@
 // PROJEXA LOCAL-FIRST SYNC: the signing layer of the projexa-sync Edge function. Pure (WebCrypto only, no Deno global), so bun tests it.
 //
 // WHY SIGN. A laptop may hand rows it pulled to ANOTHER laptop (peer sync, WebRTC). The receiver cannot trust the sender, so every row the server
-// returns carries an ES256 signature over (organisation, project, kind, id, updated_at, SHA-256 of the canonical row). A peer that alters one byte of a
+// returns carries an ES256 signature over (organisation, project, kind, id, record version, updated_at, SHA-256 of the canonical row). A peer that alters one byte of a
 // row, moves it to another project, or replays it into another organisation fails verification. The server's public keys are public; the private key lives
 // only in platform.projexa_sync_key (service_role functions) and in this isolate's memory.
 //
@@ -15,7 +15,7 @@
 export type Jwk = JsonWebKey
 export type KeyRecord = { kid: string; alg: "ES256"; public_jwk: Jwk; private_jwk: Jwk }
 
-export const ITEM_MESSAGE_PREFIX = "px1"
+export const ITEM_MESSAGE_PREFIX = "px2"
 export const ATTEST_TTL_SECONDS = 600
 
 const te = new TextEncoder()
@@ -49,8 +49,8 @@ export async function sha256Hex(text: string): Promise<string> {
   return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", te.encode(text))))
 }
 
-export function itemMessage(parts: { org: string; project: string; kind: string; id: string; updatedAt: string; dataHash: string }): string {
-  return [ITEM_MESSAGE_PREFIX, parts.org, parts.project, parts.kind, parts.id, parts.updatedAt, parts.dataHash].join("|")
+export function itemMessage(parts: { org: string; project: string; kind: string; id: string; version: number; updatedAt: string; dataHash: string }): string {
+  return [ITEM_MESSAGE_PREFIX, parts.org, parts.project, parts.kind, parts.id, String(parts.version), parts.updatedAt, parts.dataHash].join("|")
 }
 
 export async function generateKeyRecord(): Promise<KeyRecord> {
@@ -70,7 +70,7 @@ export type Signing = {
   channelId(orgId: string): Promise<string>
   /** Compact JWS (ES256) of a JSON payload. */
   signToken(payload: Record<string, unknown>): Promise<string>
-  signItem(parts: { org: string; project: string; kind: string; id: string; updatedAt: string; data: unknown }): Promise<string>
+  signItem(parts: { org: string; project: string; kind: string; id: string; version: number; updatedAt: string; data: unknown }): Promise<string>
 }
 
 export async function createSigning(rec: KeyRecord): Promise<Signing> {
@@ -90,7 +90,7 @@ export async function createSigning(rec: KeyRecord): Promise<Signing> {
     },
     async signItem(p) {
       const dataHash = await sha256Hex(canonicalize(p.data))
-      return sign(itemMessage({ org: p.org, project: p.project, kind: p.kind, id: p.id, updatedAt: p.updatedAt, dataHash }))
+      return sign(itemMessage({ org: p.org, project: p.project, kind: p.kind, id: p.id, version: p.version, updatedAt: p.updatedAt, dataHash }))
     },
   }
 }

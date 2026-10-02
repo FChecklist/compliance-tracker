@@ -226,7 +226,7 @@ describe("signed rows", () => {
     for (const it of page.items as J[]) {
       expect(typeof it.sig).toBe("string")
       const hash = await sha256Hex(canonicalize(it.data))
-      const msg = itemMessage({ org: "org-a", project: "proj-a", kind: "tasks", id: it.id, updatedAt: it.updated_at, dataHash: hash })
+      const msg = itemMessage({ org: "org-a", project: "proj-a", kind: "tasks", id: it.id, version: it.version, updatedAt: it.updated_at, dataHash: hash })
       expect(await verifyMessage(k, msg, it.sig)).toBe(true)
     }
   })
@@ -235,7 +235,7 @@ describe("signed rows", () => {
     const page = await pullSigned("u-mgr", "proj-a", "tasks")
     const it = (page.items as J[])[0]
     const k = await pub()
-    const base = { org: "org-a", project: "proj-a", kind: "tasks", id: it.id as string, updatedAt: it.updated_at as string, dataHash: await sha256Hex(canonicalize(it.data)) }
+    const base = { org: "org-a", project: "proj-a", kind: "tasks", id: it.id as string, version: it.version as number, updatedAt: it.updated_at as string, dataHash: await sha256Hex(canonicalize(it.data)) }
     expect(await verifyMessage(k, itemMessage(base), it.sig)).toBe(true)
     const tamperedData = { ...(it.data as object), title: "Changed by a peer" }
     for (const bad of [
@@ -243,6 +243,7 @@ describe("signed rows", () => {
       { ...base, project: "proj-a2" },
       { ...base, kind: "rfis" },
       { ...base, id: "other" },
+      { ...base, version: base.version + 1 },
       { ...base, updatedAt: "2026-12-31T00:00:00.000000Z" },
       { ...base, org: "org-b" },
     ]) {
@@ -254,7 +255,7 @@ describe("signed rows", () => {
     const page = await pullSigned("u-mgr", "proj-a", "tasks")
     const it = (page.items as J[])[0]
     const stranger = await generateKeyRecord()
-    const msg = itemMessage({ org: "org-a", project: "proj-a", kind: "tasks", id: it.id as string, updatedAt: it.updated_at as string, dataHash: await sha256Hex(canonicalize(it.data)) })
+    const msg = itemMessage({ org: "org-a", project: "proj-a", kind: "tasks", id: it.id as string, version: it.version as number, updatedAt: it.updated_at as string, dataHash: await sha256Hex(canonicalize(it.data)) })
     expect(await verifyMessage(await importPublic(stranger.public_jwk), msg, it.sig)).toBe(false)
   })
 

@@ -337,7 +337,9 @@ describe("the handler: contract and edges", () => {
     // kid is the signing key's id: null here because this harness injects no signing key, and then the items are unsigned
     expect(Object.keys(r.json).sort()).toEqual(["has_more", "hidden_fields", "items", "kid", "next_cursor", "redacted", "server_time"])
     expect(r.json.kid).toBeNull()
-    expect(Object.keys((r.json.items as J[])[0]).sort()).toEqual(["data", "id", "updated_at"])
+    // version is the record version: 0 here because this harness applies 0677 only (no change tracking)
+    expect(Object.keys((r.json.items as J[])[0]).sort()).toEqual(["data", "id", "updated_at", "version"])
+    expect((r.json.items as J[])[0].version).toBe(0)
     expect(r.json.server_time).toBe("2026-10-02T00:00:00.000Z")
   })
 

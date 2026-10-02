@@ -38,6 +38,9 @@ export const PULL_LIMIT_DEFAULT = 200
 export const PULL_LIMIT_MAX = 500
 export const IDS_LIMIT_DEFAULT = 5000
 export const IDS_LIMIT_MAX = 5000
+export const PULL_IDS_MAX = 200
+export const CHANGES_LIMIT_DEFAULT = 1000
+export const CHANGES_LIMIT_MAX = 1000
 export const REQUESTS_PER_MINUTE = 120
 export const BODY_MAX_BYTES = 4096
 
@@ -102,10 +105,10 @@ function respond(req: Request, deps: SyncDeps, status: number, body: unknown, ex
 
 const NOT_FOUND = { error: "Not found" }
 
-const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST" }
+const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST" }
 
 function routeOf(pathname: string): string {
-  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest)$/)
+  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest|changes)$/)
   return m ? m[1] : ""
 }
 
@@ -135,6 +138,7 @@ export async function handleSync(req: Request, deps: SyncDeps): Promise<Response
   if (route === "manifest") return manifest(req, deps, who, now)
   if (route === "ids") return ids(req, deps, who, now)
   if (route === "attest") return attest(req, deps, who, now)
+  if (route === "changes") return changes(req, deps, who, now)
   return pull(req, deps, who, now)
 }
 
@@ -245,22 +249,38 @@ async function attest(req: Request, deps: SyncDeps, who: Who, now: Date): Promis
   })
 }
 
-async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+async function readBody(req: Request, deps: SyncDeps): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; res: Response }> {
   const raw = await req.text()
-  if (raw.length > BODY_MAX_BYTES) return respond(req, deps, 413, { error: "Body too large" })
-  let body: Record<string, unknown>
+  if (raw.length > BODY_MAX_BYTES) return { ok: false, res: respond(req, deps, 413, { error: "Body too large" }) }
   try {
     const v = JSON.parse(raw)
     if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error("shape")
-    body = v as Record<string, unknown>
+    return { ok: true, body: v as Record<string, unknown> }
   } catch {
-    return respond(req, deps, 400, { error: "Body must be a JSON object" })
+    return { ok: false, res: respond(req, deps, 400, { error: "Body must be a JSON object" }) }
   }
+}
+
+async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+  const parsed = await readBody(req, deps)
+  if (!parsed.ok) return parsed.res
+  const body = parsed.body
   const project = body.project_id
   const kind = body.kind
+  if (typeof project !== "string" || project === "" || project.length > 128 || typeof kind !== "string" || kind === "" || kind.length > 64) return respond(req, deps, 400, { error: "project_id and kind are required" })
+
+  // EXACT ROWS: {project_id, kind, ids:[...]}. A table without updated_at changes without moving the keyset cursor; the change log names such a row and this fetches it.
+  if (body.ids !== undefined) {
+    const idList = body.ids
+    if (!Array.isArray(idList) || idList.length < 1 || idList.length > PULL_IDS_MAX || !idList.every((x) => typeof x === "string" && ID_RE.test(x))) return respond(req, deps, 400, { error: `ids must be 1 to ${PULL_IDS_MAX} valid ids` })
+    if (!(SYNC_KINDS as readonly string[]).includes(kind)) return respond(req, deps, 404, NOT_FOUND)
+    const r = await callSql(deps, "projexa_sync_pull_ids", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_kind: kind, p_ids: idList })
+    if (!r.ok) return respond(req, deps, r.status, r.body)
+    return pageResponse(req, deps, who, now, project, kind, r.data)
+  }
+
   const after = body.after ?? null
   const limitIn = body.limit ?? PULL_LIMIT_DEFAULT
-  if (typeof project !== "string" || project === "" || project.length > 128 || typeof kind !== "string" || kind === "" || kind.length > 64) return respond(req, deps, 400, { error: "project_id and kind are required" })
   if (typeof limitIn !== "number" || !Number.isInteger(limitIn) || limitIn < 1 || limitIn > PULL_LIMIT_MAX) return respond(req, deps, 400, { error: `limit must be a whole number from 1 to ${PULL_LIMIT_MAX}` })
   let cur: { ts: string; id: string } | null = null
   if (after !== null) {
@@ -273,12 +293,16 @@ async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
 
   const r = await callSql(deps, "projexa_sync_pull", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_kind: kind, p_after_ts: cur?.ts ?? null, p_after_id: cur?.id ?? null, p_limit: limitIn })
   if (!r.ok) return respond(req, deps, r.status, r.body)
+  return pageResponse(req, deps, who, now, project, kind, r.data)
+}
 
+/** One page of rows (keyset or exact ids): the second money pass, the version, the signature. */
+async function pageResponse(req: Request, deps: SyncDeps, who: Who, now: Date, project: string, kind: string, data: Record<string, unknown>): Promise<Response> {
   const def = kindDef(kind)
-  const hidden = Array.isArray(r.data.hidden_fields) ? (r.data.hidden_fields as unknown[]).filter((x): x is string => typeof x === "string") : []
-  const moneyVisible = r.data.money_visible === true
-  const rows = Array.isArray(r.data.items) ? (r.data.items as Array<Record<string, unknown>>) : []
-  // Each row is signed (organisation, project, kind, id, updated_at, hash of the row as sent) so another laptop can verify what a peer hands it. Unsigned
+  const hidden = Array.isArray(data.hidden_fields) ? (data.hidden_fields as unknown[]).filter((x): x is string => typeof x === "string") : []
+  const moneyVisible = data.money_visible === true
+  const rows = Array.isArray(data.items) ? (data.items as Array<Record<string, unknown>>) : []
+  // Each row is signed (organisation, project, kind, id, version, updated_at, hash of the row as sent) so another laptop can verify what a peer hands it. Unsigned
   // only when no key is available: then `kid` is null and a laptop will not pass the rows on to peers.
   let signing: Signing | null = null
   let org: string | null = null
@@ -292,22 +316,48 @@ async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
   }
   const items = await Promise.all(
     rows.map(async (it) => {
-      const data = (it.data ?? {}) as Record<string, unknown>
+      const row = (it.data ?? {}) as Record<string, unknown>
       // the second money pass, the AI link's own (the SQL already nulled these columns)
-      const safe = def ? redactItem(def, data, { moneyVisible, hiddenFields: hidden }) : data
-      const sig = signing && org && typeof it.id === "string" && typeof it.updated_at === "string" ? await signing.signItem({ org, project, kind, id: it.id, updatedAt: it.updated_at, data: safe }) : undefined
-      return sig ? { id: it.id, updated_at: it.updated_at, data: safe, sig } : { id: it.id, updated_at: it.updated_at, data: safe }
+      const safe = def ? redactItem(def, row, { moneyVisible, hiddenFields: hidden }) : row
+      const version = typeof it.version === "number" && Number.isInteger(it.version) && it.version >= 0 ? it.version : 0
+      const sig = signing && org && typeof it.id === "string" && typeof it.updated_at === "string" ? await signing.signItem({ org, project, kind, id: it.id, version, updatedAt: it.updated_at, data: safe }) : undefined
+      return sig ? { id: it.id, updated_at: it.updated_at, version, data: safe, sig } : { id: it.id, updated_at: it.updated_at, version, data: safe }
     }),
   )
-  const nextTs = typeof r.data.next_ts === "string" ? r.data.next_ts : null
-  const nextId = typeof r.data.next_id === "string" ? r.data.next_id : null
+  const nextTs = typeof data.next_ts === "string" ? data.next_ts : null
+  const nextId = typeof data.next_id === "string" ? data.next_id : null
   return respond(req, deps, 200, {
     items,
     kid: signing && org ? signing.kid : null,
     next_cursor: nextTs && nextId ? encodeCursor(nextTs, nextId) : null,
-    has_more: r.data.has_more === true,
+    has_more: data.has_more === true,
     hidden_fields: hidden,
-    redacted: r.data.redacted === true || hidden.length > 0 || !moneyVisible && !!def && def.money_columns.length > 0,
+    redacted: data.redacted === true || hidden.length > 0 || (!moneyVisible && !!def && def.money_columns.length > 0),
+    server_time: now.toISOString(),
+  })
+}
+
+// POST /changes {project_id, after_seq, limit}: what changed in a project since a sequence number, tombstones included (after_seq null: just the head sequence)
+async function changes(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+  const parsed = await readBody(req, deps)
+  if (!parsed.ok) return parsed.res
+  const body = parsed.body
+  const project = body.project_id
+  const after = body.after_seq ?? null
+  const limitIn = body.limit ?? CHANGES_LIMIT_DEFAULT
+  if (typeof project !== "string" || project === "" || project.length > 128) return respond(req, deps, 400, { error: "project_id is required" })
+  if (typeof limitIn !== "number" || !Number.isInteger(limitIn) || limitIn < 1 || limitIn > CHANGES_LIMIT_MAX) return respond(req, deps, 400, { error: `limit must be a whole number from 1 to ${CHANGES_LIMIT_MAX}` })
+  if (after !== null && (typeof after !== "number" || !Number.isSafeInteger(after) || after < 0)) return respond(req, deps, 400, { error: "Bad cursor" })
+  const r = await callSql(deps, "projexa_sync_changes", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_after_seq: after, p_limit: limitIn })
+  if (!r.ok) return respond(req, deps, r.status, r.body)
+  const list = Array.isArray(r.data.changes) ? (r.data.changes as Array<Record<string, unknown>>) : []
+  return respond(req, deps, 200, {
+    changes: list
+      .filter((c) => typeof c.kind === "string" && (SYNC_KINDS as readonly string[]).includes(c.kind) && typeof c.id === "string")
+      .map((c) => ({ seq: Number(c.seq), kind: c.kind, id: c.id, version: Number(c.version), op: c.op })),
+    next_seq: Number(r.data.next_seq ?? 0),
+    has_more: r.data.has_more === true,
+    head_seq: Number(r.data.head_seq ?? 0),
     server_time: now.toISOString(),
   })
 }
