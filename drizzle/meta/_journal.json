@@ -3593,6 +3593,13 @@
       "when": 1790500000000,
       "tag": "0684_projexa_sync_org_masters",
       "breakpoints": true
+    },
+    {
+      "idx": 516,
+      "version": "7",
+      "when": 1790502000000,
+      "tag": "0686_projexa_sync_hardening",
+      "breakpoints": true
     }
   ]
 }
