@@ -214,10 +214,11 @@ BEGIN
         RETURN jsonb_build_object('status', 'ok', 'action', 'retry', 'code', 'IN_PROGRESS');
       END IF;
       -- ten minutes without a finish: the answer was lost. It has long settled (the exec times out after seconds), so it is resolved below like any settled uncertain op.
-      UPDATE platform.projexa_sync_op SET status = 'uncertain', error_code = 'EXECUTION_UNCERTAIN', finished_at = v_old.created_at + interval '10 minutes'
+      -- finished_at is back-dated past the settle time: nothing started ten minutes ago can still commit
+      UPDATE platform.projexa_sync_op SET status = 'uncertain', error_code = 'EXECUTION_UNCERTAIN', finished_at = clock_timestamp() - interval '2 minutes'
        WHERE user_id = v_user AND op_id = v_op_id AND status = 'running';
       v_old.status := 'uncertain';
-      v_old.finished_at := v_old.created_at + interval '10 minutes';
+      v_old.finished_at := clock_timestamp() - interval '2 minutes';
     END IF;
     IF v_old.status = 'uncertain' THEN
       IF coalesce(v_old.finished_at, v_old.created_at) > clock_timestamp() - interval '2 minutes' THEN
