@@ -219,7 +219,7 @@ describe("who may claim", () => {
   test("a colleague who may not read a private project never gets its job, even with the SAME view class", async () => {
     await reset()
     expect(await classOf("u-mem")).toBe(await classOf("u-view"))
-    const id = (await enqueue("u-mem", { project_id: "proj-priv-mem", visibility: "project" })).json.job_id
+    const id = (await enqueue("u-mem", { project_id: "proj-priv-mem", visibility: "project", params: {} })).json.job_id
     expect((await claim("u-view")).json.job).toBeNull()
     expect((await claim("u-mem")).json.job).toMatchObject({ job_id: id })
   })
@@ -257,14 +257,17 @@ describe("who may claim", () => {
     await reset()
     await db.exec(`set track_functions = 'all'`)
     await db.exec(`begin`)
-    const before = (await db.query<J>(`select coalesce(sum(calls), 0)::int n from pg_stat_xact_user_functions where funcname in ('projexa_sync__view_class', 'ai_work_link__hidden_cols', 'projexa_sync__ctx', 'projexa_job__expire')`)).rows[0].n
+    // PGlite is one backend whose statistics are not flushed per transaction: compare before/after inside one transaction
+    const work = async () =>
+      (await db.query<J>(`select (select coalesce(sum(calls), 0)::int from pg_stat_xact_user_functions where funcname in ('projexa_sync__view_class', 'ai_work_link__hidden_cols', 'projexa_sync__ctx', 'projexa_job__expire')) f,
+                                 (select coalesce(sum(n_tup_upd), 0)::int from pg_stat_xact_user_tables where relname = 'projexa_work_job') u`)).rows[0]
+    const before = await work()
     const r = await claimSql("u-mgr")
-    const after = (await db.query<J>(`select coalesce(sum(calls), 0)::int n from pg_stat_xact_user_functions where funcname in ('projexa_sync__view_class', 'ai_work_link__hidden_cols', 'projexa_sync__ctx', 'projexa_job__expire')`)).rows[0].n
-    const upd = (await db.query<J>(`select coalesce(sum(n_tup_upd), 0)::int n from pg_stat_xact_user_tables where relname = 'projexa_work_job'`)).rows[0].n
+    const after = await work()
     await db.exec(`commit`)
     expect(r.data).toMatchObject({ status: "ok", job: null, next_poll_seconds: 300 })
-    expect(after - before).toBe(0)
-    expect(upd).toBe(0)
+    expect(after.f - before.f).toBe(0)
+    expect(after.u - before.u).toBe(0)
     // a queued job of ANOTHER type is not a reason to do the work either
     await enqueue("u-mgr", { type: "csv_export" })
     expect((await claimSql("u-mgr", ["boq_rollup"])).data).toMatchObject({ job: null, next_poll_seconds: 300 })
@@ -313,7 +316,7 @@ describe("results are proposals, accepted once per lease", () => {
 
   test("the requester who can no longer read the project no longer reads the job", async () => {
     await reset()
-    const id = (await enqueue("u-mem", { project_id: "proj-a2" })).json.job_id
+    const id = (await enqueue("u-mem", { project_id: "proj-a2", params: {} })).json.job_id
     const lease = (await claim("u-mem")).json.job.lease_id
     await result("u-mem", id, lease)
     expect((await get("u-mem", id)).status).toBe(200)
