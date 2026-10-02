@@ -36,6 +36,11 @@ import { createInternalExtractCaller, type GatewayModelCall } from "@/lib/ai/int
 import type { InternalAiRoute } from "@/lib/ai/internal-ai-policy"
 import { extractionDepsWith } from "@/lib/pipeline/executors/extraction"
 import { runChatAttachment, type ChatAttachmentDeps, type ChatAttachmentInput } from "@/lib/pipeline/chat-attachment"
+import { withProjexaInternalAiOn } from "@/lib/services/__test-helpers__/projexa-internal-ai-switch"
+
+// lf-b3-ai-off: every way here uses the model once, so every test runs with PROJEXA_INTERNAL_AI_ENABLED="1" (restored after each). The
+// default-off refusals of these ways are pinned in the from-document route.test.ts and chat-attachment.test.ts.
+withProjexaInternalAiOn()
 
 const ORG = "org-reconcile"
 const PERSON = "user-1"

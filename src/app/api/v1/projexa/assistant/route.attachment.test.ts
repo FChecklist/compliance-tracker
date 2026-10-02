@@ -24,6 +24,12 @@ import { memoryLedger } from "@/lib/services/__test-helpers__/document-extractio
 import { carefulHumanModel } from "@/lib/services/__test-helpers__/zoomies-standin-model"
 import { zoomiesWorkbook } from "@/lib/services/__test-helpers__/zoomies-workbook"
 import type { LogTokenUsageInput } from "@/lib/services/token-usage-service"
+import { withProjexaInternalAiOn, withProjexaInternalAiUnset } from "@/lib/services/__test-helpers__/projexa-internal-ai-switch"
+import { USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai"
+
+// lf-b3-ai-off: the subject here is the attachment path WITH the model path available, so every test runs with
+// PROJEXA_INTERNAL_AI_ENABLED="1" (restored after each); "the internal AI switched off" pins the default.
+withProjexaInternalAiOn()
 
 const ORG = "org-1"
 const PERSON = "person-1"
@@ -224,6 +230,16 @@ describe("POST /api/v1/projexa/assistant with an attachment", () => {
     const res = await post({ attachment: ATTACHMENT, productId: "product-1" })
     expect(res.status).toBe(403)
     expect([state.opened, state.usage.length, state.modelCalls]).toEqual([0, 0, 0])
+  })
+
+  test("the internal AI switched off (the default), with a metered key present: a refused answer in the plain words (200), nothing read, no model, no ledger row", async () => {
+    const res = await withProjexaInternalAiUnset(() => post({ attachment: ATTACHMENT, productId: "product-1" }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toMatchObject({ status: "refused", billing: null, failure: { context: { reason: "projexa_internal_ai_off" } } })
+    expect(body.chatMessages).toEqual([USE_YOUR_OWN_AI])
+    expect([state.opened, state.usage.length, state.modelCalls]).toEqual([0, 0, 0])
+    expect(state.created).toEqual({ projects: 0, boqs: 0, lines: 0 })
   })
 
   test("a deployment with no metered provider key: a refused answer, nothing read, no model", async () => {

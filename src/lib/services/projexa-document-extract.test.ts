@@ -148,7 +148,8 @@ describe("no model is configured (BR-509 is the owner's decision)", () => {
       'import { createClient } from "npm:@supabase/supabase-js@2"',
       'import { attributionFromHeaders, DEFAULT_BUDGET_CAP_USD, parseCapUsd } from "./budget.ts"',
       'import { bearerMatches, handleProjexaDocumentExtract } from "./handler.ts"',
-      'import { GROQ_MODEL, GROQ_PROVIDER, OPENROUTER_PROVIDER, groqModel, ledgerOver, openRouterModel } from "./wiring.ts"',
+      // lf-b3-ai-off: the model is chosen by wiring.ts chooseModel (switch AND key), so index.ts no longer imports the two model builders.
+      'import { GROQ_MODEL, GROQ_PROVIDER, OPENROUTER_PROVIDER, chooseModel, ledgerOver } from "./wiring.ts"',
     ])
     expect(index).not.toContain("https://")
     expect(index).not.toMatch(/sk-|gsk_|eyJ/)

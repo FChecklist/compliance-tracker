@@ -27,7 +27,12 @@ import { createExtractionPglite, insertProduct, insertUser } from "@/lib/service
 import { SHARED_SECRET, buildWorkbook, deterministicModel, edgeDeps } from "@/lib/services/__test-helpers__/document-extraction-fixtures"
 import { carefulHumanModel } from "@/lib/services/__test-helpers__/zoomies-standin-model"
 import { zoomiesWorkbook } from "@/lib/services/__test-helpers__/zoomies-workbook"
+import { withProjexaInternalAiOn } from "@/lib/services/__test-helpers__/projexa-internal-ai-switch"
 import { handleProjexaDocumentExtract, type ModelCall } from "../../../../../../../supabase/functions/projexa-document-extract/handler"
+
+// lf-b3-ai-off: the subject here is the job states WITH the model path available, so every test runs with PROJEXA_INTERNAL_AI_ENABLED="1"
+// (restored after each). The default-off refusal through this route is pinned in route.test.ts.
+withProjexaInternalAiOn()
 
 const ORG = "org-route-job"
 const OTHER_ORG = "org-route-job-2"

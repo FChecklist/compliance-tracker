@@ -50,6 +50,7 @@ import {
 import { buildWorkbook, edgeCallerFor, edgeDeps, SHARED_SECRET } from "./__test-helpers__/document-extraction-fixtures"
 import { harness, outcome } from "./__test-helpers__/document-extraction-harness"
 import { testBudget } from "./__test-helpers__/extract-budget-fixtures"
+import { withProjexaInternalAiOn } from "./__test-helpers__/projexa-internal-ai-switch"
 import { carefulHumanModel, requestOf } from "./__test-helpers__/zoomies-standin-model"
 import { workbookFromDigest, zoomiesFixture, zoomiesWorkbook } from "./__test-helpers__/zoomies-workbook"
 
@@ -331,6 +332,9 @@ describe("AW-111: the Edge Function's side of the widened request", () => {
 })
 
 describe("AW-111: the caller names who a request is for, so a wired model's spend is metered", () => {
+  // lf-b3-ai-off: createEdgeExtractCaller is a model transport, so the header test needs the internal AI switched on (off, it answers
+  // internal_ai_off without fetching: src/lib/projexa-internal-ai.transports.test.ts).
+  withProjexaInternalAiOn()
   const realAttribution = (used: Array<unknown>) =>
     edgeDeps(carefulHumanModel, {
       budget: testBudget({
