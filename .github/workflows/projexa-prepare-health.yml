@@ -1,0 +1,38 @@
+name: PROJEXA prepare monitor
+
+# "If the download is happening and, for any reason, it stops, we should know at our end ... we cannot lose a customer" (owner, 2026-10-03).
+# Every 10 minutes: ask the live database which laptops are not at 100% of "Preparing your PROJEXA workspace" and why
+# (public.projexa_prepare_health, drizzle/0688). The run goes RED -- and GitHub emails the owner -- when a laptop is STALLED (it stopped
+# reporting), FAILING (failed or retried three times, with its reason), or NEVER FINISHED, and also when the monitor itself cannot be read.
+# One light read; it changes nothing. It does not run on pull requests (no DB load from CI).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: projexa-prepare-health
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Which laptops are not at 100%
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/projexa-prepare-health-check.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Read the monitor
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/projexa-prepare-health-check.mjs --json
