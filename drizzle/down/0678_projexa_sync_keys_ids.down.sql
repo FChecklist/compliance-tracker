@@ -48,6 +48,7 @@ END
 $fn$;
 
 DROP FUNCTION IF EXISTS public.projexa_sync__view_class(text, text);
+DROP FUNCTION IF EXISTS public.projexa_sync__kinds();
 DROP FUNCTION IF EXISTS public.projexa_sync_public_keys();
 DROP FUNCTION IF EXISTS public.projexa_sync_key_rotate();
 DROP FUNCTION IF EXISTS public.projexa_sync_key_put(text, jsonb, jsonb);

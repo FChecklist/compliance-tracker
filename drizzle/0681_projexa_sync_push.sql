@@ -107,7 +107,7 @@ BEGIN
     v_kind := v_rec ->> 'kind';
     v_rid := v_rec ->> 'id';
     IF jsonb_typeof(v_rec) IS DISTINCT FROM 'object' OR v_kind IS NULL OR v_rid IS NULL OR v_rid !~ '^[A-Za-z0-9._:-]{1,64}$'
-       OR v_kind NOT IN ('project', 'tasks', 'boqs', 'boq_lines', 'activities', 'progress', 'rfis', 'submittals', 'punch_list', 'change_orders', 'milestones', 'materials', 'documents')
+       OR v_kind <> ALL (public.projexa_sync__kinds())
        OR coalesce(v_rec ->> 'base_version', '') !~ '^[0-9]{1,15}$' THEN
       RETURN jsonb_build_object('status', 'ok', 'action', 'reject', 'code', 'BAD_OP');
     END IF;

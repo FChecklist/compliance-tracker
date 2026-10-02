@@ -49,7 +49,12 @@ export type ExecOutcome =
 export type ReleaseInfo = { registered: boolean; current: Record<string, unknown> | null; min_compatible: string }
 
 export const ALLOWED_ORIGINS = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100", "http://localhost:3101"] as const
-export const SYNC_KINDS = ["project", "tasks", "boqs", "boq_lines", "activities", "progress", "rfis", "submittals", "punch_list", "change_orders", "milestones", "materials", "documents"] as const
+// the 13 of drizzle/0677, then the 15 of 0683; the SQL list is public.projexa_sync__kinds() and a test asserts the two stay equal
+export const SYNC_KINDS = [
+  "project", "tasks", "boqs", "boq_lines", "activities", "progress", "rfis", "submittals", "punch_list", "change_orders", "milestones", "materials", "documents",
+  "roster", "attendance", "timesheets", "meetings", "meeting_minutes", "site_diaries", "site_instructions", "progress_claims", "interim_bills",
+  "material_receipts", "material_issues", "expenses", "schedule_baselines", "ffe_items", "wiki_pages",
+] as const
 export const PULL_LIMIT_DEFAULT = 200
 export const PULL_LIMIT_MAX = 500
 export const SERVER_PROTOCOL = 2

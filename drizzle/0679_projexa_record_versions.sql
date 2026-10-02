@@ -399,7 +399,7 @@ BEGIN
     INTO v_rows
   FROM (SELECT c.seq, c.kind, c.record_id, c.version, c.op FROM platform.projexa_change_log c
         WHERE c.org_id = v_org AND c.project_id = p_project_id AND c.seq > p_after_seq
-          AND c.kind IN ('project', 'tasks', 'boqs', 'boq_lines', 'activities', 'progress', 'rfis', 'submittals', 'punch_list', 'change_orders', 'milestones', 'materials', 'documents')
+          AND c.kind = ANY (public.projexa_sync__kinds())
         ORDER BY c.seq LIMIT p_limit + 1) x;
 
   v_n := jsonb_array_length(v_rows);

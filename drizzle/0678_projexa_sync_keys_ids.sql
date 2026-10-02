@@ -97,7 +97,14 @@ AS $fn$
   FROM platform.projexa_sync_key k WHERE k.retired_at IS NULL OR k.retired_at > clock_timestamp() - interval '30 days'
 $fn$;
 
--- 3. view class ------------------------------------------------------------------------------------------------------------------------------
+-- 3. the ONE list of synced kinds, in the order a manifest lists them (0683 extends it; every function below and in 0679/0681 reads this one) ----------------
+CREATE OR REPLACE FUNCTION public.projexa_sync__kinds()
+RETURNS text[]
+LANGUAGE sql IMMUTABLE
+SET search_path = pg_catalog, pg_temp
+AS $fn$ SELECT ARRAY['project', 'tasks', 'boqs', 'boq_lines', 'activities', 'progress', 'rfis', 'submittals', 'punch_list', 'change_orders', 'milestones', 'materials', 'documents']::text[] $fn$;
+
+-- 3b. view class ----------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.projexa_sync__view_class(p_org text, p_role text)
 RETURNS text
 LANGUAGE sql STABLE
@@ -106,7 +113,7 @@ AS $fn$
   SELECT substr(md5(
     (public.ai_work_link__role_rank(p_role) >= 3)::text || '|' ||
     coalesce((SELECT string_agg(k.kind || ':' || coalesce((SELECT string_agg(c, ',' ORDER BY c) FROM unnest(public.ai_work_link__hidden_cols(k.kind, p_org, p_role)) AS c), ''), ';' ORDER BY k.kind)
-              FROM unnest(ARRAY['project', 'tasks', 'boqs', 'boq_lines', 'activities', 'progress', 'rfis', 'submittals', 'punch_list', 'change_orders', 'milestones', 'materials', 'documents']) AS k(kind)), '')
+              FROM unnest(public.projexa_sync__kinds()) AS k(kind)), '')
   ), 1, 16)
 $fn$;
 
@@ -142,7 +149,7 @@ BEGIN
 
   SELECT jsonb_agg(jsonb_build_object('kind', k.kind, 'project_scoped', true, 'cursor_field', public.projexa_sync__cursor_field((SELECT s.rel FROM public.projexa_sync__src(k.kind) s)), 'deletes_supported', true) ORDER BY k.n)
     INTO v_kinds
-  FROM unnest(ARRAY['project', 'tasks', 'boqs', 'boq_lines', 'activities', 'progress', 'rfis', 'submittals', 'punch_list', 'change_orders', 'milestones', 'materials', 'documents']) WITH ORDINALITY AS k(kind, n);
+  FROM unnest(public.projexa_sync__kinds()) WITH ORDINALITY AS k(kind, n);
 
   RETURN jsonb_build_object(
     'status', 'ok',
@@ -214,6 +221,7 @@ END
 $fn$;
 
 -- 6. grants ----------------------------------------------------------------------------------------------------------------------------------
+REVOKE ALL ON FUNCTION public.projexa_sync__kinds() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.projexa_sync__view_class(text, text) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.projexa_sync_key_active() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.projexa_sync_key_put(text, jsonb, jsonb) FROM PUBLIC, anon, authenticated;
@@ -223,6 +231,7 @@ REVOKE ALL ON FUNCTION public.projexa_sync_manifest(text, text) FROM PUBLIC, ano
 REVOKE ALL ON FUNCTION public.projexa_sync_ids(text, text, text, text, text, integer) FROM PUBLIC, anon, authenticated;
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_runtime') THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.projexa_sync__kinds() FROM app_runtime';
     EXECUTE 'REVOKE ALL ON FUNCTION public.projexa_sync__view_class(text, text) FROM app_runtime';
     EXECUTE 'REVOKE ALL ON FUNCTION public.projexa_sync_key_active() FROM app_runtime';
     EXECUTE 'REVOKE ALL ON FUNCTION public.projexa_sync_key_put(text, jsonb, jsonb) FROM app_runtime';
