@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 // Package lf-b6-ci-unit-fixes. Since lf-b3-ai-off, PROJEXA's internal model lanes are behind PROJEXA_INTERNAL_AI_ENABLED, default OFF
 // (src/lib/projexa-internal-ai.ts). The older suites whose SUBJECT is the extraction / assistant / reconciliation behaviour with the model
 // path available call this inside their describe (or at file level) so the switch is exactly "1" for each of their tests only, and is put
