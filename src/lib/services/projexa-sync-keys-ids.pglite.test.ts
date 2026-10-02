@@ -163,6 +163,19 @@ describe("view class and manifest", () => {
     expect(mgr).not.toBe(sen)
     expect(mgrAgain).toBe(mgr)
   })
+
+  test("two DIFFERENT people who may see the same thing share one class; the class is a property of what is redacted, not of the person (tests:F11 (7))", async () => {
+    // a second member of organisation A (a different person, the same role)
+    await db.exec(`insert into compliance.users (id, name, email, password_hash, role, is_active, org_id, auth_user_id) values
+                     ('u-mem2', 'Meg Member', 'meg@a.example.test', 'x', 'member', true, 'org-a', '88888888-8888-4888-8888-888888888888') on conflict (id) do nothing`)
+    const cls = async (sub: string) => (await rpc("projexa_sync_manifest", { p_sub: sub, p_email: null })).data as J
+    const mem = await cls("22222222-2222-4222-8222-222222222222")
+    const mem2 = await cls("88888888-8888-4888-8888-888888888888")
+    expect(mem2.user.id).toBe("u-mem2")
+    expect(mem2.view_class).toBe(mem.view_class)
+    // a viewer and a member both see no money at all: one class
+    expect((await cls("66666666-6666-4666-8666-666666666666")).view_class).toBe(mem.view_class)
+  })
 })
 
 describe("signing keys", () => {
