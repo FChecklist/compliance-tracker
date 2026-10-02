@@ -323,7 +323,9 @@ describe("the handler: contract and edges", () => {
   test("manifest shape and server_time; every supported kind is listed", async () => {
     const m = await hit(SUBS["u-mgr"], "manifest", undefined, "http://localhost:3100")
     const j = (await m.json()) as J
-    expect(Object.keys(j).sort()).toEqual(["kinds", "projects", "server_time", "user"])
+    // view_class is 0678's; this file applies 0677 only, so the handler reports it as null (the 0678 test file asserts the real value)
+    expect(Object.keys(j).sort()).toEqual(["kinds", "projects", "server_time", "user", "view_class"])
+    expect(j.view_class).toBeNull()
     expect(j.user).toMatchObject({ id: "u-mgr", name: "Mira Manager", role: "manager", org_id: "org-a" })
     expect(j.server_time).toBe("2026-10-02T00:00:00.000Z")
     expect((j.kinds as J[]).map((k) => k.kind)).toEqual(["project", "tasks", "boqs", "boq_lines", "activities", "progress", "rfis", "submittals", "punch_list", "change_orders", "milestones", "materials", "documents"])
@@ -332,7 +334,9 @@ describe("the handler: contract and edges", () => {
 
   test("pull shape: items {id, updated_at, data}, next_cursor, has_more, hidden_fields, redacted, server_time", async () => {
     const r = await sync("u-mgr", { project_id: "proj-a", kind: "tasks", limit: 2 })
-    expect(Object.keys(r.json).sort()).toEqual(["has_more", "hidden_fields", "items", "next_cursor", "redacted", "server_time"])
+    // kid is the signing key's id: null here because this harness injects no signing key, and then the items are unsigned
+    expect(Object.keys(r.json).sort()).toEqual(["has_more", "hidden_fields", "items", "kid", "next_cursor", "redacted", "server_time"])
+    expect(r.json.kid).toBeNull()
     expect(Object.keys((r.json.items as J[])[0]).sort()).toEqual(["data", "id", "updated_at"])
     expect(r.json.server_time).toBe("2026-10-02T00:00:00.000Z")
   })

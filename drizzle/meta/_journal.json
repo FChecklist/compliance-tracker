@@ -3544,6 +3544,13 @@
       "when": 1790493000000,
       "tag": "0677_projexa_sync_read",
       "breakpoints": true
+    },
+    {
+      "idx": 508,
+      "version": "7",
+      "when": 1790494000000,
+      "tag": "0678_projexa_sync_keys_ids",
+      "breakpoints": true
     }
   ]
 }

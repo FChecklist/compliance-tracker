@@ -13,15 +13,31 @@
 import { redactItem } from "../_shared/ai-link/core.ts"
 import { kindDef } from "../ai-work-link/api-definition.ts"
 import type { SessionVerifier } from "../ai-work-link/session.ts"
+import { ATTEST_TTL_SECONDS, type Signing } from "./sign.ts"
 
 export type RpcResult = { data: unknown; error: { message: string; code?: string } | null }
 export type Rpc = (fn: string, args?: Record<string, unknown>) => Promise<RpcResult>
-export type SyncDeps = { rpc: Rpc; session: SessionVerifier; now?: () => Date; limiter?: RateLimiter; allowedOrigins?: readonly string[] }
+export type PublicKeyInfo = { kid: string; alg: string; jwk: unknown; active: boolean }
+export type SyncDeps = {
+  rpc: Rpc
+  session: SessionVerifier
+  now?: () => Date
+  limiter?: RateLimiter
+  allowedOrigins?: readonly string[]
+  /** The signing key (index.ts loads it from platform.projexa_sync_key). Absent: rows are returned unsigned and /attest answers 503. */
+  signing?: () => Promise<Signing | null>
+  /** Public halves a laptop verifies against. */
+  publicKeys?: () => Promise<PublicKeyInfo[]>
+  /** per-person organisation memory for signing a pull (one manifest call a minute at most) */
+  orgCache?: Map<string, { org: string; exp: number }>
+}
 
 export const ALLOWED_ORIGINS = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100", "http://localhost:3101"] as const
 export const SYNC_KINDS = ["project", "tasks", "boqs", "boq_lines", "activities", "progress", "rfis", "submittals", "punch_list", "change_orders", "milestones", "materials", "documents"] as const
 export const PULL_LIMIT_DEFAULT = 200
 export const PULL_LIMIT_MAX = 500
+export const IDS_LIMIT_DEFAULT = 5000
+export const IDS_LIMIT_MAX = 5000
 export const REQUESTS_PER_MINUTE = 120
 export const BODY_MAX_BYTES = 4096
 
@@ -86,8 +102,10 @@ function respond(req: Request, deps: SyncDeps, status: number, body: unknown, ex
 
 const NOT_FOUND = { error: "Not found" }
 
+const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST" }
+
 function routeOf(pathname: string): string {
-  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull)$/)
+  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest)$/)
   return m ? m[1] : ""
 }
 
@@ -104,7 +122,7 @@ export async function handleSync(req: Request, deps: SyncDeps): Promise<Response
   if (req.method === "OPTIONS") return respond(req, deps, 204, null)
   const route = routeOf(new URL(req.url).pathname)
   if (route === "") return respond(req, deps, 404, NOT_FOUND)
-  if ((route === "manifest" && req.method !== "GET") || (route === "pull" && req.method !== "POST")) return respond(req, deps, 405, { error: "Method not allowed" }, { Allow: route === "manifest" ? "GET, OPTIONS" : "POST, OPTIONS" })
+  if (req.method !== ROUTES[route]) return respond(req, deps, 405, { error: "Method not allowed" }, { Allow: `${ROUTES[route]}, OPTIONS` })
 
   const token = bearer(req)
   if (!token) return respond(req, deps, 401, { error: "Sign in again" })
@@ -115,6 +133,8 @@ export async function handleSync(req: Request, deps: SyncDeps): Promise<Response
   if (!deps.limiter.take(who.sub, now.getTime())) return respond(req, deps, 429, { error: "Too many requests. Try again in a minute." }, { "Retry-After": "60" })
 
   if (route === "manifest") return manifest(req, deps, who, now)
+  if (route === "ids") return ids(req, deps, who, now)
+  if (route === "attest") return attest(req, deps, who, now)
   return pull(req, deps, who, now)
 }
 
@@ -146,7 +166,83 @@ async function manifest(req: Request, deps: SyncDeps, who: Who, now: Date): Prom
   const r = await callSql(deps, "projexa_sync_manifest", { p_sub: who.sub, p_email: who.email })
   if (!r.ok) return respond(req, deps, r.status, r.body)
   const kinds = Array.isArray(r.data.kinds) ? (r.data.kinds as Array<Record<string, unknown>>).filter((k) => typeof k.kind === "string" && (SYNC_KINDS as readonly string[]).includes(k.kind as string)) : []
-  return respond(req, deps, 200, { user: r.data.user, projects: r.data.projects, kinds, server_time: now.toISOString() })
+  rememberOrg(deps, who.sub, r.data.user, now)
+  return respond(req, deps, 200, { user: r.data.user, projects: r.data.projects, kinds, view_class: typeof r.data.view_class === "string" ? r.data.view_class : null, server_time: now.toISOString() })
+}
+
+function rememberOrg(deps: SyncDeps, sub: string, user: unknown, now: Date) {
+  const org = (user as { org_id?: unknown } | null)?.org_id
+  if (typeof org !== "string") return
+  deps.orgCache ??= new Map()
+  deps.orgCache.set(sub, { org, exp: now.getTime() + 60_000 })
+  if (deps.orgCache.size > 5000) for (const [k, v] of deps.orgCache) if (v.exp < now.getTime()) deps.orgCache.delete(k)
+}
+
+/** The organisation of a signed-in person, from a short memory or one manifest call (only needed to sign a pull). */
+async function orgOf(deps: SyncDeps, who: Who, now: Date): Promise<string | null> {
+  const hit = deps.orgCache?.get(who.sub)
+  if (hit && hit.exp > now.getTime()) return hit.org
+  const r = await callSql(deps, "projexa_sync_manifest", { p_sub: who.sub, p_email: who.email })
+  if (!r.ok) return null
+  rememberOrg(deps, who.sub, r.data.user, now)
+  return deps.orgCache?.get(who.sub)?.org ?? null
+}
+
+// POST /ids {project_id, kind, after_id, limit}: one page of the ids of that kind the person may read now (a laptop drops what is no longer listed: deletes)
+async function ids(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+  const raw = await req.text()
+  if (raw.length > BODY_MAX_BYTES) return respond(req, deps, 413, { error: "Body too large" })
+  let body: Record<string, unknown>
+  try {
+    const v = JSON.parse(raw)
+    if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error("shape")
+    body = v as Record<string, unknown>
+  } catch {
+    return respond(req, deps, 400, { error: "Body must be a JSON object" })
+  }
+  const project = body.project_id
+  const kind = body.kind
+  const after = body.after_id ?? null
+  const limitIn = body.limit ?? IDS_LIMIT_DEFAULT
+  if (typeof project !== "string" || project === "" || project.length > 128 || typeof kind !== "string" || kind === "" || kind.length > 64) return respond(req, deps, 400, { error: "project_id and kind are required" })
+  if (typeof limitIn !== "number" || !Number.isInteger(limitIn) || limitIn < 1 || limitIn > IDS_LIMIT_MAX) return respond(req, deps, 400, { error: `limit must be a whole number from 1 to ${IDS_LIMIT_MAX}` })
+  if (after !== null && (typeof after !== "string" || !ID_RE.test(after))) return respond(req, deps, 400, { error: "Bad cursor" })
+  if (!(SYNC_KINDS as readonly string[]).includes(kind)) return respond(req, deps, 404, NOT_FOUND)
+  const r = await callSql(deps, "projexa_sync_ids", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_kind: kind, p_after_id: after, p_limit: limitIn })
+  if (!r.ok) return respond(req, deps, r.status, r.body)
+  return respond(req, deps, 200, {
+    ids: Array.isArray(r.data.ids) ? (r.data.ids as unknown[]).filter((x): x is string => typeof x === "string") : [],
+    has_more: r.data.has_more === true,
+    next_id: typeof r.data.next_id === "string" ? r.data.next_id : null,
+    server_time: now.toISOString(),
+  })
+}
+
+// POST /attest {}: a short-lived signed statement of who this person is to OTHER laptops (organisation, the projects they may read, their view class),
+// the public keys to verify signed rows with, and the organisation's channel name. A peer that cannot present one gets nothing from another laptop.
+async function attest(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+  const signing = deps.signing ? await deps.signing() : null
+  if (!signing) return respond(req, deps, 503, { error: "Peer sync is not available right now." })
+  const r = await callSql(deps, "projexa_sync_manifest", { p_sub: who.sub, p_email: who.email })
+  if (!r.ok) return respond(req, deps, r.status, r.body)
+  const user = (r.data.user ?? {}) as { id?: string; org_id?: string }
+  const projects = Array.isArray(r.data.projects) ? (r.data.projects as Array<{ id?: unknown }>).map((p) => p.id).filter((x): x is string => typeof x === "string") : []
+  const view = typeof r.data.view_class === "string" ? r.data.view_class : ""
+  if (typeof user.id !== "string" || typeof user.org_id !== "string" || view === "") return respond(req, deps, 500, { error: "Something failed on our side. Try again in a minute." })
+  const iat = Math.floor(now.getTime() / 1000)
+  const exp = iat + ATTEST_TTL_SECONDS
+  const token = await signing.signToken({ typ: "px-peer", v: 1, sub: user.id, org: user.org_id, projects, view, iat, exp })
+  return respond(req, deps, 200, {
+    token,
+    expires_at: new Date(exp * 1000).toISOString(),
+    org_id: user.org_id,
+    user_id: user.id,
+    view_class: view,
+    projects,
+    channel: await signing.channelId(user.org_id),
+    public_keys: deps.publicKeys ? await deps.publicKeys() : [],
+    server_time: now.toISOString(),
+  })
 }
 
 async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
@@ -182,16 +278,32 @@ async function pull(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
   const hidden = Array.isArray(r.data.hidden_fields) ? (r.data.hidden_fields as unknown[]).filter((x): x is string => typeof x === "string") : []
   const moneyVisible = r.data.money_visible === true
   const rows = Array.isArray(r.data.items) ? (r.data.items as Array<Record<string, unknown>>) : []
-  const items = rows.map((it) => {
-    const data = (it.data ?? {}) as Record<string, unknown>
-    // the second money pass, the AI link's own (the SQL already nulled these columns)
-    const safe = def ? redactItem(def, data, { moneyVisible, hiddenFields: hidden }) : data
-    return { id: it.id, updated_at: it.updated_at, data: safe }
-  })
+  // Each row is signed (organisation, project, kind, id, updated_at, hash of the row as sent) so another laptop can verify what a peer hands it. Unsigned
+  // only when no key is available: then `kid` is null and a laptop will not pass the rows on to peers.
+  let signing: Signing | null = null
+  let org: string | null = null
+  if (deps.signing) {
+    try {
+      signing = await deps.signing()
+      org = signing ? await orgOf(deps, who, now) : null
+    } catch {
+      signing = null
+    }
+  }
+  const items = await Promise.all(
+    rows.map(async (it) => {
+      const data = (it.data ?? {}) as Record<string, unknown>
+      // the second money pass, the AI link's own (the SQL already nulled these columns)
+      const safe = def ? redactItem(def, data, { moneyVisible, hiddenFields: hidden }) : data
+      const sig = signing && org && typeof it.id === "string" && typeof it.updated_at === "string" ? await signing.signItem({ org, project, kind, id: it.id, updatedAt: it.updated_at, data: safe }) : undefined
+      return sig ? { id: it.id, updated_at: it.updated_at, data: safe, sig } : { id: it.id, updated_at: it.updated_at, data: safe }
+    }),
+  )
   const nextTs = typeof r.data.next_ts === "string" ? r.data.next_ts : null
   const nextId = typeof r.data.next_id === "string" ? r.data.next_id : null
   return respond(req, deps, 200, {
     items,
+    kid: signing && org ? signing.kid : null,
     next_cursor: nextTs && nextId ? encodeCursor(nextTs, nextId) : null,
     has_more: r.data.has_more === true,
     hidden_fields: hidden,
