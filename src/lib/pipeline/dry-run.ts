@@ -32,6 +32,7 @@ import { functionWrites, type ExecutableTask, type ExecutionOutcome } from "./ex
 import { functionKind, functionLabel, functionSpec, requiredParamSatisfied, type CardSchema, type FunctionKind } from "./function-registry";
 import { codeForParam, type PipelineErrorCode } from "./error-codes";
 import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
+import { USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai";
 // R80 Part 2 (1a): the ONE type this file needs from the adapter -- the class
 // assertAiProviderAllowed() throws. Importing it is what lets the telemetry
 // below tell "the provider gate switched the AI off for this caller" apart
@@ -208,6 +209,13 @@ export type DryRunInput = {
    * switch. run-submission.ts resolves it once (effectiveLevel1) and passes it.
    */
   level1?: "internal" | "off";
+  /**
+   * lf-b3-ai-off: Level 1 is off because PROJEXA's internal AI is switched off
+   * (run-submission.ts gapSaysUseYourOwnAi). A gap then answers with
+   * USE_YOUR_OWN_AI instead of "not enabled for this workspace yet"; the
+   * verdict, the route and the gap_log row are unchanged. Omitted = old wording.
+   */
+  gapUseYourOwnAi?: boolean;
 };
 
 /**
@@ -290,8 +298,13 @@ const CREATE_VERB = /\b(create|add|new|raise|make|register)\b/i;
  * this workspace - Open Customers", with the route attached, tells the user
  * exactly where to go; "not available for this account" does not.
  */
-export function gapAnswer(text: string): { message: string; route: string } {
+export function gapAnswer(text: string, options?: { useYourOwnAi?: boolean }): { message: string; route: string } {
   const hit = GAP_CAPABILITIES.find((c) => c.match.test(text));
+  // lf-b3-ai-off: the AI that would have understood this is the person's own,
+  // through the AI link. Say so, and still hand them the screen.
+  if (options?.useYourOwnAi) {
+    return hit ? { message: `${USE_YOUR_OWN_AI} - Open ${hit.screen}`, route: hit.route } : { message: `${USE_YOUR_OWN_AI} - Open Home`, route: "/dashboard" };
+  }
   if (hit && CREATE_VERB.test(text)) {
     return {
       message: `Creating ${hit.noun} from chat is not enabled for this workspace - Open ${hit.screen}`,
@@ -472,7 +485,7 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
 
     if (classification.verdict === "gap" || !classification.functionId) {
       if (classification.verdict === "gap") {
-        const gap = gapAnswer(text);
+        const gap = gapAnswer(text, { useYourOwnAi: input.gapUseYourOwnAi === true });
         proposals.push({
           segmentText: text,
           status: "gap",

@@ -9,7 +9,12 @@
 // case -- proving the role gate let the call reach the DB layer (an
 // unrelated downstream failure, not the role gate) without needing to also
 // stand up a fake Supabase Storage download + AI vision call.
-import { describe, test, expect, mock } from "bun:test"
+import { describe, test, expect, mock, beforeAll, afterAll } from "bun:test"
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" })
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag })
 import { ROLE_RANK } from "@/lib/supabase/role-rank"
 
 function dbUser(role: string) {

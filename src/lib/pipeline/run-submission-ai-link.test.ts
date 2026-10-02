@@ -13,6 +13,11 @@
 //
 // Run: bun test --isolate src/lib/pipeline/run-submission-ai-link.test.ts
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED;
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" });
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag });
 import { createFakeStore, fakeFixtures, makeFakeWithTenantContext, FAKE_ORG, FAKE_PROJECT_A, FAKE_USER, type FakeStore } from "./fake-tenant-db";
 import { ServiceError } from "@/lib/services/compliance-service";
 

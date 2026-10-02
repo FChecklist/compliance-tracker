@@ -3,6 +3,8 @@ import { eq, and, gte, sql } from "drizzle-orm";
 import { resolvePlatformModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLMJson } from "@/lib/llm-client";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
+// lf-b3-ai-off: the meta synthesis is the one model call here; off, it is skipped (llmSynthesis stays null) and the audit still records.
+import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai";
 
 /**
  * Loop 1: Loop Engineering.
@@ -71,7 +73,7 @@ export async function runLoopEngineeringAudit(loopId: string): Promise<{
 
   let llmSynthesis: string | null = null;
   try {
-    const modelConfig = await resolvePlatformModelConfig("meta_oa");
+    const modelConfig = projexaInternalAiEnabled() ? await resolvePlatformModelConfig("meta_oa") : null;
     if (modelConfig) {
       // Wave 23: prompt now comes from the Prompt Operating System instead
       // of a hardcoded literal (seeded v1='production' is byte-identical to

@@ -20,6 +20,8 @@ import { db as rawDb } from "@/lib/db"; // read-only, cross-org: only used to di
 // whitelist deterministic_aggregation/ai_recipe execution already goes
 // through (report-engine-service.ts's own header).
 import { createReportDefinition, validateReportDefinitionInput, TABLE_REGISTRY, type CreateReportDefinitionInput } from "@/lib/services/report-engine-service";
+// lf-b3-ai-off: PROJEXA's internal-AI switch (projexa-internal-ai.ts). This job's work is a model call, so off it returns quietly.
+import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai";
 
 const MIN_CLUSTER_FREQUENCY = 3; // M26: "clusters with frequency >= 3 only -- one user's one-off is not a product signal"
 
@@ -50,6 +52,7 @@ export type L2BatchResult = {
   reportDefinitionsCreated: number; // R46 P9 seq33: report_definition artifacts persisted as real, runnable compliance.report_definitions rows (createdBy:'ai') -- no deploy required
   otherArtifacts: Artifact[]; // capability_gap/no_action, plus any report_definition artifact whose shape didn't validate (kept here, never silently dropped)
   rejectedForEmbeddedDml: Artifact[]; // artifacts whose own SQL field failed the SELECT-only check -- never written anywhere
+  skipped?: "internal_ai_off"; // lf-b3-ai-off: present only when the run did nothing because PROJEXA's internal AI is switched off
 };
 
 // A report_definition artifact's `definition` field is model output (free-
@@ -156,6 +159,11 @@ async function upsertPhraseMapCandidate(orgId: string, artifact: Extract<Artifac
 }
 
 export async function runL2Batch(): Promise<L2BatchResult> {
+  // lf-b3-ai-off: the whole batch is one model call per org. Off, nothing is read and no provider is consulted -- not even the
+  // system-batch gate below, whose refusal would turn a deliberate off into a 500 every night.
+  if (!projexaInternalAiEnabled()) {
+    return { ranAt: new Date().toISOString(), orgsProcessed: 0, clustersAnalysed: 0, phraseMapCandidatesCreated: 0, reportDefinitionsCreated: 0, otherArtifacts: [], rejectedForEmbeddedDml: [], skipped: "internal_ai_off" };
+  }
   // Cross-org discovery only (which orgs have any gap_log activity at all in
   // the window) -- every actual read/write of that org's own rows still
   // happens inside withTenantContext, org-scoped, above.

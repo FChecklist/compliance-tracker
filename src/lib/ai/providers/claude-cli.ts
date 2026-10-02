@@ -14,6 +14,7 @@
 // machine.
 import { spawn } from "node:child_process";
 import { stripJsonFence } from "@/lib/llm-client";
+import { assertProjexaInternalAi } from "@/lib/projexa-internal-ai";
 import type { AiProvider, ClassificationResult, Artifact, ClassifyContext } from "../adapter";
 
 const CLAUDE_CLI_TIMEOUT_MS = 60_000;
@@ -21,7 +22,14 @@ const CLAUDE_CLI_TIMEOUT_MS = 60_000;
 // Runs `claude -p` in non-interactive print mode, feeding the full prompt on
 // stdin (never as a CLI argument -- these prompts can be several KB, well
 // past what's safe to pass as a single shell argument) and capturing stdout.
+// lf-b3-ai-off: every path to the CLI (claudeCliComplete, classify, analyse) runs through here, so the switch is checked once, before
+// anything is spawned (projexa-internal-ai.ts).
 function runClaudeCli(prompt: string): Promise<string> {
+  try {
+    assertProjexaInternalAi("claude-cli");
+  } catch (error) {
+    return Promise.reject(error);
+  }
   return new Promise((resolve, reject) => {
     // R63 (2026-08-29): real, reproduced Windows bug -- a global npm install
     // of the `claude` CLI resolves to `claude.cmd` on Windows (confirmed via

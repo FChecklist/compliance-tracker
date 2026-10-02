@@ -28,6 +28,7 @@ import { recordTokenUsage, type LogTokenUsageInput } from "@/lib/services/token-
 import { EDGE_OUTPUT_MAX_CHARS, EDGE_REQUEST_MAX_CHARS } from "@/lib/services/document-extraction-schema"
 import type { EdgeAttribution, EdgeCaller, EdgeCallResult } from "@/lib/services/document-extraction-service"
 import type { InternalAiRoute } from "./internal-ai-policy"
+import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai"
 
 export const INTERNAL_EXTRACT_SCHEMA = "boq_project_v1"
 export const INTERNAL_PRODUCT_ID = "projexa_ai"
@@ -174,6 +175,9 @@ export type InternalExtractCallerConfig = {
 
 const refuse = (status: number, code: string): EdgeCallResult => ({ status, body: { ok: false, code } })
 
+/** lf-b3-ai-off: the Edge-vocabulary code for "PROJEXA's internal AI is switched off" (document-extraction-service.ts readEdgeOutput maps it). */
+export const INTERNAL_AI_OFF_EDGE_CODE = "internal_ai_off"
+
 /**
  * The EdgeCaller of the internal AI. It answers in the Edge Function's own vocabulary (200 ok/output, 4xx/5xx with a code), so
  * readEdgeOutput() in the service maps every refusal to the stable ExtractionRejectedError it already has. `calls` counts model calls.
@@ -205,6 +209,9 @@ export function createInternalExtractCaller(config: InternalExtractCallerConfig)
   })
 
   const caller = async (bodyJson: string, attribution?: EdgeAttribution): Promise<EdgeCallResult> => {
+    // lf-b3-ai-off: PROJEXA's internal AI is off (projexa-internal-ai.ts). Refused before the model and before the meter, so an off
+    // switch never leaves a "failed call" ledger row for a call that was never made. readEdgeOutput() turns this code into the plain answer.
+    if (!projexaInternalAiEnabled()) return refuse(503, INTERNAL_AI_OFF_EDGE_CODE)
     // The ledger row is written for the organisation and person the CALLER resolved. A service that names another is refused.
     if (attribution && (attribution.orgId !== config.orgId || attribution.userId !== config.personId)) return refuse(400, "attribution_required")
     if (bodyJson.length > maxRequestChars) return refuse(413, "input_too_large")

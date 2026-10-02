@@ -23,11 +23,13 @@
 // stored, returned or logged.
 import { assertAiProviderAllowed } from "./adapter"
 import { resolveAllowedProviders, resolveProviderForLevel, UnknownAiProviderError, type AiProviderName } from "./provider-config"
+import { projexaInternalAiEnabled, USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai"
 
 /** The env var the owner sets, and only the owner, to let the owner's own requests use the Claude subscription. Never on by default. */
 export const CLAUDE_CLI_OWNER_FLAG = "INTERNAL_AI_ALLOW_CLAUDE_CLI"
 
 export type InternalAiRefusalReason =
+  | "projexa_internal_ai_off"
   | "actor_unresolved"
   | "claude_cli_flag_off"
   | "owner_not_configured"
@@ -69,6 +71,9 @@ export function claudeCliPermission(personId: string | null): ClaudeCliPermissio
  * no one.
  */
 export function resolveInternalAiRoute(personId: string | null): InternalAiRoute {
+  // lf-b3-ai-off: PROJEXA does not run its own AI unless PROJEXA_INTERNAL_AI_ENABLED is exactly "1" (projexa-internal-ai.ts). First,
+  // before the person or any provider is looked at: off is a property of the deployment, not of the caller.
+  if (!projexaInternalAiEnabled()) return { allowed: false, reason: "projexa_internal_ai_off" }
   if (!personId) return { allowed: false, reason: "actor_unresolved" }
 
   let configured: AiProviderName
@@ -122,6 +127,8 @@ function isMeteredAllowedAndConfigured(): InternalAiRoute | null {
 /** What a person is told when the internal AI cannot serve them. Fixed sentences; nothing about the deployment's configuration. */
 export function refusalSentence(reason: InternalAiRefusalReason): string {
   switch (reason) {
+    case "projexa_internal_ai_off":
+      return USE_YOUR_OWN_AI
     case "actor_unresolved":
       return "I could not tell who is asking, so I did not read the file. Sign in, or name the person this request is for, and send it again."
     case "claude_cli_flag_off":

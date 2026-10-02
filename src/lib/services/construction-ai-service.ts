@@ -24,6 +24,16 @@
 // project has a documented prior bug of an AI surface hallucinating generic
 // placeholder numbers that didn't match real seeded data, and these prompts
 // exist specifically to not repeat that.
+//
+// lf-b3-ai-off (owner directive 2026-10-02): PROJEXA does not run its own AI
+// unless PROJEXA_INTERNAL_AI_ENABLED is exactly "1" (projexa-internal-ai.ts).
+// Off, each function here decides BEFORE resolving a model config or reading a
+// row: discussConstruction answers {reply: USE_YOUR_OWN_AI} (the shape PROJEXA's
+// Discuss pane already renders as VERI's message); generateProgressSummary,
+// estimateProgressFromPhoto and diffDrawingRevisions throw
+// ProjexaInternalAiOffError (ServiceError 403, message USE_YOUR_OWN_AI);
+// detectBudgetScheduleRisk returns templateBudgetScheduleRisk -- its riskLevel
+// was always deterministic, so it loses only the model's prose.
 import { documents } from "@/lib/db"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
@@ -35,6 +45,7 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { ServiceError } from "./compliance-service"
+import { assertProjexaInternalAi, projexaInternalAiEnabled, USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai"
 import { getProjectDashboard, getProjectDashboardsWithDb, type ProjectDashboard } from "./construction-dashboard-service"
 import { budgetVsActual, budgetVsActualWithDb } from "./construction-reports-service"
 export { ServiceError }
@@ -51,6 +62,7 @@ export type ProgressPhotoEstimate = { estimatedPercentComplete: number; reasonin
 export async function estimateProgressFromPhoto(
   ctx: { orgId: string; userId: string; documentId: string; imageBase64: string; mimeType: string; activityName: string }
 ): Promise<ProgressPhotoEstimate | null> {
+  assertProjexaInternalAi("construction.estimate_progress_from_photo")
   const startedAt = Date.now()
   const modelConfig = await resolveModelConfig(ctx.orgId, "customer_account_oa")
   if (!modelConfig) return null
@@ -108,6 +120,7 @@ export type ProgressSummary = { summary: string; highlights: string[]; concerns:
  * figure that caller may not see. Every other caller passes nothing.
  */
 export async function generateProgressSummary(ctx: { orgId: string; userId: string }, projectId: string, existingDb?: TenantDb, redactDashboard?: (dashboard: ProjectDashboard) => object): Promise<ProgressSummary> {
+  assertProjexaInternalAi("construction.generate_progress_summary")
   const startedAt = Date.now()
   const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
@@ -259,6 +272,9 @@ export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: str
     : { budget: null, actual: 0, variance: null, delayedTaskCount: dashboard.delayedTaskCount, totalTaskCount: dashboard.taskCount }
   const riskLevel = classifyBudgetScheduleRisk(factors)
 
+  // lf-b3-ai-off: the deterministic template, exactly as when no model is configured.
+  if (!projexaInternalAiEnabled()) return templateBudgetScheduleRisk(factors, riskLevel)
+
   const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
   if (!modelConfig) return templateBudgetScheduleRisk(factors, riskLevel)
 
@@ -307,6 +323,7 @@ export async function diffDrawingRevisions(
   input: { imageBase64A: string; mimeTypeA: string; imageBase64B: string; mimeTypeB: string },
   existingDb?: TenantDb
 ): Promise<DrawingDiff> {
+  assertProjexaInternalAi("construction.diff_drawing_revisions")
   const modelConfig = await resolveModelConfig(ctx.orgId, "customer_account_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
   const visionModel = VISION_MODEL_OVERRIDES[modelConfig.provider]
@@ -368,6 +385,10 @@ export async function discussConstruction(
   message: string,
   history: { role: "user" | "assistant"; content: string }[] = []
 ): Promise<{ reply: string }> {
+  // lf-b3-ai-off: a 200 reply, not an error -- PROJEXA's Discuss pane shows a
+  // reply as VERI's message and any non-2xx as "VERI AI didn't reply -- try
+  // again", which would send the person round a retry that can never work.
+  if (!projexaInternalAiEnabled()) return { reply: USE_YOUR_OWN_AI }
   const startedAt = Date.now()
   // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
   // this is genuine free-form user chat, exactly the shape the Constitution's

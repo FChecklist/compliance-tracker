@@ -28,6 +28,11 @@
 // block shows the same non-owner is not refused when Level 0 answers, because
 // the gate sits in front of the model and nothing else.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED;
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" });
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag });
 import { getTableColumns, getTableName } from "drizzle-orm";
 import { submissions } from "@/lib/db/schema";
 

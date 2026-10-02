@@ -73,6 +73,7 @@ import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson, stripJsonFence } from "@/lib/llm-client"
+import { projexaInternalAiEnabled, USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor, hasGroundingData } from "@/lib/policy-enforcement-engine"
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
@@ -2508,6 +2509,12 @@ Respond with ONLY a JSON object of this exact shape, no markdown, no extra text:
 { "columns": ["Column A", "Column B"], "rows": [ { "Column A": "value", "Column B": "value" } ], "narrative": "2-4 sentence grounded analysis" }`
 
 async function runAiRecipe(ctx: { orgId: string; userId?: string }, config: AiRecipeConfig, groundingData: unknown): Promise<ReportDefinitionResult> {
+  // lf-b3-ai-off: PROJEXA's internal AI is off unless PROJEXA_INTERNAL_AI_ENABLED
+  // is exactly "1" (projexa-internal-ai.ts). The refusal takes this file's own
+  // refusal shape -- a one-row "Note" result, as the policy and no-grounding
+  // refusals below already do -- rather than a throw, so a scheduled run of a
+  // mix of report definitions still delivers every deterministic one.
+  if (!projexaInternalAiEnabled()) return { columns: ["Note"], rows: [{ Note: USE_YOUR_OWN_AI }] }
   const startedAt = Date.now()
 
   // Gap closure (VERIDIAN Review Framework, Domain Accuracy finding): this

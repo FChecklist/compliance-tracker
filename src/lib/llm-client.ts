@@ -43,6 +43,10 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
+// lf-b3-ai-off: the one switch for PROJEXA's own models (projexa-internal-ai.ts, a leaf over service-error.ts). callLLM and
+// callLLMVision -- the two entry points every text/vision model call in this codebase goes through (callLLMJson calls callLLM) --
+// refuse before any provider, fallback, retry or bridge is reached when it is off.
+import { assertProjexaInternalAi } from "@/lib/projexa-internal-ai";
 
 const execFileAsync = promisify(execFile);
 
@@ -652,6 +656,7 @@ export async function callLLM(
   options?: CallLLMOptions,
   fallback?: LLMFallback
 ): Promise<LLMResult> {
+  assertProjexaInternalAi("llm-client.callLLM");
   const startedAt = Date.now();
   try {
     const result = await withRetry(() => dispatchLLM(provider, model, apiKey, systemPrompt, userMessage, options));
@@ -790,6 +795,7 @@ export async function callLLMVision(
   instructionText: string,
   options?: CallLLMOptions
 ): Promise<LLMResult> {
+  assertProjexaInternalAi("llm-client.callLLMVision");
   const startedAt = Date.now();
   const result = await dispatchVisionLLM(provider, apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
   return attachLatency(result, startedAt, provider, model);

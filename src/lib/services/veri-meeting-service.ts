@@ -31,6 +31,7 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
 import { runMeetingIntelligenceGenerationMonitor } from "@/lib/monitors/meeting-intelligence-generation-monitor"
 import { ServiceError } from "./compliance-service"
+import { assertProjexaInternalAi, projexaInternalAiEnabled } from "@/lib/projexa-internal-ai"
 export { ServiceError }
 import type { users } from "@/lib/db"
 import type { ServiceActor } from "./context"
@@ -423,7 +424,10 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
   // ever ran -- confirmed via orchestra_executions showing zero
   // meeting_intelligence.extract rows after a real publish. after() keeps the
   // invocation alive until this callback settles.
-  if (opts.generateIntelligence !== false && updated?.minutes?.trim()) {
+  // lf-b3-ai-off: with PROJEXA's internal AI off (projexa-internal-ai.ts) the
+  // best-effort pass is not attempted at all -- silent, nothing to log, the
+  // meeting is published and locked exactly as before.
+  if (opts.generateIntelligence !== false && updated?.minutes?.trim() && projexaInternalAiEnabled()) {
     after(() => generateMeetingIntelligence(ctx, meetingId).catch((err) => {
       console.error("Meeting intelligence generation failed (non-fatal, meeting still published):", err)
     }))
@@ -463,6 +467,10 @@ export async function deleteVeriMeeting(ctx: VeriMeetingContext, meetingId: stri
 // explicitly promotes via the existing addMeetingActionItem(), never
 // auto-created as real `tasks` rows.
 export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meetingId: string) {
+  // lf-b3-ai-off: the refusal (ServiceError 403, USE_YOUR_OWN_AI) before any row
+  // is read or model resolved. Thrown before the try below, so it is never
+  // counted as a failed generation attempt by the MOM_GENERATED monitor.
+  assertProjexaInternalAi("veri_meeting.generate_intelligence")
   // Split from the generation attempt itself (RES-02 Phase 1,
   // PLATFORM_STRATEGY.md 29.3): "meeting not found"/"no minutes to analyze"
   // are input-validation failures, never a real generation attempt, so they

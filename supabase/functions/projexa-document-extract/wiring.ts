@@ -7,6 +7,18 @@
 import type { BudgetLedger, LedgerReservation, LedgerSettlement } from "./budget.ts"
 import type { ModelCall, ModelReply, ModelRequest } from "./handler.ts"
 
+/**
+ * lf-b3-ai-off (owner directive 2026-10-02): PROJEXA does not run its own AI unless PROJEXA_INTERNAL_AI_ENABLED is exactly "1" -- the same
+ * strict switch as src/lib/projexa-internal-ai.ts on the Next.js side, read here from the Edge Function's own environment. Off, index.ts
+ * hands the handler no model, so every authenticated call answers 503 model_not_configured and no provider is reached, whatever keys exist.
+ */
+export function chooseModel(env: (name: string) => string | undefined, fetchImpl?: FetchLike): ModelCall | null {
+  if (env("PROJEXA_INTERNAL_AI_ENABLED") !== "1") return null
+  const openRouterKey = env("OPENROUTER_API_KEY") ?? ""
+  const groqKey = env("GROQ_API_KEY") ?? ""
+  return openRouterKey ? openRouterModel(openRouterKey, fetchImpl) : groqKey ? groqModel(groqKey, fetchImpl) : null
+}
+
 export const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 export const GROQ_PROVIDER = "groq"
 export const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"

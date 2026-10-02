@@ -34,6 +34,8 @@ import { platformApiKeyFor } from "@/lib/orchestra-model-resolver"
 import { renderTemplate, scoreKeywords } from "./prompt-eval-service"
 import { checkPromptEvalBudget } from "./prompt-governance-service"
 import { logTokenUsage } from "./token-usage-service"
+// lf-b3-ai-off: PROJEXA's internal-AI switch (projexa-internal-ai.ts). This job's work is a model call, so off it returns quietly.
+import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai"
 
 /** How many of a role's own most recent prior runs form its rolling baseline. */
 export const REGRESSION_LOOKBACK_RUNS = 5
@@ -198,6 +200,8 @@ export type RoleQualityRegressionSummary = {
   skipped: number
   regressions: RoleQualityCheckResult[]
   results: (RoleQualityCheckResult | RoleQualityCheckSkip)[]
+  /** lf-b3-ai-off: present only when nothing ran because PROJEXA's internal AI is switched off. */
+  internalAiOff?: true
 }
 
 /**
@@ -208,6 +212,8 @@ export type RoleQualityRegressionSummary = {
  * against a stale budget snapshot taken at the start.
  */
 export async function runAllRoleQualityChecks(opts: { triggeredBy?: "scheduled" | "manual" } = {}): Promise<RoleQualityRegressionSummary> {
+  // lf-b3-ai-off: every check is a live model call; off, none is made and no history row is written.
+  if (!projexaInternalAiEnabled()) return { ranAt: new Date().toISOString(), checked: 0, skipped: 0, regressions: [], results: [], internalAiOff: true }
   const roles = eligibleRoles()
   const results: (RoleQualityCheckResult | RoleQualityCheckSkip)[] = []
   for (const role of roles) {

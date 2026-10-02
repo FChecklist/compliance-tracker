@@ -26,6 +26,11 @@
 // (run-submission.ts level1RunnerFor returning the bare runLevel1), the refusal
 // cases fail with 400 {error: NO_COMMENTARY_SENTENCE} -- see the U-49 report.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED;
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" });
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag });
 import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
 import {
   aiEnvSnapshot,
