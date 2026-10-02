@@ -177,12 +177,12 @@ function respond(req: Request, deps: SyncDeps, status: number, body: unknown, ex
 
 const NOT_FOUND = { error: "Not found" }
 
-const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", heads: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST", push: "POST", "jobs/enqueue": "POST", "jobs/claim": "POST", "jobs/heartbeat": "POST", "jobs/result": "POST", "jobs/get": "POST", install: "POST", "release/current": "GET", "release/register": "POST" }
+const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", heads: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST", push: "POST", "jobs/enqueue": "POST", "jobs/claim": "POST", "jobs/heartbeat": "POST", "jobs/result": "POST", "jobs/get": "POST", install: "POST", prepare: "POST", "release/current": "GET", "release/register": "POST" }
 /** Routes a laptop that is too old must still be able to reach: how else would it learn to update. */
-const UPDATE_EXEMPT = new Set(["release/current", "release/register", "install"])
+const UPDATE_EXEMPT = new Set(["release/current", "release/register", "install", "prepare"])
 
 function routeOf(pathname: string): string {
-  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|heads|pull|ids|attest|changes|push|jobs\/enqueue|jobs\/claim|jobs\/heartbeat|jobs\/result|jobs\/get|install|release\/current|release\/register)$/)
+  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|heads|pull|ids|attest|changes|push|jobs\/enqueue|jobs\/claim|jobs\/heartbeat|jobs\/result|jobs\/get|install|prepare|release\/current|release\/register)$/)
   return m ? m[1] : ""
 }
 
@@ -238,6 +238,7 @@ async function routeRequest(req: Request, deps: SyncDeps): Promise<Response> {
   if (route === "release/current") return releaseCurrent(req, deps, now)
   if (route === "release/register") return releaseRegister(req, deps, now)
   if (route === "install") return install(req, deps, who, now)
+  if (route === "prepare") return prepare(req, deps, who, now)
   if (route === "ids") return ids(req, deps, who, now)
   if (route === "attest") return attest(req, deps, who, now)
   if (route === "changes") return changes(req, deps, who, now)
@@ -881,6 +882,30 @@ async function install(req: Request, deps: SyncDeps, who: Who, now: Date): Promi
   })
   if (!r.ok) return respond(req, deps, r.status, r.body)
   return respond(req, deps, 200, { recorded: r.data.recorded, server_time: now.toISOString() })
+}
+// ---------------------------------------------------------------------------------------------------------------------------------
+// PREPARE: what a laptop's "Preparing your PROJEXA workspace" run is doing (drizzle/0688). A report, never a command: it changes nothing
+// about what the laptop may read or write. Update-exempt: a laptop too old to sync must still be able to say it is stuck.
+// ---------------------------------------------------------------------------------------------------------------------------------
+async function prepare(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+  const parsed = await readBody(req, deps, 4096)
+  if (!parsed.ok) return parsed.res
+  const b = parsed.body
+  const device = typeof b.device_id === "string" ? b.device_id : ""
+  const stage = typeof b.stage === "string" ? b.stage : ""
+  const status = typeof b.status === "string" ? b.status : ""
+  const percent = typeof b.percent === "number" && Number.isInteger(b.percent) ? b.percent : -1
+  const attempt = typeof b.attempt === "number" && Number.isInteger(b.attempt) ? b.attempt : 1
+  const release = typeof b.release_version === "string" && b.release_version.length > 0 && b.release_version.length <= 40 ? b.release_version : null
+  const errorClass = typeof b.error_class === "string" && b.error_class.length <= 40 ? b.error_class : null
+  const detail = typeof b.error_detail === "string" ? b.error_detail.slice(0, 300) : null
+  if (!device || !stage || !status || percent < 0) return respond(req, deps, 400, { error: "device_id, stage, status and percent are required" })
+  const r = await callSql(deps, "projexa_prepare_report", {
+    p_sub: who.sub, p_email: who.email, p_device_id: device, p_release_version: release, p_stage: stage, p_percent: percent,
+    p_status: status, p_attempt: attempt, p_error_class: errorClass, p_error_detail: detail,
+  })
+  if (!r.ok) return respond(req, deps, r.status, r.body)
+  return respond(req, deps, 200, { recorded: true, server_time: now.toISOString() })
 }
 // ---------------------------------------------------------------------------------------------------------------------------------
 // PUSH: what a person edited on their laptop (drizzle/0681 decides, the real pipeline writes)

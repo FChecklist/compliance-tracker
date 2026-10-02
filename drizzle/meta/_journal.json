@@ -3614,6 +3614,13 @@
       "when": 1790503000000,
       "tag": "0687_awl_ai_crud_b5",
       "breakpoints": true
+    },
+    {
+      "idx": 518,
+      "version": "7",
+      "when": 1790504000000,
+      "tag": "0688_projexa_prepare_monitor",
+      "breakpoints": true
     }
   ]
 }
