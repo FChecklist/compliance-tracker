@@ -2,7 +2,19 @@
 -- Down-migration for drizzle/0678_projexa_sync_keys_ids.sql. Run deliberately by the PM, not by any script.
 -- DATA LOSS: the signing key table (every key, so every signature made so far stops verifying; laptops simply re-pull). Nothing else is touched: no business table.
 -- projexa_sync_manifest is restored to exactly its 0677 definition (deletes_supported false, no view_class).
+-- ORDER: roll back strictly in REVERSE (0686 .. 0679 first; see 0679's header). This file REFUSES to run (and changes nothing) while 0679's change log or 0680-0682's
+-- tables still exist: 0681/0682 call projexa_sync__kinds() and projexa_sync__view_class() at run time, so dropping them first would break those calls later.
 BEGIN;
+
+SET LOCAL lock_timeout = '5s';
+
+DO $$
+BEGIN
+  IF to_regclass('platform.projexa_change_log') IS NOT NULL OR to_regclass('platform.projexa_sync_op') IS NOT NULL
+     OR to_regclass('platform.projexa_work_job') IS NOT NULL OR to_regclass('platform.projexa_release') IS NOT NULL THEN
+    RAISE EXCEPTION 'roll back 0686 .. 0679 before 0678 (strict reverse order)';
+  END IF;
+END $$;
 
 DROP FUNCTION IF EXISTS public.projexa_sync_ids(text, text, text, text, text, integer);
 

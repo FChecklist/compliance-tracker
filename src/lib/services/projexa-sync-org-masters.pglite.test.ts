@@ -205,12 +205,16 @@ describe("versions and tombstones of an organisation kind", () => {
   test("insert, update and delete are version 1, 2 and a tombstone in the organisation's feed; B's feed and a viewer's feed never carry them", async () => {
     const before = (await feed("u-mem", null)).data!.head_seq as number
     await db.exec(`insert into compliance.erp_suppliers (id, org_id, supplier_name) values ('ven-new', 'org-a', 'New Steel')`)
+    const mid = (await feed("u-mem", before)).data!
+    expect((mid.changes as J[]).map((c) => [c.kind, c.id, Number(c.version), c.op])).toEqual([["vendors", "ven-new", 1, "I"]])
     await db.exec(`update compliance.erp_suppliers set supplier_name = 'New Steel Ltd' where id = 'ven-new'`)
     await db.exec(`delete from compliance.erp_suppliers where id = 'ven-new'`)
     await db.exec(`update compliance.construction_boq_categories set name = 'Civil works' where id = 'cat-1'`)
-    const r = await feed("u-mem", before)
+    expect((await db.query<J>(`select version, op from platform.projexa_change_log where kind = 'vendors' and record_id = 'ven-new' order by seq`)).rows.map((x) => [Number(x.version), x.op])).toEqual([[1, "I"], [2, "U"], [3, "D"]])
+    // one entry per record per page: its latest change (the laptop only needs the newest version, or the tombstone)
+    const r = await feed("u-mem", mid.next_seq as number)
     expect((r.data!.changes as J[]).map((c) => [c.kind, c.id, Number(c.version), c.op])).toEqual([
-      ["vendors", "ven-new", 1, "I"], ["vendors", "ven-new", 2, "U"], ["vendors", "ven-new", 3, "D"], ["boq_categories", "cat-1", 2, "U"],
+      ["vendors", "ven-new", 3, "D"], ["boq_categories", "cat-1", 2, "U"],
     ])
     expect((await head("vendors", "ven-new")).deleted).toBe(true)
     const b = await feed("u-b", 0)
@@ -287,19 +291,19 @@ describe("reversible", () => {
   test("the down file removes the triggers and functions and restores the 0678 manifest; the forward file applies twice", async () => {
     await db.exec(downSql("0684_projexa_sync_org_masters"))
     const trig = async () => Number((await db.query<J>(`select count(*) n from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
-        where t.tgname = 'projexa_track_change' and n.nspname = 'compliance' and c.relname in ('erp_suppliers','erp_customers','erp_companies','construction_boq_categories','erp_currencies','erp_exchange_rates','departments','users','cost_visibility_config')`)).rows[0].n)
+        where t.tgname in ('projexa_track_i', 'projexa_track_u', 'projexa_track_d') and n.nspname = 'compliance' and c.relname in ('erp_suppliers','erp_customers','erp_companies','construction_boq_categories','erp_currencies','erp_exchange_rates','departments','users','cost_visibility_config')`)).rows[0].n)
     expect(await trig()).toBe(0)
     expect((await db.query<J>(`select to_regprocedure('public.projexa_sync_org_pull(text,text,text,text,text,integer)') p`)).rows[0].p).toBeNull()
     const m = (await call("projexa_sync_manifest", who("u-mem"))).data!
     expect(m.org_kinds).toBeUndefined()
     expect((m.kinds as J[]).length).toBe(28)
-    // a project kind still tracks after the rollback (0683's function is back)
+    // a project kind still tracks after the rollback (the trigger function is 0679's and was never redefined by 0684)
     await db.exec(`update compliance.construction_labour_roster set trade = 'tiler' where id = 'ro-x'`)
     expect(Number((await db.query<J>(`select version from platform.projexa_record_head where kind = 'roster' and record_id = 'ro-x'`)).rows[0].version)).toBe(2)
 
     await db.exec(forwardSql("0684_projexa_sync_org_masters"))
     await db.exec(forwardSql("0684_projexa_sync_org_masters"))
-    expect(await trig()).toBe(9)
+    expect(await trig()).toBe(27) // three statement-level triggers on each of the 9 tables
     expect(await idsOf("u-mem", "vendors")).toEqual(OWN_A.vendors)
     expect(((await call("projexa_sync_manifest", who("u-mem"))).data!.org_kinds as J[]).length).toBe(9)
   })

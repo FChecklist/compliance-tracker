@@ -177,12 +177,12 @@ function respond(req: Request, deps: SyncDeps, status: number, body: unknown, ex
 
 const NOT_FOUND = { error: "Not found" }
 
-const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST", push: "POST", "jobs/enqueue": "POST", "jobs/claim": "POST", "jobs/heartbeat": "POST", "jobs/result": "POST", "jobs/get": "POST", install: "POST", "release/current": "GET", "release/register": "POST" }
+const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", heads: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST", push: "POST", "jobs/enqueue": "POST", "jobs/claim": "POST", "jobs/heartbeat": "POST", "jobs/result": "POST", "jobs/get": "POST", install: "POST", "release/current": "GET", "release/register": "POST" }
 /** Routes a laptop that is too old must still be able to reach: how else would it learn to update. */
 const UPDATE_EXEMPT = new Set(["release/current", "release/register", "install"])
 
 function routeOf(pathname: string): string {
-  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest|changes|push|jobs\/enqueue|jobs\/claim|jobs\/heartbeat|jobs\/result|jobs\/get|install|release\/current|release\/register)$/)
+  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|heads|pull|ids|attest|changes|push|jobs\/enqueue|jobs\/claim|jobs\/heartbeat|jobs\/result|jobs\/get|install|release\/current|release\/register)$/)
   return m ? m[1] : ""
 }
 
@@ -234,6 +234,7 @@ async function routeRequest(req: Request, deps: SyncDeps): Promise<Response> {
   }
 
   if (route === "manifest") return manifest(req, deps, who, now)
+  if (route === "heads") return heads(req, deps, who, now)
   if (route === "release/current") return releaseCurrent(req, deps, now)
   if (route === "release/register") return releaseRegister(req, deps, now)
   if (route === "install") return install(req, deps, who, now)
@@ -315,7 +316,37 @@ async function orgOf(deps: SyncDeps, who: Who, now: Date): Promise<OrgMemory | n
   return (deps.orgCache?.get(who.sub) as OrgMemory | undefined) ?? null
 }
 
+// GET /heads: the one cheap poll (drizzle/0686). {heads: {<project>: head, "__org__": head}, projects_etag, role, view_class, org_view_class, epoch}.
+// A laptop calls /changes only for a head that moved, /manifest only when projects_etag changed, and resets its copy when a class or the epoch changed.
+async function heads(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+  const r = await callSql(deps, "projexa_sync_heads", { p_sub: who.sub, p_email: who.email })
+  if (!r.ok) return respond(req, deps, r.status, r.body)
+  const raw = (r.data.heads ?? {}) as Record<string, unknown>
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(raw)) if (typeof v === "number" && Number.isSafeInteger(v) && v >= 0) out[k] = v
+  return respond(req, deps, 200, {
+    heads: out,
+    projects_etag: typeof r.data.projects_etag === "string" ? r.data.projects_etag : null,
+    role: typeof r.data.role === "string" ? r.data.role : null,
+    view_class: typeof r.data.view_class === "string" ? r.data.view_class : null,
+    org_view_class: typeof r.data.org_view_class === "string" ? r.data.org_view_class : null,
+    epoch: typeof r.data.epoch === "string" ? r.data.epoch : null,
+    server_time: now.toISOString(),
+  })
+}
+
+/** The keys 0679/0684 add to an /ids page: the version of every listed id (aligned, 0 = untracked), the feed head read BEFORE the list, the epoch. */
+function idsExtras(data: Record<string, unknown>, count: number): Record<string, unknown> {
+  const v = Array.isArray(data.versions) ? (data.versions as unknown[]) : []
+  return {
+    versions: v.length === count && v.every((x) => typeof x === "number" && Number.isSafeInteger(x) && x >= 0) ? v : null,
+    head_seq: typeof data.head_seq === "number" ? data.head_seq : null,
+    epoch: typeof data.epoch === "string" ? data.epoch : null,
+  }
+}
+
 // POST /ids {project_id, kind, after_id, limit}: one page of the ids of that kind the person may read now (a laptop drops what is no longer listed: deletes)
+// POST /ids {project_id, kinds:[...], digest:true}: per kind {count, xor} (drizzle/0686) so the laptop lists ids only for a kind whose digest differs from its own
 async function ids(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
   const parsed = await readBody(req, deps)
   if (!parsed.ok) return parsed.res
@@ -323,6 +354,21 @@ async function ids(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<R
   const project = body.project_id
   const kind = body.kind
   const after = body.after_id ?? null
+  if (body.digest === true) {
+    const kinds = body.kinds
+    const allowed: readonly string[] = project === ORG_SENTINEL ? ORG_KINDS : SYNC_KINDS
+    if (typeof project !== "string" || project === "" || project.length > 128) return respond(req, deps, 400, { error: "project_id is required" })
+    if (!Array.isArray(kinds) || kinds.length < 1 || kinds.length > 64 || !kinds.every((k) => typeof k === "string")) return respond(req, deps, 400, { error: "kinds must be 1 to 64 kinds" })
+    if (!kinds.every((k) => allowed.includes(k as string))) return respond(req, deps, 404, NOT_FOUND)
+    const r = await callSql(deps, "projexa_sync_ids_digest", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_kinds: kinds })
+    if (!r.ok) return respond(req, deps, r.status, r.body)
+    return respond(req, deps, 200, {
+      digests: r.data.digests ?? {},
+      head_seq: typeof r.data.head_seq === "number" ? r.data.head_seq : null,
+      epoch: typeof r.data.epoch === "string" ? r.data.epoch : null,
+      server_time: now.toISOString(),
+    })
+  }
   if (isOrgKind(kind)) {
     // the organisation inventory: no project (absent, null or the sentinel); a real project id for an organisation kind is the one 404
     if (project !== undefined && project !== null && project !== ORG_SENTINEL) return respond(req, deps, 404, NOT_FOUND)
@@ -331,10 +377,12 @@ async function ids(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<R
     if (after !== null && (typeof after !== "string" || !ID_RE.test(after))) return respond(req, deps, 400, { error: "Bad cursor" })
     const r = await callSql(deps, "projexa_sync_org_ids", { p_sub: who.sub, p_email: who.email, p_kind: kind, p_after_id: after, p_limit: lim })
     if (!r.ok) return respond(req, deps, r.status, r.body)
+    const list = Array.isArray(r.data.ids) ? (r.data.ids as unknown[]).filter((x): x is string => typeof x === "string") : []
     return respond(req, deps, 200, {
-      ids: Array.isArray(r.data.ids) ? (r.data.ids as unknown[]).filter((x): x is string => typeof x === "string") : [],
+      ids: list,
       has_more: r.data.has_more === true,
       next_id: typeof r.data.next_id === "string" ? r.data.next_id : null,
+      ...idsExtras(r.data, list.length),
       server_time: now.toISOString(),
     })
   }
@@ -345,10 +393,12 @@ async function ids(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<R
   if (!(SYNC_KINDS as readonly string[]).includes(kind)) return respond(req, deps, 404, NOT_FOUND)
   const r = await callSql(deps, "projexa_sync_ids", { p_sub: who.sub, p_email: who.email, p_project_id: project, p_kind: kind, p_after_id: after, p_limit: limitIn })
   if (!r.ok) return respond(req, deps, r.status, r.body)
+  const list = Array.isArray(r.data.ids) ? (r.data.ids as unknown[]).filter((x): x is string => typeof x === "string") : []
   return respond(req, deps, 200, {
-    ids: Array.isArray(r.data.ids) ? (r.data.ids as unknown[]).filter((x): x is string => typeof x === "string") : [],
+    ids: list,
     has_more: r.data.has_more === true,
     next_id: typeof r.data.next_id === "string" ? r.data.next_id : null,
+    ...idsExtras(r.data, list.length),
     server_time: now.toISOString(),
   })
 }
@@ -547,6 +597,9 @@ async function buildPageChecked(deps: SyncDeps, who: Who, now: Date, project: st
       has_more: data.has_more === true,
       hidden_fields: hidden,
       redacted: data.redacted === true || hidden.length > 0 || (!moneyVisible && !!def && def.money_columns.length > 0),
+      // the role fingerprint the page was redacted under (0679/0684): a laptop that sees it differ from the one it stored resets that organisation's copy
+      ...(typeof data.view_class === "string" ? { view_class: data.view_class } : {}),
+      ...(typeof data.org_view_class === "string" ? { org_view_class: data.org_view_class } : {}),
       server_time: now.toISOString(),
     },
   }
@@ -578,6 +631,10 @@ async function changes(req: Request, deps: SyncDeps, who: Who, now: Date): Promi
     next_seq: Number(r.data.next_seq ?? 0),
     has_more: r.data.has_more === true,
     head_seq: Number(r.data.head_seq ?? 0),
+    // 0679: the cursor is commit-order safe; reset_required = this laptop's cursor is older than the pruned history or from another database state, so it must
+    // resync the project (keyset pull + /ids) and continue from head_seq; epoch changes when the version tables were re-created (a rollback)
+    reset_required: r.data.reset_required === true,
+    epoch: typeof r.data.epoch === "string" ? r.data.epoch : null,
     server_time: now.toISOString(),
   })
 }

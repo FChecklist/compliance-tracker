@@ -12,12 +12,17 @@ import type { PGlite } from "@electric-sql/pglite"
 import { handleSync, RateLimiter, SYNC_KINDS, type Rpc } from "../../../supabase/functions/projexa-sync/handler"
 import type { SessionVerifier } from "../../../supabase/functions/ai-work-link/session"
 import { forwardSql, downSql } from "./__test-helpers__/awl-pglite"
-import { createUserLinkDb, type J } from "./__test-helpers__/awl-user-link-db"
+import { call, createUserLinkDb, mintUser, type J } from "./__test-helpers__/awl-user-link-db"
 import { A2, B, BW, S, insert, pgRpc } from "./__test-helpers__/awl-records-v2-db"
+import RECORD_KINDS from "../../../supabase/functions/ai-work-link/record-kinds.generated.json"
 
 setDefaultTimeout(240_000)
 
-const SUBS: Record<string, string> = { "u-mgr": "11111111-1111-4111-8111-111111111111", "u-mem": "22222222-2222-4222-8222-222222222222", "u-b": "44444444-4444-4444-8444-444444444444" }
+const SUBS: Record<string, string> = {
+  "u-mgr": "11111111-1111-4111-8111-111111111111", "u-mem": "22222222-2222-4222-8222-222222222222", "u-b": "44444444-4444-4444-8444-444444444444",
+  "u-sen": "55555555-5555-4555-8555-555555555555", "u-view": "66666666-6666-4666-8666-666666666666", "u-adm": "33333333-3333-4333-8333-333333333333",
+}
+const MONEY_COLUMNS: Record<string, string[]> = Object.fromEntries((RECORD_KINDS as Array<{ kind: string; money_columns: string[] }>).map((k) => [k.kind, k.money_columns]))
 const NOW = new Date("2026-10-02T00:00:00Z")
 const NEW_KINDS = ["roster", "attendance", "timesheets", "meetings", "meeting_minutes", "site_diaries", "site_instructions", "progress_claims", "interim_bills", "material_receipts", "material_issues", "expenses", "schedule_baselines", "ffe_items", "wiki_pages"] as const
 
@@ -211,6 +216,82 @@ describe("role redaction: money, wages and rates arrive empty below the role tha
       expect(mgr.data[col]).not.toBeNull()
     })
   }
+
+  // tests:F07 (2): EVERY money column the AI link defines, for EVERY one of the 28 kinds, for the four roles (the generated kind table is the source)
+  test("every money column of every kind is null for a member and a viewer; a senior (the organisation withholds cost) gets null exactly where the page says hidden", async () => {
+    let checked = 0
+    for (const kind of SYNC_KINDS) {
+      const money = MONEY_COLUMNS[kind] ?? []
+      for (const user of ["u-mem", "u-view"]) {
+        const r = await pull(user, kind)
+        expect([kind, user, r.status]).toEqual([kind, user, 200])
+        for (const it of r.json.items as J[]) for (const col of money) if (col in it.data) {
+          expect([kind, user, it.id, col, it.data[col]]).toEqual([kind, user, it.id, col, null])
+          checked += 1
+        }
+      }
+      const sen = await pull("u-sen", kind)
+      for (const it of sen.json.items as J[]) for (const col of sen.json.hidden_fields as string[]) if (col in it.data) expect([kind, col, it.data[col]]).toEqual([kind, col, null])
+    }
+    expect(checked).toBeGreaterThan(20)
+    // the manager receives the seeded values (the role rule is not "null for everyone")
+    const mgrTs = ((await pull("u-mgr", "timesheets")).json.items as J[]).find((i) => i.id === "te-1")!
+    expect(Number(mgrTs.data.hourly_rate_snapshot)).toBe(50)
+    const mgrIb = ((await pull("u-mgr", "interim_bills")).json.items as J[]).find((i) => i.id === "ib-1")!
+    expect([Number(mgrIb.data.gross_amount), mgrIb.data.sales_invoice_id]).toEqual([100000, "inv-1"])
+  })
+
+  test("for all 28 kinds and five roles a laptop's rows equal the same person's AI work link rows, byte for byte, hidden fields included (tests:F07 (3))", async () => {
+    const byId = (xs: J[]) => Object.fromEntries(xs.map((x) => [x.id, x]))
+    for (const who of ["u-mgr", "u-sen", "u-mem", "u-view", "u-adm"]) {
+      const link = await mintUser(db, who)
+      for (const kind of SYNC_KINDS) {
+        const viaLink = await call(db, "ai_work_link_records", [link.token, kind, null, 200, "{}", "proj-a"])
+        const viaSync = await call(db, "projexa_sync_pull", [SUBS[who], null, "proj-a", kind, null, null, 200])
+        expect({ who, kind, rows: byId(viaSync.items.map((i: J) => i.data)) }).toEqual({ who, kind, rows: byId(viaLink.items) })
+        expect({ who, kind, hidden: viaSync.hidden_fields }).toEqual({ who, kind, hidden: viaLink.hidden_fields })
+      }
+    }
+  })
+
+  test("the seeded traps never reach a member: money in free text (an expense description) and the attendees' e-mails of a MoM", async () => {
+    const ex = JSON.stringify((await pull("u-mem", "expenses")).json)
+    expect(ex).not.toContain("38000")
+    expect(ex).not.toContain("V9")
+    const mom = ((await pull("u-mem", "meeting_minutes")).json.items as J[]).find((i) => i.id === "vm-1")!
+    expect(mom.data.attendee_count).toBe(1)
+    expect(JSON.stringify(mom)).not.toContain("@x.example.test")
+    expect(JSON.stringify(mom)).not.toContain("attendees\"")
+  })
+
+  test("the handler's own second money pass nulls money even if the SQL answer leaked it (tests:F07 (1))", async () => {
+    await db.exec(insert("construction_boq_line_items", [{ id: "li-leak", boq_id: "boq-a1", org_id: "org-a", description: "Slab", unit: "cum", quantity: 3, rate: 1, amount: 3, created_at: "2026-09-01T09:00:00Z" }]))
+    const leaky: Rpc = async (fn, args) => {
+      const r = await rpc(fn, args)
+      if (fn !== "projexa_sync_pull" || !r.data) return r
+      const d = r.data as J
+      return { data: { ...d, money_visible: false, hidden_fields: [], redacted: false, items: (d.items as J[]).map((it) => ({ ...it, data: { ...it.data, rate: 5000, amount: 14000 } })) }, error: null }
+    }
+    const req = new Request("https://x.supabase.co/functions/v1/projexa-sync/pull", { method: "POST", headers: { authorization: `Bearer tok:${SUBS["u-mem"]}` }, body: JSON.stringify({ project_id: "proj-a", kind: "boq_lines", after: null, limit: 50 }) })
+    const res = await handleSync(req, { rpc: leaky, session, limiter: new RateLimiter(100000), now: () => NOW })
+    const page = (await res.json()) as J
+    const it = (page.items as J[]).find((i) => i.id === "li-leak")!
+    expect([it.data.rate, it.data.amount, page.redacted]).toEqual([null, null, true])
+  })
+})
+
+describe("scope decoys for the joined kinds (tests:F13)", () => {
+  test("an org-B BOQ line pointing at an org-A BOQ, and an org-B time entry pointing at an org-A issue, never reach org A's project", async () => {
+    await db.exec(insert("construction_boq_line_items", [{ id: "SECRET-li-orgb", boq_id: "boq-a1", org_id: "org-b", description: "SECRET", unit: "x", quantity: 1, rate: 1, amount: 1, created_at: "2026-09-01T09:00:00Z" }]))
+    await db.exec(insert("pms_time_entries", [{ id: "SECRET-te-orgb", org_id: "org-b", issue_id: "iss-own", user_id: "u-b", hours: 1, spent_on: "2026-09-01", activity_type: "dev", billable: true, approval_status: "draft", hourly_rate_snapshot: 1 }]))
+    for (const [kind, id] of [["boq_lines", "SECRET-li-orgb"], ["timesheets", "SECRET-te-orgb"]]) {
+      expect(await idsOf("u-mgr", kind)).not.toContain(id)
+      expect(JSON.stringify((await pull("u-mgr", kind)).json)).not.toContain(id)
+      expect(((await hit("u-mgr", "ids", { project_id: "proj-a", kind })).json.ids as string[])).not.toContain(id)
+      expect(((await hit("u-mgr", "pull", { project_id: "proj-a", kind, ids: [id] })).json.items as J[])).toEqual([])
+      expect(JSON.stringify((await hit("u-mgr", "changes", { project_id: "proj-a", after_seq: 0 })).json)).not.toContain(id)
+    }
+  })
 })
 
 describe("versions and history for the new kinds", () => {
@@ -234,21 +315,24 @@ describe("versions and history for the new kinds", () => {
   })
 
   test("a change to a new kind is a new version and a change the project's person can read; a delete is a tombstone", async () => {
+    // its own rows (tests:F14): the shared fixture rows stay as they are for the other tests
+    await db.exec(insert("construction_attendance", [{ id: "at-own", ...S(), roster_id: "ro-1", attendance_date: "2026-09-02", status: "present", hours_worked: 8, daily_cost: 900 }]))
+    await db.exec(insert("construction_site_diaries", [{ id: "sd-own", ...S(), diary_date: "2026-09-02", weather: "clear", work_done: "Shuttering", recorded_by_id: "u-mem", labour_count: 3 }]))
     const before = ((await hit("u-mgr", "changes", { project_id: "proj-a", after_seq: null })).json.head_seq as number)
-    await db.exec(`update compliance.construction_attendance set status = 'absent' where id = 'at-1'`)
-    await db.exec(`delete from compliance.construction_site_diaries where id = 'sd-1'`)
+    await db.exec(`update compliance.construction_attendance set status = 'absent' where id = 'at-own'`)
+    await db.exec(`delete from compliance.construction_site_diaries where id = 'sd-own'`)
     const r = await hit("u-mgr", "changes", { project_id: "proj-a", after_seq: before })
-    expect((r.json.changes as J[]).map((c) => [c.kind, c.id, c.version, c.op])).toEqual([["attendance", "at-1", 2, "U"], ["site_diaries", "sd-1", 2, "D"]])
+    expect((r.json.changes as J[]).map((c) => [c.kind, c.id, c.version, c.op])).toEqual([["attendance", "at-own", 2, "U"], ["site_diaries", "sd-own", 2, "D"]])
     // org B never learns of it
     expect(await hit("u-b", "changes", { project_id: "proj-a", after_seq: before })).toEqual({ status: 404, json: { error: "Not found" } })
   })
 
   test("the id inventory (deletes) lists exactly the project's rows for EVERY new kind: it uses the candidate scope directly, with no second pass of the AI link's reader", async () => {
-    // (the sync-down at the start of this describe deleted sd-1 and changed at-1; the inventory is the live list)
-    const expected: Record<string, string[]> = { ...OWN, site_diaries: [] }
+    // the inventory is the live list: the fixture rows plus whatever an earlier test of this file added and kept (read from the table, not hard-coded)
     for (const kind of NEW_KINDS) {
       const r = await hit("u-mgr", "ids", { project_id: "proj-a", kind })
-      expect([kind, r.status, r.json.ids]).toEqual([kind, 200, expected[kind]])
+      const extra = kind === "attendance" ? ["at-own"] : []
+      expect([kind, r.status, r.json.ids]).toEqual([kind, 200, [...OWN[kind], ...extra].sort()])
       expect(await hit("u-b", "ids", { project_id: "proj-a", kind })).toEqual({ status: 404, json: { error: "Not found" } })
     }
   })
@@ -259,10 +343,14 @@ describe("reversible", () => {
     await db.exec(downSql("0683_projexa_sync_more_kinds"))
     expect((await db.query<J>(`select cardinality(public.projexa_sync__kinds()) n`)).rows[0].n).toBe(13)
     expect((await pull("u-mgr", "roster")).status).toBe(404) // not a kind any more
-    const left = (await db.query<J>(`select count(*) n from pg_trigger t join pg_class c on c.oid = t.tgrelid where t.tgname = 'projexa_track_change' and c.relname = 'construction_labour_roster'`)).rows[0].n
-    expect(Number(left)).toBe(0)
+    const count = async () => Number((await db.query<J>(`select count(*) n from pg_trigger t join pg_class c on c.oid = t.tgrelid where t.tgname like 'projexa_track%' and c.relname = 'construction_labour_roster'`)).rows[0].n)
+    expect(await count()).toBe(0)
+    // the 13 tables of 0679 keep tracking (the function is 0679's; this rollback never touched it)
+    await db.exec(`update compliance.pms_issues set title = 'still tracked' where id = 'iss-own'`)
+    expect(Number((await db.query<J>(`select version from platform.projexa_record_head where kind = 'tasks' and record_id = 'iss-own'`)).rows[0].version)).toBe(2)
     await db.exec(forwardSql("0683_projexa_sync_more_kinds"))
     await db.exec(forwardSql("0683_projexa_sync_more_kinds"))
+    expect(await count()).toBe(3)
     expect((await db.query<J>(`select cardinality(public.projexa_sync__kinds()) n`)).rows[0].n).toBe(28)
     expect((await pull("u-mgr", "roster")).status).toBe(200)
   })

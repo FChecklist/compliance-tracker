@@ -5,8 +5,12 @@
 --   public.projexa_sync__kinds()   REPLACED: the one list of synced kinds, now 28 (the 13 of 0677, in the same order, then): roster, attendance, timesheets, meetings, meeting_minutes, site_diaries,
 --                                  site_instructions, progress_claims, interim_bills, material_receipts, material_issues, expenses, schedule_baselines, ffe_items, wiki_pages.
 --   public.projexa_sync__src()     REPLACED: the table, scope and relation of each of the 28 (the first 13 exactly as 0677). The scope is the AI work link's own (drizzle/0643, 0644): organisation AND project.
---   platform.projexa_track_change() REPLACED: the version/history trigger also knows where a time entry (via its issue) and a MoM (a veri_meeting about a project) belong to.
---   15 triggers `projexa_track_change` on the new tables (a table missing in an environment is skipped).
+--   the 15 new tables get the three statement-level tracking triggers of 0679 (projexa_track_i / _u / _d), attached by platform.projexa_track__attach: a time entry is filed
+--                                  under its issue's project (mode parent, and a time entry deleted with an untracked issue is resolved by the issue's delete), a MoM only
+--                                  while it is about a project (mode link: unlinking it is a tombstone), a wiki page only while it is not archived (archiving it is a
+--                                  tombstone). platform.projexa_track_change() itself is NOT redefined here (sql:SQL-09: re-running 0679 after this file regresses nothing).
+--                                  A table missing in an environment is skipped.
+-- ORDER: 0678 .. 0686 are one chain; apply them together and in order, roll back strictly in reverse (see 0679's header).
 -- Documents already carry drawings and permits (the same rows, by category), so those are not separate kinds. `people` and the organisation-wide masters (vendors, customers, companies, categories, currencies,
 -- departments) are not project-scoped and come in a later migration; `kpi_entries` (hidden module, joined scope) and `pipeline_tasks` are left out on purpose.
 --
@@ -14,8 +18,10 @@
 -- (wages, rates, costs, amounts are NULL below the role that may see them: ai_work_link__hidden_cols and cost_visibility_config), the person-masking and the project scope are the AI link's own, byte for byte.
 -- The candidate list built here (ids and cursor timestamps only, scoped on organisation and project) only decides WHICH ids to ask the core about and in what order.
 --
+-- LOCKS: SHARE ROW EXCLUSIVE on each of the 15 tables (writes wait, reads do not), taken together NOWAIT with a short retry and held until COMMIT; none at all on a re-apply
+-- whose triggers are already right. lock_timeout 5 s; one transaction.
 -- DATA LOSS: none. Functions replaced, triggers added; no table altered. Applying it twice changes nothing.
--- ROLLBACK: drizzle/down/0683_projexa_sync_more_kinds.down.sql (back to the 13 kinds, and the 0679 trigger function)
+-- ROLLBACK: drizzle/down/0683_projexa_sync_more_kinds.down.sql (back to the 13 kinds; drops the 15 tables' triggers)
 
 BEGIN;
 
@@ -68,113 +74,32 @@ AS $fn$
   ) AS v(k, f, s, r) WHERE v.k = p_kind
 $fn$;
 
--- 3. the trigger function, 0679's plus the two kinds whose project is not a column of the row -----------------------------------------------------
-CREATE OR REPLACE FUNCTION platform.projexa_track_change()
-RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = pg_catalog, pg_temp
-SET timezone = 'UTC'
-AS $fn$
-DECLARE
-  v_kind text := TG_ARGV[0];
-  v_row jsonb;
-  v_op char(1);
-  v_id text;
-  v_org text;
-  v_project text;
-  v_hash text;
-  v_prev record;
-  v_ver bigint;
-  v_actor text;
-BEGIN
-  BEGIN
-    IF TG_OP = 'DELETE' THEN
-      v_row := to_jsonb(OLD);
-      v_op := 'D';
-    ELSE
-      v_row := to_jsonb(NEW);
-      v_op := CASE TG_OP WHEN 'INSERT' THEN 'I' ELSE 'U' END;
-    END IF;
-    v_id := v_row ->> 'id';
-    v_org := v_row ->> 'org_id';
-
-    IF v_kind = 'project' THEN
-      v_project := v_id;
-    ELSIF v_kind = 'boq_lines' THEN
-      SELECT b.project_id INTO v_project FROM compliance.construction_boqs b WHERE b.id = (v_row ->> 'boq_id') AND b.org_id = v_org;
-    ELSIF v_kind = 'timesheets' THEN
-      SELECT i.project_id INTO v_project FROM compliance.pms_issues i WHERE i.id = (v_row ->> 'issue_id') AND i.org_id = v_org;
-    ELSIF v_kind = 'documents' THEN
-      IF v_row ->> 'linked_entity_type' IS DISTINCT FROM 'project' THEN
-        RETURN NULL;
-      END IF;
-      v_project := v_row ->> 'linked_entity_id';
-    ELSIF v_kind = 'meeting_minutes' THEN
-      IF v_row ->> 'context_entity_type' IS DISTINCT FROM 'project' THEN
-        RETURN NULL;
-      END IF;
-      v_project := v_row ->> 'context_entity_id';
-    ELSE
-      v_project := v_row ->> 'project_id';
-    END IF;
-
-    SELECT h.version, h.content_hash, h.deleted, h.project_id INTO v_prev
-    FROM platform.projexa_record_head h WHERE h.org_id = v_org AND h.kind = v_kind AND h.record_id = v_id FOR UPDATE;
-
-    -- a child removed together with its parent (cascade): the parent is already gone, so the project is the one we recorded before
-    IF v_project IS NULL AND FOUND THEN
-      v_project := v_prev.project_id;
-    END IF;
-    IF v_org IS NULL OR v_id IS NULL OR v_project IS NULL THEN
-      RETURN NULL;
-    END IF;
-
-    v_hash := encode(sha256(convert_to((v_row - 'updated_at' - 'search_vector' - 'embedding')::text, 'UTF8')), 'hex');
-    IF FOUND THEN
-      IF v_op <> 'D' AND NOT v_prev.deleted AND v_prev.content_hash = v_hash THEN
-        RETURN NULL; -- not a real change
-      END IF;
-      v_ver := v_prev.version + 1;
-    ELSE
-      v_ver := 1;
-    END IF;
-
-    v_actor := coalesce(v_row ->> 'updated_by_id', v_row ->> 'updated_by', v_row ->> 'created_by_id', v_row ->> 'requested_by_id', v_row ->> 'raised_by_id', v_row ->> 'recorded_by_id');
-
-    INSERT INTO platform.projexa_record_head (org_id, kind, record_id, project_id, version, content_hash, deleted, updated_at, actor_id)
-    VALUES (v_org, v_kind, v_id, v_project, v_ver, v_hash, v_op = 'D', clock_timestamp(), v_actor)
-    ON CONFLICT (org_id, kind, record_id)
-    DO UPDATE SET project_id = EXCLUDED.project_id, version = EXCLUDED.version, content_hash = EXCLUDED.content_hash, deleted = EXCLUDED.deleted, updated_at = EXCLUDED.updated_at, actor_id = EXCLUDED.actor_id;
-
-    INSERT INTO platform.projexa_change_log (org_id, project_id, kind, record_id, version, op, content_hash, actor_id, db_role)
-    VALUES (v_org, v_project, v_kind, v_id, v_ver, v_op, v_hash, v_actor, session_user::text);
-  EXCEPTION WHEN OTHERS THEN
-    -- tracking is best effort by design: it must never be the reason a business write fails
-    RAISE WARNING 'projexa_track_change(%): % (%)', v_kind, SQLERRM, SQLSTATE;
-  END;
-  RETURN NULL;
-END
-$fn$;
-REVOKE ALL ON FUNCTION platform.projexa_track_change() FROM PUBLIC, anon, authenticated, app_runtime;
-
--- 4. the new triggers ------------------------------------------------------------------------------------------------------------------------------
+-- 3. the 15 new tables get the tracking triggers of 0679 (the function is 0679's, unchanged; only the arguments say where a row belongs) ----------------
 DO $$
 DECLARE
-  r record;
+  v_specs jsonb := '[
+    {"k": "roster",             "t": "construction_labour_roster",     "m": "col", "a": "project_id"},
+    {"k": "attendance",         "t": "construction_attendance",        "m": "col", "a": "project_id"},
+    {"k": "timesheets",         "t": "pms_time_entries",               "m": "parent", "a": "pms_issues", "b": "issue_id", "p": "tasks"},
+    {"k": "meetings",           "t": "pms_meetings",                   "m": "col", "a": "project_id"},
+    {"k": "meeting_minutes",    "t": "veri_meetings",                  "m": "link", "a": "context_entity_type", "b": "context_entity_id"},
+    {"k": "site_diaries",       "t": "construction_site_diaries",      "m": "col", "a": "project_id"},
+    {"k": "site_instructions",  "t": "construction_site_instructions", "m": "col", "a": "project_id"},
+    {"k": "progress_claims",    "t": "construction_progress_claims",   "m": "col", "a": "project_id"},
+    {"k": "interim_bills",      "t": "construction_interim_bills",     "m": "col", "a": "project_id"},
+    {"k": "material_receipts",  "t": "construction_material_receipts", "m": "col", "a": "project_id"},
+    {"k": "material_issues",    "t": "construction_material_issues",   "m": "col", "a": "project_id"},
+    {"k": "expenses",           "t": "construction_expense_entries",   "m": "col", "a": "project_id"},
+    {"k": "schedule_baselines", "t": "pms_schedule_baselines",         "m": "col", "a": "project_id"},
+    {"k": "ffe_items",          "t": "interior_ffe_items",             "m": "col", "a": "project_id"},
+    {"k": "wiki_pages",         "t": "pms_wiki_pages",                 "m": "col_unless", "a": "project_id", "b": "is_archived"}
+  ]'::jsonb;
 BEGIN
-  FOR r IN SELECT * FROM (VALUES
-    ('roster', 'construction_labour_roster'), ('attendance', 'construction_attendance'), ('timesheets', 'pms_time_entries'), ('meetings', 'pms_meetings'),
-    ('meeting_minutes', 'veri_meetings'), ('site_diaries', 'construction_site_diaries'), ('site_instructions', 'construction_site_instructions'),
-    ('progress_claims', 'construction_progress_claims'), ('interim_bills', 'construction_interim_bills'), ('material_receipts', 'construction_material_receipts'),
-    ('material_issues', 'construction_material_issues'), ('expenses', 'construction_expense_entries'), ('schedule_baselines', 'pms_schedule_baselines'),
-    ('ffe_items', 'interior_ffe_items'), ('wiki_pages', 'pms_wiki_pages')
-  ) AS v(kind, tbl)
-  LOOP
-    IF to_regclass('compliance.' || r.tbl) IS NOT NULL THEN
-      EXECUTE format('DROP TRIGGER IF EXISTS projexa_track_change ON compliance.%I', r.tbl);
-      EXECUTE format('CREATE TRIGGER projexa_track_change AFTER INSERT OR UPDATE OR DELETE ON compliance.%I FOR EACH ROW EXECUTE FUNCTION platform.projexa_track_change(%L)', r.tbl, r.kind);
-    END IF;
-  END LOOP;
+  PERFORM platform.projexa_track__attach(v_specs);
+  -- self-check (sql:SQL-08): a second pass must find nothing left to do
+  IF platform.projexa_track__attach(v_specs) <> 0 THEN
+    RAISE EXCEPTION 'projexa tracking self-check failed: triggers are not as specified';
+  END IF;
 END $$;
 
 COMMIT;

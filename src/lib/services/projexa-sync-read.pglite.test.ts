@@ -212,9 +212,15 @@ describe("redaction is the AI work link's own", () => {
     expect((sen.json.items as J[])[0].data.project_value).toBeNull()
   })
 
-  test("the person-masking of the link applies (a user link hides other people's emails): not a field of any synced kind, but hide_personal is the link's", async () => {
-    const r = await call(db, "projexa_sync_pull", [SUBS["u-mgr"], null, "proj-a", "tasks", null, null, 5])
-    expect(r.status).toBe("ok")
+  test("no other person's e-mail reaches a laptop through any synced kind (the link's person-masking, hide_personal, applies)", async () => {
+    const others = ["mo@a.example.test", "sam@a.example.test", "vic@a.example.test", "ada@a.example.test", "bo@b.example.test"]
+    const kinds = (await call(db, "projexa_sync_manifest", [SUBS["u-mgr"], null])).kinds.map((k: J) => k.kind as string)
+    expect(kinds.length).toBeGreaterThan(5)
+    for (const kind of kinds) {
+      const r = await call(db, "projexa_sync_pull", [SUBS["u-mgr"], null, "proj-a", kind, null, null, 200])
+      expect([kind, r.status]).toEqual([kind, "ok"])
+      for (const e of others) expect([kind, JSON.stringify(r).includes(e)]).toEqual([kind, false])
+    }
   })
 })
 
@@ -372,8 +378,15 @@ describe("the handler: contract and edges", () => {
   })
 
   test("wrong method and unknown path: 405 and 404; a token never appears in an answer", async () => {
-    expect((await handleSync(new Request("https://x/functions/v1/projexa-sync/pull", { headers: { authorization: "Bearer tok:x" } }), { rpc, session })).status).toBe(405)
-    expect((await handleSync(new Request("https://x/functions/v1/projexa-sync/nope", { headers: { authorization: "Bearer tok:x" } }), { rpc, session })).status).toBe(404)
+    const r405 = await handleSync(new Request("https://x/functions/v1/projexa-sync/pull", { headers: { authorization: "Bearer tok:x" } }), { rpc, session })
+    const r404 = await handleSync(new Request("https://x/functions/v1/projexa-sync/nope", { headers: { authorization: "Bearer tok:x" } }), { rpc, session })
+    expect([r405.status, r404.status]).toEqual([405, 404])
+    const ok = await hit(SUBS["u-mgr"], "manifest")
+    for (const res of [r405, r404, ok]) {
+      const text = await res.clone().text()
+      const heads = JSON.stringify([...res.headers.entries()])
+      expect([text.includes("tok:"), heads.includes("tok:"), text.includes(SUBS["u-mgr"])]).toEqual([false, false, false])
+    }
   })
 })
 

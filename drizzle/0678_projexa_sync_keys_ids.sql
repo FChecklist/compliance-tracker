@@ -22,6 +22,9 @@
 --
 -- ERRORS (coded, same as 0677): AW404 NOT_FOUND; AW400 BAD_CURSOR / BAD_LIMIT. A person who does not resolve gets {"status": <reason>} and no data.
 -- GRANTS: SECURITY DEFINER, search_path = pg_catalog, pg_temp, timezone UTC; revoked from public, anon, authenticated, app_runtime; granted to service_role alone.
+-- ORDER: 0678 .. 0686 are ONE chain: apply them together and in number order, roll back strictly in REVERSE (see 0679's header). The three definitions a later
+-- migration replaces with a superset (projexa_sync__kinds by 0683, projexa_sync_manifest by 0684, projexa_sync_ids by 0679) are GUARDED: a re-run of this file
+-- after those migrations leaves their versions in place (sql:SQL-09). The down file refuses to run while 0679 .. 0682 objects still exist.
 -- DATA LOSS: none. One new table and new functions; one function replaced with a superset answer. Applying it twice changes nothing.
 -- ROLLBACK: drizzle/down/0678_projexa_sync_keys_ids.down.sql (restores the 0677 manifest exactly)
 
@@ -98,11 +101,24 @@ AS $fn$
 $fn$;
 
 -- 3. the ONE list of synced kinds, in the order a manifest lists them (0683 extends it; every function below and in 0679/0681 reads this one) ----------------
+-- GUARDED (sql:SQL-09): a re-run of this file after 0683 must not shrink the list back to 13, so it is only (re)created while it is not already longer.
+DO $do$
+DECLARE
+  v_n integer;
+BEGIN
+  IF to_regprocedure('public.projexa_sync__kinds()') IS NOT NULL THEN
+    EXECUTE 'SELECT cardinality(public.projexa_sync__kinds())' INTO v_n;
+  END IF;
+  IF coalesce(v_n, 0) <= 13 THEN
+    EXECUTE $def$
 CREATE OR REPLACE FUNCTION public.projexa_sync__kinds()
 RETURNS text[]
 LANGUAGE sql IMMUTABLE
 SET search_path = pg_catalog, pg_temp
-AS $fn$ SELECT ARRAY['project', 'tasks', 'boqs', 'boq_lines', 'activities', 'progress', 'rfis', 'submittals', 'punch_list', 'change_orders', 'milestones', 'materials', 'documents']::text[] $fn$;
+AS $fn$ SELECT ARRAY['project', 'tasks', 'boqs', 'boq_lines', 'activities', 'progress', 'rfis', 'submittals', 'punch_list', 'change_orders', 'milestones', 'materials', 'documents']::text[] $fn$
+$def$;
+  END IF;
+END $do$;
 
 -- 3b. view class ----------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.projexa_sync__view_class(p_org text, p_role text)
@@ -118,6 +134,13 @@ AS $fn$
 $fn$;
 
 -- 4. the manifest, additive: 0677's answer plus view_class ----------------------------------------------------------------------------------
+-- GUARDED (sql:SQL-09): 0684 replaces the manifest with a superset; a re-run of this file after 0684 leaves 0684's in place.
+DO $do$
+BEGIN
+  IF to_regprocedure('public.projexa_sync__org_kinds()') IS NOT NULL THEN
+    RETURN;
+  END IF;
+  EXECUTE $def$
 CREATE OR REPLACE FUNCTION public.projexa_sync_manifest(p_sub text, p_email text)
 RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER
@@ -158,9 +181,18 @@ BEGIN
     'kinds', v_kinds,
     'view_class', public.projexa_sync__view_class(v_org, v_ctx ->> 'live_role'));
 END
-$fn$;
+$fn$
+$def$;
+END $do$;
 
 -- 5. id inventory (deletes) ------------------------------------------------------------------------------------------------------------------
+-- GUARDED (sql:SQL-09): 0679 replaces it with a superset (versions, head, epoch); a re-run of this file after 0679 leaves 0679's in place.
+DO $do$
+BEGIN
+  IF to_regclass('platform.projexa_change_log') IS NOT NULL THEN
+    RETURN;
+  END IF;
+  EXECUTE $def$
 CREATE OR REPLACE FUNCTION public.projexa_sync_ids(
   p_sub text, p_email text, p_project_id text, p_kind text, p_after_id text DEFAULT NULL, p_limit integer DEFAULT 5000)
 RETURNS jsonb
@@ -218,7 +250,9 @@ BEGIN
 
   RETURN jsonb_build_object('status', 'ok', 'ids', v_ids, 'has_more', v_has_more, 'next_id', CASE WHEN v_n > 0 THEN v_ids ->> (v_n - 1) END);
 END
-$fn$;
+$fn$
+$def$;
+END $do$;
 
 -- 6. grants ----------------------------------------------------------------------------------------------------------------------------------
 REVOKE ALL ON FUNCTION public.projexa_sync__kinds() FROM PUBLIC, anon, authenticated, service_role;
