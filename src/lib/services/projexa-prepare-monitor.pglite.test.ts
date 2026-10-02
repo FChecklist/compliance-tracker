@@ -17,7 +17,7 @@ import { pgRpc } from "./__test-helpers__/awl-records-v2-db"
 
 setDefaultTimeout(180_000)
 
-const SUBS: Record<string, string> = { "u-mgr": "11111111-1111-4111-8111-111111111111", "u-mem": "22222222-2222-4222-8222-222222222222" }
+const SUBS: Record<string, string> = { "u-mgr": "11111111-1111-4111-8111-111111111111", "u-mem": "22222222-2222-4222-8222-222222222222", "u-e2e": "99999999-9999-4999-8999-999999999999" }
 const DEV1 = "laptop-one-0001"
 const DEV2 = "laptop-two-0002"
 let db: PGlite
@@ -38,7 +38,8 @@ const age = (device: string, minutes: number) => db.exec(`update platform.projex
 
 beforeAll(async () => {
   db = await createUserLinkDb()
-  for (const m of ["0618_build001_projexa_gateway", "0677_projexa_sync_read", "0678_projexa_sync_keys_ids", "0680_projexa_release_registry", "0688_projexa_prepare_monitor", "0689_projexa_prepare_stuck"]) await db.exec(forwardSql(m))
+  for (const m of ["0618_build001_projexa_gateway", "0677_projexa_sync_read", "0678_projexa_sync_keys_ids", "0680_projexa_release_registry", "0688_projexa_prepare_monitor", "0689_projexa_prepare_stuck", "0690_projexa_prepare_e2e_excluded"]) await db.exec(forwardSql(m))
+  await db.exec(`insert into compliance.users (id, name, email, password_hash, role, is_active, org_id, auth_user_id) values ('u-e2e', 'E2E Bot', 'bot@meridian.e2e-test.projexa-ai.com', 'x', 'member', true, 'org-a', '${SUBS["u-e2e"]}')`)
   rpc = pgRpc(db)
 }, 300_000)
 afterAll(async () => { await db?.close() })
@@ -156,9 +157,25 @@ describe("stuck: alive but not advancing", () => {
   })
 })
 
+describe("the automated e2e accounts are not laptops of people", () => {
+  test("their stalled preparations are recorded but never raise the alert", async () => {
+    await db.exec(`delete from platform.projexa_prepare_state`)
+    const r0 = await report("u-e2e", { percent: 70, stage: "projects", status: "running" })
+    expect(r0.status, JSON.stringify(r0.json)).toBe(200)
+    await age(DEV1, 30)
+    expect((await state()).length).toBe(1) // recorded
+    expect(await health()).toMatchObject({ laptops: 0, stalled: 0 }) // not counted
+    await report("u-mgr", { device_id: DEV2, percent: 70, stage: "projects", status: "running" })
+    await age(DEV2, 30)
+    expect(await health()).toMatchObject({ laptops: 1, stalled: 1 }) // a real person's laptop is
+  })
+})
+
 describe("grants and reversibility", () => {
   test("the forward file applies twice; the down file removes everything", async () => {
+    await db.exec(forwardSql("0690_projexa_prepare_e2e_excluded"))
     await db.exec(forwardSql("0689_projexa_prepare_stuck"))
+    await db.exec(downSql("0690_projexa_prepare_e2e_excluded"))
     await db.exec(downSql("0689_projexa_prepare_stuck"))
     await db.exec(downSql("0688_projexa_prepare_monitor"))
     const left = await db.query(`select 1 from pg_proc where proname in ('projexa_prepare_report','projexa_prepare_health') union all select 1 from information_schema.tables where table_name in ('projexa_prepare_state','projexa_prepare_event')`)
