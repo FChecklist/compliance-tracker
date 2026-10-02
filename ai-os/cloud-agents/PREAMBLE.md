@@ -26,3 +26,10 @@ Every behaviour has a committed test that FAILS when the behaviour is broken. Af
 
 ## Final report (your last message), with these headings
 BRANCH and head commit; DONE (each acceptance item -> where it is and the test that proves it); NOT DONE (explicit); TESTS (real `bun test` summary lines); PLANTED-BUG CHECKS (what you broke and which test caught it); RISKS AND DECISIONS (anything the owner or integrator must know). Never claim more than you verified.
+
+## CLOUD SESSION SAFETY (learned from the first runs: read this)
+A safety classifier runs in cloud sessions and can start blocking shell commands in the MIDDLE of a run (two agents lost work or had to stop). Protect your work from it:
+1. **Commit and push after EVERY file group** (each new file or migration + its test): `git add <files> && git commit -m ... && git push -u origin claude/<package id>`. Never hold uncommitted work for long: a block can arrive at any moment and the container is reclaimed afterwards.
+2. **Edit files with the Edit and Write tools, not with `python3 - <<EOF`, `sed -i`, `perl -pi` or heredoc scripts.** Those were the commands that got blocked. Plain `git`, `bun test`, `ls`, `cat`, `grep` were fine until a block hit.
+3. If a shell command is denied by the classifier: do NOT retry it in another form or through another tool (that counts as working around it). Commit and push what you already have if you still can, then STOP and write your final report stating exactly what remained undone.
+4. Prefer small, focused steps over giant one-shot scripts. Do not paste large generated blobs through the shell; write them with the Write tool.
