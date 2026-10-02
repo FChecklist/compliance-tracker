@@ -3537,6 +3537,13 @@
       "when": 1790492000000,
       "tag": "0676_dpdp_claim_reject_and_ai_link_billing_notice",
       "breakpoints": true
+    },
+    {
+      "idx": 507,
+      "version": "7",
+      "when": 1790493000000,
+      "tag": "0677_projexa_sync_read",
+      "breakpoints": true
     }
   ]
 }
