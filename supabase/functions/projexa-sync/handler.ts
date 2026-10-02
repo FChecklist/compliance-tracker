@@ -121,10 +121,22 @@ export function decodeCursor(cursor: string): { ts: string; id: string } | null 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Responses
 // ---------------------------------------------------------------------------------------------------------------------------------
+// A browser preflights every laptop call (Authorization + the custom X-Px-Client are not CORS-safelisted). Every request header the laptop sends must be
+// listed or the browser blocks the call before it leaves; Retry-After must be exposed or browser JS cannot read the 429 back-off; and the preflight is
+// cached for 2 h (Chromium's ceiling) because an OPTIONS is answered in this function, i.e. it is one more billed invocation per URL per cache period.
+export const CORS_ALLOW_HEADERS = "authorization, content-type, x-px-client"
+export const CORS_EXPOSE_HEADERS = "Retry-After"
+export const CORS_MAX_AGE_SECONDS = 7200
 function corsHeaders(req: Request, deps: SyncDeps): Record<string, string> {
   const origin = req.headers.get("origin")
   const allowed = deps.allowedOrigins ?? ALLOWED_ORIGINS
-  const h: Record<string, string> = { Vary: "Origin", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, content-type", "Access-Control-Max-Age": "600" }
+  const h: Record<string, string> = {
+    Vary: "Origin",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
+    "Access-Control-Expose-Headers": CORS_EXPOSE_HEADERS,
+    "Access-Control-Max-Age": String(CORS_MAX_AGE_SECONDS),
+  }
   if (origin && allowed.includes(origin)) h["Access-Control-Allow-Origin"] = origin
   return h
 }
