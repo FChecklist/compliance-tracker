@@ -3,12 +3,12 @@
 -- section 3. Not auto-applied by any script or CI job; the PM runs it deliberately, after the same always-aborted rehearsal as the forward file.
 --
 -- WHAT IT RESTORES: the state after 0669 and before 0685.
---   1. The 24 function rows 0685 added are deleted, exactly those ids and no other, and public.ai_work_link__registry_version() is put back to
+--   1. The 27 function rows 0685 added are deleted, exactly those ids and no other, and public.ai_work_link__registry_version() is put back to
 --      the hash of the 0669 seed. The other 113 function rows and the 33 record kinds are the same in both seeds and are not touched.
 --   2. (GROUP 2) the per-person switch: every switch is turned off and the functions that set and read it are dropped (section below).
 --
 -- WHAT STOPS WORKING, read before running: an AI's update, delete and archive of BOQs, progress, tasks, sprints, timesheets, documents, minutes,
--- meetings, materials and the design studio. A call to one of the 24 answers 403 FUNCTION_NOT_ON_LINK; drafts already recorded stay and are refused
+-- meetings, materials, permits, the project's status and the design studio. A call to one of the 27 answers 403 FUNCTION_NOT_ON_LINK; drafts already recorded stay and are refused
 -- when claimed (ROLE_CHANGED). The Edge Function's generated registry lists them until it is redeployed from the commit before this one.
 --
 -- DATA LOSS: none of project data. The rows deleted are registry rows; applying 0685 again puts them back.
@@ -28,7 +28,8 @@ BEGIN
       'archive_task', 'create_sprint', 'update_sprint', 'close_sprint', 'add_sprint_task', 'remove_sprint_task',
       'update_time_entry', 'delete_time_entry',
       'dispose_document', 'update_mom_details', 'delete_mom', 'update_meeting', 'update_material',
-      'update_room', 'remove_room', 'update_placement', 'remove_placement', 'update_floor_plan_status', 'update_mood_board', 'remove_mood_board_item'
+      'update_room', 'remove_room', 'update_placement', 'remove_placement', 'update_floor_plan_status', 'update_mood_board', 'remove_mood_board_item',
+      'update_permit', 'delete_permit', 'archive_project'
     ]::text[]);
   END IF;
 END

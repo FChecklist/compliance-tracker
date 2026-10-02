@@ -90,6 +90,7 @@ describe("drizzle/0651 on PGlite over 0621 to 0628, 0644, 0643, 0650, 0647, 0648
       "update_boq", "delete_boq", "update_boq_line_amounts", "delete_progress_entry", "archive_task", "create_sprint", "update_sprint", "close_sprint",
       "add_sprint_task", "remove_sprint_task", "update_time_entry", "delete_time_entry", "dispose_document", "update_mom_details", "delete_mom", "update_meeting",
       "update_material", "update_room", "remove_room", "update_placement", "remove_placement", "update_floor_plan_status", "update_mood_board", "remove_mood_board_item",
+      "update_permit", "delete_permit", "archive_project",
     ])
     const but = (rows: Array<{ function_id: string }>) => rows.filter((r) => r.function_id !== "create_project" && !added0685.has(r.function_id))
     expect(but(after)).toEqual(but(json))

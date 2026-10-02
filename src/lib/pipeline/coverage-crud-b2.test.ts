@@ -80,6 +80,7 @@ function seedCrudRecords(s: BoqStore): void {
   seedRows(s, "documents", [
     { id: "doc_old", orgId: ORG, name: "2019 site photos", fileUrl: "https://example.com/old.zip", category: "other", linkedEntityType: "project", linkedEntityId: PROJECT_A, disposalDate: "2025-01-01", legalHold: false, isDisposed: false },
     { id: "doc_hold", orgId: ORG, name: "Dispute file", fileUrl: "https://example.com/hold.zip", category: "other", linkedEntityType: "project", linkedEntityId: PROJECT_A, disposalDate: "2025-01-01", legalHold: true, isDisposed: false },
+    { id: "permit_x", orgId: OTHER_ORG, name: "Elsewhere permit", fileUrl: "https://example.com/px.pdf", category: "permit", linkedEntityType: "project", linkedEntityId: PROJECT_X, metadata: { permitNumber: "X-1" } },
     { id: "doc_x", orgId: OTHER_ORG, name: "Elsewhere", fileUrl: "https://example.com/x.pdf", category: "other", linkedEntityType: "project", linkedEntityId: PROJECT_X, disposalDate: "2025-01-01", legalHold: false, isDisposed: false },
   ]);
   seedRows(s, "veri_meetings", [
@@ -196,6 +197,13 @@ export const CASES: Case[] = [
     fn: "remove_mood_board_item", level: 2, minRank: 2, money: false, valid: { moodBoardId: "mb_a", itemId: "mbi_a" },
     required: [["moodBoardId", "value"], ["itemId", "value"]], text: [], foreign: [["moodBoardId", "mb_b", "mb_x"], ["itemId", "mbi_b"]],
   },
+  // GROUP 3
+  {
+    fn: "update_permit", level: 1, minRank: 2, money: false, valid: { permitId: "doc_a", permitNumber: "FO-2026-114-A", expiryDate: "2027-05-01", notes: "Renewed" },
+    required: [["permitId", "value"]], text: ["name", "permitNumber", "permitAuthority", "notes"], foreign: [["permitId", "doc_b", "permit_x"]],
+  },
+  { fn: "delete_permit", level: 2, minRank: 2, money: false, valid: { permitId: "doc_a" }, required: [["permitId", "value"]], text: [], foreign: [["permitId", "doc_b", "permit_x"]] },
+  { fn: "archive_project", level: 2, minRank: 3, money: false, valid: { status: "cancelled" }, required: [], text: [], foreign: [] },
 ];
 
 /** What a valid call (as a manager) changes: exactly these tables, and the check that the change is there, re-read from the store. */
@@ -255,11 +263,34 @@ const EFFECT: Record<string, { tables: string[]; check: () => void }> = {
   update_floor_plan_status: { tables: ["interior_floor_plans"], check: () => expect(row("interior_floor_plans", "fp_a")!.status).toBe("final") },
   update_mood_board: { tables: ["interior_mood_boards"], check: () => expect(row("interior_mood_boards", "mb_a")!.title).toBe("Living room, v2") },
   remove_mood_board_item: { tables: ["interior_mood_board_items"], check: () => expect(row("interior_mood_board_items", "mbi_a")).toBeUndefined() },
+  update_permit: {
+    tables: ["documents"],
+    check: () => {
+      const d = row("documents", "doc_a")!;
+      expect(d.metadata).toMatchObject({ permitNumber: "FO-2026-114-A", notes: "Renewed", isExternalLink: true });
+      expect(new Date(d.expiryDate as string).toISOString().slice(0, 10)).toBe("2027-05-01");
+      expect(d.name).toBe("Fit-out permit");
+    },
+  },
+  delete_permit: {
+    tables: ["documents"],
+    check: () => {
+      expect(row("documents", "doc_a")).toBeUndefined();
+      expect(row("documents", "doc_b")).toBeDefined();
+    },
+  },
+  archive_project: {
+    tables: ["projects"],
+    check: () => {
+      expect(row("projects", PROJECT_A)!.status).toBe("cancelled");
+      expect(row("projects", PROJECT_B)!.status).toBe("active");
+    },
+  },
 };
 
 describe("lf-b2-ai-crud: the 24 functions are registered and executable, and every one is a write", () => {
   test("every function has an executor, is a write and has a valid-call effect below", () => {
-    expect(CASES).toHaveLength(24);
+    expect(CASES).toHaveLength(27);
     for (const c of CASES) expect({ fn: c.fn, executor: hasExecutor(c.fn), write: functionWrites(c.fn), effect: c.fn in EFFECT }).toEqual({ fn: c.fn, executor: true, write: true, effect: true });
   });
 
@@ -267,7 +298,8 @@ describe("lf-b2-ai-crud: the 24 functions are registered and executable, and eve
     // remove_sprint_task deletes no record (the task stays on the schedule, only its sprint link goes), so it is a direct write like add_sprint_task
     const destructive = CASES.filter((c) => /^(delete|remove|archive|dispose)_/.test(c.fn) && c.fn !== "remove_sprint_task");
     expect(destructive.map((c) => c.fn).sort()).toEqual([
-      "archive_task", "delete_boq", "delete_mom", "delete_progress_entry", "delete_time_entry", "dispose_document", "remove_mood_board_item", "remove_placement", "remove_room",
+      "archive_project", "archive_task", "delete_boq", "delete_mom", "delete_permit", "delete_progress_entry", "delete_time_entry", "dispose_document", "remove_mood_board_item",
+      "remove_placement", "remove_room",
     ]);
     for (const c of destructive) expect({ fn: c.fn, level: c.level }).toEqual({ fn: c.fn, level: 2 });
     // and every money function too
@@ -362,6 +394,24 @@ describe("the services' own rules hold when the AI calls them", () => {
     store.tables.pms_issues.find((r) => r.id === "issue_a")!.isArchived = true;
     resultOf(await run("archive_task", { issueId: "issue_a", isArchived: "false" }));
     expect(row("pms_issues", "issue_a")!.isArchived).toBe(false);
+  });
+
+  test("update_permit and delete_permit: a document of this project that is not a permit reads as absent, and stays", async () => {
+    const before = snapshot(store);
+    // refused by the executor's own check (it names the parameter), before the service is reached: the service holds the same rule as a second line
+    expect(failureOf(await run("update_permit", { permitId: "doc_old", name: "Hijacked" }))).toMatchObject({ code: "RECORD_NOT_FOUND", context: { param: "permitId" } });
+    expect(failureOf(await run("delete_permit", { permitId: "doc_old" }))).toMatchObject({ code: "RECORD_NOT_FOUND", context: { param: "permitId" } });
+    expect(snapshot(store)).toBe(before);
+  });
+
+  test("archive_project: an unknown status is refused; a cancelled project is reopened with status active; nothing in it is deleted", async () => {
+    expect(failureOf(await run("archive_project", { status: "deleted" })).code).toBe("REQUEST_REJECTED");
+    const rowsBefore = Object.fromEntries(Object.entries(store.tables).filter(([t]) => t !== "projects").map(([t, r]) => [t, r.length]));
+    resultOf(await run("archive_project", {}));
+    expect(row("projects", PROJECT_A)!.status).toBe("cancelled");
+    resultOf(await run("archive_project", { status: "active" }));
+    expect(row("projects", PROJECT_A)!.status).toBe("active");
+    expect(Object.fromEntries(Object.entries(store.tables).filter(([t]) => t !== "projects").map(([t, r]) => [t, r.length]))).toEqual(rowsBefore);
   });
 
   test("an empty patch is refused and nothing is written", async () => {

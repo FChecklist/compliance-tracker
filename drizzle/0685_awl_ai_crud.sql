@@ -3,15 +3,15 @@
 -- "let my AI act without asking".
 --
 -- WHAT
---   1. platform.ai_work_link_functions   the 113 rows of 0669 plus 24 new functions (137 rows, 119 on links), from src/lib/pipeline/function-registry.ts
+--   1. platform.ai_work_link_functions   the 113 rows of 0669 plus 27 new functions (140 rows, 122 on links), from src/lib/pipeline/function-registry.ts
 --                                        and scripts/gen-ai-link-registry.data.ts:
 --                                          level 1 (direct): update_boq, create_sprint, update_sprint, add_sprint_task, remove_sprint_task,
 --                                                            update_time_entry, update_mom_details, update_meeting, update_room, update_placement,
---                                                            update_mood_board
+--                                                            update_mood_board, update_permit
 --                                          level 2 (a draft the person confirms): delete_boq, update_boq_line_amounts, delete_progress_entry,
 --                                                            archive_task, close_sprint, delete_time_entry, dispose_document, delete_mom,
 --                                                            update_material, remove_room, remove_placement, update_floor_plan_status,
---                                                            remove_mood_board_item
+--                                                            remove_mood_board_item, delete_permit, archive_project
 --                                        The other 113 rows are written again exactly as 0669 wrote them. The record kinds are the 33 of 0643, unchanged.
 --   2. public.ai_work_link__registry_version()  the sha256 of exactly those rows.
 --   3. (GROUP 2, below the generated block) platform.ai_work_link_person_settings and the functions that read and set a person's
@@ -25,7 +25,7 @@
 -- project data through the same service the app's own route calls.
 --
 -- LINKS ALREADY MINTED KEEP THEIR OLD FUNCTION CEILING. A link's allowed_functions is fixed when it is minted, so a link minted before this file
--- does not carry the 24 new functions: the person re-mints a link (or makes a new user link) to give their AI the new functions.
+-- does not carry the 27 new functions: the person re-mints a link (or makes a new user link) to give their AI the new functions.
 --
 -- ERRORS. None new from the generated block. The GROUP 2 functions raise the same AW4xx codes as the functions of 0668 they sit beside.
 --
@@ -39,7 +39,7 @@
 -- IDEMPOTENT: rows are upserted by key (INSERT ... ON CONFLICT DO UPDATE) and rows of a function or kind the block no longer names are deleted, so
 -- applying this file twice, or after 0669, leaves the tables exactly as the block says. Nothing here touches platform.ai_work_link_settings.
 --
--- DATA LOSS: none. 24 rows are added and a function body is replaced; GROUP 2 adds an empty table.
+-- DATA LOSS: none. 27 rows are added and a function body is replaced; GROUP 2 adds an empty table and re-creates four functions of 0668.
 --
 -- HOW IT IS APPLIED: by the PM through the Supabase MCP, after the always-aborted rehearsal passed and migrations up to 0683 are applied. This
 -- migration is written by an engineer agent (cloud package lf-b2-ai-crud) and is not applied by it.

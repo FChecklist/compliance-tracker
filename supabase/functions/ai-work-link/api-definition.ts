@@ -249,6 +249,9 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   update_floor_plan_status: { floorPlanId: "<id of a floor plan of this project>", status: "final" },
   update_mood_board: { moodBoardId: "<id of a mood board of this project>", title: "Living room, v2" },
   remove_mood_board_item: { moodBoardId: "<id of a mood board of this project>", itemId: "<item id of that mood board>" },
+  update_permit: { permitId: "<id from records/permits>", expiryDate: "2027-05-01", notes: "Renewed for one year" },
+  delete_permit: { permitId: "<id from records/permits>" },
+  archive_project: { status: "cancelled" },
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

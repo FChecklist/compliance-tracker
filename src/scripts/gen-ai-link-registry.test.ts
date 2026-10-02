@@ -116,6 +116,8 @@ const CRUD_B2_ON_LINKS: Record<string, [number, number]> = {
   update_time_entry: [1, 2], delete_time_entry: [2, 2], dispose_document: [2, 3], update_mom_details: [1, 2], delete_mom: [2, 2],
   update_meeting: [1, 2], update_material: [2, 2], update_room: [1, 2], remove_room: [2, 2], update_placement: [1, 2], remove_placement: [2, 2],
   update_floor_plan_status: [2, 2], update_mood_board: [1, 2], remove_mood_board_item: [2, 2],
+  // GROUP 3
+  update_permit: [1, 2], delete_permit: [2, 2], archive_project: [2, 3],
 }
 const CRUD_B2_MONEY = ["delete_boq", "update_boq_line_amounts", "update_material", "update_time_entry"]
 const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS, ...B002_WAVE_7_9_ON_LINKS, ...B002_SUBMIT_TIMESHEET_ON_LINKS, ...USER_LINK_ON_LINKS, ...CRUD_B2_ON_LINKS }
@@ -243,7 +245,7 @@ describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 78 of
     expect([...idParams].sort()).toEqual([
       "activityId", "againstBoqId", "assignedToId", "assigneeId", "assigneeIds", "assigneeUserId", "baselineId", "boqId", "boqLineItemId", "budgetId", "categoryId", "changeOrderId", "claimId", "clientId", "customerId", "documentId",
       "drawingDocumentId", "entryId", "evidenceDocumentId", "ffeItemId", "floorPlanId", "issueId", "itemId", "kpiDefinitionId", "lineItemId", "materialId", "meetingId", "milestoneId", "moodBoardId", "pageId", "parentBoqId", "parentCategoryId",
-      "parentPageId", "placementId", "predecessorId", "productId", "progressEntryId", "receiptId", "rfiId", "roomId", "rosterId", "sourceChangeOrderId", "sprintId", "statusId", "submittalId", "timeEntryId", "typeId", "vendorId",
+      "parentPageId", "permitId", "placementId", "predecessorId", "productId", "progressEntryId", "receiptId", "rfiId", "roomId", "rosterId", "sourceChangeOrderId", "sprintId", "statusId", "submittalId", "timeEntryId", "typeId", "vendorId",
     ])
     expect(on.find((r) => r.function_id === "record_work_progress")!.id_params).toEqual(["boqLineItemId"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params.map((p) => p.name)).toEqual(["projectId", "itemCode", "percent"])
