@@ -54,15 +54,31 @@ async function stand(body: ExecRunBody): Promise<ExecOutcome> {
 }
 
 async function push(user: string, ops: unknown[], o: { device?: string | null; exec?: boolean } = {}) {
-  const body = { device_id: o.device === null ? undefined : (o.device ?? DEVICE), ops }
+  // an edit carries the record it edits (RECORD_REQUIRED otherwise): `record: "auto"` is filled with the task's CURRENT head version, the way a laptop that just pulled would send it
+  const filled = await Promise.all(
+    ops.map(async (x) => {
+      const y = x as Record<string, unknown> | null
+      if (!y || typeof y !== "object" || y.record !== "auto") return x
+      const id = ((y.params as Record<string, unknown>)?.taskId as string) ?? "t1"
+      return { ...y, record: { kind: "tasks", id, base_version: await head(id) } }
+    }),
+  )
+  const body = { device_id: o.device === null ? undefined : (o.device ?? DEVICE), ops: filled }
   const req = new Request("https://x.supabase.co/functions/v1/projexa-sync/push", { method: "POST", headers: { authorization: `Bearer tok:${SUBS[user] ?? user}` }, body: JSON.stringify(body) })
   const res = await handleSync(req, { rpc, session, limiter: new RateLimiter(100000), now: () => NOW, signing: async () => signing, execRun: o.exec === false ? undefined : stand })
   return { status: res.status, json: (await res.json()) as J }
 }
-const op = (id: string, extra: Record<string, unknown> = {}) => ({ op_id: id, function_id: FN, project_id: "proj-a", params: { taskId: "t1", title: `by ${id}` }, ...extra })
+const op = (id: string, extra: Record<string, unknown> = {}) => ({ op_id: id, function_id: FN, project_id: "proj-a", params: { taskId: "t1", title: `by ${id}` }, record: "auto", ...extra })
 const rec = (version: number, id = "t1", kind = "tasks") => ({ record: { kind, id, base_version: version } })
 const head = async (id: string) => Number((await db.query<{ version: unknown }>(`select version from platform.projexa_record_head where kind = 'tasks' and record_id = '${id}'`)).rows[0]?.version ?? 0)
-const ledger = async (opId: string) => (await db.query<J>(`select status, error_code, applied_version, base_version from platform.projexa_sync_op where op_id = '${opId}'`)).rows[0]
+const ledger = async (opId: string) => (await db.query<J>(`select status, error_code, applied_version, base_version, attempts, record_id, result from platform.projexa_sync_op where op_id = '${opId}'`)).rows[0]
+/** begin called directly (what the handler sends), for the decisions whose raw answer matters */
+const begin = async (user: string, o: unknown, device = DEVICE) =>
+  (await rpc("projexa_sync_push_begin", { p_sub: SUBS[user] ?? user, p_email: null, p_device_id: device, p_op: o as never })).data as J
+const finish = async (user: string, opId: string, status: string, kind: string | null = null, id: string | null = null, code: string | null = null) =>
+  rpc("projexa_sync_push_finish", { p_user_id: user, p_op_id: opId, p_status: status, p_result: { id } as never, p_error_code: code, p_record_kind: kind, p_record_id: id })
+/** an uncertain op settles 2 minutes after it became uncertain: age it past that */
+const settle = (opId: string) => db.exec(`update platform.projexa_sync_op set finished_at = clock_timestamp() - interval '3 minutes' where op_id = '${opId}'`)
 const only = (r: { json: J }) => (r.json.results as J[])[0]
 
 beforeAll(async () => {
@@ -287,7 +303,7 @@ describe("outcomes of a run", () => {
     }
   })
 
-  test("a running op is IN_PROGRESS for 10 minutes, then it is uncertain", async () => {
+  test("a running op is IN_PROGRESS for 10 minutes; then it is resolved (an edit whose record did not move runs again, once)", async () => {
     await db.exec(`insert into platform.projexa_sync_op (user_id, op_id, org_id, device_id, function_id, project_id, params_hash, status)
                    values ('u-mgr', 'op-out-00007', 'org-a', '${DEVICE}', '${FN}', 'proj-a', 'h', 'running')`)
     // the hash differs, so first prove the content check, then use the real hash by letting the handler create the row
@@ -299,8 +315,13 @@ describe("outcomes of a run", () => {
     delete script["op-out-00008"]
     expect(only(await push("u-mgr", [op("op-out-00008")]))).toMatchObject({ status: "failed", error: { code: "IN_PROGRESS" } })
     await db.exec(`update platform.projexa_sync_op set created_at = clock_timestamp() - interval '11 minutes' where op_id = 'op-out-00008'`)
-    expect(only(await push("u-mgr", [op("op-out-00008")]))).toMatchObject({ status: "failed", error: { code: "EXECUTION_UNCERTAIN" } })
-    expect(await ledger("op-out-00008")).toMatchObject({ status: "uncertain" })
+    // the stand-in threw BEFORE writing, so t1's head is still the base the op carried: the write never happened, the op runs again
+    calls = []
+    expect(only(await push("u-mgr", [op("op-out-00008")]))).toMatchObject({ status: "applied" })
+    expect(calls.map((c) => c.op_id)).toEqual(["op-out-00008"])
+    expect(await ledger("op-out-00008")).toMatchObject({ status: "applied", attempts: 2 })
+    expect(only(await push("u-mgr", [op("op-out-00008")]))).toMatchObject({ status: "duplicate" })
+    expect(calls).toHaveLength(1)
   })
 })
 
@@ -331,22 +352,287 @@ describe("order inside a batch", () => {
 })
 
 describe("limits", () => {
-  test("600 ops an hour per person, then RATE_LIMITED (a retry, not a refusal)", async () => {
-    await db.exec(`insert into platform.projexa_sync_op (user_id, op_id, org_id, device_id, function_id, project_id, params_hash, status)
-                   select 'u-sen', 'op-rate-' || lpad(g::text, 6, '0'), 'org-a', '${DEVICE}', '${FN}', 'proj-a', 'h', 'applied' from generate_series(1, 600) g`)
+  const seed = (user: string, prefix: string, n: number, o: { fn?: string; status?: string; age?: string; attempts?: number } = {}) =>
+    db.exec(`insert into platform.projexa_sync_op (user_id, op_id, org_id, device_id, function_id, project_id, params_hash, status, attempts, created_at)
+             select '${user}', '${prefix}' || lpad(g::text, 6, '0'), 'org-a', '${DEVICE}', '${o.fn ?? FN}', ${o.fn === "create_project" ? "null" : "'proj-a'"}, 'h', '${o.status ?? "applied"}',
+                    ${o.attempts ?? 1}, clock_timestamp() - interval '${o.age ?? "0 seconds"}' from generate_series(1, ${n}) g`)
+  const clear = (prefix: string) => db.exec(`delete from platform.projexa_sync_op where op_id like '${prefix}%'`)
+  const create = (id: string) => ({ op_id: id, function_id: "create_project", params: { name: `Project ${id}` } })
+
+  test("600 runs an hour per person, then RATE_LIMITED (a retry, not a refusal); 599 still runs; an hour later it runs again", async () => {
+    await seed("u-sen", "op-rate-", 599)
     calls = []
+    expect(only(await push("u-sen", [op("op-rate-new-0", { params: { taskId: "t2", title: "x" } })])).status).toBe("applied") // the 600th
     const r = only(await push("u-sen", [op("op-rate-new-1")]))
     expect(r).toMatchObject({ status: "failed", error: { code: "RATE_LIMITED" } })
-    expect(calls).toHaveLength(0)
+    expect(calls).toHaveLength(1)
     // another person is not affected
     expect(only(await push("u-mgr", [op("op-rate-mgr-1")])).status).toBe("applied")
+    // the window is one hour: the same 600 aged 61 minutes do not count
+    await db.exec(`update platform.projexa_sync_op set created_at = clock_timestamp() - interval '61 minutes' where user_id = 'u-sen' and op_id like 'op-rate-%'`)
+    expect(only(await push("u-sen", [op("op-rate-new-1")])).status).toBe("applied")
+    await clear("op-rate-")
   })
 
-  test("5 create_project a day, then CAP_DAY", async () => {
-    await db.exec(`insert into platform.projexa_sync_op (user_id, op_id, org_id, device_id, function_id, project_id, params_hash, status)
-                   select 'u-mem', 'op-proj-' || lpad(g::text, 4, '0'), 'org-a', '${DEVICE}', 'create_project', null, 'h', 'applied' from generate_series(1, 5) g`)
-    const r = only(await push("u-mem", [{ op_id: "op-proj-new-1", function_id: "create_project", params: { name: "Sixth" } }]))
-    expect(r).toMatchObject({ status: "rejected", error: { code: "CAP_DAY" } })
+  test("re-runs count: one failed op re-sent 600 times in the hour is RATE_LIMITED (the amplification of a failing op is capped)", async () => {
+    await seed("u-sen", "op-amp-", 1, { status: "failed", attempts: 600 })
+    calls = []
+    expect(only(await push("u-sen", [op("op-amp-new-1")]))).toMatchObject({ status: "failed", error: { code: "RATE_LIMITED" } })
+    expect(calls).toHaveLength(0)
+    await clear("op-amp-")
+    // and a re-run of a failed op adds an attempt
+    script["op-amp-rerun1"] = { kind: "failed", code: "INTERNAL_ERROR", missing: [] }
+    await push("u-sen", [op("op-amp-rerun1", { params: { taskId: "t2", title: "y" } })])
+    await push("u-sen", [op("op-amp-rerun1", { params: { taskId: "t2", title: "y" } })])
+    expect(await ledger("op-amp-rerun1")).toMatchObject({ status: "failed", attempts: 2 })
+    delete script["op-amp-rerun1"]
+    await clear("op-amp-")
+  })
+
+  test("5 create_project a day (running, applied or uncertain), then CAP_DAY; rejected and failed ones and yesterday's do not count", async () => {
+    await seed("u-mem", "op-proj-r", 5, { fn: "create_project", status: "rejected" })
+    await seed("u-mem", "op-proj-f", 5, { fn: "create_project", status: "failed" })
+    await seed("u-mem", "op-proj-o", 5, { fn: "create_project", status: "applied", age: "25 hours" })
+    await seed("u-mem", "op-proj-a", 4, { fn: "create_project", status: "applied" })
+    calls = []
+    script["op-proj-new-1"] = { kind: "done", record: { id: "proj-new-1", route: "/projects/proj-new-1" }, submission_id: "s" }
+    // the fifth succeeds, through the stand-in: no project, no record kind, no version, no signed row
+    expect(only(await push("u-mem", [create("op-proj-new-1")]))).toMatchObject({ status: "applied", record_id: "proj-new-1", version: null, server: null })
+    expect(await ledger("op-proj-new-1")).toMatchObject({ status: "applied", applied_version: null, record_id: "proj-new-1" })
+    expect(only(await push("u-mem", [create("op-proj-new-2")]))).toMatchObject({ status: "rejected", error: { code: "CAP_DAY" } })
+    // an uncertain one counts (it may have made a project)
+    await db.exec(`update platform.projexa_sync_op set status = 'uncertain' where op_id = 'op-proj-new-1'`)
+    expect(only(await push("u-mem", [create("op-proj-new-3")]))).toMatchObject({ status: "rejected", error: { code: "CAP_DAY" } })
+    await db.exec(`update platform.projexa_sync_op set status = 'failed' where op_id = 'op-proj-new-1'`)
+    expect((await begin("u-mem", create("op-proj-new-4"))).action).toBe("run")
+    expect(calls).toHaveLength(1)
+    await clear("op-proj-")
+  })
+})
+
+describe("exactly once under concurrency", () => {
+  const claim = async (opId: string, from: string | null) =>
+    (await db.query<{ c: boolean }>(`select platform.projexa_sync__op_claim('u-mgr', $1, 'org-a', '${DEVICE}', '${FN}', 'proj-a', 'hash-x', null, null, null, $2) as c`, [opId, from])).rows[0].c
+
+  test("the claim interleaving: two first deliveries that both saw no row -- only the one that created it runs; an applied row is never re-claimed", async () => {
+    // T1 and T2 both read 'no row' (the problematic order), then both claim
+    expect(await claim("op-cc-000001", null)).toBe(true) // T1
+    expect(await claim("op-cc-000001", null)).toBe(false) // T2: told NOT to run
+    expect(await ledger("op-cc-000001")).toMatchObject({ status: "running", attempts: 1 })
+    // T1 finishes; a T2 that stalled past it still cannot reset the row
+    await db.exec(`update platform.projexa_sync_op set status = 'applied', result = '{"id":"t1"}' where op_id = 'op-cc-000001'`)
+    expect(await claim("op-cc-000001", null)).toBe(false)
+    expect(await claim("op-cc-000001", "failed")).toBe(false) // a re-run claim against a row that is no longer 'failed'
+    expect(await ledger("op-cc-000001")).toMatchObject({ status: "applied", result: { id: "t1" } })
+    // a failed row is re-claimed exactly once
+    await db.exec(`update platform.projexa_sync_op set status = 'failed' where op_id = 'op-cc-000001'`)
+    expect(await claim("op-cc-000001", "failed")).toBe(true)
+    expect(await claim("op-cc-000001", "failed")).toBe(false)
+    expect(await ledger("op-cc-000001")).toMatchObject({ status: "running", attempts: 2 })
+  })
+
+  test("begin serialises on (person, op): it takes the advisory lock before it reads the ledger, and a second begin of a running op is IN_PROGRESS", async () => {
+    const def = (await db.query<{ d: string }>(`select pg_get_functiondef('public.projexa_sync_push_begin(text,text,text,jsonb)'::regprocedure) d`)).rows[0].d
+    const lock = def.indexOf("pg_advisory_xact_lock(hashtextextended('projexa_sync_op:'")
+    expect(lock).toBeGreaterThan(0)
+    expect(lock).toBeLessThan(def.indexOf("FROM platform.projexa_sync_op o WHERE o.user_id = v_user AND o.op_id = v_op_id"))
+    const o = { ...op("op-cc-000002"), record: { kind: "tasks", id: "t1", base_version: await head("t1") } }
+    expect((await begin("u-mgr", o)).action).toBe("run")
+    expect(await begin("u-mgr", o)).toMatchObject({ action: "retry", code: "IN_PROGRESS" })
+    await finish("u-mgr", "op-cc-000002", "failed", null, null, "INTERNAL_ERROR")
+  })
+
+  test("a late duplicate finish never turns 'applied' into 'failed' (that would make the op re-runnable)", async () => {
+    calls = []
+    const o = op("op-cc-000003")
+    expect(only(await push("u-mgr", [o])).status).toBe("applied")
+    const late = await finish("u-mgr", "op-cc-000003", "failed", null, null, "INTERNAL_ERROR")
+    expect(late.error).toBeNull()
+    expect(late.data).toMatchObject({ status: "applied", ignored: true })
+    expect(await ledger("op-cc-000003")).toMatchObject({ status: "applied", error_code: null })
+    expect(only(await push("u-mgr", [o])).status).toBe("duplicate")
+    expect(calls).toHaveLength(1)
+  })
+
+  test("a late finish resolves an uncertain op with the real outcome", async () => {
+    const o = { ...op("op-cc-000004"), record: { kind: "tasks", id: "t1", base_version: await head("t1") } }
+    expect((await begin("u-mgr", o)).action).toBe("run")
+    await finish("u-mgr", "op-cc-000004", "uncertain", null, null, "EXECUTION_UNCERTAIN")
+    await db.exec(`update compliance.pms_issues set title = 'late write' where id = 't1'`)
+    const r = await finish("u-mgr", "op-cc-000004", "applied", "tasks", "t1")
+    expect(r.data).toMatchObject({ status: "applied", ignored: false, version: await head("t1") })
+    expect(await ledger("op-cc-000004")).toMatchObject({ status: "applied" })
+  })
+
+  test("finish: unknown status AW400, unknown op AW404, the error code is cut to 64, an applied op with no record has no version", async () => {
+    expect((await finish("u-mgr", "op-cc-000004", "done")).error?.code).toBe("AW400")
+    expect((await finish("u-mgr", "op-cc-nope01", "applied")).error?.code).toBe("AW404")
+    const o = { ...op("op-cc-000005"), record: { kind: "tasks", id: "t1", base_version: await head("t1") } }
+    await begin("u-mgr", o)
+    await finish("u-mgr", "op-cc-000005", "failed", null, null, "E".repeat(100))
+    expect(((await ledger("op-cc-000005")).error_code as string).length).toBe(64)
+    await db.exec(`update platform.projexa_sync_op set status = 'running', record_kind = null, record_id = null where op_id = 'op-cc-000005'`)
+    expect((await finish("u-mgr", "op-cc-000005", "applied")).data).toMatchObject({ status: "applied", version: null })
+  })
+})
+
+describe("uncertain is resolved without a human", () => {
+  test("not yet settled: retry EXECUTION_UNCERTAIN; settled edit whose record did NOT move: it runs again, once", async () => {
+    const base = await head("t2")
+    const o = op("op-unc-00001", { params: { taskId: "t2", title: "u1" }, ...rec(base, "t2") })
+    script["op-unc-00001"] = "throw" // the call went out, nothing came back, nothing was written
+    calls = []
+    expect(only(await push("u-mgr", [o]))).toMatchObject({ status: "failed", error: { code: "EXECUTION_UNCERTAIN" } })
+    delete script["op-unc-00001"]
+    expect(only(await push("u-mgr", [o]))).toMatchObject({ status: "failed", error: { code: "EXECUTION_UNCERTAIN" } })
+    expect(calls).toHaveLength(1)
+    await settle("op-unc-00001")
+    expect((await begin("u-mgr", o)).rerun_of).toBe("uncertain")
+    await finish("u-mgr", "op-unc-00001", "uncertain", null, null, "EXECUTION_UNCERTAIN") // undo the probe's claim
+    await settle("op-unc-00001")
+    expect(only(await push("u-mgr", [o]))).toMatchObject({ status: "applied", version: base + 1 })
+    expect(calls).toHaveLength(2)
+    expect(only(await push("u-mgr", [o])).status).toBe("duplicate")
+    expect(calls).toHaveLength(2)
+  })
+
+  test("settled edit whose record DID move (the lost write happened): conflict with the server row, uncertain_prior; never run again", async () => {
+    const base = await head("t2")
+    const o = op("op-unc-00002", { params: { taskId: "t2", title: "u2" }, ...rec(base, "t2") })
+    script["op-unc-00002"] = { kind: "uncertain" }
+    calls = []
+    // the stand-in returns 'uncertain' WITHOUT writing; write the effect ourselves, as a call that committed then lost its answer
+    expect(only(await push("u-mgr", [o]))).toMatchObject({ status: "failed", error: { code: "EXECUTION_UNCERTAIN" } })
+    await db.exec(`update compliance.pms_issues set title = 'u2 landed' where id = 't2'`)
+    delete script["op-unc-00002"]
+    await settle("op-unc-00002")
+    expect(await begin("u-mgr", o)).toMatchObject({ action: "conflict", server_version: base + 1, base_version: base, uncertain_prior: true })
+    const r = only(await push("u-mgr", [o]))
+    expect(r).toMatchObject({ status: "conflict", version: base + 1 })
+    expect(r.server.data.title).toBe("u2 landed")
+    expect(calls).toHaveLength(1)
+    expect(await ledger("op-unc-00002")).toMatchObject({ status: "uncertain" })
+  })
+
+  test("settled op with no version to check (a create): resolved ONCE, terminally, UNCERTAIN_CHECK_SERVER; never blindly re-run", async () => {
+    const o = { op_id: "op-unc-00003", function_id: "create_project", params: { name: "Maybe made" } }
+    script["op-unc-00003"] = "throw"
+    calls = []
+    expect(only(await push("u-mgr", [o]))).toMatchObject({ status: "failed", error: { code: "EXECUTION_UNCERTAIN" } })
+    delete script["op-unc-00003"]
+    await settle("op-unc-00003")
+    expect(only(await push("u-mgr", [o]))).toMatchObject({ status: "rejected", error: { code: "UNCERTAIN_CHECK_SERVER" } })
+    expect(await ledger("op-unc-00003")).toMatchObject({ status: "rejected", error_code: "UNCERTAIN_CHECK_SERVER" })
+    expect(only(await push("u-mgr", [o]))).toMatchObject({ status: "rejected", error: { code: "UNCERTAIN_CHECK_SERVER" } })
+    expect(calls).toHaveLength(1)
+  })
+})
+
+describe("no oracle: a record outside the bound project reads exactly like one that does not exist", () => {
+  test("a member probing a private project's task from a public project gets the made-up id's answer: never conflict, never its version", async () => {
+    expect(await head("tp")).toBeGreaterThan(0) // the private task really has a head (the probe would be answerable)
+    await db.exec(insert("pms_issues", [{ id: "t-a2", org_id: "org-a", project_id: "proj-a2", type_id: "ty", status_id: "st", number: 3, title: "A2 task", updated_at: "2026-09-01T10:00:00Z" }]))
+    const probe = (id: string, opId: string) => ({ op_id: opId, function_id: FN, project_id: "proj-a", params: { taskId: "t1", title: "x" }, record: { kind: "tasks", id, base_version: 0 } })
+    const madeUp = await begin("u-mem", probe("t-no-such", "op-orc-00001"))
+    const priv = await begin("u-mem", probe("tp", "op-orc-00002"))
+    const other = await begin("u-mem", probe("t-a2", "op-orc-00003")) // a readable task, but of another project
+    const strip = (x: J) => ({ action: x.action, code: x.code ?? null, server_version: x.server_version ?? null })
+    expect(strip(madeUp)).toEqual({ action: "run", code: null, server_version: null })
+    expect(strip(priv)).toEqual(strip(madeUp))
+    expect(strip(other)).toEqual(strip(madeUp))
+    // finish of an op bound to proj-a never reads the private record's version either
+    expect((await finish("u-mem", "op-orc-00002", "applied", "tasks", "tp")).data).toMatchObject({ version: null })
+    for (const id of ["op-orc-00001", "op-orc-00003"]) await finish("u-mem", id, "failed", null, null, "X")
+    // the lead of the private project, bound to it, does get the conflict
+    expect(await begin("u-sen", { ...probe("tp", "op-orc-00004"), project_id: "proj-priv", params: { taskId: "tp", title: "x" } })).toMatchObject({ action: "conflict", server_version: await head("tp") })
+  })
+
+  test("create_project naming a private project as its record is not a conflict", async () => {
+    await db.exec(`update compliance.projects set name = 'Secret A!' where id = 'proj-priv'`)
+    const v = Number((await db.query<J>(`select version from platform.projexa_record_head where kind = 'project' and record_id = 'proj-priv'`)).rows[0]?.version ?? 0)
+    expect(v).toBeGreaterThan(0)
+    const r = await begin("u-mem", { op_id: "op-orc-00005", function_id: "create_project", params: { name: "x" }, record: { kind: "project", id: "proj-priv", base_version: 0 } })
+    expect(r.action).toBe("run")
+    expect(r.server_version).toBeUndefined()
+    await finish("u-mem", "op-orc-00005", "failed", null, null, "X")
+  })
+})
+
+describe("the conflict rule is not opt-in by accident", () => {
+  test("an edit with no record (absent or JSON null) is RECORD_REQUIRED; a create needs none", async () => {
+    calls = []
+    const r = await push("u-mgr", [op("op-rr-000001", { record: undefined }), op("op-rr-000002", { record: null })])
+    for (const x of r.json.results as J[]) expect(x).toMatchObject({ status: "rejected", error: { code: "RECORD_REQUIRED" } })
+    expect(calls).toHaveLength(0)
+    expect(await ledger("op-rr-000001")).toBeUndefined()
+    const c = await begin("u-mgr", { op_id: "op-rr-000003", function_id: "create_project", params: { name: "n" } })
+    expect(c.action).toBe("run")
+    await finish("u-mgr", "op-rr-000003", "failed", null, null, "X")
+  })
+
+  test("two ops on one record: while one runs (under 60 s) the other is RECORD_BUSY; after 60 s, or on another record, it runs", async () => {
+    const o1 = { ...op("op-busy-0001"), record: { kind: "tasks", id: "t1", base_version: await head("t1") } }
+    const o2 = { ...op("op-busy-0002", { params: { taskId: "t1", title: "b2" } }), record: { kind: "tasks", id: "t1", base_version: await head("t1") } }
+    expect((await begin("u-mgr", o1)).action).toBe("run")
+    expect(await begin("u-sen", o2)).toMatchObject({ action: "retry", code: "RECORD_BUSY" })
+    expect((await begin("u-sen", { ...op("op-busy-0003", { params: { taskId: "t2", title: "b3" } }), record: { kind: "tasks", id: "t2", base_version: await head("t2") } })).action).toBe("run")
+    await db.exec(`update platform.projexa_sync_op set created_at = clock_timestamp() - interval '61 seconds' where op_id = 'op-busy-0001'`)
+    expect((await begin("u-sen", o2)).action).toBe("run")
+    for (const [u, id] of [["u-mgr", "op-busy-0001"], ["u-sen", "op-busy-0002"], ["u-sen", "op-busy-0003"]]) await finish(u, id, "failed", null, null, "X")
+  })
+
+  test("run carries the record for the executor; finish flags a write that landed on top of a concurrent edit", async () => {
+    const base = await head("t2")
+    const o = { ...op("op-ow-000001", { params: { taskId: "t2", title: "ow" } }), record: { kind: "tasks", id: "t2", base_version: base } }
+    expect(await begin("u-mgr", o)).toMatchObject({ action: "run", record: { kind: "tasks", id: "t2", base_version: base }, rerun_of: null })
+    await db.exec(`update compliance.pms_issues set title = 'web app edit' where id = 't2'`)
+    await db.exec(`update compliance.pms_issues set title = 'the op' where id = 't2'`)
+    expect((await finish("u-mgr", "op-ow-000001", "applied", "tasks", "t2")).data).toMatchObject({ version: base + 2, overwrote_concurrent: true })
+    const b2 = await head("t2")
+    await begin("u-mgr", { ...op("op-ow-000002", { params: { taskId: "t2", title: "ow2" } }), record: { kind: "tasks", id: "t2", base_version: b2 } })
+    await db.exec(`update compliance.pms_issues set title = 'only the op' where id = 't2'`)
+    expect((await finish("u-mgr", "op-ow-000002", "applied", "tasks", "t2")).data).toMatchObject({ version: b2 + 1, overwrote_concurrent: false })
+  })
+})
+
+describe("every refusal branch of begin", () => {
+  test("malformed inputs are BAD_OP with an empty ledger and no pipeline call", async () => {
+    const t1 = await head("t1")
+    const bad: Array<[string, unknown]> = [
+      ["op over 64 KB", { ...op("op-bad-000001"), record: { kind: "tasks", id: "t1", base_version: t1 }, params: { taskId: "t1", title: "x".repeat(66000) } }],
+      ["empty project", { ...op("op-bad-000002"), project_id: "" }],
+      ["project over 128", { ...op("op-bad-000003"), project_id: "p".repeat(129) }],
+      ["create_project with a project", { op_id: "op-bad-000004", function_id: "create_project", project_id: "proj-a", params: { name: "x" } }],
+      ["record a string", { ...op("op-bad-000005"), record: "tasks:t1" }],
+      ["record an array", { ...op("op-bad-000006"), record: ["tasks", "t1", 1] }],
+      ["base_version a string", { ...op("op-bad-000007"), record: { kind: "tasks", id: "t1", base_version: "1" } }],
+      ["base_version 16 digits", { ...op("op-bad-000008"), record: { kind: "tasks", id: "t1", base_version: 1234567890123456 } }],
+      ["base_version missing", { ...op("op-bad-000009"), record: { kind: "tasks", id: "t1" } }],
+    ]
+    calls = []
+    const r = await push("u-mgr", bad.map((b) => b[1]))
+    expect((r.json.results as J[]).map((x, i) => [bad[i][0], x.error?.code])).toEqual(bad.map((b) => [b[0], "BAD_OP"]))
+    expect(calls).toHaveLength(0)
+    expect(Number((await db.query<J>(`select count(*) n from platform.projexa_sync_op where op_id like 'op-bad-%'`)).rows[0].n)).toBe(0)
+    // a bad device (the handler never sends one, the SQL refuses it anyway)
+    expect(await begin("u-mgr", op("op-bad-000010"), "x")).toMatchObject({ action: "reject", code: "BAD_OP" })
+  })
+
+  test("a function excluded from links exists in the registry and is FUNCTION_NOT_ALLOWED", async () => {
+    const excluded = (await db.query<J>(`select function_id from platform.ai_work_link_functions where kind = 'write' and link_level is null limit 1`)).rows[0]?.function_id as string | undefined
+    expect(excluded).toBeDefined()
+    expect(await begin("u-mgr", { ...op("op-exc-000001"), function_id: excluded, record: { kind: "tasks", id: "t1", base_version: 0 } })).toMatchObject({ action: "reject", code: "FUNCTION_NOT_ALLOWED" })
+  })
+
+  test("a base version AHEAD of the head is not a conflict; a needs_server op may re-run", async () => {
+    calls = []
+    expect(only(await push("u-mgr", [op("op-ahd-000001", rec((await head("t1")) + 5))])).status).toBe("applied")
+    script["op-ns-0000001"] = { kind: "failed", code: "FUNCTION_NOT_AVAILABLE", missing: [] }
+    expect(only(await push("u-mgr", [op("op-ns-0000001")])).status).toBe("needs_server")
+    delete script["op-ns-0000001"]
+    expect(only(await push("u-mgr", [op("op-ns-0000001")])).status).toBe("applied")
+    expect(await ledger("op-ns-0000001")).toMatchObject({ status: "applied", attempts: 2 })
+    expect(calls).toHaveLength(3)
   })
 })
 

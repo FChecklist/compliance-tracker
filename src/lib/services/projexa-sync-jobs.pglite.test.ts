@@ -38,7 +38,17 @@ async function hit(user: string, path: string, body: unknown) {
   const res = await handleSync(req, { rpc, session, limiter: new RateLimiter(100000), now: () => NOW })
   return { status: res.status, json: (await res.json()) as J }
 }
-const enqueue = (user: string, o: Record<string, unknown> = {}) => hit(user, "jobs/enqueue", { project_id: "proj-a", type: "boq_rollup", params: { boqId: "boq1" }, ...o })
+/** A valid params object per type (the allow-list of 0682 rule 3); boq1 is a BOQ of proj-a. */
+const PARAMS: Record<string, Record<string, unknown>> = { boq_rollup: { boqId: "boq1" }, csv_export: { kind: "tasks", columns: ["title"] }, report_preview: { kind: "rfis", sampleSize: 20 }, search_index: { kinds: ["tasks", "rfis"] } }
+const enqueue = (user: string, o: Record<string, unknown> = {}) =>
+  hit(user, "jobs/enqueue", { project_id: "proj-a", type: "boq_rollup", params: PARAMS[(o.type as string) ?? "boq_rollup"] ?? {}, ...o })
+const sql = async (name: string, args: Record<string, unknown>) => {
+  const r = await rpc(name, args)
+  return { data: r.data as J, code: r.error?.code ?? null }
+}
+const claimSql = (user: string, types = ["boq_rollup", "csv_export", "report_preview", "search_index"]) =>
+  sql("projexa_job_claim", { p_sub: SUBS[user], p_email: null, p_device_id: DEV_A, p_types: types, p_lease_seconds: 60 })
+const expiry = async (id: string) => (await db.query<J>(`select extract(epoch from lease_expires_at - clock_timestamp()) left_s, extract(epoch from lease_started_at + interval '5 minutes' - lease_expires_at) to_cap_s, lease_expires_at::text e from platform.projexa_work_job where id = '${id}'`)).rows[0]
 const claim = (user: string, o: Record<string, unknown> = {}) => hit(user, "jobs/claim", { device_id: DEV_A, types: ["boq_rollup", "csv_export", "report_preview", "search_index"], ...o })
 const result = (user: string, jobId: string, leaseId: string, o: Record<string, unknown> = {}) => hit(user, "jobs/result", { job_id: jobId, lease_id: leaseId, ok: true, result: { total: 42 }, ...o })
 const get = (user: string, jobId: string) => hit(user, "jobs/get", { job_id: jobId })
@@ -63,6 +73,8 @@ beforeAll(async () => {
   rpc = pgRpc(db)
   // a private project led by the MEMBER: the viewer has the member's view class but may not read it, so a refusal can only be the readability rule
   await db.exec(`insert into compliance.projects (id, product_id, org_id, name, lead_user_id, access_level, project_value, status, created_at) values ('proj-priv-mem', 'prod', 'org-a', 'Mem Secret', 'u-mem', 'private', 1, 'active', now())`)
+  // a BOQ of the public project, and one of the private project the member may not read
+  await db.exec(`insert into compliance.construction_boqs (id, org_id, project_id, title, created_by_id) values ('boq1', 'org-a', 'proj-a', 'Main', 'u-mgr'), ('boq-priv', 'org-a', 'proj-priv', 'Secret', 'u-sen')`)
 }, 300_000)
 afterAll(async () => {
   await db.close()
@@ -89,6 +101,39 @@ describe("enqueue", () => {
     expect((await enqueue("u-mgr", { params: { big: "x".repeat(17000) } })).status).toBe(400)
     expect((await enqueue("u-mgr", { visibility: "everyone" })).status).toBe(400)
     expect((await hit("u-mgr", "jobs/enqueue", { type: "boq_rollup", params: {} })).status).toBe(400)
+    expect((await enqueue("u-mgr", { project_id: "p".repeat(129) })).status).toBe(400)
+  })
+
+  test("params are an allow-list per type: no unknown key, no nesting, bounded values (never a blob handed to a colleague's browser)", async () => {
+    await reset()
+    const bad: Array<[string, unknown]> = [
+      ["boq_rollup", { boqId: "boq1", extra: 1 }],
+      ["boq_rollup", { boqId: { $ne: null } }],
+      ["boq_rollup", { boqId: "x".repeat(65) }],
+      ["csv_export", {}],
+      ["csv_export", { kind: "payroll" }],
+      ["csv_export", { kind: "tasks", columns: Array.from({ length: 51 }, (_, i) => `c${i}`) }],
+      ["csv_export", { kind: "tasks", columns: [{ deep: ["x"] }] }],
+      ["csv_export", { kind: "tasks", columns: ["bad col"] }],
+      ["report_preview", { kind: "rfis", sampleSize: 0 }],
+      ["report_preview", { kind: "rfis", sampleSize: 1001 }],
+      ["report_preview", { kind: "rfis", sampleSize: 2.5 }],
+      ["report_preview", { kind: "rfis", sampleSize: "20" }],
+      ["search_index", { kinds: [] }],
+      ["search_index", { kinds: Array(9).fill("tasks") }],
+      ["search_index", { kinds: ["tasks", "salaries"] }],
+      ["search_index", { kinds: "tasks" }],
+    ]
+    for (const [type, params] of bad) expect([type, params, (await enqueue("u-mgr", { type, params })).status]).toEqual([type, params, 400])
+    const good: Array<[string, unknown]> = [["boq_rollup", {}], ["csv_export", { kind: "tasks" }], ["report_preview", { kind: "rfis" }], ["search_index", {}], ["report_preview", { kind: "rfis", sampleSize: 1000 }]]
+    for (const [type, params] of good) expect([type, (await enqueue("u-mgr", { type, params })).status]).toEqual([type, 200])
+  })
+
+  test("an id inside params must belong to the job's project: a BOQ of a private project is the one 404, from a project the person CAN read", async () => {
+    await reset()
+    expect(await enqueue("u-mem", { params: { boqId: "boq-priv" } })).toEqual({ status: 404, json: { error: "Not found" } })
+    expect(await enqueue("u-mem", { params: { boqId: "no-such-boq" } })).toEqual({ status: 404, json: { error: "Not found" } })
+    expect((await enqueue("u-mem", { params: { boqId: "boq1" } })).status).toBe(200)
   })
 
   test("a project of another organisation, and a private one the person may not read, are the one 404", async () => {
@@ -107,6 +152,22 @@ describe("enqueue", () => {
     }
     expect(last).toBe(429)
     expect(n).toBe(31)
+    // dead jobs do not hold the cap: a claim whose lease ran out, and a job queued for over a day
+    await db.exec(`update platform.projexa_work_job set status = 'claimed', lease_expires_at = clock_timestamp() - interval '1 second' where id in (select id from platform.projexa_work_job where requested_by = 'u-mem' limit 1)`)
+    expect((await enqueue("u-mem")).status).toBe(200)
+    expect((await enqueue("u-mem")).status).toBe(429)
+    await db.exec(`update platform.projexa_work_job set created_at = clock_timestamp() - interval '25 hours' where id in (select id from platform.projexa_work_job where requested_by = 'u-mem' and status = 'queued' limit 1)`)
+    expect((await enqueue("u-mem")).status).toBe(200)
+  })
+
+  test("200 jobs a day per person, then 429; yesterday's do not count", async () => {
+    await reset()
+    await db.exec(`insert into platform.projexa_work_job (org_id, project_id, type, view_class, requested_by, status)
+                   select 'org-a', 'proj-a', 'boq_rollup', 'x', 'u-mem', 'done' from generate_series(1, 199)`)
+    expect((await enqueue("u-mem")).status).toBe(200) // the 200th
+    expect((await enqueue("u-mem")).status).toBe(429)
+    await db.exec(`update platform.projexa_work_job set created_at = clock_timestamp() - interval '25 hours' where status = 'done'`)
+    expect((await enqueue("u-mem")).status).toBe(200)
   })
 
   test("a person who is not linked gets 403 and nothing is queued", async () => {
@@ -158,7 +219,7 @@ describe("who may claim", () => {
   test("a colleague who may not read a private project never gets its job, even with the SAME view class", async () => {
     await reset()
     expect(await classOf("u-mem")).toBe(await classOf("u-view"))
-    const id = (await enqueue("u-mem", { project_id: "proj-priv-mem", visibility: "project" })).json.job_id
+    const id = (await enqueue("u-mem", { project_id: "proj-priv-mem", visibility: "project", params: {} })).json.job_id
     expect((await claim("u-view")).json.job).toBeNull()
     expect((await claim("u-mem")).json.job).toMatchObject({ job_id: id })
   })
@@ -169,11 +230,56 @@ describe("who may claim", () => {
     expect((await claim("u-mgr", { types: ["csv_export"] })).json.job).toMatchObject({ type: "csv_export" })
   })
 
-  test("two claims at once: exactly one wins", async () => {
+  test("two claims at once: exactly one wins (PGlite is one connection, so the row lock is also asserted in the function text)", async () => {
     await reset()
     await enqueue("u-mgr")
     const [a, b] = await Promise.all([claim("u-mgr", { device_id: DEV_A }), claim("u-mgr", { device_id: DEV_B })])
     expect([a.json.job, b.json.job].filter(Boolean)).toHaveLength(1)
+    const def = (await db.query<{ d: string }>(`select pg_get_functiondef('public.projexa_job_claim(text,text,text,text[],integer)'::regprocedure) d`)).rows[0].d
+    expect(def.match(/FOR UPDATE SKIP LOCKED/g)).toHaveLength(2) // the own-job and the shared-job selects both lock
+  })
+
+  test("the view class stored at enqueue is re-checked at claim: a requester promoted after enqueue no longer has old-class colleagues compute for them", async () => {
+    await reset()
+    expect(await classOf("u-mem")).toBe(await classOf("u-view"))
+    const id = (await enqueue("u-mem", { visibility: "project" })).json.job_id
+    await db.exec(`update compliance.users set role = 'manager' where id = 'u-mem'`)
+    try {
+      expect(await classOf("u-mem")).not.toBe(await classOf("u-view"))
+      expect((await claim("u-view")).json.job).toBeNull()
+    } finally {
+      await db.exec(`update compliance.users set role = 'member' where id = 'u-mem'`)
+    }
+    expect((await claim("u-view")).json.job).toMatchObject({ job_id: id })
+  })
+
+  test("an idle poll costs ~nothing: no role context, no view class, no UPDATE; and it tells the laptop to come back in 300 s", async () => {
+    await reset()
+    await db.exec(`set track_functions = 'all'`)
+    await db.exec(`begin`)
+    // PGlite is one backend whose statistics are not flushed per transaction: compare before/after inside one transaction
+    const work = async () =>
+      (await db.query<J>(`select (select coalesce(sum(calls), 0)::int from pg_stat_xact_user_functions where funcname in ('projexa_sync__view_class', 'ai_work_link__hidden_cols', 'projexa_sync__ctx', 'projexa_job__expire')) f,
+                                 (select coalesce(sum(n_tup_upd), 0)::int from pg_stat_xact_user_tables where relname = 'projexa_work_job') u`)).rows[0]
+    const before = await work()
+    const r = await claimSql("u-mgr")
+    const after = await work()
+    await db.exec(`commit`)
+    expect(r.data).toMatchObject({ status: "ok", job: null, next_poll_seconds: 300 })
+    expect(after.f - before.f).toBe(0)
+    expect(after.u - before.u).toBe(0)
+    // a queued job of ANOTHER type is not a reason to do the work either
+    await enqueue("u-mgr", { type: "csv_export" })
+    expect((await claimSql("u-mgr", ["boq_rollup"])).data).toMatchObject({ job: null, next_poll_seconds: 300 })
+    // something waits that this person may not run: a shorter poll, still no job
+    expect((await claimSql("u-mem", ["csv_export"])).data).toMatchObject({ job: null, next_poll_seconds: 60 })
+    // the requester's own job: found without computing the view class
+    await db.exec(`begin`)
+    const b2 = (await db.query<J>(`select coalesce(sum(calls), 0)::int n from pg_stat_xact_user_functions where funcname = 'projexa_sync__view_class'`)).rows[0].n
+    expect((await claimSql("u-mgr", ["csv_export"])).data).toMatchObject({ next_poll_seconds: 0, job: { type: "csv_export" } })
+    const a2 = (await db.query<J>(`select coalesce(sum(calls), 0)::int n from pg_stat_xact_user_functions where funcname = 'projexa_sync__view_class'`)).rows[0].n
+    await db.exec(`commit`)
+    expect(a2 - b2).toBe(0)
   })
 
   test("validation of a claim", async () => {
@@ -187,16 +293,39 @@ describe("who may claim", () => {
 describe("results are proposals, accepted once per lease", () => {
   test("the claimant's result is stored on the job; only the requester reads it", async () => {
     await reset()
+    expect(await classOf("u-mem")).toBe(await classOf("u-view"))
     const id = (await enqueue("u-mem", { visibility: "project" })).json.job_id
-    const c = (await claim("u-view")).json.job // a colleague of the same class runs it, if the classes match
-    const claimant = c ? "u-view" : "u-mem"
-    const lease = c ? c.lease_id : (await claim("u-mem")).json.job.lease_id
-    const r = await result(claimant, id, lease)
+    const c = (await claim("u-view")).json.job // a colleague of the same class runs it
+    expect(c).toMatchObject({ job_id: id, requested_by_you: false })
+    const r = await result("u-view", id, c.lease_id)
     expect(r.json).toMatchObject({ outcome: "accepted", job_status: "done" })
     const mine = await get("u-mem", id)
-    expect(mine.json).toMatchObject({ job_status: "done", result: { total: 42 }, ran_here: claimant === "u-mem" })
+    expect(mine.json).toMatchObject({ job_status: "done", result: { total: 42 }, ran_here: false })
+    expect((await get("u-view", id)).status).toBe(404) // the claimant colleague does not read the answer
     expect((await get("u-mgr", id)).status).toBe(404) // not the requester
     expect((await get("u-b", id)).status).toBe(404)
+    // the requester's role changed after a colleague computed it: the stored answer is no longer theirs to read
+    await db.exec(`update compliance.users set role = 'manager' where id = 'u-mem'`)
+    try {
+      expect((await get("u-mem", id)).status).toBe(404)
+    } finally {
+      await db.exec(`update compliance.users set role = 'member' where id = 'u-mem'`)
+    }
+    expect((await get("u-mem", id)).status).toBe(200)
+  })
+
+  test("the requester who can no longer read the project no longer reads the job", async () => {
+    await reset()
+    const id = (await enqueue("u-mem", { project_id: "proj-a2", params: {} })).json.job_id
+    const lease = (await claim("u-mem")).json.job.lease_id
+    await result("u-mem", id, lease)
+    expect((await get("u-mem", id)).status).toBe(200)
+    await db.exec(`update compliance.projects set access_level = 'private' where id = 'proj-a2'`)
+    try {
+      expect(await get("u-mem", id)).toEqual({ status: 404, json: { error: "Not found" } })
+    } finally {
+      await db.exec(`update compliance.projects set access_level = 'public' where id = 'proj-a2'`)
+    }
   })
 
   test("the same result twice is answered once (duplicate); a wrong lease, another person and an unknown job are 404", async () => {
@@ -208,6 +337,7 @@ describe("results are proposals, accepted once per lease", () => {
     expect((await get("u-mgr", id)).json.result).toEqual({ total: 42 })
     expect((await result("u-mgr", id, "0".repeat(32))).status).toBe(404)
     expect((await result("u-sen", id, lease)).status).toBe(404)
+    expect((await result("u-b", id, lease)).status).toBe(404) // another organisation, with the real lease
     expect((await result("u-mgr", "no-such-job", lease)).status).toBe(404)
   })
 
@@ -230,13 +360,22 @@ describe("results are proposals, accepted once per lease", () => {
     expect((await row(id)).status).toBe("claimed")
   })
 
-  test("a result is never written into a business table", async () => {
+  test("a result is never written into a business table (every compliance table counted before and after)", async () => {
     await reset()
-    const before = Number((await db.query<J>(`select count(*) n from compliance.construction_boq_line_items`)).rows[0].n)
+    await db.exec(`create or replace function pg_temp.counts() returns jsonb language plpgsql as $$
+      declare t record; n bigint; o jsonb := '{}';
+      begin
+        for t in select c.relname from pg_class c join pg_namespace s on s.oid = c.relnamespace where s.nspname = 'compliance' and c.relkind = 'r' loop
+          execute format('select count(*) from compliance.%I', t.relname) into n; o := o || jsonb_build_object(t.relname, n);
+        end loop;
+        return o;
+      end $$`)
     const id = (await enqueue("u-mgr")).json.job_id
     const lease = (await claim("u-mgr")).json.job.lease_id
+    const before = (await db.query<J>(`select pg_temp.counts() c`)).rows[0].c
+    expect(Object.keys(before).length).toBeGreaterThan(20)
     await result("u-mgr", id, lease, { result: { lineItems: [{ id: "evil", amount: 1e9 }] } })
-    expect(Number((await db.query<J>(`select count(*) n from compliance.construction_boq_line_items`)).rows[0].n)).toBe(before)
+    expect((await db.query<J>(`select pg_temp.counts() c`)).rows[0].c).toEqual(before)
   })
 })
 
@@ -272,16 +411,57 @@ describe("the lease", () => {
     await reset()
     const id = (await enqueue("u-mgr")).json.job_id
     const lease = (await claim("u-mgr")).json.job.lease_id
+    // the lease is about to run out: a heartbeat really moves it to ~60 s from now
+    await db.exec(`update platform.projexa_work_job set lease_expires_at = clock_timestamp() + interval '5 seconds' where id = '${id}'`)
     const hb = await hit("u-mgr", "jobs/heartbeat", { job_id: id, lease_id: lease })
     expect(hb.json.outcome).toBe("extended")
+    const e1 = await expiry(id)
+    expect(Number(e1.left_s)).toBeGreaterThanOrEqual(55)
+    expect(Number(e1.to_cap_s)).toBeGreaterThanOrEqual(-0.01)
+    // near the five-minute ceiling: the new expiry is exactly the ceiling, not now + 60 s
     await db.exec(`update platform.projexa_work_job set lease_started_at = clock_timestamp() - interval '4 minutes 50 seconds', lease_expires_at = clock_timestamp() + interval '5 seconds' where id = '${id}'`)
     const capped = await hit("u-mgr", "jobs/heartbeat", { job_id: id, lease_id: lease })
-    const left = Number((await db.query<J>(`select extract(epoch from (lease_started_at + interval '5 minutes' - lease_expires_at)) s from platform.projexa_work_job where id = '${id}'`)).rows[0].s)
     expect(capped.json.outcome).toBe("extended")
-    expect(left).toBeGreaterThanOrEqual(-0.5) // the new expiry is at most the five-minute ceiling
+    expect(Math.abs(Number((await expiry(id)).to_cap_s))).toBeLessThan(0.01)
+    // another person (same organisation, the real lease) and another organisation cannot extend it; the expiry does not move
+    const fixed = (await expiry(id)).e
+    expect((await hit("u-sen", "jobs/heartbeat", { job_id: id, lease_id: lease })).json.outcome).toBe("lease_expired")
+    expect((await hit("u-b", "jobs/heartbeat", { job_id: id, lease_id: lease })).json.outcome).toBe("lease_expired")
+    expect((await expiry(id)).e).toBe(fixed)
     await db.exec(`update platform.projexa_work_job set lease_expires_at = clock_timestamp() - interval '1 second' where id = '${id}'`)
     expect((await hit("u-mgr", "jobs/heartbeat", { job_id: id, lease_id: lease })).json.outcome).toBe("lease_expired")
     expect((await hit("u-mgr", "jobs/heartbeat", { job_id: id, lease_id: "nope" })).json.outcome).toBe("lease_expired")
+  })
+
+  test("a heartbeat never SHORTENS a lease: a 120 s claim keeps its 120 s", async () => {
+    await reset()
+    const id = (await enqueue("u-mgr")).json.job_id
+    const lease = (await claim("u-mgr", { lease_seconds: 120 })).json.job.lease_id
+    expect((await hit("u-mgr", "jobs/heartbeat", { job_id: id, lease_id: lease })).json.outcome).toBe("extended")
+    expect(Number((await expiry(id)).left_s)).toBeGreaterThan(110)
+  })
+
+  test("a dead lease is noticed without any claimant: the requester's get re-queues it, and fails it after the third attempt", async () => {
+    await reset()
+    const id = (await enqueue("u-mgr")).json.job_id
+    await claim("u-mgr")
+    await db.exec(`update platform.projexa_work_job set lease_expires_at = clock_timestamp() - interval '1 second' where id = '${id}'`)
+    expect((await get("u-mgr", id)).json).toMatchObject({ job_status: "queued", attempts: 1 })
+    await db.exec(`update platform.projexa_work_job set status = 'claimed', attempts = 3, lease_expires_at = clock_timestamp() - interval '1 second' where id = '${id}'`)
+    expect((await get("u-mgr", id)).json).toMatchObject({ job_status: "failed", error_code: "LEASE_EXPIRED" })
+  })
+
+  test("a job queued for over a day fails EXPIRED; the requester can cancel an open job", async () => {
+    await reset()
+    const old = (await enqueue("u-mgr")).json.job_id
+    await db.exec(`update platform.projexa_work_job set created_at = clock_timestamp() - interval '25 hours' where id = '${old}'`)
+    expect((await get("u-mgr", old)).json).toMatchObject({ job_status: "failed", error_code: "EXPIRED" })
+    const id = (await enqueue("u-mgr")).json.job_id
+    const cancel = (user: string) => sql("projexa_job_cancel", { p_sub: SUBS[user], p_email: null, p_job_id: id })
+    expect((await cancel("u-sen")).code).toBe("AW404") // only the requester
+    expect((await cancel("u-mgr")).data).toMatchObject({ outcome: "cancelled", job_status: "cancelled" })
+    expect((await cancel("u-mgr")).data).toMatchObject({ outcome: "finished", job_status: "cancelled" })
+    expect((await claimSql("u-mgr")).data.job).toBeNull()
   })
 })
 

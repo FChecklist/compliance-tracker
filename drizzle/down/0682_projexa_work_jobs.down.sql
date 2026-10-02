@@ -5,11 +5,14 @@ BEGIN;
 
 SET LOCAL lock_timeout = '5s';
 
+DROP FUNCTION IF EXISTS public.projexa_job_cancel(text, text, text);
 DROP FUNCTION IF EXISTS public.projexa_job_get(text, text, text);
 DROP FUNCTION IF EXISTS public.projexa_job_result(text, text, text, text, boolean, jsonb, text);
 DROP FUNCTION IF EXISTS public.projexa_job_heartbeat(text, text, text, text);
 DROP FUNCTION IF EXISTS public.projexa_job_claim(text, text, text, text[], integer);
 DROP FUNCTION IF EXISTS public.projexa_job_enqueue(text, text, text, text, jsonb, text);
+DROP FUNCTION IF EXISTS platform.projexa_job__expire(text, text);
+DROP FUNCTION IF EXISTS platform.projexa_job__params_ok(text, jsonb);
 DROP TABLE IF EXISTS platform.projexa_work_job;
 
 COMMIT;
