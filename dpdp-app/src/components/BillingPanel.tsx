@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
 import { declarePayment, myBilling, startOnlinePayment, uploadPaymentProof } from "@/lib/api"
 import type { BillingStatusPayload } from "@/lib/rpc-types"
+import { parseDbTimestamp } from "@/lib/db-time"
 import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
 
 // Where to actually send the money -- swap these for the real values the
@@ -64,20 +65,20 @@ function formatRupees(paise: number): string {
 /** A yearly plan is up for renewal from 45 days before its anniversary (latest confirmed payment + 1 year). */
 function renewalDue(lastConfirmedAt: string | null): boolean {
   if (!lastConfirmedAt) return false
-  const renews = new Date(lastConfirmedAt)
+  const renews = parseDbTimestamp(lastConfirmedAt)
   renews.setFullYear(renews.getFullYear() + 1)
   return Date.now() >= renews.getTime() - 45 * 86_400_000
 }
 function renewalDate(lastConfirmedAt: string | null): string {
   if (!lastConfirmedAt) return ""
-  const renews = new Date(lastConfirmedAt)
+  const renews = parseDbTimestamp(lastConfirmedAt)
   renews.setFullYear(renews.getFullYear() + 1)
   return renews.toLocaleDateString("en-IN")
 }
 
 function daysLeft(iso: string | null): number | null {
   if (!iso) return null
-  const ms = new Date(iso).getTime() - Date.now()
+  const ms = parseDbTimestamp(iso).getTime() - Date.now()
   return Math.max(0, Math.ceil(ms / 86_400_000))
 }
 
@@ -219,7 +220,7 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
           {billing.state === "active" ? (
             <>
               <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--dpdp-ink)" }}>You're on the {billing.interval === "year" ? "yearly" : "monthly"} plan</p>
-              {billing.lastConfirmedAt && <p style={{ margin: 0 }}>Confirmed {new Date(billing.lastConfirmedAt).toLocaleDateString("en-IN")}.</p>}
+              {billing.lastConfirmedAt && <p style={{ margin: 0 }}>Confirmed {parseDbTimestamp(billing.lastConfirmedAt).toLocaleDateString("en-IN")}.</p>}
               {billing.interval === "year" && renewalDue(billing.lastConfirmedAt) && (
                 <div style={{ marginTop: 10 }}>
                   <p style={{ margin: "0 0 6px" }}>Your yearly plan comes up for renewal on {renewalDate(billing.lastConfirmedAt)}.</p>

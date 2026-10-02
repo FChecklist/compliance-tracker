@@ -79,7 +79,7 @@ describe("the committed sources", () => {
       const v = findSpellingVariants(readFileSync(f, "utf8"))
       expect(v, `${relative(APP, f)}: ${v.map((x) => JSON.stringify(x.variant)).join(", ")}`).toEqual([])
     }
-  })
+  }, 60_000) // reads every source file under dpdp-app/ (about 1,000); the default 5 s is not enough on a cold disk or a busy machine
 
   test("every public and hidden page carries the full AND short line byte-identically, at the very top, in normal flow", () => {
     for (const p of [...PUBLIC_PAGES, ...HIDDEN_PAGES]) {
