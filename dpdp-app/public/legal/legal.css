@@ -27,5 +27,7 @@ th{background:#f3efe3}
 .no{color:var(--red);font-weight:700}
 footer{max-width:860px;margin:0 auto;padding:0 20px 40px;font-size:14px;color:#55524a}
 footer hr{border:0;border-top:1px solid var(--line);margin:0 0 14px}
+footer .company{margin:14px 0 0;font-size:13.5px;line-height:1.6;color:#55524a}
+footer .company a{color:inherit;text-decoration:underline}
 @media (max-width:560px){h1{font-size:23px}table{font-size:14px}}
 @media print{header.top{background:#fff;color:#000}header.top nav{display:none}}

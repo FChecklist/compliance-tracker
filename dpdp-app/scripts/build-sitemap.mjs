@@ -11,7 +11,7 @@ import { execFileSync } from "node:child_process"
 import { existsSync, statSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { PUBLIC_PAGES, renderSitemap } from "../src/lib/public-surface.mjs"
+import { SITEMAP_PAGES, renderSitemap } from "../src/lib/public-surface.mjs"
 
 const root = fileURLToPath(new URL("../", import.meta.url))
 const outDir = process.argv[2] ? resolve(process.argv[2]) : resolve(root, "dist")
@@ -37,7 +37,7 @@ try {
 }
 if (shallow) console.warn("build-sitemap: WARNING shallow clone -- every lastmod is the fetched commit's date, not each page's own last change")
 
-const entries = PUBLIC_PAGES.map((page) => {
+const entries = SITEMAP_PAGES.map((page) => {
   let lastmod = ""
   try {
     lastmod = git("log", "-1", "--format=%cI", "--", page.source)
@@ -57,4 +57,4 @@ const entries = PUBLIC_PAGES.map((page) => {
 const xml = renderSitemap(entries)
 writeFileSync(resolve(outDir, "sitemap.xml"), xml)
 for (const e of entries) console.log(`build-sitemap: ${e.path}  lastmod ${e.lastmod}`)
-console.log(`build-sitemap: wrote ${resolve(outDir, "sitemap.xml")} (${entries.length} public pages)`)
+console.log(`build-sitemap: wrote ${resolve(outDir, "sitemap.xml")} (${entries.length} public pages, legal pages included)`)

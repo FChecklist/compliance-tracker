@@ -91,7 +91,7 @@ export interface Facts {
     website: { provider: string; sentence: string; source: string }
     stored_in_india_wording: string
   }
-  company: { owner_approved: boolean; owner_required: boolean; source: string; legal_name: string | null; cin: string | null; registered_office: string | null; gstin: string | null; incorporation: string }
+  company: { owner_approved: boolean; owner_required: boolean; source: string; legal_name: string | null; cin: string | null; registered_office: string | null; gstin: string | null; incorporation: string; website: string; copyright_year: number }
   contact: { owner_approved: boolean; address_approved_on: string; source: string; contact_email: string; subject_topics: string[] }
   ai_work_link_public_sentence: string
   sales_partner: SalesPartner
@@ -144,6 +144,8 @@ export function loadFacts(): Facts
 export function pageTitle(facts: Facts, path: string): string
 export function pageDescription(facts: Facts, path: string): string
 export function subjectTopicsClause(facts: Facts): string
+export function companyFooterParts(facts: Facts): { ownerHtml: string; rights: string }
+export function companyFooterHtml(facts: Facts): string
 export function contactSentence(facts: Facts): string
 export function grievanceOfficerLine(facts: Facts): string
 export function loadClaims(): ClaimsRegister
