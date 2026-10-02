@@ -13,7 +13,7 @@
 import { redactItem } from "../_shared/ai-link/core.ts"
 import { kindDef } from "../ai-work-link/api-definition.ts"
 import type { SessionVerifier } from "../ai-work-link/session.ts"
-import { ATTEST_TTL_SECONDS, type Signing } from "./sign.ts"
+import { ATTEST_TTL_SECONDS, canonicalize, sha256Hex, type Signing } from "./sign.ts"
 
 export type RpcResult = { data: unknown; error: { message: string; code?: string } | null }
 export type Rpc = (fn: string, args?: Record<string, unknown>) => Promise<RpcResult>
@@ -30,12 +30,23 @@ export type SyncDeps = {
   publicKeys?: () => Promise<PublicKeyInfo[]>
   /** per-person organisation memory for signing a pull (one manifest call a minute at most) */
   orgCache?: Map<string, { org: string; exp: number }>
+  /** fetch used to read the owner-published release manifest (tests inject a fake); defaults to the global fetch */
+  fetchImpl?: typeof fetch
+  /** one-minute memory of the registry's current release, shared by every request of the isolate */
+  releaseBox?: { at: number; value: ReleaseInfo | null }
 }
+
+export type ReleaseInfo = { registered: boolean; current: Record<string, unknown> | null; min_compatible: string }
 
 export const ALLOWED_ORIGINS = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100", "http://localhost:3101"] as const
 export const SYNC_KINDS = ["project", "tasks", "boqs", "boq_lines", "activities", "progress", "rfis", "submittals", "punch_list", "change_orders", "milestones", "materials", "documents"] as const
 export const PULL_LIMIT_DEFAULT = 200
 export const PULL_LIMIT_MAX = 500
+export const SERVER_PROTOCOL = 2
+export const RELEASE_ORIGIN = "https://projexa-ai.com"
+export const RELEASE_MANIFEST_URL = `${RELEASE_ORIGIN}/_release/release.json`
+export const RELEASE_MANIFEST_MAX_BYTES = 2_000_000
+export const RELEASE_TTL_MS = 60_000
 export const IDS_LIMIT_DEFAULT = 5000
 export const IDS_LIMIT_MAX = 5000
 export const PULL_IDS_MAX = 200
@@ -105,10 +116,12 @@ function respond(req: Request, deps: SyncDeps, status: number, body: unknown, ex
 
 const NOT_FOUND = { error: "Not found" }
 
-const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST" }
+const ROUTES: Record<string, "GET" | "POST"> = { manifest: "GET", pull: "POST", ids: "POST", attest: "POST", changes: "POST", install: "POST", "release/current": "GET", "release/register": "POST" }
+/** Routes a laptop that is too old must still be able to reach: how else would it learn to update. */
+const UPDATE_EXEMPT = new Set(["release/current", "release/register", "install"])
 
 function routeOf(pathname: string): string {
-  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest|changes)$/)
+  const m = pathname.replace(/\/+$/, "").match(/\/(manifest|pull|ids|attest|changes|install|release\/current|release\/register)$/)
   return m ? m[1] : ""
 }
 
@@ -135,7 +148,15 @@ export async function handleSync(req: Request, deps: SyncDeps): Promise<Response
   deps.limiter ??= new RateLimiter()
   if (!deps.limiter.take(who.sub, now.getTime())) return respond(req, deps, 429, { error: "Too many requests. Try again in a minute." }, { "Retry-After": "60" })
 
+  if (!UPDATE_EXEMPT.has(route)) {
+    const blocked = await updateRequired(req, deps, now)
+    if (blocked) return blocked
+  }
+
   if (route === "manifest") return manifest(req, deps, who, now)
+  if (route === "release/current") return releaseCurrent(req, deps, now)
+  if (route === "release/register") return releaseRegister(req, deps, now)
+  if (route === "install") return install(req, deps, who, now)
   if (route === "ids") return ids(req, deps, who, now)
   if (route === "attest") return attest(req, deps, who, now)
   if (route === "changes") return changes(req, deps, who, now)
@@ -154,6 +175,8 @@ async function callSql(deps: SyncDeps, fn: string, args: Record<string, unknown>
   if (res.error) {
     const code = res.error.code ?? ""
     if (code === "AW404") return { ok: false, status: 404, body: NOT_FOUND }
+    if (code === "AW409") return { ok: false, status: 409, body: { error: "Conflict" } }
+    if (code === "AW429") return { ok: false, status: 429, body: { error: "Too many requests today. Try again tomorrow." } }
     if (code === "AW400") return { ok: false, status: 400, body: { error: res.error.message === "BAD_CURSOR" ? "Bad cursor" : "Bad request" } }
     return { ok: false, status: 500, body: { error: "Something failed on our side. Try again in a minute." } }
   }
@@ -171,7 +194,15 @@ async function manifest(req: Request, deps: SyncDeps, who: Who, now: Date): Prom
   if (!r.ok) return respond(req, deps, r.status, r.body)
   const kinds = Array.isArray(r.data.kinds) ? (r.data.kinds as Array<Record<string, unknown>>).filter((k) => typeof k.kind === "string" && (SYNC_KINDS as readonly string[]).includes(k.kind as string)) : []
   rememberOrg(deps, who.sub, r.data.user, now)
-  return respond(req, deps, 200, { user: r.data.user, projects: r.data.projects, kinds, view_class: typeof r.data.view_class === "string" ? r.data.view_class : null, server_time: now.toISOString() })
+  const rel = await getRelease(deps, now)
+  return respond(req, deps, 200, {
+    user: r.data.user,
+    projects: r.data.projects,
+    kinds,
+    view_class: typeof r.data.view_class === "string" ? r.data.view_class : null,
+    release: { current: (rel?.current?.release_version as string | undefined) ?? null, min_compatible: rel?.min_compatible || null, protocol: SERVER_PROTOCOL },
+    server_time: now.toISOString(),
+  })
 }
 
 function rememberOrg(deps: SyncDeps, sub: string, user: unknown, now: Date) {
@@ -360,4 +391,140 @@ async function changes(req: Request, deps: SyncDeps, who: Who, now: Date): Promi
     head_seq: Number(r.data.head_seq ?? 0),
     server_time: now.toISOString(),
   })
+}
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Releases: the registry the laptop's downloaded app is matched against (drizzle/0680)
+// ---------------------------------------------------------------------------------------------------------------------------------
+const RELEASE_RE = /^[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]{3}$/
+
+/** The registry's newest release, remembered for a minute. null = the registry could not be read (then nobody is told to update). */
+async function getRelease(deps: SyncDeps, now: Date, fresh = false): Promise<ReleaseInfo | null> {
+  deps.releaseBox ??= { at: 0, value: null }
+  const box = deps.releaseBox
+  if (!fresh && box.value && now.getTime() - box.at < RELEASE_TTL_MS) return box.value
+  try {
+    const res = await deps.rpc("projexa_release_current", {})
+    if (res.error) return box.value
+    const d = (res.data ?? {}) as Record<string, unknown>
+    box.value = { registered: d.registered === true, current: (d.current ?? null) as Record<string, unknown> | null, min_compatible: typeof d.min_compatible === "string" ? d.min_compatible : "" }
+    box.at = now.getTime()
+    return box.value
+  } catch {
+    return box.value
+  }
+}
+
+/** X-Px-Client: "<release>; protocol=<n>; schema=<n>" */
+export function parseClientHeader(h: string | null): { release: string | null; protocol: number | null; schema: number | null } | null {
+  if (!h) return null
+  const parts = h.split(";").map((s) => s.trim())
+  const out = { release: parts[0] || null, protocol: null as number | null, schema: null as number | null }
+  for (const p of parts.slice(1)) {
+    const m = /^(protocol|schema)=(\d{1,4})$/.exec(p)
+    if (m) out[m[1] as "protocol" | "schema"] = Number(m[2])
+  }
+  return out
+}
+
+/** 426 when the laptop speaks another protocol or its release is below the floor; a laptop with no header, or a dev build, is never blocked. */
+async function updateRequired(req: Request, deps: SyncDeps, now: Date): Promise<Response | null> {
+  const client = parseClientHeader(req.headers.get("x-px-client"))
+  if (!client) return null
+  const rel = await getRelease(deps, now)
+  const protocolBad = client.protocol !== null && client.protocol !== SERVER_PROTOCOL
+  const floor = rel?.min_compatible ?? ""
+  const releaseBad = floor !== "" && client.release !== null && RELEASE_RE.test(client.release) && client.release < floor
+  if (!protocolBad && !releaseBad) return null
+  return respond(req, deps, 426, { error: "Update required", code: "UPDATE_REQUIRED", current: (rel?.current?.release_version as string | undefined) ?? null, min_compatible: floor || null, protocol: SERVER_PROTOCOL, reason: protocolBad ? "protocol" : "release" })
+}
+
+async function releaseCurrent(req: Request, deps: SyncDeps, now: Date): Promise<Response> {
+  const rel = await getRelease(deps, now)
+  if (!rel) return respond(req, deps, 503, { error: "Service unavailable. Try again in a minute." })
+  return respond(req, deps, 200, { registered: rel.registered, current: rel.current, min_compatible: rel.min_compatible || null, protocol: SERVER_PROTOCOL, server_time: now.toISOString() })
+}
+
+/** Registers what the OWNER published at projexa-ai.com/_release/release.json. Takes no input: nothing a caller sends is registered. */
+async function releaseRegister(req: Request, deps: SyncDeps, now: Date): Promise<Response> {
+  const doFetch = deps.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
+  let text: string
+  try {
+    const res = await doFetch(RELEASE_MANIFEST_URL, { redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000), headers: { accept: "application/json" } })
+    if (!res.ok) return respond(req, deps, 502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
+    text = await res.text()
+  } catch {
+    return respond(req, deps, 502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
+  }
+  if (text.length > RELEASE_MANIFEST_MAX_BYTES) return respond(req, deps, 502, { error: "The release manifest is too large.", code: "MANIFEST_BAD" })
+  let manifest: Record<string, unknown>
+  try {
+    const v = JSON.parse(text)
+    if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error("shape")
+    manifest = v as Record<string, unknown>
+  } catch {
+    return respond(req, deps, 502, { error: "The release manifest is not valid.", code: "MANIFEST_BAD" })
+  }
+  // the digest must be the digest of the manifest it sits in: a manifest altered in transit, or hand-edited, is refused
+  const { manifest_sha256: claimed, ...rest } = manifest
+  if (typeof claimed !== "string" || claimed !== (await sha256Hex(canonicalize(rest)))) return respond(req, deps, 502, { error: "The release manifest does not match its own digest.", code: "MANIFEST_BAD" })
+  const res = await deps.rpc("projexa_release_register", { p_manifest: manifest }).catch(() => null)
+  if (!res) return respond(req, deps, 503, { error: "Service unavailable. Try again in a minute." })
+  if (res.error) {
+    const code = res.error.code ?? ""
+    if (code === "AW409") return respond(req, deps, 409, { error: "That release version is already registered with different content.", code: "VERSION_TAKEN" })
+    if (code === "AW400") return respond(req, deps, 502, { error: "The release manifest is not valid.", code: "MANIFEST_BAD" })
+    return respond(req, deps, 500, { error: "Something failed on our side. Try again in a minute." })
+  }
+  await getRelease(deps, now, true)
+  return respond(req, deps, 200, { ...((res.data ?? {}) as Record<string, unknown>), server_time: now.toISOString() })
+}
+
+// POST /install {device_id, release_version, manifest_sha256, previous_release, downloaded_at, installed_at, files, bytes, status, error}: one row of that laptop's install history
+async function install(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<Response> {
+  const parsed = await readBody(req, deps)
+  if (!parsed.ok) return parsed.res
+  const b = parsed.body
+  // a field that is ABSENT is null; a field that is present but invalid is a 400 (never silently dropped)
+  const absent = (v: unknown) => v === undefined || v === null
+  let bad = false
+  const str = (v: unknown, max: number): string | null => {
+    if (absent(v)) return null
+    if (typeof v === "string" && v.length > 0 && v.length <= max) return v
+    bad = true
+    return null
+  }
+  const when = (v: unknown): string | null => {
+    if (absent(v)) return null
+    if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$/.test(v) && !Number.isNaN(Date.parse(v))) return v
+    bad = true
+    return null
+  }
+  const int = (v: unknown, max: number): number | null => {
+    if (absent(v)) return null
+    if (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= max) return v
+    bad = true
+    return null
+  }
+  const device = str(b.device_id, 64)
+  const release = str(b.release_version, 32)
+  const status = str(b.status, 16)
+  const downloaded = when(b.downloaded_at)
+  const fields = { manifest: str(b.manifest_sha256, 64), previous: str(b.previous_release, 32), installed: when(b.installed_at), files: int(b.files, 100000), bytes: int(b.bytes, 10_000_000_000) }
+  if (!device || !release || !status || !downloaded || bad) return respond(req, deps, 400, { error: "device_id, release_version, status and downloaded_at are required, and every other field must be valid" })
+  const r = await callSql(deps, "projexa_install_record", {
+    p_sub: who.sub,
+    p_email: who.email,
+    p_device_id: device,
+    p_release_version: release,
+    p_manifest_sha256: fields.manifest,
+    p_previous_release: fields.previous,
+    p_downloaded_at: downloaded,
+    p_installed_at: fields.installed,
+    p_files: fields.files,
+    p_bytes: fields.bytes,
+    p_status: status,
+    p_error: typeof b.error === "string" ? b.error.slice(0, 300) : null,
+  })
+  if (!r.ok) return respond(req, deps, r.status, r.body)
+  return respond(req, deps, 200, { recorded: r.data.recorded, server_time: now.toISOString() })
 }

@@ -324,8 +324,10 @@ describe("the handler: contract and edges", () => {
     const m = await hit(SUBS["u-mgr"], "manifest", undefined, "http://localhost:3100")
     const j = (await m.json()) as J
     // view_class is 0678's; this file applies 0677 only, so the handler reports it as null (the 0678 test file asserts the real value)
-    expect(Object.keys(j).sort()).toEqual(["kinds", "projects", "server_time", "user", "view_class"])
+    expect(Object.keys(j).sort()).toEqual(["kinds", "projects", "release", "server_time", "user", "view_class"])
     expect(j.view_class).toBeNull()
+    // no release registry in this harness (0680 is not applied): nothing is current and nobody is held back
+    expect(j.release).toEqual({ current: null, min_compatible: null, protocol: 2 })
     expect(j.user).toMatchObject({ id: "u-mgr", name: "Mira Manager", role: "manager", org_id: "org-a" })
     expect(j.server_time).toBe("2026-10-02T00:00:00.000Z")
     expect((j.kinds as J[]).map((k) => k.kind)).toEqual(["project", "tasks", "boqs", "boq_lines", "activities", "progress", "rfis", "submittals", "punch_list", "change_orders", "milestones", "materials", "documents"])

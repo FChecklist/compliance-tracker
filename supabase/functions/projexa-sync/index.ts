@@ -7,7 +7,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import * as jose from "npm:jose@6.2.10"
 import { createKeyResolvers, createSessionVerifier, type JoseLike } from "../ai-work-link/session.ts"
-import { handleSync, RateLimiter, type PublicKeyInfo } from "./handler.ts"
+import { handleSync, RateLimiter, type PublicKeyInfo, type ReleaseInfo } from "./handler.ts"
 import { createSigning, generateKeyRecord, type KeyRecord, type Signing } from "./sign.ts"
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
@@ -19,6 +19,7 @@ const joseLike = jose as unknown as JoseLike
 const session = createSessionVerifier({ jose: joseLike, keys: createKeyResolvers(joseLike) })
 const limiter = new RateLimiter()
 const orgCache = new Map<string, { org: string; exp: number }>()
+const releaseBox: { at: number; value: ReleaseInfo | null } = { at: 0, value: null }
 
 const rpc = async (fn: string, args?: Record<string, unknown>) => {
   const { data, error } = await client.rpc(fn, args)
@@ -57,6 +58,7 @@ Deno.serve((req: Request) =>
     session,
     limiter,
     orgCache,
+    releaseBox,
     rpc,
     signing: () => loadSigning().catch(() => null),
     publicKeys: () => loadPublicKeys().catch(() => []),
