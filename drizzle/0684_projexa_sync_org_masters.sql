@@ -17,12 +17,16 @@
 --                                              the work-job visibility of 0682 behave exactly as before.
 --   public.projexa_sync_org_pull / projexa_sync_org_pull_ids / projexa_sync_org_ids / projexa_sync_org_changes
 --                                              keyset pull, exact rows by id, the id inventory (deletes) and the change feed of the organisation kinds.
---   public.projexa_sync_manifest(...)          REPLACED (additive): 0678's answer plus `org_kinds` (only the kinds the person's role may read) and `org_view_class`.
---   platform.projexa_track_change()            REPLACED: 0683's function plus the organisation kinds, which are filed under the SENTINEL project id '__org__' in
---                                              platform.projexa_record_head and platform.projexa_change_log. For them the content hash is over the ALLOW-LISTED
---                                              columns only, so a login (users.last_login_at) or a password change is NOT a new version and nothing outside the
---                                              allow-list influences what a laptop sees.
---   9 triggers `projexa_track_change` on the tables above (a table missing in an environment is skipped).
+--   public.projexa_sync_manifest(...)          REPLACED (additive): 0678's answer plus `org_kinds` (only the kinds the person's role may read), `org_view_class`
+--                                              and `epoch` (0679: a laptop that sees a different epoch resyncs).
+--   the 9 tables get 0679's three statement-level tracking triggers in mode 'org' (platform.projexa_track__attach): filed under the SENTINEL project id
+--                                              '__org__' in platform.projexa_record_head and platform.projexa_change_log, the content hash over the ALLOW-LISTED
+--                                              columns only, so a login (users.last_login_at) or a password change is NOT a new version (the trigger drops such a
+--                                              row at its first comparison and writes nothing) and nothing outside the allow-list influences what a laptop sees.
+--                                              platform.projexa_track_change() is 0679's and is NOT redefined here (sql:SQL-09). A missing table is skipped.
+--   Pages of organisation kinds carry `org_view_class`; the id inventory carries `versions`, `head_seq` and `epoch`; the feed is 0679's projexa_sync__feed
+--   (commit-order-safe cursor, `reset_required`, `epoch`).
+-- ORDER: 0678 .. 0686 are one chain; apply them together and in order, roll back strictly in reverse (see 0679's header).
 --
 -- AUTHORITY. The person is resolved by public.projexa_read_resolve_user and checked by projexa_sync__ctx exactly as for every project kind. EVERY query is
 -- scoped `t.org_id = <the person's organisation>`, and that scope is ONE string (projexa_sync__org_src.scope_sql) used by the candidate list, the row
@@ -43,14 +47,16 @@
 --
 -- ERRORS (coded, same as 0677): AW404 NOT_FOUND (unknown kind, a kind the role may not read); AW400 BAD_CURSOR / BAD_LIMIT. A person who does not
 -- resolve gets {"status": <reason>} and no data.
--- COST. One small indexed upsert and one append per REAL change of a master row (inside the business write's transaction). erp_exchange_rates is
--- refreshed by a daily live feed: that is a few rows per currency per organisation per day.
--- LOCKS. CREATE TRIGGER takes a SHARE ROW EXCLUSIVE lock on each table for an instant (compliance.users included); lock_timeout 5 s; one transaction.
+-- COST. Per tracked statement one trigger call; one set-based upsert and one append only for rows whose allow-listed columns REALLY changed (inside the
+-- business write's transaction). A user's login touches compliance.users: one trigger call that compares five columns of one row and returns.
+-- erp_exchange_rates is refreshed by a daily live feed: that is a few rows per currency per organisation per day.
+-- LOCKS. SHARE ROW EXCLUSIVE on each of the 9 tables (compliance.users included: writes wait, reads do not), taken together NOWAIT with a short retry and
+-- held until COMMIT; none at all on a re-apply whose triggers are already right. lock_timeout 5 s; one transaction.
 -- GRANTS: SECURITY DEFINER for the entry points, search_path = pg_catalog, pg_temp, timezone UTC; every function revoked from public, anon,
 -- authenticated, app_runtime; the six entry points are granted to service_role alone; the helpers to nobody.
 -- DATA LOSS: none. No table is altered; functions are added or replaced with a superset answer; triggers are added. Applying it twice changes nothing.
--- ROLLBACK: drizzle/down/0684_projexa_sync_org_masters.down.sql (drops the 9 triggers FIRST, then restores 0683's trigger function and 0678's manifest
--- exactly, then drops the new functions).
+-- ROLLBACK: drizzle/down/0684_projexa_sync_org_masters.down.sql (drops the 9 tables' triggers FIRST, then restores 0678's manifest exactly, then drops the
+-- new functions).
 
 BEGIN;
 
@@ -290,7 +296,8 @@ BEGIN
     'next_id', v_last ->> 'id',
     'hidden_fields', to_jsonb(v_hidden),
     'money_visible', (v_ctx ->> 'live_rank')::integer >= 3,
-    'redacted', coalesce(cardinality(v_hidden), 0) > 0);
+    'redacted', coalesce(cardinality(v_hidden), 0) > 0,
+    'org_view_class', public.projexa_sync__org_view_class(v_org, v_role));
 END
 $fn$;
 
@@ -343,7 +350,8 @@ BEGIN
     'next_id', NULL,
     'hidden_fields', to_jsonb(v_hidden),
     'money_visible', (v_ctx ->> 'live_rank')::integer >= 3,
-    'redacted', coalesce(cardinality(v_hidden), 0) > 0);
+    'redacted', coalesce(cardinality(v_hidden), 0) > 0,
+    'org_view_class', public.projexa_sync__org_view_class(v_org, v_role));
 END
 $fn$;
 
@@ -358,8 +366,10 @@ DECLARE
   v_ctx jsonb;
   v_src record;
   v_ids jsonb;
+  v_vers jsonb;
   v_n integer;
   v_has_more boolean := false;
+  v_feed jsonb;
 BEGIN
   IF p_limit IS NULL OR p_limit < 1 OR p_limit > 5000 THEN
     RAISE EXCEPTION 'BAD_LIMIT' USING ERRCODE = 'AW400';
@@ -376,18 +386,24 @@ BEGIN
     RAISE EXCEPTION 'NOT_FOUND' USING ERRCODE = 'AW404';
   END IF;
 
+  -- the head BEFORE the list is read (see 0679's projexa_sync_ids), then each id with its version (0 = untracked)
+  v_feed := public.projexa_sync__feed(v_ctx ->> 'org_id', '__org__', ARRAY[p_kind], NULL, 1);
   EXECUTE format(
-    'SELECT coalesce(jsonb_agg(c.id ORDER BY c.id), ''[]''::jsonb) FROM (SELECT t.id::text AS id FROM %1$s t WHERE %2$s%3$s ORDER BY t.id::text LIMIT %4$s) c',
+    'SELECT coalesce(jsonb_agg(c.id ORDER BY c.id), ''[]''::jsonb), coalesce(jsonb_agg(coalesce(h.version, 0) ORDER BY c.id), ''[]''::jsonb) '
+    || 'FROM (SELECT t.id::text AS id FROM %1$s t WHERE %2$s%3$s ORDER BY t.id::text LIMIT %4$s) c '
+    || 'LEFT JOIN platform.projexa_record_head h ON h.org_id = $1 AND h.kind = $3 AND h.record_id = c.id',
     v_src.rel, v_src.scope_sql, CASE WHEN p_after_id IS NULL THEN '' ELSE ' AND t.id::text > $2' END, p_limit + 1)
-    INTO v_ids USING v_ctx ->> 'org_id', p_after_id;
+    INTO v_ids, v_vers USING v_ctx ->> 'org_id', p_after_id, p_kind;
 
   v_n := jsonb_array_length(v_ids);
   IF v_n > p_limit THEN
     v_has_more := true;
     v_ids := v_ids - p_limit;
+    v_vers := v_vers - p_limit;
     v_n := p_limit;
   END IF;
-  RETURN jsonb_build_object('status', 'ok', 'ids', v_ids, 'has_more', v_has_more, 'next_id', CASE WHEN v_n > 0 THEN v_ids ->> (v_n - 1) END);
+  RETURN jsonb_build_object('status', 'ok', 'ids', v_ids, 'has_more', v_has_more, 'next_id', CASE WHEN v_n > 0 THEN v_ids ->> (v_n - 1) END,
+                            'versions', v_vers, 'head_seq', v_feed -> 'head_seq', 'epoch', v_feed -> 'epoch');
 END
 $fn$;
 
@@ -402,11 +418,6 @@ DECLARE
   v_ctx jsonb;
   v_org text;
   v_kinds text[];
-  v_head bigint;
-  v_rows jsonb;
-  v_n integer;
-  v_has_more boolean := false;
-  v_next bigint;
 BEGIN
   IF p_limit IS NULL OR p_limit < 1 OR p_limit > 1000 THEN
     RAISE EXCEPTION 'BAD_LIMIT' USING ERRCODE = 'AW400';
@@ -420,26 +431,8 @@ BEGIN
   END IF;
   v_org := v_ctx ->> 'org_id';
   v_kinds := ARRAY(SELECT k FROM unnest(public.projexa_sync__org_kinds()) AS k WHERE public.projexa_sync__org_can_read(k, v_ctx ->> 'live_role'));
-
-  SELECT coalesce(max(c.seq), 0) INTO v_head FROM platform.projexa_change_log c WHERE c.org_id = v_org AND c.project_id = '__org__';
-  IF p_after_seq IS NULL THEN
-    RETURN jsonb_build_object('status', 'ok', 'changes', '[]'::jsonb, 'next_seq', v_head, 'has_more', false, 'head_seq', v_head);
-  END IF;
-
-  SELECT coalesce(jsonb_agg(jsonb_build_object('seq', x.seq, 'kind', x.kind, 'id', x.record_id, 'version', x.version, 'op', x.op::text) ORDER BY x.seq), '[]'::jsonb)
-    INTO v_rows
-  FROM (SELECT c.seq, c.kind, c.record_id, c.version, c.op FROM platform.projexa_change_log c
-        WHERE c.org_id = v_org AND c.project_id = '__org__' AND c.seq > p_after_seq AND c.kind = ANY (v_kinds)
-        ORDER BY c.seq LIMIT p_limit + 1) x;
-
-  v_n := jsonb_array_length(v_rows);
-  IF v_n > p_limit THEN
-    v_has_more := true;
-    v_rows := v_rows - p_limit;
-    v_n := p_limit;
-  END IF;
-  v_next := CASE WHEN v_n > 0 THEN (v_rows -> (v_n - 1) ->> 'seq')::bigint ELSE p_after_seq END;
-  RETURN jsonb_build_object('status', 'ok', 'changes', v_rows, 'next_seq', v_next, 'has_more', v_has_more, 'head_seq', v_head);
+  -- 0679's commit-order-safe feed (xid cursor, whole transactions, epoch, prune floor), on the sentinel project, only the kinds the role may read
+  RETURN public.projexa_sync__feed(v_org, '__org__', v_kinds, p_after_seq, p_limit);
 END
 $fn$;
 
@@ -492,124 +485,36 @@ BEGIN
     'kinds', v_kinds,
     'view_class', public.projexa_sync__view_class(v_org, v_ctx ->> 'live_role'),
     'org_kinds', v_org_kinds,
-    'org_view_class', public.projexa_sync__org_view_class(v_org, v_ctx ->> 'live_role'));
+    'org_view_class', public.projexa_sync__org_view_class(v_org, v_ctx ->> 'live_role'),
+    'epoch', (SELECT e.epoch FROM platform.projexa_sync_epoch e));
 END
 $fn$;
 
--- 10. the trigger function: 0683's, plus the organisation kinds under the sentinel project '__org__' ---------------------------------------------
-CREATE OR REPLACE FUNCTION platform.projexa_track_change()
-RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = pg_catalog, pg_temp
-SET timezone = 'UTC'
-AS $fn$
-DECLARE
-  v_kind text := TG_ARGV[0];
-  v_row jsonb;
-  v_op char(1);
-  v_id text;
-  v_org text;
-  v_project text;
-  v_hash text;
-  v_prev record;
-  v_ver bigint;
-  v_actor text;
-  v_cols text[];
-BEGIN
-  BEGIN
-    IF TG_OP = 'DELETE' THEN
-      v_row := to_jsonb(OLD);
-      v_op := 'D';
-    ELSE
-      v_row := to_jsonb(NEW);
-      v_op := CASE TG_OP WHEN 'INSERT' THEN 'I' ELSE 'U' END;
-    END IF;
-    v_id := v_row ->> 'id';
-    v_org := v_row ->> 'org_id';
-    v_actor := coalesce(v_row ->> 'updated_by_id', v_row ->> 'updated_by', v_row ->> 'created_by_id', v_row ->> 'requested_by_id', v_row ->> 'raised_by_id', v_row ->> 'recorded_by_id');
-
-    IF v_kind = ANY (public.projexa_sync__org_kinds()) THEN
-      -- an organisation master: the sentinel project, and the version follows the ALLOW-LISTED columns only
-      v_project := '__org__';
-      SELECT s.cols INTO v_cols FROM public.projexa_sync__org_src(v_kind) s;
-      SELECT coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) INTO v_row FROM jsonb_each(v_row) AS e WHERE e.key = ANY (v_cols) AND e.key <> 'updated_at';
-      v_actor := NULL;
-    ELSIF v_kind = 'project' THEN
-      v_project := v_id;
-    ELSIF v_kind = 'boq_lines' THEN
-      SELECT b.project_id INTO v_project FROM compliance.construction_boqs b WHERE b.id = (v_row ->> 'boq_id') AND b.org_id = v_org;
-    ELSIF v_kind = 'timesheets' THEN
-      SELECT i.project_id INTO v_project FROM compliance.pms_issues i WHERE i.id = (v_row ->> 'issue_id') AND i.org_id = v_org;
-    ELSIF v_kind = 'documents' THEN
-      IF v_row ->> 'linked_entity_type' IS DISTINCT FROM 'project' THEN
-        RETURN NULL;
-      END IF;
-      v_project := v_row ->> 'linked_entity_id';
-    ELSIF v_kind = 'meeting_minutes' THEN
-      IF v_row ->> 'context_entity_type' IS DISTINCT FROM 'project' THEN
-        RETURN NULL;
-      END IF;
-      v_project := v_row ->> 'context_entity_id';
-    ELSE
-      v_project := v_row ->> 'project_id';
-    END IF;
-
-    SELECT h.version, h.content_hash, h.deleted, h.project_id INTO v_prev
-    FROM platform.projexa_record_head h WHERE h.org_id = v_org AND h.kind = v_kind AND h.record_id = v_id FOR UPDATE;
-
-    -- a child removed together with its parent (cascade): the parent is already gone, so the project is the one we recorded before
-    IF v_project IS NULL AND FOUND THEN
-      v_project := v_prev.project_id;
-    END IF;
-    IF v_org IS NULL OR v_id IS NULL OR v_project IS NULL THEN
-      RETURN NULL;
-    END IF;
-
-    v_hash := encode(sha256(convert_to((v_row - 'updated_at' - 'search_vector' - 'embedding')::text, 'UTF8')), 'hex');
-    IF FOUND THEN
-      IF v_op <> 'D' AND NOT v_prev.deleted AND v_prev.content_hash = v_hash THEN
-        RETURN NULL; -- not a real change
-      END IF;
-      v_ver := v_prev.version + 1;
-    ELSE
-      v_ver := 1;
-    END IF;
-
-    INSERT INTO platform.projexa_record_head (org_id, kind, record_id, project_id, version, content_hash, deleted, updated_at, actor_id)
-    VALUES (v_org, v_kind, v_id, v_project, v_ver, v_hash, v_op = 'D', clock_timestamp(), v_actor)
-    ON CONFLICT (org_id, kind, record_id)
-    DO UPDATE SET project_id = EXCLUDED.project_id, version = EXCLUDED.version, content_hash = EXCLUDED.content_hash, deleted = EXCLUDED.deleted, updated_at = EXCLUDED.updated_at, actor_id = EXCLUDED.actor_id;
-
-    INSERT INTO platform.projexa_change_log (org_id, project_id, kind, record_id, version, op, content_hash, actor_id, db_role)
-    VALUES (v_org, v_project, v_kind, v_id, v_ver, v_op, v_hash, v_actor, session_user::text);
-  EXCEPTION WHEN OTHERS THEN
-    -- tracking is best effort by design: it must never be the reason a business write fails
-    RAISE WARNING 'projexa_track_change(%): % (%)', v_kind, SQLERRM, SQLSTATE;
-  END;
-  RETURN NULL;
-END
-$fn$;
-REVOKE ALL ON FUNCTION platform.projexa_track_change() FROM PUBLIC, anon, authenticated, app_runtime;
-
--- 11. the 9 triggers ------------------------------------------------------------------------------------------------------------------------------
+-- 10. the 9 tables get the tracking triggers of 0679 in mode 'org': filed under the sentinel project '__org__', the version follows the ALLOW-LISTED columns only
+-- (projexa_sync__org_cols), so a login (users.last_login_at) or a password change is dropped by the trigger's first comparison and writes nothing. The function is
+-- 0679's and is NOT redefined here (sql:SQL-09).
 DO $$
 DECLARE
-  r record;
+  v_specs jsonb := '[
+    {"k": "vendors",         "t": "erp_suppliers",               "m": "org"},
+    {"k": "customers",       "t": "erp_customers",               "m": "org"},
+    {"k": "companies",       "t": "erp_companies",               "m": "org"},
+    {"k": "boq_categories",  "t": "construction_boq_categories", "m": "org"},
+    {"k": "currencies",      "t": "erp_currencies",              "m": "org"},
+    {"k": "exchange_rates",  "t": "erp_exchange_rates",          "m": "org"},
+    {"k": "departments",     "t": "departments",                 "m": "org"},
+    {"k": "org_people",      "t": "users",                       "m": "org"},
+    {"k": "cost_visibility", "t": "cost_visibility_config",      "m": "org"}
+  ]'::jsonb;
 BEGIN
-  FOR r IN SELECT * FROM (VALUES
-    ('vendors', 'erp_suppliers'), ('customers', 'erp_customers'), ('companies', 'erp_companies'), ('boq_categories', 'construction_boq_categories'),
-    ('currencies', 'erp_currencies'), ('exchange_rates', 'erp_exchange_rates'), ('departments', 'departments'), ('org_people', 'users'),
-    ('cost_visibility', 'cost_visibility_config')
-  ) AS v(kind, tbl)
-  LOOP
-    IF to_regclass('compliance.' || r.tbl) IS NOT NULL THEN
-      EXECUTE format('DROP TRIGGER IF EXISTS projexa_track_change ON compliance.%I', r.tbl);
-      EXECUTE format('CREATE TRIGGER projexa_track_change AFTER INSERT OR UPDATE OR DELETE ON compliance.%I FOR EACH ROW EXECUTE FUNCTION platform.projexa_track_change(%L)', r.tbl, r.kind);
-    END IF;
-  END LOOP;
+  PERFORM platform.projexa_track__attach(v_specs);
+  -- self-check (sql:SQL-08): a second pass must find nothing left to do
+  IF platform.projexa_track__attach(v_specs) <> 0 THEN
+    RAISE EXCEPTION 'projexa tracking self-check failed: triggers are not as specified';
+  END IF;
 END $$;
 
--- 12. grants ---------------------------------------------------------------------------------------------------------------------------------------
+-- 11. grants ---------------------------------------------------------------------------------------------------------------------------------------
 REVOKE ALL ON FUNCTION public.projexa_sync__org_kinds() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.projexa_sync__org_src(text) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.projexa_sync__org_cols(text) FROM PUBLIC, anon, authenticated, service_role;
