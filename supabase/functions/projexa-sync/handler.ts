@@ -844,6 +844,8 @@ export const PUSH_FAILURE_CLASS: Readonly<Record<string, FailureClass>> = {
   BACKEND_UNAVAILABLE: "failed", UPSTREAM_TIMEOUT: "failed", INTERNAL_ERROR: "failed",
   // the exec function's own answers (ai-work-link-exec/handler.ts) and this function's
   BAD_CLAIM: "failed", SYNC_NOT_AVAILABLE: "failed", NOT_CONFIGURED: "failed", RETRY_LATER: "failed",
+  // the push-ledger claim of /sync-run (nothing ran): the row was not `running` any more, or the claim could not be read
+  NOT_CLAIMED: "failed", CLAIM_UNAVAILABLE: "failed",
   BAD_OP: "rejected", TOO_LARGE: "rejected", BAD_REQUEST: "rejected",
   // ServiceError codes services raise for a business condition (src/lib/services/*: `new ServiceError(msg, 4xx, "CODE")`)
   VALIDATION_FAILED: "rejected", VALIDATION: "rejected", TEXT_TOO_LONG: "rejected", NOT_FOUND: "rejected",
