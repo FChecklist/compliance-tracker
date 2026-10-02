@@ -220,7 +220,9 @@ async function manifest(req: Request, deps: SyncDeps, who: Who, now: Date): Prom
   rememberOrg(deps, who.sub, r.data.user, now)
   const rel = await getRelease(deps, now)
   return respond(req, deps, 200, {
-    user: r.data.user,
+    // `user.id` is the VERIDIAN user (compliance.users.id, a cuid); the laptop only knows the sign-in id, the verified token subject. Both travel so a laptop can check
+    // that a manifest is its own person's (client review F01: comparing the wrong pair made every real sync end in user_mismatch).
+    user: r.data.user && typeof r.data.user === "object" ? { ...(r.data.user as Record<string, unknown>), auth_user_id: who.sub } : r.data.user,
     projects: r.data.projects,
     kinds,
     view_class: typeof r.data.view_class === "string" ? r.data.view_class : null,

@@ -332,6 +332,9 @@ describe("the handler: contract and edges", () => {
     // no release registry in this harness (0680 is not applied): nothing is current and nobody is held back
     expect(j.release).toEqual({ current: null, min_compatible: null, protocol: 2 })
     expect(j.user).toMatchObject({ id: "u-mgr", name: "Mira Manager", role: "manager", org_id: "org-a" })
+    // client review F01: the laptop knows only the sign-in id (the token subject); the manifest must carry it next to the VERIDIAN user id, and the two are different strings
+    expect((j.user as J).auth_user_id).toBe(SUBS["u-mgr"])
+    expect((j.user as J).auth_user_id).not.toBe((j.user as J).id)
     expect(j.server_time).toBe("2026-10-02T00:00:00.000Z")
     expect((j.kinds as J[]).map((k) => k.kind)).toEqual(["project", "tasks", "boqs", "boq_lines", "activities", "progress", "rfis", "submittals", "punch_list", "change_orders", "milestones", "materials", "documents"])
     expect((j.projects as J[])[0]).toEqual({ id: expect.any(String), name: expect.any(String), status: expect.any(String) })
