@@ -709,6 +709,22 @@ b {
   font-size: 10.5px;
   color: rgba(157, 148, 196, 0.7);
 }
+/* The company ownership line, last thing in every public footer (2026-10-02): readable
+   type (13.5px, the footer's own muted colour -- the same contrast as .footer-line, which
+   site-css-contrast.test.ts pins), set apart by a hairline so it is a quiet record, not a banner. */
+.footer-company {
+  max-width: 44rem;
+  margin: 24px auto 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(157, 148, 196, 0.25);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--dark-muted);
+}
+.footer-company a {
+  color: inherit;
+  text-decoration: underline;
+}
 
 @media (min-width: 640px) {
   .chooser-title {

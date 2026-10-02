@@ -29,7 +29,7 @@
 //   index.html, dpdp-firm/index.html, dpdp-institution/index.html
 //                             ONLY between the marker comments
 //                             <!-- BEGIN generated: X --> ... <!-- END generated: X -->
-//                             (X = brand-line, facts, footer-links, and on the home
+//                             (X = brand-line, facts, footer-links, company-line, and on the home
 //                             page ai-assistant), plus <title>, the meta
 //                             description, og:title / og:description and the
 //                             Organization + WebSite + SoftwareApplication +
@@ -54,8 +54,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { APP_DIR, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
-import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
+import { APP_DIR, companyFooterHtml, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
+import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, RUM_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
 
@@ -274,6 +274,7 @@ function head(facts, { path, title, description, nodes, hidden = false }) {
     `<link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />`,
     `<link rel="stylesheet" href="/src/site.css" />`,
     REF_SCRIPT.tag,
+    RUM_SCRIPT.tag,
     jsonLdScript(nodes),
   )
   return lines.map((l) => "    " + l).join("\n")
@@ -335,6 +336,7 @@ function footer(facts) {
     `  <p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>`,
     `  ${footerLinks()}`,
     `  <p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a> · <a href="/pricing/">Pricing</a> · <a href="/refund/">Cancellation &amp; Refund</a> · <a href="/shipping/">Delivery</a> · <a href="/contact/">Contact</a></p>`,
+    `  ${companyFooterHtml(facts)}`,
     `</footer>`,
   ].join("\n")
 }
@@ -608,13 +610,13 @@ export function applyToLanding(facts, html, path, file) {
     "og:description (to attach the image and card tags)",
   )
 
-  // The one allowed script besides JSON-LD: /ref.js, right after the stylesheet link (idempotent).
+  // The two allowed scripts besides JSON-LD: /ref.js then /rum.js, right after the stylesheet link (idempotent).
   out = replaceOne(
     out,
-    /^([ \t]*)(<link rel="stylesheet" href="\/src\/site\.css" \/>)\r?\n(?:[ \t]*<script defer src="\/ref\.js"><\/script>\r?\n)?/m,
-    (m) => `${m[1]}${m[2]}\n${m[1]}${REF_SCRIPT.tag}\n`,
+    /^([ \t]*)(<link rel="stylesheet" href="\/src\/site\.css" \/>)\r?\n(?:[ \t]*<script defer src="\/ref\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/rum\.js"><\/script>\r?\n)?/m,
+    (m) => `${m[1]}${m[2]}\n${m[1]}${REF_SCRIPT.tag}\n${m[1]}${RUM_SCRIPT.tag}\n`,
     file,
-    "the stylesheet link (to attach /ref.js)",
+    "the stylesheet link (to attach /ref.js and /rum.js)",
   )
 
   const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/i.exec(out)
@@ -633,6 +635,7 @@ export function applyToLanding(facts, html, path, file) {
   if (path === "/") out = replaceBetween(out, "ai-assistant", homeAiSection(facts), file)
   out = replaceBetween(out, "facts", factBlock(facts, { compact: path === "/" }), file)
   out = replaceBetween(out, "footer-links", footerLinks(), file)
+  out = replaceBetween(out, "company-line", companyFooterHtml(facts), file)
   return out
 }
 

@@ -321,3 +321,64 @@ To refresh it from a newer `src/app/page.tsx`: run that app, save the rendered H
 - **A reminder is not sent twice.** `dpdp-lifecycle-email` sends with an `Idempotency-Key` (organisation + reminder key) and only a failed *send* marks a reminder `failed`; a log-write or "mark sent" failure after Resend accepted the mail is ignored or retried (3 tries). A run summary line `sent_unrecorded` means the mail went but the mark could not be saved. Needs the function redeployed.
 - **Migration `0676`** (not applied yet; the PM applies it): a rejected renewal claim keeps an active organisation active; approving a claim for an organisation with no edition gives a plain message; `dpdp_ai_link_billing_notice(token)` lets the AI link say "Payment pending" once a free trial has ended. The notice never locks anything. Until `0676` is applied the AI link simply shows no notice.
 - **AI link:** `GET <link>/manual.md?brief=1` is the short manual (about a third of the size); the full one is unchanged and points to it. The 410 says where to make a new link. The page tells the AI to answer in the person's language and not to translate the law text (Hindi legal text is still pending a human review).
+
+## Search, speed and monitoring for veridian-aios.com (2026-10-02)
+
+All of this is free: no paid service, no new account, nothing a visitor has to accept.
+
+### What measures the site, and where the numbers are
+
+| What | Where it lives | What it tells you |
+|---|---|---|
+| **First-party monitoring** | `public/rum.js` (loaded by every public page and the 7 legal pages) → `POST /api/telemetry` (`functions/api/telemetry.ts`, logic in `_telemetry.ts`) → free Cloudflare D1 database `dpdp-telemetry` (binding `DB` in `wrangler.toml`, tables in `data/telemetry.sql`) | page views per day and per page, where visitors come from (referrer site name only), country, phone/tablet/computer, Core Web Vitals (LCP, CLS, INP, FCP, TTFB) overall and per page, JavaScript errors (crash reports), files that failed to load or answered 404/500, slow or failed API calls |
+| **Outside-in uptime and response time** | GitHub workflow `DPDP site health` (hourly) → `scripts/site-health.mjs` | is every page up, how long the first byte and the whole page took, timeouts (15 s, after one retry), a real 404 for unknown addresses, `www` → apex redirect, TLS certificate days left. A problem turns the run red and GitHub emails the repository's watchers: that email is the crash / timeout alarm. The response-time table is in each run's summary. Measured from a GitHub data centre, so it catches outages and regressions, not a visitor's phone in India |
+| **What the pages say** | GitHub workflow `DPDP live smoke` (daily and after every deploy) → `scripts/live-smoke.mjs` | the pages, links, sitemap, `/rum.js`, the beacon endpoint, the company line, the AI work link's refusals |
+| **Build-time proof** | `bun run build` → `check-public-surface.mjs`, `check-claims.mjs`, `check-two-doors.mjs` | titles, descriptions, canonicals, Open Graph, JSON-LD, sitemap (public + legal pages), robots, headers, the two scripts, the company line, the IndexNow key file, `rum.js` rules |
+
+### Read the monitoring report
+
+```
+curl -s -H "Authorization: Bearer <REPORT_KEY>" "https://veridian-aios.com/api/telemetry?days=7"
+```
+
+`days` is 1 to 90 (default 7). The answer is plain text: page views per day, top pages, referrers, countries, devices, speed overall and per page with a GOOD / NEEDS WORK / POOR verdict at Google's limits, JavaScript errors, files that failed to load, API problems, problems per day, and how much of the day's row budget is used. Without the key (or with a wrong one) the endpoint answers a bare 404, so it does not advertise itself.
+
+The key is the Pages secret `REPORT_KEY` of project `veridian-dpdp-app` (the same value as the Corporate Tambola report; the owner's copy is `telemetry-report-key.txt` in the local Tambola config folder). To rotate it: `wrangler pages secret put REPORT_KEY --project-name veridian-dpdp-app`, then redeploy (a secret applies from the next deployment).
+
+Straight on the database (needs a D1 token): `wrangler d1 execute dpdp-telemetry --remote --command "select kind, count(*) from telemetry group by kind"`. To erase everything recorded: `... --command "delete from telemetry"`.
+
+### What it never records (and what pins it)
+
+No cookie, no browser storage, no IP address (the table has no such column; only the two-letter country Cloudflare works out at the edge), no user agent, **no query string or fragment** (the site carries `?ref=` partner codes and private links with tokens), no personal data. `rum.js` is not loaded on `/app/`, `/act/`, `/unsubscribe/`, `/p/`, `/copy/`, `/ai/` or the 404 page, refuses to run on those paths even if it were loaded, and does nothing when the browser sends Do Not Track or Global Privacy Control. The endpoint repeats each rule on its side: it drops an event for a private path, cuts everything after a `?` or `#` from every field, replaces token-looking runs, ignores a request from another origin, caps the batch and the day's rows (20,000), and keeps rows 90 days. Pinned by `src/lib/telemetry.test.ts`, `src/lib/rum-script.test.ts` (the real `rum.js` run against a fake browser) and the build-time checks. The Privacy Notice (v1.1, 2 October 2026) says all this in its section 2 table and section 8; a lawyer should read that change when the rest of the notice is reviewed.
+
+Free-plan limits (D1): 5 GB, 100,000 rows written and 5,000,000 rows read per day. One page view is about 7 rows, so the 20,000-row day budget (about 2,800 page views a day) sits well inside the write limit; raise `DAILY_ROW_CAP` in `_telemetry.ts` if the site outgrows it.
+
+### Search engines
+
+- **Sitemap**: `/sitemap.xml` lists the 7 public pages and the 7 legal pages (terms, privacy, disclaimer, pricing, refund, shipping, contact), each with the last git commit date of its own file as `lastmod`. `robots.txt` names it, allows every public page and disallows the private prefixes and `/api/`. `llms.txt` and `llms-full.txt` list the public pages.
+- **IndexNow (Bing, Yandex, Seznam, Naver; no login)**: the key file `public/3f1e06105f19410fb43008b85ecdfcaa.txt` proves ownership. After every deploy the workflow runs `scripts/indexnow-ping.mjs`, which submits every sitemap URL to `api.indexnow.org` (best effort: a failure never fails the deploy). By hand: `node scripts/indexnow-ping.mjs` after `bun run build`. To change the key: rename the file and change its body to match (the script reads the key from that one file's name). Google does not use IndexNow.
+
+### Owner-only steps (they need your logins or clicks; none was attempted)
+
+1. **Google Search Console** (https://search.google.com/search-console): Add property → **Domain** → `veridian-aios.com` → copy the TXT record → Cloudflare dashboard → DNS → add it (TXT, name `@`) → Verify. Then Sitemaps → submit `https://veridian-aios.com/sitemap.xml`; URL Inspection → paste `https://veridian-aios.com/`, `/dpdp-firm/`, `/dpdp-institution/`, `/about/` → Request indexing. Reports to read later: Pages (what is indexed and why not), Core Web Vitals (real Chrome users), Enhancements (FAQ, breadcrumbs), Crawl stats.
+2. **Bing Webmaster Tools** (https://www.bing.com/webmasters): sign in → Import from Google Search Console (no second DNS record), or Add site `https://veridian-aios.com/` and use the DNS TXT route. Submit the same sitemap.
+3. **Cloudflare Web Analytics** (optional, free, cookieless; a second view next to the first-party one): Cloudflare dashboard → Analytics & Logs → Web Analytics → Add a site → `veridian-aios.com` → the Pages "automatic setup" toggle. **If you turn it on, tell the next session first**: the Privacy Notice section 8 and its recipients table must name it before it runs, and the build's tracker-host scan (which only reads files in `dist/`) will not see it because Cloudflare adds it at the edge. The site has no Content-Security-Policy, so nothing else needs changing.
+4. A free external uptime check, if you want one that does not depend on GitHub: UptimeRobot (free, 5-minute checks, email alerts) or the Better Stack free tier, on `https://veridian-aios.com/`.
+
+### Free tools to analyse the site (run them whenever)
+
+| Question | Tool |
+|---|---|
+| Real-visitor speed and the lab score | https://pagespeed.web.dev/ with `https://veridian-aios.com/` (mobile and desktop); the same data by API: `curl "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=https://veridian-aios.com/&strategy=mobile&category=performance&category=seo&category=accessibility&category=best-practices"` |
+| The same, locally and repeatable | `npx lighthouse https://veridian-aios.com/ --only-categories=performance,accessibility,best-practices,seo --form-factor=mobile --output=html --output-path=./lighthouse-home.html` (Node 22; once per page) |
+| Is the structured data valid and eligible? | https://search.google.com/test/rich-results (FAQ and breadcrumbs on the landings) and https://validator.schema.org/ |
+| What does Google see on a page? | Search Console → URL Inspection → View crawled page |
+| Real Chrome-user speed history | the PageSpeed Insights "field data" block, and the free CrUX API / CrUX Dashboard once the site has enough traffic |
+| Headers and security | `curl -sI https://veridian-aios.com/` ; https://securityheaders.com/ ; https://www.ssllabs.com/ssltest/ |
+| Link preview | https://www.opengraph.xyz/ or paste a link into WhatsApp / LinkedIn |
+| Function errors and logs (`/ai/*`, `/api/telemetry`) | Cloudflare dashboard → Workers & Pages → `veridian-dpdp-app` → Functions (requests, errors, CPU time); live: `wrangler pages deployment tail --project-name veridian-dpdp-app` |
+| Is it up right now, and how fast? | the `DPDP site health` run summary, or `node dpdp-app/scripts/site-health.mjs` |
+
+### What was audited on 2 October 2026, and what is left alone on purpose
+
+Every public page already had one `<h1>`, ordered headings, `lang="en-IN"`, a unique title and description, a canonical on the apex, Open Graph and Twitter cards with the 1200x630 image, Organization + WebSite JSON-LD (plus SoftwareApplication, BreadcrumbList and FAQPage where the page really has them), self-hosted preloaded fonts with `font-display: swap`, no image without dimensions (there are none), no third-party request, and hashed assets cached for a year. Changed: the 7 legal pages gained a sitemap entry with a real `lastmod`, Open Graph and Twitter cards, a favicon link (browsers were requesting `/favicon.ico` and getting a 404), `/rum.js`, and the company line; the Disclaimer's 246-character description was shortened to 154; `robots.txt` and `_headers` fence `/api/`. Left alone on purpose: the page titles (the brand rule fixes the "VERIDIAN · VERy INDIAN — " prefix, which pushes the institution page to 90 characters, so Google may cut it in results; shortening it is an owner decision about the brand line), the home page's 174-character description (facts-file wording), and `hreflang` (one language and one region, so there is nothing to alternate).

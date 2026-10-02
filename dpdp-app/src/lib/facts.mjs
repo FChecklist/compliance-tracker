@@ -109,6 +109,8 @@ export function loadFacts() {
   need(f.company && typeof f.company === "object", "company block missing")
   for (const k of ["legal_name", "cin", "registered_office", "gstin"]) need(k in f.company, `company.${k} must be present (a string or null)`)
   for (const k of ["legal_name", "cin", "registered_office", "gstin"]) need(f.company[k] === null || isStr(f.company[k]), `company.${k} must be a string or null`)
+  need(isStr(f.company.website) && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(f.company.website), "company.website must be a bare host name (it is the footer's company link)")
+  need(Number.isInteger(f.company.copyright_year), "company.copyright_year must be a year (the footer's copyright line)")
   need(f.company.owner_required === true || Object.values(f.company).every((v) => v !== null), "company.owner_required must be true while any company field is null")
 
   need(f.contact && typeof f.contact === "object", "contact block missing")
@@ -148,6 +150,29 @@ export function subjectTopicsClause(facts) {
 }
 
 /** "Write to dpdp@veridian-aios.com and put the topic in the subject: ..." (plain text). */
+/**
+ * The company ownership line at the very end of every public page's footer
+ * (owner/coordinator, 2026-10-02): ONE short line -- who owns and operates the
+ * site, linked to the company's own website (which carries the CIN, GSTIN and
+ * registered office), and the copyright. Every word comes from facts.company --
+ * nothing is typed anywhere else -- so the generator, the hand-kept legal pages'
+ * footers, the post-build check and the tests all read ONE source. The company
+ * name in the first sentence is the link; no other detail is in this line.
+ */
+export function companyFooterParts(facts) {
+  const c = facts.company
+  return {
+    ownerHtml: `VERIDIAN, this website and its software are owned and operated by <a href="https://${c.website}/" rel="noopener">${c.legal_name}</a>.`,
+    rights: `© ${c.copyright_year} ${c.legal_name}. All rights reserved.`,
+  }
+}
+
+/** The footer's company paragraph, as raw HTML. */
+export function companyFooterHtml(facts) {
+  const p = companyFooterParts(facts)
+  return `<p class="footer-company">${p.ownerHtml} ${p.rights}</p>`
+}
+
 export function contactSentence(facts) {
   return `Write to ${facts.contact.contact_email} ${subjectTopicsClause(facts)}`
 }
