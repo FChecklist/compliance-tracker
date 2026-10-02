@@ -267,9 +267,17 @@ describe("the update gate (426) and the release routes", () => {
     const h = { "x-px-client": "2026.09.01-001; protocol=2; schema=3" }
     const cur = await hit("u-mgr", "release/current", undefined, h)
     expect(cur.status).toBe(200)
-    expect(cur.json).toMatchObject({ registered: true, min_compatible: "2026.10.02-001", protocol: SERVER_PROTOCOL })
+    // "registered" is about the release the laptop REPORTED: 2026.09.01-001 is not the registry's current, so it is told so (and may ask to register)
+    expect(cur.json).toMatchObject({ registered: false, min_compatible: "2026.10.02-001", protocol: SERVER_PROTOCOL })
     expect(cur.json.current.release_version).toBe("2026.10.03-001")
     expect((await hit("u-mgr", "install", { device_id: "dev-device-1", release_version: "2026.10.03-001", status: "updated", downloaded_at: "2026-10-02T11:00:00Z" }, h)).status).toBe(200)
+  })
+
+  test("`registered` is true when the laptop's reported release IS the registry's current, and for a laptop that names no release or a non-release build", async () => {
+    expect((await hit("u-mgr", "release/current", undefined, { "x-px-client": "2026.10.03-001; protocol=2; schema=3" })).json).toMatchObject({ registered: true })
+    expect((await hit("u-mgr", "release/current", undefined, { "x-px-client": "2026.10.09-777; protocol=2; schema=3" })).json, "a NEWER build the registry has never seen").toMatchObject({ registered: false })
+    expect((await hit("u-mgr", "release/current", undefined, { "x-px-client": "dev; protocol=2; schema=3" })).json).toMatchObject({ registered: true })
+    expect((await hit("u-mgr", "release/current")).json).toMatchObject({ registered: true })
   })
 
   test("the manifest names the current release and the floor", async () => {
