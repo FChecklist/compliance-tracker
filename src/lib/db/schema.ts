@@ -4791,6 +4791,9 @@ export const pmsMeetings = complianceSchemaDB.table('pms_meetings', {
   durationMinutes: integer('duration_minutes'),
   recurrenceRule: text('recurrence_rule'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // lf-b5-ai-crud (drizzle/0687): the soft delete of a project meeting. Null = live; a time = deleted then. Every reader in
+  // pms-meeting-service.ts hides a row that has it; the row and its agenda/outcomes stay, and the sync records a tombstone.
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 })
 
 export const pmsMeetingAgendaItems = complianceSchemaDB.table('pms_meeting_agenda_items', {
@@ -11891,7 +11894,7 @@ export const constructionCustomerComplaints = complianceSchemaDB.table('construc
   resolvedAt: timestamp('resolved_at'),
 })
 
-export const constructionChangeOrderStatusEnum = complianceSchemaDB.enum('construction_change_order_status', ['draft', 'pending_approval', 'approved', 'rejected'])
+export const constructionChangeOrderStatusEnum = complianceSchemaDB.enum('construction_change_order_status', ['draft', 'pending_approval', 'approved', 'rejected', 'cancelled']) // 'cancelled': lf-b5-ai-crud, drizzle/0687 (withdrawn by its own side before a decision)
 
 export const constructionChangeOrders = complianceSchemaDB.table('construction_change_orders', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

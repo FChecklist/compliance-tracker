@@ -494,6 +494,13 @@ const SERVICE_ERROR_EXEMPTIONS = new Set([
   // background/async ingest-pipeline stages, doing the same job
   // ServiceError does for a synchronous request handler.
   "src/lib/services/document-extraction-service.ts",
+  //
+  // Pre-existing gap, surfaced 2026-10-02 when lf-b3-ai-off touched this file (a 6-line projexaInternalAiEnabled() early return) for the first
+  // time since this check existed -- not introduced by that change. The file DOES touch the DB, but it is a scheduled background job whose
+  // documented convention (see its own catch around each eval case, and the `{ skipped: true, reason }` result) is that a failing eval call is
+  // CAUGHT and recorded in the run row (errorNote) or returned as a skipped result, never thrown to a caller: there is no request handler
+  // above it to turn a ServiceError into an HTTP answer.
+  "src/lib/services/role-quality-regression-service.ts",
 ])
 
 const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/

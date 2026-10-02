@@ -1940,7 +1940,557 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     },
   },
 
+  // ---- lf-b2-ai-crud (owner order 2026-10-02, R5-R7): update, delete and archive, so the person's AI can change everything the person
+  // may change (executors/coverage-crud-b2.ts; coverage list ai-os/AI_CRUD_COVERAGE.md). Every delete is a draft the person confirms on
+  // a link (scripts/gen-ai-link-registry.data.ts); none of them touches code, a release bundle or a file.
+  {
+    functionId: "update_boq",
+    label: "Rename a BOQ",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "boqId", label: "BOQ", code: "VALUE_REQUIRED", field: "value" },
+      { name: "title", label: "Title", code: "TITLE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [{ key: "title", label: "Title", type: "text", required: true }], primaryLabel: "Save BOQ" },
+  },
+  {
+    functionId: "delete_boq",
+    label: "Delete a draft BOQ",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "boqId", label: "BOQ", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [],
+      facts: [{ label: "Effect", value: "A draft BOQ only. Its lines and the progress recorded against them are deleted with it.", editable: false }],
+      primaryLabel: "Delete BOQ",
+    },
+  },
+  {
+    functionId: "update_boq_line_amounts",
+    label: "Change a BOQ line's quantities and rates",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "lineItemId", label: "BOQ line", code: "BOQ_LINE_REQUIRED", field: "boqLine" },
+    ],
+    card: {
+      fields: [
+        { key: "qtyProject", label: "Quantity (project)", type: "number", required: false },
+        { key: "rateProject", label: "Rate (project)", type: "number", required: false },
+        { key: "qtyContract", label: "Quantity (contract)", type: "number", required: false },
+        { key: "rateContract", label: "Rate (contract)", type: "number", required: false },
+      ],
+      facts: [{ label: "Effect", value: "The contract side of a confirmed BOQ is locked and is changed through a revision.", editable: false }],
+      primaryLabel: "Save amounts",
+    },
+  },
+  {
+    functionId: "delete_progress_entry",
+    label: "Delete a progress entry",
+    module: "progress",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "entryId", label: "Progress entry", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [],
+      facts: [{ label: "Effect", value: "The linked task's completion is worked out again without this entry.", editable: false }],
+      primaryLabel: "Delete entry",
+    },
+  },
+  {
+    functionId: "archive_task",
+    label: "Archive or restore a task",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "issueId", label: "Task", code: "TASK_REQUIRED", field: "task" },
+    ],
+    optionalParams: ["isArchived"],
+    card: { fields: [], facts: [{ label: "Effect", value: "An archived task leaves the schedule; restoring it brings it back.", editable: false }], primaryLabel: "Archive task" },
+  },
+  {
+    functionId: "create_sprint",
+    label: "New sprint",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "name", label: "Name", code: "TITLE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: true },
+        { key: "goal", label: "Goal", type: "text", required: false },
+        { key: "startDate", label: "Start", type: "date", required: false },
+        { key: "endDate", label: "End", type: "date", required: false },
+      ],
+      primaryLabel: "Save sprint",
+    },
+  },
+  {
+    functionId: "update_sprint",
+    label: "Change a sprint",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "sprintId", label: "Sprint", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: false },
+        { key: "goal", label: "Goal", type: "text", required: false },
+        { key: "startDate", label: "Start", type: "date", required: false },
+        { key: "endDate", label: "End", type: "date", required: false },
+        { key: "status", label: "Status", type: "select", required: false },
+      ],
+      primaryLabel: "Save sprint",
+    },
+  },
+  {
+    functionId: "close_sprint",
+    label: "Close a sprint",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "sprintId", label: "Sprint", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], facts: [{ label: "Effect", value: "The sprint is completed and its progress is recorded once, as it stands now.", editable: false }], primaryLabel: "Close sprint" },
+  },
+  {
+    functionId: "add_sprint_task",
+    label: "Add a task to a sprint",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "sprintId", label: "Sprint", code: "VALUE_REQUIRED", field: "value" },
+      { name: "issueId", label: "Task", code: "TASK_REQUIRED", field: "task" },
+    ],
+    card: { fields: [], primaryLabel: "Add to sprint" },
+  },
+  {
+    functionId: "remove_sprint_task",
+    label: "Take a task out of a sprint",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "sprintId", label: "Sprint", code: "VALUE_REQUIRED", field: "value" },
+      { name: "issueId", label: "Task", code: "TASK_REQUIRED", field: "task" },
+    ],
+    card: { fields: [], facts: [{ label: "Effect", value: "The task stays on the schedule.", editable: false }], primaryLabel: "Take out of sprint" },
+  },
+  {
+    functionId: "update_time_entry",
+    label: "Correct my time entry",
+    module: "timesheets",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "entryId", label: "Time entry", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    optionalParams: ["issueId"],
+    card: {
+      fields: [
+        { key: "hours", label: "Hours", type: "number", required: false },
+        { key: "spentOn", label: "Date", type: "date", required: false },
+        { key: "activityType", label: "Category", type: "text", required: false },
+        { key: "comments", label: "Comments", type: "text", required: false },
+      ],
+      facts: [{ label: "Effect", value: "Only your own entry, while it is a draft or was returned to you.", editable: false }],
+      primaryLabel: "Save entry",
+    },
+  },
+  {
+    functionId: "delete_time_entry",
+    label: "Delete my time entry",
+    module: "timesheets",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "entryId", label: "Time entry", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], facts: [{ label: "Effect", value: "Only your own entry, while it is a draft or was returned to you.", editable: false }], primaryLabel: "Delete entry" },
+  },
+  {
+    functionId: "dispose_document",
+    label: "Dispose of a document",
+    module: "documents",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "documentId", label: "Document", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [],
+      facts: [{ label: "Effect", value: "Only past its disposal date and never under legal hold. The document is marked disposed, not removed.", editable: false }],
+      primaryLabel: "Dispose of document",
+    },
+  },
+  {
+    functionId: "update_mom_details",
+    label: "Change a MoM's details",
+    module: "meetings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "meetingId", label: "Meeting", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    optionalParams: ["attendees", "agenda"],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: false },
+        { key: "meetingType", label: "Type", type: "text", required: false },
+        { key: "scheduledAt", label: "When", type: "date", required: false },
+      ],
+      primaryLabel: "Save details",
+    },
+  },
+  {
+    functionId: "delete_mom",
+    label: "Delete a draft MoM",
+    module: "meetings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "meetingId", label: "Meeting", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], facts: [{ label: "Effect", value: "A draft MoM only; it is marked deleted and kept.", editable: false }], primaryLabel: "Delete MoM" },
+  },
+  {
+    functionId: "update_meeting",
+    label: "Reschedule a meeting",
+    module: "meetings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "meetingId", label: "Meeting", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: false },
+        { key: "scheduledAt", label: "When", type: "date", required: false },
+        { key: "durationMinutes", label: "Duration", type: "number", unit: "min", required: false },
+      ],
+      primaryLabel: "Save meeting",
+    },
+  },
+  {
+    functionId: "update_material",
+    label: "Change a material",
+    module: "materials",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "materialId", label: "Material", code: "MATERIAL_REQUIRED", field: "material" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: false },
+        { key: "unit", label: "Unit", type: "text", required: false },
+        { key: "spec", label: "Specification", type: "text", required: false },
+        { key: "unitCost", label: "Unit cost", type: "number", required: false },
+        { key: "reorderLevel", label: "Reorder level", type: "number", required: false },
+        { key: "isActive", label: "In use", type: "select", required: false },
+      ],
+      primaryLabel: "Save material",
+    },
+  },
+  {
+    functionId: "update_room",
+    label: "Change a room on a floor plan",
+    module: "interior",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "floorPlanId", label: "Floor plan", code: "VALUE_REQUIRED", field: "value" },
+      { name: "roomId", label: "Room", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    optionalParams: ["polygon"],
+    card: {
+      fields: [
+        { key: "name", label: "Room", type: "text", required: false },
+        { key: "ceilingHeightCm", label: "Ceiling height", type: "number", unit: "cm", required: false },
+      ],
+      primaryLabel: "Save room",
+    },
+  },
+  {
+    functionId: "remove_room",
+    label: "Remove a room from a floor plan",
+    module: "interior",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "floorPlanId", label: "Floor plan", code: "VALUE_REQUIRED", field: "value" },
+      { name: "roomId", label: "Room", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], primaryLabel: "Remove room" },
+  },
+  {
+    functionId: "update_placement",
+    label: "Move furniture on a floor plan",
+    module: "interior",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "floorPlanId", label: "Floor plan", code: "VALUE_REQUIRED", field: "value" },
+      { name: "placementId", label: "Placement", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    optionalParams: ["roomId"],
+    card: {
+      fields: [
+        { key: "x", label: "Across", type: "number", unit: "cm", required: false },
+        { key: "y", label: "Down", type: "number", unit: "cm", required: false },
+        { key: "rotationDeg", label: "Rotation", type: "number", unit: "deg", required: false },
+      ],
+      primaryLabel: "Move item",
+    },
+  },
+  {
+    functionId: "remove_placement",
+    label: "Remove furniture from a floor plan",
+    module: "interior",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "floorPlanId", label: "Floor plan", code: "VALUE_REQUIRED", field: "value" },
+      { name: "placementId", label: "Placement", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], facts: [{ label: "Effect", value: "The FF&E item stays; only its place on the plan is removed.", editable: false }], primaryLabel: "Remove from plan" },
+  },
+  {
+    functionId: "update_floor_plan_status",
+    label: "Mark a floor plan draft or final",
+    module: "interior",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "floorPlanId", label: "Floor plan", code: "VALUE_REQUIRED", field: "value" },
+      { name: "status", label: "Status", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [{ key: "status", label: "Status", type: "select", required: false, default: "final" }], primaryLabel: "Save status" },
+  },
+  {
+    functionId: "update_mood_board",
+    label: "Change a mood board",
+    module: "interior",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "moodBoardId", label: "Mood board", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: false },
+        { key: "roomOrArea", label: "Room or area", type: "text", required: false },
+        { key: "description", label: "Description", type: "text", required: false },
+      ],
+      primaryLabel: "Save mood board",
+    },
+  },
+  {
+    functionId: "remove_mood_board_item",
+    label: "Remove an item from a mood board",
+    module: "interior",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "moodBoardId", label: "Mood board", code: "VALUE_REQUIRED", field: "value" },
+      { name: "itemId", label: "Item", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], primaryLabel: "Remove item" },
+  },
+  // lf-b2-ai-crud GROUP 3
+  {
+    functionId: "update_permit",
+    label: "Change a permit",
+    module: "permits",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "permitId", label: "Permit", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: false },
+        { key: "permitNumber", label: "Permit number", type: "text", required: false },
+        { key: "permitAuthority", label: "Authority", type: "text", required: false },
+        { key: "issueDate", label: "Issued", type: "date", required: false },
+        { key: "expiryDate", label: "Expires", type: "date", required: false },
+        { key: "notes", label: "Notes", type: "text", required: false },
+      ],
+      primaryLabel: "Save permit",
+    },
+  },
+  {
+    functionId: "delete_permit",
+    label: "Delete a permit",
+    module: "permits",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "permitId", label: "Permit", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: { fields: [], primaryLabel: "Delete permit" },
+  },
+  {
+    functionId: "archive_project",
+    label: "Archive or reopen the project",
+    module: "projects",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [{ name: "projectId", label: "Project", code: "PROJECT_REQUIRED" }],
+    card: {
+      fields: [{ key: "status", label: "Status", type: "select", required: false, default: "cancelled" }],
+      facts: [{ label: "Effect", value: "Cancelled or completed archives the project; nothing in it is deleted. Active, planning or paused reopens it.", editable: false }],
+      primaryLabel: "Save project status",
+    },
+  },
+
+  // ---- lf-b5-ai-crud (owner order 2026-10-02, R7): the eight edits/deletes that had no service, and the ORGANISATION-SCOPED class (an
+  // organisation master changed through a project-bound link; the record is checked against the organisation, executors/crud-b5-org.ts).
+  // Policy (level, rank, money, free text) in scripts/gen-ai-link-registry.data.ts; rules and what is not done in ai-os/AI_CRUD_COVERAGE.md.
+  ...b5Specs(),
 ];
+
+/** A lf-b5-ai-crud write: every one names its project (the link supplies it), then its own required parameters. */
+function b5Write(
+  functionId: string, label: string, module: string, required: Array<[name: string, label: string]>, fields: CardField[], primaryLabel: string, facts?: CardFact[]
+): FunctionSpec {
+  return {
+    functionId, label, module, kind: "write", writes: true, requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      ...required.map(([name, l]) => ({ name, label: l, code: (/Date$/.test(name) ? "DATE_REQUIRED" : "VALUE_REQUIRED") as PipelineErrorCode, field: /Date$/.test(name) ? "date" : "value" })),
+    ],
+    card: { fields, ...(facts ? { facts } : {}), primaryLabel },
+  };
+}
+
+function b5Specs(): FunctionSpec[] {
+  const t = (key: string, label: string, required = false): CardField => ({ key, label, type: "text", required });
+  const n = (key: string, label: string, required = false): CardField => ({ key, label, type: "number", required });
+  const s = (key: string, label: string, required = false): CardField => ({ key, label, type: "select", required });
+  const d = (key: string, label: string, required = false): CardField => ({ key, label, type: "date", required });
+  const org: CardFact = { label: "Scope", value: "An organisation record: it changes for every project of the organisation.", editable: false };
+  return [
+    // the one read of the organisation class: the ids its functions take (boq_categories, vendors, customers, companies, currencies)
+    readSpecNeeding("list_organisation_records", "View the organisation's categories, vendors, customers, companies or currencies", "organisation", true, [
+      { name: "master", label: "Which list", code: "VALUE_REQUIRED", field: "value" },
+    ]),
+    // the eight that had no service (project records)
+    b5Write("update_activity", "Change a work activity", "work_progress", [["activityId", "Activity"]],
+      [t("name", "Name"), t("unit", "Unit"), n("plannedQuantity", "Planned quantity"), s("categoryId", "Category")], "Save activity"),
+    b5Write("update_progress_category", "Change a work category", "work_progress", [["categoryId", "Category"]],
+      [t("name", "Name"), s("parentCategoryId", "Parent category")], "Save category"),
+    b5Write("update_attendance", "Correct an attendance mark", "manpower", [["attendanceId", "Attendance"]],
+      [s("status", "Status"), n("hoursWorked", "Hours worked")], "Save attendance",
+      [{ label: "Rule", value: "Only the last 7 days; the day's cost is recomputed from the worker's rate.", editable: false }]),
+    b5Write("delete_attendance", "Delete an attendance mark", "manpower", [["attendanceId", "Attendance"]], [], "Delete attendance",
+      [{ label: "Rule", value: "Only the last 7 days; the deletion is written to the audit log.", editable: false }]),
+    b5Write("update_change_order", "Change a draft change order", "change_orders", [["changeOrderId", "Change order"]],
+      [t("title", "Title"), t("description", "Description"), t("reason", "Reason"), t("trade", "Trade"), n("costImpact", "Cost impact"), n("scheduleImpactDays", "Schedule impact (days)")],
+      "Save change order"),
+    b5Write("cancel_change_order", "Cancel a change order", "change_orders", [["changeOrderId", "Change order"]], [], "Cancel change order",
+      [{ label: "Effect", value: "A draft or pending change order is cancelled and its pending e-signature request is withdrawn.", editable: false }]),
+    b5Write("update_boq_line", "Change a BOQ line's description or unit", "scope", [["lineItemId", "BOQ line"]],
+      [t("description", "Description"), t("unit", "Unit")], "Save BOQ line",
+      [{ label: "Rule", value: "A draft BOQ only; quantity, rate and amount are never changed here.", editable: false }]),
+    b5Write("delete_meeting", "Delete a project meeting", "meetings", [["meetingId", "Meeting"]], [], "Delete meeting",
+      [{ label: "Effect", value: "The meeting is hidden; its agenda and minutes are kept.", editable: false }]),
+    // the organisation-scoped class
+    b5Write("create_boq_category", "Add a BOQ category", "organisation", [["name", "Name"]], [t("name", "Name", true)], "Add category", [org]),
+    b5Write("rename_boq_category", "Rename a BOQ category", "organisation", [["categoryId", "Category"], ["name", "New name"]], [t("name", "New name", true)], "Rename category",
+      [org, { label: "Effect", value: "Every BOQ line of the organisation with the old name is renamed too; the preview says how many.", editable: false }]),
+    b5Write("delete_boq_category", "Retire a BOQ category", "organisation", [["categoryId", "Category"]], [], "Retire category",
+      [org, { label: "Rule", value: "Refused while any BOQ line uses it; retired, never removed.", editable: false }]),
+    b5Write("create_vendor", "Add a vendor", "organisation", [["vendorName", "Vendor name"]],
+      [t("vendorName", "Vendor name", true), t("vendorType", "Type"), t("gst", "GST number"), t("pan", "PAN"), t("trade", "Trade"), n("defaultPaymentTermsDays", "Payment terms (days)"), n("creditLimit", "Credit limit")],
+      "Add vendor", [org]),
+    b5Write("update_vendor", "Change or retire a vendor", "organisation", [["vendorId", "Vendor"]],
+      [t("vendorName", "Vendor name"), t("vendorType", "Type"), t("gst", "GST number"), t("pan", "PAN"), t("trade", "Trade"), n("defaultPaymentTermsDays", "Payment terms (days)"), n("creditLimit", "Credit limit"), s("isActive", "Active")],
+      "Save vendor", [org]),
+    b5Write("create_customer", "Add a customer", "organisation", [["customerName", "Customer name"]],
+      [t("customerName", "Customer name", true), t("gstin", "GST number"), t("pan", "PAN"), n("defaultPaymentTermsDays", "Payment terms (days)"), n("creditLimit", "Credit limit")],
+      "Add customer", [org]),
+    b5Write("update_customer", "Change or retire a customer", "organisation", [["customerId", "Customer"]],
+      [t("customerName", "Customer name"), t("gstin", "GST number"), t("pan", "PAN"), n("defaultPaymentTermsDays", "Payment terms (days)"), n("creditLimit", "Credit limit"), s("isActive", "Active")],
+      "Save customer", [org]),
+    b5Write("create_company", "Add a company of the organisation", "organisation", [["companyName", "Company name"]],
+      [t("companyName", "Company name", true), t("abbr", "Short name"), t("country", "Country"), s("parentCompanyId", "Parent company"), s("isGroup", "Group company"), d("dateOfIncorporation", "Incorporated on")],
+      "Add company", [org]),
+    b5Write("create_currency", "Add a currency", "organisation", [["code", "Currency code"], ["name", "Name"]],
+      [t("code", "Currency code", true), t("name", "Name", true), t("symbol", "Symbol")], "Add currency", [org]),
+    b5Write("create_exchange_rate", "Record an exchange rate", "organisation", [["fromCurrencyId", "From currency"], ["toCurrencyId", "To currency"], ["rate", "Rate"], ["rateDate", "Rate date"]],
+      // the two currency ids are required parameters, not card picks: no chain-options picker lists currencies (a REQUIRED select must name one)
+      [n("rate", "Rate", true), d("rateDate", "Rate date", true)], "Save rate", [org]),
+  ];
+}
 
 const SPECS: Readonly<Record<string, FunctionSpec>> = Object.fromEntries(SPEC_LIST.map((s) => [s.functionId, s]));
 

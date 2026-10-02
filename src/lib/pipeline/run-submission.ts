@@ -36,6 +36,7 @@ import { toVerdictResult, type SubmissionVerdictResult } from "./verdict";
 import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
 import { assertAiProviderAllowed, type AiProviderRefusalKind } from "@/lib/ai/adapter";
 import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
+import { projexaInternalAiEnabled, USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai";
 import { createMemoryRecord } from "@/lib/services/memory-service";
 import { ServiceError } from "@/lib/services/compliance-service";
 import { assertProjectInScope } from "@/lib/ai-links/project-scope";
@@ -263,9 +264,27 @@ export function isFromAiLink(input: { via?: SubmissionVia | null; aiLinkId?: str
  * link call is always "off" -- the owner's directive is that the internal AI is
  * not used when the user has pasted the AI Work link -- whatever `level1` was
  * passed; every other caller keeps the mode it asked for (default "internal").
+ *
+ * lf-b3-ai-off (owner directive 2026-10-02, "the user's own AI, never ours"):
+ * and EVERY call is "off" while PROJEXA_INTERNAL_AI_ENABLED is not exactly "1"
+ * (projexa-internal-ai.ts). The check lives here, not on the inputs, because
+ * this is the one function every entry point consults (runSubmission,
+ * submitForVerdict's dry run, and confirmSubmission, whose input has no
+ * `level1` field at all) -- a flag on the input could be forgotten by one of them.
  */
 export function effectiveLevel1(input: { level1?: "internal" | "off"; via?: SubmissionVia | null; aiLinkId?: string | null }): "internal" | "off" {
+  if (!projexaInternalAiEnabled()) return "off";
   return isFromAiLink(input) ? "off" : (input.level1 ?? "internal");
+}
+
+/**
+ * lf-b3-ai-off: should a gap be answered with USE_YOUR_OWN_AI? Only when Level 1
+ * is off BECAUSE the internal AI is switched off, and the caller is a person in
+ * the app. A link call's own AI is already the one doing the work, so telling
+ * it to "paste your PROJEXA AI link" would be wrong: it keeps the old wording.
+ */
+export function gapSaysUseYourOwnAi(input: { via?: SubmissionVia | null; aiLinkId?: string | null }): boolean {
+  return !projexaInternalAiEnabled() && !isFromAiLink(input);
 }
 
 /** Spec 9.11: a free-text value over the cap is refused with 422 TEXT_TOO_LONG before anything is written, never cut short. */
@@ -602,6 +621,8 @@ export async function runSubmission(submitted: RunSubmissionInput): Promise<RunS
   // ---- EXECUTION PASS --------------------------------------------------
   const chatMessages: string[] = [];
   const gaps: { text: string; reason: string }[] = [];
+  // lf-b3-ai-off: the gaps that are "nothing understood this" (not a validation failure of something that was understood).
+  let unresolvedGapCount = 0;
   const tasks: TaskOutcome[] = [];
   const failures: ({ segmentText: string } & PipelineFailure)[] = [];
 
@@ -626,6 +647,7 @@ export async function runSubmission(submitted: RunSubmissionInput): Promise<RunS
     if (c.verdict === "gap") {
       await logGap(input, submissionId, seg.text, normalisePhrase(seg.text), c.gapReason ?? "unresolved");
       gaps.push({ text: seg.text, reason: c.gapReason ?? "unresolved" });
+      unresolvedGapCount++;
       if (c.message) chatMessages.push(c.message);
       continue;
     }
@@ -806,6 +828,9 @@ export async function runSubmission(submitted: RunSubmissionInput): Promise<RunS
   // and on this path the records are the rest of this result -- tasks with
   // their results, failures, gaps -- not a 400 with nothing attached.
   if (tally.outcome === "refused") chatMessages.push(NO_COMMENTARY_SENTENCE);
+  // lf-b3-ai-off: a segment Level 0 could not resolve stays a gap (logged as
+  // ever), and the person is told once, in plain words, where the AI is.
+  if (unresolvedGapCount > 0 && gapSaysUseYourOwnAi(input)) chatMessages.push(USE_YOUR_OWN_AI);
 
   // U-49 (BR-220): the telemetry lands in the same write as the status, so a
   // row this function inserted is never left unmeasured.
@@ -1564,7 +1589,7 @@ export async function proposeSubmission(submitted: RunSubmissionInput): Promise<
   const deps = await makeDryRunDeps(input);
   // U-46c: the dry run honours the same switch, so a link's proposal (and the
   // verdict and confirm that follow it) never asks the internal model either.
-  return dryRun({ ...input, level1: effectiveLevel1(input), candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
+  return dryRun({ ...input, level1: effectiveLevel1(input), gapUseYourOwnAi: gapSaysUseYourOwnAi(input), candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
 }
 
 // ─── R67 B-07: THE VERDICT, AND THE CONFIRM THAT FOLLOWS IT ───────────────

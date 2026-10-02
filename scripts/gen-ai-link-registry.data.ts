@@ -188,6 +188,68 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   create_floor_plan: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "floorLevel"] },
   add_room: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name"] },
   place_furniture: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  // lf-b2-ai-crud (owner order 2026-10-02, requirements R5-R7): "the external AI / internal AI can make the complete project, edit, delete,
+  // update, etc for that user as per role and its organization". This SUPERSEDES the BUILD-002 plan decision that kept every delete off links
+  // (ai-os/AI_CRUD_COVERAGE.md). The rules: every delete, archive and removal is level 2 (a draft the person confirms) by default, and so is every
+  // function that writes money and the two state changes that close something for good (close_sprint, a floor plan marked final). Each minimum
+  // rank is at least the rank of the app route of the same action (requireRoleOrScope): member, except delete_boq and dispose_document (the
+  // routes ask for manager); update_boq_line_amounts asks for manager although its route asks for member, because a line's rate is hidden below
+  // the manager rank on every read. A person can let their AI run the level-2 ones directly with their own switch (drizzle/0685), never more.
+  update_boq: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title"] },
+  delete_boq: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  update_boq_line_amounts: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  delete_progress_entry: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  archive_task: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  create_sprint: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "goal"] },
+  update_sprint: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "goal"] },
+  close_sprint: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  add_sprint_task: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  remove_sprint_task: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  update_time_entry: { linkLevel: 1, moneySensitive: true, minRank: 2, textParams: ["activityType", "comments"] },
+  delete_time_entry: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  dispose_document: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
+  update_mom_details: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "meetingType"] },
+  delete_mom: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  update_meeting: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title"] },
+  update_material: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "unit", "spec"] },
+  update_room: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name"] },
+  remove_room: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  update_placement: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: [] },
+  remove_placement: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  update_floor_plan_status: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  update_mood_board: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["title", "roomOrArea", "description"] },
+  remove_mood_board_item: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  // lf-b5-ai-crud (owner order 2026-10-02, R7): the rest of "edit, delete, update ... as per role and its organisation" (ai-os/AI_CRUD_COVERAGE.md).
+  // THE EIGHT THAT HAD NO SERVICE (new services, each with its own conservative rules): attendance edits and deletes are the manager's (an older
+  // day may sit in a sent labour report; 7-day window in the service); a change order's terms are money; every delete is level 2.
+  update_activity: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "unit"] },
+  update_progress_category: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name"] },
+  update_attendance: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  delete_attendance: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  update_change_order: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["title", "description", "reason", "trade"] },
+  cancel_change_order: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  update_boq_line: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["description", "unit"] },
+  delete_meeting: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  // THE ORGANISATION-SCOPED CLASS (executors/crud-b5-org.ts): a project-bound link, the record checked against the organisation. Every one is
+  // level 2 except adding a category; the rank is the route's, raised to the manager's where the change reaches every project (a category rename
+  // or retire) or is money the organisation runs on (a currency, an exchange rate). The base currency stays an admin's act and is on no link.
+  create_boq_category: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name"] },
+  rename_boq_category: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: ["name"] },
+  delete_boq_category: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
+  create_vendor: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["vendorName", "vendorType", "gst", "pan", "trade"] },
+  update_vendor: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["vendorName", "vendorType", "gst", "pan", "trade"] },
+  create_customer: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["customerName", "gstin", "pan"] },
+  update_customer: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["customerName", "gstin", "pan"] },
+  create_company: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: ["companyName", "abbr", "country"] },
+  create_currency: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: ["code", "name", "symbol"] },
+  create_exchange_rate: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: [] },
+  // the ids the class takes: a read at the routes' own member rank; a credit limit in it is null below the manager rank
+  list_organisation_records: { linkLevel: 0, moneySensitive: true, minRank: 2, textParams: [] },
+  // lf-b2-ai-crud GROUP 3: a permit's edit and delete (the route's member rank; the delete is a draft), and the project's status (archive or reopen).
+  // The app has no route that changes a project's status, so archive_project asks for the manager rank and is always a draft by default.
+  update_permit: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "permitNumber", "permitAuthority", "notes"] },
+  delete_permit: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  archive_project: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
 }
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */

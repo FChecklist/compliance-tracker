@@ -15,7 +15,12 @@
 //   5. The caller opens no tenant transaction, so it is safe to call from inside one.
 //
 // Run: bun test --isolate src/lib/ai/internal-model-gateway.test.ts
-import { afterEach, describe, expect, mock, test } from "bun:test"
+import { afterEach, describe, expect, mock, test, beforeAll, afterAll } from "bun:test"
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" })
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag })
 import * as realSchema from "@/lib/db/schema"
 import { SYSTEM_PROMPT, buildUserMessage, parseRequestBody } from "../../../supabase/functions/projexa-document-extract/handler"
 import { INTERNAL_EXTRACT_SYSTEM_PROMPT, createInternalExtractCaller, internalUserMessage, type GatewayModelCall, type GatewayModelReply } from "./internal-model-gateway"

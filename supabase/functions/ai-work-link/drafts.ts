@@ -21,7 +21,7 @@
 import { cleanDeep, errorBody } from "../_shared/ai-link/core.ts"
 import { functionDef } from "./api-definition.ts"
 import { readConfirmBody, personGate, sessionGate, type ConfirmDeps } from "./confirm.ts"
-import { availabilityOf, callRpc, checkChange, fail, projectArg, readIntent, requireScope, type ExecOutcome, type ReadEnv } from "./reads.ts"
+import { availabilityOf, callRpc, checkChange, directLevelOk, fail, projectArg, readIntent, requireScope, type ExecOutcome, type ReadEnv } from "./reads.ts"
 
 export type Answer = { status: number; body: unknown; headers?: Record<string, string> }
 
@@ -170,6 +170,44 @@ export function boqTotalOf(functionId: string, params: Record<string, unknown>):
   return { lines: items.length, total: Math.round(total * 100) / 100, basis: "quantity times rate of each line without a parent" }
 }
 
+/**
+ * lf-b5-ai-crud -- THE BLAST RADIUS of an organisation change, shown before the person confirms: a BOQ category's rename rewrites the category of
+ * every BOQ line of the organisation that carries it, on every project; its retire is refused while any line uses it. public.ai_work_link_draft_impact
+ * (drizzle/0687) counts the lines and projects with the same owner and confirm-code checks as the draft state. Best effort: a failure shows the
+ * preview without it (the change itself re-checks everything when it runs), never a 5xx.
+ */
+export const IMPACT_FUNCTIONS: ReadonlySet<string> = new Set(["rename_boq_category", "delete_boq_category"])
+
+export type DraftImpact = { kind: string; category: string; new_name: string | null; lines: number; projects: number; summary: string }
+
+/** The one sentence the confirm page prints, from the counts (pure, so the wording is tested in one place). */
+export function impactSummary(i: { function_id: string; category: string; new_name: string | null; lines: number; projects: number }): string {
+  const lines = `${i.lines} BOQ ${i.lines === 1 ? "line" : "lines"}`
+  const projects = `${i.projects} ${i.projects === 1 ? "project" : "projects"}`
+  if (i.function_id === "rename_boq_category") {
+    return i.lines === 0
+      ? `Renames the category "${i.category}" to "${i.new_name ?? ""}"; no BOQ line uses it yet.`
+      : `Renames the category "${i.category}" to "${i.new_name ?? ""}" on ${lines} across ${projects} of your organisation.`
+  }
+  return i.lines === 0
+    ? `Retires the category "${i.category}"; no BOQ line uses it.`
+    : `The category "${i.category}" is used by ${lines} on ${projects}: it cannot be retired while they use it.`
+}
+
+async function impactOf(deps: ConfirmDeps, draftId: string, actor: string, confirmToken: string): Promise<DraftImpact | null> {
+  try {
+    const out = await deps.rpc("ai_work_link_draft_impact", { p_draft_id: draftId, p_actor_user_id: actor, p_confirm_token: confirmToken })
+    const r = !out.error && out.data && typeof out.data === "object" ? (out.data as Record<string, unknown>) : null
+    const i = r?.status === "ok" && r.impact && typeof r.impact === "object" ? (r.impact as Record<string, unknown>) : null
+    if (!i || typeof i.category !== "string" || typeof i.lines !== "number" || typeof i.projects !== "number" || typeof i.function_id !== "string") return null
+    const newName = typeof i.new_name === "string" ? i.new_name : null
+    const base = { function_id: i.function_id, category: i.category, new_name: newName, lines: i.lines, projects: i.projects }
+    return { kind: String(i.kind ?? "boq_category"), category: i.category, new_name: newName, lines: i.lines, projects: i.projects, summary: impactSummary(base) }
+  } catch {
+    return null
+  }
+}
+
 const CONFIRM_HEADER = "x-confirm-token"
 
 export async function draftPreview(req: Request, draftId: string, deps: ConfirmDeps): Promise<Answer> {
@@ -217,6 +255,7 @@ export async function draftPreview(req: Request, draftId: string, deps: ConfirmD
   const params = d.params && typeof d.params === "object" && !Array.isArray(d.params) ? (d.params as Record<string, unknown>) : {}
   const def = functionDef(d.function_id)
   const total = boqTotalOf(d.function_id, params)
+  const impact = IMPACT_FUNCTIONS.has(d.function_id) ? await impactOf(deps, draftId, person.value, confirmToken) : null
   const writes = d.writes_enabled === true
   return {
     status: 200,
@@ -227,6 +266,7 @@ export async function draftPreview(req: Request, draftId: string, deps: ConfirmD
       // text a person or an AI wrote: cleaned, and shown by the page as text, never as markup
       params: cleanDeep(params),
       ...(total ? { total } : {}),
+      ...(impact ? { impact } : {}),
       state: d.state,
       can_confirm: d.state === "awaiting_confirmation",
       writes_enabled: writes,
@@ -282,7 +322,8 @@ export async function actionCreate(env: ReadEnv, body: Record<string, unknown>):
   if (env.ctx.authority_level < 1) {
     throw fail(403, "This link was made at level 0: it can propose and draft changes, and the person confirms each one.", "POST /drafts records a draft.", { code: "LEVEL_NOT_ALLOWED" })
   }
-  if (def.link_level !== 1) {
+  // lf-b2-ai-crud: a level-2 function too, when the PERSON switched "let my AI act without asking" on (the SQL holds the same rule, now)
+  if (!directLevelOk(def, env.ctx)) {
     throw fail(403, "This function needs the person's confirmation: use /drafts.", undefined, { code: "LEVEL_NOT_ALLOWED" })
   }
   if (av.writes_enabled && env.ctx.effective_level < 1) {

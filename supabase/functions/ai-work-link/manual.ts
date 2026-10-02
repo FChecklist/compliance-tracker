@@ -187,8 +187,10 @@ function bodyLimitNote(): string {
  */
 function functionTable(functions: FunctionView[]): string {
   if (functions.length === 0) return "No function is on this link."
-  const rows = functions.map((f) => `| ${f.id} | ${f.level} | ${f.required.join(", ") || "none"} |`)
-  return ["| Function | Level | Required |", "| --- | --- | --- |", ...rows].join("\n")
+  // lf-b5-ai-crud: a GitHub-flavoured table without the outer pipes and "-" for no required parameter (was "| ... | none |"): about 600 bytes
+  // fewer, so the card stays inside its 8,000 bytes with 158 functions in the registry. Same three columns, same order.
+  const rows = functions.map((f) => `${f.id} | ${f.level} | ${f.required.join(", ") || "-"}`)
+  return ["Function | Level | Required", "--- | --- | ---", ...rows].join("\n")
 }
 
 /**
@@ -213,7 +215,7 @@ function functionCatalogue(functions: FunctionView[], base: string): string {
   return [
     `${functions.length} functions, in these modules: ${modules.join(", ")}.`,
     "",
-    `The ids are \`allowed_functions\` in section H. \`GET ${base}/functions\` gives, for each one, its module, label, level (0 a read, 1 a change that may be made directly, 2 a draft only), availability now, required parameters and an example (\`?format=json\`). A read is a \`POST\` to \`/functions/<id>\` under this address; a change goes through section D.`,
+    `The ids are \`allowed_functions\` in section H. \`GET /functions\` under this address gives, for each one, its module, label, level (0 a read, 1 a change that may be made directly, 2 a draft only), availability now, required parameters and an example (\`?format=json\`). A read is a \`POST\` to \`/functions/<id>\` under this address; a change goes through section D.`,
     "",
     `Available now: ${available}.`,
   ].join("\n")
@@ -318,7 +320,8 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
   // manual does not print it a second time: with 33 kinds the second copy alone was about 4 KB of the 20,000-byte budget.
   const readLines = [
     `- Context: ${base}/context`,
-    `- Records: ${base}/records/<kind>?limit=${LIMITS.keysetDefault} (one record: ${base}/records/<kind>/<id>). The kinds and what each holds:`,
+    // lf-b2-ai-crud: the address is written once per line, not twice, so 24 more functions in section H still fit the 20,000-byte budget
+    `- Records: ${base}/records/<kind>?limit=${LIMITS.keysetDefault} (one record: add \`/<id>\` after the kind). The kinds and what each holds:`,
     ...KIND_NAMES.filter((k) => !PLAIN_KINDS.has(k)).map((k) => `  - ${k}: ${KIND_SUMMARY[k] ?? k}`),
     `  - and, named for what they hold: ${KIND_NAMES.filter((k) => PLAIN_KINDS.has(k)).join(", ")}`,
     `- Functions: ${base}/functions`,
@@ -343,11 +346,12 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
       body: [
         av.direct_open
           ? "Direct level-1 changes are switched on for this link; a level-2 change is a draft the person confirms."
-          : "Direct changes are not switched on: `POST " + base + "/actions` answers 403 WRITES_NOT_ENABLED and applies nothing. Drafts are open: a draft changes nothing until the person confirms it, signed in.",
-        "- You can send HTTP POST: `POST " + base + "/check` with `{\"function\":\"<id>\",\"params\":{}}` checks a change and records nothing. `POST " + base + "/drafts` (the same body, optional `idempotency_key`) records a draft and answers `confirm_url`: give that address to the person, who opens it, signs in, types the code the page shows and confirms. A draft is kept 48 hours and `GET " + base + "/drafts/{id}` shows its state." + (av.changes_run ? "" : " Confirming is not switched on yet: a draft waits until it expires."),
-        "- `POST " + base + "/actions` makes a level-1 change directly when it is on.",
+          // lf-b5-ai-crud: /actions and /check are named under this address (full addresses in section H) so 18 more functions in H still fit
+          : "Direct changes are not switched on: `POST /actions` under this address answers 403 WRITES_NOT_ENABLED and applies nothing. Drafts are open: a draft changes nothing until the person confirms it, signed in.",
+        "- You can send HTTP POST: `POST /check` under this address with `{\"function\":\"<id>\",\"params\":{}}` checks a change and records nothing. `POST " + base + "/drafts` (the same body, optional `idempotency_key`) records a draft and answers `confirm_url`: give that address to the person, who opens it, signs in, types the code the page shows and confirms. A draft is kept 48 hours and `GET /drafts/{id}` under this address shows its state." + (av.changes_run ? "" : " Confirming is not switched on yet: a draft waits until it expires."),
+        "- `POST /actions` (under this address) makes a level-1 change directly when it is on.",
         "- You can only open web addresses: `GET " + manifest.urls.propose_example + "` returns a confirm link. Give it to the person. Nothing is recorded.",
-        "- You cannot open web addresses: print one fenced block labelled projexa-proposal per change (format in " + base + "/card.md) and tell the person to paste them at " + manifest.urls.inbox.split("#")[0] + " .",
+        "- You cannot open web addresses: print one fenced block labelled projexa-proposal per change (format in /card.md under this address) and tell the person to paste them at " + manifest.urls.inbox.split("#")[0] + " .",
         suggestionsLine(),
       ].join("\n"),
     },

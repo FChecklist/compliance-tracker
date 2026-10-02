@@ -27,7 +27,12 @@
 // which takes an injectable fake repo AND an injectable fake runLevel1Fn
 // (same seam pattern level0.ts's L0Repo already established) and has real,
 // dedicated coverage in reuse-cache.test.ts.
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test, beforeAll, afterAll } from "bun:test"
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" })
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag })
 import { buildTaskResultMemoryContent } from "./run-submission"
 
 describe("buildTaskResultMemoryContent -- R65 Part C Phase 3 task memory", () => {

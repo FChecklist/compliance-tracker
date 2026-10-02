@@ -4,6 +4,8 @@ import { resolveModel } from "@/lib/ai-router/mother-router"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+// lf-b3-ai-off: PROJEXA's internal-AI switch (projexa-internal-ai.ts). This job's work is a model call, so off it returns quietly.
+import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai"
 
 /**
  * Wave 12: instruction-mismatch audit. A deliberately standalone cron job,
@@ -31,7 +33,10 @@ export async function runInstructionMismatchAudit(): Promise<{
   markedDone: number
   markedDrifted: number
   skippedNoModel: number
+  skipped?: "internal_ai_off"
 }> {
+  // lf-b3-ai-off: each commitment is judged by a model call; off, none is read and none is judged (they stay pending, not drifted).
+  if (!projexaInternalAiEnabled()) return { checked: 0, markedDone: 0, markedDrifted: 0, skippedNoModel: 0, skipped: "internal_ai_off" }
   const now = new Date()
   const pending = await db.query.instructionCommitments.findMany({
     where: and(eq(instructionCommitments.status, "pending"), lt(instructionCommitments.dueDate, now)),

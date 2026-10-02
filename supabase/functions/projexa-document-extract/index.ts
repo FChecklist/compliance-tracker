@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { attributionFromHeaders, DEFAULT_BUDGET_CAP_USD, parseCapUsd } from "./budget.ts"
 import { bearerMatches, handleProjexaDocumentExtract } from "./handler.ts"
-import { GROQ_MODEL, GROQ_PROVIDER, OPENROUTER_PROVIDER, groqModel, ledgerOver, openRouterModel } from "./wiring.ts"
+import { GROQ_MODEL, GROQ_PROVIDER, OPENROUTER_PROVIDER, chooseModel, ledgerOver } from "./wiring.ts"
 
 // The shared bearer secret (PROJEXA_DOCUMENT_EXTRACT_SECRET). Until it is set (or when it is shorter than 32 characters) bearerMatches() refuses every caller.
 const CALLER_SECRET = Deno.env.get("PROJEXA_DOCUMENT_EXTRACT_SECRET") ?? ""
@@ -21,7 +21,8 @@ const client = SUPABASE_URL && SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SER
 Deno.serve((req: Request) =>
   handleProjexaDocumentExtract(req, {
     verifyCaller: (r) => Promise.resolve(bearerMatches(r.headers.get("authorization"), CALLER_SECRET)),
-    model: OPENROUTER_API_KEY ? openRouterModel(OPENROUTER_API_KEY) : GROQ_API_KEY ? groqModel(GROQ_API_KEY) : null,
+    // lf-b3-ai-off: null unless PROJEXA_INTERNAL_AI_ENABLED is exactly "1" (wiring.ts chooseModel).
+    model: chooseModel((name) => Deno.env.get(name)),
     budget: client
       ? {
           ledger: ledgerOver(async (fn, args) => {

@@ -31,6 +31,7 @@
 // assertAiProviderAllowedForSystemBatch, adapter.ts).
 import type { AiProvider, ClassificationResult, Artifact, ClassifyContext } from "../adapter";
 import { CLASSIFY_SYSTEM_PROMPT, ANALYSE_SYSTEM_PROMPT } from "./claude-cli";
+import { assertProjexaInternalAi } from "@/lib/projexa-internal-ai";
 
 const REMOTE_TIMEOUT_MS = 65_000; // slightly above the bridge's own 60s claude-cli timeout, so the bridge's own error reaches us instead of a generic abort
 
@@ -55,6 +56,8 @@ function remoteSecret(): string {
 }
 
 async function callBridgeJson<T>(systemPrompt: string, userMessage: string, expectedKeys: string[]): Promise<T> {
+  // lf-b3-ai-off: every path to the bridge runs through here; the switch is checked before the tunnel is reached.
+  assertProjexaInternalAi("claude-cli-remote");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REMOTE_TIMEOUT_MS);
   let res: Response;

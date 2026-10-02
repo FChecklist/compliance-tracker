@@ -1,0 +1,20 @@
+# Package lf-fc-cost-flag-signout (laptop app, repo projexa)
+
+Branch `claude/lf-fc-cost-flag-signout` from `origin/feat/local-first-complete` AFTER packages E6, FA and FB are merged into it (the launcher checks this). Read `ai-os/cloud-agents/PREAMBLE.md` (note its last section), `ai-os/cloud-agents/lf-e-COMMON.md` (context), then your findings `ai-os/cloud-agents/review-findings/FC.md` (11 findings) in the compliance-tracker clone (`git fetch origin; git checkout --detach origin/feat/lf-sync-backend`), and projexa's `docs/local-first/COST_MODEL.md` (package E6 measured the cost per scenario; your changes must keep `src/lib/local-first/cost/cost-budget.test.ts` green and may tighten it).
+
+## Why
+Cost near zero is the owner's first priority (free plans: 500,000 Supabase Edge invocations a month for ALL laptops; Vercel ~0). E6 cut a working day from 14,159 to 209 requests per laptop, but the review found structural cost and policy problems E6 was not asked to settle.
+
+## Do
+1. **The full sync is behind the flag** (cost:COST-02): `WorkspacePrepare` and every caller of the replica's full sync must do NOTHING when local-first is off for that person, and must not run for a visitor who is not signed in. A test counts requests with the flag off: zero.
+2. **One call per round when nothing changed** (cost:COST-03, wire:F07): use the backend's one-call poll (`GET /heads`, migration 0686, handler `heads()` in `supabase/functions/projexa-sync/handler.ts`: it answers `{heads: {<project>: head, "__org__": head}, projects_etag, role, view_class, org_view_class, epoch}`; call `/changes` only for a project whose head moved past the stored cursor, `/manifest` only when `projects_etag` changed, and reset the copy when a class or the epoch changed) as the scheduler's server step; only the projects/kinds it reports as moved are pulled. First sync of a person with P projects: pace the pulls (at most 100 requests a minute, the server's cap is 120; honour `Retry-After`), resumable, never a stampede. If `/heads` is absent on an older server fall back to the current behaviour.
+3. **Circuit breaker** (cost:COST-04): after a network/timeout/5xx/429 on a pull the run stops trying the remaining kinds, backs off (exponential, capped), and resumes later; never a fan of doomed requests. Non-retryable answers (400/403/404/413) are not retried forever.
+4. **Sign-out policy** (cost:COST-05, data:F11; the owner's priority cost > ease > security): by default sign-out KEEPS the person's local copy of their workspace on this laptop (a re-login then costs nothing and works offline at once); the copy stays encrypted-at-rest only by the browser's own storage, so offer one clear explicit choice: "Sign out and delete this laptop's copy". Pending edits/drafts always survive and are told. Update `signOutEverywhere` (package E1) and its tests accordingly; if deleting fails or is blocked (another tab holds the database open) say so in plain words (data:F11), never silently. The decision and its reason go into `docs/local-first/CONTRACT.md` (owner may veto: say so in the report).
+5. **Flag-off inertness** (cost:FLAG-16, TEST-11): the review listed every code path that behaves differently with `px-local-first` OFF; each must be inert (no request, no storage write, no DOM) and have a test that fails when its flag check is removed (e.g. `use-outbox-state.ts`'s check, `OutboxAttention`).
+6. **Test quality** (cost:TEST-10, TEST-12, TEST-14): the sign-out structural tests become behavioural where E1 has not already done so; "a row whose version has not moved is not fetched again" must be able to fail (assert the second sync's request log); a delete that fails/blocked on sign-out is tested.
+
+## Do NOT edit
+Module screens/clusters, the outbox internals (FB), the identity restore logic (E1/FA), org kinds in the replica (E7, which comes after you): if your scheduler change needs a hook for E7, expose it as a documented extension point and describe it.
+
+## Final report
+PREAMBLE format; plus the cost harness table before/after, the findings table `lens:id -> FIXED (where, test) | PARTLY | WON'T FIX (reason)` for all 11 findings.

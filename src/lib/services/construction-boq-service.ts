@@ -1647,6 +1647,47 @@ export async function updateLineItemMoneyFields(
 }
 
 /**
+ * lf-b5-ai-crud (owner order 2026-10-02, R7) -- a line's DESCRIPTION and UNIT, which nothing could edit (updateLineItemMoneyFields edits
+ * the money side only, and quantity, rate and amount are never touched here). The conservative rule, chosen here and written into
+ * ai-os/AI_CRUD_COVERAGE.md for the owner to veto: only while the BOQ is a DRAFT and has never been confirmed (no baseline version). A
+ * submitted, approved or superseded BOQ, or one whose contract side was confirmed, is real scope that the client may have seen, and is
+ * changed by a revision (create_boq_revision), never by an edit in place (409). Text is trimmed: a description up to 2,000 characters,
+ * a unit up to 40; neither may be blank (both columns are NOT NULL).
+ */
+export async function updateLineItemDetails(
+  ctx: { orgId: string },
+  lineItemId: string,
+  input: { description?: string; unit?: string }
+) {
+  const set: { description?: string; unit?: string } = {}
+  if (input.description !== undefined) {
+    const d = input.description.trim()
+    if (!d) throw new ServiceError("description cannot be empty", 400)
+    if (d.length > 2000) throw new ServiceError("description must be 2,000 characters or fewer", 400)
+    set.description = d
+  }
+  if (input.unit !== undefined) {
+    const u = input.unit.trim()
+    if (!u) throw new ServiceError("unit cannot be empty", 400)
+    if (u.length > 40) throw new ServiceError("unit must be 40 characters or fewer", 400)
+    set.unit = u
+  }
+  if (Object.keys(set).length === 0) throw new ServiceError("Nothing to change", 400)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
+    if (!existing) throw new ServiceError("Line item not found", 404)
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, existing.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("Line item not found", 404)
+    if (boq.status !== "draft") throw new ServiceError(`A line of a ${boq.status} BOQ cannot be edited -- make a revision instead`, 409)
+    const baselines = await listBaselineVersionsWithDb(db, boq.id)
+    if (baselines.length > 0) throw new ServiceError("This BOQ was confirmed -- its lines cannot be edited in place; make a revision instead", 409)
+    const [updated] = await db.update(constructionBoqLineItems).set(set).where(eq(constructionBoqLineItems.id, lineItemId)).returning()
+    return withComputedRate(updated)
+  })
+}
+
+/**
  * BUILD-002 WP-04: two optional steps that run INSIDE createBoq's own transaction, so a caller that
  * needs to record something with the BOQ (a retry key) commits or rolls back with it. Neither is
  * used by the routes.

@@ -212,9 +212,15 @@ describe("redaction is the AI work link's own", () => {
     expect((sen.json.items as J[])[0].data.project_value).toBeNull()
   })
 
-  test("the person-masking of the link applies (a user link hides other people's emails): not a field of any synced kind, but hide_personal is the link's", async () => {
-    const r = await call(db, "projexa_sync_pull", [SUBS["u-mgr"], null, "proj-a", "tasks", null, null, 5])
-    expect(r.status).toBe("ok")
+  test("no other person's e-mail reaches a laptop through any synced kind (the link's person-masking, hide_personal, applies)", async () => {
+    const others = ["mo@a.example.test", "sam@a.example.test", "vic@a.example.test", "ada@a.example.test", "bo@b.example.test"]
+    const kinds = (await call(db, "projexa_sync_manifest", [SUBS["u-mgr"], null])).kinds.map((k: J) => k.kind as string)
+    expect(kinds.length).toBeGreaterThan(5)
+    for (const kind of kinds) {
+      const r = await call(db, "projexa_sync_pull", [SUBS["u-mgr"], null, "proj-a", kind, null, null, 200])
+      expect([kind, r.status]).toEqual([kind, "ok"])
+      for (const e of others) expect([kind, JSON.stringify(r).includes(e)]).toEqual([kind, false])
+    }
   })
 })
 
@@ -323,8 +329,18 @@ describe("the handler: contract and edges", () => {
   test("manifest shape and server_time; every supported kind is listed", async () => {
     const m = await hit(SUBS["u-mgr"], "manifest", undefined, "http://localhost:3100")
     const j = (await m.json()) as J
-    expect(Object.keys(j).sort()).toEqual(["kinds", "projects", "server_time", "user"])
+    // view_class is 0678's; this file applies 0677 only, so the handler reports it as null (the 0678 test file asserts the real value)
+    expect(Object.keys(j).sort()).toEqual(["kinds", "org_kinds", "org_view_class", "projects", "release", "server_time", "user", "view_class"])
+    // organisation kinds are 0684's: this harness applies 0677 only, so none are listed
+    expect(j.org_kinds).toEqual([])
+    expect(j.org_view_class).toBeNull()
+    expect(j.view_class).toBeNull()
+    // no release registry in this harness (0680 is not applied): nothing is current and nobody is held back
+    expect(j.release).toEqual({ current: null, min_compatible: null, protocol: 2 })
     expect(j.user).toMatchObject({ id: "u-mgr", name: "Mira Manager", role: "manager", org_id: "org-a" })
+    // client review F01: the laptop knows only the sign-in id (the token subject); the manifest must carry it next to the VERIDIAN user id, and the two are different strings
+    expect((j.user as J).auth_user_id).toBe(SUBS["u-mgr"])
+    expect((j.user as J).auth_user_id).not.toBe((j.user as J).id)
     expect(j.server_time).toBe("2026-10-02T00:00:00.000Z")
     expect((j.kinds as J[]).map((k) => k.kind)).toEqual(["project", "tasks", "boqs", "boq_lines", "activities", "progress", "rfis", "submittals", "punch_list", "change_orders", "milestones", "materials", "documents"])
     expect((j.projects as J[])[0]).toEqual({ id: expect.any(String), name: expect.any(String), status: expect.any(String) })
@@ -332,8 +348,12 @@ describe("the handler: contract and edges", () => {
 
   test("pull shape: items {id, updated_at, data}, next_cursor, has_more, hidden_fields, redacted, server_time", async () => {
     const r = await sync("u-mgr", { project_id: "proj-a", kind: "tasks", limit: 2 })
-    expect(Object.keys(r.json).sort()).toEqual(["has_more", "hidden_fields", "items", "next_cursor", "redacted", "server_time"])
-    expect(Object.keys((r.json.items as J[])[0]).sort()).toEqual(["data", "id", "updated_at"])
+    // kid is the signing key's id: null here because this harness injects no signing key, and then the items are unsigned
+    expect(Object.keys(r.json).sort()).toEqual(["has_more", "hidden_fields", "items", "kid", "next_cursor", "redacted", "server_time"])
+    expect(r.json.kid).toBeNull()
+    // version is the record version: 0 here because this harness applies 0677 only (no change tracking)
+    expect(Object.keys((r.json.items as J[])[0]).sort()).toEqual(["data", "id", "updated_at", "version"])
+    expect((r.json.items as J[])[0].version).toBe(0)
     expect(r.json.server_time).toBe("2026-10-02T00:00:00.000Z")
   })
 
@@ -358,8 +378,19 @@ describe("the handler: contract and edges", () => {
   })
 
   test("wrong method and unknown path: 405 and 404; a token never appears in an answer", async () => {
-    expect((await handleSync(new Request("https://x/functions/v1/projexa-sync/pull", { headers: { authorization: "Bearer tok:x" } }), { rpc, session })).status).toBe(405)
-    expect((await handleSync(new Request("https://x/functions/v1/projexa-sync/nope", { headers: { authorization: "Bearer tok:x" } }), { rpc, session })).status).toBe(404)
+    const r405 = await handleSync(new Request("https://x/functions/v1/projexa-sync/pull", { headers: { authorization: "Bearer tok:x" } }), { rpc, session })
+    const r404 = await handleSync(new Request("https://x/functions/v1/projexa-sync/nope", { headers: { authorization: "Bearer tok:x" } }), { rpc, session })
+    expect([r405.status, r404.status]).toEqual([405, 404])
+    const ok = await hit(SUBS["u-mgr"], "manifest")
+    for (const res of [r405, r404, ok]) {
+      const text = await res.clone().text()
+      const heads = JSON.stringify([...res.headers.entries()])
+      // a token never appears in any answer or header. The person's sign-in id appears ONLY in the manifest, as `user.auth_user_id` (client review F01: the laptop
+      // compares it with its own); an error answer never carries it
+      const hasSub = text.includes(SUBS["u-mgr"])
+      expect([text.includes("tok:"), heads.includes("tok:"), hasSub]).toEqual([false, false, res === ok])
+      if (res === ok) expect(text.split(SUBS["u-mgr"]).length - 1).toBe(1)
+    }
   })
 })
 

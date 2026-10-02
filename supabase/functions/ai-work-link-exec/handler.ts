@@ -4,6 +4,9 @@
 //
 //   POST /run     {"intent_id": "..."}   claim the intent, run it through the pipeline, finish it, answer the outcome
 //   POST /read    {"function_id","params","ctx","allowed_functions"}   run one READ function read-only (no intent, no submission, nothing written)
+//   POST /sync-run {"op_id","function_id","params","ctx"}   run one write a LAPTOP pushed (local-first sync, drizzle/0681); projexa-sync already verified the session and decided the live role, project and version
+//   POST /sync-run-batch {"ops":[...]}  the ops of one push in one invocation, in order, under a time budget (see the route)
+//   The two sync routes take AWL_SYNC_EXEC_SECRET when the owner sets it, and claim each op from the push ledger when the database has the claim function.
 //   GET  /health                         {ok, db_role} (the role the database connection really has), for the switch-on pre-flight
 //
 // WHO MAY CALL. Only the ai-work-link function: every request must carry `Authorization: Bearer <AWL_EXEC_INTERNAL_SECRET>`, compared in constant
@@ -53,10 +56,21 @@ export type ExecDeps = {
   run: (claimed: Claimed) => Promise<Ran>
   /** The read-only executor mode (POST /read). Absent means reads answer 503 READ_NOT_AVAILABLE. */
   read?: (req: ReadBody) => Promise<ReadRan>
+  /** One write pushed by a laptop (POST /sync-run). Absent means it answers 503 SYNC_NOT_AVAILABLE. */
+  syncRun?: (op: SyncBody) => Promise<Ran>
   /** The role of the database connection the pipeline uses. */
   health: () => Promise<{ db_role: string }>
   log?: (line: string) => void
+  /** AWL_SYNC_EXEC_SECRET: when set, /sync-run and /sync-run-batch accept ONLY this secret (not the AI link's); unset, they accept `secret` as before. */
+  syncSecret?: string
+  /** The push ledger as the claim (see runOneSync). Absent: the caller's context is used. */
+  syncClaim?: (op: SyncBody) => Promise<SyncClaim>
+  /** Milliseconds, for the batch time budget (tests advance it); defaults to Date.now. */
+  clock?: () => number
 }
+
+/** ok:true = the ledger row was `running` with these values and is now claimed (the LIVE context to run with); ok:false = refuse (nothing runs); "unsupported" = the claim function is not deployed. */
+export type SyncClaim = { ok: true; ctx: { org_id: string; user_id: string; project_id: string | null; live_role: string } } | { ok: false; code: string } | { ok: "unsupported" }
 
 /** The body of POST /read: the ai-work-link function resolved the link live in the same request and passes what the run needs. */
 export type ReadBody = {
@@ -66,6 +80,20 @@ export type ReadBody = {
   allowed_functions: string[]
 }
 
+/** The body of POST /sync-run: the context was decided by projexa-sync in the same request (session verified, live role, project readable, version checked). */
+export type SyncBody = {
+  op_id: string
+  function_id: string
+  params: Record<string, unknown>
+  ctx: { org_id: string; user_id: string; project_id: string | null; live_role: string; device_id: string }
+}
+
+export const SYNC_BODY_MAX_BYTES = 72 * 1024
+// a push is at most 50 ops and 256 KB of ops (projexa-sync PUSH_BODY_MAX_BYTES, bytes); the context each op gains is well under 1 KB
+export const SYNC_BATCH_OPS_MAX = 50
+export const SYNC_BATCH_BODY_MAX_BYTES = 400 * 1024
+export const SYNC_BATCH_START_CUTOFF_MS = 20_000
+const DEVICE_RE = /^[A-Za-z0-9_-]{8,64}$/
 const READ_BODY_MAX_BYTES = 16 * 1024
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/
 const BODY_MAX_BYTES = 2 * 1024
@@ -133,6 +161,84 @@ async function readReadBody(req: Request): Promise<ReadBody | null> {
   }
 }
 
+/** One pushed op of a /sync-run or /sync-run-batch body, or null when its shape is wrong. */
+export function parseSyncOp(v: unknown): SyncBody | null {
+  const b = v as Record<string, unknown> | null
+  const c = b?.ctx as Record<string, unknown> | undefined
+  const t = (o: unknown): o is string => typeof o === "string" && o !== ""
+  if (!b || typeof b !== "object" || Array.isArray(b) || !c || typeof c !== "object" || Array.isArray(c)) return null
+  if (!t(b.op_id) || !ID_RE.test(b.op_id) || !t(b.function_id) || !ID_RE.test(b.function_id)) return null
+  if (!b.params || typeof b.params !== "object" || Array.isArray(b.params)) return null
+  if (!t(c.org_id) || !t(c.user_id) || !t(c.live_role) || !t(c.device_id) || !DEVICE_RE.test(c.device_id)) return null
+  // a project is named, except for create_project (it makes one)
+  const project = c.project_id === null ? null : t(c.project_id) ? c.project_id : undefined
+  if (project === undefined || (b.function_id === "create_project") !== (project === null)) return null
+  return { op_id: b.op_id, function_id: b.function_id, params: b.params as Record<string, unknown>, ctx: { org_id: c.org_id, user_id: c.user_id, project_id: project, live_role: c.live_role, device_id: c.device_id } }
+}
+
+async function readJsonLimited(req: Request, max: number): Promise<unknown | undefined> {
+  const raw = await req.text()
+  if (new TextEncoder().encode(raw).length > max) return undefined
+  try {
+    return JSON.parse(raw) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+async function readSyncBody(req: Request): Promise<SyncBody | null> {
+  const v = await readJsonLimited(req, SYNC_BODY_MAX_BYTES)
+  return v === undefined ? null : parseSyncOp(v)
+}
+
+/**
+ * Runs ONE pushed op: the ledger claim (when the database has it), then the pipeline. The answer body is the same for /sync-run and for one entry of
+ * /sync-run-batch. THE TRUST BOUNDARY: the caller is projexa-sync holding the sync secret; with deps.syncClaim the context that runs is the one the
+ * DATABASE returns for a ledger row projexa_sync_push_begin left `running` (one-shot), not the one in the body, so a leaked secret alone cannot write
+ * as anyone (review D1 TI-3 / F-05). Without the claim function deployed the body's context is used, as before (logged).
+ */
+async function runOneSync(deps: ExecDeps, body: SyncBody, log: (l: string) => void): Promise<Record<string, unknown>> {
+  let op = body
+  if (deps.syncClaim) {
+    let claim: SyncClaim
+    try {
+      claim = await deps.syncClaim(body)
+    } catch {
+      claim = { ok: false, code: "CLAIM_UNAVAILABLE" }
+    }
+    if (claim.ok === false) return { op_id: body.op_id, status: "failed", code: claim.code, missing: [] }
+    if (claim.ok === true) op = { ...body, ctx: { ...claim.ctx, device_id: body.ctx.device_id } }
+    else log("ai-work-link-exec: sync-run: the ledger claim function is not deployed; running with the caller's context")
+  }
+  let ranSync: Ran
+  try {
+    ranSync = await (deps.syncRun as NonNullable<ExecDeps["syncRun"]>)(op)
+  } catch {
+    log("ai-work-link-exec: sync-run: the run threw -> failed INTERNAL_ERROR")
+    ranSync = { status: "failed", code: "INTERNAL_ERROR", missing: [] }
+  }
+  // no intent row exists for a laptop push: the outcome goes back to projexa-sync, which stores it in the push ledger (a closed code, never a message)
+  if (ranSync.status === "done") return { op_id: body.op_id, status: "done", submission_id: ranSync.submission_id, record: ranSync.record }
+  return { op_id: body.op_id, status: "failed", code: CODE_RE.test(ranSync.code) ? ranSync.code : "INTERNAL_ERROR", missing: ranSync.missing.slice(0, 20).map((m) => String(m).slice(0, 64)) }
+}
+
+// The SQL this needs is NOT in this package (it is a migration; see the D1 report): public.projexa_sync_push_claim(p_user_id, p_op_id, p_org_id,
+// p_function_id, p_project_id) RETURNS jsonb, service_role only, atomically flipping a platform.projexa_sync_op row from `running` (younger than 10
+// minutes, matching user/org/function/project, not yet claimed) to claimed and returning {status:'ok', ctx:{org_id, user_id, project_id, live_role}}
+// with the role re-resolved LIVE, or {status:'refused', reason}. Until it exists PostgREST answers "function not found" and the op runs as before.
+const MISSING_FUNCTION_CODES = new Set(["PGRST202", "42883"])
+export async function claimSyncOp(rpc: ExecRpc, op: SyncBody): Promise<SyncClaim> {
+  const res = await rpc("projexa_sync_push_claim", { p_user_id: op.ctx.user_id, p_op_id: op.op_id, p_org_id: op.ctx.org_id, p_function_id: op.function_id, p_project_id: op.ctx.project_id })
+  if (res.error) return MISSING_FUNCTION_CODES.has(res.error.code ?? "") ? { ok: "unsupported" } : { ok: false, code: "CLAIM_UNAVAILABLE" }
+  const d = (res.data ?? null) as { status?: unknown; ctx?: Record<string, unknown> } | null
+  const c = d?.ctx
+  const t = (o: unknown): o is string => typeof o === "string" && o !== ""
+  if (d?.status !== "ok" || !c || !t(c.org_id) || !t(c.user_id) || !t(c.live_role) || !(c.project_id === null || t(c.project_id))) return { ok: false, code: "NOT_CLAIMED" }
+  // the database's values, never the body's; a claim for another person, organisation or project than the one asked for is refused
+  if (c.user_id !== op.ctx.user_id || c.org_id !== op.ctx.org_id || c.project_id !== op.ctx.project_id) return { ok: false, code: "NOT_CLAIMED" }
+  return { ok: true, ctx: { org_id: c.org_id, user_id: c.user_id, project_id: c.project_id as string | null, live_role: c.live_role } }
+}
+
 /** The refusal a claim answered, as the exec answer: the SQL's reason in the closed upper-case vocabulary. */
 function refusalOf(intentId: string, claim: Record<string, unknown>): Response {
   const reason = typeof claim.reason === "string" ? claim.reason : ""
@@ -150,10 +256,12 @@ export async function handleExec(req: Request, deps: ExecDeps): Promise<Response
   if (missing.length) return json(503, { ok: false, code: "NOT_CONFIGURED", missing })
 
   // 2. who is calling
-  const bearer = /^Bearer[ ]+([^\s]+)$/i.exec((req.headers.get("authorization") ?? "").trim())
-  if (!bearer || !constantTimeEqual(bearer[1], deps.secret as string)) return json(401, { ok: false, code: "UNAUTHORIZED" })
-
   const route = routeOf(new URL(req.url).pathname)
+  const bearer = /^Bearer[ ]+([^\s]+)$/i.exec((req.headers.get("authorization") ?? "").trim())
+  // the laptop-push routes take their own secret once the owner sets one, so the AI link's secret alone can no longer reach them
+  const expected = (route === "sync-run" || route === "sync-run-batch") && deps.syncSecret ? deps.syncSecret : (deps.secret as string)
+  if (!bearer || !constantTimeEqual(bearer[1], expected)) return json(401, { ok: false, code: "UNAUTHORIZED" })
+
   const method = req.method.toUpperCase()
 
   if (route === "health") {
@@ -183,6 +291,43 @@ export async function handleExec(req: Request, deps: ExecDeps): Promise<Response
     // a read writes no intent and no row: the answer is the result, or a closed code and the names of what is missing, never a message
     if (ranRead.status === "ok") return json(200, { status: "ok", function_id: ranRead.function_id, result: ranRead.result })
     return json(200, { status: "failed", code: CODE_RE.test(ranRead.code) ? ranRead.code : "INTERNAL_ERROR", missing: ranRead.missing.slice(0, 20).map((m) => String(m).slice(0, 64)), http: ranRead.http })
+  }
+
+  if (route === "sync-run") {
+    if (method !== "POST") return json(405, { ok: false, code: "METHOD_NOT_ALLOWED" })
+    if (!deps.syncRun) return json(503, { ok: false, code: "SYNC_NOT_AVAILABLE" })
+    const body = await readSyncBody(req)
+    if (!body) return json(400, { ok: false, code: "BAD_REQUEST" })
+    return json(200, await runOneSync(deps, body, log))
+  }
+
+  // POST /sync-run-batch {ops:[...]}: the ops of ONE push in ONE invocation (an Edge invocation per op was the largest cost term of a push; review D1
+  // F8 / F-02). In order, one at a time (the pool is 5 connections and ops on one record must keep their order). No new op starts after
+  // SYNC_BATCH_START_CUTOFF_MS, so the batch answers well inside projexa-sync's wait; an op not started is answered `not_run` (nothing ran). An op of a
+  // wrong shape is answered `failed BAD_OP` on its own and the rest still run.
+  if (route === "sync-run-batch") {
+    if (method !== "POST") return json(405, { ok: false, code: "METHOD_NOT_ALLOWED" })
+    if (!deps.syncRun) return json(503, { ok: false, code: "SYNC_NOT_AVAILABLE" })
+    const v = await readJsonLimited(req, SYNC_BATCH_BODY_MAX_BYTES)
+    const list = v && typeof v === "object" && !Array.isArray(v) ? (v as { ops?: unknown }).ops : undefined
+    if (!Array.isArray(list) || list.length < 1 || list.length > SYNC_BATCH_OPS_MAX) return json(400, { ok: false, code: "BAD_REQUEST" })
+    const clock = deps.clock ?? (() => Date.now())
+    const started = clock()
+    const results: Array<Record<string, unknown>> = []
+    for (const raw of list) {
+      const rawId = raw && typeof raw === "object" && typeof (raw as { op_id?: unknown }).op_id === "string" ? (raw as { op_id: string }).op_id : null
+      const op = parseSyncOp(raw)
+      if (!op) {
+        results.push({ op_id: rawId, status: "failed", code: "BAD_OP", missing: [] })
+        continue
+      }
+      if (clock() - started > SYNC_BATCH_START_CUTOFF_MS) {
+        results.push({ op_id: op.op_id, status: "not_run" })
+        continue
+      }
+      results.push(await runOneSync(deps, op, log))
+    }
+    return json(200, { results })
   }
 
   if (route !== "run") return json(404, { ok: false, code: "NOT_FOUND" })

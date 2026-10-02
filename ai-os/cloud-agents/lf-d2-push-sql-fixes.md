@@ -1,0 +1,29 @@
+# Package lf-d2-push-sql-fixes (backend, repo compliance-tracker)
+
+Branch `claude/lf-d2-push-sql-fixes` from `origin/feat/lf-sync-backend`. **No new migration**: migrations 0678-0684 have never been applied to any live database, so you EDIT `drizzle/0680_projexa_release_registry.sql`, `0681_projexa_sync_push.sql` and `0682_projexa_work_jobs.sql` IN PLACE (and their down files) and keep them idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`; applying twice changes nothing). Findings to fix: `ai-os/cloud-agents/review-findings/D2.md` (20 findings). Read it completely first; every finding has the scenario and a verified fix.
+
+## Goal
+An independent review found real defects in the push ledger (the server side of a laptop's offline edits), the work-job queue and the release registry. A laptop's edits must be applied exactly once, never leak information about records the person cannot read, and recover from every failure without a human.
+
+## Files you own
+`drizzle/0680_*.sql`, `0681_*.sql`, `0682_*.sql` and the matching `drizzle/down/*.sql`; tests `src/lib/services/projexa-sync-push.pglite.test.ts`, `projexa-sync-jobs.pglite.test.ts`, `projexa-sync-release.pglite.test.ts` (extend them; new files are fine too).
+
+## Files you must NOT edit (parallel engineers)
+`supabase/functions/**` (package D1 owns the handlers: classification of errors, deadlines, body limits, CORS), `drizzle/0678|0679|0683|0684*` and `src/lib/services/projexa-sync-{keys-ids,versions,more-kinds,read,org-*}.pglite.test.ts` and `__test-helpers__/**` (package D3), `drizzle/meta/_journal.json`, `function-registry*`. If your fix changes what a SQL function returns, keep the old keys, add new ones, and describe the new shape precisely in your report under RISKS AND DECISIONS so the handler engineer (D1) and the integrator can follow.
+
+## Hard design requirements
+1. **Exactly-once under concurrency** (edge-handler:F-06, sql:SQL-05, sync:SYNC-03, sync:SYNC-02, sql:SQL-07): two concurrent first deliveries of the same (person, op_id) must never both be told to run. Use an atomic claim (for example `INSERT ... ON CONFLICT DO NOTHING RETURNING` followed by a decision on whether this call created the row) instead of `SELECT ... FOR UPDATE` on a row that may not exist; `push_finish` needs a state guard (a late duplicate finish must not turn `applied` into `failed`). Prove it with a real concurrency test (two PGlite connections are not available; reproduce the interleaving deterministically by calling the steps in the problematic order, and by a test that fails when the guard is removed).
+2. **No oracle across projects** (tenant-and-role:TI-1, tests:F03): the version / conflict lookup must be bound to the project the op was authorised for. A record in a private project the person cannot read must be indistinguishable from a record that does not exist (same outcome as a made-up id; never `conflict`, never its version). Do NOT answer with a distinct "mismatch" error: that is itself an existence oracle (the review says so).
+3. **`uncertain` must not be a dead end** (sync:SYNC-05): an op is `uncertain` when the write may or may not have happened. Design a resolution that needs no human: for an op that carries `record.base_version`, a re-run is safe because the version check refuses a second application (head > base means it already happened: answer `conflict`/`duplicate-by-effect` with the server's current row so the laptop can see its change is in); for an op without a base version (a create) define the safe alternative (for example resolve by looking for the effect by a client-supplied idempotency key, or report `needs_server` once and let the person see it). Document the rule in the migration header and in `README.md` terms in your report, and test it.
+4. **Conflict rule not opt-in by accident** (sync:SYNC-13, edge-handler:F-13): when a registered write targets an existing record and the op carries no `record`, decide and document the behaviour (reject with a clear code vs last-writer-wins by design); the current silent bypass must not stay.
+5. **Rate caps** (edge-handler:F-02 SQL half): the 600 ops/hour cap must also count re-runs of failed or `needs_server` ops, or the review's amplification scenario stays open.
+6. **Jobs** (tenant-and-role:TI-4, sql:SQL-10, requirements:F4, sync:SYNC-11): validate job params (depth, keys, string lengths) so an arbitrary JSON blob cannot be handed to a worker verbatim; make `projexa_job_claim` cheap when the queue is empty (no 28-lookup view-class recomputation and no UPDATE sweeps on an empty queue); expire leases for the organisation correctly and for all callers.
+7. **Release registry** (sql:SQL-11): harden `projexa_release_register` as the finding says (`built_at` validation, number lookup, etc.).
+8. **Cost**: a laptop idle polling must cost ~0 database work. Report the statement counts of the hot functions before and after for the job claim.
+9. **Tests quality** (tests:F10, F12, F15, F16, F17): the named tests must be made able to fail for the bug they name (assert the specific effect; add the other side of every limit test; cover the unreached SQL branches; job visibility: view class stored at enqueue is re-checked at claim).
+
+## Tests
+`bun test --isolate src/lib/services/projexa-sync-push.pglite.test.ts` etc. (1-3 minutes each, run one at a time). Also run `bun test --isolate src/lib/services/ai-work-link-sync-run.test.ts` before the final push. PLANT the bug for every fix (remove the fix, see the test fail, restore) and list each in the report.
+
+## Final report
+As in the preamble, plus a table `finding key -> FIXED (where, test) | PARTLY | WON'T FIX (reason)` for all 20 findings, and the new/changed SQL result shapes for D1. A reasoned WON'T FIX is fine where cost exceeds benefit under the owner's priority (cost near zero first, ease second, security third; isolation and role-based visibility are non-negotiable); a silent omission is not.

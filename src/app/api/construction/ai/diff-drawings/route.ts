@@ -5,6 +5,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { createClient } from "@supabase/supabase-js"
 import { diffDrawingRevisions, ServiceError } from "@/lib/services/construction-ai-service"
+import { assertProjexaInternalAi } from "@/lib/projexa-internal-ai"
 
 const BUCKET = "compliance-documents"
 
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
   if (roleCheck) return roleCheck
 
   try {
+    // lf-b3-ai-off: refuse before reading the body or downloading any image -- off, the storage egress buys nothing.
+    assertProjexaInternalAi("construction.diff_drawing_revisions")
     const body = await request.json()
     if (!body.documentIdA || !body.documentIdB) return NextResponse.json({ error: "documentIdA and documentIdB are required" }, { status: 400 })
 

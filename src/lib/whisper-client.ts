@@ -18,6 +18,9 @@
 // apiKey(), tenant-scoped.ts's getAppRuntimeConnectionString()) -- there is
 // no shared requireEnv() helper anywhere in this codebase to extend, so
 // this follows the same ad-hoc-per-call-site shape those examples use.
+// lf-b3-ai-off: speech-to-text is a paid model call too; off (projexa-internal-ai.ts), transcribeAudio refuses before the key is read.
+import { assertProjexaInternalAi } from "@/lib/projexa-internal-ai"
+
 export class WhisperConfigError extends Error {
   constructor(message: string) {
     super(message)
@@ -66,6 +69,7 @@ export async function transcribeAudio(
     throw new Error(`Audio file exceeds OpenAI Whisper's 25 MB limit (got ${(bytes.byteLength / (1024 * 1024)).toFixed(1)} MB)`)
   }
 
+  assertProjexaInternalAi("whisper-client.transcribeAudio")
   const apiKey = whisperApiKey()
 
   const form = new FormData()

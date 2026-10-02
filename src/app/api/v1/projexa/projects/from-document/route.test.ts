@@ -26,7 +26,13 @@ import {
   deterministicModel,
   edgeDeps,
 } from "@/lib/services/__test-helpers__/document-extraction-fixtures"
+import { withProjexaInternalAiOn, withProjexaInternalAiUnset } from "@/lib/services/__test-helpers__/projexa-internal-ai-switch"
+import { USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai"
 import { handleProjexaDocumentExtract, type ModelCall } from "../../../../../../../supabase/functions/projexa-document-extract/handler"
+
+// lf-b3-ai-off: the subject here is extraction WITH the model path available, so every test runs with PROJEXA_INTERNAL_AI_ENABLED="1"
+// (restored after each). The one test that unsets it (in "what the route refuses ...") pins the default: no fetch, no model, nothing made.
+withProjexaInternalAiOn()
 
 const ORG = "org-from-doc"
 const PRODUCT = "product-construction"
@@ -284,6 +290,16 @@ describe("what the route refuses before or instead of creating anything", () => 
     const res = await POST(formRequest({}))
     expect(res.status).toBe(503)
     expect((await res.json()).code).toBe("model_not_configured")
+    expect(await tableCounts()).toEqual({ projects: 0, boqs: 0, lines: 0 })
+    expect(await ledgerRows()).toEqual([])
+  })
+
+  test("the internal AI switched off (the default): 503 model_not_configured in the plain words, no fetch, no model call, 0 rows, no claim left behind", async () => {
+    const res = await withProjexaInternalAiUnset(() => POST(formRequest({})))
+    expect(res.status).toBe(503)
+    expect(await res.json()).toMatchObject({ code: "model_not_configured", error: USE_YOUR_OWN_AI })
+    expect(seen.fetches).toBe(0)
+    expect(seen.modelCalls).toBe(0)
     expect(await tableCounts()).toEqual({ projects: 0, boqs: 0, lines: 0 })
     expect(await ledgerRows()).toEqual([])
   })

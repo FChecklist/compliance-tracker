@@ -191,6 +191,27 @@ function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) =
       expect(")");
       return inner;
     }
+    // lf-b5-ai-crud: `lower(col) = lower($n)` (construction-boq-category-service.ts) and `lower(trim(col)) = lower($n)` (createCustomer's
+    // duplicate check), the case-insensitive matches; NULL matches nothing
+    if (peek() === "lower") {
+      i++;
+      expect("(");
+      const trimmed = peek() === "trim";
+      if (trimmed) {
+        i++;
+        expect("(");
+      }
+      const lowerKey = column();
+      expect(")");
+      if (trimmed) expect(")");
+      expect("=");
+      expect("lower");
+      expect("(");
+      const value = param();
+      expect(")");
+      const norm = (v: string) => (trimmed ? v.trim() : v).toLowerCase();
+      return (r) => typeof r[lowerKey] === "string" && typeof value === "string" && norm(r[lowerKey] as string) === value.toLowerCase();
+    }
     const key = column();
     let read = (r: Row): unknown => r[key];
     if (peek() === "->>") {
@@ -204,6 +225,12 @@ function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) =
     if (op === "=") {
       const value = param();
       return (r) => read(r) === value;
+    }
+    // lf-b5-ai-crud: `col <> $n` (tokenised as "<" ">"); NULL <> x is not true in SQL, so a missing value does not match
+    if (op === "<") {
+      expect(">");
+      const value = param();
+      return (r) => read(r) !== null && read(r) !== undefined && read(r) !== value;
     }
     if (op === "in") {
       expect("(");
@@ -273,6 +300,8 @@ function setValues(table: Table, values: Row, row: Row, unparsed: string[]): Row
   const keyOf = Object.fromEntries(Object.entries(columnsOf(table)).map(([key, col]) => [col.name, key]));
   const out: Row = {};
   for (const [key, value] of Object.entries(values)) {
+    // drizzle leaves a key whose value is undefined out of the SET clause (lf-b2-ai-crud: updateSprint and updateRoom pass such keys)
+    if (value === undefined) continue;
     if (!is(value, SQL)) {
       out[key] = value;
       continue;
@@ -414,8 +443,29 @@ function makeTransaction(store: BoqStore) {
     },
   });
 
+  // lf-b2-ai-crud: `delete(table).where(cond)` (with optional `.returning()`), so the delete functions run their real services. The rows the
+  // same where clause matches are removed from this transaction's copy; a where clause the double cannot read matches nothing (unparsed).
+  const remove = (table: Table) => ({
+    where: (cond: unknown) => {
+      let gone: Row[] | null = null;
+      const apply = () => {
+        if (!gone) {
+          dirty = true;
+          const matches = predicate(table, cond, store.unparsed);
+          gone = rows(table).filter(matches);
+          working[getTableName(table)] = rows(table).filter((r) => !matches(r));
+        }
+        return gone;
+      };
+      return {
+        returning: async (selection?: Record<string, unknown>) => apply().map((r) => project(table, r, selection)),
+        ...thenable(apply),
+      };
+    },
+  });
+
   return {
-    db: { query, insert, update, select, execute: async () => [] },
+    db: { query, insert, update, select, delete: remove, execute: async () => [] },
     commit: () => {
       if (dirty) store.tables = working;
     },
