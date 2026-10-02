@@ -263,6 +263,8 @@ describe("list", () => {
   test("mine is the link's own rows of every status, newest first; another link of the same person and another person are not in it", async () => {
     const a = await mintUser(db, "u-view")
     const x = await add(a.token, "feature", "List idea one")
+    // clock_timestamp() in PGlite (WASM) can tie within a millisecond; a tie sorts by id and flips "newest first", so keep the two rows apart
+    await new Promise((r) => setTimeout(r, 15))
     const y = await add(a.token, "bug", "List idea two")
     await review(x.suggestion_id, "planned", false, null, "internal only")
     const stranger = await mintUser(db, "u-mem")
