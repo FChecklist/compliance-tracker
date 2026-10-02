@@ -45,6 +45,9 @@ Minimum rank is ROLE_RANK (member 2, manager 3), at least the rank of the app ro
 | Floor plan | `remove_room`, `remove_placement`, `update_floor_plan_status` | 2 | 2 | | same |
 | Mood board | `update_mood_board` | 1 | 2 | | `updateMoodBoard` |
 | Mood board | `remove_mood_board_item` | 2 | 2 | | `removeMoodBoardItem` |
+| Permit | `update_permit` (name, number, authority, dates, notes) | 1 | 2 | | `permit-service.ts updatePermit`: NEW, moved out of `PATCH /api/v1/projexa/permits/{id}`, which now calls it too |
+| Permit | `delete_permit` | 2 | 2 | | `permit-service.ts deletePermit` (the route's hard delete, moved out of `DELETE` of the same route) |
+| Project | `archive_project` (status cancelled/completed archives, active/planning/paused reopens) | 2 | 3 | | `updateProjectStatus` (NEW in construction-dashboard-service.ts; nothing deleted). No app route changes a project's status, so rank 3 |
 
 Every id is held to the link's project (and organisation) before the service runs: an id of another project, of another organisation or of no
 record is `RECORD_NOT_FOUND` and nothing is written. Tests: `src/lib/pipeline/coverage-crud-b2.test.ts` (every function, every role, both kinds of
@@ -58,8 +61,25 @@ foreign id, a task of another organisation, the real service's write re-read fro
   Needs an owner decision: an organisation-scoped AI function class, or categories per project.
 - **Delete of a project meeting** (`pms_meetings`): the table has no status column and the service has no delete; inventing one is out of scope.
 - **Approving one's own submission, approving a claim, invoicing**: never added (separation of duties, PMD-41).
-- **GROUP 3** (archive_project, update_activity, update_progress_category, update_attendance, delete_attendance, update_change_order,
-  cancel_change_order, update_permit, delete_permit, delete_drawing, update_boq_line): see the final report of the package for what landed.
+- **GROUP 3, not done** (`update_permit`, `delete_permit` and `archive_project` landed, above). Each of these has NO service and no app route
+  that changes it today, so an AI function would be a second, unreviewed write path (the rule of every executor here is "the service the app's own
+  route calls"); each needs its own service with its own rules first:
+  - `update_activity`, `update_progress_category`: construction-progress-service.ts creates them and never updates them;
+  - `update_attendance`, `delete_attendance`: construction-labour-service.ts records attendance (single and batch) and has no edit or delete; a
+    delete changes the labour cost a manager may already have reported, so it needs an owner rule (window, who, soft or hard);
+  - `update_change_order`, `cancel_change_order`: construction-change-order-service.ts has create, submit-for-approval (e-signature) and the
+    approve/reject marks only; a cancel must decide what happens to a pending e-signature request;
+  - `update_boq_line` (description, unit): construction-boq-service.ts edits a line's money fields and budget only;
+  - `delete_drawing`: the route's three rules (24 hours, legal hold, references) are inline in `DELETE /api/v1/projexa/drawings/{id}`, AND the
+    delete removes the stored file from Supabase Storage with the service-role storage client. The exec function has no storage client, so an AI
+    delete would leave the file behind or need storage credentials in the exec function: an owner decision. (A drawing can still be disposed of
+    through `dispose_document` once its retention date has passed.)
+
+## The three AI paths
+
+- **Outside AI through the AI work link**: the link levels and the per-person switch above (Edge function `ai-work-link`, SQL in 0685).
+- **Internal pipeline / browser AI**: run the same executors (`src/lib/pipeline/executor.ts`), so the same role, project, organisation and
+  service rules hold; a write there is a proposal card the signed-in person confirms in the app, as before. The per-person switch applies to links only.
 
 ## For the integrator
 
