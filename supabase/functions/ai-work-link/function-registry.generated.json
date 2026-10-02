@@ -3159,6 +3159,31 @@
     "id_params": []
   },
   {
+    "function_id": "list_organisation_records",
+    "label": "View the organisation's categories, vendors, customers, companies or currencies",
+    "module": "organisation",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": true,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [],
+    "declared_params": [
+      "master"
+    ],
+    "required_params": [
+      {
+        "name": "master",
+        "label": "Which list",
+        "any_of": [
+          "master"
+        ]
+      }
+    ],
+    "id_params": []
+  },
+  {
     "function_id": "list_over_budget_projects",
     "label": "View over-budget projects",
     "module": "budget",

@@ -1,4 +1,4 @@
-// lf-b5-ai-crud (owner order 2026-10-02, requirement R7) -- the 18 functions that finish "the AI can make the complete project, edit,
+// lf-b5-ai-crud (owner order 2026-10-02, requirement R7) -- the 18 functions (and one read, list_organisation_records) that finish "the AI can make the complete project, edit,
 // delete, update, etc. for that user as per role and its organisation", in one map, so executor.ts carries one import line and one
 // spread line for them (the B2 pattern, coverage-crud-b2.ts).
 //   the eight that had no service      update_activity update_progress_category update_attendance delete_attendance update_change_order
@@ -25,6 +25,7 @@ import {
   executeCreateExchangeRate,
   executeCreateVendor,
   executeDeleteBoqCategory,
+  executeListOrganisationRecords,
   executeRenameBoqCategory,
   executeUpdateCustomer,
   executeUpdateVendor,
@@ -49,4 +50,6 @@ export const CRUD_B5_EXECUTORS: Record<string, (task: ExecutableTask) => Promise
   create_company: executeCreateCompany,
   create_currency: executeCreateCurrency,
   create_exchange_rate: executeCreateExchangeRate,
+  // the one read: the ids of the organisation's records the functions above take
+  list_organisation_records: executeListOrganisationRecords,
 };

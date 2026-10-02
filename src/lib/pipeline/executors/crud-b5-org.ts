@@ -32,11 +32,11 @@
 import { and, eq } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { constructionBoqCategories, erpCompanies, erpCurrencies, erpCustomers, erpSuppliers } from "@/lib/db/schema";
-import { createBoqCategory, deleteBoqCategory, renameBoqCategory } from "@/lib/services/construction-boq-category-service";
-import { createSupplier, updateSupplier } from "@/lib/services/erp-buying-service";
-import { createCustomer, updateCustomer } from "@/lib/services/erp-selling-service";
-import { createCompany } from "@/lib/services/erp-company-service";
-import { createCurrency, createExchangeRate } from "@/lib/services/erp-accounting-service";
+import { createBoqCategory, deleteBoqCategory, listBoqCategories, renameBoqCategory } from "@/lib/services/construction-boq-category-service";
+import { createSupplier, listSuppliers, updateSupplier } from "@/lib/services/erp-buying-service";
+import { createCustomer, listCustomers, updateCustomer } from "@/lib/services/erp-selling-service";
+import { createCompany, listCompanies } from "@/lib/services/erp-company-service";
+import { createCurrency, createExchangeRate, listCurrencies } from "@/lib/services/erp-accounting-service";
 import type { ExecutableTask, ExecutionOutcome } from "../executor";
 import { created, RANK_MANAGER, RANK_MEMBER } from "./common";
 import { bad, BAD, guarded, needDate, needText, notFound, optDate, projectExists, withholdFields, type Scope } from "./record-scope";
@@ -85,6 +85,42 @@ function optBool(task: ExecutableTask, key: string): boolean | undefined | typeo
   if (v === "true") return true;
   if (v === "false") return false;
   return BAD;
+}
+
+// -- the one read: the ids an AI needs for the functions above ------------------------------------------------------------------------
+// list_organisation_records {master}: the organisation's BOQ categories, vendors, customers, companies or currencies, at most 200 rows, compact.
+// Without it an AI on a link could not learn the id of a category, a vendor or a currency (the link's record kinds are project kinds). Member
+// rank, like the routes' own reads; a vendor's or customer's credit limit is null below the manager rank. The existing list_customers
+// dispatcher read stays off links (F-3) and is not changed.
+export const ORGANISATION_MASTERS = ["boq_categories", "vendors", "customers", "companies", "currencies"] as const;
+const LIST_CAP = 200;
+
+export async function executeListOrganisationRecords(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return guarded(task, { write: false, minRank: RANK_MEMBER }, async ({ projectId }) => {
+    const master = needText(task, "master");
+    if (master === BAD || !(ORGANISATION_MASTERS as readonly string[]).includes(master)) return bad(task, "master");
+    if (!(await projectExists(task, projectId))) return notFound(task, "projectId");
+    const ctx = { orgId: task.orgId };
+    let rows: Array<Record<string, unknown>>;
+    switch (master) {
+      case "boq_categories":
+        rows = (await listBoqCategories(ctx)).map((c) => ({ id: c.id, name: c.name }));
+        break;
+      case "vendors":
+        rows = (await listSuppliers(ctx)).map((v) => ({ id: v.id, vendorName: v.supplierName, trade: v.trade, isActive: v.isActive, creditLimit: v.creditLimit }));
+        break;
+      case "customers":
+        rows = (await listCustomers(ctx)).map((c) => ({ id: c.id, customerName: c.customerName, isActive: c.isActive, creditLimit: c.creditLimit }));
+        break;
+      case "companies":
+        rows = (await listCompanies(ctx)).map((c) => ({ id: c.id, companyName: c.companyName, abbr: c.abbr, country: c.country }));
+        break;
+      default:
+        rows = (await listCurrencies(ctx)).map((c) => ({ id: c.id, code: c.code, name: c.name, isBaseCurrency: c.isBaseCurrency }));
+    }
+    const shown = rows.slice(0, LIST_CAP);
+    return { success: true, result: withholdFields(task, { master, rows: shown, truncated: rows.length > shown.length }, VENDOR_MONEY) };
+  });
 }
 
 // -- BOQ categories ---------------------------------------------------------------------------------------------------------------------

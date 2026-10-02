@@ -127,8 +127,9 @@ const CRUD_B5_ON_LINKS: Record<string, [number, number]> = {
   cancel_change_order: [2, 2], update_boq_line: [1, 2], delete_meeting: [2, 2],
   create_boq_category: [1, 2], rename_boq_category: [2, 3], delete_boq_category: [2, 3], create_vendor: [2, 2], update_vendor: [2, 2],
   create_customer: [2, 2], update_customer: [2, 2], create_company: [2, 3], create_currency: [2, 3], create_exchange_rate: [2, 3],
+  list_organisation_records: [0, 2],
 }
-const CRUD_B5_MONEY = ["update_attendance", "delete_attendance", "update_change_order", "create_vendor", "update_vendor", "create_customer", "update_customer", "create_currency", "create_exchange_rate"]
+const CRUD_B5_MONEY = ["list_organisation_records", "update_attendance", "delete_attendance", "update_change_order", "create_vendor", "update_vendor", "create_customer", "update_customer", "create_currency", "create_exchange_rate"]
 const ALL_ON_LINKS: Record<string, [number, number]> = { ...SPEC_ON_LINKS, ...B002_ON_LINKS, ...B002_WAVE_1_2_ON_LINKS, ...B002_W34_ON_LINKS, ...B002_WAVE_5_6_ON_LINKS, ...B002_WAVE_7_9_ON_LINKS, ...B002_SUBMIT_TIMESHEET_ON_LINKS, ...USER_LINK_ON_LINKS, ...CRUD_B2_ON_LINKS, ...CRUD_B5_ON_LINKS }
 /** How many functions are on links in all: every list above, so a wave that adds its own list changes one line, not a number. */
 const ON_LINKS_COUNT = Object.keys(ALL_ON_LINKS).length

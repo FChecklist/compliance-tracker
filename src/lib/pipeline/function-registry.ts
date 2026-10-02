@@ -2439,6 +2439,10 @@ function b5Specs(): FunctionSpec[] {
   const d = (key: string, label: string, required = false): CardField => ({ key, label, type: "date", required });
   const org: CardFact = { label: "Scope", value: "An organisation record: it changes for every project of the organisation.", editable: false };
   return [
+    // the one read of the organisation class: the ids its functions take (boq_categories, vendors, customers, companies, currencies)
+    readSpecNeeding("list_organisation_records", "View the organisation's categories, vendors, customers, companies or currencies", "organisation", true, [
+      { name: "master", label: "Which list", code: "VALUE_REQUIRED", field: "value" },
+    ]),
     // the eight that had no service (project records)
     b5Write("update_activity", "Change a work activity", "work_progress", [["activityId", "Activity"]],
       [t("name", "Name"), t("unit", "Unit"), n("plannedQuantity", "Planned quantity"), s("categoryId", "Category")], "Save activity"),
