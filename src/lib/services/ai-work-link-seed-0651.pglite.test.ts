@@ -91,6 +91,10 @@ describe("drizzle/0651 on PGlite over 0621 to 0628, 0644, 0643, 0650, 0647, 0648
       "add_sprint_task", "remove_sprint_task", "update_time_entry", "delete_time_entry", "dispose_document", "update_mom_details", "delete_mom", "update_meeting",
       "update_material", "update_room", "remove_room", "update_placement", "remove_placement", "update_floor_plan_status", "update_mood_board", "remove_mood_board_item",
       "update_permit", "delete_permit", "archive_project",
+      // lf-b5-ai-crud: 0687 added 19 more (the eight edits/deletes that had no service, the organisation class and its read)
+      "update_activity", "update_progress_category", "update_attendance", "delete_attendance", "update_change_order", "cancel_change_order", "update_boq_line",
+      "delete_meeting", "create_boq_category", "rename_boq_category", "delete_boq_category", "create_vendor", "update_vendor", "create_customer", "update_customer",
+      "create_company", "create_currency", "create_exchange_rate", "list_organisation_records",
     ])
     const but = (rows: Array<{ function_id: string }>) => rows.filter((r) => r.function_id !== "create_project" && !added0685.has(r.function_id))
     expect(but(after)).toEqual(but(json))
