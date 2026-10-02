@@ -737,7 +737,12 @@ async function releaseRegisterOnce(deps: SyncDeps, now: Date): Promise<{ status:
       await res.body?.cancel().catch(() => {})
       return answer(502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
     }
-    text = await readLimited(res, RELEASE_MANIFEST_MAX_BYTES)
+    // a real Response is read as a stream and stopped at the cap; anything else that only offers text() is measured in bytes after the fact
+    if (res.headers instanceof Headers && res.body instanceof ReadableStream) text = await readLimited(res, RELEASE_MANIFEST_MAX_BYTES)
+    else {
+      const t = await res.text()
+      text = utf8Bytes(t) > RELEASE_MANIFEST_MAX_BYTES ? null : t
+    }
   } catch {
     return answer(502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
   }
