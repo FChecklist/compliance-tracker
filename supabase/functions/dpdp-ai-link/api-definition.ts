@@ -45,10 +45,11 @@ const JOBS_QUERY: QueryParam[] = [
 export const ENDPOINTS: ReadonlyArray<Endpoint> = [
   {
     id: "manual", method: "GET", path: "/", level: 0,
-    summary: "This manual. Also at /manual.md and /manual.json.",
+    summary: "This manual. Also at /manual.md and /manual.json. Add ?brief=1 for the short version (start here, what to say, the calls) when your tool cuts long pages.",
+    query: [{ name: "brief", meaning: "1 -- the short version: the briefing, what to say and the calls, without the reference sections", example: "brief=1" }],
     formats: ["html", "md", "json"],
     returns: "the manual, personalised to the person this link belongs to",
-    example: "GET /manual.md",
+    example: "GET /manual.md?brief=1",
   },
   {
     id: "context", method: "GET", path: "/context", level: 0,

@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-// PROJEXA LOCAL-FIRST SYNC, READ SIDE: drizzle/0676_projexa_sync_read.sql on PGlite (real Postgres as WASM) built the way the live database is (0621 to
+// PROJEXA LOCAL-FIRST SYNC, READ SIDE: drizzle/0677_projexa_sync_read.sql on PGlite (real Postgres as WASM) built the way the live database is (0621 to
 // 0675-era AI work link, 0618 gateway), and the REAL Edge handler (supabase/functions/projexa-sync/handler.ts) running over those SQL functions.
 //   * isolation: a person of organisation A never gets a row of B; a foreign, an unreadable and a missing project, and an unsupported kind answer ONE 404
 //   * membership: a person who may not read a private project gets nothing from it (manifest and pull); its lead and an admin do
@@ -67,7 +67,7 @@ beforeAll(async () => {
   db = await createUserLinkDb()
   // the gateway's resolver (drizzle/0618), applied as live
   await db.exec(forwardSql("0618_build001_projexa_gateway"))
-  await db.exec(forwardSql("0676_projexa_sync_read"))
+  await db.exec(forwardSql("0677_projexa_sync_read"))
   rpc = pgRpc(db)
   await db.exec(
     [
@@ -384,13 +384,13 @@ describe("grants and shape of the SQL", () => {
   })
 
   test("applying it again changes nothing, and the down file removes exactly these functions", async () => {
-    await db.exec(forwardSql("0676_projexa_sync_read"))
+    await db.exec(forwardSql("0677_projexa_sync_read"))
     expect((await sync("u-mgr", { project_id: "proj-a", kind: "tasks" })).status).toBe(200)
     const d = await createUserLinkDb()
     try {
       await d.exec(forwardSql("0618_build001_projexa_gateway"))
-      await d.exec(forwardSql("0676_projexa_sync_read"))
-      await d.exec(downSql("0676_projexa_sync_read"))
+      await d.exec(forwardSql("0677_projexa_sync_read"))
+      await d.exec(downSql("0677_projexa_sync_read"))
       expect((await one<{ n: number }>(d, "select count(*)::int n from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public' and p.proname like 'projexa\\_sync%'")).n).toBe(0)
       expect((await one<{ n: number }>(d, "select count(*)::int n from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public' and p.proname = 'ai_work_link__records_core'")).n).toBe(1)
     } finally {
@@ -398,11 +398,11 @@ describe("grants and shape of the SQL", () => {
     }
   })
 
-  test("the journal registers 0676 after 0675 with a down file", async () => {
+  test("the journal registers 0677 after 0675 with a down file", async () => {
     const journal = JSON.parse(await Bun.file(new URL("../../../drizzle/meta/_journal.json", import.meta.url)).text()) as { entries: Array<{ tag: string; when: number }> }
-    const e = journal.entries.find((x) => x.tag === "0676_projexa_sync_read")!
+    const e = journal.entries.find((x) => x.tag === "0677_projexa_sync_read")!
     expect(e).toBeTruthy()
     expect(e.when).toBeGreaterThan(journal.entries.find((x) => x.tag === "0675_awl_first_user_self_heal")!.when)
-    expect(downSql("0676_projexa_sync_read").length).toBeGreaterThan(100)
+    expect(downSql("0677_projexa_sync_read").length).toBeGreaterThan(100)
   })
 })

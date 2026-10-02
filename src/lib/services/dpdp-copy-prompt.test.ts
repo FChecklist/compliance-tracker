@@ -78,7 +78,8 @@ describe("the /prompt route", () => {
       expect(body).not.toContain("Acme")
       expect(body).not.toContain("Other & Co")
       // it only checks that the link is live; nothing else is read
-      expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_log_call_result"])
+      // the link must be live (context), and the billing lookup only decides whether a "Payment pending" NOTICE line is added (none here)
+      expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_billing_notice", "dpdp_ai_link_log_call_result"])
       expect(calls[1].args).toEqual({ p_token: TOKEN })
     }
   })

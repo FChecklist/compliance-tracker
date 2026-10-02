@@ -5,7 +5,7 @@
 //   POST /pull       body {project_id, kind, after, limit} -> {items, next_cursor, has_more, hidden_fields, redacted, server_time}
 //
 // AUTHORITY IS NOT DECIDED HERE. The session (the PROJEXA person's access token) is verified by ai-work-link/session.ts; the person, the project
-// binding, the row scope and every redaction are decided by the SQL functions public.projexa_sync_manifest / projexa_sync_pull (drizzle/0676), which
+// binding, the row scope and every redaction are decided by the SQL functions public.projexa_sync_manifest / projexa_sync_pull (drizzle/0677), which
 // call the AI work link's own functions (projexa_read_resolve_user, ai_work_link__bind, ai_work_link__records_core). This file only adds a second
 // money-nulling pass from the AI link's own generated kind table (redactItem), the cursor encoding, CORS and a per-person rate cap.
 // An unknown project, an unknown kind, a project of another organisation and a project the person may not read are ONE answer (404, same body).

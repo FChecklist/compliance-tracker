@@ -24,7 +24,7 @@
 -- GRANTS: SECURITY DEFINER, search_path = pg_catalog, pg_temp, timezone UTC; revoked from public, anon, authenticated, app_runtime; granted to service_role alone. The
 -- helper projexa_sync__src is owner-only.
 -- DATA LOSS: none. Functions only; no table is touched. Applying it twice changes nothing.
--- ROLLBACK: drizzle/down/0676_projexa_sync_read.down.sql
+-- ROLLBACK: drizzle/down/0677_projexa_sync_read.down.sql
 
 BEGIN;
 

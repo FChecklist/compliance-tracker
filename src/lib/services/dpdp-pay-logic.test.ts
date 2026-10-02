@@ -292,6 +292,7 @@ describe("the migration and the app agree", () => {
     const j = JSON.parse(readFileSync("drizzle/meta/_journal.json", "utf8")) as { entries: Array<{ idx: number; when: number; tag: string }> }
     const mine = j.entries.find((e) => e.tag === "0673_dpdp_razorpay_sales_lifecycle")
     expect(mine).toBeDefined()
+    // compared with the entries that come BEFORE it in the journal (by idx); later entries are other migrations that landed after it
     expect(Math.max(...j.entries.filter((e) => e.idx < mine!.idx).map((e) => e.when))).toBeLessThan(mine!.when)
   })
   test("no key, secret or token value is committed in the function sources", () => {

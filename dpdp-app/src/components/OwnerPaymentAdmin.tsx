@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
 import { amIPlatformAdmin, ownerApprovePayment, ownerPendingClaims, ownerRejectPayment, sendInvoiceEmail } from "@/lib/api"
 import type { PendingClaimWire } from "@/lib/rpc-types"
+import { parseDbTimestamp } from "@/lib/db-time"
 
 // Payment confirmation flow (drizzle/0658) -- VERIDIAN's own review
 // screen, not any one organisation's. Renders nothing for anyone who
@@ -107,7 +108,7 @@ export function OwnerPaymentAdmin({ client }: { client: DpdpClient }) {
                 </p>
               )}
               {c.note && <p style={{ margin: "0 0 2px", fontSize: 12, fontStyle: "italic" }}>"{c.note}"</p>}
-              {c.declaredAt && <p style={{ margin: "0 0 6px", fontSize: 11, color: "var(--dpdp-ink3)" }}>Declared {new Date(c.declaredAt).toLocaleString("en-IN")}</p>}
+              {c.declaredAt && <p style={{ margin: "0 0 6px", fontSize: 11, color: "var(--dpdp-ink3)" }}>Declared {parseDbTimestamp(c.declaredAt).toLocaleString("en-IN")}</p>}
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="button" onClick={() => void approve(c.orgId)} disabled={busyOrgId === c.orgId}
                   style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 8, padding: "6px 12px", fontWeight: 600, fontSize: 12.5 }}>

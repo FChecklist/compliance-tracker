@@ -25,6 +25,11 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
 
+/** One line for a Subject: an organisation name is free text (the sign-up RPC only trims it), so a line break, tab or Unicode line separator in it must not reach the Subject header. */
+export function oneLine(s: string): string {
+  return s.replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, " ").replace(/ {2,}/g, " ").trim()
+}
+
 function toHtml(lines: string[]): string {
   return `<div style="font-family:sans-serif;max-width:520px">${lines.map((l) => l === "" ? "<br>" : `<p style="margin:4px 0">${esc(l)}</p>`).join("")}</div>`
 }
@@ -59,7 +64,7 @@ export type ReceiptInput = {
 export function renderReceipt(d: ReceiptInput): Rendered {
   const planLabel = d.plan === "institution" ? "Institution edition" : "Firm edition"
   const intervalLabel = d.interval === "year" ? "Yearly" : "Monthly"
-  const subject = `Your VERIDIAN receipt -- ${d.orgName} (${rupees(d.amountPaise)})`
+  const subject = `Your VERIDIAN receipt -- ${oneLine(d.orgName)} (${rupees(d.amountPaise)})`
   const lines = [
     `Thank you -- your payment for ${d.orgName} is confirmed.`,
     ``,
@@ -107,7 +112,7 @@ export function renderReminder(r: ReminderInput): Rendered {
   switch (r.kind) {
     case "trial10":
     case "trial3":
-      subject = `Your free trial ends in ${DAYS(r.daysLeft)} -- ${r.orgName}`
+      subject = `Your free trial ends in ${DAYS(r.daysLeft)} -- ${oneLine(r.orgName)}`
       lines = [
         `Your free trial of VERIDIAN DPDP for ${r.orgName} ends on ${due}, ${DAYS(r.daysLeft)} from now.`,
         ``,
@@ -117,7 +122,7 @@ export function renderReminder(r: ReminderInput): Rendered {
       ]
       break
     case "trial0":
-      subject = `Your free trial has ended -- your data is safe -- ${r.orgName}`
+      subject = `Your free trial has ended -- your data is safe -- ${oneLine(r.orgName)}`
       lines = [
         `The free trial of VERIDIAN DPDP for ${r.orgName} ended on ${due}.`,
         ``,
@@ -128,7 +133,7 @@ export function renderReminder(r: ReminderInput): Rendered {
       break
     case "renew30":
     case "renew7":
-      subject = `Your yearly plan renews on ${due} -- ${r.orgName}`
+      subject = `Your yearly plan renews on ${due} -- ${oneLine(r.orgName)}`
       lines = [
         `Your yearly plan for ${r.orgName} comes up for renewal on ${due}, ${DAYS(r.daysLeft)} from now.`,
         ``,
@@ -153,14 +158,56 @@ export function isDeliverableAddress(email: string): boolean {
   return true
 }
 
-/** Sends one message through Resend. Returns Resend's message id; throws with a short reason on a non-2xx. */
-export async function sendViaResend(apiKey: string, to: string, out: OutboundEnvelope, body: { html: string; text: string }): Promise<string> {
+/** Sends one message through Resend. Returns Resend's message id; throws with a short reason on a non-2xx.
+ * `idempotencyKey` (Resend's Idempotency-Key header, kept for 24 hours) makes a repeat of the SAME logical
+ * message a no-op on Resend's side: if a first attempt was accepted but we never recorded it, a retry
+ * returns the first send instead of mailing again. */
+export async function sendViaResend(apiKey: string, to: string, out: OutboundEnvelope, body: { html: string; text: string }, idempotencyKey?: string): Promise<string> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey.slice(0, 256)
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(resendPayload(to, out, body)),
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`Resend ${res.status}: ${JSON.stringify(json).slice(0, 300)}`)
   return String((json as { id?: string }).id ?? "")
+}
+
+/** One reminder = one key, for ever: the same organisation + reminder key always maps to the same string. */
+export function reminderIdempotencyKey(orgId: string, reminderKey: string): string {
+  return `dpdp-reminder/${orgId}/${reminderKey}`
+}
+
+/**
+ * Deliver a reminder the caller has already CLAIMED, without ever mailing it twice.
+ * The old flow put the send, the mail-log write and "mark sent" in one try block, so ANY failure after
+ * Resend had accepted the mail (the log write, or the mark) fell into the catch, marked the reminder
+ * 'failed' and made tomorrow's run send it again. Here only a failure of the SEND itself is "failed".
+ * Once the mail is accepted: the log write is best effort, and "mark sent" is retried; if it still
+ * cannot be recorded the reminder stays 'claimed' (the 30-minute stale-claim rule then re-offers it) and
+ * the Idempotency-Key on the send makes that repeat a no-op at Resend. Returns what happened.
+ */
+export async function deliverClaimedReminder(steps: {
+  send: () => Promise<string>
+  afterSend: (messageId: string) => Promise<void>
+  markSent: () => Promise<boolean>
+  markFailed: (message: string) => Promise<void>
+  attempts?: number
+}): Promise<{ status: "sent" | "failed"; markRecorded: boolean; error?: string }> {
+  let messageId: string
+  try {
+    messageId = await steps.send()
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    try { await steps.markFailed(message) } catch { /* the claim goes stale in 30 minutes and is re-offered */ }
+    return { status: "failed", markRecorded: false, error: message }
+  }
+  try { await steps.afterSend(messageId) } catch { /* the mail is sent; a missing log row must not cause a second one */ }
+  let recorded = false
+  for (let i = 0; i < (steps.attempts ?? 3) && !recorded; i++) {
+    try { recorded = await steps.markSent() } catch { recorded = false }
+  }
+  return { status: "sent", markRecorded: recorded }
 }
