@@ -2487,7 +2487,8 @@ function b5Specs(): FunctionSpec[] {
     b5Write("create_currency", "Add a currency", "organisation", [["code", "Currency code"], ["name", "Name"]],
       [t("code", "Currency code", true), t("name", "Name", true), t("symbol", "Symbol")], "Add currency", [org]),
     b5Write("create_exchange_rate", "Record an exchange rate", "organisation", [["fromCurrencyId", "From currency"], ["toCurrencyId", "To currency"], ["rate", "Rate"], ["rateDate", "Rate date"]],
-      [s("fromCurrencyId", "From currency", true), s("toCurrencyId", "To currency", true), n("rate", "Rate", true), d("rateDate", "Rate date", true)], "Save rate", [org]),
+      // the two currency ids are required parameters, not card picks: no chain-options picker lists currencies (a REQUIRED select must name one)
+      [n("rate", "Rate", true), d("rateDate", "Rate date", true)], "Save rate", [org]),
   ];
 }
 
