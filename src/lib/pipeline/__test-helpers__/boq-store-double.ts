@@ -273,6 +273,8 @@ function setValues(table: Table, values: Row, row: Row, unparsed: string[]): Row
   const keyOf = Object.fromEntries(Object.entries(columnsOf(table)).map(([key, col]) => [col.name, key]));
   const out: Row = {};
   for (const [key, value] of Object.entries(values)) {
+    // drizzle leaves a key whose value is undefined out of the SET clause (lf-b2-ai-crud: updateSprint and updateRoom pass such keys)
+    if (value === undefined) continue;
     if (!is(value, SQL)) {
       out[key] = value;
       continue;
@@ -414,8 +416,29 @@ function makeTransaction(store: BoqStore) {
     },
   });
 
+  // lf-b2-ai-crud: `delete(table).where(cond)` (with optional `.returning()`), so the delete functions run their real services. The rows the
+  // same where clause matches are removed from this transaction's copy; a where clause the double cannot read matches nothing (unparsed).
+  const remove = (table: Table) => ({
+    where: (cond: unknown) => {
+      let gone: Row[] | null = null;
+      const apply = () => {
+        if (!gone) {
+          dirty = true;
+          const matches = predicate(table, cond, store.unparsed);
+          gone = rows(table).filter(matches);
+          working[getTableName(table)] = rows(table).filter((r) => !matches(r));
+        }
+        return gone;
+      };
+      return {
+        returning: async (selection?: Record<string, unknown>) => apply().map((r) => project(table, r, selection)),
+        ...thenable(apply),
+      };
+    },
+  });
+
   return {
-    db: { query, insert, update, select, execute: async () => [] },
+    db: { query, insert, update, select, delete: remove, execute: async () => [] },
     commit: () => {
       if (dirty) store.tables = working;
     },
