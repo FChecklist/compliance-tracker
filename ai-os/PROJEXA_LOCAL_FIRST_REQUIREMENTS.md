@@ -42,3 +42,32 @@ Each row names the acceptance test that must pass before it is called done. Hone
 - No deploy to Vercel to test; test locally and on Supabase. The Vercel deploy is the LAST step, after everything else is complete and merged.
 - Never create accounts or set passwords for anyone; never permanently delete data (dashboard steps are given to the owner instead).
 - Migrations are additive with a down file, applied after CI is green, and reported to the owner.
+
+## D. STATUS SNAPSHOT 2026-10-02 (measured, not planned)
+**How the percentages are measured.** "Completed" = the share of that requirement's acceptance criteria that are BUILT and covered by a committed, passing test at the unit / PGlite (real Postgres as WASM) / fake-server level. It is NOT "works in a browser": nothing has yet been run in a real browser, against the real deployed backend, in CI, or on Vercel, so **end-to-end verified is 0% for every row**. Percentages are my estimates from the evidence in git, not a guarantee.
+
+| # | Requirement | Completed | Pending | What exists | What is missing |
+|---|---|---|---|---|---|
+| G1 | Laptop = daughter server, Vercel minimal | 35% | 65% | replica, outbox/push, local DB v3, release bundle + installer + service-worker core | the `/local` shell wired to modules, 20 of 21 visible routes, shell-bootstrap throttling, invocation measurement |
+| G2 | Two-way sync + versions recorded | 60% | 40% | backend 0678-0684 (signed rows, versions, tombstones, push + conflicts, release registry, 37 kinds) 228 tests; client engine 193 tests | org kinds client, auto-merge, only 3 write flows wired of ~70, backend never run against the real client (review running), CI, live apply |
+| G3 | Laptop <-> laptop sync | 55% | 45% | backend attestation + signing; client peers (WebRTC, 3 signalling providers, scheduler) built by a cloud agent | review, integration into the replica, real two-browser test |
+| G4 | Our RAM/server minimal | 25% | 75% | design, cost model, AI-off gate (in progress) | measured numbers, module conversions |
+| G5 | Complete software + complete org DB on the laptop | 30% | 70% | 28 project + 9 organisation kinds server-side; bundle build/installer | client consumption of org kinds, 20 of 21 modules, real bundle build in CI |
+| V1 | Versioned one-file download, per-file number/version, history | 75% | 25% | registry + installs + 426 gate (21 tests), bundle builder, verified installer | build integration, registration at deploy, real install test |
+| R1 | Works with no internet | 35% | 65% | service-worker core, connectivity state, shell infra (agent still building) | `/local` shell modules, Playwright offline run |
+| R2 | Works when OUR server is down | 45% | 55% | server_down state, 24 h peer trust, public signalling fallback | real test with the Edge function failing |
+| R3 | Several laptops auto-sync | 50% | 50% | cost-aware scheduler, peer protocol | wired into the app, real test |
+| R4 | See own data as per role | 45% | 55% | role redaction proven for 37 kinds, isolation tests | UI reads (only BOQ), org kinds in the replica |
+| R5 | AI cannot change the software | 60% | 40% | deny-list guard + hash check (cloud agent), no code-writing function exists | integration, review |
+| R6 | AI can work on it | 65% | 35% | AI link (72 writes) + in-browser API (cloud agent) | integration, review |
+| R7 | AI can create/edit/delete everything per role | 15% | 85% | gap analysis; first attempt lost to a cloud classifier block; re-run in progress | 27+ new functions, per-person switch, 0685 migration |
+| R8 | Complete work possible on the laptop | 10% | 90% | engine pieces | module conversions, AI on local data |
+| R9 | Logged in forever | 65% | 35% | durable identity, no sign-out on refresh failure (unit tests) | real-browser verification |
+| R10 | App cannot be deleted from the browser | 65% | 35% | persistent storage request, install prompt, silent re-install | real-browser verification |
+| R11 | Browser AI gets access automatically | 55% | 45% | `window.projexa.ai`, WebMCP registration, manual, llms.txt (cloud agent) | review, integration into the shell |
+| R12 | User never has to think | 35% | 65% | everything automatic except conflicts | automatic field-level merge, no prompts |
+| R14 | Cost near zero | 30% | 70% | cost model + runbook (cloud agent), design rules | measured invocation counts, billing-cycle proof |
+| R13, R15 | Security not high / second to cost | n/a | n/a | design rules, honoured so far | |
+| **All 19 measurable rows** | | **~45%** | **~55%** | | **End-to-end verified: 0%** |
+
+**By work stream** (completed): backend migrations/Edge/tests 85%; laptop sync engine 70%; offline shell + bundle + identity 45%; peers + jobs + browser AI 55% (built, unintegrated, unreviewed); module conversions 5% (1 of 21 routes); AI create/edit/delete 15%; in-app AI off 60%; cost model + runbook 70%; integration + CI + browser e2e 0%; deploy 0%.
