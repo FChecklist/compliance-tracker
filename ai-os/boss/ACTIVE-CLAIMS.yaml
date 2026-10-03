@@ -40,6 +40,13 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (PROJEXA sync more kinds; worktree C:/ct/_fix_workers, branch feat/projexa-sync-more-kinds)"
+    claimed_at: "2026-10-03T (this session)"
+    claim: |
+      Scope: ONE additive migration drizzle/0691_projexa_sync_erp_hr_kinds.sql (+down, journal entry) adding organisation-scoped
+      ERP/HR/interior/KB kinds to the projexa-sync org kinds (public.projexa_sync__org_kinds/org_src/org_hidden_cols), the matching
+      ORG_KINDS list in supabase/functions/projexa-sync/handler.ts + README, a new pglite test, and minimal edits to
+      projexa-sync-org-routes.pglite.test.ts. Does not touch the PROJEXA repo, Vercel, or paid settings.
   - session_label: "claude-code (DPDP PWA + 3-step page; worktree C:/ct/wt-dpdp-mail, branch feat/dpdp-pwa-onepage-steps)"
     claimed_at: "2026-10-03T (this session)"
     claim: |

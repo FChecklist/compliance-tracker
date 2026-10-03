@@ -70,6 +70,8 @@ Every rule above has a planted-bug (mutation) check recorded in its commit messa
 ## Organisation kinds (0684)
 Nine kinds are **not project-scoped**: `vendors` (`erp_suppliers`), `customers` (`erp_customers`), `companies` (`erp_companies`), `boq_categories` (`construction_boq_categories`), `currencies` (`erp_currencies`), `exchange_rates` (`erp_exchange_rates`), `departments` (`departments`), `org_people` (`users`; not `people`, which is the AI link's project kind) and `cost_visibility` (`cost_visibility_config`). The SQL list is `public.projexa_sync__org_kinds()`, kept apart from the 28 project kinds of `projexa_sync__kinds()`.
 
+**Eighteen more organisation kinds (0691, 27 in all)**: `warehouses`, `item_groups`, `stock_items`, `stock_entries`, `accounts`, `fiscal_years`, `budgets` (rank 3), `purchase_orders`, `goods_receipts`, `requisitions`, `rfqs`, `quotations`, `sales_orders`, `invoices`, `floor_plans`, `mood_boards`, `knowledge_base`, `employees`. Header rows only (line-item tables have no `org_id`). Rank >= 2 (member) except `budgets`; money NULL below rank 3, and for `stock_items`/`stock_entries`/`purchase_orders`/`quotations`/`sales_orders`/`invoices` also for any role without cost visibility; rows of PRIVATE projects are left out. Edge `ORG_KINDS` must equal `projexa_sync__org_kinds()` (tested in `projexa-sync-erp-hr-kinds.pglite.test.ts`).
+
 **The Edge routing is wired** (commit 71ed701f, tested by `projexa-sync-org-routes.pglite.test.ts`):
 
 | SQL function (service_role only) | Route |

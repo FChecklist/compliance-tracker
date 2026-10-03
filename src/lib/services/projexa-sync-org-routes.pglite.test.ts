@@ -48,8 +48,9 @@ afterAll(async () => {
 describe("the lists", () => {
   test("the Edge list of organisation kinds is the SQL list, in the same order, and disjoint from the project kinds", async () => {
     const sql = (await db.query<J>(`select unnest(public.projexa_sync__org_kinds()) k`)).rows.map((r) => r.k)
-    expect(sql).toEqual([...EDGE_ORG_KINDS])
-    expect([...EDGE_ORG_KINDS]).toEqual([...ORG_KINDS])
+    // this fixture stops at 0684 (9 kinds); 0691 appends to the same list, so the Edge list starts with exactly these (the full list is checked in projexa-sync-erp-hr-kinds.pglite.test.ts)
+    expect(sql).toEqual([...EDGE_ORG_KINDS].slice(0, sql.length))
+    expect([...EDGE_ORG_KINDS].slice(0, ORG_KINDS.length)).toEqual([...ORG_KINDS])
     for (const k of EDGE_ORG_KINDS) expect((SYNC_KINDS as readonly string[]).includes(k)).toBe(false)
   })
 
