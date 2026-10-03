@@ -1,4 +1,4 @@
--- PRE-APPROVED-LIVE-DDL: owner standing authority (see 0691); this is the rollback.
+-- PRE-APPROVED-LIVE-DDL: Owner (Rajat Agarwal) directive of 2026-10-02 in a live Claude Code session: "complete the PROJEXA local-first system ... the whole database of that user and their organisation (as per role) live on the laptop"; this is the rollback of 0691, run deliberately by the PM.
 -- Down-migration for drizzle/0691_projexa_sync_erp_hr_kinds.sql. Run deliberately by the PM, not by any script. Roll back strictly in reverse (this file before 0690 .. 0686 / 0684).
 -- Inside: the 18 tables' tracking triggers go FIRST, then the list, sources and hidden-columns rule are put back to 0684's definitions (9 kinds), then the strict-money helper is dropped.
 -- DATA LOSS: version heads / change-log rows already written for the 18 kinds stay (harmless: the list no longer has them and the org feed filters them out); no business table is touched.
