@@ -3635,6 +3635,13 @@
       "when": 1790506000000,
       "tag": "0690_projexa_prepare_e2e_excluded",
       "breakpoints": true
+    },
+    {
+      "idx": 521,
+      "version": "7",
+      "when": 1790507000000,
+      "tag": "0691_projexa_sync_erp_hr_kinds",
+      "breakpoints": true
     }
   ]
 }

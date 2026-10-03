@@ -72,7 +72,10 @@ export const SYNC_KINDS = [
   "material_receipts", "material_issues", "expenses", "schedule_baselines", "ffe_items", "wiki_pages",
 ] as const
 // the ORGANISATION kinds of drizzle/0684 (not project-scoped): the SQL list is public.projexa_sync__org_kinds(); a test asserts the two stay equal. Their feed and signatures use the sentinel project.
-export const ORG_KINDS = ["vendors", "customers", "companies", "boq_categories", "currencies", "exchange_rates", "departments", "org_people", "cost_visibility"] as const
+export const ORG_KINDS = ["vendors", "customers", "companies", "boq_categories", "currencies", "exchange_rates", "departments", "org_people", "cost_visibility",
+  // drizzle/0691: ERP / HR / interior / knowledge-base organisation kinds
+  "warehouses", "item_groups", "stock_items", "stock_entries", "accounts", "fiscal_years", "budgets", "purchase_orders", "goods_receipts", "requisitions", "rfqs",
+  "quotations", "sales_orders", "invoices", "floor_plans", "mood_boards", "knowledge_base", "employees"] as const
 export const ORG_SENTINEL = "__org__"
 const isOrgKind = (k: unknown): boolean => typeof k === "string" && (ORG_KINDS as readonly string[]).includes(k)
 export const PULL_LIMIT_DEFAULT = 200
