@@ -29,7 +29,7 @@
 // agent pass) verify the domain-level content is still accurate.
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 
 const REPO_ROOT = process.cwd()
 const SCHEMA_FILE = "src/lib/db/schema.ts"

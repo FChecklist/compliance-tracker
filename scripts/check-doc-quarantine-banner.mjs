@@ -14,7 +14,7 @@
 // can never silently be dropped by a later edit.
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 
 const REPO_ROOT = process.cwd()
 const MANIFEST_FILE = "ai-os/registry/stale-doc-manifest.yaml"

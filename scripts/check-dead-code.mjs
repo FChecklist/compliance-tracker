@@ -23,7 +23,7 @@
 import { readFile } from "node:fs/promises"
 import { execFileSync } from "node:child_process"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 
 const REPO_ROOT = process.cwd()
 const BASELINE_FILE = "ai-os/registry/dead-code-baseline.yaml"
