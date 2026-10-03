@@ -32,10 +32,16 @@ export function collectPrecache(distDir, entryHtml = "app/index.html") {
   return [...seen].sort()
 }
 
+/** The shared reminder rule (src/lib/device-copy/reminders.mjs) as worker text: the same file the page and the tests import, minus `export`. */
+export function reminderSource() {
+  return readFileSync(join(appRoot, "src", "lib", "device-copy", "reminders.mjs"), "utf8").replace(/^export /gm, "")
+}
+
 export function renderSw(template, files) {
   const version = createHash("sha256").update(files.join("\n")).update(readFileSync(join(appRoot, "dist", "app", "index.html"))).digest("hex").slice(0, 12)
-  if (!template.includes("__VERSION__") || !template.includes("__PRECACHE__")) throw new Error("sw template lost its placeholders")
-  return template.replace("__VERSION__", version).replace("__PRECACHE__", JSON.stringify(files, null, 2))
+  if (!template.includes("__VERSION__") || !template.includes("__PRECACHE__") || !template.includes("__REMINDERS__")) throw new Error("sw template lost its placeholders")
+  // Function replacers, so a "$" in the pasted source is never read as a replacement pattern.
+  return template.replace("__VERSION__", () => version).replace("__PRECACHE__", () => JSON.stringify(files, null, 2)).replace("__REMINDERS__", () => reminderSource())
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
