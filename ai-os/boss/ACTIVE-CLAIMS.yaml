@@ -40,6 +40,14 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (DPDP PWA + 3-step page; worktree C:/ct/wt-dpdp-mail, branch feat/dpdp-pwa-onepage-steps)"
+    claimed_at: "2026-10-03T (this session)"
+    claim: |
+      Scope: dpdp-app/ only. NEW: src/lib/device-copy/*, src/components/AiFirstSteps.tsx, DeviceCopy.tsx, scripts/pwa/*,
+      public/app/manifest+icons, e2e/device-copy.spec.ts. EDITS (small): src/App.tsx (load/markYes/signOut wiring), main.tsx,
+      app/index.html, package.json build chain, OPERATIONS.md. Owner request 2026-10-03: the person's own device keeps the whole
+      app + their data (offline PWA), and /app/ opens with numbered steps, Option 1 = copy the AI work link. No DB, no function
+      deploy, no DNS, no paid setting.
   - session_label: "claude-code (sub-agent, isolated worktree C:/ct/wt-dpdp-seo branch feat/dpdp-site-seo-monitoring) -- free SEO + first-party monitoring for veridian-aios.com"
     claimed_at: "2026-10-02T (this session)"
     claim: |

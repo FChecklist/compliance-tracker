@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createDpdpClient, type DpdpClient } from "./lib/client"
 import {
   RpcFailure, acknowledgeWelcome, addNote, answerGroup, assignPerson, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
@@ -25,6 +25,12 @@ import { AiUndoConfirm } from "./components/AiUndoConfirm"
 import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type ResendState } from "./components/Screens"
 import { BrandLine } from "./components/BrandLine"
 import { shareRoleFor } from "./lib/brand"
+import { AiFirstSteps } from "./components/AiFirstSteps"
+import { DeviceCopy } from "./components/DeviceCopy"
+import { createCopyStore } from "./lib/device-copy/copy-store"
+import { idbKv } from "./lib/device-copy/kv"
+import { isNetworkError } from "./lib/device-copy/network"
+import { loadWithCopy } from "./lib/device-copy/page-copy"
 
 // WO-DPDP-011 Step 2 spike: one role, the whole loop -- sign in, own jobs
 // load, Mark Yes, reload shows it. Step 3 added the owner: first-visit
@@ -81,6 +87,11 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   const [view, setView] = useState<"page" | "clients">("page")
   // The Sales Partner screen (drizzle/0673). Open from the Share box, the top bar, or "open your organisation".
   const [partnerOpen, setPartnerOpen] = useState(false)
+  // The copy of this person's page on THIS device (src/lib/device-copy): the person's own machine keeps the app and the data, so a dropped
+  // connection costs nothing. `offline` = what is on screen came from the device because the network did not answer.
+  const store = useMemo(() => { try { return createCopyStore(idbKv()) } catch { return null } }, [])
+  const [copyInfo, setCopyInfo] = useState<{ offline: boolean; savedAt: string | null; pending: number }>({ offline: false, savedAt: null, pending: 0 })
+  const emailRef = useRef<string | null>(null)
   // Written only from the auth-event handler, never during render: whether
   // this session's first page fetch has been kicked off, so supabase-js's
   // SIGNED_IN re-emits on tab focus don't fetch the page again.
@@ -120,9 +131,16 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       // round of state. A person whose email no dpdp.identity knows gets a
       // refusal from it -- that is the same "no membership" the page call
       // reports, so it is folded into [] here and the page decides.
-      const [page, clients] = await Promise.all([fetchMyPage(client, orgRef.current), fetchMyClients(client).catch(() => [] as CaClient[])])
+      const got = await loadWithCopy<MyPage, CaClient>({
+        fetchPage: () => fetchMyPage(client, orgRef.current), fetchClients: () => fetchMyClients(client),
+        store, email: emailRef.current, org: orgRef.current, isNetwork: isNetworkError,
+      })
       if (mine !== loadSeq.current) return
-      setPhase({ name: "app", page, clients })
+      setCopyInfo((c) => ({ ...c, offline: got.source === "device", savedAt: got.savedAt }))
+      setPhase({ name: "app", page: got.page, clients: got.clients })
+      // Counted after the page is on screen, so the page never waits on the device database.
+      const who = emailRef.current
+      if (store && who) void store.pending(who).then((t) => setCopyInfo((c) => (c.pending === t.length ? c : { ...c, pending: t.length })), () => {})
     } catch (e) {
       // The contract: an error from dpdp_my_page means "no active
       // membership for this email". PGRST* codes are PostgREST itself
@@ -132,11 +150,13 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       if (e instanceof RpcFailure && !isPostgrest) setPhase({ name: "no-membership", busy: false, error: null })
       else setPhase({ name: "error", message: e instanceof Error ? e.message : String(e) })
     }
-  }, [client, landing.joinCode])
+  }, [client, landing.joinCode, store])
 
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
       setEmail(session?.user.email ?? null)
+      emailRef.current = session?.user.email ?? null
+      if (session?.user.email && store) void store.keepOnly(session.user.email).catch(() => {})
       if (!session) {
         fetchStarted.current = false
         if (event === "INITIAL_SESSION") {
@@ -156,7 +176,19 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       }
     })
     return () => subscription.unsubscribe()
-  }, [client, load, landing])
+  }, [client, load, landing, store])
+
+  // Back online: send the "done" taps made while offline, then re-read the page. A tap the server refuses is dropped (it said no), one the
+  // network fails on stays for next time.
+  useEffect(() => {
+    const onOnline = () => {
+      const who = emailRef.current
+      if (!store || !who) { void load(); return }
+      store.flush(who, (id) => markDone(client, id), isNetworkError).catch(() => null).finally(() => void load())
+    }
+    window.addEventListener("online", onOnline)
+    return () => window.removeEventListener("online", onOnline)
+  }, [client, load, store])
 
   // A #draft= or #undo= fragment can arrive AFTER load too: the person is
   // already on /app/ and pastes the AI's draftUrl/undoUrl into the same tab,
@@ -205,6 +237,10 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   }
 
   async function signOut() {
+    // Best effort: send anything still waiting, then remove this person's copy from the device before signing out.
+    const who = emailRef.current
+    if (store && who && navigator.onLine) await store.flush(who, (id) => markDone(client, id), isNetworkError).catch(() => null)
+    await store?.wipe().catch(() => {})
     await client.auth.signOut()
     orgRef.current = null
     setView("page")
@@ -237,6 +273,17 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
     await load()
   }
 
+  // "Yes, it is done": straight to the server; if only the network is down, kept on the device and sent when it is back.
+  async function markYes(id: string) {
+    try {
+      await markDone(client, id)
+    } catch (e) {
+      const who = emailRef.current
+      if (!store || !who || !isNetworkError(e)) throw e
+      await store.queueMarkDone(who, orgRef.current, id)
+    }
+  }
+
   let screen: ReactNode
   switch (phase.name) {
     case "booting":
@@ -262,6 +309,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       screen = (
         <Page
           client={client} page={phase.page} clients={phase.clients} refetch={load} email={email} onSignOut={signOut}
+          copyInfo={copyInfo} onMarkYes={markYes}
           view={view} onView={setView} onOpenOrg={openOrg} draft={draft} onDraftDone={() => setDraft(null)}
           undo={undo} onUndoDone={() => setUndo(null)} onOpenPartner={() => setPartnerOpen(true)}
         />
@@ -286,8 +334,10 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
 }
 
 function Page({
-  client, page, clients, refetch, email, onSignOut, view, onView, onOpenOrg, draft, onDraftDone, undo, onUndoDone, onOpenPartner,
+  client, page, clients, refetch, email, onSignOut, view, onView, onOpenOrg, draft, onDraftDone, undo, onUndoDone, onOpenPartner, copyInfo, onMarkYes,
 }: {
+  copyInfo: { offline: boolean; savedAt: string | null; pending: number }
+  onMarkYes: (id: string) => Promise<void>
   onOpenPartner: () => void
   client: DpdpClient
   page: MyPage
@@ -343,9 +393,11 @@ function Page({
     // without an RPC; everything else on the page is wired.
     body = (
       <>
+        <AiFirstSteps client={client} orgId={org.id} offline={copyInfo.offline} onMade={refetch} />
+        <div id="jobs" />
         <OnePageView
           orgName={org.name} rows={rows} viewer={viewer} refetch={refetch}
-          onMarkYes={(id) => markDone(client, id)}
+          onMarkYes={onMarkYes}
           onAnswerGroup={async (id, answer) => { await answerGroup(client, id, answer) }}
           jobActions={{
             onNote: (id, text) => addNote(client, id, text),
@@ -354,7 +406,7 @@ function Page({
             onNotApplicable: (id, reason) => markNotApplicable(client, id, reason),
           }}
         />
-        <AiWorkLink client={client} orgId={org.id} onMade={refetch} />
+        <div id="ai-link-settings"><AiWorkLink client={client} orgId={org.id} onMade={refetch} /></div>
         {viewer.kind !== "staff" && <History client={client} page={page} />}
       </>
     )
@@ -362,6 +414,7 @@ function Page({
 
   return (
     <div className="dpdp-onepage min-h-screen">
+      <DeviceCopy savedAt={copyInfo.savedAt} offline={copyInfo.offline} pending={copyInfo.pending} />
       <div className="max-w-[1240px] mx-auto px-5 pt-3 flex justify-end items-center gap-3 flex-wrap" style={{ fontSize: 12.5, color: "var(--dpdp-ink3)" }}>
         {clients.length > 0 && view === "page" && (
           // WO-DPDP-010 §3 "CA firm view": DpdpShell's "🧾 My clients (N)"
