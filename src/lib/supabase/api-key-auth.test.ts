@@ -14,6 +14,21 @@ import { describe, test, expect, mock, afterEach, beforeEach } from "bun:test"
 // (drizzle's sql`` template pushes params in as-is; see
 // node_modules/drizzle-orm/sql/sql.js's tag() -- the same fact
 // api-key-audit.test.ts's own module-level test relies on).
+// 2026-10-03: the audit writes moved off `db` onto a dedicated cancellable client (src/lib/auth/audit-writer-client.ts). This suite
+// still asserts on its `@/lib/db` mocks, so the writer is bridged back to whichever `@/lib/db` mock is current at call time -- same
+// shapes as before (execute({queryChunks:[json]}), update().set({lastUsedAt}).where()).
+mock.module("@/lib/auth/audit-writer-client", () => ({
+  insertAuditRows: async (payloadJson: string) => {
+    const { db } = await import("@/lib/db")
+    await (db as unknown as { execute: (q: unknown) => Promise<unknown> }).execute({ queryChunks: [payloadJson] })
+  },
+  touchApiKeyLastUsed: async (_apiKeyId: string, at: Date) => {
+    const { db } = await import("@/lib/db")
+    await (db as unknown as { update: (t: unknown) => { set: (v: unknown) => { where: (w: unknown) => Promise<unknown> } } })
+      .update({}).set({ lastUsedAt: at }).where({})
+  },
+}))
+
 function rowsFromExecuteCall(query: { queryChunks?: unknown[] } | undefined): unknown[] {
   const chunk = query?.queryChunks?.find((c) => typeof c === "string")
   return chunk ? JSON.parse(chunk as string) : []
