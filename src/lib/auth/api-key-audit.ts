@@ -1,6 +1,5 @@
 import { after } from "next/server"
-import { eq, sql } from "drizzle-orm"
-import { db, apiKeys } from "@/lib/db"
+import { insertAuditRows, touchApiKeyLastUsed } from "./audit-writer-client"
 
 // R67 F-17 (R-234) -- TAKE THE TWO API-KEY AUDIT WRITES OFF THE REQUEST PATH.
 //
@@ -294,12 +293,11 @@ function defaultDeps(): ApiKeyAuditDeps {
         // The request's own time. See this file's header.
         createdAt: row.at.toISOString(),
       }))
-      await db.execute(
-        sql`select compliance.record_api_key_request_batch(${JSON.stringify(payload)}::jsonb)`
-      )
+      // Dedicated one-connection client with a cancel-on-timeout (audit-writer-client.ts), not the shared `db` pool.
+      await insertAuditRows(JSON.stringify(payload), WRITE_TIMEOUT_MS)
     },
     touchLastUsedAt: async (apiKeyId, at) => {
-      await db.update(apiKeys).set({ lastUsedAt: at }).where(eq(apiKeys.id, apiKeyId))
+      await touchApiKeyLastUsed(apiKeyId, at, WRITE_TIMEOUT_MS)
     },
     defer: deferOffTheHotPath,
     startTimer: (task, ms) => {
