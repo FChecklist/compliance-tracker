@@ -106,4 +106,5 @@ jobs:
 
       - name: Deploy prebuilt output to Vercel production
         if: github.event_name == 'push' || inputs.deploy == 'true'
-        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        # --archive=tgz: the prebuilt output has ~19,000 files and the CLI refuses more than 15,000 uploaded individually (run 37127751964).
+        run: vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN"
