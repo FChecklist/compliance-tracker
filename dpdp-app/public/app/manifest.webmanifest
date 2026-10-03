@@ -1,0 +1,16 @@
+{
+  "name": "VERIDIAN DPDP",
+  "short_name": "DPDP",
+  "description": "Your DPDP jobs, on your own device. Works without internet after the first visit.",
+  "id": "/app/",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#16102e",
+  "theme_color": "#3B3FB6",
+  "lang": "en-IN",
+  "icons": [
+    { "src": "/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

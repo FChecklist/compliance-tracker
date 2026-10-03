@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { copyToClipboard, fetchPrompt, promptTokenFromHash, type ClipboardDeps } from "@/lib/copy-prompt"
+import { copyToClipboard, fetchPrompt, promptTokenFromHash } from "@/lib/copy-prompt"
+import { browserClipboard } from "@/lib/browser-clipboard"
 import { Card } from "./Screens"
 
 // The one-tap Copy page behind the "Copy" button in the Monday email's prompt box (owner, 2026-09-30: "a simple copy icon on the upper
@@ -18,22 +19,6 @@ type State =
   | { kind: "gone" }
   | { kind: "error" }
   | { kind: "ready"; text: string }
-
-function browserClipboard(): ClipboardDeps {
-  return {
-    writeText: typeof navigator !== "undefined" && navigator.clipboard?.writeText ? (t) => navigator.clipboard.writeText(t) : undefined,
-    legacyCopy: (t) => {
-      const ta = document.createElement("textarea")
-      ta.value = t
-      ta.setAttribute("readonly", "")
-      ta.style.position = "fixed"
-      ta.style.opacity = "0"
-      document.body.appendChild(ta)
-      ta.select()
-      try { return document.execCommand("copy") } finally { document.body.removeChild(ta) }
-    },
-  }
-}
 
 export function CopyPromptPage() {
   // Read once, before the first render, so "no token" is the starting state rather than a state set inside the effect.

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.json && node scripts/generate-public-facts.mjs --check && vite build && node scripts/build-sitemap.mjs && node scripts/check-public-surface.mjs && node scripts/check-claims.mjs && node scripts/check-two-doors.mjs",
+    "build": "tsc --noEmit -p tsconfig.json && node scripts/generate-public-facts.mjs --check && vite build && node scripts/pwa/build-pwa.mjs && node scripts/build-sitemap.mjs && node scripts/check-public-surface.mjs && node scripts/check-claims.mjs && node scripts/check-two-doors.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun test",
