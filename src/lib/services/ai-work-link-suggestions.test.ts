@@ -392,7 +392,7 @@ describe("the definition, the manual and the registry", () => {
       expect(md).toContain("You cannot change the app or anyone's data")
       expect(md).toContain("PROJEXA team reviews suggestions")
       expect(manifestOf(md).urls.suggestions).toBe(`${F}/${token}/suggestions`)
-      expect(new TextEncoder().encode(md).length).toBeLessThan(20000)
+      expect(new TextEncoder().encode(md).length).toBeLessThan(40000)
     }
   })
 

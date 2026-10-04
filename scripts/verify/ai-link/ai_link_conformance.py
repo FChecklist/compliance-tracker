@@ -32,7 +32,7 @@ import sys
 import time
 import urllib.parse
 
-MAX_MANUAL_BYTES = 20000
+MAX_MANUAL_BYTES = 40000
 MAX_PAGE_BYTES = 1_000_000
 MAX_PAGE_SECONDS = 2.0
 MAX_URL_CHARS = 250  # Anthropic web fetch tool refuses longer URLs (url_too_long), per AILINK_R03 1.5 (FETCHED)

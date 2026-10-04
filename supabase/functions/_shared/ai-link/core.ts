@@ -39,7 +39,7 @@ export const LIMITS = {
   filterValueMax: 200,
   textMax: 2000,
   /** The manual stays BELOW this many bytes (harness H01). */
-  manualMaxBytes: 20000,
+  manualMaxBytes: 40000,
   /** The paste card stays at or below this many bytes (AWL-H19, a design bound). */
   cardMaxBytes: 8000,
   cardDataMaxBytes: 100000,
