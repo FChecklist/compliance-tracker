@@ -35,6 +35,7 @@ import { pipelineFailure, type PipelineFailure } from "./error-codes"
 import { financialsAllowedForRole } from "@/lib/task-execution/construction-tools"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
 import { refusalSentence, resolveInternalAiRoute, type InternalAiRoute } from "@/lib/ai/internal-ai-policy"
+import { isInternalAiAllowedForOrg } from "@/lib/ai/internal-ai-org-allowance"
 import { createInternalExtractCaller, modelCallForRoute } from "@/lib/ai/internal-model-gateway"
 import type { ExecutableTask, ExecutionOutcome } from "./executor"
 
@@ -102,6 +103,8 @@ export type ChatAttachmentReply = {
 
 export type ChatAttachmentDeps = {
   resolveRoute?: (personId: string | null) => InternalAiRoute
+  /** Audit 37 point 11: the organisation's allow flag. Read only when `resolveRoute` is not supplied (a stub owns its own decision). */
+  orgAllowed?: (orgId: string) => Promise<boolean>
   /** The executor's deps around the chosen route's metered model caller; the caller's model calls are counted through `modelCalls`. */
   buildExecutorDeps?: (route: Extract<InternalAiRoute, { allowed: true }>, input: ChatAttachmentInput) => { deps: ExtractionExecutorDeps; modelCalls: () => number }
 }
@@ -251,7 +254,10 @@ export async function runChatAttachment(input: ChatAttachmentInput, deps: ChatAt
     }
   }
 
-  const route = (deps.resolveRoute ?? resolveInternalAiRoute)(input.personId)
+  // The per-org allow flag is read here, outside any open tenant transaction (the route calls this before opening one).
+  const route = deps.resolveRoute
+    ? deps.resolveRoute(input.personId)
+    : resolveInternalAiRoute(input.personId, { orgAllowed: await (deps.orgAllowed ?? isInternalAiAllowedForOrg)(input.orgId) })
   if (!route.allowed) {
     return refused(base, pipelineFailure("NOT_PERMITTED", [], { reason: route.reason }), refusalSentence(route.reason))
   }

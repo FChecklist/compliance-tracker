@@ -31,7 +31,10 @@
 // back to the key id (run-submission.ts level1Context personId: input.userId,
 // dry-run.ts and classify-only.ts likewise), the RAJAT_USER_ID-equals-key-id
 // cases fail on every surface -- see the U-49 report for the recorded run.
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+// Audit 37 point 11: the per-organisation allow flag (internal-ai-org-allowance.ts) is default closed; this file tests behaviour for an ALLOWED org.
+mock.module("@/lib/ai/internal-ai-org-allowance", () => ({ INTERNAL_AI_BRANCH_KEY: "internal_ai", isInternalAiAllowedForOrg: async () => true, isInternalAiAllowedForOrgWithDb: async () => true }))
+;
 // lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
 // that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
 const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED;

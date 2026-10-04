@@ -11,7 +11,10 @@
 //
 // Falsifiability (R74-RULING-03 (c)): delete the `candidateFunctionIds.includes(...)` check in
 // level1.ts and the "outside the candidate set" cases below fail (the id is resolved).
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test"
+// Audit 37 point 11: the per-organisation allow flag (internal-ai-org-allowance.ts) is default closed; this file tests behaviour for an ALLOWED org.
+mock.module("@/lib/ai/internal-ai-org-allowance", () => ({ INTERNAL_AI_BRANCH_KEY: "internal_ai", isInternalAiAllowedForOrg: async () => true, isInternalAiAllowedForOrgWithDb: async () => true }))
+;
 import { aiEnvSnapshot } from "@/lib/pipeline/__test-helpers__/pipeline-store-double";
 
 const savedFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED;

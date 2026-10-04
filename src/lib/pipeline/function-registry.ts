@@ -71,6 +71,9 @@ export type RequiredParam = {
   alsoSatisfiedBy?: string[];
 };
 
+/** Audit 37 point 12: the role names a function may require, lowest first. */
+export type MinRole = "member" | "manager" | "admin";
+
 /** B-05: the verb family, which decides what a submission's answer looks like. */
 export type FunctionKind = "write" | "ask" | "run";
 
@@ -95,6 +98,14 @@ export type FunctionSpec = {
    */
   optionalParams?: readonly string[];
   card?: CardSchema;
+  /**
+   * Audit 37 point 12 -- the LOWEST role that may run this function at all, declared here and enforced centrally by executor.ts's
+   * executeTask() before any executor runs ("member" < "manager" < "admin", the ranks of role-rank.ts). Absent means the executor's own
+   * checks decide, as before (most functions work for a member; some redact money for a member instead of refusing, and keep doing so).
+   * Only functions that already refuse a member inside their executor are declared, so declaring one changes no member's outcome except
+   * the order in which a refusal is reached.
+   */
+  minRole?: MinRole;
   /**
    * Only for kind "run" (a COMMAND verb: Run / Export / Share). A command
    * does not execute anything server-side -- it opens the screen that already
@@ -133,7 +144,7 @@ function readSpecNeeding(
   return { ...readSpec(functionId, label, module, requiresProject), requiredParams };
 }
 
-const SPEC_LIST: readonly FunctionSpec[] = [
+const BASE_SPECS: readonly FunctionSpec[] = [
   // ---- the one write the pipeline has always had -----------------------
   {
     functionId: "record_work_progress",
@@ -2491,6 +2502,24 @@ function b5Specs(): FunctionSpec[] {
       [n("rate", "Rate", true), d("rateDate", "Rate date", true)], "Save rate", [org]),
   ];
 }
+
+/**
+ * Audit 37 point 12 -- the functions whose executors already refuse a role below manager (each guarded by RANK_MANAGER / withMinRank
+ * manager in executors/*.ts and executor.ts): approvals and sign-offs, progress claims, sealing and deleting a BOQ, org setup of
+ * companies and currencies, archiving a project, voiding a receipt, and the money reports. A member calling any of them is refused
+ * NOT_PERMITTED before the executor runs. Declared as a table so the whole policy reads in one place; executor-min-role.test.ts
+ * pins that every id is a real registered function.
+ */
+export const MANAGER_MIN_ROLE_FUNCTION_IDS: readonly string[] = [
+  "approve_timesheet", "reject_timesheet", "approve_kpi_entry", "submit_change_order_for_approval", "submit_boq_for_approval",
+  "seal_boq", "create_progress_claim", "draft_progress_claim", "submit_progress_claim", "reject_progress_claim",
+  "rename_boq_category", "delete_boq_category", "create_company", "create_currency", "create_exchange_rate",
+  "update_attendance", "delete_attendance", "delete_boq", "update_boq_line_amounts", "archive_project", "dispose_document",
+  "review_submittal", "verify_punch_item_closed", "void_material_receipt", "get_material_cost_report", "get_project_analysis",
+];
+
+const MANAGER_ONLY: ReadonlySet<string> = new Set(MANAGER_MIN_ROLE_FUNCTION_IDS);
+const SPEC_LIST: readonly FunctionSpec[] = BASE_SPECS.map((spec) => (MANAGER_ONLY.has(spec.functionId) && !spec.minRole ? { ...spec, minRole: "manager" as const } : spec));
 
 const SPECS: Readonly<Record<string, FunctionSpec>> = Object.fromEntries(SPEC_LIST.map((s) => [s.functionId, s]));
 
