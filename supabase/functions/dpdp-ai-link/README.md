@@ -176,3 +176,9 @@ function calls RPCs that only exist after it. `APP_ORIGIN` defaults to
 
 ## Ideas for the product (shared suggestion pool)
 `POST /suggestions` (any level) lets the AI say what VERIDIAN lacks -- a feature, report, fix or wording -- and `GET /suggestions` reads the one pool every AI on every link shares, so ideas are endorsed rather than repeated. It is a separate table (`dpdp.ai_suggestion`, drizzle/0671): no job, person or organisation row is read or written, an AI can only add an idea or its voice (never edit or delete; votes are append-only), text carrying an email, phone, PAN, Aadhaar, token link or the customer's own name is refused, and the list never shows who sent it. 20 new ideas per link per day. We review from our side: `select * from dpdp.ai_suggestion order by endorse_count desc`, then `public.dpdp_suggestion_set_status(id, status, note)` (service_role only).
+
+## Short paste, GET-only fallback, registers (2026-10-05)
+
+* The paste (`_shared/ai-link/prompt.ts`) is one sentence plus the link, framed as the owner's OWN API documentation (a bare "follow this link" was refused as prompt injection about one run in three).
+* **GET-only fallback.** An assistant that can open a web address but not POST adds `?_method=POST&_body=<url-encoded JSON>` to `/actions`, `/drafts` or `/suggestions` and uses GET (body at most 6 KB). `router.ts` `methodOverride` turns it into the POST it stands for, so the level, role, rate limit and call log all apply unchanged; anywhere else it is a 403.
+* **`GET /register`, `GET /register/{kind}`** (drizzle/0693): read-only views of the rest of the organisation for owner / coordinator / Grievance Officer / CA links; a staff or parent link gets 403. No personal data. The role-by-role inventory and the decisions are in `ai-os/DPDP_AI_LINK_PARITY.md`.

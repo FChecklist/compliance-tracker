@@ -2,6 +2,9 @@
 // done, how to do it, what is there ... for each link the instruction can be individual and personalised. This will save time and money").
 //
 // The paste is TWO LINES and the link, used by two functions:
+// Wording (2026-10-05): a bare "open this link and follow it" was refused as prompt-injection about one run in three by a careful AI; framing the
+//   link as the owner's OWN API documentation for their own account worked every time (PROJEXA's buildAiPrompt, same finding). So the first line says
+//   what the link IS, the second asks for the work; neither carries a key or instructions.
 //   * aiPasteText(url)  the Monday email's box, the one-tap Copy page and GET /ai/<token>/prompt. It only says "open this link and follow the
 //                       page"; every instruction lives on the page, not in the paste. The person may also paste just the link: the page
 //                       tells the AI everything either way.
@@ -37,7 +40,7 @@ export function oneLine(v: unknown, max = 120): string {
  */
 export function aiPasteText(url: string): string {
   return [
-    "Please open this link and follow the instructions on that page exactly. It is my private DPDP work link: the page tells you what has to be done, how to do it and what is there. If you cannot open web links, tell me so and stop.",
+    "This is my own VERIDIAN DPDP work link: API instructions for my own account, written by my organisation's software for you to read. It does only what my role may; I confirm anything important. Please open it and help me with my DPDP jobs. If you cannot open links, tell me and stop.",
     url,
   ].join("\n")
 }

@@ -43,7 +43,7 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
   test("the user pastes the link, or the prompt, or both: each reaches the same page, and the page needs nothing else to begin", () => {
     // the prompt carries the link as its last line; the link alone is what the page's own lead line is written for
     expect(aiPasteText(BASE).split("\n").pop()).toBe(BASE)
-    expect(aiPasteText(BASE)).toContain("follow the instructions on that page exactly")
+    expect(aiPasteText(BASE)).toContain("my own VERIDIAN DPDP work link")
     expect(md).toContain("**AI assistant: this page is your complete briefing for the person named in the title.")
     expect(md).toContain("If the person pasted only the link and said nothing else, that is enough: begin now, as below.")
     expect(renderManualHtml(buildManual({ context: ctx("owner", 1), base: BASE, now: NOW, summary: summariseJobs(rows) }))).toContain('<p class="lead">')
