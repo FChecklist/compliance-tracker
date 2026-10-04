@@ -152,7 +152,7 @@ describe("writes ON: the SQL flag alone is not the whole switch", () => {
     try {
       const ctx = (await get(mgr, "/context", withExec)).json
       expect(ctx).toMatchObject({ level: 1, direct_open: true, reads_open: true, drafts_open: true, writes_enabled: true })
-      expect(ctx.level_note).toBe("Direct level-1 changes are on for this link.")
+      expect(ctx.level_note).toBe("Direct changes (add, edit and delete) are on for this link, with no confirmation step.")
       expect(fnOf(ctx, "record_work_progress")).toMatchObject({ available: true, drafts_open: true, direct_open: true })
       expect(fnOf(ctx, "add_roster_entry")).toMatchObject({ available: true, drafts_open: true, direct_open: true })
       expect(fnOf(ctx, "get_construction_project_dashboard")).toMatchObject({ available: true, reads_open: true })
@@ -160,7 +160,7 @@ describe("writes ON: the SQL flag alone is not the whole switch", () => {
       const manual = (await get(mgr, "", withExec, "text/markdown")).text
       expect(manual).toContain("Available now: a read: yes; a level 1 change: draft or direct; a level 2 change: draft or direct.")
       expect((await get(mgr, "/functions", withExec, "text/markdown")).text).toMatch(/\| record_work_progress \|[^\n]*\| write \| 1 \| draft or direct \|/)
-      expect(manual).toContain("Direct level-1 changes are switched on for this link")
+      expect(manual).toContain("Direct changes (add, edit and delete) are switched on for this link")
       // and the same link with the switch flipped back is level 0 again on the very next call
       await setWrites(db, false)
       expect((await get(mgr, "/context", withExec)).json).toMatchObject({ level: 0, direct_open: false, reads_open: false, writes_enabled: false })

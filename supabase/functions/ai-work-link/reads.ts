@@ -231,8 +231,8 @@ export function availabilityOf(env: { ctx: LinkCtx; config: AwlConfig }): Availa
 export function levelNote(ctx: LinkCtx, av: Availability): string {
   if (ctx.effective_level >= 1) {
     return av.direct_open
-      ? "Direct level-1 changes are on for this link."
-      : "This link may make level-1 changes directly, but the executor is not switched on yet: draft them and the person confirms."
+      ? "Direct changes (add, edit and delete) are on for this link, with no confirmation step."
+      : "This link may make changes directly, but the executor is not switched on yet: draft them and the person confirms."
   }
   if (ctx.authority_level >= 1 && ctx.live_rank < 2) return "This link was made at level 1, but this person's role can no longer make changes: it can read, check and draft."
   if (ctx.authority_level >= 1) return "This link was made at level 1; direct changes are switched off for every link at the moment, so draft them and the person confirms."
