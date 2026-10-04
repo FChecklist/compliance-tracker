@@ -39,3 +39,13 @@ P2 reset email with code + callback flow (17), PIN tests (16/18), offline PIN lo
 P3 enable internal AI locally + role/no-code tests (4,12,14); per-function min-role table.
 P4 real-backend local e2e (15,25,26), two-browser sync, real engine runs (28-32), extension (36).
 P5 Vercel (last, cap-checked).
+
+## Progress log (updated 2026-10-04, real-backend runs on localhost:3100)
+Real-backend Playwright journey (FChecklist/projexa PR #356, e2e/audit37-real-*.spec.ts, playwright.audit37-real.config.ts):
+- VERIFIED against the real Supabase project + real projexa-sync: real login, release installed in Cache Storage, service worker controls page, real data markers (sync:done:*) in IndexedDB (6, 15); works with network cut (25); works with Supabase refused (26); page errors buffered offline and delivered when online (33); sync/peer leader lock held (7/8 wiring).
+- FOUND+FIXED: startPeerSync had no caller (7/8); /attest user_id != session id so the client rejected every real attestation and never opened signalling (e80504a3); no client error reporter (33).
+- FOUND, env: projexa-sync CORS allows only localhost:3100/3101 + projexa-ai.com; real-backend tests MUST run on :3100. Locally built release is not registered with the service (POST /install -> 400 "Bad request"; GET /release/current registered:false) - needs POST /release/register from an allowed origin, not yet done.
+- OPEN: two same-org laptops open Realtime+ntfy signalling but no verified peer link forms (under investigation).
+- Point 14/34 VERIFIED at bridge level: a prompt enqueued to platform.ai_bridge_request was claimed by the live worker on this laptop and answered by Claude Code ("PONG", ~50s on this RAM-starved laptop). Chat route itself still OFF (PROJEXA_INTERNAL_AI_ENABLED / AI_BRIDGE unset locally).
+- Point 17: reset email template already has link + 6-digit code (live auth config read). Delivery risk: Supabase built-in mailer (2/hr, team-member recipients only). Owner chose to keep built-in (no Resend); revisit before real customers.
+- Points 4/12: committed proof tests (route.roles.test.ts, level1.no-code.test.ts, claude-code-bridge.test.ts) with falsifiability evidence, PR #2056.
