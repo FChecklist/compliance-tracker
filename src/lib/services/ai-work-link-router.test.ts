@@ -735,7 +735,7 @@ describe("the manual, the manifest, the card", () => {
     expect(j.headers.get("content-type")).toContain("application/json")
     const doc = await j.json()
     expect(doc.manifest.base).toBe(`${F}/${TOKENS.manager}`)
-    expect(doc.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H"])
+    expect(doc.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"])
     expect((await run(at(TOKENS.manager, "/manual.md"), { headers: JSONH })).headers.get("content-type")).toBe("text/markdown; charset=utf-8")
     expect((await run(at(TOKENS.manager, "/manual.json"))).headers.get("content-type")).toContain("application/json")
   })
