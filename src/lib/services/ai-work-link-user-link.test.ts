@@ -498,14 +498,14 @@ describe("the manual, the card and the OpenAPI document of a user link", () => {
     expect(md).not.toContain("`{\"function\":\"create_project\"")
     const json = (await get(TOKENS.userManager, "/manual.json")).json
     expect(json.manifest).toMatchObject({ scope: "user", project: null })
-    expect(json.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H"])
+    expect(json.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"])
   })
 
-  test("a project link's manual is untouched: one project, its manifest names it, no Start here", async () => {
+  test("a project link's manual is untouched: one project, its manifest names it, no section C Start here", async () => {
     const { run } = setup()
     const md = await (await run(`/${TOKENS.manager}`)).text()
     expect(md.startsWith("# PROJEXA work link\n")).toBe(true)
-    expect(md).not.toContain("Start here")
+    expect(md).not.toContain("## C. Start here")
     expect(manifestOf(md)).toMatchObject({ project: { id: "proj_a" } })
     expect(manifestOf(md).scope).toBeUndefined()
   })
