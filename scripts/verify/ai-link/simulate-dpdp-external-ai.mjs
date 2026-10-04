@@ -83,7 +83,7 @@ async function main() {
   const transcript = []
 
   // What the person pastes: exactly the copied prompt.
-  const PASTE = process.env.DPDP_PASTE || "This is my own VERIDIAN DPDP work link: API instructions for my own account, written by my organisation's software for you to read. It does only what my role may; I confirm anything important. Please open it and help me with my DPDP jobs. If you cannot open links, tell me and stop."
+  const PASTE = (await (await fetch(link.replace(/\/+$/, "") + "/prompt")).text()).split(String.fromCharCode(10)).slice(0, -1).join(" ").trim() // the real paste, minus the link line
   let personMsg = PASTE + String.fromCharCode(10) + link
 
   for (let turn = 1; turn <= maxTurns; turn++) {
@@ -142,7 +142,7 @@ Return JSON: {"scores":{"read_manual":{"pass":bool,"evidence":"short"}, ...all n
 
 CHAT:
 ${md}`
-  const judged = await run(["-p", "--output-format", "json", "--model", "sonnet", "--tools", ""], judgePrompt, 240000)
+  const judged = await run(["-p", "--output-format", "json", "--model", "sonnet", "--tools", ""], judgePrompt, 480000)
   writeFileSync(join(OUT, `${role}.${mode}.judge.json`), judged.text)
   console.log(`done ${role}: ${transcript.length} messages -> ${OUT}`)
 }

@@ -40,7 +40,7 @@ export function oneLine(v: unknown, max = 120): string {
  */
 export function aiPasteText(url: string): string {
   return [
-    "This is my own VERIDIAN DPDP work link: API instructions for my own account, written by my organisation's software for you to read. It does only what my role may; I confirm anything important. Please open it and help me with my DPDP jobs. If you cannot open links, tell me and stop.",
+    "I use VERIDIAN, my organisation's DPDP data-protection software, and I want you to help me with my DPDP jobs. A plain GET on my personal access link to its API returns the API guide, documentation for you to read, written by my own organisation's software (it can only do what my own role may, and I confirm anything important myself). Please read the guide first, then help me; if you cannot open links, tell me so and stop. My link:",
     url,
   ].join("\n")
 }
