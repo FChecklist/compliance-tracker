@@ -14,7 +14,10 @@
 //
 // Falsifiability (R74-RULING-03 (c)): make financialsAllowedForRole() return true for every role
 // (construction-tools.ts) and the member / no-actor cases below fail on the non-null budget.
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+// Audit 37 point 11: the per-organisation allow flag (internal-ai-org-allowance.ts) is default closed; this file tests behaviour for an ALLOWED org.
+mock.module("@/lib/ai/internal-ai-org-allowance", () => ({ INTERNAL_AI_BRANCH_KEY: "internal_ai", isInternalAiAllowedForOrg: async () => true, isInternalAiAllowedForOrgWithDb: async () => true }))
+;
 const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED;
 beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" });
 afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag });

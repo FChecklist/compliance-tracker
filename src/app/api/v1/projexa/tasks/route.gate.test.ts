@@ -27,7 +27,10 @@
 // Cases that must NOT be read as "a non-owner is served": the second describe
 // block shows the same non-owner is not refused when Level 0 answers, because
 // the gate sits in front of the model and nothing else.
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+// Audit 37 point 11: the per-organisation allow flag (internal-ai-org-allowance.ts) is default closed; this file tests behaviour for an ALLOWED org.
+mock.module("@/lib/ai/internal-ai-org-allowance", () => ({ INTERNAL_AI_BRANCH_KEY: "internal_ai", isInternalAiAllowedForOrg: async () => true, isInternalAiAllowedForOrgWithDb: async () => true }))
+;
 // lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
 // that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
 const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED;

@@ -60,6 +60,7 @@ import { executeCompareBoqRevisions, executeGetProjectBudgetVariance, executeGet
 import { executeLinkRosterEmployee, executeRecordCustomerApproval, executeRecordCustomerComplaint, executeRecordVendorDispute, executeSetProgressDrawing } from "./executors/exception-capture";
 import { allPeopleOfProject, cleanOneText, cleanTextList, isHttpsUrl, withMinRank } from "./executors/scope";
 import { ROLE_RANK } from "@/lib/supabase/role-rank";
+import { notPermitted, rankOf } from "./executors/common";
 
 /**
  * R67 lane B (B-01, decision D-03). `error: string` is gone: a failure is a
@@ -2008,6 +2009,12 @@ export async function executeTask(
   const executor = executors[task.functionId];
   if (!executor) {
     return { success: false, failure: pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: task.functionId }) };
+  }
+  // Audit 37 point 12: the minimum role a function declares in function-registry.ts is enforced HERE, once, before any executor runs.
+  // An absent or unknown role has rank 0, so it fails closed. Functions that declare none are unaffected.
+  const minRole = functionSpec(task.functionId)?.minRole;
+  if (minRole && rankOf(task.role) < ROLE_RANK[minRole]) {
+    return notPermitted(minRole === "member" ? "role_below_member" : `${minRole}_rank_required`);
   }
   try {
     return await executor(task);

@@ -23,6 +23,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { constructionBoqLineItems, constructionBoqs } from "@/lib/db/schema";
 import { getAiProvider, assertAiProviderAllowed, AiProviderRefusalError, type AiProviderRefusalKind } from "@/lib/ai/adapter";
 import type { ResolvedFunction } from "./classify";
+import { isInternalAiAllowedForOrg } from "@/lib/ai/internal-ai-org-allowance";
 import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai";
 
 /** M26's acceptance floor. A resolution below this is a FAIL, not a maybe. */
@@ -95,6 +96,7 @@ export async function loadValidItemCodes(orgId: string, projectId: string | null
  * produced nothing this code is willing to act on. It NEVER throws for a bad
  * model answer -- a bad answer is a fail, and a fail is data.
  */
+export const LEVEL1_ORG_NOT_ALLOWED_REASON = "Level 1 is off: the assistant is not switched on for this organisation";
 /** The reason every text carries when Level 1 is skipped because PROJEXA's internal AI is off. */
 export const LEVEL1_INTERNAL_AI_OFF_REASON = "Level 1 is off: PROJEXA does not run its own AI";
 
@@ -106,6 +108,12 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
   // run-submission.ts's effectiveLevel1() (classify-only.ts, reuse-cache.ts, a future caller) still costs nothing.
   if (!projexaInternalAiEnabled()) {
     return { resolutions: texts.map(() => null), reasons: texts.map(() => LEVEL1_INTERNAL_AI_OFF_REASON), modelCalls: 0 };
+  }
+
+  // Audit 37 point 11: the master switch on is not enough; this organisation must also have been allowed our AI (default closed).
+  // Same quiet outcome as "off": nothing resolved, zero model calls, no provider consulted.
+  if (!(await isInternalAiAllowedForOrg(ctx.orgId))) {
+    return { resolutions: texts.map(() => null), reasons: texts.map(() => LEVEL1_ORG_NOT_ALLOWED_REASON), modelCalls: 0 };
   }
 
   // Refuses closed. Anthropic's Claude Code policy permits OAuth/subscription

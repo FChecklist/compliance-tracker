@@ -3642,6 +3642,13 @@
       "when": 1790507000000,
       "tag": "0691_projexa_sync_erp_hr_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 522,
+      "version": "7",
+      "when": 1790508000000,
+      "tag": "0692_internal_ai_product_branch",
+      "breakpoints": true
     }
   ]
 }
