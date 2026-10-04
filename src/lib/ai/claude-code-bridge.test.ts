@@ -111,6 +111,36 @@ describe("the laptop worker's core", () => {
     expect(args[args.indexOf("--system-prompt") + 1]).toBe("be brief")
   })
 
+  // Audit 37 #12 (proof test #5): not just the arg builder -- the argv the worker ACTUALLY hands to the process, with no shell.
+  test("runClaude spawns with tools disabled and shell:false (the real spawn call, via a fake child process)", async () => {
+    const calls: Array<{ bin: string; args: string[]; opts: Record<string, unknown> }> = []
+    const handlers: Record<string, (...a: unknown[]) => void> = {}
+    const fakeSpawn = (bin: string, args: string[], opts: Record<string, unknown>) => {
+      calls.push({ bin, args, opts })
+      return {
+        stdout: { on: (_e: string, cb: (d: string) => void) => setTimeout(() => cb("hello"), 0) },
+        stderr: { on: () => {} },
+        stdin: { end: () => setTimeout(() => handlers.close?.(0), 5) },
+        on: (e: string, cb: (...a: unknown[]) => void) => { handlers[e] = cb },
+        kill: () => {},
+      }
+    }
+    const saved = process.env.AI_BRIDGE_CLAUDE_BIN
+    process.env.AI_BRIDGE_CLAUDE_BIN = "claude-test-bin"
+    try {
+      const { runClaude } = await import("../../../scripts/ai-bridge-worker.mjs")
+      const out = await runClaude({ system: "s", user: "u", model: "sonnet", timeoutMs: 2000, cwd: ".", spawnImpl: fakeSpawn })
+      expect(out).toBe("hello")
+    } finally {
+      if (saved === undefined) delete process.env.AI_BRIDGE_CLAUDE_BIN
+      else process.env.AI_BRIDGE_CLAUDE_BIN = saved
+    }
+    expect(calls).toHaveLength(1)
+    const { args, opts } = calls[0]
+    expect(args[args.indexOf("--tools") + 1]).toBe("")
+    expect(opts.shell).toBe(false)
+  })
+
   test("no --system-prompt is passed when there is no system text", () => {
     expect(buildClaudeArgs({ system: "  ", model: "sonnet" })).not.toContain("--system-prompt")
   })
