@@ -40,6 +40,12 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (DPDP AI work link SHORT paste + GET fallback + role parity; worktree C:/ct/ct-shortlink, branch feat/ai-short-link-manual)"
+    claimed_at: "2026-10-04T (this session)"
+    claim: |
+      Scope: supabase/functions/dpdp-ai-link/* (api-definition, manual, brief, router: GET-only ?_method=POST&_body= fallback, parity additions),
+      supabase/functions/_shared/ai-link/prompt.ts + dpdp-monday-email paste wording, dpdp-app copy text, one new drizzle migration for
+      any new AI-reachable RPCs, ai-os/DPDP_AI_LINK_PARITY.md, tests. No Vercel, no payments, no DNS.
   - session_label: "claude-code (interactive, C:/ct/ct + C:/ct/projexa) -- AUDIT-37: owner's 37-point PROJEXA audit/test/gap-fill (offline-first browser install, peer+Supabase sync, internal AI, external AI work link, 6-digit passcode, error capture)"
     claimed_at: "2026-10-04T (this session)"
     claim: |
