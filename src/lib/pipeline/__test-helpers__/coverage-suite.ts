@@ -113,7 +113,7 @@ export function defineCoverageSuite(cases: readonly Case[], deps: Deps): void {
         const { check } = linkHarness();
         const res = await check(TOKENS.manager, c.fn, c.valid);
         expect(res.status).toBe(200);
-        expect(res.body).toMatchObject({ valid: true, missing: [], problems: [], level: c.level, will_execute_directly: c.level === 1 });
+        expect(res.body).toMatchObject({ valid: true, missing: [], problems: [], level: c.level, will_execute_directly: c.level >= 1 });
       });
 
       if (c.level === 0) {
@@ -133,15 +133,15 @@ export function defineCoverageSuite(cases: readonly Case[], deps: Deps): void {
           expect(bad.body.missing).toEqual([param]);
         });
       } else {
-        test("level 2: refused on the direct path (403 LEVEL_NOT_ALLOWED) and a proposal, a draft the person confirms, on /propose", async () => {
+        test("level 2 (a delete): passes the direct path like level 1 (503, changes not switched on: never 403, drizzle/0693) and is still a proposal on /propose", async () => {
           const { action, propose } = linkHarness();
           const direct = await action(TOKENS.manager, c.fn, c.valid);
-          expect(direct.status).toBe(403);
-          expect(direct.body.code).toBe("LEVEL_NOT_ALLOWED");
+          expect(direct.status).toBe(503);
+          expect(direct.body.code).not.toBe("LEVEL_NOT_ALLOWED");
           const draft = await propose(TOKENS.manager, c.fn, Object.fromEntries(Object.entries(c.valid).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)])));
           expect(draft.status).toBe(200);
           expect(draft.body.proposal).toMatchObject({ v: 1, function: c.fn });
-          expect(draft.body.check).toMatchObject({ level: 2, will_execute_directly: false });
+          expect(draft.body.check).toMatchObject({ level: 2, will_execute_directly: true });
           expect(String(draft.body.note)).toContain("Nothing has changed");
         });
       }
