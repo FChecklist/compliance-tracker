@@ -1,0 +1,76 @@
+{
+  "file": "./scripts/verify/awl-live/mcp-conformance.live.test.ts",
+  "args": [],
+  "commit": "b9cf5e2ba8a29090fca4d4cbfaf8ef683c316ae4",
+  "tree_dirty": true,
+  "started_at": "2026-10-05T11:31:05.124Z",
+  "ended_at": "2026-10-05T11:31:20.865Z",
+  "exit_code": 0,
+  "pass": 11,
+  "fail": 0,
+  "skip": 0,
+  "tests": [
+    {
+      "name": "initialize echoes the client's protocol version and the id, declares tools, names the server",
+      "result": "pass",
+      "time_s": 0.802321
+    },
+    {
+      "name": "modern era (2026-07-28): server/discover and tools/list with the required headers; a missing header is refused",
+      "result": "pass",
+      "time_s": 0.743414
+    },
+    {
+      "name": "a notification gets 202 and no body; ping answers an empty result",
+      "result": "pass",
+      "time_s": 0.690721
+    },
+    {
+      "name": "tools/list: unique legal names, descriptions, valid object schemas, read-only annotations on the reads",
+      "result": "pass",
+      "time_s": 0.433138
+    },
+    {
+      "name": "tools/call list_projects returns the same projects as REST /projects, as text content",
+      "result": "pass",
+      "time_s": 2.039187
+    },
+    {
+      "name": "get_portfolio and get_context(project) answer with content",
+      "result": "pass",
+      "time_s": 1.378891
+    },
+    {
+      "name": "a project of another organisation is an error result, never data",
+      "result": "pass",
+      "time_s": 1.331582
+    },
+    {
+      "name": "errors are JSON-RPC errors: unknown tool -32602, unknown method -32601, malformed JSON -32700 with HTTP 400",
+      "result": "pass",
+      "time_s": 0.964294
+    },
+    {
+      "name": "a legacy batch is answered as a batch, in order; GET on the MCP path is 405",
+      "result": "pass",
+      "time_s": 0.560347
+    },
+    {
+      "name": "the same endpoint answers at /mcp, and the link in the path is the only credential",
+      "result": "pass",
+      "time_s": 0.805777
+    },
+    {
+      "name": "after the link is revoked the MCP endpoint refuses it (410)",
+      "result": "pass",
+      "time_s": 1.861948
+    }
+  ],
+  "function_calls_during_run": {
+    "note": "every caller of the function in this window, not only this run (the database and the function are shared)",
+    "calls": 23,
+    "slow_3s_or_more": 0,
+    "failed_5xx": 0,
+    "status_503": 0
+  }
+}

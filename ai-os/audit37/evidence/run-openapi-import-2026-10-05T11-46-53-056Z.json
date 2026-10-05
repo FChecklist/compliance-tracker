@@ -1,0 +1,51 @@
+{
+  "file": "./scripts/verify/awl-live/openapi-import.live.test.ts",
+  "args": [],
+  "commit": "b9cf5e2ba8a29090fca4d4cbfaf8ef683c316ae4",
+  "tree_dirty": true,
+  "started_at": "2026-10-05T11:46:53.056Z",
+  "ended_at": "2026-10-05T11:46:59.039Z",
+  "exit_code": 0,
+  "pass": 6,
+  "fail": 0,
+  "skip": 0,
+  "tests": [
+    {
+      "name": "the three documents were fetched (control: the importer has something to import)",
+      "result": "pass",
+      "time_s": 0.000185
+    },
+    {
+      "name": "swagger-parser validates /openapi.json (path mode), /swagger.json and the header-mode /openapi.json, and resolves every $ref",
+      "result": "pass",
+      "time_s": 0.648879
+    },
+    {
+      "name": "every operation has a unique operationId and a response, so a generated client gets one method per operation",
+      "result": "pass",
+      "time_s": 0.040709
+    },
+    {
+      "name": "swagger2openapi converts /swagger.json to OpenAPI 3 with the same set of paths, and the result validates",
+      "result": "pass",
+      "time_s": 0.380166
+    },
+    {
+      "name": "the swagger server address (host + basePath) is the link, and the first GET operation answers 200 through it",
+      "result": "pass",
+      "time_s": 0.342411
+    },
+    {
+      "name": "CONTROL: the same importer REJECTS the document after one deliberate break (dangling $ref / missing info.version / an operation with no responses)",
+      "result": "pass",
+      "time_s": 0.319708
+    }
+  ],
+  "function_calls_during_run": {
+    "note": "every caller of the function in this window, not only this run (the database and the function are shared)",
+    "calls": 4,
+    "slow_3s_or_more": 0,
+    "failed_5xx": 0,
+    "status_503": 0
+  }
+}
