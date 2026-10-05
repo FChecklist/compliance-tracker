@@ -3677,6 +3677,27 @@
       "when": 1790512000000,
       "tag": "0696_dpdp_ai_link_hide_emails_default",
       "breakpoints": true
+    },
+    {
+      "idx": 527,
+      "version": "7",
+      "when": 1790513000000,
+      "tag": "0697_dpdp_rls_on_for_every_dpdp_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 528,
+      "version": "7",
+      "when": 1790514000000,
+      "tag": "0698_dpdp_payment_proof_storage_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 529,
+      "version": "7",
+      "when": 1790515000000,
+      "tag": "0699_dpdp_partner_payout_encrypted",
+      "breakpoints": true
     }
   ]
 }

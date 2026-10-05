@@ -128,8 +128,8 @@ describe("payout details stay in the partner tables", () => {
     for (const f of files) expect(readFileSync(f, "utf8"), f).not.toMatch(names)
   })
 
-  test("the only SQL that reads the payout detail table is migration 0674", () => {
+  test("the only SQL that reads the payout detail table is migration 0674, and 0699 (which encrypts it, plus its roll-back)", () => {
     const hits = walk(join(root, "drizzle")).filter((f) => (f.split(/[\\/]/).pop() ?? "") >= "0655" && readFileSync(f, "utf8").includes("partner_payout_detail"))
-    expect(hits.map((f) => f.split(/[\\/]/).pop())).toEqual(["0674_dpdp_sales_partner_lifecycle.sql"])
+    expect(hits.map((f) => f.split(/[\\/]/).pop()).sort()).toEqual(["0674_dpdp_sales_partner_lifecycle.sql", "0699_dpdp_partner_payout_encrypted.down.sql", "0699_dpdp_partner_payout_encrypted.sql"])
   })
 })
