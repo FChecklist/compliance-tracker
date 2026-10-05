@@ -2,7 +2,7 @@
 
 Owner's compliance programme for the Veridian DPDP product (started 2026-10-05). Working method does not change: DPDP users work only through the web console/app, the copy-and-paste AI work link, and e-mail. No new channel, app or required step.
 
-The earlier audit (`ai-os/DPDP_COMPLIANCE_AUDIT.md`) was not in git, so the gap list was rebuilt from the owner's brief. Nothing here is applied to a live database or deployed; every live action is listed under LIVE STEPS.
+The earlier audit (`ai-os/DPDP_COMPLIANCE_AUDIT.md`) was not in git, so the gap list was rebuilt from the owner's brief. Nothing here is applied to a live database or deployed; every live action is listed under LIVE STEPS and, with checks and rollbacks, in `ai-os/DPDP_LIVE_STEPS_RUNBOOK.md`. Waves 2, 3 and 4 ship as one combined PR (`wave234/dpdp-db-retention-governance`).
 
 | Wave | PR | What changed | LIVE STEPS still needed |
 |---|---|---|---|
