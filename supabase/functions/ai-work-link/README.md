@@ -74,3 +74,7 @@ After the U-46a migrations (`drizzle/0621` to `0628`, and for the write path `06
 ## Tests
 
 `bun test --isolate src/lib/services/ai-work-link-router.test.ts src/lib/services/ai-work-link-mcp.test.ts src/lib/services/ai-work-link-openapi.test.ts src/lib/services/ai-work-link-index.test.ts`
+
+## Timing log (AUDIT-100 B58)
+
+Every request writes one line, `[awl-timing] {"route":"/:token/projects","method":"GET","status":200,"ms":450,"slow":false,"failed":false}`. The route is the SHAPE only: the token and any id are replaced, there is no query string, header or body. `slow` is 3 seconds or more, `failed` is a 5xx. To see the slow and failed calls: in the Supabase dashboard open the function's logs and search `[awl-timing]` with `"slow":true` or `"failed":true`, or run the same search through the `query_logs` tool (service `edge-function`). Code: `timing.ts`, tested by `src/lib/services/ai-work-link-timing.test.ts`. A change to `index.ts` needs a deploy of the function by the PM; nothing runs until then.
