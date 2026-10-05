@@ -1,3 +1,5 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-10-04 -- rollback of 0693
+-- (AI full rights for work links), same authorization as the up migration.
 -- Down-migration for drizzle/0693_awl_full_rights.sql (PROJEXA AI full rights). Convention: docs/ROLLBACK_RUNBOOK.md section 3.
 -- Not auto-applied by any script or CI job; the PM runs it deliberately.
 --
