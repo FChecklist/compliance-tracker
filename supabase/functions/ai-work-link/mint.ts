@@ -6,7 +6,7 @@
 //   POST /links/{id}/revoke         revoke one
 //   GET|POST /warning?level=&project=   the true warning sentence for the current state
 //   POST /new-project               "New project with my AI": a shell project and a level 0 link for the same person, in one action
-//   POST /user-link                 a link for ALL the person's projects (drizzle/0668): level 0 for ever, no project, params days and label only
+//   POST /user-link                 a link for ALL the person's projects (drizzle/0668, 0693): no project; params days, label and an optional level. With no level it is minted at the HIGHEST level the person's role allows (SQL decides: direct add / edit / delete for a member and above, read for a viewer)
 //
 // ORDER OF CHECKS, each before anything is written
 //   no Bearer, or a link token as Bearer (401) -> the session token (401; 503 when a key set cannot be read)
@@ -273,7 +273,7 @@ type Parsed =
   | { kind: "revoke"; id: string }
   | { kind: "warning"; project: string; level: number }
   | { kind: "new-project"; product: string | null; days: number }
-  | { kind: "user-link"; days: number; label: string | null }
+  | { kind: "user-link"; days: number; label: string | null; level: number | null }
 
 type Who = { sub: string; email: string | null; issuer: string; iat: number | null }
 
@@ -349,14 +349,17 @@ async function parseParams(req: Request, route: string[], kind: MintRoute, metho
   if (kind === "user-link") {
     const body = await readObject(req)
     if (!body.ok) return body
-    // a link for a person has no project and no level: it takes days and label, and refuses anything else rather than ignore it (a projectId or a level sent by mistake is an error, not a silent drop)
-    const unknown = Object.keys(body.value).filter((k) => k !== "days" && k !== "label")
-    if (unknown.length > 0) return bad("USER_LINK_PARAMS", "A link for all your projects takes days and label only: it has no project, and it is always level 0.")
+    // a link for a person has no project: it takes days, label and an optional level, and refuses anything else rather than ignore it (a projectId sent by mistake is an error, not a silent drop).
+    // drizzle/0693: no level means the HIGHEST level the person's role allows (SQL decides it); a level is only ever a request for LESS (0 = read only), and one above the role's maximum is LEVEL_NOT_ALLOWED
+    const unknown = Object.keys(body.value).filter((k) => k !== "days" && k !== "label" && k !== "level")
+    if (unknown.length > 0) return bad("USER_LINK_PARAMS", "A link for all your projects takes days, label and level only: it has no project.")
+    const level = body.value.level === undefined || body.value.level === null ? null : intOf(body.value.level, [0, 1], 0)
+    if (body.value.level !== undefined && body.value.level !== null && level === null) return bad("BAD_LEVEL", "level must be 0 or 1.")
     const days = intOf(body.value.days, DAYS, 7)
     if (days === null) return bad("BAD_DAYS", "days must be 1, 7 or 30.")
     const label = body.value.label
     if (label !== undefined && label !== null && (typeof label !== "string" || label.length > 80 || /[\u0000-\u001f\u007f]/.test(label))) return bad("BAD_LABEL", "label must be plain text of at most 80 characters.")
-    return { ok: true, value: { kind, days, label: typeof label === "string" && label.trim() !== "" ? label.trim() : null } }
+    return { ok: true, value: { kind, days, label: typeof label === "string" && label.trim() !== "" ? label.trim() : null, level } }
   }
   const body = await readObject(req)
   if (!body.ok) return body
@@ -434,7 +437,7 @@ async function execute(parsed: Parsed, userId: string, deps: MintDeps, log: (l: 
     return { status: 201, body }
   }
   if (parsed.kind === "user-link") {
-    const done = await call(deps, kind, "ai_work_link_mint_user_for", { p_user_id: userId, p_days: parsed.days, p_label: parsed.label }, log)
+    const done = await call(deps, kind, "ai_work_link_mint_user_for", { p_user_id: userId, p_days: parsed.days, p_label: parsed.label, ...(parsed.level === null ? {} : { p_level: parsed.level }) }, log)
     if (!done.ok) return done.out
     const body = mintedBody(deps.config, done.data)
     if (!body || body.scope !== "user" || body.project !== null) {

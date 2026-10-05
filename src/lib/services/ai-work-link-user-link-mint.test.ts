@@ -138,8 +138,8 @@ describe("who may, and what is refused", () => {
     expect(await freshCount()).toBe(0)
   })
 
-  test("the body takes days and label ONLY: a projectId, a level, a function list, hidePersonal or an organisation is 400 USER_LINK_PARAMS, before any SQL", async () => {
-    for (const body of [{ projectId: "proj-a" }, { project: "proj-a" }, { level: 1 }, { functions: ["create_project"] }, { hidePersonal: false }, { orgId: "org-b" }, { days: 7, userId: "u-adm" }]) {
+  test("the body takes days, label and (0693) level ONLY: a projectId, a function list, hidePersonal or an organisation is 400 USER_LINK_PARAMS, before any SQL", async () => {
+    for (const body of [{ projectId: "proj-a" }, { project: "proj-a" }, { functions: ["create_project"] }, { hidePersonal: false }, { orgId: "org-b" }, { days: 7, userId: "u-adm" }]) {
       h.reset()
       const r = await mint({ sub: AUTH.mgr, body })
       expect({ body, status: r.res.status, code: r.json.code }).toEqual({ body, status: 400, code: "USER_LINK_PARAMS" })
