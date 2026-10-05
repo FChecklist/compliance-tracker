@@ -3,7 +3,7 @@
 Short list. Each has a reason; the file in brackets has the draft.
 
 **Claims and notices**
-1. Is "reply in 7 days, resolve in 30, outer limit 90" a safe thing to publish as our grievance time? (Privacy Notice section 7)
+1. Is "we reply within 14 days; we resolve issues through mutual discussion within 90 days" (the owner's wording) safe to publish as our grievance time? (Privacy Notice section 7)
 2. The Privacy Notice names Resend (a US company, mail handled in Tokyo) and Razorpay. Is that enough for section 16 transfer disclosure?
 3. Does a statement that the history record is "added to, not edited" need more care, given a database owner can in principle change rows?
 4. Does the site need a separate cookie page, or is the current section 8 enough?

@@ -67,7 +67,7 @@ Tools: Supabase MCP (`apply_migration`, `execute_sql`, `deploy_edge_function`, `
 - Resend dashboard: confirm the domain region is Tokyo (ap-northeast-1); the privacy page says so.
 - Razorpay: nothing to change; the privacy page now names it.
 - Lawyer: send `ai-os/dpdp-governance/` (breach runbook, records of processing, DPIA outline, calendar, customer DPA, questions, GST check, retention schedule).
-- Decide: the grievance promise (7 / 30 / 90 days), the retention periods, and the GST invoice gap.
+- Pending owner decisions: the final retention periods (the schedule is a draft) and the GST invoice gap. The grievance wording (14 days to reply, 90 days to resolve through mutual discussion) is decided and published.
 
 ## Order summary
 0720 + function deploy, Vault key, 0721, 0722, 0723, 0724 (dry-run), 0725, 0726, Pages deploy. Any step can be stopped after its own check; the steps do not depend on each other except that 0723 needs the key, and the Pages deploy should follow 0722 (the new upload path matches the new storage policy; deploy Pages within minutes after 0722).

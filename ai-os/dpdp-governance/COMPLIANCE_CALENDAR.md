@@ -35,6 +35,6 @@ DRAFT. Dates and periods marked (confirm) need the lawyer. 13 May 2027 is the da
 | Event | Clock |
 |---|---|
 | Breach | CERT-In 6 hours, customer 24 hours, Board without delay then 72 hours, people without delay (`BREACH_RUNBOOK.md`) |
-| Rights request or grievance | reply 7 days, resolve 30 days, outer limit 90 days (as the Privacy Notice states) |
+| Rights request or grievance | reply within 14 days; resolve through mutual discussion within 90 days (the owner's published wording) |
 | Customer ends | 30 days export, then deletion (`RETENTION_SCHEDULE.md`) |
 | New sub-processor | change `/subprocessors/` first, tell customers (confirm notice period in the DPA) |
