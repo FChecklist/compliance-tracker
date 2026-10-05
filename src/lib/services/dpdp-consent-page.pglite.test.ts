@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-// drizzle/0701 on PGlite (real Postgres as WASM; no live database touched): the consent page's database side.
+// drizzle/0725 on PGlite (real Postgres as WASM; no live database touched): the consent page's database side.
 //   * an existing campaign (no purposes stored, not a child) behaves as before, and the ORIGINAL dpdp_parent_consent (copied out of drizzle/0609) still works;
 //   * the page can show the notice text (the organisation's own, or a plain standard one), the purposes, each with the person's current answer;
 //   * one answer per purpose, once; a child's campaign needs the parent's or guardian's name and relationship;
@@ -11,8 +11,8 @@ import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
 
 const read = (f: string) => readFileSync(new URL(`../../../drizzle/${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
-const up = read('0701_dpdp_consent_page_purposes_guardian_withdraw.sql')
-const down = read('down/0701_dpdp_consent_page_purposes_guardian_withdraw.down.sql')
+const up = read('0725_dpdp_consent_page_purposes_guardian_withdraw.sql')
+const down = read('down/0725_dpdp_consent_page_purposes_guardian_withdraw.down.sql')
 const m0609 = read('0609_dpdp_wo011_step5_rpc.sql')
 const origConsent = m0609.match(/create or replace function public\.dpdp_parent_consent\(p_token text, p_answer text\)[\s\S]*?\n\$\$;/)![0]
 
@@ -44,7 +44,7 @@ beforeAll(async () => {
     insert into dpdp.consent_campaign (id, org_id, group_id, notice_version_id) values ('c-legacy', 'o1', 'g', 'n1');
     insert into dpdp.consent_token values ('t1', 'c-legacy', 'tok-legacy', 'h1', null, null, now() + interval '30 days'), ('t1b', 'c-legacy', 'tok-legacy-2', 'h1b', null, null, now() + interval '30 days');
   `)
-  // the ORIGINAL answer function, straight from 0609 (it must keep working after 0701)
+  // the ORIGINAL answer function, straight from 0609 (it must keep working after 0725)
   await db.exec(origConsent)
   await db.exec(up)
   await db.exec(`

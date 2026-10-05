@@ -3705,6 +3705,20 @@
       "when": 1790600004000,
       "tag": "0723_dpdp_partner_payout_encrypted",
       "breakpoints": true
+    },
+    {
+      "idx": 531,
+      "version": "7",
+      "when": 1790600005000,
+      "tag": "0724_dpdp_retention_sweep_and_offboarding",
+      "breakpoints": true
+    },
+    {
+      "idx": 532,
+      "version": "7",
+      "when": 1790600006000,
+      "tag": "0725_dpdp_consent_page_purposes_guardian_withdraw",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-// drizzle/0700 on PGlite (real Postgres as WASM; no live database touched): the retention sweep and organisation offboarding.
+// drizzle/0724 on PGlite (real Postgres as WASM; no live database touched): the retention sweep and organisation offboarding.
 //   * DRY-RUN BY DEFAULT: with the shipped setting (live = false) the sweep only counts and writes a count report; nothing is deleted;
 //   * once live = true it deletes exactly what is past its period (sign-in codes, sessions, confirm links, sent-mail log, CLOSED inbound mail,
 //     network-prefix records) and keeps everything inside its period and every open ticket; p_force_dry_run overrides live;
@@ -12,8 +12,8 @@ import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
 
 const read = (f: string) => readFileSync(new URL(`../../../drizzle/${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
-const up = read('0700_dpdp_retention_sweep_and_offboarding.sql')
-const down = read('down/0700_dpdp_retention_sweep_and_offboarding.down.sql')
+const up = read('0724_dpdp_retention_sweep_and_offboarding.sql')
+const down = read('down/0724_dpdp_retention_sweep_and_offboarding.down.sql')
 
 let db: PGlite
 const q = async <T = Record<string, unknown>>(sql: string, args: unknown[] = []) => (await db.query<T>(sql, args)).rows

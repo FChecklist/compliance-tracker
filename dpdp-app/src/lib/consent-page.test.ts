@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 // The consent page (/p/): when it stays the original Yes/No page, when it becomes the fuller one, what has to be filled, and what can be withdrawn --
-// plus the mock database's behaviour for the new RPCs (the real ones are proved in src/lib/services/dpdp-consent-page.pglite.test.ts, drizzle/0701).
+// plus the mock database's behaviour for the new RPCs (the real ones are proved in src/lib/services/dpdp-consent-page.pglite.test.ts, drizzle/0725).
 import { describe, expect, test } from "bun:test"
 import { answersToSend, answerWords, canSave, guardianProblem, isSimpleConsent, purposesOf, unanswered, withdrawable } from "./consent-page"
 import { createMockClient, MOCK_TOKENS } from "./mock-client"
@@ -13,7 +13,7 @@ const multi: Ok = { ...base, purposes: [{ key: "trip", label: "Trip photos", ans
 const child: Ok = { ...base, purposes: [{ key: "photos", label: "Photos", answer: null }], principalIsChild: true }
 
 describe("which page", () => {
-  test("a link with no purposes (a database without 0701, or an old campaign) is the original simple page", () => {
+  test("a link with no purposes (a database without 0725, or an old campaign) is the original simple page", () => {
     expect(isSimpleConsent(base)).toBe(true)
     expect(purposesOf(base)).toHaveLength(1)
     expect(isSimpleConsent({ ...base, purposes: [{ key: "consent", label: "x", answer: null }], principalIsChild: false })).toBe(true)
@@ -54,7 +54,7 @@ describe("withdraw", () => {
   })
 })
 
-describe("the mock database: the same behaviour as drizzle/0701", () => {
+describe("the mock database: the same behaviour as drizzle/0725", () => {
   test("the original link still takes one Yes/No, shows it, and a Yes can be withdrawn with the same link", async () => {
     const client = createMockClient()
     const p0 = await previewParentConsent(client, MOCK_TOKENS.parent) as Ok

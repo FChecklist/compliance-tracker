@@ -556,7 +556,7 @@ export async function parentConsent(client: DpdpClient, token: string, answer: "
   return data as ParentConsentResult
 }
 
-/** One answer per item on the link, once (drizzle/0701). guardian is needed only when the page says the person is a child. */
+/** One answer per item on the link, once (drizzle/0725). guardian is needed only when the page says the person is a child. */
 export async function parentConsentAnswers(
   client: DpdpClient, token: string, answers: Record<string, "yes" | "no">, guardian: { name: string; relation: "parent" | "legal_guardian" } | null,
 ): Promise<ConsentAnswersResult> {
@@ -565,7 +565,7 @@ export async function parentConsentAnswers(
   return data as ConsentAnswersResult
 }
 
-/** Withdraws one item with the SAME link: no new link, still works after the link has expired (drizzle/0701). */
+/** Withdraws one item with the SAME link: no new link, still works after the link has expired (drizzle/0725). */
 export async function withdrawConsent(client: DpdpClient, token: string, purposeKey: string): Promise<ConsentWithdrawResult> {
   const { data, error } = await client.rpc("dpdp_consent_withdraw", { p_token: token, p_purpose_key: purposeKey })
   if (error) throw new RpcFailure(error)

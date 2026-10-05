@@ -81,7 +81,7 @@ export type ParentConsentPreview = TokenRefusal | {
   openedAt: string | null
   actedAt: string | null
   alreadyAnswered: boolean
-  // drizzle/0701 (all optional: a database that has not had it yet answers without them, and the page then behaves exactly as before)
+  // drizzle/0725 (all optional: a database that has not had it yet answers without them, and the page then behaves exactly as before)
   noticeText?: string
   noticeSource?: "organisation" | "standard"
   purposes?: ConsentPurpose[]
@@ -92,7 +92,7 @@ export type ParentConsentPreview = TokenRefusal | {
 /** One thing a consent link asks about, with the person's current answer. "withdrawn" = they said Yes and later withdrew. */
 export type ConsentPurpose = { key: string; label: string; answer: "yes" | "no" | "withdrawn" | null }
 export type ParentConsentResult = TokenRefusal | { ok: true; answer: "yes" | "no" }
-/** dpdp_parent_consent_v2 / dpdp_consent_withdraw (drizzle/0701). */
+/** dpdp_parent_consent_v2 / dpdp_consent_withdraw (drizzle/0725). */
 export type ConsentAnswersResult = TokenRefusal | { ok: true; recorded: number }
 export type ConsentWithdrawResult = TokenRefusal | { ok: true; withdrawn: string }
 

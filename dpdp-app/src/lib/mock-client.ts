@@ -52,7 +52,7 @@ export const MOCK_MEMBERS = ["member@example.test", "member2@example.test", "mem
 
 // The fragment tokens the token pages accept in mock mode.
 export const MOCK_TOKENS = { done: "mock-done", cannot: "mock-cannot", unsubscribe: "mock-unsub", parent: "mock-parent", parentMulti: "mock-parent-multi", parentChild: "mock-parent-child" } as const
-/** The mock consent links with more than the one legacy item (drizzle/0701): what each asks about, and whether the person is a child. */
+/** The mock consent links with more than the one legacy item (drizzle/0725): what each asks about, and whether the person is a child. */
 const MOCK_CONSENT_LINKS: Record<string, { purposes: Array<{ key: string; label: string }>; child: boolean; noticeText: string }> = {
   [MOCK_TOKENS.parentMulti]: { purposes: [{ key: "trip", label: "Photos on the school trip" }, { key: "news", label: "The school newsletter" }], child: false, noticeText: "The school keeps trip photos for one year and sends the newsletter by e-mail. You may say no to either." },
   [MOCK_TOKENS.parentChild]: { purposes: [{ key: "photos", label: "Photos of your child" }], child: true, noticeText: "The school keeps your child's photos for one year." },

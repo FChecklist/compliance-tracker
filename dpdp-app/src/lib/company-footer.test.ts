@@ -79,7 +79,7 @@ describe("legal pages: search and sharing basics", () => {
 
   test("the privacy notice says the public pages measure speed and errors, without cookies, and is dated", () => {
     const html = read("public/privacy/index.html")
-    expect(html).toContain("Version 1.5 · Effective 5 October 2026")
+    expect(html).toContain("Version 1.6 · Effective 5 October 2026")
     expect(html).toContain("Website measurement (public pages only)")
     expect(html).toContain("No cookie, no browser storage")
     expect(html).toContain("Do Not Track")

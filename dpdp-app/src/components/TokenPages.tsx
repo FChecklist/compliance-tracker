@@ -195,7 +195,7 @@ export function UnsubscribePage() {
 // The parent / data-principal consent page: the port of
 // src/app/dpdp/p/[token]/page.tsx. The simple case keeps its original copy and its single Yes/No
 // (dpdp_parent_consent): "No is a perfectly good answer", both recorded. When the link asks about
-// several items, or the person is a child, the page (drizzle/0701) shows the notice text, one
+// several items, or the person is a child, the page (drizzle/0725) shows the notice text, one
 // Yes/No per item and, for a child, the parent's or guardian's name and relationship. After
 // answering, the same page and the same link can withdraw a Yes with one tap: no new link.
 export function ParentConsentPage() {

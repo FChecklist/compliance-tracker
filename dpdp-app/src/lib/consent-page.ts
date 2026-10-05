@@ -1,12 +1,12 @@
 // The logic of the consent page (/p/), kept out of the component so it can be tested: when the page is the simple, original Yes/No page and when it is
 // the fuller one (several items, a child's guardian), what must be filled before it can be saved, and which answers can be withdrawn.
-// The database side is drizzle/0701; the original single Yes/No answer still works and still looks the same.
+// The database side is drizzle/0725; the original single Yes/No answer still works and still looks the same.
 import type { ConsentPurpose, ParentConsentPreview } from "./rpc-types"
 
 export const LEGACY_PURPOSE_KEY = "consent"
 type Ok = Extract<ParentConsentPreview, { ok: true }>
 
-/** The items a link asks about. A database without 0701 sends none: that is the one legacy item. */
+/** The items a link asks about. A database without 0725 sends none: that is the one legacy item. */
 export function purposesOf(ctx: Ok): ConsentPurpose[] {
   if (ctx.purposes && ctx.purposes.length > 0) return ctx.purposes
   return [{ key: LEGACY_PURPOSE_KEY, label: "Use of your personal data as described in this notice", answer: null }]
