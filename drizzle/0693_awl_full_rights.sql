@@ -1,3 +1,8 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-10-04 -- "external ai can
+-- work on the projexa, just like user ... edit, add, delete anything ... as per the
+-- role of that user ... projexa need to work with external ai 100%". Authorizes the
+-- DROP CONSTRAINT / DROP FUNCTION / GRANT / REVOKE / SECURITY DEFINER statements
+-- below (user-scope AI links at the role's maximum level, no confirmation gate).
 -- PRE-APPROVED-LIVE-DDL: Owner (Rajat Agarwal) decision of 2026-10-04, final: "the external AI that a user pastes their PROJEXA work link into must be able to do ANYTHING the user can do in PROJEXA - edit, add, delete, any function, any data, old/new/existing projects - limited ONLY by the user's ROLE, the PROJECTS that user can access and the user's ORGANISATION. The only thing it must not do is write code. No extra human-approval steps on top of the user's own role." This migration is that work (audit37/full-rights).
 -- PROJEXA AI FULL RIGHTS: (A) a user-wide link is minted at the highest level the person's role allows, and (B) no confirmation gate on a direct action.
 --
