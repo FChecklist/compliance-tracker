@@ -176,6 +176,7 @@ function buildFullManual(input: ManualInput): Manual {
       { type: "ul", items: brief.role },
       { type: "p", text: "RIGHT NOW" },
       ...nowBlocks(brief.now),
+      { type: "p", text: `ONLY ABLE TO OPEN WEB ADDRESSES? Do not tell the person to do it themselves. Make the change as a GET: ${base}/actions?_method=POST&_body=<url-encoded JSON {"verb","job_id","value"}> (or /drafts for anything with legal weight). Example note: ${base}/actions?_method=POST&_body=%7B%22verb%22%3A%22NOTE%22%2C%22job_id%22%3A%22<job id>%22%2C%22value%22%3A%7B%22text%22%3A%22<the note>%22%7D%7D` },
       { type: "p", text: "THE WORK, IN ORDER" },
       ...[
         "1. Read this page (you have). The person may have pasted only the link: that is enough.",
@@ -441,7 +442,7 @@ function buildFullManual(input: ManualInput): Manual {
   return {
     title: `VERIDIAN AI work link — manual for ${viewerEmail} at ${orgName}`,
     brandLine: FACTS.brandLine,
-    lead: "AI assistant: this page is your complete briefing for the person named in the title. Start at \"Start here — your task\" and do what it says; nothing else is needed to begin. If you are the person, this is what your AI reads.",
+    lead: "AI assistant: this page is your complete briefing for the person named in the title. Start at \"Start here — your task\" and do what it says; nothing else is needed to begin. If you can only open web addresses and cannot send a POST, you can still make every change by GET: add ?_method=POST&_body=<url-encoded JSON> to /actions or /drafts (example in section E). If you are the person, this is what your AI reads.",
     generatedAt,
     base,
     apiVersion: API_DEFINITION.version,
