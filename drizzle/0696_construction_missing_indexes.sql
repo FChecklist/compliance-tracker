@@ -12,3 +12,8 @@ CREATE INDEX IF NOT EXISTS idx_construction_wpe_activity_entry_date
 
 CREATE INDEX IF NOT EXISTS idx_construction_activities_org_project
   ON compliance.construction_activities (org_id, project_id);
+
+-- The progress-entries list ("... WHERE org_id = $1 AND project_id = $2 ORDER BY entry_date DESC", mean 5.8 s, max 51.8 s over 289 calls)
+-- also had no index for its filter.
+CREATE INDEX IF NOT EXISTS idx_construction_wpe_org_project_entry_date
+  ON compliance.construction_work_progress_entries (org_id, project_id, entry_date DESC);

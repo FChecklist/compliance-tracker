@@ -1,2 +1,3 @@
 DROP INDEX IF EXISTS compliance.idx_construction_wpe_activity_entry_date;
 DROP INDEX IF EXISTS compliance.idx_construction_activities_org_project;
+DROP INDEX IF EXISTS compliance.idx_construction_wpe_org_project_entry_date;
