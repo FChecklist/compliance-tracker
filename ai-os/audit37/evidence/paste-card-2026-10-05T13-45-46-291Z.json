@@ -1,0 +1,33 @@
+{
+  "file": "scripts/verify/awl-live/paste-card.live.spec.ts",
+  "checklist_rows": [
+    "B43",
+    "A32"
+  ],
+  "commit": "216ae99cc0c4e161c2efe10200debb09a2a9d12b",
+  "date_utc": "2026-10-05T13:45:46.291Z",
+  "inbox_page": "https://projexa-link-pages.pages.dev/ai-inbox",
+  "card": {
+    "status": 200,
+    "bytes": 2691,
+    "content_type": "text/plain; charset=utf-8"
+  },
+  "engine": {
+    "tools": "none",
+    "live_card_plain_request_gave_block": false,
+    "live_card_plain_answer_excerpt": "I can't do this one — creating a new project needs a higher permission level than your role currently has. You'd need someone with that elevated access (or an org admin) to create \"T-PASTE-CARD-1791207895393\" for you.",
+    "live_card_clarified_request_gave_block": false,
+    "block_source_for_the_inbox_test": "the card's own example block, with the test's project name (the engine refused)"
+  },
+  "wrong_code": {
+    "shown": "Type the code shown above first.",
+    "rows_after": 0
+  },
+  "confirm": {
+    "page_said": "Change: create_project name: T-PASTE-CARD-1791207895393Note: a new projectChecked: valid.ConfirmSent.",
+    "rows_after": 1
+  },
+  "bad_block": {
+    "page_said": "This block could not be read."
+  }
+}

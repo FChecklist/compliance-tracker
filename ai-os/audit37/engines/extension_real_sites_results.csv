@@ -1,0 +1,6 @@
+run_id,date_utc,site,page_address,button_appeared,message_box_found,text_inserted,guide_inserted,sent_and_ai_replied,result,screenshot_file,notes
+ext-01,,ChatGPT,https://chatgpt.com/,,,,,,,ext_chatgpt_step3.png,
+ext-02,,Claude,https://claude.ai/new,,,,,,,ext_claude_step3.png,
+ext-03,,Gemini,https://gemini.google.com/app,,,,,,,ext_gemini_step3.png,
+ext-04,,DeepSeek,https://chat.deepseek.com/,,,,,,,ext_deepseek_step3.png,
+ext-05,,z.ai,https://chat.z.ai/,,,,,,,ext_zai_step3.png,
