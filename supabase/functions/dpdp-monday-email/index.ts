@@ -224,7 +224,7 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
     signIn: null, actions: null, unsubscribeUrl: null, appHome: `${APP_ORIGIN}/app/`,
     // A dry run shows the placeholder, never a minted credential, and reads nothing about the person's AI changes.
     aiLink: isDigest && !d.aiChangesOnly && AI.linkEnabled
-      ? { url: PLACEHOLDER.aiLink, expiresOn: istYmd(new Date(Date.now() + AI.days * 86_400_000).toISOString()), level: AI.level, copyUrl: AI.copyPageUrl ? `${AI.copyPageUrl}#${PLACEHOLDER.aiLink}` : null }
+      ? { url: PLACEHOLDER.aiLink, expiresOn: istYmd(new Date(Date.now() + AI.days * 86_400_000).toISOString()), level: AI.level, copyUrl: null, validHours: AI.days * 24, aiPageUrl: `${APP_ORIGIN}/app/#ai-link-settings` }
       : null,
   }
   const base = { p_org_id: d.orgId, p_membership_id: d.membershipId, p_identity_id: d.identityId, p_obligation_ids: d.obligationIds, p_kind: d.kind, p_period_key: d.periodKey, p_to_email: d.to }

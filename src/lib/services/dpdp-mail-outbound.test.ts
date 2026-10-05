@@ -666,7 +666,7 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
     expect(text).toContain("BEFORE YOU PASTE.")
     expect(text.indexOf("BEFORE YOU PASTE.")).toBeLessThan(text.indexOf(`https://dpdp.veridian-aios.com/ai/${TOKEN}`))
     expect(html).toContain("Before you paste.")
-    expect(callsTo("dpdp_timer_mint_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_level: 1, p_days: 7 })
+    expect(callsTo("dpdp_timer_mint_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_level: 1, p_days: 2 })
     // order: made before the send; retired after the row is marked sent
     expect(order("dpdp_timer_mint_email_ai_link")).toBeLessThan(order("dpdp_mail_log_outbound"))
     expect(order("dpdp_mail_log_outbound")).toBeLessThan(order("dpdp_timer_mark_email_send_result"))

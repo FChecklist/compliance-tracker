@@ -42,6 +42,8 @@ import { MAX_BODY_BYTES, RATE_LIMIT, REGISTER_KINDS, type Format } from "./api-d
 import { aiPasteText } from "../_shared/ai-link/prompt.ts"
 import { playbookFor } from "./playbook.ts"
 import { paymentPendingNotice, type BillingNotice } from "./brief.ts"
+import { alertEmail, clientPrefix, uaFamily, type UseAlert } from "./unfamiliar.ts"
+import { buildOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
@@ -106,6 +108,36 @@ function mapDbError(e: DbError, notFoundIs404 = false): Response {
   if (code === "22023" || code === "P0001" || code === "22007" || code === "22008" || code === "22P02") return fail(400, e.message)
   console.error(`${FUNCTION_NAME}: database error (${code || "?"})`)
   return fail(500, "Something failed on our side. Try again in a minute.")
+}
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? ""
+const EMAIL_FROM = resolveFrom(Deno.env.get("DPDP_EMAIL_FROM"))
+
+/**
+ * The unfamiliar-use alert (drizzle/0695). The database decides (first use never alerts; a new network prefix or tool family does; one alert a
+ * day per link); this only reads the caller's network prefix (forwarded by the Pages proxy as x-dpdp-client-ip, from CF-Connecting-IP) and tool
+ * family, asks, and sends the one plain e-mail, which contains no link. It never fails or slows the request: errors are logged without detail.
+ */
+async function noteUse(token: string, req: Request): Promise<void> {
+  try {
+    const prefix = clientPrefix(req.headers.get("x-dpdp-client-ip"))
+    const family = uaFamily(req.headers.get("user-agent"))
+    if (!prefix && family === "unknown") return
+    const r = await rpc<{ alert: boolean } & Partial<UseAlert>>("dpdp_ai_link_note_use", { p_token: token, p_ip_prefix: prefix ?? "", p_ua_family: family })
+    if (r.error || !r.data.alert || !r.data.to || !RESEND_API_KEY) return
+    const a = r.data as UseAlert
+    const mail = alertEmail(a)
+    const out = buildOutbound("support", mail.subject, { from: EMAIL_FROM })
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(resendPayload(a.to, out, mail)),
+      signal: AbortSignal.timeout(4000),
+    })
+    if (!res.ok) console.error(`${FUNCTION_NAME}: unfamiliar-use alert not sent (${res.status})`)
+  } catch {
+    console.error(`${FUNCTION_NAME}: unfamiliar-use alert failed`)
+  }
 }
 
 function dbClient() {
@@ -355,8 +387,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return finish(new Response(JSON.stringify(errorBody(405, `Use ${allow} for this path.`)), { status: 405, headers: privateHeaders("application/json; charset=utf-8", { allow }) }))
   }
 
+  // The person's own browser fetching the paste (/prompt) is not "the link being used"; counting it would make the first real AI call look unfamiliar.
+  const noted = route.kind === "prompt" ? Promise.resolve() : noteUse(token, req)
   try {
     const res = await handle(request, token, route, url)
+    await noted
     const body = await res.clone().arrayBuffer()
     const withLength = new Response(body, { status: res.status, headers: res.headers })
     withLength.headers.set("content-length", String(body.byteLength))

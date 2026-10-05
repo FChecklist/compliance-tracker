@@ -3,6 +3,8 @@ import { useEffect, useState } from "react"
 import { aiLinkUrl, aiLinkWarning, createAiWorkLink, listAiLinks, revokeAiLink } from "@/lib/api"
 import { LEVEL1_EXPLANATION, LEVEL_LABEL, aiWorkLinkWarningSentence, formatEnInDate } from "@/lib/ai-work-link"
 import type { DpdpClient } from "@/lib/client"
+import { fetchPrompt } from "@/lib/copy-prompt"
+import { AiPasteOptions } from "./AiPasteOptions"
 import type { AiLinkListItem, AiLinkWarning, AiWorkLinkCreated } from "@/lib/rpc-types"
 
 // WO-DPDP-013 v2 §4 item 6: "The Copy-AI-link screen with the data warning".
@@ -29,6 +31,8 @@ export function AiWorkLink({ client, orgId, onMade }: { client: DpdpClient; orgI
   const [created, setCreated] = useState<AiWorkLinkCreated | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [paste, setPaste] = useState<string | null>(null)
+  const [replacing, setReplacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [links, setLinks] = useState<AiLinkListItem[] | null>(null)
   const [listError, setListError] = useState<string | null>(null)
@@ -82,6 +86,8 @@ export function AiWorkLink({ client, orgId, onMade }: { client: DpdpClient; orgI
     try {
       const link = await createAiWorkLink(client, { level: level1 ? 1 : 0, hideEmails, days, label: labelText.trim() || null, orgId })
       setCreated(link)
+      // The short paste (two lines and the link), fetched from the link itself so there is ONE definition of it (dpdp-ai-link /prompt).
+      void fetchPrompt(link.token, (input, init) => fetch(input, init)).then((r) => setPaste(r.kind === "ok" ? r.text : null))
       try {
         await navigator.clipboard.writeText(aiLinkUrl(link.token))
         setCopied(true)
@@ -110,8 +116,24 @@ export function AiWorkLink({ client, orgId, onMade }: { client: DpdpClient; orgI
     }
   }
 
+  async function replace() {
+    if (!created) return
+    setReplacing(true)
+    try {
+      await revokeAiLink(client, created.linkId)
+      setCreated(null)
+      setPaste(null)
+      await make()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setReplacing(false)
+    }
+  }
+
   function makeAnother() {
     setCreated(null)
+    setPaste(null)
     setCopied(false)
     setError(null)
     setLabelText("")
@@ -180,15 +202,21 @@ export function AiWorkLink({ client, orgId, onMade }: { client: DpdpClient; orgI
             </>
           ) : (
             <>
-              <div className="rounded-xl border px-3.5 py-3 mb-2 font-mono break-all" style={{ borderColor: "var(--dpdp-line)", background: "#fff", fontSize: 12.5, color: "var(--dpdp-v)" }}>
-                {aiLinkUrl(created.token)}
-              </div>
-              <div className="flex gap-3 items-center flex-wrap mb-2">
-                <button type="button" onClick={copy} className="font-bold text-white rounded-lg" style={{ background: "var(--dpdp-v)", fontSize: 13, padding: "9px 16px" }}>
-                  {copied ? "✓ Copied" : "📋 Copy"}
-                </button>
-                <span style={{ fontSize: 12.5, color: "var(--dpdp-ink3)" }}>{LEVEL_LABEL[created.level]} · expires {formatEnInDate(created.expiresAt)}</span>
-              </div>
+              {paste ? (
+                <AiPasteOptions paste={paste} onReplace={replace} replacing={replacing} />
+              ) : (
+                <>
+                  <div className="rounded-xl border px-3.5 py-3 mb-2 font-mono break-all" style={{ borderColor: "var(--dpdp-line)", background: "#fff", fontSize: 12.5, color: "var(--dpdp-v)" }}>
+                    {aiLinkUrl(created.token)}
+                  </div>
+                  <div className="flex gap-3 items-center flex-wrap mb-2">
+                    <button type="button" onClick={copy} className="font-bold text-white rounded-lg" style={{ background: "var(--dpdp-v)", fontSize: 13, padding: "9px 16px" }}>
+                      {copied ? "✓ Copied" : "📋 Copy"}
+                    </button>
+                  </div>
+                </>
+              )}
+              <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: "0 0 8px" }}>{LEVEL_LABEL[created.level]} · expires {formatEnInDate(created.expiresAt)}</p>
               <p style={{ fontSize: 13, color: "var(--dpdp-ink2)", margin: "0 0 6px", maxWidth: "72ch" }}>
                 Shown once — never stored in a way that could be shown again. Copy it now.
               </p>

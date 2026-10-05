@@ -120,8 +120,23 @@ export type AiLinkInfo = {
   level: 0 | 1
   jobs?: number
   people?: number
-  /** The one-tap Copy page for this link (dpdp-app /copy/#<token>); absent until that page is live. */
+  /** Retired 2026-10-05: an e-mail never carries a hyperlink that contains the token (mail scanners and rewriters would see it). Kept only so old callers compile; nothing renders it. */
   copyUrl?: string | null
+  /** How long THIS e-mail's own link works, in hours (48 for the Monday e-mail, 24 for a one-off mail). */
+  validHours?: number
+  /** The signed-in AI Link page ("Show my AI work link"): a plain address with no token in it. */
+  aiPageUrl?: string | null
+}
+
+/** The do-not-forward warning, red, for the top and the bottom of an e-mail that carries an AI work link. */
+export const DO_NOT_FORWARD = "DO NOT FORWARD this email or share your AI work link with anyone. Anyone who has the link can read your DPDP view, and make small changes, as you."
+
+function roleLabel(d: { level: string; roleKind: string; caSub?: string | null }): string {
+  if (d.caSub === "partner") return "the CA partner"
+  if (d.caSub === "manager") return "the CA manager"
+  if (d.level === "owner") return "the owner"
+  if (d.roleKind === "coord") return "the DPDP coordinator"
+  return "a staff member"
 }
 
 /** One thing the person's AI changed since their last Monday email (dpdp_timer_ai_actions_for_digest). */
@@ -448,7 +463,7 @@ function textShell(title: string, bodyText: string, links: RenderLinks, kind: Em
 // The three ways to do the week's jobs, led by the AI work link (owner, 2026-09-30).
 // ---------------------------------------------------------------------------
 
-const AI_NAMES = "ChatGPT, Claude, Gemini, Grok, DeepSeek"
+const AI_NAMES = "ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai"
 
 /**
  * Same line the in-app Copy-link screen shows (dpdp-app/src/lib/ai-work-link.ts aiWorkLinkWarningSentence, WO-013 §1.1 VERBATIM,
@@ -516,14 +531,17 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
   const expires = longDate(ai.expiresOn)
   const prompt = aiPasteText(ai.url)
   const l1 = "Option 1 — Relax, let an AI do it for you."
-  const copyLead = ai.copyUrl ? "Tap Copy at the top right of the box below (or select the box yourself)" : "Copy the whole box below"
+  const copyLead = "Select the whole box below and copy it"
+  const hours = ai.validHours ?? 48
+  const forWho = `${digest.email}, ${roleLabel(digest)} at ${digest.orgName}`
+  const steps = `The AI works as ${forWho}.`
   // The instructions are on the page the link opens, written for this person: their jobs, what is late, what to do first, how.
   const r1 = ai.level === 1
     ? `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). The whole box or just the link: either works. The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first. It explains each job in plain words, makes the small updates for you once you say yes, and prepares anything that needs your sign-off for you to confirm.`
     : `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). The whole box or just the link: either works. The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first. It explains each job in plain words. It cannot change anything.`
   // Before the link, not after it: what pasting it means (WO-013 §1.1 sentence, verbatim, then what the email adds).
   const before = `${aiLinkWarningSentence(jobs, people)} Most of these companies are outside India (DeepSeek is run from China). Anyone who holds this link can read all of that${ai.level === 1 ? " and make small changes as you" : ""} until ${expires}. Check that your firm allows this, keep the link private, and do not forward this email.`
-  const fine = `${aiLinkWhatItCan(ai.level, isOwner, hasButtons)} The link stops working early on ${expires}. When there is something for you to do, next Monday's email brings a fresh one; otherwise open your page to make a new one. Tip: if your AI says it cannot open web links, use Option ${o2.length ? "2 or 3" : "2"}; if your mail app turns the box into a blue link, press and hold it and choose Copy.`
+  const fine = `${aiLinkWhatItCan(ai.level, isOwner, hasButtons)} The AI will do the work of ${forWho}, and no more than that role may. The link in the box works for ${hours} hours only (until ${expires}); then it stops, exactly as if it never existed. The button below always gives you your own current link, and you can replace it there. Tip: if your AI says it cannot open web links, use Option ${o2.length ? "2 or 3" : "2"}; if your mail app turns the box into a blue link, press and hold it and choose Copy.`
   const html =
     `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">${heading}</h2>` +
     `<div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
@@ -532,9 +550,10 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
     `<div style="background:#F1F5F9;border:1px solid #CBD5E1;border-radius:8px;padding:12px 14px;margin:0 0 8px;">` +
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;"><tr>` +
     `<td style="color:#475569;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;">Your AI Work link — copy and paste this into your AI</td>` +
-    (ai.copyUrl ? `<td align="right" style="padding-left:8px;white-space:nowrap;"><a href="${esc(ai.copyUrl)}" style="display:inline-block;background:#1C2B3A;color:#FFFFFF;text-decoration:none;font-size:12px;font-weight:700;line-height:1;padding:7px 11px;border-radius:6px;">&#128203; Copy</a></td>` : "") +
     `</tr></table>` +
     `<div style="color:#1C2B3A;font-size:13px;line-height:1.55;word-break:break-word;-webkit-user-select:all;user-select:all;">${promptHtml(prompt, ai.url)}</div></div>` +
+    `<p style="color:#1C2B3A;font-size:13px;line-height:1.55;margin:0 0 8px;"><strong>Three steps.</strong> 1. Select the box above and copy it. 2. Open ${esc(AI_NAMES)}, or any AI chat that can open web links. 3. Paste it and press Send. ${esc(steps)}</p>` +
+    (ai.aiPageUrl ? `<p style="margin:0 0 10px;"><a href="${esc(ai.aiPageUrl)}" style="display:inline-block;background:#1C2B3A;color:#FFFFFF;text-decoration:none;font-size:13px;font-weight:700;line-height:1;padding:10px 14px;border-radius:6px;">Show my AI work link</a></p>` : "") +
     `<p style="color:#475569;font-size:12.5px;margin:0 0 10px;">${esc(fine)}</p>` +
     o2.map(([l, r]) => opt(l, r)).join("") + opt(o3[0], o3[1], true) +
     `</div>`
@@ -544,7 +563,9 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
     "",
     `BEFORE YOU PASTE. ${before}`,
     "",
-    ...(ai.copyUrl ? [`COPY IN ONE TAP: ${ai.copyUrl}`, ""] : []),
+    `THREE STEPS. 1. Select the box below and copy it. 2. Open ${AI_NAMES}, or any AI chat that can open web links. 3. Paste it and press Send. ${steps}`,
+    ...(ai.aiPageUrl ? [`SHOW MY AI WORK LINK (your signed-in page, always your current link): ${ai.aiPageUrl}`] : []),
+    "",
     "YOUR AI WORK LINK -- copy the two lines between the lines below and paste them into your AI:",
     "----------------------------------------------------------------",
     prompt,
@@ -647,6 +668,9 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
     textParts.push(banner.toUpperCase(), "")
   }
 
+  const carriesAiLink = kind !== "statutory" && !digest.aiChangesOnly && !!links.aiLink
+  const warnHtml = `<p style="background:#FEE2E2;color:#B91C1C;font-weight:700;font-size:14px;line-height:1.5;margin:0 0 16px;padding:10px 14px;border-radius:8px;border:1px solid #FCA5A5;">${esc(DO_NOT_FORWARD)}</p>`
+  if (carriesAiLink) { htmlParts.push(warnHtml); textParts.push(DO_NOT_FORWARD.toUpperCase(), "") }
   htmlParts.push(`<p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(intro)}</p>`)
   textParts.push(intro, "")
 
@@ -691,6 +715,7 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
     for (const j of others) { htmlParts.push(jobHtml(j, digest, links, false)); textParts.push(jobText(j, digest, links, false), "") }
   }
 
+  if (carriesAiLink) { htmlParts.push(warnHtml.replace("margin:0 0 16px", "margin:16px 0 0")); textParts.push("", DO_NOT_FORWARD.toUpperCase()) }
   const title = digest.aiChangesOnly ? "What your AI changed for you" : digest.level === "owner" ? `${digest.orgName} — DPDP this week` : "Your DPDP jobs this week"
   // WO-014 §4, widened by WO-016 §1: the invite + refer asks reach every
   // signed-in person in a real Monday digest now, not just a decision-maker
