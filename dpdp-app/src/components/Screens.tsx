@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import "./onepage/dpdp-onepage-tokens.css"
+import { SIGNIN_BENEFITS } from "@/lib/signin-benefits"
 
 export function Card({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
   return (
@@ -50,37 +51,108 @@ function EmailForm({ buttonLabel, busy, error, onSubmit }: { buttonLabel: string
   )
 }
 
+/**
+ * The first screen: sign in, or start free (the e-mail address is all it takes; membership is decided after sign-in). Every line is a fact the product
+ * states elsewhere (data/veridian-facts.yaml, the pricing page): nothing here is a promise that is not already published.
+ */
+
 export function SignIn({ onSubmit, busy, error }: { onSubmit: (email: string) => void; busy: boolean; error: string | null }) {
   return (
-    <Card icon="🔐" title="VERIDIAN DPDP">
-      <p style={lead}>Type your email and we&rsquo;ll send you a sign-in link. No passwords.</p>
-      <EmailForm buttonLabel="Email me a sign-in link" busy={busy} error={error} onSubmit={onSubmit} />
-    </Card>
+    <div className="dpdp-onepage min-h-screen">
+      <div className="max-w-[780px] mx-auto px-4 py-8 sm:py-14">
+        <section aria-labelledby="signin-title" className="rounded-[22px] border p-5 sm:p-9" style={{ background: "var(--dpdp-card)", borderColor: "var(--dpdp-line)" }}>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--dpdp-v)" }}>Free to start. Pay only when you agree a price.</p>
+            <BrandMark />
+          </div>
+          <p style={{ display: "inline-block", margin: "0 0 12px", padding: "5px 12px", borderRadius: 999, background: "var(--dpdp-line2)", color: "var(--dpdp-ink2)", fontSize: 13, fontWeight: 600 }}>For the business owner or compliance lead</p>
+          <h1 id="signin-title" style={{ fontFamily: "Sora, sans-serif", fontSize: 30, lineHeight: 1.15, fontWeight: 700, margin: "0 0 18px", color: "var(--dpdp-ink)" }}>Sign in or start free</h1>
+          <ul className="grid gap-x-6 gap-y-2.5 mb-6 sm:grid-cols-2" style={{ listStyle: "none", padding: 0, margin: "0 0 24px" }}>
+            {SIGNIN_BENEFITS.map((b) => (
+              <li key={b.text} className="flex gap-2.5 items-start" style={{ fontSize: 15, color: "var(--dpdp-ink2)" }}>
+                <span aria-hidden="true" style={{ fontSize: 18, lineHeight: "22px" }}>{b.icon}</span>
+                <span>{b.text}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="max-w-[460px]">
+            <EmailForm buttonLabel="Email me a sign-in link" busy={busy} error={error} onSubmit={onSubmit} />
+            <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "12px 0 0" }}>No password. We use your email to sign you in and to send your invoices.</p>
+          </div>
+          <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: "20px 0 0", paddingTop: 14, borderTop: "1px solid var(--dpdp-line)" }}>Built for India&rsquo;s DPDP Act. We do not certify compliance.</p>
+        </section>
+      </div>
+    </div>
   )
 }
 
 export type ResendState = "idle" | "sending" | "sent"
 
-export function CheckYourEmail({
-  email, resend, error, onResend, onUseAnother,
-}: { email: string; resend: ResendState; error: string | null; onResend: () => void; onUseAnother: () => void }) {
+/** The Veridian DPDP mark, top right of the sign-in pop-up (the same wordmark as the site and the e-mails). */
+export function BrandMark() {
   return (
-    <Card icon="📧" title="Check your email">
-      <p style={lead}>
-        We sent a sign-in link to <b>{email}</b>. Open it on this device and you&rsquo;ll land straight on your page.
-      </p>
-      <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "0 auto 12px", maxWidth: "40ch" }}>
-        Didn&rsquo;t get it, or the link has stopped working? Press the button and we&rsquo;ll send another.
-      </p>
-      <div className="flex flex-col gap-2.5 items-center">
-        <button type="button" disabled={resend === "sending"} onClick={onResend} className="font-bold text-white" style={{ ...primaryButton, opacity: resend === "sending" ? 0.6 : 1 }}>
-          {resend === "sending" ? "Sending…" : "Send me a new link"}
-        </button>
-        {resend === "sent" && <p role="status" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--dpdp-g)" }}>Sent — check your email again.</p>}
-        <InlineError message={error} />
-        <button type="button" onClick={onUseAnother} style={linkButton}>Use a different email</button>
+    <span aria-label="Veridian DPDP" style={{ fontFamily: "Sora, sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em", color: "var(--dpdp-ink)", whiteSpace: "nowrap" }}>
+      VERIDIAN <span style={{ color: "var(--dpdp-v)" }}>DPDP</span>
+    </span>
+  )
+}
+
+export function CheckYourEmail({
+  email, resend, error, onResend, onUseAnother, onVerify,
+}: { email: string; resend: ResendState; error: string | null; onResend: () => void; onUseAnother: () => void; onVerify?: (code: string) => Promise<string | null> }) {
+  const [code, setCode] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [codeError, setCodeError] = useState<string | null>(null)
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    const clean = code.replace(/\s/g, "")
+    if (!/^\d{6,8}$/.test(clean)) { setCodeError("Type the passcode from the email."); return }
+    if (!onVerify) return
+    setBusy(true)
+    setCodeError(null)
+    const err = await onVerify(clean)
+    if (err) { setCodeError(err); setBusy(false) }
+  }
+  return (
+    <div className="dpdp-onepage min-h-screen">
+      <div className="max-w-[480px] mx-auto px-4 py-8 sm:py-14">
+        <div role="dialog" aria-labelledby="check-title" className="rounded-[22px] border p-5 sm:p-8" style={{ background: "var(--dpdp-card)", borderColor: "var(--dpdp-line)" }}>
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--dpdp-ink3)", whiteSpace: "nowrap" }}>Check your inbox</p>
+            <div className="flex items-center gap-3">
+              <BrandMark />
+              <button type="button" onClick={onUseAnother} aria-label="Close and use a different email" style={{ background: "transparent", color: "var(--dpdp-ink3)", fontSize: 24, lineHeight: 1, padding: "4px 8px", minWidth: 44, minHeight: 44 }}>×</button>
+            </div>
+          </div>
+          <h1 id="check-title" style={{ fontFamily: "Sora, sans-serif", fontSize: 26, fontWeight: 700, margin: "0 0 10px", color: "var(--dpdp-ink)" }}>Check your email</h1>
+          <p style={{ fontSize: 15, color: "var(--dpdp-ink2)", margin: "0 0 20px" }}>
+            We sent an email to <b>{email}</b>. Tap a button in it, or type the passcode here.
+          </p>
+          <form onSubmit={submit} className="flex flex-col gap-3 items-stretch">
+            <label htmlFor="passcode" style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)" }}>Passcode</label>
+            <input
+              id="passcode" name="passcode" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={10}
+              value={code} onChange={(e) => setCode(e.target.value)} disabled={busy} aria-describedby="passcode-help"
+              className="rounded-xl border px-3.5 py-3 text-center"
+              style={{ borderColor: "var(--dpdp-line)", fontSize: 24, letterSpacing: "0.3em", fontFamily: "ui-monospace, Menlo, Consolas, monospace", color: "var(--dpdp-ink)", background: "#fff" }}
+            />
+            <button type="submit" disabled={busy || !onVerify} className="font-bold text-white" style={{ ...primaryButton, opacity: busy ? 0.6 : 1 }}>
+              {busy ? "Signing in…" : "Sign in"}
+            </button>
+            <InlineError message={codeError} />
+          </form>
+          <div className="flex flex-col gap-1.5 items-center mt-4">
+            <button type="button" disabled={resend === "sending"} onClick={onResend} className="font-bold" style={{ background: "transparent", color: "var(--dpdp-v)", fontSize: 14, padding: "11px 12px", textDecoration: "underline", minHeight: 44 }}>
+              {resend === "sending" ? "Sending…" : "Send me a new code"}
+            </button>
+            {resend === "sent" && <p role="status" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink)" }}>Sent — check your email again.</p>}
+            <InlineError message={error} />
+            <p id="passcode-help" style={{ margin: 0, fontSize: 13, color: "var(--dpdp-ink3)", textAlign: "center" }}>Did not arrive after a minute? Check spam, or send a new code.</p>
+            <button type="button" onClick={onUseAnother} style={linkButton}>Use a different email</button>
+          </div>
+        </div>
       </div>
-    </Card>
+    </div>
   )
 }
 

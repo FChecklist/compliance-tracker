@@ -52,17 +52,16 @@ const withLink = (level: 0 | 1 = 1, extra: Partial<RenderLinks> = {}): RenderLin
 })
 const owner = (over: Partial<Digest> = {}) => digest({ level: "owner", roleKind: "owner", jobs: [job({ obligationId: "x", isMine: false })], ...over })
 
-describe("the email: warning first, then a complete prompt, and only true claims", () => {
+describe("the email: warning first, then a short prompt box, and only true claims", () => {
   test("Option 1 leads; a plain 'Before you paste' warning comes BEFORE the box that holds the link", () => {
     const out = renderDigest(digest(), withLink())
-    expect(out.text).toContain("Option 1 — Relax, let an AI do it for you.")
+    expect(out.text).toContain("Option 1 — Let an AI do it.")
     const iWarn = out.text.indexOf("BEFORE YOU PASTE.")
-    const iBox = out.text.indexOf("YOUR AI WORK LINK -- copy the two lines between the lines below")
+    const iBox = out.text.indexOf("YOUR AI WORK LINK -- copy the lines between the rules")
     const iUrl = out.text.indexOf(URL_)
     expect(iWarn).toBeGreaterThan(-1)
     expect(iWarn).toBeLessThan(iBox)
     expect(iBox).toBeLessThan(iUrl)
-    // the same order in the HTML, and the warning is real text at a readable size, not fine print
     expect(out.html.indexOf("Before you paste.")).toBeGreaterThan(-1)
     expect(out.html.indexOf("Before you paste.")).toBeLessThan(out.html.indexOf("Your AI Work link — copy and paste this into your AI"))
     expect(out.html).toContain("font-size:13.5px")
@@ -70,65 +69,43 @@ describe("the email: warning first, then a complete prompt, and only true claims
     expect(out.html).not.toContain(`href="${URL_}"`) // no anchor: a scanner or click tracker must not fetch or rewrite it
   })
 
-  test("the warning is the app's WO-013 §1.1 sentence, verbatim, with the real counts, plus where the data goes and for how long", () => {
+  test("the warning is the app's WO-013 §1.1 sentence, verbatim, with the real counts, and says until when", () => {
     const out = renderDigest(digest(), withLink(1))
     expect(out.text).toContain(aiLinkWarningSentence(31, 4))
     expect(out.text).toContain("31 jobs and the names and emails of 4 people")
-    expect(out.text).toContain("Most of these companies are outside India (DeepSeek is run from China).")
     expect(out.text).toContain("Anyone who holds this link can read all of that and make small changes as you until 5 October 2026.")
-    expect(out.text).toContain("Check that your firm allows this, keep the link private, and do not forward this email.")
     for (const [jobs, people] of [[0, 0], [1, 1], [31, 4], [200, 57]]) {
       expect(aiLinkWarningSentence(jobs, people)).toBe(appLink.aiWorkLinkWarningSentence({ jobs, people }))
     }
   })
 
-  test("a STAFF member is told only what a staff link can do; an OWNER also gets due dates and reassigning (the database enforces the same split)", () => {
-    const staff = renderDigest(digest({ level: "staff" }), withLink(1)).text
-    expect(staff).toContain("add a note, or mark one of your own jobs not applicable (with a written reason)")
-    expect(staff).not.toContain("change a due date")
-    expect(staff).not.toContain("give a job to someone")
-    const own = renderDigest(owner(), withLink(1)).text
-    expect(own).toContain("add a note, change a due date (within a sensible range), give a job to someone already on your team, or mark a job not applicable (with a written reason)")
-  })
-
-  test("nothing claims a one-tap confirmation; confirming a draft needs the person's page and maybe a sign-in, and 'done' points at the green buttons", () => {
+  test("the copy is short: one idea per sentence, no tips, no explanations of what the link can do", () => {
     const out = renderDigest(digest(), withLink(1)).text
+    expect(out).toContain("Copy the box below into ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai or any AI chat. It reads what needs doing and helps you do it.")
+    expect(out).not.toContain("press and hold")
+    expect(out).not.toContain("Tip:")
     expect(out).not.toMatch(/one tap|tap once/i)
-    expect(out).toContain("it only prepares as a draft. You then confirm it on your VERIDIAN page (you may need to sign in first).")
-    expect(out).toContain("To mark a job done, the fastest way is still the green button below.")
-    expect(out).toContain("marking a job that today's law requires not applicable")
-    // an owner with no buttons is not pointed at buttons that are not there
-    expect(renderDigest(owner(), withLink(1)).text).not.toContain("green button")
-    expect(out).toContain("you have 24 hours to undo it on your VERIDIAN page")
+    const ai = out.slice(out.indexOf("WAYS TO DO THIS"), out.lastIndexOf("DO NOT FORWARD"))
+    expect(ai.split(/\s+/).filter(Boolean).length).toBeLessThan(300)
   })
 
-  test("Option 2 is honest about being two taps; the expiry is 'early on <date>' and a fresh link is conditional", () => {
+  test("Option 2 is one line; the link works 48 hours, says whose work, and the button always gives a current one", () => {
     const out = renderDigest(digest(), withLink(1)).text
-    expect(out).toContain("Two taps, no sign-in: the button, then a confirm on the page that opens.")
-    // 2026-10-05: the e-mail's own link is short-lived (48 hours), names whose work the AI does, and the button always gives a fresh one.
-    expect(out).toContain("works for 48 hours only (until 5 October 2026); then it stops, exactly as if it never existed. The button below always gives you your own current link, and you can replace it there.")
-    expect(out).toContain("The AI will do the work of")
+    expect(out).toContain("Option 2 — Do it right here. Tap the button under a job when it is done.")
+    expect(out).toContain("The AI works as priya@acmeca.in, a staff member at Acme & Co. This link works for 48 hours (until 5 October 2026). The button below always gives you a current one.")
   })
 
   test("level 0 never says the AI makes updates, and does not contradict itself", () => {
     const out = renderDigest(digest(), withLink(0)).text
     expect(out).toContain("It cannot change anything.")
-    expect(out).not.toContain("makes the small updates")
     expect(out).not.toContain("make small changes")
     expect(out).toContain("read all of that until 5 October 2026.")
-  })
-
-  test("the tip covers an AI that cannot open links and a mail app that turns the box into a blue link", () => {
-    const out = renderDigest(digest(), withLink(1)).text
-    expect(out).toContain("if your AI says it cannot open web links, use Option 2 or 3")
-    expect(out).toContain("press and hold it and choose Copy")
-    expect(renderDigest(owner(), withLink(1)).text).toContain("use Option 2;")
   })
 
   test("no link (a failed mint, or switched off): the page wording, no paste box; a caller that predates the field behaves the same", () => {
     for (const links of [{ ...base, aiLink: null }, base]) {
       const out = renderDigest(digest(), links)
-      expect(out.text).toContain("Option 1 — Relax, let an AI do it for you. Open your page below, copy your AI Work link, and paste it into an AI that can open web links")
+      expect(out.text).toContain("Option 1 — Relax, let an AI do it for you. Open your page below, copy your AI work link and paste it into ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai or any AI chat.")
       expect(out.text).not.toContain("BEFORE YOU PASTE")
       expect(out.html).not.toContain("user-select:all")
     }
@@ -169,7 +146,7 @@ describe("2026-10-05: no hyperlink carries the token; the button goes to the sig
     const out = renderDigest(digest(), withPage())
     expect(out.html).toContain(`<a href="${PAGE}"`)
     expect(out.html).toContain("Show my AI work link</a>")
-    expect(out.text).toContain(`SHOW MY AI WORK LINK (your signed-in page, always your current link): ${PAGE}`)
+    expect(out.text).toContain(`Show my AI work link: ${PAGE}`)
     for (const m of out.html.matchAll(/href="([^"]*)"/g)) expect(m[1], "an href that holds the token").not.toContain(TOKEN)
     expect(out.html).not.toContain("copy/#")
     expect(out.text).not.toContain("COPY IN ONE TAP")
@@ -183,16 +160,16 @@ describe("2026-10-05: no hyperlink carries the token; the button goes to the sig
     expect(out.html.indexOf(warn)).toBeLessThan(out.html.indexOf("Three ways to do this"))
     expect(out.html.lastIndexOf(warn)).toBeGreaterThan(out.html.indexOf("Your jobs ("))
     expect(out.text.indexOf(warn.toUpperCase())).toBeLessThan(out.text.indexOf("THREE WAYS TO DO THIS"))
+    expect(warn.includes("\n")).toBe(false) // one line
     expect(out.text.lastIndexOf(warn.toUpperCase())).toBeGreaterThan(out.text.indexOf("YOUR JOBS ("))
     expect(out.text).toContain("ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai")
-    expect(out.text).toContain("THREE STEPS. 1. Select the box below and copy it.")
-    expect(out.text).toContain("works for 48 hours only")
+    expect(out.text).toContain("works for 48 hours")
     expect(out.text).toContain("The AI works as ")
   })
   test("a read-only link, a one-off 24-hour link and a link-less mail", () => {
     expect(renderDigest(digest(), withPage(0)).text).toContain("It cannot change anything")
     const day = renderDigest(digest(), { ...base, aiLink: { url: URL_, expiresOn: "2026-10-06", level: 1, validHours: 24, aiPageUrl: PAGE } }).text
-    expect(day).toContain("works for 24 hours only")
+    expect(day).toContain("works for 24 hours")
     const none = renderDigest(digest(), { ...base, aiLink: null })
     expect(none.html).not.toContain(DO_NOT_FORWARD)
   })
@@ -227,16 +204,12 @@ describe("the paste: two lines, the link last; the instructions live on the page
     expect(box).not.toContain("<br><br>")
     expect(box.slice(0, box.indexOf("</div></div>"))).not.toContain("FIRST")
   })
-  test("the lead sentence tells the person that the page it opens says what to do, written for them", () => {
+  test("the lead sentence says what the AI does, in two short sentences; the page it opens has the rest", () => {
     const out = renderDigest(digest(), withLink(1)).text
-    expect(out).toContain("The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first.")
-    expect(out).toContain("makes the small updates for you once you say yes")
-    // the person may paste the whole box, or only the link (owner, 2026-09-30): the email says either works, and the page must not need more
-    expect(out).toContain("The whole box or just the link: either works.")
+    expect(out).toContain("It reads what needs doing and helps you do it.")
+    expect(out).not.toContain("The page it opens tells your AI exactly")
     const ro = renderDigest(digest(), withLink(0)).text
-    expect(ro).toContain("The page it opens tells your AI exactly what has to be done and how")
     expect(ro).toContain("It cannot change anything.")
-    expect(ro).not.toContain("makes the small updates")
   })
 })
 

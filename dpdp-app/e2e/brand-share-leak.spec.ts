@@ -146,7 +146,7 @@ async function assertBar(page: Page) {
 test.describe("WO-DPDP-014 §2 -- the line: same words, same place, everyone", () => {
   test("the brand line is the first thing on /app/ signed out, and it scrolls away", async ({ page }) => {
     await page.goto("/app/")
-    await expect(page.getByRole("heading", { level: 1, name: "VERIDIAN DPDP", exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
     await assertBar(page)
     await expect(shareButton(page)).toHaveCount(0)
   })

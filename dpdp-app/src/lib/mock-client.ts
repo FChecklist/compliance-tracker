@@ -572,6 +572,12 @@ export function createMockClient(scenario?: string): DpdpClient {
         queueMicrotask(() => cb("INITIAL_SESSION", session()))
         return { data: { subscription: { unsubscribe: () => listeners.delete(cb) } } }
       },
+      // The mock passcode is any 6 to 8 digits (the real one comes in the e-mail); it signs in as whoever asked for it.
+      async verifyOtp({ token }) {
+        if (!/^\d{6,8}$/.test(token)) return { error: { message: "Token has expired or is invalid" } }
+        emit("SIGNED_IN")
+        return { error: null }
+      },
       async signInWithOtp({ email }) {
         const me = email.trim().toLowerCase()
         const org = home()
