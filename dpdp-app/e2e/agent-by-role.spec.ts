@@ -31,7 +31,7 @@ const PUBLIC_PAGES = [
   { path: "/dpdp-institution/", h1: "DPDP compliance for your own organisation, with proof you can show" },
 ] as const
 
-const SIGN_IN = { path: "/app/", h1: "VERIDIAN DPDP" } as const
+const SIGN_IN = { path: "/app/", h1: "Sign in or start free" } as const
 
 // The two ways in on the home page, word for word (owner, 2026-10-01).
 const FOR_CLIENTS = "For professionals CA · CS · Legal · Audit firm Doing it for my clients →"

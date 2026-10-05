@@ -50,12 +50,47 @@ function EmailForm({ buttonLabel, busy, error, onSubmit }: { buttonLabel: string
   )
 }
 
+/**
+ * The first screen: sign in, or start free (the e-mail address is all it takes; membership is decided after sign-in). Every line is a fact the product
+ * states elsewhere (data/veridian-facts.yaml, the pricing page): nothing here is a promise that is not already published.
+ */
+export const SIGNIN_BENEFITS: ReadonlyArray<{ icon: string; text: string }> = [
+  { icon: "📋", text: "Turns the DPDP Act into a list of jobs" },
+  { icon: "👤", text: "Gives each job to the right person" },
+  { icon: "✉️", text: "One email a week. No passwords" },
+  { icon: "🕓", text: "Every answer is dated and cannot be edited" },
+  { icon: "⚖️", text: "Each job is linked to its legal source" },
+  { icon: "📁", text: "Your documents stay with you" },
+  { icon: "🤖", text: "Let your own AI help with the jobs" },
+]
+
 export function SignIn({ onSubmit, busy, error }: { onSubmit: (email: string) => void; busy: boolean; error: string | null }) {
   return (
-    <Card icon="🔐" title="VERIDIAN DPDP">
-      <p style={lead}>Type your email and we&rsquo;ll send you a sign-in link. No passwords.</p>
-      <EmailForm buttonLabel="Email me a sign-in link" busy={busy} error={error} onSubmit={onSubmit} />
-    </Card>
+    <div className="dpdp-onepage min-h-screen">
+      <div className="max-w-[780px] mx-auto px-4 py-8 sm:py-14">
+        <section aria-labelledby="signin-title" className="rounded-[22px] border p-5 sm:p-9" style={{ background: "var(--dpdp-card)", borderColor: "var(--dpdp-line)" }}>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--dpdp-v)" }}>Free to start. Pay only when you agree a price.</p>
+            <BrandMark />
+          </div>
+          <p style={{ display: "inline-block", margin: "0 0 12px", padding: "5px 12px", borderRadius: 999, background: "var(--dpdp-line2)", color: "var(--dpdp-ink2)", fontSize: 13, fontWeight: 600 }}>For the business owner or compliance lead</p>
+          <h1 id="signin-title" style={{ fontFamily: "Sora, sans-serif", fontSize: 30, lineHeight: 1.15, fontWeight: 700, margin: "0 0 18px", color: "var(--dpdp-ink)" }}>Sign in or start free</h1>
+          <ul className="grid gap-x-6 gap-y-2.5 mb-6 sm:grid-cols-2" style={{ listStyle: "none", padding: 0, margin: "0 0 24px" }}>
+            {SIGNIN_BENEFITS.map((b) => (
+              <li key={b.text} className="flex gap-2.5 items-start" style={{ fontSize: 15, color: "var(--dpdp-ink2)" }}>
+                <span aria-hidden="true" style={{ fontSize: 18, lineHeight: "22px" }}>{b.icon}</span>
+                <span>{b.text}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="max-w-[460px]">
+            <EmailForm buttonLabel="Email me a sign-in link" busy={busy} error={error} onSubmit={onSubmit} />
+            <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "12px 0 0" }}>No password. We use your email to sign you in and to send your invoices.</p>
+          </div>
+          <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: "20px 0 0", paddingTop: 14, borderTop: "1px solid var(--dpdp-line)" }}>Built for India&rsquo;s DPDP Act. We do not certify compliance.</p>
+        </section>
+      </div>
+    </div>
   )
 }
 
