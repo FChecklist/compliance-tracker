@@ -58,7 +58,7 @@ fact_exceptions:
     words: [certification]
     kind: fact
     why: The phrase WO-DPDP-013 v2 itself names as a fact, not a claim.
-  - sentence: "It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents."
+  - sentence: "It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception)."
     words: [certification, guarantee]
     kind: disclaimer
     why: WO-DPDP-013 v2 §2.2, verbatim -- the one line of what VERIDIAN does NOT do. Both banned words are negated.
@@ -101,7 +101,7 @@ claims:
     approved_on: "2026-09-22"
     legal_approved: false
   - id: CLM-003
-    sentence: "Each answer is recorded with a date and cannot be edited, building the proof an organisation needs."
+    sentence: "Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs."
     words: []
     where: The fact block on every public page; /about/ (WO-DPDP-013 v2 §2.2).
     evidence: Append-only event log dpdp.event with a hash chain (dpdp-app/DEPLOY.md go-live check 7, "an intact chain"; src/lib/services/dpdp-cross-tenant-rpc.test.ts).

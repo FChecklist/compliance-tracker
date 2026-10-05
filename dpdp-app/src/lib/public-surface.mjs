@@ -167,8 +167,8 @@ const LANDING_COPY = [
   "Questions people ask",
   "One email. No card. Fifteen minutes.",
   "Jobs with names and dates",
-  "A record nobody can edit",
-  "We keep no documents",
+  "A record that is added to, not edited",
+  "We keep no compliance documents",
   "People answer by email",
   "Do you touch our systems?",
   "Do you keep our documents?",
@@ -228,7 +228,7 @@ export const PUBLIC_PAGES = [
     jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
       "For CA, CS, audit and legal firms",
-      "Give each client a list of jobs. Chase the answers by email. Keep a dated record nobody can edit.",
+      "Give each client a list of jobs. Chase the answers by email. Keep a dated record that is added to, not edited.",
       "Your own firm's file is free. No licence fee. You pay per client file, after you have billed the client.",
       "Add each client",
       "Every client has its own file",
@@ -248,7 +248,7 @@ export const PUBLIC_PAGES = [
     jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
       "For companies, institutions, schools and NGOs",
-      "Get a list of jobs. Give each job to a person. Keep a dated record nobody can edit.",
+      "Get a list of jobs. Give each job to a person. Keep a dated record that is added to, not edited.",
       "Pricing after a short conversation, because the right number depends on what you hold.",
       "Open your organisation",
       "Parents' consent, on a link",
@@ -356,6 +356,7 @@ export const LEGAL_PAGES = [
   { path: "/refund/", source: "public/refund/index.html", h1: "Cancellation and Refund Policy" },
   { path: "/shipping/", source: "public/shipping/index.html", h1: "Delivery Policy" },
   { path: "/contact/", source: "public/contact/index.html", h1: "Contact Us" },
+  { path: "/subprocessors/", source: "public/subprocessors/index.html", h1: "Sub-processors" },
 ]
 
 /** The /proof/ page (WO-013 §2.1): public once facts.proof.enabled is true,

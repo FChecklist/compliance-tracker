@@ -52,7 +52,7 @@ From 13 May 2027, a person can take an unresolved grievance to the Data Protecti
 
 ## What done looks like
 
-The job "Delete a student’s data when it is no longer needed — keep the registers your board requires" is marked Yes in the school's VERIDIAN file by the person responsible for Admission office, with the date, within the 21-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.
+The job "Delete a student’s data when it is no longer needed — keep the registers your board requires" is marked Yes in the school's VERIDIAN file by the person responsible for Admission office, with the date, within the 21-day window — and the log line that records it is in the file's record, which is added to, not edited.
 
 **[Track this with VERIDIAN](https://app.veridian-aios.com/)**
 

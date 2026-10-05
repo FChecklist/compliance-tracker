@@ -172,7 +172,7 @@ export function jobPage(t, lib, byKey) {
   const whyBlocks = [{ type: "p", text: WHY_PART[t.part] }]
   for (const f of familiesPresent) whyBlocks.push({ type: "p", text: WHY_FAMILY[f] })
 
-  const doneBlocks = [{ type: "p", text: `The job "${t.plain_text}" is marked Yes in the ${product.one.replace(/^a /, "")}'s VERIDIAN file by the person responsible for ${t.role_tag}, with the date, within the ${t.default_days}-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.` }]
+  const doneBlocks = [{ type: "p", text: `The job "${t.plain_text}" is marked Yes in the ${product.one.replace(/^a /, "")}'s VERIDIAN file by the person responsible for ${t.role_tag}, with the date, within the ${t.default_days}-day window — and the log line that records it is in the file's record, which is added to, not edited.` }]
   if (t.depends_on_key) {
     const dep = byKey.get(t.depends_on_key)
     if (!dep) throw new Error(`${t.key} depends on unknown key ${t.depends_on_key}`)

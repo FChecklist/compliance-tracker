@@ -410,6 +410,22 @@ export function maskEmails(text: string, keepEmail: string): string {
   return text.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, (m) => (m.toLowerCase() === keep ? m : "[email hidden]"))
 }
 
+/**
+ * Ten-digit phone numbers (with or without +91 / 91) become "[number hidden]". A digit run is only matched when it stands alone: a neighbouring
+ * letter or digit (a link token, an id, a longer number) means it is part of something else and it is left alone.
+ */
+export function maskPhoneNumbers(text: string): string {
+  return text.replace(/(?<![0-9A-Za-z])(?:\+?91[ -]?)?\d{10}(?![0-9A-Za-z])/g, "[number hidden]")
+}
+
+/** The last line of defence on a link that hides other people's details: every other address and every phone number in the finished body. */
+export function maskPersonal(text: string, keepEmail: string): string {
+  const keep = keepEmail.trim().toLowerCase()
+  // The link's own person and the product's own support address stay; every other address goes.
+  const emails = text.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, (m) => (m.toLowerCase() === keep || m.toLowerCase().endsWith("@veridian-aios.com") ? m : "[email hidden]"))
+  return maskPhoneNumbers(emails)
+}
+
 export type HistoryEntry = { id: string; kind: string; summary: string; detail: string | null; actorLabel: string; occurredAt: string }
 
 export function renderHistoryMarkdown(page: Page<HistoryEntry>, orgName: string): string {
