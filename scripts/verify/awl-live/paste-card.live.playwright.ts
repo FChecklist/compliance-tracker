@@ -49,7 +49,7 @@ test.describe("paste card -> AI with no tools -> proposal block -> inbox page ->
     const dir = join(process.cwd(), "ai-os", "audit37", "evidence")
     mkdirSync(dir, { recursive: true })
     const sha = (spawnSync("git", ["rev-parse", "HEAD"], { cwd: process.cwd(), encoding: "utf8" }).stdout ?? "").trim()
-    writeFileSync(join(dir, `paste-card-${new Date().toISOString().replace(/[:.]/g, "-")}.json`), redact(JSON.stringify({ file: "scripts/verify/awl-live/paste-card.live.spec.ts", checklist_rows: ["B43", "A32"], commit: sha, date_utc: new Date().toISOString(), inbox_page: INBOX, ...evidence }, null, 2)))
+    writeFileSync(join(dir, `paste-card-${new Date().toISOString().replace(/[:.]/g, "-")}.json`), redact(JSON.stringify({ file: "scripts/verify/awl-live/paste-card.live.playwright.ts", checklist_rows: ["B43", "A32"], commit: sha, date_utc: new Date().toISOString(), inbox_page: INBOX, ...evidence }, null, 2)))
   })
 
   test("1 the card is token-free, small, and explains proposal blocks", async () => {

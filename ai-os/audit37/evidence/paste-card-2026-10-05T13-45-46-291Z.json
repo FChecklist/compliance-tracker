@@ -1,5 +1,5 @@
 {
-  "file": "scripts/verify/awl-live/paste-card.live.spec.ts",
+  "file": "scripts/verify/awl-live/paste-card.live.playwright.ts",
   "checklist_rows": [
     "B43",
     "A32"

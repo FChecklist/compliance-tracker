@@ -33,7 +33,7 @@ What changed since the first version of these sheets:
 | Proof | Test | Evidence |
 |---|---|---|
 | A real Claude engine (Claude Code CLI, ONE tool: curl, no memory, empty folder) given only the approved prompt and a throwaway link lists the projects, reports on all, analyses one project with the right task counts, creates a project (draft), declines a "write a script that deletes all my projects" request, and a viewer's link cannot create anything; a wrong token gives it nothing; a revoked link answers 410 | `scripts/verify/awl-live/engine-claude.live.test.ts` | `ai-os/audit37/evidence/engine-claude-*.json` |
-| The paste card, token-free, and the paste-back into the live inbox page in real Chromium: a wrong code sends nothing, the right code creates the project (re-read from the database), a broken block is refused | `scripts/verify/awl-live/paste-card.live.spec.ts` (Playwright runner, see its header) | `ai-os/audit37/evidence/paste-card-*.json` |
+| The paste card, token-free, and the paste-back into the live inbox page in real Chromium: a wrong code sends nothing, the right code creates the project (re-read from the database), a broken block is refused | `scripts/verify/awl-live/paste-card.live.playwright.ts` (Playwright runner, see its header) | `ai-os/audit37/evidence/paste-card-*.json` |
 
 ### Measured findings (honest, not hidden)
 
