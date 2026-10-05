@@ -25,11 +25,11 @@ describe('hostile organisation names in the five reminders and the receipt', () 
     for (const kind of REMINDER_KINDS) {
       test(`${kind}: ${name.slice(0, 28)}`, () => {
         const r = renderReminder({ ...base, kind, orgName: name })
-        // the HTML body never contains a live tag from the name: every < > " & of it is escaped
+        // the HTML body never contains a live tag from the name: every < > " & of it is escaped (span and a are the fixed brand header/footer markup)
         const html = r.html
         expect(html).not.toContain('<script')
         expect(html).not.toContain('<img')
-        expect(html.match(/<(?!\/?(div|p|br)\b)[a-z!]/gi)).toBeNull()
+        expect(html.match(/<(?!\/?(div|p|br|span|a)\b)[a-z!]/gi)).toBeNull()
         // the plain-text body keeps the name exactly (it is text, not markup)
         expect(r.text).toContain(name)
         // the subject is one line

@@ -710,7 +710,7 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
       const summary = await res.json()
       expect(summary).toMatchObject({ sent: 1, failed: 0, ai: { minted: 0, mintFailed: 1 } })
       const text = fetchCalls[0].body.text as string
-      expect(text).toContain("Open your page below, copy your AI Work link")
+      expect(text).toContain("Open your page below, copy your AI work link")
       expect(text).not.toContain("BEFORE YOU PASTE")
       expect(text).not.toMatch(/\/ai\/[0-9a-f]{64}/)
       expect(callsTo("dpdp_timer_finish_email_ai_link")).toHaveLength(0)

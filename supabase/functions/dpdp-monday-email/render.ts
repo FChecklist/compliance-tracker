@@ -129,7 +129,7 @@ export type AiLinkInfo = {
 }
 
 /** The do-not-forward warning, red, for the top and the bottom of an e-mail that carries an AI work link. */
-export const DO_NOT_FORWARD = "DO NOT FORWARD this email or share your AI work link with anyone. Anyone who has the link can read your DPDP view, and make small changes, as you."
+export const DO_NOT_FORWARD = "DO NOT FORWARD this email or your AI work link: anyone with it can act as you."
 
 function roleLabel(d: { level: string; roleKind: string; caSub?: string | null }): string {
   if (d.caSub === "partner") return "the CA partner"
@@ -169,6 +169,7 @@ export type Rendered = { subject: string; html: string; text: string }
 export type EmailKind = "monday_digest" | "escalation" | "leak_clock" | "rights_clock" | "statutory"
 
 import { aiPasteText } from "../_shared/ai-link/prompt.ts"
+import { MAIL_BRAND_NAME, MAIL_SUPPORT } from "../_shared/brand-mail.ts"
 
 // WO-DPDP-014 §1/§4/§5: the brand line, footer only, plain small text, on
 // every email; the share ask only in a Monday digest to a decision-maker,
@@ -430,7 +431,7 @@ ${preheader(preview)}
   </div>
   <div style="background:#F8FAFC;padding:14px 24px;border-top:1px solid #E2E8F0;">
     ${brandFooterHtml(shareAsk && !legal, referralCode, inviteCode)}
-    <p style="color:#94A3B8;font-size:12px;margin:4px 0 0;">VERIDIAN AI — One Portal. One Truth. · ${footerUnsub}</p>
+    <p style="color:#94A3B8;font-size:12px;margin:4px 0 0;">${MAIL_BRAND_NAME} · ${MAIL_SUPPORT} · ${footerUnsub}</p>
   </div>
 </div>
 </body></html>`
@@ -444,7 +445,7 @@ function textShell(title: string, bodyText: string, links: RenderLinks, kind: Em
     ? "This is a statutory notice; it is sent even if you have stopped the weekly email."
     : `Stop these weekly emails (statutory notices continue): ${unsubscribe}`
   return [
-    `VERIDIAN AI — DPDP`,
+    MAIL_BRAND_NAME,
     ``,
     title,
     ``,
@@ -474,17 +475,6 @@ export function aiLinkWarningSentence(jobs: number, people: number): string {
   return `This link lets an AI assistant read your VERIDIAN view: ${jobs} jobs and the names and emails of ${people} people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.`
 }
 
-/** What the link can do, in the words of what the database really allows (dpdp_ai_link_action, 0610 + 0664), for this kind of person. */
-function aiLinkWhatItCan(level: 0 | 1, isOwner: boolean, hasButtons: boolean): string {
-  if (level === 0) return "It can read your jobs and report on them. It cannot change anything; whatever it suggests, you do yourself on your VERIDIAN page (you may need to sign in first)."
-  const edits = isOwner
-    ? "add a note, change a due date (within a sensible range), give a job to someone already on your team, or mark a job not applicable (with a written reason)"
-    : "add a note, or mark one of your own jobs not applicable (with a written reason)"
-  return `It can read your jobs and make small changes for you directly: ${edits}. Each change is recorded as made by you via your AI assistant, is listed in your next Monday email, and you have 24 hours to undo it on your VERIDIAN page. ` +
-    `Anything that counts as approval, such as marking a job done, or marking a job that today's law requires not applicable, it only prepares as a draft. You then confirm it on your VERIDIAN page (you may need to sign in first).` +
-    (hasButtons ? " To mark a job done, the fastest way is still the green button below." : "")
-}
-
 // The paste itself lives in _shared/ai-link/prompt.ts (also served by dpdp-ai-link at /prompt for the one-tap Copy page). The instructions do
 // not: they are on the page the link opens, personalised per link (the manual's "Start here" section), so the email carries two lines.
 export { aiPasteText }
@@ -505,20 +495,19 @@ function promptHtml(prompt: string, url: string): string {
  */
 function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { html: string; text: string[] } {
   const ai = links.aiLink ?? null
-  const isOwner = digest.level === "owner"
   const heading = hasButtons ? "Three ways to do this" : "Two ways to do this"
   const opt = (label: string, rest: string, last = false) =>
     `<p style="margin:0 0 ${last ? 0 : 6}px;"><strong>${esc(label)}</strong> ${esc(rest)}</p>`
   const o2: Array<[string, string]> = hasButtons
-    ? [["Option 2 — Do it right here.", "Tap the button under a job when it is done, or “I can't” if you are stuck. Two taps, no sign-in: the button, then a confirm on the page that opens."]]
+    ? [["Option 2 — Do it right here.", "Tap the button under a job when it is done."]]
     : []
-  const o3: [string, string] = [`Option ${o2.length + 2} — Do it yourself.`, "Open your page (the button at the bottom) and go through everything by hand — most weeks, a couple of minutes."]
+  const o3: [string, string] = [`Option ${o2.length + 2} — Do it yourself.`, "Open your page and do it by hand."]
   if (!ai) {
     // No link could be made (or none was asked for): point at the page.
     const rows: Array<[string, string]> = [
-      ["Option 1 — Relax, let an AI do it for you.", `Open your page below, copy your AI Work link, and paste it into an AI that can open web links (${AI_NAMES}).`],
+      ["Option 1 — Relax, let an AI do it for you.", `Open your page below, copy your AI work link and paste it into ${AI_NAMES} or any AI chat.`],
       ...o2.map(([l, r]) => [l, hasButtons ? "Use the buttons under your jobs below, in this email." : r] as [string, string]),
-      [o3[0], "Open your page below and go through it by hand — most weeks, a couple of minutes."],
+      [o3[0], "Open your page below and do it by hand."],
     ]
     return {
       html: `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">${heading}</h2><div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
@@ -530,18 +519,14 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
   const people = ai.people ?? new Set(digest.jobs.map((j) => (j.assigneeEmail ?? "").toLowerCase()).filter(Boolean)).size + 1
   const expires = longDate(ai.expiresOn)
   const prompt = aiPasteText(ai.url)
-  const l1 = "Option 1 — Relax, let an AI do it for you."
-  const copyLead = "Select the whole box below and copy it"
+  const l1 = "Option 1 — Let an AI do it."
   const hours = ai.validHours ?? 48
   const forWho = `${digest.email}, ${roleLabel(digest)} at ${digest.orgName}`
-  const steps = `The AI works as ${forWho}.`
-  // The instructions are on the page the link opens, written for this person: their jobs, what is late, what to do first, how.
-  const r1 = ai.level === 1
-    ? `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). The whole box or just the link: either works. The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first. It explains each job in plain words, makes the small updates for you once you say yes, and prepares anything that needs your sign-off for you to confirm.`
-    : `${copyLead} and paste it into an AI that can open web links (${AI_NAMES}). The whole box or just the link: either works. The page it opens tells your AI exactly what has to be done and how, written for you: your jobs, what is late, what to do first. It explains each job in plain words. It cannot change anything.`
-  // Before the link, not after it: what pasting it means (WO-013 §1.1 sentence, verbatim, then what the email adds).
-  const before = `${aiLinkWarningSentence(jobs, people)} Most of these companies are outside India (DeepSeek is run from China). Anyone who holds this link can read all of that${ai.level === 1 ? " and make small changes as you" : ""} until ${expires}. Check that your firm allows this, keep the link private, and do not forward this email.`
-  const fine = `${aiLinkWhatItCan(ai.level, isOwner, hasButtons)} The AI will do the work of ${forWho}, and no more than that role may. The link in the box works for ${hours} hours only (until ${expires}); then it stops, exactly as if it never existed. The button below always gives you your own current link, and you can replace it there. Tip: if your AI says it cannot open web links, use Option ${o2.length ? "2 or 3" : "2"}; if your mail app turns the box into a blue link, press and hold it and choose Copy.`
+  // The instructions are on the page the link opens, written for this person. The e-mail only says where to paste it.
+  const r1 = `Copy the box below into ${AI_NAMES} or any AI chat. It reads what needs doing and helps you do it.${ai.level === 1 ? "" : " It cannot change anything."}`
+  // Before the link, not after it: what pasting it means (WO-013 §1.1 sentence, verbatim).
+  const before = `${aiLinkWarningSentence(jobs, people)} Anyone who holds this link can read all of that${ai.level === 1 ? " and make small changes as you" : ""} until ${expires}.`
+  const fine = `The AI works as ${forWho}. This link works for ${hours} hours (until ${expires}). The button below always gives you a current one.`
   const html =
     `<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">${heading}</h2>` +
     `<div style="color:#475569;font-size:13px;line-height:1.6;margin:0 0 16px;">` +
@@ -552,7 +537,6 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
     `<td style="color:#475569;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;">Your AI Work link — copy and paste this into your AI</td>` +
     `</tr></table>` +
     `<div style="color:#1C2B3A;font-size:13px;line-height:1.55;word-break:break-word;-webkit-user-select:all;user-select:all;">${promptHtml(prompt, ai.url)}</div></div>` +
-    `<p style="color:#1C2B3A;font-size:13px;line-height:1.55;margin:0 0 8px;"><strong>Three steps.</strong> 1. Select the box above and copy it. 2. Open ${esc(AI_NAMES)}, or any AI chat that can open web links. 3. Paste it and press Send. ${esc(steps)}</p>` +
     (ai.aiPageUrl ? `<p style="margin:0 0 10px;"><a href="${esc(ai.aiPageUrl)}" style="display:inline-block;background:#1C2B3A;color:#FFFFFF;text-decoration:none;font-size:13px;font-weight:700;line-height:1;padding:10px 14px;border-radius:6px;">Show my AI work link</a></p>` : "") +
     `<p style="color:#475569;font-size:12.5px;margin:0 0 10px;">${esc(fine)}</p>` +
     o2.map(([l, r]) => opt(l, r)).join("") + opt(o3[0], o3[1], true) +
@@ -563,15 +547,13 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
     "",
     `BEFORE YOU PASTE. ${before}`,
     "",
-    `THREE STEPS. 1. Select the box below and copy it. 2. Open ${AI_NAMES}, or any AI chat that can open web links. 3. Paste it and press Send. ${steps}`,
-    ...(ai.aiPageUrl ? [`SHOW MY AI WORK LINK (your signed-in page, always your current link): ${ai.aiPageUrl}`] : []),
-    "",
-    "YOUR AI WORK LINK -- copy the two lines between the lines below and paste them into your AI:",
+    "YOUR AI WORK LINK -- copy the lines between the rules and paste them into your AI:",
     "----------------------------------------------------------------",
     prompt,
     "----------------------------------------------------------------",
     "",
     fine,
+    ...(ai.aiPageUrl ? [`Show my AI work link: ${ai.aiPageUrl}`] : []),
     "",
     ...o2.map(([l, r]) => `${l} ${r}`),
     `${o3[0]} ${o3[1]}`,

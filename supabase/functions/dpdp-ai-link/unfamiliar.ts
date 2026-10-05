@@ -3,6 +3,8 @@
 // of a link, and never containing the link (or any link). The decision is made in the database (dpdp_ai_link_note_use, drizzle/0695);
 // this file is the PURE half: how the network prefix and tool family are read, and the words of the alert. No Deno globals, no network.
 
+import { brandWrap } from "../_shared/brand-mail.ts"
+
 /** IPv4 -> "a.b.c" (the /24); IPv6 -> its first three groups (the /48); anything else -> null. Never returns more of an address than that. */
 export function clientPrefix(ip: string | null | undefined): string | null {
   const raw = (ip ?? "").trim().replace(/^\[|\]$/g, "")
@@ -66,5 +68,5 @@ export function alertEmail(a: UseAlert): { subject: string; text: string; html: 
   const html = `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.55;color:#1C2B3A;">` +
     `<p style="background:#FEE2E2;color:#B91C1C;font-weight:700;margin:0 0 14px;padding:10px 14px;border-radius:8px;">Your AI work link was just used from somewhere new</p>` +
     lines.map((l) => `<p style="margin:0 0 12px;">${esc(l)}</p>`).join("") + `</div>`
-  return { subject, text, html }
+  return brandWrap({ subject, text, html }, { links: false })
 }
