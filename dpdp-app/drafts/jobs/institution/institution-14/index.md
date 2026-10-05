@@ -52,7 +52,7 @@ From 13 May 2027, a person can take an unresolved grievance to the Data Protecti
 
 ## What done looks like
 
-The job "Tell staff what you hold and why — no consent is needed for employment" is marked Yes in the school's VERIDIAN file by the person responsible for Staff records, with the date, within the 14-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.
+The job "Tell staff what you hold and why — no consent is needed for employment" is marked Yes in the school's VERIDIAN file by the person responsible for Staff records, with the date, within the 14-day window — and the log line that records it is in the file's record, which is added to, not edited.
 
 **[Track this with VERIDIAN](https://app.veridian-aios.com/)**
 

@@ -15531,7 +15531,7 @@ export const dpdpAiLink = dpdpSchemaDB.table('ai_link', {
   // roles instead of their emails on every endpoint. lastUsedAt/callCount
   // are maintained by public.dpdp_ai_link_log_call on EVERY API call.
   authorityLevel: smallint('authority_level').notNull().default(0),
-  hideEmails: boolean('hide_emails').notNull().default(false),
+  hideEmails: boolean('hide_emails').notNull().default(true),
   createdByMembershipId: text('created_by_membership_id'),
   label: text('label'),
   lastUsedAt: timestamp('last_used_at'),

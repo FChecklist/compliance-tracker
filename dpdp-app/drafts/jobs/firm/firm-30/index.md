@@ -47,7 +47,7 @@ There is no penalty attached to this job. It exists because the file stalls with
 
 ## What done looks like
 
-The job "CA manager checks the proof" is marked Yes in the company, firm or NGO's VERIDIAN file by the person responsible for CAMGR, with the date, within the 27-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.
+The job "CA manager checks the proof" is marked Yes in the company, firm or NGO's VERIDIAN file by the person responsible for CAMGR, with the date, within the 27-day window — and the log line that records it is in the file's record, which is added to, not edited.
 
 This job waits for firm-29 ("Owner confirms all the answers are true") to be done first — it stays blocked until then.
 

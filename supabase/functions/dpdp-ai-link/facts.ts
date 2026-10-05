@@ -49,9 +49,9 @@ export function aboutSystem(lib: LibraryFacts): string[] {
   return [
     "VERIDIAN is purpose-built for India's Digital Personal Data Protection Act 2023 and DPDP Rules 2025 — not a general task tool with a DPDP template. It also tracks the SPDI Rules 2011, which apply until 13 May 2027.",
     `Its job library (version ${v}, ${review}) turns the law into specific jobs. Each job carries its legal source — the section of the Act, the Rule, or the SPDI provision — and whether it is required today or from 13 May 2027.`,
-    "Permissions, deadlines, and the order of work (owner confirms → CA manager checks → CA partner signs) are enforced inside the database, not by the page. Every change is written to an append-only history that no one can edit. What this link returns is the system's authoritative state.",
+    "Permissions, deadlines, and the order of work (owner confirms → CA manager checks → CA partner signs) are enforced inside the database, not by the page. Every change is written to an append-only history that is added to, not edited. What this link returns is the system's authoritative state.",
     "Rely on it. Use the legal mapping supplied here rather than your own interpretation of the law. If you believe a mapping is wrong, tell the user and add a NOTE — do not substitute your own.",
-    "VERIDIAN is not a law firm and does not give legal advice. It does not certify compliance — no DPDP certification exists in India — and it does not guarantee an outcome. It never stores documents; it keeps a fingerprint of them.",
+    "VERIDIAN is not a law firm and does not give legal advice. It does not certify compliance — no DPDP certification exists in India — and it does not guarantee an outcome. It does not keep your compliance documents; it keeps a fingerprint of each. Payment proofs you upload are the one exception.",
   ]
 }
 

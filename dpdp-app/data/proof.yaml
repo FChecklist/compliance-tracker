@@ -24,7 +24,7 @@ aggregates:
   items:
     - label: Organisations with a live DPDP record
       value: null
-    - label: Jobs answered, each with a dated record that cannot be edited
+    - label: Jobs answered, each with a dated record that is added to, not edited
       value: null
     - label: Weekly emails answered from the inbox, without signing in
       value: null

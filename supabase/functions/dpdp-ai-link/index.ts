@@ -34,7 +34,7 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
 import {
   LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodsFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
-  maskEmails, methodOverride, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
+  maskEmails, maskPersonal, methodOverride, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
   type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
 } from "./router.ts"
 import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "./manual.ts"
@@ -343,6 +343,21 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
   }
 }
 
+/**
+ * A link that hides other people's details (the default): whatever route answered, every address but the link's own person's (and the product's own
+ * support address) and every phone number in the finished body is replaced before it leaves. The database already does this for most fields; this is the
+ * net under the rest (free text in a note, a reason, an evidence label). Links that were switched to show addresses are served as they are.
+ */
+async function guardHiddenLink(res: Response, token: string): Promise<Response> {
+  if (res.status >= 300) return res
+  const ct = res.headers.get("content-type") ?? ""
+  if (!/json|text|csv|markdown|html/i.test(ct)) return res
+  const ctx = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+  if (ctx.error || !ctx.data.link.hideEmails) return res
+  const body = maskPersonal(await res.text(), ctx.data.viewer.email)
+  return new Response(body, { status: res.status, headers: res.headers })
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     console.error(`${FUNCTION_NAME}: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing`)
@@ -390,7 +405,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // The person's own browser fetching the paste (/prompt) is not "the link being used"; counting it would make the first real AI call look unfamiliar.
   const noted = route.kind === "prompt" ? Promise.resolve() : noteUse(token, req)
   try {
-    const res = await handle(request, token, route, url)
+    const handled = await handle(request, token, route, url)
+    // The two pasted lines (/prompt) hold no personal detail by construction; every other route passes through the net.
+    const res = route.kind === "prompt" ? handled : await guardHiddenLink(handled, token)
     await noted
     const body = await res.clone().arrayBuffer()
     const withLength = new Response(body, { status: res.status, headers: res.headers })

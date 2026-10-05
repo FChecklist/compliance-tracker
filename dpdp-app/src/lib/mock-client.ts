@@ -924,7 +924,7 @@ export function createMockClient(scenario?: string): DpdpClient {
         case "dpdp_ai_link_create": {
           const org = orgOf(args?.p_org_id) ?? home()
           const level = (Number(args?.p_level) === 1 ? 1 : 0) as 0 | 1
-          const hideEmails = !!args?.p_hide_emails
+          const hideEmails = args?.p_hide_emails === undefined || args?.p_hide_emails === null ? true : !!args.p_hide_emails
           const rawDays = Number(args?.p_days)
           const days = (rawDays === 1 || rawDays === 30 ? rawDays : 7) as 1 | 7 | 30
           const labelValue = (args?.p_label ? String(args.p_label).trim() : "") || null
