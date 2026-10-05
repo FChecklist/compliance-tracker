@@ -17,7 +17,7 @@ const EDITIONS: Edition[] = [
 ]
 
 async function signInFrom(page: Page, email: string) {
-  await expect(page.getByRole("heading", { level: 1, name: "VERIDIAN DPDP", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
   await page.getByLabel("Your email", { exact: true }).fill(email)
   await page.getByRole("button", { name: "Email me a sign-in link", exact: true }).click()
   await expect(page.getByRole("heading", { level: 1, name: "Check your email", exact: true })).toBeVisible()
@@ -106,6 +106,6 @@ test.describe("a visitor with no organisation", () => {
     await page.goto("/app/?mock=visitor")
     await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Use a different email", exact: true }).click()
-    await expect(page.getByRole("heading", { level: 1, name: "VERIDIAN DPDP", exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
   })
 })
