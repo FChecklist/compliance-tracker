@@ -69,10 +69,11 @@ export function structuralProblems(doc: Doc): string[] {
         if (prior) problems.push(`operationId ${op.operationId} used by ${prior} and ${method} ${path}`)
         ids.set(op.operationId, `${method} ${path}`)
       }
-      const declared = new Set([...(item.parameters ?? []), ...(op.parameters ?? [])].filter((p) => p.in === "path").map((p) => p.name))
+      const shared = (item as unknown as { parameters?: Array<{ in?: string; name?: string; $ref?: string }> }).parameters ?? []
+      const declared = new Set([...shared, ...(op.parameters ?? [])].filter((p) => p.in === "path").map((p) => p.name))
       for (const name of templated) {
         // a parameter given as a $ref is declared elsewhere; count it as declared only if the reference names it
-        const viaRef = [...(item.parameters ?? []), ...(op.parameters ?? [])].some((p) => p.$ref && p.$ref.endsWith(`/${name}`))
+        const viaRef = [...shared, ...(op.parameters ?? [])].some((p) => p.$ref && p.$ref.endsWith(`/${name}`))
         if (!declared.has(name) && !viaRef) problems.push(`${method} ${path}: path parameter {${name}} is not declared`)
       }
     }
