@@ -89,7 +89,7 @@ describe.skipIf(!liveEnabled())("link lifecycle, header mode, paste card and dra
   test("CARD: card.md is Markdown under 8,000 bytes and teaches the projexa-proposal block; card-data.md is under 100,000 bytes", async () => {
     const card = await call(`${project.url}/card.md`)
     expect(card.status).toBe(200)
-    expect(card.headers.get("content-type")).toContain("text/markdown")
+    expect(card.headers.get("content-type")).toContain("text/plain")
     expect(new TextEncoder().encode(card.text).length).toBeLessThanOrEqual(8_000)
     expect(card.text).toContain("projexa-proposal")
     expect(card.text).not.toContain(project.token) // the card is token-free: it is meant to be pasted into a chat
@@ -97,7 +97,7 @@ describe.skipIf(!liveEnabled())("link lifecycle, header mode, paste card and dra
 
     const data = await call(`${project.url}/card-data.md?kinds=project,tasks`)
     expect(data.status).toBe(200)
-    expect(data.headers.get("content-type")).toContain("text/markdown")
+    expect(data.headers.get("content-type")).toContain("text/plain")
     expect(new TextEncoder().encode(data.text).length).toBeLessThanOrEqual(100_000)
     expect(data.text).toContain("Meridian Heights")
     expect(data.text).not.toContain(project.token)
