@@ -18,7 +18,8 @@ type Identity = { sub: string; email: string | null; membership: { organization_
 type Upstream = { kind: "json"; status: number; body: unknown } | { kind: "text"; status: number; status_text: string; text: string } | { kind: "refused" }
 type Case = { name: string; method: string; path: string; body?: unknown; who: string; upstream: Upstream }
 type Call = { method: string; path: string; authorization: string | null; acting_user: string | null; acting_email: string | null; content_type: string | null; body: unknown }
-type Outcome = { status: number; body: unknown; retry_after: string | null; upstream_calls: Call[] }
+/** cache_control: present only when the answer sets a Cache-Control other than "no-store" (the projexa recorder normalises the same way). */
+type Outcome = { status: number; body: unknown; retry_after: string | null; upstream_calls: Call[]; cache_control?: string }
 const golden = JSON.parse(readFileSync(join(DIR, "parity.golden.json"), "utf8")) as {
   identities: Record<string, Identity>
   org_keys: Record<string, string>
@@ -39,7 +40,8 @@ async function runEdge(c: Case, over: Partial<ApiDeps> = {}, extraHeaders: Recor
     const h = new Headers(init?.headers)
     calls.push({
       method: (init?.method ?? "GET").toUpperCase(),
-      path: url.slice(golden.upstream_base.length),
+      // as it goes on the wire (URL-normalised), exactly how the projexa recorder writes it
+      path: new URL(url).href.slice(new URL(golden.upstream_base).href.length),
       authorization: h.get("authorization"),
       acting_user: h.get("x-acting-user"),
       acting_email: h.get("x-acting-user-email"),
@@ -71,14 +73,19 @@ async function runEdge(c: Case, over: Partial<ApiDeps> = {}, extraHeaders: Recor
   } catch {
     body = { __not_json__: text.slice(0, 80) }
   }
-  return { status: res.status, body, retry_after: res.headers.get("retry-after"), upstream_calls: calls }
+  const cc = res.headers.get("cache-control")
+  return { status: res.status, body, retry_after: res.headers.get("retry-after"), upstream_calls: calls, ...(cc && cc !== "no-store" ? { cache_control: cc } : {}) }
 }
 
 describe("projexa-api parity contract: the edge handler answers exactly what PROJEXA's Next pipeline answered (AUDIT-100 A2)", () => {
   test("the contract is the real one: more than 100 cases, every route of the function, every role", () => {
     expect(golden.cases.length).toBeGreaterThan(100)
-    const routesSeen = new Set(golden.cases.map((c) => c.case.method + " " + c.case.path.split("?")[0].replace(/\/(p-1|li-1|d-1|d%2F1|dr-1|pm-1)(?=\/|$)/, "/:x")))
-    for (const r of EDGE_ROUTES) for (const m of Object.keys(r.methods)) expect([...routesSeen].some((s) => s.startsWith(m + " " + r.route.replace(/:\w+/, ":x")))).toBe(true)
+    const matches = (route: string, path: string) => {
+      const pat = route.split("/").filter(Boolean)
+      const segs = path.split("?")[0].split("/").filter(Boolean)
+      return pat.length === segs.length && pat.every((p, i) => p.startsWith(":") || p === segs[i])
+    }
+    for (const r of EDGE_ROUTES) for (const m of Object.keys(r.methods)) expect(golden.cases.some((c) => c.case.method === m && matches(r.route, c.case.path)), `${m} ${r.route}`).toBe(true)
     for (const who of ["owner", "admin", "pm", "site_engineer", "member", "client_viewer", "signed_out", "no_org", "wrong_org"]) expect(golden.cases.some((c) => c.case.who === who)).toBe(true)
   })
 
@@ -92,7 +99,7 @@ describe("projexa-api parity contract: the edge handler answers exactly what PRO
 describe("deny by default, and what the edge never does", () => {
   const owner = golden.cases.find((c) => c.case.who === "owner")!.case
   test("a path that is not one of the function's routes is 404 before anything else (even a real Vercel route, even signed in)", async () => {
-    for (const path of ["/api/payroll/runs", "/api/scope/line-items", "/api/documents/d-1/dispose", "/api/org/invites", "/api/permits/x/extra", "/rest/v1/memberships", "/api"]) {
+    for (const path of ["/api/assistant", "/api/payroll/runs/r-1/process", "/api/scope/line-items", "/api/documents/d-1/dispose", "/api/org/invites", "/api/permits/x/extra", "/rest/v1/memberships", "/api"]) {
       const out = await runEdge({ ...owner, method: "POST", path, body: {} })
       expect(out.status).toBe(404)
       expect(out.upstream_calls).toHaveLength(0)
