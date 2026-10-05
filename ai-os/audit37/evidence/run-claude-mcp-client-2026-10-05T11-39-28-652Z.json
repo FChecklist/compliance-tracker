@@ -1,0 +1,26 @@
+{
+  "file": "./scripts/verify/awl-live/claude-mcp-client.live.test.ts",
+  "args": [],
+  "commit": "b9cf5e2ba8a29090fca4d4cbfaf8ef683c316ae4",
+  "tree_dirty": true,
+  "started_at": "2026-10-05T11:39:28.652Z",
+  "ended_at": "2026-10-05T11:40:48.814Z",
+  "exit_code": 0,
+  "pass": 1,
+  "fail": 0,
+  "skip": 0,
+  "tests": [
+    {
+      "name": "the client connects with no sign-in and list_projects reports exactly the number of projects the database says the person can read",
+      "result": "pass",
+      "time_s": 76.086699
+    }
+  ],
+  "function_calls_during_run": {
+    "note": "every caller of the function in this window, not only this run (the database and the function are shared)",
+    "calls": 6,
+    "slow_3s_or_more": 0,
+    "failed_5xx": 0,
+    "status_503": 0
+  }
+}
