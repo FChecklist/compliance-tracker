@@ -14996,6 +14996,8 @@ export const dpdpConsentCampaign = dpdpSchemaDB.table('consent_campaign', {
   noticeVersionId: text('notice_version_id').notNull(),
   sentAt: timestamp('sent_at'),
   channel: text('channel').notNull().default('email'),
+  purposes: jsonb('purposes'), // drizzle/0725: [{key,label}]; null = the one legacy purpose 'consent'
+  principalIsChild: boolean('principal_is_child').notNull().default(false), // drizzle/0725
 })
 
 // contact_hash + the org's own reference is deliberate: never store a
@@ -15009,6 +15011,9 @@ export const dpdpConsentToken = dpdpSchemaDB.table('consent_token', {
   openedAt: timestamp('opened_at'),
   actedAt: timestamp('acted_at'),
   expiresAt: timestamp('expires_at').notNull(),
+  guardianName: text('guardian_name'), // drizzle/0725: the parent or legal guardian answering for a child
+  guardianRelation: text('guardian_relation'),
+  guardianRecordedAt: timestamp('guardian_recorded_at'),
 })
 
 // Withdrawal must be one tap on the same page as granting (S.6) -- a new
@@ -15135,6 +15140,7 @@ export const dpdpNoticeVersion = dpdpSchemaDB.table('notice_version', {
   languages: text('languages').array(),
   approvedBy: text('approved_by'),
   state: text('state').notNull().default('draft'), // 'draft'|'live'|'superseded'
+  bodyText: text('body_text'), // drizzle/0725: the notice's own text, when the organisation has stored it
 }, (t) => ({
   orgDocVersionUnique: unique('dpdp_notice_version_org_kind_version_key').on(t.orgId, t.docKind, t.version),
 }))
@@ -15148,6 +15154,29 @@ export const dpdpBreach = dpdpSchemaDB.table('breach', {
   boardNotifiedAt: timestamp('board_notified_at'),
   individualsNotifiedAt: timestamp('individuals_notified_at'),
   state: text('state').notNull().default('open'),
+  // drizzle/0726: DPDP Rules 2025 rule 7 facts and the CERT-In (6 h) / customer (24 h) clocks
+  description: text('description'),
+  nature: text('nature'),
+  extent: text('extent'),
+  occurredAt: timestamp('occurred_at'),
+  location: text('location'),
+  likelyImpact: text('likely_impact'),
+  boardDetailedAt: timestamp('board_detailed_at'),
+  boardBroadFacts: text('board_broad_facts'),
+  boardCircumstances: text('board_circumstances'),
+  boardMitigation: text('board_mitigation'),
+  boardCauseFindings: text('board_cause_findings'),
+  boardRemedialSteps: text('board_remedial_steps'),
+  boardReportOnNotices: text('board_report_on_notices'),
+  individualConsequences: text('individual_consequences'),
+  individualMitigation: text('individual_mitigation'),
+  individualSafetyMeasures: text('individual_safety_measures'),
+  individualContact: text('individual_contact'),
+  certInDueAt: timestamp('cert_in_due_at'),
+  certInReportedAt: timestamp('cert_in_reported_at'),
+  certInReference: text('cert_in_reference'),
+  customerNoticeDueAt: timestamp('customer_notice_due_at'),
+  processorNotifiedCustomerAt: timestamp('processor_notified_customer_at'),
 })
 
 // ─── DPDP 4.7: the record ───────────────────────────────────────────────
