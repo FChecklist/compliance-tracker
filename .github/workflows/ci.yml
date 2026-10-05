@@ -613,6 +613,16 @@ jobs:
     name: E2E Tests (Env-1, cross-repo)
     needs: [build]
     runs-on: ubuntu-latest
+    # AUDIT-100 (2026-10-05): ONE Env-1 run at a time across every PR and branch. It boots two real dev servers and drives real browsers against
+    # the LIVE database for up to 40 minutes with --workers=1; two or three of them at once (several PRs, several sessions) starved the shared
+    # database: the AI work-link guide answered 503 and the database-touching checks (Graph Drift, Migration Schema Drift, Screen Definition Label,
+    # Migration Integrity) crashed with FATAL. The check is not required, so a run that is replaced while waiting is acceptable; queueing is not.
+    # On a pull request it runs only when the PR carries the label `run-env1` (push to main, workflow_dispatch and the weekly schedule are unchanged):
+    # an unlabelled PR push no longer launches 40 minutes of browsers against the live database.
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-env1')
+    concurrency:
+      group: env1-live-database
+      cancel-in-progress: false
     # PM directive 2026-09-13: no job in this workflow set timeout-minutes, so
     # every job silently inherited GitHub's 6-hour default. This is the one
     # job that genuinely can hang -- it boots two real dev servers and drives
