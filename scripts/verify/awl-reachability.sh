@@ -7,7 +7,7 @@
 #   H06  the link host has an IPv4 A record (a fetcher with no IPv6 must still reach it)
 #   H07  robots.txt on the link host answers 404 (a robots file that blocks fetchers is the failure this rules out)
 #   H08  a request with the ChatGPT fetcher user agent answers 200
-#   H16  the manual is served as exactly `text/markdown; charset=utf-8`
+#   H16  the manual is served as exactly `text/plain; charset=utf-8` (ChatGPT's web reader refuses text/markdown, 2026-10-05; a caller that sends Accept: text/markdown still gets it)
 #   H17  a CORS preflight (OPTIONS on /actions, with Origin and Access-Control-Request-Method) answers 204
 #   H19  the paste card (/card.md) carries no `pxa_` text and is at most 8,000 bytes
 # Live-only: it needs a deployed function and a minted link. Nothing in it writes data: GET, HEAD-style reads and one OPTIONS.
@@ -64,7 +64,7 @@ if [ "$code" = "200" ]; then ok H08 "the ChatGPT user agent gets 200"; else bad 
 
 # H16
 ctype="$(curl -s -D - -o /dev/null --max-time "$AWL_CURL_TIMEOUT" "$LINK" 2>/dev/null | tr -d '\r' | grep -i '^content-type:' | head -n 1 | sed -E 's/^[^:]*:[ \t]*//' || true)"
-if [ "$ctype" = "text/markdown; charset=utf-8" ]; then ok H16 "content type is exactly text/markdown; charset=utf-8"; else bad H16 "content type is exactly text/markdown; charset=utf-8" "got '${ctype:-none}'"; fi
+if [ "$ctype" = "text/plain; charset=utf-8" ]; then ok H16 "content type is exactly text/plain; charset=utf-8"; else bad H16 "content type is exactly text/plain; charset=utf-8" "got '${ctype:-none}'"; fi
 
 # H17
 code="$(awl_norm_code "$(awl_code -X OPTIONS -H 'Origin: https://example.com' -H 'Access-Control-Request-Method: POST' "$LINK/actions")")"
