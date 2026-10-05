@@ -3654,7 +3654,14 @@
       "idx": 523,
       "version": "7",
       "when": 1790509000000,
-      "tag": "0693_dpdp_ai_link_register",
+      "tag": "0693_awl_full_rights",
+      "breakpoints": true
+    },
+    {
+      "idx": 524,
+      "version": "7",
+      "when": 1790510000000,
+      "tag": "0694_dpdp_ai_link_register",
       "breakpoints": true
     }
   ]

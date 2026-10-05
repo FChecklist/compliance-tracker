@@ -145,16 +145,20 @@ export type LinkCtx = {
   expires_at: string
   writes_enabled: boolean
   /**
-   * lf-b2-ai-crud (drizzle/0685): the PERSON's own "let my AI act without asking" switch, read now. With it on a level-2 function may be made
-   * directly like a level-1 one (still only while direct changes are open: the kill switch and the link's own level stay). Absent on a database
-   * before 0685, which reads as off.
+   * lf-b2-ai-crud (drizzle/0685): the PERSON's own "let my AI act without asking" switch, read now. Since drizzle/0693 it no longer blocks anything: a
+   * level-2 function (a delete) is made directly like a level-1 one for every person. Kept for compatibility. Absent on a database before 0685.
    */
   act_without_asking?: boolean
 }
 
-/** lf-b2-ai-crud: a write this link may make directly (POST /actions): a level-1 function, or a level-2 one with the person's switch on. */
-export function directLevelOk(def: { link_level: number | null }, ctx: Pick<LinkCtx, "act_without_asking">): boolean {
-  return def.link_level === 1 || (def.link_level === 2 && ctx.act_without_asking === true)
+/**
+ * A write this link may make directly (POST /actions): any change function that is on the link (level 1 or 2). drizzle/0693 (owner decision 2026-10-04):
+ * there is NO confirmation gate on top of the person's role, so a delete executes at once; the person's "act_without_asking" switch is still read (it stays
+ * in the context for compatibility) but no longer blocks. The limits are the role, the projects and the organisation, all checked in SQL; the level of
+ * the link itself (effective_level, the kill switch) is checked by the caller.
+ */
+export function directLevelOk(def: { link_level: number | null }, _ctx?: Pick<LinkCtx, "act_without_asking">): boolean {
+  return def.link_level === 1 || def.link_level === 2
 }
 
 function asCtx(data: unknown): LinkCtx {
@@ -227,8 +231,8 @@ export function availabilityOf(env: { ctx: LinkCtx; config: AwlConfig }): Availa
 export function levelNote(ctx: LinkCtx, av: Availability): string {
   if (ctx.effective_level >= 1) {
     return av.direct_open
-      ? "Direct level-1 changes are on for this link."
-      : "This link may make level-1 changes directly, but the executor is not switched on yet: draft them and the person confirms."
+      ? "Direct changes (add, edit and delete) are on for this link, with no confirmation step."
+      : "This link may make changes directly, but the executor is not switched on yet: draft them and the person confirms."
   }
   if (ctx.authority_level >= 1 && ctx.live_rank < 2) return "This link was made at level 1, but this person's role can no longer make changes: it can read, check and draft."
   if (ctx.authority_level >= 1) return "This link was made at level 1; direct changes are switched off for every link at the moment, so draft them and the person confirms."

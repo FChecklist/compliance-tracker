@@ -1,6 +1,6 @@
 # ai-work-link (PROJEXA-BUILD-001 U-46b1, first half)
 
-The universal AI work link. One capability URL per person and project (a link of scope `project`), or one for a person and ALL the projects they may read (a link of scope `user`, `drizzle/0668`: level 0 for ever, it lists the person's projects, reports on all of them, works inside the one chosen and can draft a new project):
+The universal AI work link. One capability URL per person and project (a link of scope `project`), or one for a person and ALL the projects they may read (a link of scope `user`, `drizzle/0668`, `0693`: minted at the highest level the role allows - level 1 for a member and above, so it adds, edits and deletes directly with no confirmation; level 0 for a viewer. It lists the person's projects, reports on all of them, works inside the one chosen and can create a new project):
 
 `https://<project>.supabase.co/functions/v1/ai-work-link/pxa_<64 hex>`
 

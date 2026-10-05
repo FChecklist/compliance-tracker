@@ -358,19 +358,21 @@ function link(actWithoutAsking: string[] = []) {
   return { action: (fn: string, params: Row) => call(TOKENS.manager, "/actions", { function: fn, params }), check: (fn: string, params: Row) => call(TOKENS.manager, "/check", { function: fn, params }) };
 }
 
-describe("the draft/direct split follows the person's own switch, for every level-2 function of B5", () => {
+describe("the person's own switch no longer splits draft from direct (drizzle/0693), for every level-2 function of B5", () => {
   for (const c of WRITES.filter((x) => x.level === 2)) {
-    test(`${c.fn}: switch off, a draft only (403 LEVEL_NOT_ALLOWED on /actions); switch on, it passes the level gate and /check says it runs directly`, async () => {
+    test(`${c.fn}: switch off OR on, it passes the level gate and /check says it runs directly (never 403 LEVEL_NOT_ALLOWED)`, async () => {
       const off = link();
-      expect(await off.action(c.fn, c.valid)).toMatchObject({ status: 403, body: { code: "LEVEL_NOT_ALLOWED" } });
-      expect((await off.check(c.fn, c.valid)).body).toMatchObject({ valid: true, level: 2, will_execute_directly: false });
+      const offDirect = await off.action(c.fn, c.valid);
+      expect(offDirect.status).toBe(503);
+      expect(offDirect.body.code).toBe("EXECUTOR_NOT_AVAILABLE");
+      expect((await off.check(c.fn, c.valid)).body).toMatchObject({ valid: true, level: 2, will_execute_directly: true });
       const on = link(["usr_manager"]);
       const direct = await on.action(c.fn, c.valid);
       expect(direct.status).toBe(503); // the executor is not wired into this handler test: past the level gate, never 403
       expect(direct.body.code).toBe("EXECUTOR_NOT_AVAILABLE");
       expect((await on.check(c.fn, c.valid)).body).toMatchObject({ valid: true, level: 2, will_execute_directly: true });
-      // another person's switch does nothing for this person's link
-      expect(await link(["usr_member"]).action(c.fn, c.valid)).toMatchObject({ status: 403, body: { code: "LEVEL_NOT_ALLOWED" } });
+      // another person's switch does nothing either way
+      expect((await link(["usr_member"]).action(c.fn, c.valid)).status).toBe(503);
     });
   }
 });

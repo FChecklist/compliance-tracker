@@ -62,7 +62,7 @@ Levels: 0 read, 1 direct small edit (only when the link was made with level 1), 
 
 ## What was built, and what was not
 
-Built (migration `drizzle/0693_dpdp_ai_link_register.sql`, applied live 2026-10-05): `public.dpdp_ai_link_register(token, kind)`, read only,
+Built (migration `drizzle/0694_dpdp_ai_link_register.sql`, applied live 2026-10-05): `public.dpdp_ai_link_register(token, kind)`, read only,
 owner/coordinator/Grievance Officer/CA links only; `GET /register` and `GET /register/{kind}` in the link API (`api-definition.ts` is the single source,
 the manual's section E and the router read it).
 
