@@ -28,7 +28,8 @@ Spec keys per method: `upstream` (with `{param}` / `{query:x}`), `fallback`, `ac
 `forward_search` (append the request's query string byte for byte, like `request.nextUrl.search`), `body`, `body_actor_email`,
 `success_status` (201 for a create), `cache_control` (`private, max-age=<n>` only), `error_style`.
 
-Batches: 1 = the shell's 7 routes (2026-10-05); 2 = the 40 most-used plain proxies of the online screens (2026-10-06): 47 routes in all.
+Batches: 1 = the shell's 7 routes (2026-10-05); 2 = the 40 most-used plain proxies of the online screens (2026-10-06); 3 = the next 33;
+4 = the last 33 plain proxies (2026-10-06): 113 routes in all.
 
 ## Secrets
 
