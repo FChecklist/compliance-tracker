@@ -81,8 +81,20 @@ export type ParentConsentPreview = TokenRefusal | {
   openedAt: string | null
   actedAt: string | null
   alreadyAnswered: boolean
+  // drizzle/0701 (all optional: a database that has not had it yet answers without them, and the page then behaves exactly as before)
+  noticeText?: string
+  noticeSource?: "organisation" | "standard"
+  purposes?: ConsentPurpose[]
+  principalIsChild?: boolean
+  guardian?: { name: string; relation: "parent" | "legal_guardian" } | null
+  canWithdraw?: boolean
 }
+/** One thing a consent link asks about, with the person's current answer. "withdrawn" = they said Yes and later withdrew. */
+export type ConsentPurpose = { key: string; label: string; answer: "yes" | "no" | "withdrawn" | null }
 export type ParentConsentResult = TokenRefusal | { ok: true; answer: "yes" | "no" }
+/** dpdp_parent_consent_v2 / dpdp_consent_withdraw (drizzle/0701). */
+export type ConsentAnswersResult = TokenRefusal | { ok: true; recorded: number }
+export type ConsentWithdrawResult = TokenRefusal | { ok: true; withdrawn: string }
 
 /** dpdp_create_ai_link (0607): the token is returned exactly once. */
 export type AiLinkPayload = { linkId: string; token: string; expiresAt: string; revokedPrevious: number }

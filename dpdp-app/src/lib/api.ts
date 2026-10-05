@@ -4,7 +4,7 @@ import type {
   AiActionUndoPayload, AiDraftConfirmPayload, AiDraftPreviewPayload, AiLinkListItem, AiLinkPayload, AiLinkWarning, AiWorkLinkCreated,
   AreaAssignmentWire, AreaPayload, BillingStatusPayload, CaClientWire, ConfirmSetupPayload,
   CreateClientPayload, CreateMyOrgPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
-  JoinOrgResult, OrgInviteLinkPayload, OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
+  ConsentAnswersResult, ConsentWithdrawResult, JoinOrgResult, OrgInviteLinkPayload, OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
   ApprovePaymentResult, PendingClaimWire, RejectPaymentResult,
   AdminMarkPaidResult, AdminPartnerRow, AdminPartnerSettings, AdminPayoutRun, PartnerDashboardPayload, PartnerDetailsInput, PartnerStatementPayload, PartnerStatus,
 } from "./rpc-types"
@@ -554,4 +554,20 @@ export async function parentConsent(client: DpdpClient, token: string, answer: "
   const { data, error } = await client.rpc("dpdp_parent_consent", { p_token: token, p_answer: answer })
   if (error) throw new RpcFailure(error)
   return data as ParentConsentResult
+}
+
+/** One answer per item on the link, once (drizzle/0701). guardian is needed only when the page says the person is a child. */
+export async function parentConsentAnswers(
+  client: DpdpClient, token: string, answers: Record<string, "yes" | "no">, guardian: { name: string; relation: "parent" | "legal_guardian" } | null,
+): Promise<ConsentAnswersResult> {
+  const { data, error } = await client.rpc("dpdp_parent_consent_v2", { p_token: token, p_answers: answers, p_guardian: guardian })
+  if (error) throw new RpcFailure(error)
+  return data as ConsentAnswersResult
+}
+
+/** Withdraws one item with the SAME link: no new link, still works after the link has expired (drizzle/0701). */
+export async function withdrawConsent(client: DpdpClient, token: string, purposeKey: string): Promise<ConsentWithdrawResult> {
+  const { data, error } = await client.rpc("dpdp_consent_withdraw", { p_token: token, p_purpose_key: purposeKey })
+  if (error) throw new RpcFailure(error)
+  return data as ConsentWithdrawResult
 }
