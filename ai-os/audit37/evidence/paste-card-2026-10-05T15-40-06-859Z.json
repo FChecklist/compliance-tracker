@@ -1,0 +1,68 @@
+{
+  "file": "scripts/verify/awl-live/paste-card.live.playwright.ts",
+  "checklist_rows": [
+    "B43",
+    "A32"
+  ],
+  "commit": "def39e9cd5104142ee43a6e2176ee5ef5d43a9fe",
+  "date_utc": "2026-10-05T15:40:06.859Z",
+  "inbox_page": "https://projexa-link-pages.pages.dev/ai-inbox",
+  "card": {
+    "status": 200,
+    "bytes": 2858,
+    "content_type": "text/plain; charset=utf-8"
+  },
+  "engine": {
+    "tools": "none",
+    "request": "create a new project called <name> (no description). Do your part following the card.",
+    "sessions_run": 3,
+    "sessions_with_valid_block": 3,
+    "sessions": [
+      {
+        "session": 1,
+        "gave_block": true,
+        "block_valid": true,
+        "block": "{\"v\":1,\"function\":\"create_project\",\"params\":{\"name\":\"T-PASTE-CARD-1791214734360-1\"},\"note\":\"a new project\"}",
+        "answer_excerpt": "```projexa-proposal\n{\"v\":1,\"function\":\"create_project\",\"params\":{\"name\":\"T-PASTE-CARD-1791214734360-1\"},\"note\":\"a new project\"}\n```\n\nPaste this into the inbox page and confirm it to create the project."
+      },
+      {
+        "session": 2,
+        "gave_block": true,
+        "block_valid": true,
+        "block": "{\"v\":1,\"function\":\"create_project\",\"params\":{\"name\":\"T-PASTE-CARD-1791214734360-2\"},\"note\":\"a new project\"}",
+        "answer_excerpt": "```projexa-proposal\n{\"v\":1,\"function\":\"create_project\",\"params\":{\"name\":\"T-PASTE-CARD-1791214734360-2\"},\"note\":\"a new project\"}\n```\n\nPaste this into the inbox page and confirm it to create the project — nothing happens until you do."
+      },
+      {
+        "session": 3,
+        "gave_block": true,
+        "block_valid": true,
+        "block": "{\"v\":1,\"function\":\"create_project\",\"params\":{\"name\":\"T-PASTE-CARD-1791214734360-3\"},\"note\":\"a new project\"}",
+        "answer_excerpt": "```projexa-proposal\n{\"v\":1,\"function\":\"create_project\",\"params\":{\"name\":\"T-PASTE-CARD-1791214734360-3\"},\"note\":\"a new project\"}\n```\n\nPaste this into the inbox page to confirm — nothing is created until you do."
+      }
+    ]
+  },
+  "wrong_code": {
+    "shown": "Type the code shown above first.",
+    "rows_after": 0
+  },
+  "confirm": [
+    {
+      "name": "T-PASTE-CARD-1791214734360-1",
+      "page_said": "Change: create_project name: T-PASTE-CARD-1791214734360-1Note: a new projectChecked: valid.ConfirmSent.",
+      "rows_after": 1
+    },
+    {
+      "name": "T-PASTE-CARD-1791214734360-2",
+      "page_said": "Change: create_project name: T-PASTE-CARD-1791214734360-2Note: a new projectChecked: valid.ConfirmSent.",
+      "rows_after": 1
+    },
+    {
+      "name": "T-PASTE-CARD-1791214734360-3",
+      "page_said": "Change: create_project name: T-PASTE-CARD-1791214734360-3Note: a new projectChecked: valid.ConfirmSent.",
+      "rows_after": 1
+    }
+  ],
+  "bad_block": {
+    "page_said": "This block could not be read."
+  }
+}
