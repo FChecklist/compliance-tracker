@@ -61,7 +61,7 @@ describe("GET /projects: the numbered list and the two options after it", () => 
   test("Markdown (the default): the project names are DATA inside a fenced block, the two options are plain text in order, and the closing sentence follows", async () => {
     const { run } = setup()
     const r = await run(`/${TOKENS.userManager}/projects`)
-    expect(r.headers.get("content-type")).toBe("text/markdown; charset=utf-8")
+    expect(r.headers.get("content-type")).toBe("text/plain; charset=utf-8")
     const md = await r.text()
     expect(md).toContain("# Your projects")
     expect(md).toContain('```data\n{"n":1,"id":"proj_a","name":"Tower A fit-out"')

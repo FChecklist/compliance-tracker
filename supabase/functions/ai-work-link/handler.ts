@@ -205,8 +205,13 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   let remaining: number | null = null
   let retryAfter: number | null = null
 
+  // AUDIT-100 (ChatGPT, 2026-10-05): ChatGPT's web reader refuses a page served as text/markdown ("rejected the text/markdown response").
+  // The words are the same, so a plain fetch gets text/plain; only a caller that asks for text/markdown in Accept gets that type.
+  const readerSafe = (contentType: string | null): string | null =>
+    contentType?.startsWith("text/markdown") && !(req.headers.get("accept") ?? "").toLowerCase().includes("text/markdown") ? "text/plain; charset=utf-8" : contentType
+
   const finish = (out: Out): Response => {
-    const headers = privateHeaders(out.contentType, { remaining, retryAfter: out.status === 429 ? (retryAfter ?? LIMITS.retryAfterSeconds) : null, extra: out.headers })
+    const headers = privateHeaders(readerSafe(out.contentType), { remaining, retryAfter: out.status === 429 ? (retryAfter ?? LIMITS.retryAfterSeconds) : null, extra: out.headers })
     const body = head || out.body === null ? null : out.body
     return new Response(body, { status: out.status, headers })
   }

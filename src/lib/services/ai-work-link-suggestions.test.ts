@@ -186,7 +186,7 @@ describe("GET /suggestions", () => {
     // reading twice more changes nothing, and no insert was asked for
     await get(TOKENS.manager)
     const md = await run(req(`/${TOKENS.manager}/suggestions`))
-    expect(md.headers.get("content-type")).toContain("text/markdown")
+    expect(md.headers.get("content-type")).toContain("text/plain")
     expect(await md.text()).toContain("# Suggestions board")
     expect(JSON.stringify(fake.suggestions)).toBe(rows)
     expect(fake.names().filter((n) => n === "ai_suggestion_add")).toHaveLength(0)

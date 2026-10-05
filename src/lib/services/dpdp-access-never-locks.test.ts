@@ -24,7 +24,7 @@ const TRIAL_DATE_READERS: Record<string, string> = {
   '0674_dpdp_sales_partner_lifecycle.sql': 'sign-up paths: writes the 30-day trial; partner stats count orgs in trial',
   '0676_dpdp_claim_reject_and_ai_link_billing_notice.sql': 'dpdp_ai_link_billing_notice only READS the trial end to return a flag the AI link prints as a notice; it raises nothing about it and no route branches on it to refuse',
   '0694_dpdp_ai_link_register.sql': 'dpdp_ai_link_register(plan) only READS the plan band and trial end for a read-only register; nothing is refused or locked by it',
-  '0696_dpdp_ai_link_hide_emails_default.sql': 'copy of the 0694 dpdp_ai_link_register body with the Grievance Officer shown by role only; it still only READS the plan band and trial end',
+  '0720_dpdp_ai_link_hide_emails_default.sql': 'copy of the 0694 dpdp_ai_link_register body with the Grievance Officer shown by role only; it still only READS the plan band and trial end',
 }
 
 /** The "I have paid" claim flow refuses an approve/reject when the org is not awaiting confirmation (0655 declare, 0658 approve/reject, 0676 which supersedes the 0658 approve/reject bodies). That is the state machine of a payment CLAIM, not a gate on using the product. */

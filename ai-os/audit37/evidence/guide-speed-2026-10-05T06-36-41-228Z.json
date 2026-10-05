@@ -1,0 +1,75 @@
+{
+  "measured_at": "2026-10-05T06:36:41.228Z",
+  "what": "ai-work-link guide GET, user link of a manager of the e2e organisation, curl timing fields, sequential",
+  "n": 40,
+  "warmup": {
+    "code": 200,
+    "connect": 0.089459,
+    "server": 0.656271,
+    "total": 0.889285,
+    "bytes": 33223,
+    "curl_exit": 0
+  },
+  "ok": 37,
+  "net_stall": 3,
+  "server_stall": 0,
+  "guide_bytes": 33223,
+  "server_first_byte_s": {
+    "min": 0.17851699999999993,
+    "p50": 0.36744499999999997,
+    "p95": 1.0938389999999991,
+    "max": 21.408557300000002
+  },
+  "server_first_byte_s_answered_only": {
+    "min": 0.17851699999999993,
+    "p50": 0.36583899999999997,
+    "p95": 0.8587870000000001,
+    "max": 1.0938389999999991
+  },
+  "total_s": {
+    "min": 0.395112,
+    "p50": 0.560485,
+    "p95": 16.339397,
+    "max": 21.408557300000002
+  },
+  "connect_s": {
+    "min": 0.045421,
+    "p50": 0.064609,
+    "p95": 0.582321,
+    "max": 15.092529
+  },
+  "control_host_connect_s": {
+    "host": "www.cloudflare.com",
+    "min": 0.037084,
+    "p50": 0.065242,
+    "p95": 0.202524,
+    "max": 0.305683,
+    "stalls_over_5s": 0
+  },
+  "stalled_calls": [
+    {
+      "kind": "net_stall",
+      "code": 0,
+      "curl_exit": 28,
+      "connect_s": 0,
+      "server_s": 21.408557300000002,
+      "total_s": 21.408557300000002
+    },
+    {
+      "kind": "net_stall",
+      "code": 0,
+      "curl_exit": 28,
+      "connect_s": 0,
+      "server_s": 21.337369199999998,
+      "total_s": 21.337369199999998
+    },
+    {
+      "kind": "net_stall",
+      "code": 200,
+      "curl_exit": 0,
+      "connect_s": 15.092529,
+      "server_s": 1.0938389999999991,
+      "total_s": 16.339397
+    }
+  ]
+}
