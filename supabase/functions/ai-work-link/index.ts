@@ -30,6 +30,11 @@ Deno.serve((req: Request) =>
     config,
     session,
     exec,
+    // keep the call-result write alive after the answer is sent (Supabase Edge Runtime); absent elsewhere, where the write is plain fire-and-forget
+    defer: (work) => {
+      const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime
+      rt?.waitUntil?.(work)
+    },
     rpc: async (fn, args) => {
       const { data, error } = await client.rpc(fn, args)
       return { data, error: error ? { message: error.message, code: error.code ?? undefined } : null }

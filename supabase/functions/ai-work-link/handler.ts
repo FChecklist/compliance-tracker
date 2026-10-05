@@ -59,6 +59,30 @@ export type AwlDeps = {
   now?: () => number
   /** The client of the ai-work-link-exec function (exec-client.ts). Absent when the function is not deployed: no change can run, so every direct change answers 503. */
   exec?: ExecClient
+  /**
+   * Keeps background work alive after the response is sent (index.ts wires EdgeRuntime.waitUntil). Without it the call-result write is still fire-and-forget:
+   * it is started at once, never awaited, and its failure is swallowed.
+   */
+  defer?: (work: Promise<unknown>) => void
+  /** Time box in milliseconds for each database read on the way to an answer (the call log, the link resolve). Default DB_TIMEOUT_MS. */
+  dbTimeoutMs?: number
+}
+
+/** Chat AI fetchers give up after roughly 5 to 10 seconds, so a database that is slower than this is answered with a clear 503, never left to hang. */
+export const DB_TIMEOUT_MS = 4000
+/** The call-result write runs after the answer and may never delay or fail it; this only stops the background promise from living forever. */
+const RESULT_WRITE_TIMEOUT_MS = 5000
+
+class DbTimeout extends Error {}
+
+/** Races `work` against a timer; the timer is always cleared. A loser's late result or rejection is ignored. */
+function timeBox<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const clock = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new DbTimeout("db timeout")), ms)
+  })
+  work.catch(() => undefined)
+  return Promise.race([work, clock]).finally(() => clearTimeout(timer))
 }
 
 const ALLOW_ALL = "GET, HEAD, POST, OPTIONS"
@@ -205,14 +229,15 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   // 1. THE CALL LOG, before anything is read or answered (fail closed) ---------------------------------------------------------------
   let callId: string | null = null
   let logged: LoggedCall | null = null
+  const dbMs = deps.dbTimeoutMs ?? DB_TIMEOUT_MS
   try {
-    const res = await deps.rpc("ai_work_link_log_call", {
+    const res = await timeBox(deps.rpc("ai_work_link_log_call", {
       p_token: token,
       p_method: method,
       p_path: relativePathOf(rest),
       p_ip_prefix: throttleAddress(req.headers.get("x-forwarded-for"), deps.config.addressPosition),
       p_ua_family: uaFamilyOf(req.headers.get("user-agent")),
-    })
+    }), dbMs)
     if (!res.error && res.data && typeof res.data === "object") logged = res.data as LoggedCall
   } catch {
     logged = null
@@ -234,11 +259,14 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   remaining = remainingCalls(calls, limit)
 
   // The result of the call, written after the answer is known (best effort: the row itself is already safe).
+  // It is started now but NEVER awaited: the answer does not wait for it, and its failure or slowness changes nothing the caller sees.
   const settle = async (out: Out): Promise<Response> => {
     const res = finish(out)
     if (callId) {
       try {
-        await deps.rpc("ai_work_link_log_call_result", { p_call_id: callId, p_status: out.status, p_bytes: out.body === null ? 0 : bodyBytes(out.body) })
+        const write = timeBox(Promise.resolve(deps.rpc("ai_work_link_log_call_result", { p_call_id: callId, p_status: out.status, p_bytes: out.body === null ? 0 : bodyBytes(out.body) })), RESULT_WRITE_TIMEOUT_MS)
+          .catch(() => log("ai-work-link: call result not recorded"))
+        deps.defer?.(write)
       } catch {
         log("ai-work-link: call result not recorded")
       }
@@ -254,7 +282,13 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
 
   try {
     // 2. THE LIVE LINK: effective level, functions and role, read now (section 10.9) ----------------------------------------------------
-    const ctx = await resolveLink(deps.rpc, token)
+    let ctx: LinkCtx
+    try {
+      ctx = await timeBox(resolveLink(deps.rpc, token), dbMs)
+    } catch (e) {
+      if (e instanceof DbTimeout) throw fail(503, "Service unavailable. Try again in a minute.", "The link check is slow right now; nothing was read.")
+      throw e
+    }
     const env: ReadEnv = { rpc: deps.rpc, token, ctx, config: deps.config, base, mode, exec: deps.exec }
     if (!["GET", "HEAD", "POST"].includes(method)) return await settle(plain(405, "Wrong method for this path.", undefined, { Allow: ALLOW_ALL }))
 
