@@ -5238,6 +5238,13 @@ active:
       Commits are local to this worktree; opens its own PR per the task's
       instruction.
 
+  - session_label: "claude-code (AUDIT-100 A2 batch 2: 40 more PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2 + C:/ct/px-a2, branch audit100/a2-batch-2)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md} (3 new spec keys: forward_search,
+      success_status, cache_control), src/lib/services/projexa-api-edge-parity.test.ts. One deploy of projexa-api only (no new secret). No
+      Vercel dashboard, no DNS, no spend. PROJEXA side (FChecklist/projexa audit100/a2-batch-2): projexa-api-routes.json batch 2, parity
+      contract, px-api.ts route list, callers fetch -> viaPxApi, inventory budget 264. Order: function deployed BEFORE the client list merges.
 recently_completed:
   - session_label: "claude-code (AUDIT-100 A2: PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2 + C:/ct/px-a2, branch audit100/a2-edge-proxy)"
     claimed_at: "2026-10-05T (this session)"

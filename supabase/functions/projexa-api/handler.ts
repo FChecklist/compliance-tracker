@@ -12,7 +12,8 @@
 //   5. The org's own VERIDIAN key (PROJEXA public.veridian_credentials, read server-side; never a shared key: AR-04) authenticates the
 //      upstream call; the acting person goes as X-Acting-User / X-Acting-User-Email, built from the verified token only (an inbound
 //      X-Acting-User is never forwarded). Method, path, the query the Next route forwards and the JSON body are sent as the Next route sends them.
-//   6. The answer is the Next route's answer: 200 + the upstream JSON, or the same error body and status (veridian-response.ts).
+//   6. The answer is the Next route's answer: 200 (201 for a create) + the upstream JSON, or the same error body and status
+//      (veridian-response.ts). A route whose handler forwards its whole query string (`forward_search`) gets it byte for byte.
 // Nothing here logs a token, an email, a key or a body.
 import type { SessionVerifier } from "../ai-work-link/session.ts"
 import { checkApiWriteAccess, EDGE_ROUTES, SOURCE_SHA256, type EdgeMethodSpec } from "./policy.generated.ts"
@@ -123,7 +124,7 @@ export function matchRoute(apiPath: string): { route: (typeof EDGE_ROUTES)[numbe
 }
 
 /** The upstream path the Next handler builds (relative to VERIDIAN_API_BASE_URL). Exported for the tests. */
-export function upstreamPathOf(spec: EdgeMethodSpec, params: Record<string, string>, search: URLSearchParams): string {
+export function upstreamPathOf(spec: EdgeMethodSpec, params: Record<string, string>, search: URLSearchParams, rawSearch = ""): string {
   let path = spec.upstream.replace(/\{query:(\w+)\}/g, (_m, q: string) => encodeURIComponent(search.get(q) ?? "")).replace(/\{(\w+)\}/g, (_m, p: string) => encodeURIComponent(params[p] ?? ""))
   if (spec.search_params) {
     const out = new URLSearchParams()
@@ -133,6 +134,8 @@ export function upstreamPathOf(spec: EdgeMethodSpec, params: Record<string, stri
     }
     path += `?${out.toString()}`
   }
+  // forward_search: the Next handler appends request.nextUrl.search as it came ("" or "?a=1&b=2"), byte for byte
+  if (spec.forward_search) path += rawSearch
   return path
 }
 
@@ -304,11 +307,12 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   const headers: Record<string, string> = { Authorization: `Bearer ${key}`, "X-Acting-User": verdict.sub }
   if (verdict.email) headers["X-Acting-User-Email"] = verdict.email
   if (body) headers["Content-Type"] = "application/json"
-  const target = deps.upstreamBase.replace(/\/+$/, "") + upstreamPathOf(spec, matched.params, url.searchParams)
+  const target = deps.upstreamBase.replace(/\/+$/, "") + upstreamPathOf(spec, matched.params, url.searchParams, url.search)
   const result = await callUpstream(deps, target, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store" } as RequestInit, timeoutMs)
   if (!result.ok) {
     logLine(deps, `${method} ${matched.route.route} upstream failure ${result.failure.kind === "upstream" ? result.failure.status : "other"}`)
     return failureResponse(req, deps, spec, result.failure, result.durationMs)
   }
-  return json(req, deps, 200, result.data)
+  // the Next handler's own success answer: 200, or 201 for a create; a private browser cache only where the handler sets one
+  return json(req, deps, spec.success_status ?? 200, result.data, spec.cache_control ? { "Cache-Control": spec.cache_control } : {})
 }
