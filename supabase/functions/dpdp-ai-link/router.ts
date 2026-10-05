@@ -36,6 +36,7 @@ export type Route =
   | { kind: "actions" }
   | { kind: "drafts" }
   | { kind: "suggestions" }
+  | { kind: "register"; register: string | null }
 
 export type Parsed = { token: string; route: Route } | { error: 401 | 404; message: string }
 
@@ -77,11 +78,13 @@ export function parseRoute(pathname: string): Parsed {
       case "drafts": return { token, route: { kind: "drafts" } }
       case "draft": return { token, route: { kind: "drafts" } }
       case "suggestions": return { token, route: { kind: "suggestions" } }
+      case "register": return { token, route: { kind: "register", register: null } }
       default: return { error: 404, message: "No such path" }
     }
   }
   if (a === "jobs" && b.length > 0 && b.length <= 128) return { token, route: { kind: "job", id: b } }
   if (a === "law" && b.length > 0 && b.length <= 64) return { token, route: { kind: "law", code: b } }
+  if (a === "register" && /^[a-z-]{1,32}$/.test(b)) return { token, route: { kind: "register", register: b } }
   if (a === "report" && (b === "summary" || b === "by-person" || b === "by-law" || b === "by-part")) return { token, route: { kind: "report", report: b } }
   return { error: 404, message: "No such path" }
 }
@@ -101,6 +104,28 @@ export function relativePathOf(pathname: string): string {
 /** The method each route accepts. */
 export function methodFor(route: Route): "GET" | "POST" {
   return route.kind === "actions" || route.kind === "drafts" ? "POST" : "GET"
+}
+
+/** The most the GET-only fallback's `_body` may carry once decoded (a little under the 8 KB a POST may carry, because it travels in a URL). */
+export const MAX_GET_BODY_BYTES = 6 * 1024
+
+export type MethodOverride = { method: "GET" | "POST"; body: string | null } | { error: string; status: 400 | 403 | 413 }
+
+/**
+ * The GET-only fallback. Chat assistants that can open a web address but cannot send a POST may write by GET:
+ * `/actions?_method=POST&_body=<url-encoded JSON>` (also on /drafts and POST /suggestions). Only a real GET, only the three paths that take a
+ * POST, only a JSON body of at most MAX_GET_BODY_BYTES; the very same level and role checks, rate limit and call log apply, because the request
+ * is then served exactly as the POST it stands for. `_method` and `_body` are removed from the query before the log path is made.
+ */
+export function methodOverride(method: string, route: Route, params: URLSearchParams): MethodOverride {
+  const wanted = (params.get("_method") ?? "").trim().toUpperCase()
+  if (!wanted && !params.has("_body")) return { method: method === "POST" ? "POST" : "GET", body: null }
+  if (method !== "GET") return { error: "_method and _body are only for a plain GET. Send a real POST, or a GET with ?_method=POST&_body=<url-encoded JSON>.", status: 400 }
+  if (wanted !== "POST") return { error: "_method may only be POST.", status: 400 }
+  if (route.kind !== "actions" && route.kind !== "drafts" && route.kind !== "suggestions") return { error: "?_method=POST works only on /actions, /drafts and /suggestions.", status: 403 }
+  const body = params.get("_body") ?? ""
+  if (new TextEncoder().encode(body).length > MAX_GET_BODY_BYTES) return { error: `_body is too large (${MAX_GET_BODY_BYTES / 1024} KB at most when sent in a web address).`, status: 413 }
+  return { method: "POST", body: body || "{}" }
 }
 
 /** The methods a route accepts: one, except /suggestions, which is read (GET) and written (POST). */

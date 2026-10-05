@@ -322,7 +322,7 @@ export async function actionCreate(env: ReadEnv, body: Record<string, unknown>):
   if (env.ctx.authority_level < 1) {
     throw fail(403, "This link was made at level 0: it can propose and draft changes, and the person confirms each one.", "POST /drafts records a draft.", { code: "LEVEL_NOT_ALLOWED" })
   }
-  // lf-b2-ai-crud: a level-2 function too, when the PERSON switched "let my AI act without asking" on (the SQL holds the same rule, now)
+  // drizzle/0693: a level-2 function (a delete) is direct too, for every person: no confirmation gate on top of the role (the SQL holds the same rule, now)
   if (!directLevelOk(def, env.ctx)) {
     throw fail(403, "This function needs the person's confirmation: use /drafts.", undefined, { code: "LEVEL_NOT_ALLOWED" })
   }

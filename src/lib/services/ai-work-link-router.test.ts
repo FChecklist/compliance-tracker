@@ -434,7 +434,7 @@ describe("scope: another project is 403 before availability; the live role decid
     expect(d.status).toBe(403)
   })
 
-  test("effective level: every link is level 0 until writes are switched on, and /actions then says the true reason; a level-2 function is never direct", async () => {
+  test("effective level: every link is level 0 until writes are switched on, and /actions then says the true reason; a level-2 function is direct too (drizzle/0693: no confirmation gate)", async () => {
     const off = setup()
     const body = { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } }
     // a link made at level 1 while the switch is off: the reason is the switch, not the level (BUILD-002 WP-09a)
@@ -454,8 +454,9 @@ describe("scope: another project is 403 before availability; the live role decid
     const c2 = await (await on.run(at(TOKENS.manager, "/context"), { headers: JSONH })).json()
     expect(c2.level).toBe(1)
     const lvl2 = await on.run(at(TOKENS.manager, "/actions"), { method: "POST", body: { function: "add_roster_entry", params: { name: "A", dailyRate: 1 } } })
-    expect(lvl2.status).toBe(403)
-    expect((await lvl2.json()).code).toBe("LEVEL_NOT_ALLOWED")
+    // drizzle/0693 (owner decision 2026-10-04): a level-2 function passes the level gate like a level-1 one (here it stops at the executor, not at LEVEL_NOT_ALLOWED)
+    expect(lvl2.status).toBe(503)
+    expect((await lvl2.json()).code).toBe("EXECUTOR_NOT_AVAILABLE")
     // a demoted person (a viewer link minted at level 1) has no write function on the list: refused as not on the link
     const demoted = await on.run(at(TOKENS.viewer, "/actions"), { method: "POST", body })
     expect(demoted.status).toBe(403)
@@ -655,8 +656,8 @@ describe("check and propose: dry runs that record nothing", () => {
     const on = setup({ writesEnabled: true }, { execPresent: true })
     const direct = await (await on.run(at(TOKENS.manager, "/check"), { method: "POST", body: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } } })).json()
     expect(direct.will_execute_directly).toBe(true)
-    const draftOnly = await (await on.run(at(TOKENS.manager, "/check"), { method: "POST", body: { function: "add_roster_entry", params: { name: "A", dailyRate: 1 } } })).json()
-    expect(draftOnly).toMatchObject({ valid: true, will_execute_directly: false, level: 2 })
+    const level2Direct = await (await on.run(at(TOKENS.manager, "/check"), { method: "POST", body: { function: "add_roster_entry", params: { name: "A", dailyRate: 1 } } })).json()
+    expect(level2Direct).toMatchObject({ valid: true, will_execute_directly: true, level: 2 })
     expect(fake.names().every((n) => ["ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link__resolve"].includes(n))).toBe(true)
   })
 

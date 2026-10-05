@@ -34,11 +34,11 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
 import {
   LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodsFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
-  maskEmails, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
+  maskEmails, methodOverride, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
   type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
 } from "./router.ts"
 import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "./manual.ts"
-import { MAX_BODY_BYTES, RATE_LIMIT, type Format } from "./api-definition.ts"
+import { MAX_BODY_BYTES, RATE_LIMIT, REGISTER_KINDS, type Format } from "./api-definition.ts"
 import { aiPasteText } from "../_shared/ai-link/prompt.ts"
 import { playbookFor } from "./playbook.ts"
 import { paymentPendingNotice, type BillingNotice } from "./brief.ts"
@@ -260,6 +260,13 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
         next: "Done, under the person's own authority. Tell them what changed and give them undoUrl -- it undoes this one change for 24 hours, in their own browser.",
       })
     }
+    case "register": {
+      if (route.register === null) return json(200, { registers: REGISTER_KINDS, next: "GET /register/{kind}. Read-only; owner, coordinator, Grievance Officer and CA links only." })
+      if (!(REGISTER_KINDS as ReadonlyArray<{ kind: string }>).some((r) => r.kind === route.register)) return fail(404, `No such register. Use one of: ${REGISTER_KINDS.map((r) => r.kind).join(", ")}.`)
+      const r = await rpc<{ kind: string; data: unknown }>("dpdp_ai_link_register", { p_token: token, p_kind: route.register })
+      if (r.error) return mapDbError(r.error)
+      return json(200, r.data)
+    }
     case "suggestions": {
       if (req.method === "POST") {
         const raw = await req.text()
@@ -313,8 +320,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const parsed = parseRoute(url.pathname)
   if ("error" in parsed) return parsed.error === 401 ? fail(401, parsed.message) : fail(404, parsed.message)
   const { token, route } = parsed
-  const method = req.method === "HEAD" ? "GET" : req.method
+  let method = req.method === "HEAD" ? "GET" : req.method
   const relativePath = relativePathOf(url.pathname)
+  // The GET-only fallback (?_method=POST&_body=...): served exactly as the POST it stands for, so every check below applies to it unchanged.
+  let request = req
+  const override = methodOverride(method, route, url.searchParams)
+  let overrideError: Response | null = null
+  if ("error" in override) overrideError = fail(override.status, override.error)
+  else if (override.method === "POST" && method === "GET") {
+    method = "POST"
+    request = new Request(url.toString(), { method: "POST", headers: { "content-type": "application/json", accept: req.headers.get("accept") ?? "application/json" }, body: override.body ?? "{}" })
+  }
 
   // Every call logged, before it is served; the rate limit is decided from
   // this link's own count in the last minute. A bad token is logged with
@@ -329,6 +345,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return res
   }
 
+  if (overrideError) return finish(overrideError)
   if (!begun.error && isRateLimited(begun.data.callsLastMinute)) {
     return finish(fail(429, `Over the rate limit (${RATE_LIMIT.perMinute} calls per minute per link). Wait a minute.`))
   }
@@ -339,7 +356,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const res = await handle(req, token, route, url)
+    const res = await handle(request, token, route, url)
     const body = await res.clone().arrayBuffer()
     const withLength = new Response(body, { status: res.status, headers: res.headers })
     withLength.headers.set("content-length", String(body.byteLength))

@@ -661,7 +661,7 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
     const html = fetchCalls[0].body.html as string
     expect(text).toContain(`https://dpdp.veridian-aios.com/ai/${TOKEN}`)
     // the paste is two lines: "open this link and follow the page", then the link; the instructions live on the page it opens
-    expect(text).toContain(`Please open this link and follow the instructions on that page exactly.`)
+    expect(text).toContain(`my personal access link to its API`)
     expect(text).not.toContain("You are my DPDP compliance assistant")
     expect(text).toContain("BEFORE YOU PASTE.")
     expect(text.indexOf("BEFORE YOU PASTE.")).toBeLessThan(text.indexOf(`https://dpdp.veridian-aios.com/ai/${TOKEN}`))
