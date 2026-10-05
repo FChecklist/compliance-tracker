@@ -12,6 +12,8 @@
 
 import { type OutboundEnvelope, resendPayload } from "./mail-outbound.ts"
 
+import { brandWrap } from "./brand-mail.ts"
+
 export type ReminderKind = "trial10" | "trial3" | "trial0" | "renew30" | "renew7"
 export const REMINDER_KINDS: readonly ReminderKind[] = ["trial10", "trial3", "trial0", "renew30", "renew7"]
 
@@ -76,13 +78,11 @@ export function renderReceipt(d: ReceiptInput): Rendered {
     ``,
     `This is your receipt -- keep it for your records. Questions? Just reply to this email.`,
     ``,
-    `-- VERIDIAN AI DPDP`,
-    ``,
     `Issued by ${SELLER.legalName}`,
     `GSTIN: ${SELLER.gstin} | CIN: ${SELLER.cin}`,
     `Registered office: ${SELLER.registeredOffice}`,
   ].filter((l): l is string => l !== null)
-  return { subject, text: lines.join("\n"), html: toHtml(lines) }
+  return brandWrap({ subject, text: lines.join("\n") + "\n\n-- VERIDIAN AI DPDP", html: toHtml(lines) })
 }
 
 export type ReminderInput = {
@@ -143,8 +143,8 @@ export function renderReminder(r: ReminderInput): Rendered {
       ]
       break
   }
-  lines.push(``, `Questions? Just reply to this email.`, ``, `-- VERIDIAN AI DPDP`)
-  return { subject, text: lines.join("\n"), html: toHtml(lines) }
+  lines.push(``, `Questions? Just reply to this email.`)
+  return brandWrap({ subject, text: lines.join("\n"), html: toHtml(lines) })
 }
 
 /** "Addresses that can never receive mail": reserved example/test domains. Same rule as dpdp-monday-email/render.ts's isDeliverableAddress (the test pins them together). */

@@ -14,6 +14,7 @@ export interface DpdpClient {
     getSession(): Promise<{ data: { session: AuthSession | null } }>
     onAuthStateChange(cb: AuthListener): { data: { subscription: { unsubscribe(): void } } }
     signInWithOtp(opts: { email: string; options?: { emailRedirectTo?: string } }): Promise<{ error: { message: string } | null }>
+    verifyOtp(opts: { email: string; token: string; type: "email" }): Promise<{ error: { message: string } | null }>
     signOut(): Promise<{ error: { message: string } | null }>
   }
   rpc(fn: string, args?: Record<string, unknown>): PromiseLike<RpcResult>
