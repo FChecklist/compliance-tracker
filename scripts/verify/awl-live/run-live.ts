@@ -29,18 +29,24 @@ const started = new Date()
 const run = spawnSync("bun", ["test", "--isolate", "--reporter=junit", `--reporter-outfile=${xml}`, rel, ...extra], { cwd: repo, encoding: "utf8", timeout: 40 * 60_000 })
 const ended = new Date()
 
+// bun's own console output: its junit report carries no message for a failed expect(), so keep the error / Expected / Received lines
+const bunOutput = `${run.stdout ?? ""}
+${run.stderr ?? ""}`
+const bunErrorLines = bunOutput.split(String.fromCharCode(10)).filter((l) => /^(error:|Expected|Received|\(fail\))/.test(l.trim())).join(" | ").slice(0, 900)
 const unescape = (s: string) => s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
 let report = ""
 try { report = readFileSync(xml, "utf8"); rmSync(xml) } catch { /* no report: bun failed before running a test */ }
 const tests: Array<{ name: string; result: "pass" | "fail" | "skip"; time_s: number; failure?: string }> = []
 for (const m of report.matchAll(/<testcase name="([^"]*)"[^>]*?time="([^"]*)"[^>]*?(\/>|>([\s\S]*?)<\/testcase>)/g)) {
   const body = m[4] ?? ""
-  const failure = /<failure[^>]*?(?:message="([^"]*)")?[^>]*>([\s\S]*?)<\/failure>|<failure[^>]*message="([^"]*)"[^>]*\/>/.exec(body)
+  // bun writes `<failure type="AssertionError" />` (self-closing, no message) for a failed expect(): a failure is the PRESENCE of the element
+  const hasFailure = /<failure/.test(body)
+  const failure = hasFailure ? /<failure[^>]*?(?:message="([^"]*)")?[^>]*?(?:\/>|>([\s\S]*?)<\/failure>)/.exec(body) : null
   tests.push({
     name: unescape(m[1]),
     result: failure ? "fail" : /<skipped/.test(body) ? "skip" : "pass",
     time_s: Number(m[2]),
-    ...(failure ? { failure: redact(unescape(failure[2] || failure[1] || failure[3] || "")).slice(0, 1500) } : {}),
+    ...(failure ? { failure: redact(unescape(failure[2] || failure[1] || `(no message in the junit report; bun output) ${bunErrorLines}`)).slice(0, 1500) } : {}),
   })
 }
 
@@ -75,6 +81,8 @@ const evidence = {
   tests,
   function_calls_during_run: functionCalls,
 }
+// a non-zero exit with no failed test parsed must never read as a pass (this is how a self-closing <failure/> used to be missed)
+if (run.status !== 0 && evidence.fail === 0) { evidence.fail = 1; evidence.tests.push({ name: "(bun exited non-zero but the report shows no failed test)", result: "fail", time_s: 0, failure: redact(`${run.stdout ?? ""}${run.stderr ?? ""}`.slice(-800)) }) }
 const dir = join(repo, "ai-os", "audit37", "evidence")
 mkdirSync(dir, { recursive: true })
 const out = join(dir, `run-${file.replace(/^.*[\\/]/, "").replace(/\.live\.test\.ts$|\.ts$/, "")}-${started.toISOString().replace(/[:.]/g, "-")}.json`)

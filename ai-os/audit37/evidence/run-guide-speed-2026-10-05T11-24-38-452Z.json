@@ -1,0 +1,41 @@
+{
+  "file": "./scripts/verify/awl-live/guide-speed.live.test.ts",
+  "args": [],
+  "commit": "b9cf5e2ba8a29090fca4d4cbfaf8ef683c316ae4",
+  "tree_dirty": true,
+  "started_at": "2026-10-05T11:24:38.452Z",
+  "ended_at": "2026-10-05T11:26:28.721Z",
+  "exit_code": 0,
+  "pass": 4,
+  "fail": 0,
+  "skip": 0,
+  "tests": [
+    {
+      "name": "N=40 sequential guide GETs: no server stall, server p50 under 1 s and p95 under 8 s, caller p50 under 1 s",
+      "result": "pass",
+      "time_s": 105.182855
+    },
+    {
+      "name": "revoking the link makes the guide answer 410 on the very next call",
+      "result": "pass",
+      "time_s": 2.297452
+    },
+    {
+      "name": "nearest-rank percentiles",
+      "result": "pass",
+      "time_s": 0.000172
+    },
+    {
+      "name": "a slow TCP connect is a network stall, a slow first byte after a fast connect is a server stall",
+      "result": "pass",
+      "time_s": 0.0002
+    }
+  ],
+  "function_calls_during_run": {
+    "note": "every caller of the function in this window, not only this run (the database and the function are shared)",
+    "calls": 39,
+    "slow_3s_or_more": 0,
+    "failed_5xx": 0,
+    "status_503": 0
+  }
+}
