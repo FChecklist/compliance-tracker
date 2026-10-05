@@ -3719,6 +3719,13 @@
       "when": 1790600006000,
       "tag": "0725_dpdp_consent_page_purposes_guardian_withdraw",
       "breakpoints": true
+    },
+    {
+      "idx": 533,
+      "version": "7",
+      "when": 1790600007000,
+      "tag": "0726_dpdp_breach_rule7_fields",
+      "breakpoints": true
     }
   ]
 }
