@@ -110,11 +110,74 @@ afterAll(() => {
 // `next build`, so releases now build on GitHub Actions and ship prebuilt output (.github/workflows/deploy-prebuilt.yml). Git-triggered
 // Vercel builds are therefore skipped on EVERY ref including main (`ignoreCommand` is unconditional `exit 0`); the only path to
 // production is the prebuilt workflow. `vercel deploy --prebuilt` does not run ignoreCommand, so it is unaffected.
-describe("Vercel deploy gate (2026-10-02) -- Git builds always skipped, prebuilt workflow is the only deploy path", () => {
-  test("git.deploymentEnabled is not relied upon (still gone since R87)", () => {
+// 2026-10-06 (AUDIT-100, owner as PM: fix the Vercel daily deployment cap, no manual deploys, no
+// dashboard changes, no spend). Measured via the Vercel API (read-only list_deployments): this
+// Hobby team created ~128 deployment records in 24h; this project alone made ~75 of them, every one
+// CANCELED by the `exit 0` ignoreCommand below. A skipped build still creates a deployment RECORD,
+// and records count toward Hobby's daily deployment cap, which is shared with the `projexa`
+// project; PROJEXA's main merges af4c39b6 and f053fbe5 were then refused with "Deployment rate
+// limited: retry in 24 hours".
+//
+// Fix: git.deploymentEnabled stops non-main pushes from creating a deployment at all. Vercel's
+// documented semantics (vercel.com/docs/project-configuration/git-configuration): keys are minimatch
+// globs; an unmatched branch defaults to true; "if a branch matches multiple patterns, a deployment
+// occurs if at least one matching rule is set to true". `"main": true` keeps main exactly as before
+// (a Git deployment record that the `exit 0` ignoreCommand skips; the prebuilt workflow stays the
+// only real deploy path), and the catch-all must be `**`, not `*`: a bare `*` does not cross `/`,
+// which is exactly the R87 bug (every real branch here is `type/name`).
+const minimatch = require("minimatch") as (path: string, pattern: string) => boolean
+
+/** Vercel's documented rule for git.deploymentEnabled (object form): unmatched -> true; matched -> true if any matching key is true. */
+function vercelWouldDeploy(deploymentEnabled: unknown, branch: string): boolean {
+  if (deploymentEnabled === undefined) return true
+  if (typeof deploymentEnabled === "boolean") return deploymentEnabled
+  const matching = Object.entries(deploymentEnabled as Record<string, boolean>).filter(([pattern]) => minimatch(branch, pattern))
+  if (matching.length === 0) return true
+  return matching.some(([, enabled]) => enabled === true)
+}
+
+// Real branch-name shapes seen in this project's own deployment list on 2026-10-05/06, plus edge cases.
+const NON_MAIN_BRANCHES = [
+  "audit100/a2-claim-done",
+  "audit100/card-level-evidence",
+  "fix/audit100-a4-internal-ai-followups",
+  "wave234/dpdp-db-retention-governance",
+  "feat/ai-link-email-safety",
+  "claim/ai-short-link",
+  "chore/vercel-no-branch-deployments",
+  "dependabot/npm_and_yarn/next-16.0.1",
+  "w-test/deep/nested/name",
+  "some-feature-branch",
+  "main-hotfix",
+  "mainline",
+  "release/main",
+]
+
+describe("Vercel git.deploymentEnabled (2026-10-06) -- only main creates deployments", () => {
+  test("pinned: main true, catch-all '**' false", () => {
     const v = readVercelJson()
-    expect(v.git).toBeUndefined()
+    expect(v.git?.deploymentEnabled).toEqual({ main: true, "**": false })
   })
+
+  test("main still creates its Git deployment (skipped by ignoreCommand, as before)", () => {
+    const v = readVercelJson()
+    expect(vercelWouldDeploy(v.git?.deploymentEnabled, "main")).toBe(true)
+  })
+
+  for (const branch of NON_MAIN_BRANCHES) {
+    test(`non-main branch '${branch}' creates no deployment`, () => {
+      const v = readVercelJson()
+      expect(vercelWouldDeploy(v.git?.deploymentEnabled, branch)).toBe(false)
+    })
+  }
+
+  test("the matcher itself reproduces the R87 bug: a bare '*' does not match names with '/'", () => {
+    expect(vercelWouldDeploy({ main: true, "*": false }, "audit100/a2-claim-done")).toBe(true)
+    expect(vercelWouldDeploy({ main: true, "**": false }, "audit100/a2-claim-done")).toBe(false)
+  })
+})
+
+describe("Vercel deploy gate (2026-10-02) -- Git builds always skipped, prebuilt workflow is the only deploy path", () => {
 
   test("ignoreCommand is a string that skips unconditionally", () => {
     const v = readVercelJson()
