@@ -40,12 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (cloud) -- DPDP compliance fix programme waves 1-4 (claims/AI link, DB safety, retention/consent, governance drafts)"
-    claimed_at: "2026-10-05T (this session)"
-    claim: |
-      Scope: dpdp-app/public/* (privacy, terms, subprocessors, ai-link page copy), supabase/functions/dpdp-ai-link/* + dpdp-monday-email (hide_emails default),
-      new additive drizzle migrations (RLS on dpdp tables, payout column encryption, retention sweep, breach Rule 7 fields) with pglite tests,
-      ai-os/DPDP_FIX_PROGRAMME_STATUS.md and governance drafts under ai-os/dpdp-governance/. No Vercel, no spend, no live DB apply.
   - session_label: "claude-code (DPDP AI work link SHORT paste + GET fallback + role parity; worktree C:/ct/ct-shortlink, branch feat/ai-short-link-manual)"
     claimed_at: "2026-10-04T (this session)"
     claim: |
@@ -5238,6 +5232,13 @@ active:
       instruction.
 
 recently_completed:
+  - session_label: "claude-code (cloud) -- DPDP compliance fix programme waves 1-4 (claims/AI link, DB safety, retention/consent, governance drafts)"
+    claimed_at: "2026-10-05T (this session)"
+    completed_at: "2026-10-05 (waves 1-4 as PRs; live steps in ai-os/DPDP_FIX_PROGRAMME_STATUS.md)"
+    claim: |
+      Scope: dpdp-app/public/* (privacy, terms, subprocessors, ai-link page copy), supabase/functions/dpdp-ai-link/* + dpdp-monday-email (hide_emails default),
+      new additive drizzle migrations (RLS on dpdp tables, payout column encryption, retention sweep, breach Rule 7 fields) with pglite tests,
+      ai-os/DPDP_FIX_PROGRAMME_STATUS.md and governance drafts under ai-os/dpdp-governance/. No Vercel, no spend, no live DB apply.
   - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch feat/dpdp-editions-complete) -- WO-DPDP-015: Monday digest timeout fixed and self-healing; /dpdp-firm and /dpdp-institution completed end to end (self-serve organisation, every role tested live) [DONE on merge of its PR]"
     claimed_at: "2026-09-28 (this session)"
     completed_at: "2026-09-28 (this session)"

@@ -3684,6 +3684,48 @@
       "when": 1790600001000,
       "tag": "0720_dpdp_ai_link_hide_emails_default",
       "breakpoints": true
+    },
+    {
+      "idx": 528,
+      "version": "7",
+      "when": 1790600002000,
+      "tag": "0721_dpdp_rls_on_for_every_dpdp_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 529,
+      "version": "7",
+      "when": 1790600003000,
+      "tag": "0722_dpdp_payment_proof_storage_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 530,
+      "version": "7",
+      "when": 1790600004000,
+      "tag": "0723_dpdp_partner_payout_encrypted",
+      "breakpoints": true
+    },
+    {
+      "idx": 531,
+      "version": "7",
+      "when": 1790600005000,
+      "tag": "0724_dpdp_retention_sweep_and_offboarding",
+      "breakpoints": true
+    },
+    {
+      "idx": 532,
+      "version": "7",
+      "when": 1790600006000,
+      "tag": "0725_dpdp_consent_page_purposes_guardian_withdraw",
+      "breakpoints": true
+    },
+    {
+      "idx": 533,
+      "version": "7",
+      "when": 1790600007000,
+      "tag": "0726_dpdp_breach_rule7_fields",
+      "breakpoints": true
     }
   ]
 }

@@ -49,8 +49,13 @@ export function createDpdpClient(): DpdpClient {
     auth: supabase.auth,
     rpc: (fn, args) => supabase.rpc(fn, args),
     async uploadPaymentProof(orgId, file) {
+      // The bucket accepts a file only inside a folder named after the signed-in person's own id (drizzle/0722), up to 5 MB, as PNG, JPEG, WebP or PDF.
+      if (file.size > 5 * 1024 * 1024) return { path: null, error: "That file is over 5 MB. Please send a smaller screenshot or PDF." }
+      if (!["image/png", "image/jpeg", "image/webp", "application/pdf"].includes(file.type)) return { path: null, error: "Please upload a PNG, JPEG, WebP or PDF file." }
+      const { data: who } = await supabase.auth.getUser()
+      if (!who.user) return { path: null, error: "Sign in again, then upload." }
       const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png"
-      const path = `${orgId}/${crypto.randomUUID()}.${ext}`
+      const path = `${who.user.id}/${orgId}-${crypto.randomUUID()}.${ext}`
       const { error } = await supabase.storage.from("dpdp-payment-proofs").upload(path, file, { contentType: file.type || undefined })
       return { path: error ? null : path, error: error ? error.message : null }
     },
