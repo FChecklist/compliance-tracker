@@ -52,6 +52,7 @@ const ORG = "org_u49_k";
 const PROJECT = "proj_cedar";
 const OWNER: PersonRow = { id: "user_owner", orgId: ORG, email: "owner@example.test", authUserId: null, role: "admin", isActive: true, name: "Rajat" };
 const MEMBER: PersonRow = { id: "user_member", orgId: ORG, email: "member@example.test", authUserId: null, role: "member", isActive: true, name: "Arjun" };
+const VIEWER: PersonRow = { id: "user_viewer", orgId: ORG, email: "viewer@example.test", authUserId: null, role: "client_viewer", isActive: true, name: "Client" };
 const HIT = "how is the project doing";
 const MISS = "arrange the site handover paperwork";
 const DASHBOARD = { projectId: PROJECT, projectName: "Cedar Heights Villa", progressPercent: 41, delayedTaskCount: 2, budget: 4_200_000 };
@@ -67,7 +68,7 @@ const realAuthGuard = await import("@/lib/supabase/auth-guard");
 const realClaudeCli = await import("@/lib/ai/providers/claude-cli");
 const realDashboard = await import("@/lib/services/construction-dashboard-service");
 
-mock.module("@/lib/db", () => ({ ...realDb, db: { query: { users: { findFirst: mock(usersLookupDouble(() => [OWNER, MEMBER])) } } } }));
+mock.module("@/lib/db", () => ({ ...realDb, db: { query: { users: { findFirst: mock(usersLookupDouble(() => [OWNER, MEMBER, VIEWER])) } } } }));
 mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(fakeWithTenantContext(() => store)) }));
 mock.module("@/lib/supabase/auth-guard", () => ({
   ...realAuthGuard,
@@ -216,5 +217,25 @@ describe("BR-221 -- tasks: genuine errors keep their status codes", () => {
     const { status, body } = await post({ ...TWO_LINES, execute: true });
     expect(status).toBe(400);
     expect(body.error).toBe("reuseCache read failed");
+  });
+});
+
+// Audit 100 A4 (2026-10-05, found live by scripts/verify/awl-live/internal-ai-chat.live.test.ts): through the org key a read-only person's
+// typed "add a task" was confirmed and created. A key naming a rank-1 person is now refused before anything is written.
+describe("Audit 100 A4 -- tasks: a read-only person named by the org key cannot write", () => {
+  test("client_viewer: typed verdict, execute and confirm are all 403 and nothing is written", async () => {
+    for (const body of [TWO_LINES, { ...TWO_LINES, execute: true }, { confirm: true, submissionId: "sub_x" }, { functionId: "create_schedule_task", params: { title: "x" }, projectId: PROJECT }]) {
+      const { status, body: out } = await post(body, VIEWER);
+      expect(status).toBe(403);
+      expect(out.error).toBe("A read-only account cannot submit tasks");
+    }
+    expect(rowsIn(store, "submissions")).toHaveLength(0);
+    expect(rowsIn(store, "pipeline_tasks")).toHaveLength(0);
+    expect(classifyCalls).toHaveLength(0);
+  });
+
+  test("control: a member named by the same key is not refused", async () => {
+    const { status } = await post(TWO_LINES, MEMBER);
+    expect(status).toBe(200);
   });
 });
