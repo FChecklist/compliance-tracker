@@ -229,7 +229,7 @@ class Harness:
         ctype = headers.get("content-type", "")
         if status != 200:
             return False, "status %s" % status
-        if not ctype.startswith("text/markdown"):
+        if not ctype.startswith(("text/markdown", "text/plain")):  # text/plain: ChatGPT's reader refuses text/markdown (2026-10-05)
             return False, "content-type %r" % ctype
         if not self.manual.startswith("# "):
             return False, "body does not start with '# '"
@@ -499,8 +499,8 @@ class Harness:
             urls += list(value.values()) if isinstance(value, dict) else [value]
         for url in urls:
             status, h, _, _ = call("GET", url)
-            if status != 200 or not h.get("content-type", "").startswith("text/markdown"):
-                return False, "%s -> %s %r (want 200 text/markdown)" % (url[len(self.base):] or "/", status, h.get("content-type"))
+            if status != 200 or not h.get("content-type", "").startswith(("text/markdown", "text/plain")):
+                return False, "%s -> %s %r (want 200 text/markdown or text/plain)" % (url[len(self.base):] or "/", status, h.get("content-type"))
         return True, ""
 
     # --- H17..H20, H23: optional -------------------------------------------------
