@@ -18,7 +18,7 @@
 // regressed real, already-shipped, already-verified functionality. Said so
 // here rather than silently deviating, per the work order's own instruction.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, type CombinedAuthContext } from "@/lib/supabase/auth-guard"
+import { hasRole, requireAuthOrApiKey, requireRoleOrScope, type CombinedAuthContext } from "@/lib/supabase/auth-guard"
 import { resolveFinancialRole, resolvePipelineActor } from "@/lib/supabase/acting-role"
 import { assertKeyProjectScope, keyProjectScope } from "@/lib/supabase/api-key-auth"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
@@ -54,6 +54,18 @@ const ALLOWED_CODE_REFERENCES = [
 // chatMessages, and this route answers it with 200. Real errors keep 400.
 
 /**
+ * Audit 100 A4 (2026-10-05): requireRoleOrScope holds a SESSION caller to "member", but for an org API key (how PROJEXA's assistant
+ * reaches this route) it checks only the key's scope, so a read-only person the key names (viewer, client_viewer, external_auditor)
+ * could write through the rawInput or attachment path. The same floor tasks/route.ts got in #2076: 403 before anything is written.
+ */
+function readOnlyPersonRefusal(ctx: CombinedAuthContext, personId: string | null, role: string | null) {
+  if (!ctx.dbUser && personId && role && !hasRole({ role }, "member")) {
+    return NextResponse.json({ error: "A read-only account cannot submit tasks" }, { status: 403 })
+  }
+  return null
+}
+
+/**
  * PROJEXA-BUILD-002 WP-11 (AW-602, way 2): the attachment path of POST. It opens no transaction of its own: the orchestrator calls the
  * executor, which opens its own short transactions one after another, so this must never be called from inside withTenantContext.
  */
@@ -70,6 +82,8 @@ async function postAttachment(ctx: CombinedAuthContext, request: NextRequest, bo
   }
   try {
     const { role: financialRole, personId } = await resolvePipelineActor(ctx, request, body)
+    const readOnly = readOnlyPersonRefusal(ctx, personId, financialRole)
+    if (readOnly) return readOnly
     const reply = await runChatAttachment({
       orgId,
       keyUserId: actorId,
@@ -116,6 +130,8 @@ export async function POST(request: NextRequest) {
     if (!keyScope.ok) return NextResponse.json({ error: keyScope.message }, { status: keyScope.status })
     try {
       const { role: financialRole, personId: level1PersonId } = await resolvePipelineActor(ctx, request, body)
+      const readOnly = readOnlyPersonRefusal(ctx, level1PersonId, financialRole)
+      if (readOnly) return readOnly
       const result = await runSubmission({
         orgId: ctx.orgId,
         userId: actorId,

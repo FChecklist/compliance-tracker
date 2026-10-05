@@ -53,6 +53,8 @@ export type ClassifyContext = {
   projectId?: string;
   /** e.g. valid boq_line_item_ids reachable in this context -- part of the bound candidate set, never left open (M26: "never 400 unbound functions"). */
   validIds?: Record<string, string[]>;
+  /** Audit 100 A4: each candidate's parameter names from the function registry, so the model never guesses a field name. */
+  functionParams?: Record<string, { required: string[]; optional: string[] }>;
 };
 
 export interface AiProvider {
