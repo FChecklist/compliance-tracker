@@ -2,6 +2,8 @@
 // Every email goes to the partner only and carries counts and amounts. It never carries a client's name
 // or any client personal data, and never a payout detail (the notice payloads hold none).
 
+import { brandWrap } from "../_shared/brand-mail.ts"
+
 export type NoticeKind = "welcome" | "referred_signup" | "commission_earned" | "payout_sent" | "statement" | "details_changed"
 
 export type Notice = {
@@ -38,10 +40,10 @@ export function dateLabel(ymd: string): string {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 
 function shell(subject: string, lines: string[]): Rendered {
-  const text = [...lines, "", "-- VERIDIAN AI DPDP", "Questions? Reply to this email."].join("\n")
-  const html = `<div style="font-family:sans-serif;max-width:520px">${[...lines, "", "-- VERIDIAN AI DPDP", "Questions? Reply to this email."]
+  const text = [...lines, "", "Questions? Reply to this email."].join("\n")
+  const html = `<div style="font-family:sans-serif;max-width:520px">${[...lines, "", "Questions? Reply to this email."]
     .map((l) => (l === "" ? "<br>" : `<p style="margin:4px 0">${esc(l)}</p>`)).join("")}</div>`
-  return { subject, text, html }
+  return brandWrap({ subject, text, html })
 }
 
 const TAX_LINE = "Tax (TDS) is deducted where the law requires it and shown on your statement."

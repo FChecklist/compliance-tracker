@@ -27,4 +27,4 @@ export function chatOptions(paste: string): ChatOption[] {
 }
 
 export const COPIED_LINE = "Copied. Press Ctrl+V, then Send"
-export const DO_NOT_FORWARD_NOTE = "DO NOT FORWARD this link or share it with anyone. Anyone who has it can read your DPDP view, and make small changes, as you."
+export const DO_NOT_FORWARD_NOTE = "DO NOT FORWARD this link: anyone with it can act as you."
