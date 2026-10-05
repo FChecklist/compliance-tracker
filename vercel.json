@@ -4,7 +4,7 @@
   "regions": ["bom1"],
   "git": {
     "deploymentEnabled": {
-      "main": true,
+      "main": false,
       "**": false
     }
   },
