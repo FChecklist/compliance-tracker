@@ -2527,6 +2527,25 @@ export function functionSpec(functionId: string): FunctionSpec | undefined {
   return SPECS[functionId];
 }
 
+/**
+ * Audit 100 A4 follow-up (2026-10-05) -- THE PARAMETER NAMES LEVEL 1 IS SHOWN. The model used to get only function ids, so it guessed
+ * the field names (`name` for a schedule task's `title`) and listed an optional finish date as missing, scoring itself 0.6. This is
+ * the compact per-function list level1.ts puts in the classify context: required names (what may be listed as missing) and optional
+ * names (card fields and optionalParams). `projectId` is left out: it arrives on the submission, never from the sentence.
+ */
+export type PromptParams = { required: string[]; optional: string[] };
+
+export function promptParamsFor(functionId: string): PromptParams | undefined {
+  const spec = SPECS[functionId];
+  if (!spec) return undefined;
+  const required = spec.requiredParams.map((p) => p.name).filter((n) => n !== "projectId");
+  const optional: string[] = [];
+  for (const name of [...(spec.card?.fields ?? []).map((f) => f.key), ...(spec.optionalParams ?? [])]) {
+    if (name !== "projectId" && !required.includes(name) && !optional.includes(name)) optional.push(name);
+  }
+  return { required, optional };
+}
+
 function blank(value: unknown): boolean {
   return value === undefined || value === null || (typeof value === "string" && value.trim().length === 0);
 }

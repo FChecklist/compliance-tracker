@@ -25,9 +25,21 @@ import { getAiProvider, assertAiProviderAllowed, AiProviderRefusalError, type Ai
 import type { ResolvedFunction } from "./classify";
 import { isInternalAiAllowedForOrg } from "@/lib/ai/internal-ai-org-allowance";
 import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai";
+import { promptParamsFor, type PromptParams } from "./function-registry";
 
 /** M26's acceptance floor. A resolution below this is a FAIL, not a maybe. */
 export const MIN_CONFIDENCE = 0.8;
+
+/**
+ * Audit 100 A4 follow-up (2026-10-05): what the user is told when Level 1 named a function but was below MIN_CONFIDENCE. It used to
+ * fall through to dry-run.ts's "That is not enabled for this workspace yet", which is false: the function exists, the model was unsure.
+ */
+export const NOT_SURE_SENTENCE = "I was not sure what you meant: please say it again with the name and the date";
+const BELOW_FLOOR_REASON_TAIL = ` floor`;
+/** True for the per-segment reason runLevel1 records when the answer was below the confidence floor. */
+export function isBelowConfidenceFloorReason(reason: string | null | undefined): boolean {
+  return typeof reason === "string" && reason.startsWith("Level 1 confidence ") && reason.endsWith(`below the ${MIN_CONFIDENCE}${BELOW_FLOOR_REASON_TAIL}`);
+}
 
 /**
  * The bound context M26 requires: "Pass the module's 5-15 candidate
@@ -89,6 +101,19 @@ export async function loadValidItemCodes(orgId: string, projectId: string | null
 }
 
 /**
+ * Audit 100 A4 follow-up: the parameter names of each candidate, from the registry (promptParamsFor). Before this the model saw
+ * only function ids and guessed field names. Bounded by the candidate set (5-15 functions), so the prompt stays small.
+ */
+export function functionParamsFor(candidateFunctionIds: readonly string[]): Record<string, PromptParams> {
+  const out: Record<string, PromptParams> = {};
+  for (const id of candidateFunctionIds) {
+    const params = promptParamsFor(id);
+    if (params) out[id] = params;
+  }
+  return out;
+}
+
+/**
  * ONE batched call for every unresolved segment (M27: "3 segments cost the
  * same as 1 and are 3x faster than 3 calls"). Level 0 hits never reach here.
  *
@@ -133,6 +158,7 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
       orgId: ctx.orgId,
       projectId: ctx.projectId ?? undefined,
       validIds: validItemCodes.length > 0 ? { itemCode: validItemCodes } : undefined,
+      functionParams: functionParamsFor(ctx.candidateFunctionIds),
     });
   } catch (error) {
     // A provider outage is a FAIL for every segment in the batch, with the
@@ -164,7 +190,7 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
     }
     if (typeof r.confidence !== "number" || !Number.isFinite(r.confidence) || r.confidence < MIN_CONFIDENCE) {
       resolutions.push(null);
-      reasons.push(`Level 1 confidence ${String(r.confidence)} is below the ${MIN_CONFIDENCE} floor`);
+      reasons.push(`Level 1 confidence ${String(r.confidence)} is below the ${MIN_CONFIDENCE}${BELOW_FLOOR_REASON_TAIL}`);
       return;
     }
     const params = (r.params ?? {}) as Record<string, unknown>;

@@ -48,6 +48,7 @@ Rules, absolute:
 - You may NEVER return prose. Output ONLY the JSON shape described below.
 - If a segment names a valid function but is missing a required parameter, return that function_id with the params you found and list the rest in missingParams -- do not guess a missing value.
 - If a segment cannot be matched to any candidate function, set functionId to null, missingParams to [], confidence to 0, and unmappedIntent to a short honest description of what the user seems to want.
+- context.functionParams lists each candidate's parameter names. Put values in params under exactly those names, never a renamed or invented one. missingParams may only name that function's "required" names; an optional value the user did not give is left out, not missing. Write dates as YYYY-MM-DD.
 
 Output STRICT JSON: {"results": [{"functionId": string|null, "params": object, "missingParams": string[], "confidence": number (0-1), "unmappedIntent": string|null}, ...]} with exactly one entry per input segment, in the same order.`;
 
