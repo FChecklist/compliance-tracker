@@ -17,6 +17,9 @@ const OUTBOX = "outbox:"
 const norm = (s: string) => s.trim().toLowerCase()
 const snapKey = (email: string, org: string | null) => `${SNAP}${norm(email)}|${org ?? "default"}`
 const outKey = (email: string, id: string) => `${OUTBOX}${norm(email)}|${id}`
+// "Remind me on this device" (reminders.mjs, run by the service worker). The flag is per person and lives only here: keepOnly() drops it when a
+// different person signs in, wipe() drops it on sign-out, and the worker reads it straight from this same database.
+const remindKey = (email: string) => `remind:${norm(email)}|on`
 
 export type CopyStore = ReturnType<typeof createCopyStore>
 
@@ -69,6 +72,14 @@ export function createCopyStore(kv: Kv, now: () => Date = () => new Date(), newI
       }
       return { sent, refused, left: 0 }
     },
+    async setReminders(email: string, on: boolean): Promise<void> {
+      if (on) await kv.set(remindKey(email), true)
+      else { await kv.del(remindKey(email)); await kv.del(`remind:${norm(email)}|last`) }
+    },
+    /** The browser's own permission question is asked at most once per person per device; a "no" is never nagged again. */
+    async reminderAsked(email: string): Promise<boolean> { return (await kv.get(`remind:${norm(email)}|asked`)) === true },
+    async setReminderAsked(email: string): Promise<void> { await kv.set(`remind:${norm(email)}|asked`, true) },
+    async remindersOn(email: string): Promise<boolean> { return (await kv.get(remindKey(email))) === true },
     /** A different person signed in on this device: remove everything that is not theirs. */
     async keepOnly(email: string): Promise<void> {
       const mine = `|`
