@@ -20,7 +20,20 @@ import type { AiProvider, ClassificationResult, Artifact, ClassifyContext } from
 const L1_MODEL_FALLBACK = process.env.AI_L1_MODEL ?? "deepseek/deepseek-chat";
 const L2_MODEL_FALLBACK = process.env.AI_L2_MODEL ?? "deepseek/deepseek-chat-v3.1"; // "Pro" tier per M26; falls back to the same family as L1 if unset rather than a hardcoded guess at a Pro-tier slug
 
-function requireApiKey(): string {
+/**
+ * Placeholder handed to callLLMJson when the test-mode AI bridge is on. Never sent anywhere: with AI_BRIDGE=queue,
+ * llm-client.ts's dispatchLLM answers through the database queue (claude-code-bridge.ts) BEFORE it reads the key.
+ */
+export const BRIDGE_NO_KEY = "ai-bridge-no-paid-key";
+
+/**
+ * Audit 100 A4/A14 (2026-10-05): the bridge is how Claude Code on the owner's laptop answers Level 1, and it needs no paid key.
+ * This used to throw "OPENROUTER_API_KEY is not set" first, so on a laptop without a paid OpenRouter key the test AI never ran
+ * (every Level 1 call came back "Level 1 unavailable"), and on one with a key the key looked required when it was never used.
+ * Checked inline, not by importing claude-code-bridge.ts, so this transport keeps its one llm-client dependency.
+ */
+export function requireApiKey(): string {
+  if (process.env.AI_BRIDGE === "queue") return BRIDGE_NO_KEY;
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY is not set -- required when AI_PROVIDER=openrouter.");
   return key;
