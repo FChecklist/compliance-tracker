@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-// drizzle/0697 on PGlite (real Postgres as WASM; no live database touched): every dpdp table with row-level security OFF gets it ON, and every path
+// drizzle/0721 on PGlite (real Postgres as WASM; no live database touched): every dpdp table with row-level security OFF gets it ON, and every path
 // that works today still works.
 //   * anon and authenticated (the roles a browser can become) can no longer read or write a dpdp table directly, even when they hold the grants;
 //   * a SECURITY DEFINER public.dpdp_* function (how the app and every edge function reach the data) still reads and writes;
@@ -13,8 +13,8 @@ import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
 
 const read = (f: string) => readFileSync(new URL(`../../../drizzle/${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
-const up = read('0697_dpdp_rls_on_for_every_dpdp_table.sql')
-const down = read('down/0697_dpdp_rls_on_for_every_dpdp_table.down.sql')
+const up = read('0721_dpdp_rls_on_for_every_dpdp_table.sql')
+const down = read('down/0721_dpdp_rls_on_for_every_dpdp_table.down.sql')
 
 let db: PGlite
 const q = async <T = Record<string, unknown>>(sql: string, args: unknown[] = []) => (await db.query<T>(sql, args)).rows

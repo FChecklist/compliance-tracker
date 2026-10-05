@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-// drizzle/0699 on PGlite (real Postgres + real pgcrypto; no live database touched): Sales Partner payout details are stored encrypted.
+// drizzle/0723 on PGlite (real Postgres + real pgcrypto; no live database touched): Sales Partner payout details are stored encrypted.
 //   * the migration refuses to run until the Vault secret exists, and converts rows already in the table;
 //   * the REAL public.dpdp_partner_save_payout_details body (copied out of the migration) writes through the view: the stored columns are ciphertext
 //     ('enc1:...'), never the PAN, account number, IFSC, UPI id or name; a second save updates in place;
@@ -13,8 +13,8 @@ import { PGlite } from '@electric-sql/pglite'
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
 
 const read = (f: string) => readFileSync(new URL(`../../../drizzle/${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
-const up = read('0699_dpdp_partner_payout_encrypted.sql')
-const down = read('down/0699_dpdp_partner_payout_encrypted.down.sql')
+const up = read('0723_dpdp_partner_payout_encrypted.sql')
+const down = read('down/0723_dpdp_partner_payout_encrypted.down.sql')
 const m0674 = read('0674_dpdp_sales_partner_lifecycle.sql')
 const tableDdl = m0674.match(/create table if not exists dpdp\.partner_payout_detail \([\s\S]*?\n\);/)![0]
 const KEY = 'k'.repeat(40)

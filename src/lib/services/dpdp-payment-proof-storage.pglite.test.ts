@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-// drizzle/0698 on PGlite (no live database touched): the payment-proof bucket.
+// drizzle/0722 on PGlite (no live database touched): the payment-proof bucket.
 //   * upload only into a folder named after your own sign-in id;
 //   * read back only your own folder (the platform admin reads all); nobody reads across;
 //   * the bucket limits 5 MB and PNG / JPEG / WebP / PDF are set;
@@ -12,8 +12,8 @@ import { PGlite } from '@electric-sql/pglite'
 
 const read = (f: string) => readFileSync(new URL(`../../../drizzle/${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 const m0658 = read('0658_dpdp_payment_confirmation_flow.sql')
-const up = read('0698_dpdp_payment_proof_storage_policy.sql')
-const down = read('down/0698_dpdp_payment_proof_storage_policy.down.sql')
+const up = read('0722_dpdp_payment_proof_storage_policy.sql')
+const down = read('down/0722_dpdp_payment_proof_storage_policy.down.sql')
 
 const ALICE = '11111111-1111-1111-1111-111111111111'
 const BOB = '22222222-2222-2222-2222-222222222222'

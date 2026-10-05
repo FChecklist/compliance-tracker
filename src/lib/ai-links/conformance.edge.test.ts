@@ -369,7 +369,7 @@ describe("detail rows of BR-523 that need no deployed function (BR-581, BR-583 a
     const edge = startEdge({ notes: hostile })
     const res = await fetch(edge.link(TOKENS.manager) + "/records/boq_lines")
     expect(res.status).toBe(200)
-    expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8")
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8")
     const body = await res.text()
     expect(body).not.toMatch(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/)
     const start = body.indexOf("```data\n")

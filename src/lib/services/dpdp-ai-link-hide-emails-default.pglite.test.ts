@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-// drizzle/0696 on PGlite (real Postgres as WASM; no live database touched): AI work links hide other people's e-mail addresses by default.
+// drizzle/0720 on PGlite (real Postgres as WASM; no live database touched): AI work links hide other people's e-mail addresses by default.
 //   * the column default is TRUE and every existing link is switched to TRUE;
 //   * dpdp_ai_link_create with no hide argument makes a hidden link; the person can still ask for a visible one;
 //   * the e-mailed (Monday) link is always hidden;
@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
 
 const read = (f: string) => readFileSync(new URL(`../../../drizzle/${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
-const mig = read('0696_dpdp_ai_link_hide_emails_default.sql')
+const mig = read('0720_dpdp_ai_link_hide_emails_default.sql')
 // everything but the privilege lines (the roles are not what this test is about)
 const runnable = mig
 
@@ -73,7 +73,7 @@ describe('the Grievance Officer is given by role only', () => {
     expect(fn).not.toMatch(/'name', go\./)
   })
   test('the rollback script restores only the default', () => {
-    const down = read('down/0696_dpdp_ai_link_hide_emails_default.down.sql')
+    const down = read('down/0720_dpdp_ai_link_hide_emails_default.down.sql')
     expect(down).toContain('set default false')
   })
 })
