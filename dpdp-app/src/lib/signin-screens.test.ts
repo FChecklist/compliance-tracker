@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { BrandMark, CheckYourEmail, SIGNIN_BENEFITS, SignIn } from "../components/Screens"
+import { BrandMark, CheckYourEmail, SignIn } from "../components/Screens"
+import { SIGNIN_BENEFITS } from "./signin-benefits"
 
 // The sign-in / start screen and the Check your email pop-up (owner, 2026-10-05): the words, the field, the button, the brand mark, the numeric
 // keypad, the one-time-code autofill, and that every benefit line is short (the owner's brevity rule).

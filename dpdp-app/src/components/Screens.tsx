@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import "./onepage/dpdp-onepage-tokens.css"
+import { SIGNIN_BENEFITS } from "@/lib/signin-benefits"
 
 export function Card({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
   return (
@@ -54,15 +55,6 @@ function EmailForm({ buttonLabel, busy, error, onSubmit }: { buttonLabel: string
  * The first screen: sign in, or start free (the e-mail address is all it takes; membership is decided after sign-in). Every line is a fact the product
  * states elsewhere (data/veridian-facts.yaml, the pricing page): nothing here is a promise that is not already published.
  */
-export const SIGNIN_BENEFITS: ReadonlyArray<{ icon: string; text: string }> = [
-  { icon: "📋", text: "Turns the DPDP Act into a list of jobs" },
-  { icon: "👤", text: "Gives each job to the right person" },
-  { icon: "✉️", text: "One email a week. No passwords" },
-  { icon: "🕓", text: "Every answer is dated and cannot be edited" },
-  { icon: "⚖️", text: "Each job is linked to its legal source" },
-  { icon: "📁", text: "Your documents stay with you" },
-  { icon: "🤖", text: "Let your own AI help with the jobs" },
-]
 
 export function SignIn({ onSubmit, busy, error }: { onSubmit: (email: string) => void; busy: boolean; error: string | null }) {
   return (
