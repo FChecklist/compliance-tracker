@@ -48,7 +48,7 @@ export function createDpdpClient(): DpdpClient {
     auth: supabase.auth,
     rpc: (fn, args) => supabase.rpc(fn, args),
     async uploadPaymentProof(orgId, file) {
-      // The bucket accepts a file only inside a folder named after the signed-in person's own id (drizzle/0698), up to 5 MB, as PNG, JPEG, WebP or PDF.
+      // The bucket accepts a file only inside a folder named after the signed-in person's own id (drizzle/0722), up to 5 MB, as PNG, JPEG, WebP or PDF.
       if (file.size > 5 * 1024 * 1024) return { path: null, error: "That file is over 5 MB. Please send a smaller screenshot or PDF." }
       if (!["image/png", "image/jpeg", "image/webp", "application/pdf"].includes(file.type)) return { path: null, error: "Please upload a PNG, JPEG, WebP or PDF file." }
       const { data: who } = await supabase.auth.getUser()

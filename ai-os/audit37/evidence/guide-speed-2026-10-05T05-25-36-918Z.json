@@ -1,0 +1,39 @@
+{
+  "measured_at": "2026-10-05T05:25:36.918Z",
+  "base": "ai-work-link guide GET (user link, manager of the e2e organisation)",
+  "n": 40,
+  "warmup": {
+    "code": 200,
+    "connect": 0.191298,
+    "server": 1.0699640000000001,
+    "total": 1.411419,
+    "bytes": 33221
+  },
+  "status_codes": [
+    200,
+    0
+  ],
+  "failed_calls": 1,
+  "guide_bytes": 33221,
+  "connect_s": {
+    "min": 0,
+    "p50": 0.061028,
+    "p95": 0.186849,
+    "max": 15.110677
+  },
+  "server_first_byte_s": {
+    "min": 0.14641800000000005,
+    "p50": 0.38054599999999994,
+    "p95": 0.826372,
+    "max": 21.340978800000002
+  },
+  "total_s": {
+    "min": 0.28391,
+    "p50": 0.570423,
+    "p95": 2.18909,
+    "max": 21.340978800000002
+  },
+  "calls_over_1s_total": 6,
+  "calls_over_8s_total": 2,
+  "calls_over_8s_server": 1
+}
