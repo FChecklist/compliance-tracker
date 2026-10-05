@@ -109,7 +109,7 @@ test.describe("WO-DPDP-012 §6 -- an assistant can use the public site by access
 
     await expect(page.getByRole("heading", { level: 1, name: "Check your email", exact: true })).toBeVisible()
     await expect(page.getByText(AGENT_EMAIL, { exact: true })).toBeVisible()
-    await expect(page.getByRole("button", { name: "Send me a new link", exact: true })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Send me a new code", exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "Use a different email", exact: true })).toBeVisible()
 
     // STOP. The email click stays with the human. The assistant is not

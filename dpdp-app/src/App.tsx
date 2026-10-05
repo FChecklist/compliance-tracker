@@ -92,6 +92,16 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   const store = useMemo(() => { try { return createCopyStore(idbKv()) } catch { return null } }, [])
   const [copyInfo, setCopyInfo] = useState<{ offline: boolean; savedAt: string | null; pending: number }>({ offline: false, savedAt: null, pending: 0 })
   const emailRef = useRef<string | null>(null)
+  // "Sign in and get my AI work link" (the sign-in e-mail's option 1) lands on /app/?next=ai-link: once the page is up, show the AI Link settings.
+  const wantsAiLink = useRef(typeof window !== "undefined" && new URLSearchParams(window.location.search).get("next") === "ai-link")
+  useEffect(() => {
+    if (phase.name !== "app" || !wantsAiLink.current) return
+    wantsAiLink.current = false
+    const url = new URL(window.location.href)
+    url.searchParams.delete("next")
+    window.history.replaceState(null, "", `${url.pathname}${url.search}#ai-link-settings`)
+    requestAnimationFrame(() => document.getElementById("ai-link-settings")?.scrollIntoView({ behavior: "smooth", block: "start" }))
+  }, [phase.name])
   // Written only from the auth-event handler, never during render: whether
   // this session's first page fetch has been kicked off, so supabase-js's
   // SIGNED_IN re-emits on tab focus don't fetch the page again.
@@ -224,6 +234,12 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
     setPhase(err ? { name: "signed-out", busy: false, error: err } : { name: "check-your-email", email: address, resend: "idle", error: null })
   }
 
+  // The passcode in the same e-mail (Supabase verifyOtp, type "email"). Success arrives through onAuthStateChange like a link does.
+  async function verifyCode(address: string, code: string): Promise<string | null> {
+    const { error } = await client.auth.verifyOtp({ email: address, token: code, type: "email" })
+    return error ? "That passcode did not work. Check it, or send a new code." : null
+  }
+
   async function sendFreshLink(address: string, expired: boolean) {
     setPhase({ name: "link-expired", email: address, expired, busy: true, error: null })
     const err = await requestLink(address)
@@ -297,7 +313,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       screen = <LinkExpired email={phase.email} expired={phase.expired} busy={phase.busy} error={phase.error} onSend={(a) => sendFreshLink(a, phase.expired)} onUseAnother={() => setPhase(SIGNED_OUT)} />
       break
     case "check-your-email":
-      screen = <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} />
+      screen = <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} onVerify={(code) => verifyCode(phase.email, code)} />
       break
     case "no-membership":
       screen = <OpenOrganisation email={email} initialEdition={landing.edition ?? recallEdition()} busy={phase.busy} error={phase.error} onCreate={openMyOrg} onSignOut={signOut} onOpenPartner={() => setPartnerOpen(true)} />
