@@ -200,7 +200,7 @@ export async function createAiWorkLink(
 ): Promise<AiWorkLinkCreated> {
   const { data, error } = await client.rpc("dpdp_ai_link_create", {
     p_level: opts.level ?? 0,
-    p_hide_emails: opts.hideEmails ?? false,
+    p_hide_emails: opts.hideEmails ?? true,
     p_days: opts.days ?? 7,
     p_label: opts.label?.trim() || null,
     ...(opts.orgId ? { p_org_id: opts.orgId } : {}),

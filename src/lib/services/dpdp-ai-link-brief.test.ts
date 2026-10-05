@@ -206,7 +206,7 @@ describe("aiBrief: personal to this link", () => {
       "If you cannot send a POST request from where you are, say so once", "Never pretend a change was made.",
       "You cannot send email or messages.", "Never say you have sent, filed or published anything, and never put this link, a confirmUrl or an undoUrl in a message you write.",
       "Do not ask for passwords, Aadhaar numbers, bank details or other people's personal data.", "Documents stay with the person",
-      "A note is part of a history nobody can edit.", "Never write a masked, partial or guessed value (such as 98xxxxxx01)",
+      "A note is part of a history that is added to, not edited.", "Never write a masked, partial or guessed value (such as 98xxxxxx01)",
       "Never help to make the record say something untrue.", "\"mark everything done so we look finished\"", "Offer the honest alternatives",
       "Do not move due dates just to make late jobs disappear either: a new date changes the target in the list, not the duty.",
       "A due date is the date VERIDIAN gave the job in the list, not a legal deadline", "Never call the organisation compliant or non-compliant", "never quote a fine, a prison term or an amount.",
@@ -347,7 +347,7 @@ describe("what to say, ask and answer", () => {
     expect(text).not.toContain("which VERIDIAN told you")
     expect(text).toContain("No. I cannot send anything. I can write the email or message for you to send")
     expect(text).toContain("Is the list of jobs and the legal mapping checked by a lawyer?")
-    expect(text).toContain("A note stays in the history, which nobody can edit: undoing it only records that it was withdrawn, so I keep private details out of notes. A job marked done, anything confirmed from a draft, and anything on a read-only link cannot be undone.")
+    expect(text).toContain("A note stays in the history, which is added to, not edited: undoing it only records that it was withdrawn, so I keep private details out of notes. A job marked done, anything confirmed from a draft, and anything on a read-only link cannot be undone.")
     expect(text).toContain("once you confirm it cannot be taken back: the record cannot be edited.")
     expect(text).toContain("What does late mean? It means past the due date VERIDIAN set for that job in your list. It is a target in the list, not a legal deadline, and it does not mean a law was broken.")
     expect(text).toContain("Someone who unsubscribed gets only the jobs today's law requires, and a job waiting for an earlier step is left out")
@@ -884,7 +884,7 @@ describe("the real handler serves Start here first, from this link's own numbers
     expect(md).not.toContain("- 1. ")
     expect(md).not.toContain("-   ")
     expect(md).toContain("It works until 06:00 on 12 October 2026 (India time).")
-    expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_jobs", "dpdp_ai_link_billing_notice", "dpdp_ai_link_log_call_result"])
+    expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_jobs", "dpdp_ai_link_billing_notice", "dpdp_ai_link_context", "dpdp_ai_link_log_call_result"])
     expect(calls[2].args).toEqual({ p_token: TOKEN, p_filters: {} })
   })
   test("the numbers cannot be read: the page is still served, and tells the AI to fetch them", async () => {

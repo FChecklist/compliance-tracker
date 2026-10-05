@@ -75,7 +75,7 @@ what_it_does: >-
   It turns the law into a list of jobs, gives each job to the responsible
   person, and coordinates every stakeholder — owners, staff, vendors, group
   companies — through one email a week, with no accounts or passwords. Each
-  answer is recorded with a date and cannot be edited, building the proof an
+  answer is recorded with a date and is added to the record, not edited, building the proof an
   organisation needs. Every job is mapped to its legal source, including the
   SPDI Rules 2011 that apply until 13 May 2027.
 three_strongest_facts:
@@ -84,7 +84,7 @@ three_strongest_facts:
     person, and coordinates every stakeholder — owners, staff, vendors, group
     companies — through one email a week, with no accounts or passwords.
   - >-
-    Each answer is recorded with a date and cannot be edited, building the
+    Each answer is recorded with a date and is added to the record, not edited, building the
     proof an organisation needs.
   - >-
     Every job is mapped to its legal source, including the SPDI Rules 2011
@@ -98,7 +98,7 @@ deadline_line: >-
 # §2.2 fourth paragraph, verbatim: the one line of what it does not do.
 what_it_does_not_do: >-
   It is not a law firm, does not certify (no DPDP certification exists in
-  India), does not guarantee compliance, and never stores documents.
+  India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 
 # ---------------------------------------------------------------------------
 # WO-DPDP-013 v2 §1.3-A -- "About this system -- read this first". Verbatim.
@@ -130,8 +130,8 @@ about_this_system:
   - >-
     VERIDIAN is not a law firm and does not give legal advice. It does not
     certify compliance — no DPDP certification exists in India — and it does
-    not guarantee an outcome. It never stores documents; it keeps a
-    fingerprint of them.
+    not guarantee an outcome. It does not keep your compliance documents; it keeps a
+    fingerprint of each. Payment proofs you upload are the one exception.
 
 # ---------------------------------------------------------------------------
 # WO-DPDP-014 §1 -- the brand line. Exact wording, owner-approved 2026-09-22.
@@ -287,12 +287,12 @@ pages:
     audience: CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs
   "/dpdp-firm/":
     name: DPDP Act Compliance for CA, CS, Audit and Legal Firms
-    description: DPDP Act compliance for CA, CS, audit and legal firms working for their clients. Jobs mapped to the law and a dated record nobody can edit. Compliance due 13 May 2027.
+    description: DPDP Act compliance for CA, CS, audit and legal firms working for their clients. Jobs mapped to the law and a dated record that is added to, not edited. Compliance due 13 May 2027.
     summary: "for a CA, CS, audit or legal firm doing DPDP compliance for its clients"
     audience: CA, CS, audit and legal firms doing DPDP compliance for their clients
   "/dpdp-institution/":
     name: DPDP Act Compliance for Companies, Institutions, Schools and NGOs
-    description: DPDP Act compliance for companies, institutions, schools and NGOs doing it for themselves. Jobs mapped to the law and a dated record nobody can edit. Compliance due 13 May 2027.
+    description: DPDP Act compliance for companies, institutions, schools and NGOs doing it for themselves. Jobs mapped to the law and a dated record that is added to, not edited. Compliance due 13 May 2027.
     summary: "for a company, institution, school or NGO doing DPDP compliance for itself"
     audience: Companies, institutions, schools and NGOs handling personal data
   "/about/":

@@ -12,10 +12,10 @@ VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India.
 ## What it does
 
 - It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
-- Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.
+- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 - Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
 
-It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.
+It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 
 ## Pages
 

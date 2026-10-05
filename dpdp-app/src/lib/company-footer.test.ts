@@ -37,8 +37,8 @@ describe("the company line", () => {
     }
   })
 
-  test("the seven legal pages carry it at the end of their footer too, with the same text", () => {
-    expect(LEGAL_PAGES.length).toBe(7)
+  test("the eight legal pages carry it at the end of their footer too, with the same text", () => {
+    expect(LEGAL_PAGES.length).toBe(8)
     for (const p of LEGAL_PAGES) {
       const footer = /<footer\b[\s\S]*?<\/footer>/.exec(read(p.source))![0]
       expect(textOf(footer), p.source).toContain(EXPECTED)
@@ -73,13 +73,13 @@ describe("legal pages: search and sharing basics", () => {
     }
   })
 
-  test("all seven are in the sitemap list, after the public pages", () => {
-    expect(SITEMAP_PAGES.slice(-7).map((p) => p.path)).toEqual(["/terms/", "/privacy/", "/disclaimer/", "/pricing/", "/refund/", "/shipping/", "/contact/"])
+  test("all eight are in the sitemap list, after the public pages", () => {
+    expect(SITEMAP_PAGES.slice(-8).map((p) => p.path)).toEqual(["/terms/", "/privacy/", "/disclaimer/", "/pricing/", "/refund/", "/shipping/", "/contact/", "/subprocessors/"])
   })
 
   test("the privacy notice says the public pages measure speed and errors, without cookies, and is dated", () => {
     const html = read("public/privacy/index.html")
-    expect(html).toContain("Version 1.3 · Effective 2 October 2026")
+    expect(html).toContain("Version 1.4 · Effective 5 October 2026")
     expect(html).toContain("Website measurement (public pages only)")
     expect(html).toContain("No cookie, no browser storage")
     expect(html).toContain("Do Not Track")

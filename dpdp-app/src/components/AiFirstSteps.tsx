@@ -40,7 +40,7 @@ export function AiFirstSteps({ client, orgId, offline, onMade }: { client: DpdpC
     setBusy(true)
     setError(null)
     try {
-      const link = await createAiWorkLink(client, { level: small ? 1 : 0, hideEmails: false, days: 7, label: "Step 1 copy", orgId })
+      const link = await createAiWorkLink(client, { level: small ? 1 : 0, hideEmails: true, days: 7, label: "Step 1 copy", orgId })
       const got = await fetchPrompt(link.token, (u, i) => fetch(u, i))
       const text = got.kind === "ok" ? got.text : aiLinkUrl(link.token)
       setPrompt(text)
