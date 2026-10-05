@@ -136,12 +136,41 @@ export const ENDPOINTS: ReadonlyArray<Endpoint> = [
     example: "POST /suggestions  { \"kind\": \"report\", \"title\": \"Export the Part 4 jobs as a one-page checklist\", \"body\": \"A CA wants to hand the client a printable list of Part 4 jobs that are open. The reports today are Markdown and CSV only.\" }",
   },
   {
+    id: "registers", method: "GET", path: "/register", level: 0,
+    summary: "The list of registers GET /register/{kind} serves, each with what it holds.",
+    formats: ["json"],
+    returns: "{ registers: [{ kind, what }] }",
+    example: "GET /register",
+  },
+  {
+    id: "register", method: "GET", path: "/register/{kind}", level: 0,
+    summary: "Read-only: the rest of the organisation, as a logged-in owner, coordinator, Grievance Officer or CA sees it, without any personal data (counts, states and dates only). GET /register lists the kinds. A staff or parent link is refused (403): they see only their own jobs.",
+    formats: ["json"],
+    returns: "{ kind, data } -- data-map: categories and where they are kept; notices: versions and when in force; people: who is in the organisation and their role; rights: requests by state and the open ones with due dates; grievances: ref, tier, state, due dates; breach: the register with deadlines; public-page: whether the public page is live and the published Grievance Officer; processors: firms data is shared with and whether the agreement is signed; groups: principal groups and consent campaigns (sent, opened, answered); proof: files held per job; plan: the plan band and trial end",
+    example: "GET /register/data-map",
+  },
+  {
     id: "snapshot", method: "GET", path: "/snapshot.md", level: 0,
     summary: "The one-page snapshot of every job this link can see (the format the link served before this manual existed). Also /snapshot for HTML.",
     formats: ["md", "html"],
     returns: "a Markdown table of jobs with their ids",
     example: "GET /snapshot.md",
   },
+]
+
+/** The registers behind GET /register/{kind}; the Edge Function and the manual both read this list. */
+export const REGISTER_KINDS: ReadonlyArray<{ kind: string; what: string }> = [
+  { kind: "data-map", what: "the kinds of personal data held, whose they are, and the systems and places they are kept" },
+  { kind: "notices", what: "privacy notice and policy versions, and when each is in force" },
+  { kind: "people", what: "who is in the organisation, their role and whether they can sign" },
+  { kind: "rights", what: "requests from people about their data: counts by state and the open ones with due dates (no requester details)" },
+  { kind: "grievances", what: "complaints: reference, tier, state and due dates (no complainant details)" },
+  { kind: "breach", what: "the data-leak register with the 72-hour clock and who has been told" },
+  { kind: "public-page", what: "whether the public DPDP page is live, and the published Grievance Officer" },
+  { kind: "processors", what: "firms the organisation shares data with, and whether the agreement is signed" },
+  { kind: "groups", what: "groups of people the organisation holds data about, and consent campaigns sent" },
+  { kind: "proof", what: "how many proof files are held for each job, and how many are accepted" },
+  { kind: "plan", what: "the plan band and trial end (never payments)" },
 ]
 
 export type VerbHelp = { verb: string; value: string; means: string; who?: string; executableOnConfirm?: boolean }
@@ -175,7 +204,7 @@ export const ERRORS: ReadonlyArray<ApiError> = [
   { status: 404, meaning: "no such path, or no such job in this view" },
   { status: 405, meaning: "wrong method for the path" },
   { status: 410, meaning: "this link has expired or was revoked -- ask the person for a new one" },
-  { status: 413, meaning: "the body is over 8 KB" },
+  { status: 413, meaning: "the body is over 8 KB (6 KB when it travels in a web address as _body)" },
   { status: 429, meaning: "over the rate limit (120 calls per minute per link) -- wait a minute" },
   { status: 500, meaning: "something failed on our side; nothing about your request is echoed" },
 ]
@@ -183,6 +212,14 @@ export const ERRORS: ReadonlyArray<ApiError> = [
 export const RATE_LIMIT = { perMinute: 120 } as const
 export const PAGINATION = { pageParam: "page", perPageParam: "per_page", defaultPerPage: 100, maxPerPage: 500 } as const
 export const MAX_BODY_BYTES = 8 * 1024
+
+/** The GET-only fallback, documented in the manual's section E from here. */
+export const GET_FALLBACK = {
+  rule: "?_method=POST&_body=<url-encoded JSON>",
+  paths: ["/actions", "/drafts", "/suggestions"],
+  example: "GET /drafts?_method=POST&_body=%7B%22verb%22%3A%22MARK_DONE%22%2C%22job_id%22%3A%22<id>%22%2C%22value%22%3A%7B%7D%7D",
+  maxBodyBytes: 6 * 1024,
+} as const
 
 export const API_DEFINITION = {
   version: API_VERSION,
@@ -194,6 +231,7 @@ export const API_DEFINITION = {
   rateLimit: RATE_LIMIT,
   pagination: PAGINATION,
   maxBodyBytes: MAX_BODY_BYTES,
+  getFallback: GET_FALLBACK,
   everyCallLogged: true,
 } as const
 

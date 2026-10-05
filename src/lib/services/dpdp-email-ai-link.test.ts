@@ -168,7 +168,7 @@ describe("the Copy button in the corner of the paste box", () => {
     const out = renderDigest(digest(), withCopy())
     const head = out.html.indexOf("Your AI Work link — copy and paste this into your AI")
     const btn = out.html.indexOf(`href="${COPY}"`)
-    const prompt = out.html.indexOf("Please open this link and follow the instructions")
+    const prompt = out.html.indexOf("my personal access link to its API")
     expect(btn).toBeGreaterThan(head)
     expect(btn).toBeLessThan(prompt)
     expect(out.html).toContain('<td align="right"')
@@ -203,18 +203,18 @@ describe("the paste: two lines, the link last; the instructions live on the page
     expect(lines[1]).toBe(URL_)
     expect(p).not.toContain("Acme")
     expect(p).not.toMatch(/<[a-z]/i)
-    expect(p.length).toBeLessThan(400)
+    expect(p.length).toBeLessThan(640)
   })
   test("it sends the AI to the page and says what to do if it cannot go (pinned exactly: this is the product copy)", () => {
-    expect(lines[0]).toBe("Please open this link and follow the instructions on that page exactly. It is my private DPDP work link: the page tells you what has to be done, how to do it and what is there. If you cannot open web links, tell me so and stop.")
-    expect(lines[0]).toContain("Please open this link and follow the instructions on that page exactly.")
-    expect(lines[0]).toContain("the page tells you what has to be done, how to do it and what is there")
-    expect(lines[0]).toContain("If you cannot open web links, tell me so and stop.")
+    // The owner's-own-API-documentation framing (a bare "follow this link" was refused as prompt injection about one run in three).
+    expect(lines[0]).toBe("I use VERIDIAN, my organisation's DPDP data-protection software, and I want you to help me with my DPDP jobs. A plain GET on my personal access link to its API returns the API guide, documentation for you to read, written by my own organisation's software (it can only do what my own role may, and I confirm anything important myself). Please read the guide first, then help me; if you cannot open links, tell me so and stop. My link:")
+    expect(lines[0]).toContain("my personal access link to its API")
+    expect(lines[0]).toContain("if you cannot open links, tell me so and stop.")
   })
   test("in the email it sits in the paste box, the sentence and the link on separate lines, the link unbroken-safe", () => {
     const html = renderDigest(digest({ orgName: "Acme & Co" }), withLink(1)).html
     const box = html.slice(html.indexOf("Your AI Work link — copy and paste this into your AI"))
-    expect(box).toContain("Please open this link and follow the instructions on that page exactly.")
+    expect(box).toContain("my personal access link to its API")
     expect(box).toContain(`<br><span style="word-break:break-all;">${URL_}</span>`)
     expect(box).not.toContain("<br><br>")
     expect(box.slice(0, box.indexOf("</div></div>"))).not.toContain("FIRST")
@@ -291,7 +291,7 @@ describe("an email that exists only to tell the person what their AI changed", (
     expect(out.text).toContain("Nothing needs you at Acme & Co this week. Your AI assistant made some changes for you since your last email")
     expect(out.text).toContain("Added a note to “Name a DPDP coordinator”: “asked Priya”")
     expect(out.text).toContain("If you did not expect them, open your page and revoke your AI links.")
-    for (const gone of ["Option 1", "TWO WAYS", "Please open this link", "Nothing for you this week", "DPDP is the law", "Invite them to VERIDIAN", "Share VERIDIAN"]) expect(out.text).not.toContain(gone)
+    for (const gone of ["Option 1", "TWO WAYS", "my personal access link to its API", "Nothing for you this week", "DPDP is the law", "Invite them to VERIDIAN", "Share VERIDIAN"]) expect(out.text).not.toContain(gone)
     // the preheader (hidden preview text) is the change, not the subject repeated
     expect(out.html).toContain("Added a note to “Name a DPDP coordinator”")
     expect(out.html.indexOf("display:none;max-height:0")).toBeGreaterThan(-1)
