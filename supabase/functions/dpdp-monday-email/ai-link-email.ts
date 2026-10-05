@@ -16,7 +16,7 @@ export type AiLinkConfig = {
   changesEnabled: boolean
   /** 1 = read + small edits + drafts (READ / EDIT / WORK), 0 = read only. */
   level: 0 | 1
-  days: 1 | 7 | 30
+  days: 1 | 2 | 7 | 30
   /** The one-tap Copy page (https://<app>/copy/), or null while it is not live. Set DPDP_COPY_PAGE_URL when it is. */
   copyPageUrl: string | null
   /** Values that were set but not understood. Logged once at start-up. */
@@ -43,8 +43,10 @@ export function parseAiLinkConfig(get: (key: string) => string): AiLinkConfig {
   const level: 0 | 1 = levelRaw === "" || levelRaw === "1" ? 1 : 0
   if (levelRaw !== "" && levelRaw !== "0" && levelRaw !== "1") warnings.push(`DPDP_EMAIL_AI_LINK_LEVEL=${JSON.stringify(levelRaw)} is not "1" or "0"; treated as 0 (read only)`)
   const daysRaw = get("DPDP_EMAIL_AI_LINK_DAYS")
-  const days: 1 | 7 | 30 = daysRaw === "1" ? 1 : daysRaw === "30" ? 30 : 7
-  if (daysRaw !== "" && daysRaw !== "1" && daysRaw !== "7" && daysRaw !== "30") warnings.push(`DPDP_EMAIL_AI_LINK_DAYS=${JSON.stringify(daysRaw)} is not 1, 7 or 30; using 7`)
+  // 2026-10-05 (owner): the link in an e-mail is its own short-lived link, 48 hours for the weekly e-mail (24 hours for a one-off mail).
+  // The person's persistent link on the AI Link page is a different row and is never touched by this.
+  const days: 1 | 2 | 7 | 30 = daysRaw === "1" ? 1 : daysRaw === "7" ? 7 : daysRaw === "30" ? 30 : 2
+  if (daysRaw !== "" && daysRaw !== "1" && daysRaw !== "2" && daysRaw !== "7" && daysRaw !== "30") warnings.push(`DPDP_EMAIL_AI_LINK_DAYS=${JSON.stringify(daysRaw)} is not 1, 2, 7 or 30; using 2 (48 hours)`)
   // The Copy page address: an https URL ending in /copy/ with no query or fragment; anything else is ignored (no button), and reported.
   const copyRaw = get("DPDP_COPY_PAGE_URL")
   let copyPageUrl: string | null = null
@@ -62,14 +64,17 @@ const TOKEN_RE = /^[0-9a-f]{64}$/
 /** The URL a person pastes into an AI: this host's /ai/<token> (dpdp-app/functions/ai forwards it to the dpdp-ai-link function). */
 export const aiLinkUrl = (appOrigin: string, token: string): string => `${appOrigin}/ai/${token}`
 
+/** "Show my AI work link": the signed-in AI Link page. A plain address with no token in it. */
+export const aiPageUrl = (appOrigin: string): string => `${appOrigin}/app/#ai-link-settings`
+
 /**
  * A new link for this person, for THIS email (dpdp_timer_mint_email_ai_link). It retires nothing: last week's link stays
  * valid until this email has really gone (finishEmailAiLink). Null when switched off or on any failure.
  */
-export async function mintAiLink(rpc: Rpc, cfg: AiLinkConfig, appOrigin: string, membershipId: string, stats: AiStats, warn: (m: string) => void = () => {}): Promise<MintedLink | null> {
+export async function mintAiLink(rpc: Rpc, cfg: AiLinkConfig, appOrigin: string, membershipId: string, stats: AiStats, warn: (m: string) => void = () => {}, daysOverride?: 1 | 2): Promise<MintedLink | null> {
   if (!cfg.linkEnabled) return null
   try {
-    const r = (await rpc("dpdp_timer_mint_email_ai_link", { p_membership_id: membershipId, p_level: cfg.level, p_days: cfg.days })) as
+    const r = (await rpc("dpdp_timer_mint_email_ai_link", { p_membership_id: membershipId, p_level: cfg.level, p_days: daysOverride ?? cfg.days })) as
       { linkId?: string; token?: string; expiresAt?: string; level?: number; jobs?: number; people?: number } | null
     if (!r || typeof r.token !== "string" || !TOKEN_RE.test(r.token) || typeof r.expiresAt !== "string" || typeof r.linkId !== "string") {
       stats.mintFailed++
@@ -77,9 +82,8 @@ export async function mintAiLink(rpc: Rpc, cfg: AiLinkConfig, appOrigin: string,
       return null
     }
     stats.minted++
-    // The Copy page is only ever on the app's own origin, and the token rides in the URL FRAGMENT (a browser never sends it to a server).
-    const copyUrl = cfg.copyPageUrl && cfg.copyPageUrl.startsWith(`${appOrigin}/`) ? `${cfg.copyPageUrl}#${r.token}` : null
-    return { linkId: r.linkId, url: aiLinkUrl(appOrigin, r.token), expiresOn: istYmd(r.expiresAt), level: r.level === 0 ? 0 : 1, jobs: r.jobs, people: r.people, copyUrl }
+    // No hyperlink in the e-mail contains the token (2026-10-05): the paste box is plain text, and "Show my AI work link" goes to the signed-in page.
+    return { linkId: r.linkId, url: aiLinkUrl(appOrigin, r.token), expiresOn: istYmd(r.expiresAt), level: r.level === 0 ? 0 : 1, jobs: r.jobs, people: r.people, copyUrl: null, validHours: (daysOverride ?? cfg.days) * 24, aiPageUrl: aiPageUrl(appOrigin) }
   } catch (e) {
     stats.mintFailed++
     warn(`mintAiLink failed for ${membershipId}: ${e instanceof Error ? e.message : String(e)}`)

@@ -162,6 +162,9 @@ export async function proxyRequest(request: Request, path: string | string[] | n
     if (v) headers[name] = v
   }
   if (hasBody && !headers["content-type"]) headers["content-type"] = "application/json"
+  // The caller's address, for the unfamiliar-use alert only (the Edge Function keeps a /24 prefix at most). Cloudflare sets this header itself.
+  const clientIp = request.headers.get("cf-connecting-ip")
+  if (clientIp) headers["x-dpdp-client-ip"] = clientIp
   const upstream = await fetchImpl(upstreamUrlFor(parsed, url.search), { method: method === "HEAD" ? "GET" : method, headers, ...(hasBody ? { body } : {}) })
   const text = method === "HEAD" ? "" : await upstream.text()
   const extra: Record<string, string> = {}

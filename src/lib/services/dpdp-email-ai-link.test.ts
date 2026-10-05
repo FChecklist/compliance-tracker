@@ -11,7 +11,7 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
-  PLACEHOLDER, aiChangeSentence, aiLinkWarningSentence, aiPasteText, istYmd, renderDigest, statutorySubset, computeEscalation,
+  DO_NOT_FORWARD, PLACEHOLDER, aiChangeSentence, aiLinkWarningSentence, aiPasteText, istYmd, renderDigest, statutorySubset, computeEscalation,
   type AiChange, type Digest, type DigestJob, type RenderLinks,
 } from "../../../supabase/functions/dpdp-monday-email/render"
 import {
@@ -105,8 +105,9 @@ describe("the email: warning first, then a complete prompt, and only true claims
   test("Option 2 is honest about being two taps; the expiry is 'early on <date>' and a fresh link is conditional", () => {
     const out = renderDigest(digest(), withLink(1)).text
     expect(out).toContain("Two taps, no sign-in: the button, then a confirm on the page that opens.")
-    expect(out).toContain("The link stops working early on 5 October 2026. When there is something for you to do, next Monday's email brings a fresh one; otherwise open your page to make a new one.")
-    expect(out).not.toContain("next Monday's email brings a fresh one.\n")
+    // 2026-10-05: the e-mail's own link is short-lived (48 hours), names whose work the AI does, and the button always gives a fresh one.
+    expect(out).toContain("works for 48 hours only (until 5 October 2026); then it stops, exactly as if it never existed. The button below always gives you your own current link, and you can replace it there.")
+    expect(out).toContain("The AI will do the work of")
   })
 
   test("level 0 never says the AI makes updates, and does not contradict itself", () => {
@@ -161,37 +162,44 @@ describe("the email: warning first, then a complete prompt, and only true claims
   })
 })
 
-describe("the Copy button in the corner of the paste box", () => {
-  const COPY = `https://dpdp.veridian-aios.com/copy/#${TOKEN}`
-  const withCopy = (level: 0 | 1 = 1) => ({ ...base, aiLink: { url: URL_, expiresOn: "2026-10-12", level, jobs: 31, people: 4, copyUrl: COPY } })
-  test("a real anchor in the top right of the box header, before the prompt, saying Copy; the plain-text part gets the same one-tap link", () => {
-    const out = renderDigest(digest(), withCopy())
-    const head = out.html.indexOf("Your AI Work link — copy and paste this into your AI")
-    const btn = out.html.indexOf(`href="${COPY}"`)
-    const prompt = out.html.indexOf("my personal access link to its API")
-    expect(btn).toBeGreaterThan(head)
-    expect(btn).toBeLessThan(prompt)
-    expect(out.html).toContain('<td align="right"')
-    expect(out.html).toContain("&#128203; Copy</a>")
-    expect(out.text).toContain(`COPY IN ONE TAP: ${COPY}`)
-    expect(out.text.indexOf("COPY IN ONE TAP")).toBeLessThan(out.text.indexOf("YOUR AI WORK LINK -- copy the two lines"))
-    expect(out.text).toContain("Tap Copy at the top right of the box below (or select the box yourself) and paste it into an AI")
-    // the token URL itself stays plain text; only the fragment-carrying Copy URL is an anchor
-    expect(out.html).not.toContain(`href="${URL_}"`)
+describe("2026-10-05: no hyperlink carries the token; the button goes to the signed-in page; red do-not-forward at top and bottom", () => {
+  const PAGE = "https://dpdp.veridian-aios.com/app/#ai-link-settings"
+  const withPage = (level: 0 | 1 = 1) => ({ ...base, aiLink: { url: URL_, expiresOn: "2026-10-12", level, jobs: 31, people: 4, validHours: 48, aiPageUrl: PAGE } })
+  test("a prominent Show my AI work link button to the AI Link page; the token is plain text in the box and in no href", () => {
+    const out = renderDigest(digest(), withPage())
+    expect(out.html).toContain(`<a href="${PAGE}"`)
+    expect(out.html).toContain("Show my AI work link</a>")
+    expect(out.text).toContain(`SHOW MY AI WORK LINK (your signed-in page, always your current link): ${PAGE}`)
+    for (const m of out.html.matchAll(/href="([^"]*)"/g)) expect(m[1], "an href that holds the token").not.toContain(TOKEN)
+    expect(out.html).not.toContain("copy/#")
+    expect(out.text).not.toContain("COPY IN ONE TAP")
+    expect(out.html).toContain(URL_)
   })
-  test("no Copy page, no button, and the older sentence; the same for a read-only link", () => {
-    for (const links of [withLink(1), { ...withLink(0) }]) {
-      const out = renderDigest(digest(), links)
-      expect(out.html).not.toContain("Copy</a>")
-      expect(out.text).not.toContain("COPY IN ONE TAP")
-      expect(out.text).toContain("Copy the whole box below and paste it into an AI")
-    }
-    expect(renderDigest(digest(), withCopy(0)).html).toContain("Copy</a>")
+  test("DO NOT FORWARD in red at the top and at the bottom, the three steps with the AI names, validity and whose work", () => {
+    const out = renderDigest(digest(), withPage())
+    const warn = DO_NOT_FORWARD
+    expect(out.html.split(warn).length - 1).toBe(2)
+    expect(out.html).toContain("color:#B91C1C")
+    expect(out.html.indexOf(warn)).toBeLessThan(out.html.indexOf("Three ways to do this"))
+    expect(out.html.lastIndexOf(warn)).toBeGreaterThan(out.html.indexOf("Your jobs ("))
+    expect(out.text.indexOf(warn.toUpperCase())).toBeLessThan(out.text.indexOf("THREE WAYS TO DO THIS"))
+    expect(out.text.lastIndexOf(warn.toUpperCase())).toBeGreaterThan(out.text.indexOf("YOUR JOBS ("))
+    expect(out.text).toContain("ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai")
+    expect(out.text).toContain("THREE STEPS. 1. Select the box below and copy it.")
+    expect(out.text).toContain("works for 48 hours only")
+    expect(out.text).toContain("The AI works as ")
   })
-  test("the Copy URL is HTML-escaped and a dry run carries the placeholder, never a token", () => {
-    const out = renderDigest(digest(), { ...base, aiLink: { url: PLACEHOLDER.aiLink, expiresOn: "2026-10-12", level: 1, copyUrl: `https://dpdp.veridian-aios.com/copy/#${PLACEHOLDER.aiLink}` } })
-    expect(out.text).toContain(`COPY IN ONE TAP: https://dpdp.veridian-aios.com/copy/#${PLACEHOLDER.aiLink}`)
+  test("a read-only link, a one-off 24-hour link and a link-less mail", () => {
+    expect(renderDigest(digest(), withPage(0)).text).toContain("It cannot change anything")
+    const day = renderDigest(digest(), { ...base, aiLink: { url: URL_, expiresOn: "2026-10-06", level: 1, validHours: 24, aiPageUrl: PAGE } }).text
+    expect(day).toContain("works for 24 hours only")
+    const none = renderDigest(digest(), { ...base, aiLink: null })
+    expect(none.html).not.toContain(DO_NOT_FORWARD)
+  })
+  test("a dry run carries the placeholder, never a token", () => {
+    const out = renderDigest(digest(), { ...base, aiLink: { url: PLACEHOLDER.aiLink, expiresOn: "2026-10-12", level: 1, validHours: 48, aiPageUrl: PAGE } })
     expect(out.html + out.text).not.toMatch(/[0-9a-f]{64}/)
+    expect(out.text).toContain(PLACEHOLDER.aiLink)
   })
 })
 
@@ -320,13 +328,13 @@ function fakeDb(answers: Record<string, unknown | ((args: Record<string, unknown
   }
   return { rpc, calls }
 }
-const ON: AiLinkConfig = { linkEnabled: true, changesEnabled: true, level: 1, days: 7, copyPageUrl: null, warnings: [] }
+const ON: AiLinkConfig = { linkEnabled: true, changesEnabled: true, level: 1, days: 2, copyPageUrl: null, warnings: [] }
 const minted = { linkId: "L1", token: TOKEN, level: 1, expiresAt: "2026-10-12T00:30:00Z", jobs: 31, people: 4 }
 
 describe("parseAiLinkConfig: a switch on a credential fails CLOSED", () => {
   const cfg = (env: Record<string, string>) => parseAiLinkConfig((k) => env[k] ?? "")
-  test("unset means the documented defaults: on, level 1, 7 days", () => {
-    expect(cfg({})).toEqual({ linkEnabled: true, changesEnabled: true, level: 1, days: 7, copyPageUrl: null, warnings: [] })
+  test("unset means the documented defaults: on, level 1, 2 days (48 hours)", () => {
+    expect(cfg({})).toEqual({ linkEnabled: true, changesEnabled: true, level: 1, days: 2, copyPageUrl: null, warnings: [] })
   })
   test("'1' is on and '0' is off, with no warning", () => {
     expect(cfg({ DPDP_EMAIL_AI_LINK_ENABLED: "1", DPDP_EMAIL_AI_CHANGES_ENABLED: "0" })).toMatchObject({ linkEnabled: true, changesEnabled: false, warnings: [] })
@@ -354,10 +362,11 @@ describe("parseAiLinkConfig: a switch on a credential fails CLOSED", () => {
       expect(cfg({ DPDP_COPY_PAGE_URL: v })).toMatchObject({ copyPageUrl: null, warnings: [expect.stringContaining("DPDP_COPY_PAGE_URL")] })
     }
   })
-  test("days is exactly 1, 7 or 30, else 7 with a warning", () => {
+  test("days is exactly 1, 2, 7 or 30, else 2 (48 hours) with a warning", () => {
     expect(cfg({ DPDP_EMAIL_AI_LINK_DAYS: "1" }).days).toBe(1)
+    expect(cfg({ DPDP_EMAIL_AI_LINK_DAYS: "7" }).days).toBe(7)
     expect(cfg({ DPDP_EMAIL_AI_LINK_DAYS: "30" }).days).toBe(30)
-    for (const v of ["3", "365", "seven", "07"]) expect(cfg({ DPDP_EMAIL_AI_LINK_DAYS: v })).toMatchObject({ days: 7, warnings: [expect.stringContaining("DPDP_EMAIL_AI_LINK_DAYS")] })
+    for (const v of ["3", "365", "seven", "07"]) expect(cfg({ DPDP_EMAIL_AI_LINK_DAYS: v })).toMatchObject({ days: 2, warnings: [expect.stringContaining("DPDP_EMAIL_AI_LINK_DAYS")] })
   })
 })
 
@@ -366,17 +375,26 @@ describe("mintAiLink: fail-soft, counted, and it returns the link only in the sh
     const db = fakeDb({ dpdp_timer_mint_email_ai_link: minted })
     const stats = newAiStats()
     const link = await mintAiLink(db.rpc, ON, ORIGIN, "m1", stats)
-    expect(link).toEqual({ linkId: "L1", url: URL_, expiresOn: "2026-10-12", level: 1, jobs: 31, people: 4, copyUrl: null })
-    expect(db.calls).toEqual([{ fn: "dpdp_timer_mint_email_ai_link", args: { p_membership_id: "m1", p_level: 1, p_days: 7 } }])
+    expect(link).toEqual({ linkId: "L1", url: URL_, expiresOn: "2026-10-12", level: 1, jobs: 31, people: 4, copyUrl: null, validHours: 48, aiPageUrl: "https://dpdp.veridian-aios.com/app/#ai-link-settings" })
+    expect(db.calls).toEqual([{ fn: "dpdp_timer_mint_email_ai_link", args: { p_membership_id: "m1", p_level: 1, p_days: 2 } }])
     expect(stats).toMatchObject({ minted: 1, mintFailed: 0 })
   })
-  test("with the Copy page on, the link carries a one-tap URL whose token is in the FRAGMENT, and only on the app's own origin", async () => {
+  test("a configured Copy page is never used: no hyperlink in an e-mail carries the token", async () => {
     const db = fakeDb({ dpdp_timer_mint_email_ai_link: minted })
     const link = await mintAiLink(db.rpc, { ...ON, copyPageUrl: "https://dpdp.veridian-aios.com/copy/" }, ORIGIN, "m1", newAiStats())
-    expect(link?.copyUrl).toBe(`https://dpdp.veridian-aios.com/copy/#${TOKEN}`)
-    // a Copy page on another host is never used, even if it was configured
-    const other = await mintAiLink(fakeDb({ dpdp_timer_mint_email_ai_link: minted }).rpc, { ...ON, copyPageUrl: "https://evil.example/copy/" }, ORIGIN, "m1", newAiStats())
-    expect(other?.copyUrl).toBeNull()
+    expect(link?.copyUrl).toBeNull()
+  })
+  test("a one-off mail asks for a 24-hour link, the weekly mail for 48 hours; the persistent link is a different row and untouched", async () => {
+    const weekly = fakeDb({ dpdp_timer_mint_email_ai_link: minted })
+    const w = await mintAiLink(weekly.rpc, ON, ORIGIN, "m1", newAiStats())
+    expect(weekly.calls[0].args.p_days).toBe(2)
+    expect(w?.validHours).toBe(48)
+    const oneOff = fakeDb({ dpdp_timer_mint_email_ai_link: minted })
+    const o = await mintAiLink(oneOff.rpc, ON, ORIGIN, "m1", newAiStats(), () => {}, 1)
+    expect(oneOff.calls[0].args.p_days).toBe(1)
+    expect(o?.validHours).toBe(24)
+    // only the 'Monday email' label is ever retired by the finish step; a link made on the AI Link page has another label
+    expect(weekly.calls.every((c) => c.fn === "dpdp_timer_mint_email_ai_link")).toBe(true)
   })
   test("the configured level and days are what is asked for", async () => {
     const db = fakeDb({ dpdp_timer_mint_email_ai_link: { ...minted, level: 0 } })
@@ -519,7 +537,7 @@ describe("the Edge Function, the helpers and the migrations agree", () => {
     expect(sql4).toContain("p_membership_id text,\n  p_level integer default 1,\n  p_days integer default 7")
     expect(sql4).toContain("p_membership_id text,\n  p_link_id text,\n  p_delivered boolean")
     expect(sql4).toContain("p_membership_id text,\n  p_action_ids text[]")
-    expect(helper).toContain('"dpdp_timer_mint_email_ai_link", { p_membership_id: membershipId, p_level: cfg.level, p_days: cfg.days }')
+    expect(helper).toContain('"dpdp_timer_mint_email_ai_link", { p_membership_id: membershipId, p_level: cfg.level, p_days: daysOverride ?? cfg.days }')
     expect(helper).toContain('"dpdp_timer_finish_email_ai_link", { p_membership_id: membershipId, p_link_id: linkId, p_delivered: delivered }')
     expect(helper).toContain('"dpdp_timer_ai_actions_mark_shown", { p_membership_id: membershipId, p_action_ids: ids }')
     expect(helper).toContain('"dpdp_timer_ai_actions_for_digest", { p_membership_id: membershipId, p_mark: false }')

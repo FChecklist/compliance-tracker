@@ -229,3 +229,10 @@ The owner's aim: a person should, in most weeks, never open the web page. They c
   run.
 * `dpdp_my_page.rows[].sent` now counts `email_send` rows with status `sent`
   whose `obligation_ids` contain that job — the hard-coded 0 is gone.
+
+## 2026-10-05: short-lived e-mail link, no token in any hyperlink, unfamiliar-use alert
+
+* **The e-mail's link is its own link, valid 48 hours** (`DPDP_EMAIL_AI_LINK_DAYS` default 2; a one-off mail asks for 1 = 24 hours via `mintAiLink(..., 1)`). It is a different row from the person's persistent link made on the AI Link page, which this never touches. An expired link answers exactly like an unknown token (one sentence, `dpdp__ai_link_for_token`). drizzle/0695.
+* **The paste box is plain text.** The one-tap "Copy" hyperlink (token in a URL fragment) is gone: mail scanners and link rewriters would see it. Instead the e-mail has a "Show my AI work link" button to the signed-in page (`/app/#ai-link-settings`, no token), a red DO NOT FORWARD warning at the top and bottom, three steps (ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai ...), how long the link works, and whose work the AI does and at what role.
+* **Scan test:** `src/lib/services/dpdp-ai-link-token-hygiene.test.ts` fails if the token appears in any href, in any other mail, or in a report, or if a new file builds a link address without being added to its allow-list.
+* **Unfamiliar-use alert** (`dpdp-ai-link`, `unfamiliar.ts`, `dpdp_ai_link_note_use`): a call from a network prefix (IPv4 /24, IPv6 /48) or tool family not seen before for that link e-mails the link owner one plain message with no link, at most once per 24 hours per link, never for the first use. The Pages proxy forwards `CF-Connecting-IP` as `x-dpdp-client-ip`. Needs the project secrets `RESEND_API_KEY` (shared); without it the decision is made and nothing is sent.

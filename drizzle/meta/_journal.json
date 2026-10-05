@@ -3663,6 +3663,13 @@
       "when": 1790510000000,
       "tag": "0694_dpdp_ai_link_register",
       "breakpoints": true
+    },
+    {
+      "idx": 525,
+      "version": "7",
+      "when": 1790511000000,
+      "tag": "0695_dpdp_ai_link_email_short_and_unfamiliar_use",
+      "breakpoints": true
     }
   ]
 }
