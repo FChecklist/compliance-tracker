@@ -1,0 +1,31 @@
+{
+  "file": "./scripts/verify/awl-live/timing-logs.live.test.ts",
+  "args": [],
+  "commit": "77e01a18761a3419688e33dd748f9ca53a75d111",
+  "tree_dirty": false,
+  "started_at": "2026-10-05T08:58:37.045Z",
+  "ended_at": "2026-10-05T08:59:23.418Z",
+  "exit_code": 0,
+  "pass": 2,
+  "fail": 0,
+  "skip": 0,
+  "tests": [
+    {
+      "name": "a probe call is found again, exactly once, by the finder's query, with the status HTTP answered",
+      "result": "pass",
+      "time_s": 34.780674
+    },
+    {
+      "name": "the slow-or-failed query returns only calls that are really slow (>= 3 s) or 5xx; the 24 h summary is recorded",
+      "result": "pass",
+      "time_s": 10.823264
+    }
+  ],
+  "function_calls_during_run": {
+    "note": "every caller of the function in this window, not only this run (the database and the function are shared)",
+    "calls": 2,
+    "slow_3s_or_more": 1,
+    "failed_5xx": 1,
+    "status_503": 1
+  }
+}
