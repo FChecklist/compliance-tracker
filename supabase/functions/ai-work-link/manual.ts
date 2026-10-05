@@ -182,17 +182,28 @@ function bodyLimitNote(): string {
 }
 
 /**
- * The paste card's table. The card is for an AI that cannot call anything and has a budget of 8,000 bytes (LIMITS.cardMaxBytes, harness H19), so
- * a row is the id, the level (0 a read, 1 or 2 a change that is made directly) and the required parameters: no label (the id
- * says it), no Available column (it would read "not yet" on every row), no Kind column and no example (the proposal block below is the one
- * example the card needs). With 73 functions a row with a label and an example was about 96 bytes and the table alone passed the limit.
+ * The paste card's functions. The card is for an AI that cannot call anything and has a budget of 8,000 bytes (LIMITS.cardMaxBytes, harness H19).
+ * The CHANGE functions are a table of the id and the required parameters; the READ functions are one line of ids (an AI with no tools cannot run
+ * a read: the person pastes the data). No label (the id says it), no Available column (it would read "not yet" on every row), no example (the
+ * proposal block below is the one example the card needs).
+ *
+ * NO LEVEL COLUMN (audit 100, A32/A37, measured with a real Claude engine with no tools, PR #2077): the registry's per-function `link_level`
+ * (1 a change, 2 a delete-class change) is not the person's level and limits nothing on a proposal block: a block is a DRAFT the person confirms
+ * on the inbox page, open on every link (reads.ts availabilityOf: drafts_open is always true), and since drizzle/0693 a link at level 1 makes a
+ * level-2 function directly too (reads.ts directLevelOk). A card that printed "create_project | 2" beside a person at level 1 was read as
+ * "your level is too low" and the engine refused to write the block. The card now prints no per-function level at all
+ * (src/lib/services/ai-work-link-card-level.test.ts fails if one comes back).
  */
 function functionTable(functions: FunctionView[]): string {
   if (functions.length === 0) return "No function is on this link."
-  // lf-b5-ai-crud: a GitHub-flavoured table without the outer pipes and "-" for no required parameter (was "| ... | none |"): about 600 bytes
-  // fewer, so the card stays inside its 8,000 bytes with 158 functions in the registry. Same three columns, same order.
-  const rows = functions.map((f) => `${f.id} | ${f.level} | ${f.required.join(", ") || "-"}`)
-  return ["Function | Level | Required", "--- | --- | ---", ...rows].join("\n")
+  const changes = functions.filter((f) => f.kind === "write")
+  const reads = functions.filter((f) => f.kind !== "write")
+  const out: string[] = []
+  if (changes.length === 0) out.push("No change function is on this link: nothing to propose.")
+  // a GitHub-flavoured table without the outer pipes and "-" for no required parameter, as before (lf-b5-ai-crud)
+  else out.push("Change | Required", "--- | ---", ...changes.map((f) => `${f.id} | ${f.required.join(", ") || "-"}`))
+  if (reads.length > 0) out.push("", `Reads (no block; the person pastes that data): ${reads.map((f) => f.id).join(", ")}`)
+  return out.join("\n")
 }
 
 /**
@@ -570,6 +581,8 @@ export function renderCard(input: Pick<ManualInput, "ctx" | "functions">): strin
     forPerson ? USER_RULES.map((r, i) => `${i + 1}. ${r.replace("through that project's own address", "from the data the person pastes")}`).join("\n").replace("the methods in section E", "the proposal blocks below") : rulesText(true),
     "",
     "## Functions",
+    "",
+    "You may propose every change below, at any level: a block is a draft and nothing changes until the person confirms it. `level` is only about direct changes by an AI that opens the link.",
     "",
     functionTable(functions.map((f) => ({ ...f, available: false, drafts_open: false, direct_open: false, reads_open: false }))),
     "",
