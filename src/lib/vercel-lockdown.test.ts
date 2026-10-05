@@ -126,6 +126,13 @@ afterAll(() => {
 // (a Git deployment record that the `exit 0` ignoreCommand skips; the prebuilt workflow stays the
 // only real deploy path), and the catch-all must be `**`, not `*`: a bare `*` does not cross `/`,
 // which is exactly the R87 bug (every real branch here is `type/name`).
+//
+// 2026-10-06 (second pass, same cap): `"main": true` still created one Git deployment RECORD per main
+// merge (14 in 24h), each immediately CANCELED by the `exit 0` ignoreCommand, and those records still
+// count toward the Hobby cap shared with `projexa`. This project never deploys through Vercel's Git
+// integration (deploy-prebuilt.yml uses the Vercel CLI with a token, which deploymentEnabled does not
+// govern; sync-vercel-env.yml's redeploy step calls the Deployments API directly, likewise), so main
+// is now false too: NO branch, main included, creates a Git deployment record.
 // minimatch is what Vercel documents for these keys; v3 is CommonJS with no bundled types, so load it via createRequire.
 const minimatch = createRequire(import.meta.url)("minimatch") as (path: string, pattern: string) => boolean
 
@@ -155,15 +162,15 @@ const NON_MAIN_BRANCHES = [
   "release/main",
 ]
 
-describe("Vercel git.deploymentEnabled (2026-10-06) -- only main creates deployments", () => {
-  test("pinned: main true, catch-all '**' false", () => {
+describe("Vercel git.deploymentEnabled (2026-10-06) -- no branch, main included, creates a Git deployment record", () => {
+  test("pinned: main false, catch-all '**' false", () => {
     const v = readVercelJson()
-    expect(v.git?.deploymentEnabled).toEqual({ main: true, "**": false })
+    expect(v.git?.deploymentEnabled).toEqual({ main: false, "**": false })
   })
 
-  test("main still creates its Git deployment (skipped by ignoreCommand, as before)", () => {
+  test("main creates no Git deployment record (the prebuilt workflow is the only deploy path)", () => {
     const v = readVercelJson()
-    expect(vercelWouldDeploy(v.git?.deploymentEnabled, "main")).toBe(true)
+    expect(vercelWouldDeploy(v.git?.deploymentEnabled, "main")).toBe(false)
   })
 
   for (const branch of NON_MAIN_BRANCHES) {
@@ -174,8 +181,8 @@ describe("Vercel git.deploymentEnabled (2026-10-06) -- only main creates deploym
   }
 
   test("the matcher itself reproduces the R87 bug: a bare '*' does not match names with '/'", () => {
-    expect(vercelWouldDeploy({ main: true, "*": false }, "audit100/a2-claim-done")).toBe(true)
-    expect(vercelWouldDeploy({ main: true, "**": false }, "audit100/a2-claim-done")).toBe(false)
+    expect(vercelWouldDeploy({ main: false, "*": false }, "audit100/a2-claim-done")).toBe(true)
+    expect(vercelWouldDeploy({ main: false, "**": false }, "audit100/a2-claim-done")).toBe(false)
   })
 })
 
