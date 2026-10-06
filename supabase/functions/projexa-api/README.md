@@ -101,3 +101,7 @@ curl https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/projexa-api/_policy  
 - Sign-in keys unreachable is `503` with Retry-After (the Next route says 401).
 - The upstream is still the VERIDIAN backend (`VERIDIAN_API_BASE_URL`): a call costs one VERIDIAN invocation instead of one PROJEXA Vercel
   invocation plus one VERIDIAN invocation.
+
+## POST /uploads/sign (file uploads without Vercel)
+
+Not a proxied `/api` route: `upload-sign.ts` (own handler, like `/link-member`). Returns a one-time signed Supabase Storage upload address into the public bucket `projexa-files`; the laptop PUTs the bytes there itself and saves the record with `externalUrl`. Contract and examples: `ai-os/audit37/UPLOAD_CONTRACT_2026-10-06.md`. Tests: `src/lib/services/projexa-upload-sign.test.ts`. Not in `policy.generated.ts` / the parity golden (those describe proxied routes only; nothing to regenerate).
