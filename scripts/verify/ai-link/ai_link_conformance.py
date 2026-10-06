@@ -32,7 +32,7 @@ import sys
 import time
 import urllib.parse
 
-MAX_MANUAL_BYTES = 40000
+MAX_MANUAL_BYTES = 46000  # LIMITS.manualMaxBytes of supabase/functions/_shared/ai-link/core.ts: 40,000 + 6,000 for a user guide's inline project list (AUDIT-100, 2026-10-06)
 MAX_PAGE_BYTES = 1_000_000
 MAX_PAGE_SECONDS = 2.0
 MAX_URL_CHARS = 250  # Anthropic web fetch tool refuses longer URLs (url_too_long), per AILINK_R03 1.5 (FETCHED)

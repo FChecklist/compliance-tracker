@@ -288,7 +288,7 @@ export type ProjectBoundId = (typeof PROJECT_BOUND_IDS)[number]
 export type EndpointId =
   | "manual" | "manual_md" | "manual_json" | "card" | "card_data" | "openapi" | "swagger" | "context" | "records" | "record" | "functions"
   | "function_run" | "propose" | "intents" | "history" | "mcp" | "mcp_path" | "check" | "actions" | "drafts" | "draft" | "suggestions" | "suggestions_add"
-  | "projects" | "portfolio" | `project_${ProjectBoundId}`
+  | "projects" | "portfolio" | "workspace" | "workspace_all" | "workspace_txt" | `project_${ProjectBoundId}`
 
 export type Endpoint = {
   id: EndpointId
@@ -331,6 +331,10 @@ const OWN_ENDPOINTS: ReadonlyArray<Endpoint> = [
   // the suggestions board (drizzle/0672): a link may SAY what the software lacks; it changes no app code and no one's data. Not registry functions.
   { id: "suggestions", methods: ["GET"], pattern: ["suggestions"], path: "/suggestions", summary: "This link's own suggestions and the shared board of suggestions the PROJEXA team approved for every assistant to see. Reads only.", formats: ["md", "json"], query: [{ name: "limit", meaning: "1 to 100 (default 50)" }], available: true },
   { id: "suggestions_add", methods: ["POST"], pattern: ["suggestions"], path: "/suggestions", summary: "Suggest a feature, improvement, report or fix the software lacks. Recorded for the PROJEXA team to review; it changes no data and no part of the app.", formats: ["json"], body: "{ \"kind\": \"feature\", \"title\": \"<one line, up to 120 characters>\", \"body\": \"<optional detail, up to 2000 characters>\", \"project\": \"<optional project id>\" }", available: true },
+  // AUDIT-100 (2026-10-06): everything the person may read in ONE text document, for chat tools that open only the address the person typed (workspace.ts)
+  { id: "workspace", methods: ["GET"], pattern: ["workspace"], path: "/workspace", summary: "Everything in one page: the numbered project list, the portfolio, each project's status, overdue tasks, open RFIs, change orders, delays and latest progress, and what the AI can do. Read only.", formats: ["md"], query: [{ name: "page", meaning: "1 to 999: the next projects (8 a page)" }], available: true },
+  { id: "workspace_all", methods: ["GET"], pattern: ["all"], path: "/all", summary: "The same page as /workspace.", formats: ["md"], query: [{ name: "page", meaning: "1 to 999: the next projects (8 a page)" }], available: true },
+  { id: "workspace_txt", methods: ["GET"], pattern: ["workspace.txt"], path: "/workspace.txt", summary: "The same page as /workspace, as a file to save (Content-Disposition: attachment).", formats: ["md"], query: [{ name: "page", meaning: "1 to 999: the next projects (8 a page)" }], available: true },
 ]
 
 /** The endpoints of a link made for a person (all their projects): the numbered list and the report on all of it. A project link answers 403 USER_LINK_REQUIRED. */
@@ -358,7 +362,7 @@ export function underlyingOf(id: EndpointId): ProjectBoundId | null {
 
 /** What a link made for a person may call BEFORE it has chosen a project: it can list its projects, read the manual, check and draft a new project. */
 export const USER_LEVEL_IDS: ReadonlySet<EndpointId> = new Set<EndpointId>([
-  "manual", "manual_md", "manual_json", "card", "openapi", "swagger", "context", "functions", "propose", "check", "drafts", "draft", "actions", "intents", "history", "mcp", "mcp_path", "projects", "portfolio", "suggestions", "suggestions_add",
+  "manual", "manual_md", "manual_json", "card", "openapi", "swagger", "context", "functions", "propose", "check", "drafts", "draft", "actions", "intents", "history", "mcp", "mcp_path", "projects", "portfolio", "suggestions", "suggestions_add", "workspace", "workspace_all", "workspace_txt",
 ])
 
 export type Matched = { endpoint: Endpoint; params: Record<string, string> }
