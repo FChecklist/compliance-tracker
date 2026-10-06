@@ -38,8 +38,12 @@ export const LIMITS = {
   filterKeysMax: 12,
   filterValueMax: 200,
   textMax: 2000,
-  /** The manual stays BELOW this many bytes (harness H01). */
-  manualMaxBytes: 40000,
+  /**
+   * The manual stays BELOW this many bytes (harness H01). 40,000 until AUDIT-100 (2026-10-06); 46,000 since = the old 40,000 for the guide plus 6,000 for the
+   * "Your projects" list a user link's guide now carries (manual.ts INLINE_PROJECTS_MAX_BYTES). Measured: a user guide with 2 projects 36,341 bytes, with 19
+   * realistic projects (19 of 19 listed) 40,082; a project link's guide 39,248 (it carries no list).
+   */
+  manualMaxBytes: 46000,
   /** The paste card stays at or below this many bytes (AWL-H19, a design bound). */
   cardMaxBytes: 8000,
   cardDataMaxBytes: 100000,
@@ -105,9 +109,21 @@ export function relativePathOf(rest: string[]): string {
 
 /** The first product name in a User-Agent (`Claude-User`, `curl`, `ChatGPT-User`), at most 40 characters, or null. */
 export function uaFamilyOf(userAgent: string | null | undefined): string | null {
-  const m = /^([A-Za-z][A-Za-z0-9._-]{0,39})/.exec((userAgent ?? "").trim())
+  const ua = (userAgent ?? "").trim()
+  // AUDIT-100 (ENGINE_CAPABILITIES_2026-10-06): the AI fetchers mostly send "Mozilla/5.0 (compatible; <name>/1.0; ...)", so the first product name says only
+  // "Mozilla". A known AI fetcher's own name, found anywhere in the string, is logged instead (still a fixed name from this list, never the caller's text).
+  const lower = ua.toLowerCase()
+  for (const name of AI_FETCHERS) if (lower.includes(name.toLowerCase())) return name
+  const m = /^([A-Za-z][A-Za-z0-9._-]{0,39})/.exec(ua)
   return m ? m[1] : null
 }
+
+/** The AI fetchers' user-agent names, most specific first (a "Google-NotebookLM" fetch also says "Google"). */
+export const AI_FETCHERS: ReadonlyArray<string> = [
+  "ChatGPT-User", "OAI-SearchBot", "GPTBot", "Claude-User", "Claude-SearchBot", "ClaudeBot", "Google-NotebookLM", "Google-Extended", "GoogleAgent-Mariner",
+  "Google-CloudVertexBot", "GoogleOther", "Googlebot", "Gemini", "Perplexity-User", "PerplexityBot", "DeepSeekBot", "DeepSeek", "MistralAI-User", "Bytespider",
+  "meta-externalagent", "Amazonbot", "cohere-ai", "YouBot", "Grok", "xAI", "Zhipu", "ChatGLM",
+]
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Format, pages, errors: the three helpers the DPDP router also exports
@@ -178,16 +194,26 @@ export function errorBody(status: number, error: string, hint?: string, extra?: 
 // Private response headers: section 4.1
 // ---------------------------------------------------------------------------------------------------------------------------------
 
+/** The X-Robots-Tag of every answer by default (section 4.1): not indexed, not followed, not archived, no snippet. */
+export const ROBOTS_PRIVATE = "noindex, nofollow, noarchive, nosnippet"
+/**
+ * The X-Robots-Tag of the ai-work-link GUIDE and its other documents only (the root, /manual.md, /manual.json, /card.md, /openapi.json, /swagger.json),
+ * AUDIT-100, 2026-10-06: in the owner's real runs our server answered Gemini's "Google" fetcher 200 twice and Gemini still told him it could not access
+ * the page; Google's AI features may refuse to use a page marked nosnippet. Still never indexed and never followed. Data answers keep ROBOTS_PRIVATE,
+ * and the DPDP function (dpdp-ai-link) does not use this file's headers at all.
+ */
+export const ROBOTS_DOC = "noindex, nofollow"
+
 /**
  * The header set every response carries (errors, 204 preflight and 429 included): no caching, no referrer, no indexing, no sniffing, a
  * CSP that allows nothing, and CORS for any origin without credentials (the credential is the token, never a cookie).
- * `remaining` adds `RateLimit-Remaining`; `retryAfter` adds `Retry-After` (a 429).
+ * `remaining` adds `RateLimit-Remaining`; `retryAfter` adds `Retry-After` (a 429); `robots` replaces the X-Robots-Tag (ROBOTS_DOC, the guide only).
  */
-export function privateHeaders(contentType: string | null, opts: { remaining?: number | null; retryAfter?: number | null; extra?: Record<string, string> } = {}): Record<string, string> {
+export function privateHeaders(contentType: string | null, opts: { remaining?: number | null; retryAfter?: number | null; extra?: Record<string, string>; robots?: string } = {}): Record<string, string> {
   const h: Record<string, string> = {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer",
-    "X-Robots-Tag": "noindex, nofollow, noarchive, nosnippet",
+    "X-Robots-Tag": opts.robots ?? ROBOTS_PRIVATE,
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
     "Access-Control-Allow-Origin": "*",

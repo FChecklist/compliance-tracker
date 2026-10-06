@@ -14,6 +14,7 @@
 // Run: bun test --isolate src/lib/services/ai-work-link-suggestions.test.ts
 import { describe, test, expect } from "bun:test"
 import { handleAwl } from "../../../supabase/functions/ai-work-link/handler"
+import { LIMITS } from "../../../supabase/functions/_shared/ai-link/core"
 import { LINK_FUNCTIONS, TOOLS, matchEndpoint } from "../../../supabase/functions/ai-work-link/api-definition"
 import type { Rpc } from "../../../supabase/functions/ai-work-link/reads"
 import { F, TOKENS, makeFake, manifestOf, req, testConfig, tok, type FakeOptions } from "./__test-helpers__/awl-edge-fake"
@@ -392,7 +393,8 @@ describe("the definition, the manual and the registry", () => {
       expect(md).toContain("You cannot change the app or anyone's data")
       expect(md).toContain("PROJEXA team reviews suggestions")
       expect(manifestOf(md).urls.suggestions).toBe(`${F}/${token}/suggestions`)
-      expect(new TextEncoder().encode(md).length).toBeLessThan(40000)
+      // the guide's own budget (46,000 since AUDIT-100: a user guide now carries its project list, the footer and the /workspace pointer; measured 38,813 here)
+      expect(new TextEncoder().encode(md).length).toBeLessThan(LIMITS.manualMaxBytes)
     }
   })
 
