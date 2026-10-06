@@ -40,13 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (AUDIT-100 link-invited-members; worktrees C:/ct/ct-linkmem + C:/ct/px-linkmem, branch audit100/link-invited-members in both repos)"
-    claimed_at: "2026-10-06T (this session)"
-    claim: |
-      Scope: every invited PROJEXA member gets their own VERIDIAN user. compliance-tracker: drizzle/0728_projexa_ensure_member_user.sql (+down, journal),
-      supabase/functions/projexa-api/member-link.ts + index.ts wiring (POST /link-member, separate from A2's handler.ts/policy files), tests.
-      projexa: src/lib/veridian-member-link.ts, src/lib/ai-work-link-core.ts (lazy heal on USER_NOT_LINKED), src/app/api/org/invites/accept/route.ts,
-      scripts/ops/link-unlinked-members.mjs, e2e/audit37-real-invite-links-members.spec.ts. Deploys projexa-api once (rebased on A2's batch 2 if merged).
   - session_label: "claude-code (DPDP AI work link SHORT paste + GET fallback + role parity; worktree C:/ct/ct-shortlink, branch feat/ai-short-link-manual)"
     claimed_at: "2026-10-04T (this session)"
     claim: |
@@ -5246,6 +5239,14 @@ active:
       Vercel dashboard, no DNS, no spend. PROJEXA side (FChecklist/projexa audit100/a2-batch-2): projexa-api-routes.json batch 2, parity
       contract, px-api.ts route list, callers fetch -> viaPxApi, inventory budget 264. Order: function deployed BEFORE the client list merges.
 recently_completed:
+  - session_label: "claude-code (AUDIT-100 link-invited-members; worktrees C:/ct/ct-linkmem + C:/ct/px-linkmem, branch audit100/link-invited-members in both repos)"
+    claimed_at: "2026-10-06T (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2088 merged 49eff0a5, drizzle/0728 applied live, projexa-api deployed from main, live smoke 24/24; projexa #400 merged d8de680f; real e2e 9 passed)"
+    claim: |
+      Scope: every invited PROJEXA member gets their own VERIDIAN user. compliance-tracker: drizzle/0728_projexa_ensure_member_user.sql (+down, journal),
+      supabase/functions/projexa-api/member-link.ts + index.ts wiring (POST /link-member, separate from A2's handler.ts/policy files), tests.
+      projexa: src/lib/veridian-member-link.ts, src/lib/ai-work-link-core.ts (lazy heal on USER_NOT_LINKED), src/app/api/org/invites/accept/route.ts,
+      scripts/ops/link-unlinked-members.mjs, e2e/audit37-real-invite-links-members.spec.ts. Deploys projexa-api once (rebased on A2's batch 2 if merged).
   - session_label: "claude-code (AUDIT-100 A2: PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2 + C:/ct/px-a2, branch audit100/a2-edge-proxy)"
     claimed_at: "2026-10-05T (this session)"
     completed_at: "2026-10-06 (compliance-tracker #2082 merged e5f3471a, projexa-api deployed v1, live smoke 24/24; projexa #392)"
