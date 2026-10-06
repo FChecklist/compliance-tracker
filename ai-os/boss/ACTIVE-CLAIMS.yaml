@@ -15,7 +15,23 @@
 # PROTOCOL (every session, every time, no exceptions):
 #   1. BEFORE selecting a gap/task from ai-os/MASTER-TRACKER.yaml (or any
 #      other source) to work on: `git pull origin main` this file fresh,
-#      read every entry under `active:` below, and do NOT start work on a
+#      read every entry under `active:
+  - session_label: "claude-code handover/PM session (AUDIT-100 programme: 100-point audit) -- 2026-10-06"
+    claimed_at: "2026-10-06T09:30+05:30"
+    claim: |
+      OWNS (do not edit without messaging this session): supabase/functions/projexa-api (generic edge proxy, deployed v6+) and its generated
+      policy; supabase/functions/ai-work-link (guide, card, /workspace, confirm page, robots header); supabase/functions/projexa-api POST /link-member;
+      projexa src/lib/px-api.ts + vercel-route-inventory + e2e/lf-lifecycle-vercel-budget.spec.ts; vercel.json deploymentEnabled (both repos);
+      migrations 0727 and 0728 (and 0729+ until released here); AUDIT_100_CHECKLIST.md; ai-os/audit37/*.
+      THE OFFLINE UI/UX SESSION (4 aims, 111 Sumeet rows) OWNS: supabase/functions/projexa-sync (CORS fix fix/sync-cors-any-local-origin, deployed v8:
+      MUST be merged to main before anyone redeploys projexa-sync), projexa src/lib/local-first/shell offline gate (fix/offline-gate-no-lockout),
+      the local servers :3000 / :3110 and the demo-org orphan G-04.
+      PROTOCOLS: (1) DEPLOY LOCK: before `supabase functions deploy <fn>` take mkdir C:/ct/deploy-<fn>.lock (rmdir right after the verify step); never deploy
+      a function whose repo copy is behind the live version without merging first; deploy only from a clean checkout of origin/main. (2) BUILD LOCK:
+      C:/ct/heavy.lock (mkdir; free RAM >= 1.2 GB before any build/browser). (3) PORTS: 3100/3101/3110 = the offline session; 3117+54399 = shared test
+      rig; agents use 3137-3197. (4) MIGRATION NUMBERS: take the next free number by checking origin/main AND open PRs (gh pr list --search 'drizzle/07'),
+      write the claim here first. (5) Never --admin merge; GitHub runner outage = rerun failed jobs.
+` below, and do NOT start work on a
 #      gap/file-area another entry already claims, unless that entry's
 #      `claimed_at` is more than 4 hours stale with no matching open PR
 #      (check `gh pr list`) -- treat a stale claim as abandoned, not binding.
