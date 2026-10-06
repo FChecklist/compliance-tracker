@@ -15,9 +15,9 @@ Owner key: **PM** = this session (builds, commits locally). **S2** = the other s
 | ID | Item | Owner | State |
 |---|---|---|---|
 | A1 | Offline create screens (permit/drawing/document, new meeting) merged into train | PM | DONE, head `b5a06aa0` |
-| A2 | `e2e/lf-file-uploads.spec.ts` (3 tests) | PM | WRITTEN + committed `52a5b7c7`, NOT RUN |
-| A3 | Run A2 once (needs lock, RAM > 1.2 GB) | PM | PENDING |
-| A4 | Plant-then-revert proof that A2 fails on broken code (R74-RULING-03) | PM | PENDING |
+| A2 | `e2e/lf-documents-file-uploads.spec.ts` (3 tests; renamed so the local-first config matches it) | PM | DONE, local pass |
+| A3 | Run A2 | PM | DONE 2026-10-06, 3 passed (2.4m), config playwright.local-first.config.ts, train branch head = commit "fix(local-first): send waiting files..." (see git log) |
+| A4 | Proof that A2 fails on broken code | PM | DONE: the run before the fix failed drawing + document ("offline create_* was never sent", 0 pushes); after the fix 3/3 pass. Real bug found + fixed: file scheduler was not nudged on online/focus (LocalShell.tsx) |
 | A5 | Live run: one real permit upload vs live `/uploads/sign` (v11); 403 for client_viewer | PM | PENDING, needs network |
 | A6 | Two laptops, same project, online + offline, conflict keep-mine/keep-theirs (one long wait, no 15 s reload) | PM | PENDING |
 | A7 | Second-ORG isolation via Edge session layer + data-service key path | PM | PENDING, needs network |
@@ -91,8 +91,8 @@ Before a heavy step: close Chrome and any dev servers (`windows-dev-process-guar
 - [ ] B5 coverage report regenerated
 - [ ] B2 reconciled with `c7d605e7` (no lost commit)
 - [ ] B6 live ledger checked
-- [ ] A3 upload spec passes
-- [ ] A4 upload spec fails on planted bug, then reverted
+- [x] A3 upload spec passes
+- [x] A4 upload spec failed on the unfixed code, passes on the fix
 - [ ] Gate 1 recorded
 - [ ] Merge locally, re-run batch
 - [ ] 0736 applied live + verified
@@ -103,3 +103,6 @@ Before a heavy step: close Chrome and any dev servers (`windows-dev-process-guar
 - [ ] Push once per repo, one PR each, one CI run
 - [ ] Merge on green
 - [ ] Deploy ritual, live check, static pages
+
+## 7. LOG
+- 2026-10-06 PM: A2/A3/A4 done. Product bug fixed in projexa train: the file-upload scheduler (LocalShell.tsx) is now nudged when the connection returns and when the tab regains focus. Lesson: wait for `C:\ct\heavy.lock` to be gone before starting a run, and release it with `rm -rf` (rmdir fails on a non-empty folder). GitHub still unreachable; B3-B8 and A12 unchanged (S2 / VERIFY).
