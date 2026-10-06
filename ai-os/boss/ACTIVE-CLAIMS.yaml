@@ -5231,14 +5231,15 @@ active:
       Commits are local to this worktree; opens its own PR per the task's
       instruction.
 
+recently_completed:
   - session_label: "claude-code (AUDIT-100 A2 batches 2-4: 106 more PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2(b3) + C:/ct/px-a2(b3), branches audit100/a2-batch-2, -3, -4)"
     claimed_at: "2026-10-06 (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2086 3bb2d06d + #2087 86b7feb8 merged; projexa-api v3 deployed, 113 routes, live smoke 188/188; projexa #398 merged 76a80d65, #399 = batches 3+4 client list)"
     claim: |
       Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md} (3 new spec keys: forward_search,
       success_status, cache_control), src/lib/services/projexa-api-edge-parity.test.ts. One deploy of projexa-api only (no new secret). No
       Vercel dashboard, no DNS, no spend. PROJEXA side (FChecklist/projexa audit100/a2-batch-2): projexa-api-routes.json batch 2, parity
       contract, px-api.ts route list, callers fetch -> viaPxApi, inventory budget 264. Order: function deployed BEFORE the client list merges.
-recently_completed:
   - session_label: "claude-code (AUDIT-100 link-invited-members; worktrees C:/ct/ct-linkmem + C:/ct/px-linkmem, branch audit100/link-invited-members in both repos)"
     claimed_at: "2026-10-06T (this session)"
     completed_at: "2026-10-06 (compliance-tracker #2088 merged 49eff0a5, drizzle/0728 applied live, projexa-api deployed from main, live smoke 24/24; projexa #400 merged d8de680f; real e2e 9 passed)"
