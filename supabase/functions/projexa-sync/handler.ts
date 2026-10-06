@@ -157,6 +157,12 @@ export function decodeCursor(cursor: string): { ts: string; id: string } | null 
 export const CORS_ALLOW_HEADERS = "authorization, content-type, x-px-client"
 export const CORS_EXPOSE_HEADERS = "Retry-After"
 export const CORS_MAX_AGE_SECONDS = 7200
+// Every user's laptop is its own server (owner aim 2026-10-06), on whatever port is free: any loopback origin is the laptop itself. Safe because the
+// answer carries no credentials (no cookies; auth is the Bearer token), so only a page running ON that laptop can read it.
+const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/
+export function isAllowedOrigin(origin: string, allowed: readonly string[]): boolean {
+  return allowed.includes(origin) || LOOPBACK_ORIGIN.test(origin)
+}
 function corsHeaders(req: Request, deps: SyncDeps): Record<string, string> {
   const origin = req.headers.get("origin")
   const allowed = deps.allowedOrigins ?? ALLOWED_ORIGINS
@@ -167,7 +173,7 @@ function corsHeaders(req: Request, deps: SyncDeps): Record<string, string> {
     "Access-Control-Expose-Headers": CORS_EXPOSE_HEADERS,
     "Access-Control-Max-Age": String(CORS_MAX_AGE_SECONDS),
   }
-  if (origin && allowed.includes(origin)) h["Access-Control-Allow-Origin"] = origin
+  if (origin && isAllowedOrigin(origin, allowed)) h["Access-Control-Allow-Origin"] = origin
   return h
 }
 
