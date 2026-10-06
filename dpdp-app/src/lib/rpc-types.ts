@@ -182,7 +182,104 @@ export type OrgInviteLinkPayload = { code: string }
 /** dpdp_join_org_via_invite (drizzle/0657): redeems a `?join=` code, adding the caller to that code's organisation as staff. alreadyMember is true when they belonged to it already (idempotent, not an error). */
 export type JoinOrgResult = { ok: true; orgId: string; membershipId: string; alreadyMember: boolean }
 
-/** dpdp_my_billing (drizzle/0655), owner-only: trial | awaiting_confirmation | active. selfDeclared* is the owner's own unverified claim; lastConfirmedAt is the only fact the Owner has actually verified. Access never depends on any of this. */
+// ---------------------------------------------------------------------
+// Account opening, plans and the billing state machine (drizzle/0734).
+// ---------------------------------------------------------------------
+
+export type ProfessionalBody = "ICAI" | "ICSI" | "ICMAI" | "other"
+/** No owner verification exists: "declared" is the firm's own tick of "I am a practising CA / CS / cost accountant"; "downgraded" is the owner's audited move to a paid plan. */
+export type VerificationStatus = "none" | "declared" | "downgraded"
+export type AccountBillingState = "TRIAL" | "ACTIVE" | "DUE" | "GRACE" | "LOCKED"
+
+/** dpdp_open_account: the dpdp_create_my_org result plus what the account was opened as. attribution is only the KIND (never a name). */
+export type OpenAccountPayload = CreateMyOrgPayload & {
+  accountExisting?: boolean
+  accountType?: "firm" | "institution"
+  planKey?: string
+  monthlyPaise?: number
+  listMonthlyPaise?: number
+  offerActive?: boolean
+  attribution?: "none" | "tracker" | "referral" | "partner"
+  verification?: VerificationStatus
+}
+
+/** One element of dpdp_public_plans (prices in paise per month, excluding GST). monthlyPaise is what a new sign-up pays today. */
+export type PlanWirePayload = {
+  key: string
+  accountType: "firm" | "institution"
+  name: string
+  maxClients: number
+  requiresDeclaration: boolean
+  listMonthlyPaise: number
+  monthlyPaise: number
+  offerLabel: string | null
+  yearlyMonthsCharged: number
+}
+
+/** dpdp_my_account: any member sees the state; only the owner of the paying account sees money. hasAccount=false is an older organisation: never locked. */
+export type MyAccountPayload =
+  | { orgId: string; hasAccount: false; state: "ACTIVE" }
+  | {
+      orgId: string
+      hasAccount: true
+      coveredByFirm: boolean
+      accountType: "firm" | "institution"
+      planKey: string
+      planName: string
+      state: AccountBillingState
+      free: boolean
+      openedOn: string
+      periodEndsOn: string
+      lockedOn: string
+      finalDownloadOn: string
+      retentionEndsOn: string
+      dueLine: string | null
+      clients: { used: number; cap: number }
+      verification: { status: VerificationStatus; declared: boolean; body: ProfessionalBody | null; registrationNo?: string | null }
+      /** How much of the optional account information is filled; `fields` (the values) only for the owner. */
+      profile: ProfileProgress | null
+      /** True on a test account: the Test payment action is offered only here, and only while the platform is in Test mode. */
+      isTest: boolean
+      money: null | {
+        interval: "month" | "year"
+        monthlyPaise: number
+        listMonthlyPaise: number
+        offerLabel: string | null
+        monthPaise: number
+        yearPaise: number
+        paidUntil: string | null
+      }
+    }
+
+export type ProfileFields = Partial<{
+  firmName: string; clientsEstimate: number; legalName: string; institutionType: "company" | "school" | "NGO" | "other"; sizeBand: string
+  dpoName: string; dpoEmail: string; city: string; gstin: string; contactPerson: string; phone: string
+  professionalBody: ProfessionalBody; registrationNo: string
+}>
+export type ProfileProgress = { done: number; total: number; percent: number; missing: Array<{ key: string; label: string }>; fields?: ProfileFields }
+
+/** dpdp_account_save_profile: a value that does not fit is named in `ignored` and left out, never refused. */
+export type SaveProfilePayload = { ok: true; ignored: string[]; note: string | null; status: VerificationStatus; planKey: string; profile: ProfileProgress }
+
+/** dpdp_owner_declared_firms: the firms that ticked the declaration (and those the owner downgraded). formatOk is informational only. */
+export type DeclaredFirmWire = {
+  orgId: string; orgName: string; status: VerificationStatus; planKey: string; professionalBody: ProfessionalBody | null; registrationNo: string | null
+  formatOk: boolean | null; firmName: string | null; city: string | null; clientsEstimate: number | null; declaredAt: string | null; isTest: boolean
+}
+
+/** dpdp_platform_mode: readable by anyone. */
+export type PlatformModePayload = { mode: "TEST" | "LIVE"; test: boolean }
+
+/** dpdp_locked_download: everything a locked account can take away. */
+export type DataExportPayload = {
+  exportedAt: string
+  organisation: { id: string; name: string; edition: string | null }
+  jobs: Array<{ id: string; job: string; state: string; dueOn: string; naReason: string | null; closedAt: string | null }>
+  history: Array<{ kind: string; summary: string; detail: string | null; by: string; at: string }>
+  note: string
+}
+
+/** dpdp_my_billing (drizzle/0655), owner-only: trial | awaiting_confirmation | active. selfDeclared* is the owner's own unverified claim; lastConfirmedAt is the only fact the Owner has actually verified. This is the subscription ledger; whether the account is locked is a separate fact (MyAccountPayload.state, drizzle/0734), worked out from dates and payments. */
 export type BillingStatusPayload = {
   orgId: string
   product: "firm" | "institution"

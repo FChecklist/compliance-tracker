@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner delegated full PM authority and ordered the shared audit trail built (owner decisions recorded 2026-10-06 in ai-os/audit37/AUDIT_TRAIL_DESIGN_2026-10-06.md section 10, and the owner's standing directive in chat); additive nullable stamp columns on compliance.audit_logs, with their column-privilege changes and a rollback in drizzle/down.
 -- AUDIT TRAIL slice 1 (ai-os/audit37/AUDIT_TRAIL_DESIGN_2026-10-06.md, sections 2.1A, 7 and 10): additive stamp columns on compliance.audit_logs.
 -- Owner decisions 2026-10-06 (design section 10): FULL ip / device id / user agent are kept (ip_address and user_agent already exist; ip_prefix and
 -- ua_family are only grouping helpers), and the trail is INTERNAL ONLY: users and org admins must not read these columns.

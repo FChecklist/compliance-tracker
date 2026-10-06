@@ -46,6 +46,51 @@ active:
       Scope: drizzle/0730_audit_trail_stamp_columns.sql (+down, +journal), src/lib/audit-stamp.ts, optional stamp param in src/lib/audit.ts (logActivity),
       schema.ts audit_logs stamp columns, two new tests, ai-os/AUDIT_100_CHECKLIST.md. Applies 0730 live via Supabase MCP (additive). No Vercel, no DNS, no spend.
       Not touching AI link, projexa-sync or access_events (slice 2).
+  - session_label: "claude-code (DPDP Test/Live mode + offer end date nulled + firm/institution self-declared profile capture; worktree agent-a448bcdeda69bedec, branch feat/dpdp-test-live-mode)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0735 (dpdp.platform_mode, test registry, mail allowlist/gate, purge, offer_ends_on nulled, account_profile, self-declared firm rule),
+      supabase/functions/_shared/mail-gate.ts + the Resend send sites of every dpdp-* function, dpdp-app (mode banner, /api/mode, profile card, owner screens),
+      src/lib/services/dpdp-test-live-mode.pglite.test.ts and updates to dpdp-account-billing.pglite.test.ts. Not touching: audit trail (0731), visitor tracker JS.
+  - session_label: "claude-code (DPDP first-party visitor journey tracking + SEO checks; worktree .claude/worktrees/agent-a4b0a446eb7227e69, branch feat/dpdp-visitor-journey)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0733 (dpdp.visit_* + RPCs + retention cron), supabase/functions/dpdp-track + _shared/visit, dpdp-app/public/visit.js + functions/api/visit*,
+      public-surface script lists/checks/tests, privacy line, SPA sign-in link call, SEO audit test. Does NOT touch the dpdp-audit chain tables. No Vercel, no live DDL.
+  - session_label: "claude-code (DPDP account opening: account types, plans config, firm verification, billing state machine; branch feat/dpdp-account-opening)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0734_dpdp_account_opening_plans_billing.sql (new tables dpdp.plan/billing_setting/account/partner_offer_code, billing state functions,
+      open-account + owner verify + mark-paid RPCs, lock gate in dpdp__caller_membership / dpdp__ai_link_for_token), dpdp-app/src/lib/billing-state.ts +
+      OpenOrganisation/PaymentDue screens, dpdp-app/dpdp-firm earnings calculator, src/lib/services/dpdp-account-*.test.ts, dpdp-access-never-locks.test.ts
+      (owner reversed the never-lock rule in chat 2026-10-06). No Vercel, no live migration apply, no spend.
+  - session_label: "claude-code (PROJEXA upload sign route: projexa-api POST /uploads/sign + public bucket projexa-files; worktree C:/ct/wt-upload, branch feat/projexa-upload-sign)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: supabase/functions/projexa-api/upload-sign.ts (new) + index.ts wiring + README, drizzle/0732 (bucket + sign log), src test projexa-upload-sign.test.ts,
+      ai-os/audit37/UPLOAD_CONTRACT_2026-10-06.md. Does NOT touch handler.ts / policy.generated.ts. No Vercel, no DNS, no spend. One projexa-api deploy after merge.
+  - session_label: "claude-code (G-12 scope list perf + release distribution without Vercel/Cloudflare; worktrees C:/ct/ct-scopeperf, C:/ct/px-release) -- 2026-10-06"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: ct src/app/api/v1/construction/boq/route.ts (include=headers), construction-boq-service.ts parseBoqInclude/loadRevisionSummaries,
+      route.headers.test.ts, projexa-api policy.generated.ts + parity.golden.json (regenerated, not hand-edited); projexa scope proxy +
+      ScopeClient + module-list-source + routes.json include_allow; ai-os/audit37/RELEASE_DISTRIBUTION_2026-10-06.md and
+      projexa src/lib/local-first/release/* (new manifest-source module only). Does not touch projexa-sync, the offline gate or the 111-row table.
+      No Vercel, no DNS, no spend, no real release published.
+  - session_label: "claude-code (AUDIT-100 A2 batch 7: group (b) cache / write-invalidation routes + group (c) fan-out routes off Vercel; worktrees C:/ct/ct-b7 + C:/ct/px-a2b7, branches px-edge-batch7 / a2-edge-batch7)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md}, src/lib/services/projexa-api-edge-parity.test.ts
+      (new spec keys: per-instance TTL cache, multipart upload passthrough, response redaction, BOQ create verification), and the projexa side
+      (projexa-api-routes.json batch 7, parity cases, px-api.ts, vercel inventory, one small Vercel cache-revalidate route). One deploy of projexa-api only
+      (after the compliance PR merges). Migration numbers: none planned. No Vercel dashboard/deploy, no DNS, no spend. Not touching projexa-sync / offline gate.
+  - session_label: "claude-code (DPDP audit trail: append-only hash-chained audit_event + masked user download + lifecycle; worktree .claude/worktrees/agent-a1164b8f7cc0d1b84, branch feat/dpdp-audit-trail)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0731_dpdp_audit_trail.sql (+ down), supabase/functions/_shared/audit/*, supabase/functions/dpdp-audit + dpdp-audit-lifecycle (new),
+      supabase/functions/dpdp-ai-link/index.ts (logging hook, nosnippet removal), dpdp-monday-email/ai-link-email.ts (read-only default),
+      dpdp-app/src/lib/ai-chat-options.ts (no secret link in other companies' URLs), dpdp-app privacy page text. Migration number planned: 0730 (NOT applied live; lead applies).
+      No Vercel, no DNS, no spend.
   - session_label: "claude-code (AUDIT-100 A2 batch 7: group (b) cache / write-invalidation routes + group (c) fan-out routes off Vercel; worktrees C:/ct/ct-b7 + C:/ct/px-a2b7, branches px-edge-batch7 / a2-edge-batch7)"
     claimed_at: "2026-10-06 (this session)"
     claim: |
@@ -5268,6 +5313,14 @@ active:
       instruction.
 
 recently_completed:
+  - session_label: "claude-code (AUDIT-100 A2 batch 7: group (b) cache / write-invalidation routes + group (c) fan-out routes off Vercel; worktrees C:/ct/ct-b7 + C:/ct/px-a2b7, branches px-edge-batch7 / a2-edge-batch7)"
+    claimed_at: "2026-10-06 (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2105 + #2109 merged, projexa-api deployed with batches 7 and 8, live smokes 410/410 and 431/431; projexa #407 merged, #408 pending at time of writing)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md}, src/lib/services/projexa-api-edge-parity.test.ts
+      (new spec keys: per-instance TTL cache, multipart upload passthrough, response redaction, BOQ create verification), and the projexa side
+      (projexa-api-routes.json batch 7, parity cases, px-api.ts, vercel inventory, one small Vercel cache-revalidate route). One deploy of projexa-api only
+      (after the compliance PR merges). Migration numbers: none planned. No Vercel dashboard/deploy, no DNS, no spend. Not touching projexa-sync / offline gate.
   - session_label: "claude-code (AUDIT-100 G-09: PROJEXA new-organisation provisioning inside projexa-api; worktrees C:/ct/ct-g09 + C:/ct/px-g09, branches feat/g09-org-provision-edge + feat/g09-org-provision-client)"
     claimed_at: "2026-10-06 (this session)"
     completed_at: "2026-10-06 (compliance-tracker #2100 merged 79226210, drizzle/0729 applied live, projexa-api v7 deployed, live smoke + repair passed, backfill 13 live credentials; projexa #405 client switch)"

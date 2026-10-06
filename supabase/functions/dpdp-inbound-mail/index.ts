@@ -25,6 +25,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { parseLegalDays, type OutMessage } from "./handler.ts"
 import { routeInbound } from "./resend-inbound.ts"
+import { SUPPRESSED_MESSAGE_ID, mailGate } from "../_shared/mail-gate.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
 const SUPABASE_URL = env("SUPABASE_URL")
@@ -44,6 +45,7 @@ const config = {
 const client = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 
 async function sendViaResend(m: OutMessage): Promise<{ id: string }> {
+  if (!(await mailGate(m.to, "dpdp-inbound-mail")).send) return { id: SUPPRESSED_MESSAGE_ID } // Test mode: not on the allowlist (drizzle/0735)
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     // A send that never answers must fail (and be retried by Svix / the Worker's fallback), not hold the function until the platform kills it.

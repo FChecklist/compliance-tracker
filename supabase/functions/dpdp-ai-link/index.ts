@@ -44,8 +44,17 @@ import { playbookFor } from "./playbook.ts"
 import { paymentPendingNotice, type BillingNotice } from "./brief.ts"
 import { alertEmail, clientPrefix, uaFamily, type UseAlert } from "./unfamiliar.ts"
 import { buildOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
+import { mailGate } from "../_shared/mail-gate.ts"
+// Audit trail (drizzle/0731): one audit row per call, joined to the call log above by ai_call_id. Never blocks or fails a call.
+import { GUIDE_ROUTES, auditAiLinkCall, sha256HexOfBytes } from "../_shared/audit/ai-call.ts"
+import { parseVendorRanges } from "../_shared/audit/provenance.ts"
+import { type KeyRing, keyRingFrom } from "../_shared/audit/seal.ts"
+import { type Rpc, makeWriter } from "../_shared/audit/writer.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
+let auditRingPromise: Promise<KeyRing> | null = null
+const auditRing = (): Promise<KeyRing> => (auditRingPromise ??= keyRingFrom((n) => Deno.env.get(n)))
+const AUDIT_VENDOR_RANGES = parseVendorRanges(Deno.env.get("DPDP_AUDIT_VENDOR_IP_RANGES"))
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 // Defaults to the production static-app origin so the function works with
@@ -59,7 +68,7 @@ function privateHeaders(contentType: string, extra?: Record<string, string>): He
     // The *.supabase.co gateway serves HTML as text/plain; the Pages proxy
     // restores the intended type from this header (see dpdp-app/functions/ai/_proxy.ts).
     "x-dpdp-content-type": contentType,
-    "x-robots-tag": "noindex, nofollow, noarchive, nosnippet",
+    "x-robots-tag": "noindex, nofollow, noarchive",
     "referrer-policy": "no-referrer",
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
@@ -127,6 +136,7 @@ async function noteUse(token: string, req: Request): Promise<void> {
     if (r.error || !r.data.alert || !r.data.to || !RESEND_API_KEY) return
     const a = r.data as UseAlert
     const mail = alertEmail(a)
+    if (!(await mailGate(a.to, "dpdp-ai-link")).send) return // Test mode: not on the allowlist (drizzle/0735)
     const out = buildOutbound("support", mail.subject, { from: EMAIL_FROM })
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -358,6 +368,8 @@ async function guardHiddenLink(res: Response, token: string): Promise<Response> 
   return new Response(body, { status: res.status, headers: res.headers })
 }
 
+const auditWriter = makeWriter(rpc as unknown as Rpc, auditRing)
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     console.error(`${FUNCTION_NAME}: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing`)
@@ -389,6 +401,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const bytes = Number(res.headers.get("content-length")) || (res.body ? undefined : 0)
       await rpc("dpdp_ai_link_log_call_result", { p_call_id: callId, p_status: res.status, p_bytes: bytes ?? null })
     }
+    // The audit row (spec item 9). Started before the response is returned (the clone is taken now, while the body is unread), finished in the background where
+    // the platform allows it, awaited otherwise. A failure is logged without detail and never changes what the caller gets.
+    // The person's own browser fetching the paste (/prompt) is not "the link being used" (same rule as noteUse below): not audited.
+    const audited = route.kind === "prompt" ? Promise.resolve() : (async () => {
+      try {
+        const guideHash = GUIDE_ROUTES.includes(route.kind) && res.status < 300 ? await sha256HexOfBytes(await res.clone().arrayBuffer()) : null
+        const out = await auditAiLinkCall({
+          rpc: rpc as unknown as Rpc, writer: auditWriter, headers: req.headers, url, method, relativePath, routeKind: route.kind, status: res.status,
+          callId, linkId: begun.error ? null : begun.data.linkId, guideHash, vendorRanges: AUDIT_VENDOR_RANGES,
+        })
+        if (!out.written && out.reason && out.reason !== "unknown_link") console.error(`${FUNCTION_NAME}: audit row not written (${out.reason})`)
+      } catch {
+        console.error(`${FUNCTION_NAME}: audit row failed`)
+      }
+    })()
+    const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime
+    if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(audited)
+    else await audited
     return res
   }
 

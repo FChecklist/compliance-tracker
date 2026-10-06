@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner delegated full PM authority and ordered the shared audit trail built (owner decisions recorded 2026-10-06 in ai-os/audit37/AUDIT_TRAIL_DESIGN_2026-10-06.md section 10, and the owner's standing directive in chat); additive nullable stamp columns on compliance.audit_logs, with their column-privilege changes and a rollback in drizzle/down.
 -- Down-migration for drizzle/0730_audit_trail_stamp_columns.sql. Run deliberately by the PM, not by any script.
 -- DATA LOSS: drops the 17 stamp columns and every value stored in them since 0730 was applied. Deploy code that no longer passes `stamp` FIRST.
 BEGIN;

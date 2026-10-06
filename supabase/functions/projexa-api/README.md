@@ -65,6 +65,12 @@ cases + 7 cache sequences (a moving clock) recorded from the real handlers; the 
 is not JSON on a route whose handler reads `await request.json()` outside its try (almost all) is an unhandled throw = an empty 500 on Next; the edge had
 answered 400 {"error":"Invalid JSON body"} since batch 1. Now the empty 500 (and `body_in_try` on the 5 routes whose handler catches it).
 
+Batch 8 (4 routes: category distribution of a project and of a company's project, the company dashboard and departments) added: `company_scope`
+(src/lib/company-scope.ts requireCompanyScope: a second membership read for the company named in the path with the person's own token, `lookups.ts`
+createCompanyMembershipLookup; 403 "Not a member of this company", a failed read or a non-UUID id is the unhandled-throw empty 500; the company is the organisation
+whose key is used), `acting_user: "id_only"`, and `category_distribution` (two reads in parallel combined by `category-distribution.ts`, the projexa repo's pure
+builder copied byte for byte: never edit it here). 236 routes.
+
 ## Secrets
 
 `PROJEXA_SUPABASE_URL`, `PROJEXA_SUPABASE_ANON_KEY` (public), `PROJEXA_SERVICE_ROLE_KEY` (the LEGACY PROJEXA `veridian_credentials`: fallback read for an organisation not backfilled yet, and the transition mirror write), `VERIDIAN_API_BASE_URL`; platform-injected `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` (the compliance-side credentials and provisioning functions, drizzle/0729). `PX_MIRROR_LEGACY_CREDENTIALS=false` stops mirroring a new organisation's credentials to the legacy table (set it once every reader of `veridian_credentials` on Vercel is switched; until then a new organisation's key must also be readable by the routes that still run on Vercel).
@@ -95,3 +101,7 @@ curl https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/projexa-api/_policy  
 - Sign-in keys unreachable is `503` with Retry-After (the Next route says 401).
 - The upstream is still the VERIDIAN backend (`VERIDIAN_API_BASE_URL`): a call costs one VERIDIAN invocation instead of one PROJEXA Vercel
   invocation plus one VERIDIAN invocation.
+
+## POST /uploads/sign (file uploads without Vercel)
+
+Not a proxied `/api` route: `upload-sign.ts` (own handler, like `/link-member`). Returns a one-time signed Supabase Storage upload address into the public bucket `projexa-files`; the laptop PUTs the bytes there itself and saves the record with `externalUrl`. Contract and examples: `ai-os/audit37/UPLOAD_CONTRACT_2026-10-06.md`. Tests: `src/lib/services/projexa-upload-sign.test.ts`. Not in `policy.generated.ts` / the parity golden (those describe proxied routes only; nothing to regenerate).

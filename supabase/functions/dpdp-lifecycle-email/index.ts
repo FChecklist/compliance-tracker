@@ -34,7 +34,7 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import type { MailClass } from "../_shared/mail-taxonomy.ts"
-import { type ReminderKind, REMINDER_KINDS, deliverClaimedReminder, isDeliverableAddress, reminderIdempotencyKey, renderReminder, rupees, sendViaResend } from "../_shared/billing-mail.ts"
+import { type ReminderKind, REMINDER_KINDS, deliverClaimedReminder, isDeliverableAddress, reminderIdempotencyKey, renderBillingDue, renderReminder, rupees, sendViaResend } from "../_shared/billing-mail.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
 const SUPABASE_URL = env("SUPABASE_URL")
@@ -85,6 +85,51 @@ async function bearerOk(req: Request): Promise<boolean> {
 
 const classFor = (k: ReminderKind): MailClass => (k.startsWith("renew") ? "invoice" : "sales_chain")
 
+type BillingDue = {
+  orgId: string; orgName: string; state: "DUE" | "GRACE" | "LOCKED"; email: string; role: "owner" | "head of department" | "billing contact"
+  weekKey: string; line: string; unsubscribeToken: string; finalDownload: boolean
+}
+
+// drizzle/0734, job "billing_due" (weekly, pg_cron dpdp-billing-due): the calm "payment for this account is due" note to an account's OWN contacts
+// (owner, head of department, billing contact) while it is DUE, in GRACE or LOCKED. They go on for as long as the account is unpaid, and each one
+// carries a one-click unsubscribe link (dpdp_unsubscribe, which also writes the audit trail). WHO is due, once per contact per ISO week, and who has
+// opted out, is decided in the database (dpdp_billing_due_worklist); this only sends what it lists and reports the result back.
+async function runBillingDue(sb: SupabaseClient, dryRun: boolean, started: number) {
+  const { data, error } = await sb.rpc("dpdp_billing_due_worklist", { p_dry_run: dryRun })
+  if (error) return { ok: false, error: error.message }
+  const due = (data as BillingDue[] | null) ?? []
+  const summary = { ok: true, job: "billing_due", dryRun, due: due.length, sent: 0, would_send: 0, failed: 0, skipped: 0, partial: false }
+  const finalDownloadOrgs = new Set<string>()
+  for (const d of due) {
+    if (Date.now() - started > TIME_BUDGET_MS) { summary.partial = true; break }
+    if (!d.email || !isDeliverableAddress(d.email)) {
+      summary.skipped++
+      if (!dryRun) await sb.rpc("dpdp_billing_notice_mark", { p_org_id: d.orgId, p_email: d.email, p_week_key: d.weekKey, p_status: "failed" })
+      continue
+    }
+    const rendered = renderBillingDue({
+      orgName: d.orgName, state: d.state, line: d.line, role: d.role, payUrl: `${APP_ORIGIN}/app/`, downloadUrl: `${APP_ORIGIN}/app/`,
+      unsubscribeUrl: `${APP_ORIGIN}/unsubscribe/#${d.unsubscribeToken}`, finalDownload: d.finalDownload,
+    })
+    if (dryRun) { summary.would_send++; continue }
+    const out = buildOutbound("invoice", rendered.subject, { from: EMAIL_FROM })
+    try {
+      const messageId = await sendViaResend(RESEND_API_KEY, d.email, out, rendered, `dpdp-billing-due/${d.orgId}/${d.weekKey}/${d.email}`)
+      try { await logOutbound(sb, { ref: out.ref, cls: "invoice", to: d.email, subject: out.subject, providerMessageId: messageId || null, membershipId: null, orgId: d.orgId }) } catch { /* the mail is sent; a missing log row must not cause a second one */ }
+      await sb.rpc("dpdp_billing_notice_mark", { p_org_id: d.orgId, p_email: d.email, p_week_key: d.weekKey, p_status: "sent" })
+      if (d.finalDownload) finalDownloadOrgs.add(d.orgId)
+      summary.sent++
+    } catch (e) {
+      summary.failed++
+      await sb.rpc("dpdp_billing_notice_mark", { p_org_id: d.orgId, p_email: d.email, p_week_key: d.weekKey, p_status: "failed" })
+      console.warn(`billing_due send failed for org ${d.orgId}: ${e instanceof Error ? e.message.slice(0, 160) : String(e).slice(0, 160)}`)
+    }
+  }
+  for (const orgId of finalDownloadOrgs) await sb.rpc("dpdp_billing_final_download_mark", { p_org_id: orgId })
+  console.log(JSON.stringify({ evt: "dpdp-lifecycle-email", job: "billing_due", dryRun, due: summary.due, sent: summary.sent, failed: summary.failed, skipped: summary.skipped }))
+  return summary
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405)
   if (!(await bearerOk(req))) return json({ error: "Unauthorized" }, 401)
@@ -92,11 +137,12 @@ Deno.serve(async (req: Request) => {
   try {
     body = await req.json()
   } catch { /* an empty body is the same as the default job */ }
-  if (body.job && body.job !== "sales_lifecycle") return json({ error: "Unknown job" }, 400)
+  if (body.job && body.job !== "sales_lifecycle" && body.job !== "billing_due") return json({ error: "Unknown job" }, 400)
 
   const started = Date.now()
   const dryRun = body.dryRun === true || !RESEND_API_KEY
   const sb = serviceClient()
+  if (body.job === "billing_due") return json(await runBillingDue(sb, dryRun, started))
 
   const { data: priceData } = await sb.rpc("dpdp_billing_prices", {})
   const yearPaise = Number((priceData as { yearPaise?: number } | null)?.yearPaise ?? 0)
