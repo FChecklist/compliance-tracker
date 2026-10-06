@@ -661,6 +661,8 @@ export function parseBoqInclude(include: string | null | undefined): {
   lineItems: boolean
   variation: boolean
   compare: boolean
+  /** PROJEXA G-12: headers only -- the caller does not want any line item (see the v1 BOQ list route). */
+  headers: boolean
 } {
   const parts = new Set(
     (include ?? "")
@@ -668,7 +670,12 @@ export function parseBoqInclude(include: string | null | undefined): {
       .map((s) => s.trim())
       .filter(Boolean)
   )
-  return { lineItems: parts.has("lineItems"), variation: parts.has("variation"), compare: parts.has("compare") }
+  return {
+    lineItems: parts.has("lineItems"),
+    variation: parts.has("variation"),
+    compare: parts.has("compare"),
+    headers: parts.has("headers"),
+  }
 }
 
 type RevisionSummary = BoqRevisionVariation & BoqRevisionCompare
@@ -690,7 +697,7 @@ async function loadRevisionSummaries(
   orgId: string,
   projectId: string
 ): Promise<Map<string, RevisionSummary>> {
-  const rows = (await db.execute(sql`
+  const raw = await db.execute(sql`
     WITH revision AS (
       SELECT id, parent_boq_id
       FROM compliance.construction_boqs
@@ -720,7 +727,10 @@ async function loadRevisionSummaries(
     FROM revision r
     LEFT JOIN totals c ON c.boq_id = r.id
     LEFT JOIN totals p ON p.boq_id = r.parent_boq_id
-  `)) as {
+  `)
+  // postgres.js (production) returns the rows as the array itself; PGlite's drizzle driver (the tests) wraps them in
+  // { rows }. Accept both so the same statement is testable on real SQL.
+  const rows = (Array.isArray(raw) ? raw : (raw as { rows: unknown[] }).rows) as {
     boq_id: string
     total: number | null
     line_count: number | null

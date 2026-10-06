@@ -40,6 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (G-12 scope list perf + release distribution without Vercel/Cloudflare; worktrees C:/ct/ct-scopeperf, C:/ct/px-release) -- 2026-10-06"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: ct src/app/api/v1/construction/boq/route.ts (include=headers), construction-boq-service.ts parseBoqInclude/loadRevisionSummaries,
+      route.headers.test.ts, projexa-api policy.generated.ts + parity.golden.json (regenerated, not hand-edited); projexa scope proxy +
+      ScopeClient + module-list-source + routes.json include_allow; ai-os/audit37/RELEASE_DISTRIBUTION_2026-10-06.md and
+      projexa src/lib/local-first/release/* (new manifest-source module only). Does not touch projexa-sync, the offline gate or the 111-row table.
+      No Vercel, no DNS, no spend, no real release published.
+  - session_label: "claude-code (AUDIT-100 A2 batch 7: group (b) cache / write-invalidation routes + group (c) fan-out routes off Vercel; worktrees C:/ct/ct-b7 + C:/ct/px-a2b7, branches px-edge-batch7 / a2-edge-batch7)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md}, src/lib/services/projexa-api-edge-parity.test.ts
+      (new spec keys: per-instance TTL cache, multipart upload passthrough, response redaction, BOQ create verification), and the projexa side
+      (projexa-api-routes.json batch 7, parity cases, px-api.ts, vercel inventory, one small Vercel cache-revalidate route). One deploy of projexa-api only
+      (after the compliance PR merges). Migration numbers: none planned. No Vercel dashboard/deploy, no DNS, no spend. Not touching projexa-sync / offline gate.
   - session_label: "claude-code (AUDIT-100 G-09: PROJEXA new-organisation provisioning inside projexa-api; worktrees C:/ct/ct-g09 + C:/ct/px-g09, branches feat/g09-org-provision-edge + feat/g09-org-provision-client)"
   - session_label: "claude-code (AUDIT-100 AI work link guide, items 3,4,5,6,8; worktree C:/ct/w-awl-guide2, branches feat/awl-*)"
     claimed_at: "2026-10-06 (this session)"
