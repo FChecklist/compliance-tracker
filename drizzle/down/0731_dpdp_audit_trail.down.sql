@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner (Rajat Agarwal) approved the DPDP audit-trail specification in chat on 2026-10-06 ("all approved", "ok, do it for dpdp"); this is its roll-back file and is not run unless the owner asks.
 -- Roll-back of 0731_dpdp_audit_trail.sql. DESTROYS every audit row, access-log row, daily head, statistic and deletion certificate this migration's tables hold.
 -- Do NOT run this on a database whose audit data matters; it exists so a failed rollout can be undone cleanly.
 select cron.unschedule('dpdp-audit-daily') where exists (select 1 from pg_extension where extname = 'pg_cron') and exists (select 1 from cron.job where jobname = 'dpdp-audit-daily');
