@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createDpdpClient, type DpdpClient } from "./lib/client"
 import {
   RpcFailure, acknowledgeWelcome, addNote, answerGroup, assignPerson, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
-  fetchPublicPlans, openAccount, fetchOrgSetup, flagNotMe, joinOrgViaInvite, markDone, markNotApplicable, ownerConfirmSetup, readDraftFragment, readUndoFragment, setDueDate, viewerContext,
+  fetchPublicPlans, openAccount, saveProfile, fetchOrgSetup, flagNotMe, joinOrgViaInvite, markDone, markNotApplicable, ownerConfirmSetup, readDraftFragment, readUndoFragment, setDueDate, viewerContext,
   type Area, type CaClient, type DraftFragment, type MyPage, type UndoFragment,
 } from "./lib/api"
 import type { OrgSetupPayload, PlanWirePayload } from "./lib/rpc-types"
@@ -10,6 +10,8 @@ import { isPaymentDueError } from "./lib/billing-state"
 import { clearJoin, firstSeenAt, readLanding, recallEdition, recallEmail, recallJoin, recallPartner, recallReferral, recallSourceTag, rememberEmail, type Landing } from "./lib/landing"
 import { PaymentDue } from "./components/PaymentDue"
 import { OwnerAccountsAdmin } from "./components/OwnerAccountsAdmin"
+import { TestModeBanner } from "./components/TestModeBanner"
+import { ProfileCard } from "./components/ProfileCard"
 import { OnePageView } from "./components/onepage/OnePageView"
 import { FirstVisitWizard } from "./components/onepage/FirstVisitWizard"
 import { RoleWelcome } from "./components/onepage/RoleWelcome"
@@ -306,6 +308,10 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
         referralCode: landing.referralCode ?? recallReferral(), partnerCode: landing.partnerCode ?? recallPartner(),
         sourceTag: landing.sourceTag ?? recallSourceTag(), firstSeenAt: firstSeenAt(), billingContactEmail: extra.billingContactEmail,
       })
+      // Everything else on the opening page is optional and never blocks: a failure here is not a reason to stop the sign-up.
+      if (Object.keys(extra.profile).length > 0 || extra.practitionerDeclared) {
+        try { await saveProfile(client, { ...extra.profile, ...(extra.practitionerDeclared ? { practitionerDeclared: true } : {}) }) } catch { /* the profile card offers it again */ }
+      }
     } catch (e) {
       setPhase({ name: "no-membership", busy: false, error: e instanceof Error ? e.message : String(e) })
       return
@@ -467,6 +473,8 @@ function Page({
 
   return (
     <div className="dpdp-onepage min-h-screen">
+      {/* Test mode (drizzle/0735): a calm strip, ONLY here inside the signed-in app -- never on a public page or in an e-mail. */}
+      <TestModeBanner client={client} orgId={org.id} isOwner={viewer.kind === "owner"} />
       <DeviceCopy savedAt={copyInfo.savedAt} offline={copyInfo.offline} pending={copyInfo.pending} />
       <div className="max-w-[1240px] mx-auto px-5 pt-3 flex justify-end items-center gap-3 flex-wrap" style={{ fontSize: 12.5, color: "var(--dpdp-ink3)" }}>
         {clients.length > 0 && view === "page" && (
@@ -483,6 +491,7 @@ function Page({
         {email && <span>Signed in as <b>{email}</b></span>}
         <button type="button" onClick={onSignOut} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", padding: "4px 6px" }}>Sign out</button>
       </div>
+      {viewer.kind === "owner" && <ProfileCard client={client} orgId={org.id} />}
       {draft && <DraftConfirm client={client} draft={draft} onDone={refetch} onDismiss={onDraftDone} />}
       {undo && <AiUndoConfirm client={client} undo={undo} onDone={refetch} onDismiss={onUndoDone} />}
       {body}

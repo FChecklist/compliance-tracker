@@ -6,7 +6,7 @@ import type {
   CreateClientPayload, CreateMyOrgPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
   ConsentAnswersResult, ConsentWithdrawResult, JoinOrgResult, OrgInviteLinkPayload, OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
   ApprovePaymentResult, PendingClaimWire, RejectPaymentResult,
-  DataExportPayload, MyAccountPayload, OpenAccountPayload, PendingVerificationWire, PlanWirePayload, ProfessionalBody,
+  DataExportPayload, MyAccountPayload, OpenAccountPayload, DeclaredFirmWire, PlatformModePayload, SaveProfilePayload, PlanWirePayload, ProfessionalBody,
   AdminMarkPaidResult, AdminPartnerRow, AdminPartnerSettings, AdminPayoutRun, PartnerDashboardPayload, PartnerDetailsInput, PartnerStatementPayload, PartnerStatus,
 } from "./rpc-types"
 import { SITE_ORIGIN } from "./site-origin.mjs"
@@ -187,9 +187,46 @@ export async function fetchMyAccount(client: DpdpClient, orgId?: string | null):
   return data as MyAccountPayload
 }
 
-export async function setProfessionalDetails(client: DpdpClient, body: ProfessionalBody, registrationNo: string, orgId?: string | null): Promise<void> {
-  const { error } = await client.rpc("dpdp_account_set_professional", { p_body: body, p_registration_no: registrationNo, ...(orgId ? { p_org_id: orgId } : {}) })
+/** Everything on the account page is optional. A value that does not fit comes back in `ignored`; nothing is ever refused for it. `practitionerDeclared` is the free own-use plan's tick. */
+export async function saveProfile(client: DpdpClient, profile: Record<string, unknown>, orgId?: string | null): Promise<SaveProfilePayload> {
+  const { data, error } = await client.rpc("dpdp_account_save_profile", { p_profile: profile, ...(orgId ? { p_org_id: orgId } : {}) })
   if (error) throw new RpcFailure(error)
+  return data as SaveProfilePayload
+}
+
+/** Test / Live mode: readable by anyone. A failure reads as LIVE (a banner must never appear by mistake). */
+export async function fetchPlatformMode(client: DpdpClient): Promise<PlatformModePayload> {
+  const { data, error } = await client.rpc("dpdp_platform_mode", {})
+  if (error || !data) return { mode: "LIVE", test: false }
+  return data as PlatformModePayload
+}
+
+/** Platform owner only (the server refuses everyone else). Audited. */
+export async function ownerSetMode(client: DpdpClient, mode: "TEST" | "LIVE", reason?: string): Promise<PlatformModePayload> {
+  const { data, error } = await client.rpc("dpdp_owner_set_mode", { p_mode: mode, p_reason: reason?.trim() || null })
+  if (error) throw new RpcFailure(error)
+  const d = data as { mode: "TEST" | "LIVE" }
+  return { mode: d.mode, test: d.mode === "TEST" }
+}
+
+/** A labelled test payment on a test account, only while the platform is in Test mode. Never touches Razorpay. */
+export async function testPayment(client: DpdpClient, interval: "month" | "year", orgId?: string | null): Promise<void> {
+  const { error } = await client.rpc("dpdp_test_payment", { p_interval: interval, ...(orgId ? { p_org_id: orgId } : {}) })
+  if (error) throw new RpcFailure(error)
+}
+
+/** Platform owner only: delete every test organisation and its data (never the audit rows). */
+export async function ownerPurgeTestData(client: DpdpClient): Promise<{ organisationsDeleted: number; remainingOrganisations: number }> {
+  const { data, error } = await client.rpc("dpdp_owner_purge_test_data", { p_confirm: "PURGE TEST DATA" })
+  if (error) throw new RpcFailure(error)
+  return data as { organisationsDeleted: number; remainingOrganisations: number }
+}
+
+/** Platform owner only: the addresses Test mode may still e-mail. */
+export async function ownerMailAllowlist(client: DpdpClient, action: "list" | "add" | "remove", email?: string): Promise<Array<{ email: string; note: string | null }>> {
+  const { data, error } = await client.rpc("dpdp_owner_mail_allowlist", { p_action: action, p_email: email?.trim() || null })
+  if (error) throw new RpcFailure(error)
+  return (data as { addresses: Array<{ email: string; note: string | null }> }).addresses
 }
 
 export async function choosePlan(client: DpdpClient, planKey: string, interval: "month" | "year", orgId?: string | null): Promise<void> {
@@ -217,16 +254,16 @@ export async function lockedAnswerGrievance(client: DpdpClient, grievanceRef: st
   if (error) throw new RpcFailure(error)
 }
 
-/** Platform owner only. */
-export async function ownerPendingVerifications(client: DpdpClient): Promise<PendingVerificationWire[]> {
-  const { data, error } = await client.rpc("dpdp_owner_pending_verifications", {})
+/** Platform owner only: the firms that declared themselves practitioners (live accounts by default; "test" or "all" on request). */
+export async function ownerDeclaredFirms(client: DpdpClient, mode: "live" | "test" | "all" = "live"): Promise<DeclaredFirmWire[]> {
+  const { data, error } = await client.rpc("dpdp_owner_declared_firms", { p_mode: mode })
   if (error) throw new RpcFailure(error)
-  return (data as PendingVerificationWire[] | null) ?? []
+  return (data as DeclaredFirmWire[] | null) ?? []
 }
 
-/** Platform owner only: verified or rejected. Audited. */
-export async function ownerVerifyFirm(client: DpdpClient, orgId: string, decision: "verified" | "rejected", note?: string): Promise<void> {
-  const { error } = await client.rpc("dpdp_owner_verify_firm", { p_org_id: orgId, p_decision: decision, p_note: note?.trim() || null })
+/** Platform owner only: move a firm to a paid plan after an abuse review. Audited. */
+export async function ownerDowngradeFirm(client: DpdpClient, orgId: string, note?: string): Promise<void> {
+  const { error } = await client.rpc("dpdp_owner_downgrade_firm", { p_org_id: orgId, p_note: note?.trim() || null })
   if (error) throw new RpcFailure(error)
 }
 

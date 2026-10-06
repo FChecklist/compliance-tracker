@@ -81,12 +81,11 @@ export type PlanWire = {
   accountType: "firm" | "institution"
   name: string
   maxClients: number
-  requiresVerified: boolean
+  requiresDeclaration: boolean
   listMonthlyPaise: number
   /** What a NEW sign-up pays today: the offer price while an offer is running, else the list price. */
   monthlyPaise: number
   offerLabel: string | null
-  offerEndsOn: string | null
   yearlyMonthsCharged: number
 }
 
@@ -134,6 +133,6 @@ export const EARNINGS_DISCLAIMER = "Example, not a guarantee."
 /** The cheapest ladder plan whose cap covers this many clients (undefined above the largest). */
 export function planForClients(plans: PlanWire[], clients: number): PlanWire | undefined {
   return plans
-    .filter((p) => p.accountType === "firm" && !p.requiresVerified && p.maxClients >= Math.max(1, clients))
+    .filter((p) => p.accountType === "firm" && !p.requiresDeclaration && p.maxClients >= Math.max(1, clients))
     .sort((a, b) => a.maxClients - b.maxClients)[0]
 }
