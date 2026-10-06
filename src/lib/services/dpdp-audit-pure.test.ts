@@ -256,7 +256,7 @@ describe('building an audit row: sealed personal values, scrubbed details, proof
   })
   test('the event-type list equals the database constraint (a new type must be added in both places)', async () => {
     const { readFileSync } = await import('node:fs')
-    const sql = readFileSync(new URL('../../../drizzle/0730_dpdp_audit_trail.sql', import.meta.url), 'utf8')
+    const sql = readFileSync(new URL('../../../drizzle/0731_dpdp_audit_trail.sql', import.meta.url), 'utf8')
     const m = /constraint audit_event_type_ok check \(event_type in \(([\s\S]*?)\)\)/.exec(sql)!
     const inSql = [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort()
     expect(inSql).toEqual([...EVENT_TYPES].sort())

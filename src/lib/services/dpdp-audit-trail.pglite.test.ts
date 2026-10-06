@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-// drizzle/0730 on PGlite (real Postgres as WASM): the DPDP audit trail is append-only, hash-chained per organisation, the chain written by the database is the chain
+// drizzle/0731 on PGlite (real Postgres as WASM): the DPDP audit trail is append-only, hash-chained per organisation, the chain written by the database is the chain
 // the TypeScript verifier recomputes, tampering is detected, the app role can insert but not read or change, the in-database triggers mirror the existing events,
 // and the retention lifecycle (day-335 notice, day-365 deletion with statistics + certificate + anchor, legal hold) behaves as the owner specified.
 // The migration is applied exactly as written (only its pg_cron block is skipped by its own guard).
@@ -12,7 +12,7 @@ import { buildContent } from '../../../supabase/functions/_shared/audit/event'
 import { generateKeyB64, keyRingFrom, type KeyRing } from '../../../supabase/functions/_shared/audit/seal'
 import { GENESIS, verifyChain, type ChainRow } from '../../../supabase/functions/_shared/audit/chain'
 
-const migration = readFileSync(new URL('../../../drizzle/0730_dpdp_audit_trail.sql', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+const migration = readFileSync(new URL('../../../drizzle/0731_dpdp_audit_trail.sql', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 
 let db: PGlite
 let ring: KeyRing

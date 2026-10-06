@@ -116,7 +116,7 @@ describe('item 6: day 365 deletion and the independence of the steps', () => {
     expect(rep2.errors.join(' ')).toContain('plan: plan down'); expect(rep2.heads.emailed).toBe(1)
   })
   test('the migration schedules this function daily and the database refuses an early or held deletion on its own (pinned, so the two cannot drift apart)', () => {
-    const sql = readFileSync(new URL('../../../drizzle/0730_dpdp_audit_trail.sql', import.meta.url), 'utf8')
+    const sql = readFileSync(new URL('../../../drizzle/0731_dpdp_audit_trail.sql', import.meta.url), 'utf8')
     expect(sql).toContain("'dpdp-audit-daily'"); expect(sql).toContain("'dpdp-audit-lifecycle'")
     expect(sql).toContain('a row younger than 365 days cannot be deleted'); expect(sql).toContain('this organisation is on legal hold')
     expect(sql).toContain('between 335 and 364')
