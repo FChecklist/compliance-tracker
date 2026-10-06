@@ -24,7 +24,7 @@ export const NOT_FOUND = "This link has expired or was revoked"
 
 /** WO-012 §2 for a page that is private by construction; the CSP is the Edge Function's own. */
 export const PRIVATE_HEADERS: Readonly<Record<string, string>> = {
-  "X-Robots-Tag": "noindex, nofollow, noarchive, nosnippet",
+  "X-Robots-Tag": "noindex, nofollow, noarchive",
   "Referrer-Policy": "no-referrer",
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
@@ -116,7 +116,8 @@ export function methodNotAllowed(allow: string): Response {
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
-const FORWARDED_REQUEST_HEADERS = ["accept", "content-type", "accept-language", "user-agent"]
+// x-ai-* are the optional self-declaration an AI may send about itself (model, version, session, machine); the audit trail records them as CLAIMS, never as proof.
+const FORWARDED_REQUEST_HEADERS = ["accept", "content-type", "accept-language", "user-agent", "x-ai-model", "x-ai-version", "x-ai-session", "x-ai-machine"]
 const FORWARDED_RESPONSE_HEADERS = ["allow", "content-disposition"]
 
 /**
@@ -165,6 +166,11 @@ export async function proxyRequest(request: Request, path: string | string[] | n
   // The caller's address, for the unfamiliar-use alert only (the Edge Function keeps a /24 prefix at most). Cloudflare sets this header itself.
   const clientIp = request.headers.get("cf-connecting-ip")
   if (clientIp) headers["x-dpdp-client-ip"] = clientIp
+  // For the audit trail (country and network of the caller, as Cloudflare saw them). Absent outside Cloudflare; never taken from the caller's own headers.
+  const country = request.headers.get("cf-ipcountry")
+  if (country) headers["x-dpdp-client-country"] = country
+  const asn = (request as unknown as { cf?: { asn?: number | string } }).cf?.asn
+  if (asn !== undefined && asn !== null) headers["x-dpdp-client-asn"] = `AS${asn}`
   const upstream = await fetchImpl(upstreamUrlFor(parsed, url.search), { method: method === "HEAD" ? "GET" : method, headers, ...(hasBody ? { body } : {}) })
   const text = method === "HEAD" ? "" : await upstream.text()
   const extra: Record<string, string> = {}

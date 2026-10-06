@@ -195,12 +195,12 @@ export function errorBody(status: number, error: string, hint?: string, extra?: 
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 /** The X-Robots-Tag of every answer by default (section 4.1): not indexed, not followed, not archived, no snippet. */
-export const ROBOTS_PRIVATE = "noindex, nofollow, noarchive, nosnippet"
+export const ROBOTS_PRIVATE = "noindex, nofollow, noarchive"
 /**
  * The X-Robots-Tag of the ai-work-link GUIDE and its other documents only (the root, /manual.md, /manual.json, /card.md, /openapi.json, /swagger.json, and the
  * one-page /workspace, /all, /workspace.txt that an engine reads instead of following links),
  * AUDIT-100, 2026-10-06: in the owner's real runs our server answered Gemini's "Google" fetcher 200 twice and Gemini still told him it could not access
- * the page; Google's AI features may refuse to use a page marked nosnippet. Still never indexed and never followed. Data answers keep ROBOTS_PRIVATE,
+ * the page; Google's AI features may refuse to use a page marked nosnippet. Still never indexed and never followed. Data answers keep ROBOTS_PRIVATE (noindex, nofollow, noarchive since 2026-10-06 -- the owner removed nosnippet from every engine-facing answer),
  * and the DPDP function (dpdp-ai-link) does not use this file's headers at all.
  */
 export const ROBOTS_DOC = "noindex, nofollow"
