@@ -155,12 +155,15 @@ describe.skipIf(!canRun)("a real Claude engine works PROJEXA through a pasted wo
   })
 
   test("1 list: the engine reads the guide and shows the real projects (names and total match the database)", async () => {
-    const { run, log, tries } = await onManagerLink("Please start: show me my projects.", (r, l) => l.some((c) => c.path === "/projects" && c.status === 200) && hasAll(r.final, [String(before.total), ...before.names]))
+    // AUDIT-100 (2026-10-06, PR #2096): the guide of a user link now CARRIES the numbered list ("Your projects"), so the engine may show it from the guide
+    // alone without fetching /projects (that is the point: chat engines that open only the typed address). Either path counts; the answer must still match the DB.
+    const { run, log, tries } = await onManagerLink("Please start: show me my projects.", (r) => hasAll(r.final, [String(before.total), ...before.names]))
     record("1 list", { prompt_task: "show me my projects", tries, curl_calls: run.curlCalls, seconds: Math.round(run.ms / 1000), call_log: log, db_total: before.total, db_names_expected: before.names, answer_excerpt: run.final.slice(0, 700) })
     expect(run.isError, run.final.slice(0, 300)).toBe(false)
-    // the function's own log shows the engine fetched the guide and then the list, with curl's user agent
+    // the function's own log shows the engine fetched the guide (which carries the list), with curl's user agent
     expect(log.some((c) => c.method === "GET" && c.path === "/" && c.status === 200)).toBe(true)
-    expect(log.some((c) => c.method === "GET" && c.path === "/projects" && c.status === 200)).toBe(true)
+    // /projects is optional since the guide carries the list (AUDIT-100); nothing else may have been read for this task
+    expect(log.every((c) => c.method === "GET" && ["/", "/projects", "/workspace"].includes(c.path))).toBe(true)
     expect(log.every((c) => /curl/i.test(c.ua_family))).toBe(true)
     // and its answer carries what the database holds
     expect(hasAll(run.final, [String(before.total), ...before.names]), run.final.slice(0, 400)).toBe(true)
