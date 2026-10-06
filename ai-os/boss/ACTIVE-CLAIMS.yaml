@@ -5231,16 +5231,16 @@ active:
       Commits are local to this worktree; opens its own PR per the task's
       instruction.
 
+recently_completed:
   - session_label: "claude-code (AUDIT-100 A2 batch 6: 32 more PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2b6 + C:/ct/px-a2b6, branch audit100/a2-batch-6 in both repos)"
     claimed_at: "2026-10-06 (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2093 merged 94647af1; projexa-api v6 deployed, 217 routes, live smoke 359/359; projexa #403 = batch 6 client list)"
     claim: |
       Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md} (batch 6 spec keys: body
       validation / reshaping, query rebuilding, response reshaping), src/lib/services/projexa-api-edge-parity.test.ts. One deploy of
       projexa-api only (no new secret). No Vercel dashboard, no DNS, no spend. PROJEXA side (FChecklist/projexa audit100/a2-batch-6):
       projexa-api-routes.json batch 6, parity contract (3101 cases), px-api.ts route list, callers fetch -> viaPxApi, inventory budget 94.
       Order: function deployed BEFORE the client list merges.
-
-recently_completed:
   - session_label: "claude-code (AUDIT-100 A2 batches 2-4: 106 more PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2(b3) + C:/ct/px-a2(b3), branches audit100/a2-batch-2, -3, -4)"
     claimed_at: "2026-10-06 (this session)"
     completed_at: "2026-10-06 (compliance-tracker #2086 3bb2d06d + #2087 86b7feb8 merged; projexa-api v3 deployed, 113 routes, live smoke 188/188; projexa #398 merged 76a80d65, #399 = batches 3+4 client list)"
