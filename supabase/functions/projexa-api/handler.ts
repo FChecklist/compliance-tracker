@@ -16,6 +16,16 @@
 //      after the organisation is known (`roles`); a `root` route calls VERIDIAN's /api/v1 root instead of /api/v1/projexa; a body is read
 //      strictly (`json`), leniently (`json_lenient`: an empty or broken body is {}, as `request.json().catch(() => ({}))`) or not at all and
 //      sent as {} (`empty`); `body_defaults` are spread UNDER the caller's body, as `{ action: "status", ...body }`.
+//   5c. (AUDIT-100 A2 batch 6) The handler's own statements, each one a spec key ported from its source and proven by the parity contract:
+//      body checks in the handler's order (`body_object_error`: `!body || typeof body !== "object"`; `body_reject_if`: a field combination
+//      the handler refuses; `body_required`: `if (!body.a || !body.b) 400`, and a JSON-null body there throws in the handler, so it is an
+//      empty 500 here too), `body_pick` (`{ a: body.a, b: body.b }`), `body_const` (a constant body, the request body unread) with
+//      `upstream_method` (DELETE answered by an upstream PATCH), `invalid_body_error` (the handler's own message for a bad JSON body),
+//      `body_in_try` (a bad JSON body is caught by the handler's catch: the fallback 502), the query it rebuilds (`optional_query`:
+//      `?k=` / `&k=` + encodeURIComponent when set; `query_flags`: `?k=v` only when the value is exactly v; `search_params_omit_empty`: no
+//      bare "?"; `forward_query_normalized`: `searchParams.toString()`; `required_query_any`: one of several is needed), `roles_also`
+//      (roles allowed on top of the own role set) and the answer it reshapes (`response_pick`: `{ k: data.k ?? default }`;
+//      `response_wrap`: `{ ...with, id, into: data }`).
 //   6. The answer is the Next route's answer: 200 (201 for a create) + the upstream JSON, or the same error body and status
 //      (veridian-response.ts). A route whose handler forwards its whole query string (`forward_search`) gets it byte for byte.
 // Nothing here logs a token, an email, a key or a body.
@@ -150,7 +160,21 @@ export function upstreamPathOf(spec: EdgeMethodSpec, params: Record<string, stri
       const v = search.get(k)
       if (v) out.set(k, v)
     }
-    path += `?${out.toString()}`
+    const s = out.toString()
+    // search_params_omit_empty: `qs.toString() ? `?${qs}` : ""` instead of an always-present "?"
+    if (!spec.search_params_omit_empty || s) path += `?${s}`
+  }
+  // optional_query: `${k ? `?k=${encodeURIComponent(k)}` : ""}` ("&" when the path already has a query); query_flags: only an exact value
+  const sep = () => (path.includes("?") ? "&" : "?")
+  for (const k of spec.optional_query ?? []) {
+    const v = search.get(k)
+    if (v) path += `${sep()}${k}=${encodeURIComponent(v)}`
+  }
+  for (const [k, want] of Object.entries(spec.query_flags ?? {})) if (search.get(k) === want) path += `${sep()}${k}=${encodeURIComponent(want)}`
+  // forward_query_normalized: `const qs = request.nextUrl.searchParams.toString(); qs ? `?${qs}` : ""` (re-serialised, not byte for byte)
+  if (spec.forward_query_normalized) {
+    const s = search.toString()
+    if (s) path += `?${s}`
   }
   // forward_search: the Next handler appends request.nextUrl.search as it came ("" or "?a=1&b=2"), byte for byte
   if (spec.forward_search) path += rawSearch
@@ -238,6 +262,17 @@ function failureResponse(req: Request, deps: ApiDeps, spec: EdgeMethodSpec, fail
   return json(req, deps, retryable ? 503 : failure.status, { error: failure.message, code: failure.code }, retryable ? { ...timing, "Retry-After": String(RETRY_AFTER_SECONDS) } : timing)
 }
 
+/** Next renders an unhandled throw of a route handler (here: a field read on a JSON-null body) as an empty 500. */
+function thrown(req: Request, deps: ApiDeps): Response {
+  return new Response(null, { status: 500, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...corsHeaders(req, deps) } })
+}
+class NullBodyRead extends Error {}
+/** `body.field` as the handler reads it: undefined on a primitive, a TypeError (=> the empty 500) on null. */
+function fieldOf(body: unknown, f: string): unknown {
+  if (body === null || body === undefined) throw new NullBodyRead()
+  return (body as Record<string, unknown>)[f]
+}
+
 function bearer(req: Request): string | null {
   const m = (req.headers.get("authorization") ?? "").match(/^Bearer\s+(\S+)$/i)
   return m ? m[1] : null
@@ -294,21 +329,48 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   const orgId = found.row.organization_id
   // the handler's own requireRole(ctx, ROLE_GROUPS.X) (auth-guard.ts: no role or a role outside the set is 403), its first statement
   if (spec.roles) {
-    const allowed = ROLE_GROUPS[spec.roles] ?? []
+    // roles_also (batch 6): `if (ctx.role !== "member") requireRole(ctx, X)` is the set X plus member
+    const allowed = [...(ROLE_GROUPS[spec.roles] ?? []), ...(spec.roles_also ?? [])]
     if (!role || !allowed.includes(role)) return json(req, deps, 403, { error: "Forbidden: your role does not permit this action" })
   }
 
   // 5. the handler's own checks, then the upstream call
   for (const [q, message] of Object.entries(spec.required_query ?? {})) if (!url.searchParams.get(q)) return json(req, deps, 400, { error: message })
+  if (spec.required_query_any && !spec.required_query_any.params.some((q) => url.searchParams.get(q))) return json(req, deps, 400, { error: spec.required_query_any.error })
 
   let body: unknown = undefined
-  if (spec.body === "json" || spec.body === "json_lenient" || spec.body === "empty") {
+  if (spec.body_const) body = JSON.parse(JSON.stringify(spec.body_const)) // batch 6: a constant body; the request body is never read
+  else if (spec.body === "json" || spec.body === "json_lenient" || spec.body === "empty") {
     if (spec.body === "empty") body = {} // the handler sends a constant {} and never reads the request body
     else {
       const read = await readBody(req)
-      // json_lenient: `request.json().catch(() => ({}))`, an empty or broken body is {} (a body over the size limit is still refused)
-      if (!read.ok && !(spec.body === "json_lenient" && read.status === 400)) return json(req, deps, read.status, { error: read.error })
-      body = read.ok ? read.value : {}
+      if (!read.ok && read.status === 400) {
+        // json_lenient: `request.json().catch(() => ({}))`, an empty or broken body is {}; with body_object_error it is `.catch(() => null)`
+        if (spec.body === "json_lenient") body = spec.body_object_error !== undefined ? null : {}
+        // the handler's own `try { body = await request.json() } catch { return 400 <its message> }`
+        else if (spec.invalid_body_error !== undefined) return json(req, deps, 400, { error: spec.invalid_body_error })
+        // the body is read inside the handler's try: its catch answers veridianErrorResponse(err, fallback), the 502 of a non-upstream error
+        else if (spec.body_in_try) return failureResponse(req, deps, spec, { kind: "other" }, 0)
+        else return json(req, deps, read.status, { error: read.error })
+      } else if (!read.ok) return json(req, deps, read.status, { error: read.error }) // over the size limit
+      else body = read.value
+    }
+    // batch 6: the handler's own body checks, in its order
+    if (spec.body_object_error !== undefined && (!body || typeof body !== "object")) return json(req, deps, 400, { error: spec.body_object_error })
+    for (const rule of spec.body_reject_if ?? []) {
+      // `body?.a === x && body?.b === y` (optional chaining: a null body is never refused here)
+      if (Object.entries(rule.match).every(([k, v]) => (body === null || body === undefined ? undefined : (body as Record<string, unknown>)[k]) === v)) return json(req, deps, 400, { error: rule.error })
+    }
+    try {
+      for (const check of spec.body_required ?? []) if (check.fields.some((f) => !fieldOf(body, f))) return json(req, deps, 400, { error: check.error })
+      if (spec.body_pick) {
+        const picked: Json = {}
+        for (const f of spec.body_pick) picked[f] = fieldOf(body, f) // an undefined field is dropped by JSON.stringify, as on the Next side
+        body = picked
+      }
+    } catch (err) {
+      if (err instanceof NullBodyRead) return thrown(req, deps)
+      throw err
     }
     if (spec.body_defaults) body = { ...spec.body_defaults, ...(body as Json) }
     if (spec.body_actor_email === "always") body = { ...(body as Json), actorEmail: verdict.email ?? null }
@@ -338,11 +400,22 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   // veridian-client.ts: a `root: true` call goes to VERIDIAN_API_ROOT = the base without its trailing /projexa
   const base = deps.upstreamBase.replace(/\/+$/, "")
   const target = (spec.root ? base.replace(/\/projexa$/, "") : base) + upstreamPathOf(spec, matched.params, url.searchParams, url.search)
-  const result = await callUpstream(deps, target, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store" } as RequestInit, timeoutMs)
+  const result = await callUpstream(deps, target, { method: spec.upstream_method ?? method, headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store" } as RequestInit, timeoutMs)
   if (!result.ok) {
     logLine(deps, `${method} ${matched.route.route} upstream failure ${result.failure.kind === "upstream" ? result.failure.status : "other"}`)
     return failureResponse(req, deps, spec, result.failure, result.durationMs)
   }
+  // batch 6: the handler's own reshaping of the answer. response_pick `{ k: data.k ?? default }` (a null answer throws inside the handler's
+  // try: its catch's fallback 502); response_wrap `{ ...with, <params>, [into]: data }`
+  let data = result.data
+  if (spec.response_pick) {
+    if (data === null || data === undefined) return failureResponse(req, deps, spec, { kind: "other" }, 0)
+    const src = data as Record<string, unknown>
+    data = Object.fromEntries(Object.entries(spec.response_pick).map(([k, d]) => [k, src[k] ?? d]))
+  } else if (spec.response_wrap) {
+    const w = spec.response_wrap
+    data = { ...w.with, ...Object.fromEntries(w.params.map((p) => [p, matched.params[p]])), [w.into]: data }
+  }
   // the Next handler's own success answer: 200, or 201 for a create; a private browser cache only where the handler sets one
-  return json(req, deps, spec.success_status ?? 200, result.data, spec.cache_control ? { "Cache-Control": spec.cache_control } : {})
+  return json(req, deps, spec.success_status ?? 200, data, spec.cache_control ? { "Cache-Control": spec.cache_control } : {})
 }

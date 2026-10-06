@@ -34,9 +34,23 @@ caller's body, `{ action: "status", ...body }`). The generated `SHADOW_ROUTES` a
 edge route for some path (GET `/api/drawings/export` is not `/api/drawings/:id`): 404 here, and the browser switch keeps them same-origin;
 a literal edge route also beats a dynamic one (`/api/materials/issues` is not `/api/materials/:id`), as in the App Router.
 
+Batch 6 added the handlers' own statements as data, each one ported from the handler's source and proven by the parity contract with good,
+missing, empty, falsy, JSON-null, array, number and broken bodies and with every query form: `body_required` (`[{ fields, error }]`, in the
+handler's order: `if (!body.a || !body.b) 400`), `body_pick` (`{ a: body.a, b: body.b }`), `body_object_error` (`request.json().catch(() =>
+null)` + `!body || typeof body !== "object"`), `invalid_body_error` (the handler's own 400 for a bad JSON body), `body_in_try` (a bad JSON body
+caught by the handler's catch: the fallback 502), `body_reject_if` (a field combination the handler refuses: the client_viewer cost floor),
+`body_const` + `upstream_method` (DELETE answered by an upstream PATCH of `{ isActive: false }`), `optional_query` (`?k=` / `&k=` +
+encodeURIComponent, only when set), `query_flags` (`?k=v` only for exactly v), `search_params_omit_empty` (no bare `?`),
+`forward_query_normalized` (`searchParams.toString()`), `required_query_any` (one of several), `roles_also` (roles on top of the own set:
+`if (ctx.role !== "member") requireRole(...)`), `response_pick` (`{ k: data.k ?? default }`) and `response_wrap` (`{ deactivated: true, id,
+vendor: data }`). A handler that THROWS (a field read on a JSON-null body) is an empty 500 on both sides (Next:
+`next/dist/build/templates/app-route.js` answers `new Response(null, { status: 500 })`); the recorder models exactly that.
+
 Batches: 1 = the shell's 7 routes (2026-10-05); 2 = the 40 most-used plain proxies of the online screens (2026-10-06); 3 = the next 33;
 4 = the last 33 plain proxies (2026-10-06): 113 routes in all; 5 = 72 proxies that were plain in all but form (own role sets, the VERIDIAN
-root, empty / lenient / defaulted bodies, options in any order): 185 routes.
+root, empty / lenient / defaulted bodies, options in any order): 185 routes; 6 = 32 proxies with their own validation, query rebuilding or
+answer reshaping (schedule, timesheets day submit/review, tasks, BOQ categories / lines / compare / cost visibility, billing milestones,
+reports, vendor / customer deactivate): 217 routes.
 
 ## Secrets
 
@@ -54,7 +68,10 @@ curl https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/projexa-api/_policy  
 
 ## Known, deliberate differences from the Next routes
 
-- An invalid JSON body is `400 {"error":"Invalid JSON body"}` (the Next route throws, a 500).
+- An invalid JSON body on a route that reads it strictly OUTSIDE its try is `400 {"error":"Invalid JSON body"}` (the Next route throws, an
+  empty 500). A route with its own message (`invalid_body_error`), a lenient read, or the read inside its try (`body_in_try`, batch 6) is
+  parity-exact instead. (Batch 1-5 routes that read the body inside their try were specified as plain `json`: there a broken body is this
+  400 on the edge and the fallback 502 on Next; both are refusals with nothing sent, recorded here so it is not mistaken for parity.)
 - (Fixed in batch 5, no longer a difference.) A path parameter is percent-encoded into the upstream path on both sides: 35 Next handler
   sites that inserted it raw (`/leads/${id}`, so `..%2F` in an id walked the upstream path with the org's key) now encode it, and the
   parity contract holds path-walking ids (`..%2F..%2Fadmin`) for both.
