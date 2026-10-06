@@ -9,13 +9,19 @@ import { createHash } from "node:crypto"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { ALLOWED_ORIGINS, apiPathOf, createUpstreamCache, handleApi, UPLOAD_MAX_BYTES, type ApiDeps, type UpstreamCache } from "../../../supabase/functions/projexa-api/handler"
-import { createMembershipLookup, createOrgKeyLookup } from "../../../supabase/functions/projexa-api/lookups"
+import { createCompanyMembershipLookup, createMembershipLookup, createOrgKeyLookup } from "../../../supabase/functions/projexa-api/lookups"
 import { checkApiWriteAccess, EDGE_ROUTES, SOURCE_SHA256, sourceData } from "../../../supabase/functions/projexa-api/policy.generated"
 import type { SessionVerifier } from "../../../supabase/functions/ai-work-link/session"
 
 const DIR = join(import.meta.dir, "..", "..", "..", "supabase", "functions", "projexa-api")
-type Identity = { sub: string; email: string | null; membership: { organization_id: string; role: string } | null | "error" }
-type Upstream = { kind: "json"; status: number; body: unknown } | { kind: "text"; status: number; status_text: string; text: string } | { kind: "refused" }
+type Identity = { sub: string; email: string | null; membership: { organization_id: string; role: string } | null | "error"; more?: { organization_id: string; role: string | null }[] }
+type Upstream = { kind: "json"; status: number; body: unknown } | { kind: "text"; status: number; status_text: string; text: string } | { kind: "refused" } | { kind: "paths"; map: [string, Upstream][]; otherwise: Upstream }
+/** batch 8: a different answer per upstream URL (the first entry whose text the URL contains; else `otherwise`). */
+function pickUpstream(u: Upstream, url: string): Exclude<Upstream, { kind: "paths" }> {
+  if (u.kind !== "paths") return u
+  const hit = u.map.find(([text]) => url.includes(text))
+  return pickUpstream(hit ? hit[1] : u.otherwise, url)
+}
 /** raw_body (batch 5): the body sent as text (empty / broken / JSON null / array / number), for the lenient, defaulted and validated body reads. */
 type Multipart = { fields: [string, string][]; files?: { field: string; name: string; type: string; content: string }[] }
 /** content_type (batch 7): with raw_body, for a body that is not JSON; multipart (batch 7): an upload form. */
@@ -86,7 +92,7 @@ async function runEdge(c: Pick<Case, "name" | "method" | "path" | "body" | "raw_
       const entry = calls[calls.length - 1]!
       entry.body = await recordForm(init.body)
     }
-    const u = c.upstream
+    const u = pickUpstream(c.upstream, url)
     if (u.kind === "refused") throw new TypeError("error sending request: tcp connect error: Connection refused (os error 111)")
     if (u.kind === "text") return new Response(u.text, { status: u.status, statusText: u.status_text })
     return new Response(JSON.stringify(u.body), { status: u.status, headers: { "Content-Type": "application/json" } })
@@ -95,6 +101,12 @@ async function runEdge(c: Pick<Case, "name" | "method" | "path" | "body" | "raw_
     session,
     issuer: ISSUER,
     membership: async () => (!id || id.membership === "error" ? { ok: false } : { ok: true, row: id.membership }),
+    // batch 8: the person's membership of the company in the path (the oldest one and the later ones); a non-UUID company is a failed lookup
+    companyMembership: async (_t, _s, company) => {
+      if (!id || id.membership === "error" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(company)) return { ok: false }
+      const m = [id.membership, ...(id.more ?? [])].find((x) => x?.organization_id === company)
+      return { ok: true, row: m ? { role: m.role } : null }
+    },
     orgKey: async (org) => golden.org_keys[org] ?? null,
     upstreamBase: golden.upstream_base,
     fetchImpl,
@@ -350,6 +362,20 @@ describe("the two PROJEXA reads", () => {
     expect(seen[0].headers.get("authorization")).toBe("Bearer tok")
     expect(seen[0].headers.get("apikey")).toBe("anon")
     expect(await lookup("tok", "not-a-uuid")).toEqual({ ok: false })
+  })
+  test("batch 8 company membership: the person's own token, ONE named company, [] is 'not a member', an error or a non-UUID id is a failed lookup", async () => {
+    const seen: { url: string; headers: Headers }[] = []
+    const answers = [new Response(JSON.stringify([{ role: "owner" }])), new Response("[]"), new Response("{}", { status: 500 })]
+    const lookup = createCompanyMembershipLookup({ projexaUrl: "https://p.test", anonKey: "anon", fetchImpl: (async (u: RequestInfo | URL, i?: RequestInit) => (seen.push({ url: String(u), headers: new Headers(i?.headers) }), answers.shift()!)) as typeof fetch })
+    expect(await lookup("tok", SUB, ORG)).toEqual({ ok: true, row: { role: "owner" } })
+    expect(await lookup("tok", SUB, ORG)).toEqual({ ok: true, row: null })
+    expect(await lookup("tok", SUB, ORG)).toEqual({ ok: false })
+    expect(seen[0].url).toBe(`https://p.test/rest/v1/memberships?select=role&user_id=eq.${SUB}&organization_id=eq.${ORG}&limit=1`)
+    expect(seen[0].headers.get("authorization")).toBe("Bearer tok")
+    expect(seen[0].headers.get("apikey")).toBe("anon")
+    expect(await lookup("tok", SUB, "not-a-uuid")).toEqual({ ok: false })
+    expect(await lookup("tok", "not-a-uuid", ORG)).toEqual({ ok: false })
+    expect(seen).toHaveLength(3)
   })
   test("org key: service role, remembered 5 minutes, 'no row' never remembered, a malformed org id never queried", async () => {
     let n = 0

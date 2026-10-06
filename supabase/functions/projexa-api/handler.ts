@@ -32,10 +32,16 @@
 //      queries that depend on another parameter; `response_redact` hides a field of a list for some roles; `boq_create_verify` is the BOQ
 //      create's own check of what came back. `revalidate` is read by the BROWSER only (the Next handler clears page-side cache entries the edge
 //      cannot reach: the browser asks Vercel to, after the edge answered).
+//   5e. (AUDIT-100 A2 batch 8) `company_scope` (src/lib/company-scope.ts requireCompanyScope): the route names a :companyId; after the ordinary
+//      organisation step the person must be a member of THAT company (403 "Not a member of this company"; a failed lookup is the unhandled throw =
+//      an empty 500), and the company, not the oldest membership, is the organisation whose key, cache and answer are used. `acting_user:
+//      "id_only"` sends X-Acting-User without the e-mail (the company dashboard names the user id only). `category_distribution`: two reads in
+//      parallel combined by the projexa repo's own pure builder (category-distribution.ts, copied byte for byte).
 //   6. The answer is the Next route's answer: 200 (201 for a create) + the upstream JSON, or the same error body and status
 //      (veridian-response.ts). A route whose handler forwards its whole query string (`forward_search`) gets it byte for byte.
 // Nothing here logs a token, an email, a key or a body.
 import type { SessionVerifier } from "../ai-work-link/session.ts"
+import { buildCategoryDistribution } from "./category-distribution.ts"
 import { checkApiWriteAccess, EDGE_ROUTES, ROLE_GROUPS, SHADOW_ROUTES, SOURCE_SHA256, type EdgeMethodSpec } from "./policy.generated.ts"
 
 export const ALLOWED_ORIGINS = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100", "http://localhost:3101"] as const
@@ -55,11 +61,15 @@ export const CACHE_MAX_ENTRIES = 256
 
 export type Membership = { organization_id: string; role: string | null }
 export type MembershipLookup = (token: string, sub: string) => Promise<{ ok: true; row: Membership | null } | { ok: false }>
+/** AUDIT-100 A2 batch 8: the person's membership of ONE named company (PROJEXA public.memberships, the person's own token, row level security). */
+export type CompanyMembershipLookup = (token: string, sub: string, companyId: string) => Promise<{ ok: true; row: { role: string | null } | null } | { ok: false }>
 export type ApiDeps = {
   session: SessionVerifier
   /** Only tokens of this issuer are accepted (the PROJEXA Auth project): PROJEXA's own routes accept nothing else. */
   issuer: string
   membership: MembershipLookup
+  /** batch 8: the company routes (`company_scope`): is the person a member of the company named in the path. */
+  companyMembership?: CompanyMembershipLookup
   /** The organisation's own VERIDIAN key, or null when it has none. */
   orgKey: (organizationId: string) => Promise<string | null>
   /** VERIDIAN_API_BASE_URL (".../api/v1/projexa"), what PROJEXA's veridian-client.ts uses. */
@@ -231,6 +241,11 @@ export function upstreamPathOf(spec: EdgeMethodSpec, params: Record<string, stri
     const allowed = spec.include_allow.filter((v) => requested.has(v))
     if (allowed.length > 0) path += `&include=${allowed.join(",")}`
   }
+  // category_distribution.boq_id (batch 8): `const boqIdParam = boqId ? `&boqId=${encodeURIComponent(boqId)}` : ""` after the project id
+  if (spec.category_distribution?.boq_id) {
+    const boq = search.get("boqId")
+    if (boq) path += `&boqId=${encodeURIComponent(boq)}`
+  }
   // forward_query_normalized: `const qs = request.nextUrl.searchParams.toString(); qs ? `?${qs}` : ""` (re-serialised, not byte for byte)
   if (spec.forward_query_normalized) {
     const s = search.toString()
@@ -394,6 +409,17 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
     if (!role || !allowed.includes(role)) return json(req, deps, 403, { error: "Forbidden: your role does not permit this action" })
   }
 
+  // batch 8 company_scope: requireCompanyScope runs first in the handler, right after requireAuth
+  let workOrg = orgId
+  if (spec.company_scope) {
+    const company = matched.params.companyId ?? ""
+    const lookup = deps.companyMembership
+    const mem = lookup ? await lookup(token, verdict.sub, company) : ({ ok: false } as const)
+    if (!mem.ok) return thrown(req, deps) // a database error / a company id that is not a UUID: nothing in the handler catches it
+    if (!mem.row) return json(req, deps, 403, { error: "Not a member of this company" })
+    workOrg = company
+  }
+
   // 5. the handler's own checks, then the upstream call
   for (const [q, message] of Object.entries(spec.required_query ?? {})) if (!url.searchParams.get(q)) return json(req, deps, 400, { error: message })
   if (spec.required_query_any && !spec.required_query_any.params.some((q) => url.searchParams.get(q))) return json(req, deps, 400, { error: spec.required_query_any.error })
@@ -458,23 +484,24 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   const timeoutMs = deps.timeoutMs ?? spec.timeout_ms ?? UPSTREAM_TIMEOUT_MS
   const base = deps.upstreamBase.replace(/\/+$/, "")
   // veridian-client.ts: a `root: true` call goes to VERIDIAN_API_ROOT = the base without its trailing /projexa
-  const target = (spec.root ? base.replace(/\/projexa$/, "") : base) + upstreamPathOf(spec, matched.params, url.searchParams, url.search)
+  const upPath = upstreamPathOf(spec, matched.params, url.searchParams, url.search)
+  const target = (spec.root ? base.replace(/\/projexa$/, "") : base) + upPath
   // batch 7 cache_ttl: a fresh answer of this organisation for this URL is served without a key lookup or an upstream call (the cached function of
   // the Next route is keyed by the organisation alone and resolves the key only when it has to fill)
   const cache = deps.cache ?? isolateCache
-  const cacheKey = `${orgId}|${target}`
+  const cacheKey = `${workOrg}|${target}`
   if (spec.cache_ttl !== undefined) {
     const hit = cache.get(cacheKey, spec.cache_ttl)
     if (hit !== undefined) return json(req, deps, spec.success_status ?? 200, hit, spec.cache_control ? { "Cache-Control": spec.cache_control } : {})
   }
   let key: string | null
   try {
-    key = await deps.orgKey(orgId)
+    key = await deps.orgKey(workOrg)
   } catch {
     key = null // veridian-client.ts getVeridianApiKey(): a failed lookup is "no key", never a shared key
   }
   if (!key) {
-    const message = `No VERIDIAN credentials configured for organization ${orgId}, and per-org requests may not fall back to a shared key (AR-04)`
+    const message = `No VERIDIAN credentials configured for organization ${workOrg}, and per-org requests may not fall back to a shared key (AR-04)`
     return spec.error_style === "plain" ? json(req, deps, 500, { error: message }) : json(req, deps, 500, { error: message, code: null }, { "Server-Timing": "upstream;dur=0" })
   }
 
@@ -482,11 +509,27 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   // acting_user "none" (a cached person-free read): the call carries no acting person, as personFreeCache's fill (runWithoutActingPerson) sends none
   if (spec.acting_user !== "none") {
     headers["X-Acting-User"] = verdict.sub
-    if (verdict.email) headers["X-Acting-User-Email"] = verdict.email
+    if (verdict.email && spec.acting_user !== "id_only") headers["X-Acting-User-Email"] = verdict.email
   }
   // a multipart form gets its Content-Type (with the boundary) from fetch itself, never written by hand
   if (body) headers["Content-Type"] = "application/json"
-  const result = await callUpstream(deps, target, { method: spec.upstream_method ?? method, headers, body: form ?? (body ? JSON.stringify(body) : undefined), cache: "no-store" } as RequestInit, timeoutMs)
+  // batch 8 category_distribution: `Promise.all([amounts, progress])`, then buildCategoryDistribution; the first failure (in array order) is the answer, and a
+  // builder that throws on a malformed answer is the handler's catch (the fallback 502)
+  let result: Awaited<ReturnType<typeof callUpstream>>
+  if (spec.category_distribution) {
+    const second = target.slice(0, target.length - upPath.length) + spec.category_distribution.progress.replace(/\{(\w+)\}/g, (_m, p: string) => encodeURIComponent(matched.params[p] ?? ""))
+    const init = { method: "GET", headers, cache: "no-store" } as RequestInit
+    const [amounts, progress] = await Promise.all([callUpstream(deps, target, init, timeoutMs), callUpstream(deps, second, init, timeoutMs)])
+    if (!amounts.ok) result = amounts
+    else if (!progress.ok) result = progress
+    else {
+      try {
+        result = { ok: true, data: buildCategoryDistribution(amounts.data as never, progress.data as never) }
+      } catch {
+        result = { ok: false, failure: { kind: "other" }, durationMs: 0 }
+      }
+    }
+  } else result = await callUpstream(deps, target, { method: spec.upstream_method ?? method, headers, body: form ?? (body ? JSON.stringify(body) : undefined), cache: "no-store" } as RequestInit, timeoutMs)
   if (!result.ok) {
     logLine(deps, `${method} ${matched.route.route} upstream failure ${result.failure.kind === "upstream" ? result.failure.status : "other"}`)
     return failureResponse(req, deps, spec, result.failure, result.durationMs)
