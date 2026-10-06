@@ -12,11 +12,15 @@
 //   5. The org's own VERIDIAN key (PROJEXA public.veridian_credentials, read server-side; never a shared key: AR-04) authenticates the
 //      upstream call; the acting person goes as X-Acting-User / X-Acting-User-Email, built from the verified token only (an inbound
 //      X-Acting-User is never forwarded). Method, path, the query the Next route forwards and the JSON body are sent as the Next route sends them.
+//   5b. (AUDIT-100 A2 batch 5) A route whose handler checks its own role set (requireRole(ctx, ROLE_GROUPS.X)) gets the same check right
+//      after the organisation is known (`roles`); a `root` route calls VERIDIAN's /api/v1 root instead of /api/v1/projexa; a body is read
+//      strictly (`json`), leniently (`json_lenient`: an empty or broken body is {}, as `request.json().catch(() => ({}))`) or not at all and
+//      sent as {} (`empty`); `body_defaults` are spread UNDER the caller's body, as `{ action: "status", ...body }`.
 //   6. The answer is the Next route's answer: 200 (201 for a create) + the upstream JSON, or the same error body and status
 //      (veridian-response.ts). A route whose handler forwards its whole query string (`forward_search`) gets it byte for byte.
 // Nothing here logs a token, an email, a key or a body.
 import type { SessionVerifier } from "../ai-work-link/session.ts"
-import { checkApiWriteAccess, EDGE_ROUTES, SOURCE_SHA256, type EdgeMethodSpec } from "./policy.generated.ts"
+import { checkApiWriteAccess, EDGE_ROUTES, ROLE_GROUPS, SHADOW_ROUTES, SOURCE_SHA256, type EdgeMethodSpec } from "./policy.generated.ts"
 
 export const ALLOWED_ORIGINS = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100", "http://localhost:3101"] as const
 export const CORS_ALLOW_HEADERS = "authorization, content-type, accept, x-px-client"
@@ -91,8 +95,23 @@ export function apiPathOf(pathname: string): string | null {
   return pathname.slice(i).replace(/\/+$/, "")
 }
 
-/** The listed route a concrete /api path is, with its decoded parameters; null when none (=> 404). */
+/** The listed route a concrete /api path is, with its decoded parameters; null when none (=> 404). Like the Next App Router, a literal
+ *  segment beats a dynamic one at the same position: /api/materials/issues is that route, not /api/materials/:id with id "issues". */
 export function matchRoute(apiPath: string): { route: (typeof EDGE_ROUTES)[number]; params: Record<string, string> } | null {
+  let best: { route: (typeof EDGE_ROUTES)[number]; params: Record<string, string>; rank: string } | null = null
+  for (const m of matchAll(apiPath)) if (!best || m.rank > best.rank) best = m
+  if (!best) return null
+  // a Next route that stays on Vercel and wins for this path (GET /api/drawings/export is not /api/drawings/:id): not ours, 404
+  const segs = apiPath.split("/").filter(Boolean)
+  for (const shadow of SHADOW_ROUTES) {
+    const pat = shadow.split("/").filter(Boolean)
+    if (pat.length !== segs.length || !pat.every((p, i) => p.startsWith(":") || p === segs[i])) continue
+    if (pat.map((p) => (p.startsWith(":") ? "0" : "1")).join("") > best.rank) return null
+  }
+  return { route: best.route, params: best.params }
+}
+
+function* matchAll(apiPath: string): Generator<{ route: (typeof EDGE_ROUTES)[number]; params: Record<string, string>; rank: string }> {
   const segs = apiPath.split("/").filter(Boolean)
   for (const route of EDGE_ROUTES) {
     const pat = route.route.split("/").filter(Boolean)
@@ -118,9 +137,8 @@ export function matchRoute(apiPath: string): { route: (typeof EDGE_ROUTES)[numbe
         break
       }
     }
-    if (ok) return { route, params }
+    if (ok) yield { route, params, rank: pat.map((p) => (p.startsWith(":") ? "0" : "1")).join("") }
   }
-  return null
 }
 
 /** The upstream path the Next handler builds (relative to VERIDIAN_API_BASE_URL). Exported for the tests. */
@@ -274,15 +292,25 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   if (!gate.allowed) return json(req, deps, 403, { error: "Forbidden: your role does not permit this action" })
   if (!found.row) return json(req, deps, 400, { error: "No organization" })
   const orgId = found.row.organization_id
+  // the handler's own requireRole(ctx, ROLE_GROUPS.X) (auth-guard.ts: no role or a role outside the set is 403), its first statement
+  if (spec.roles) {
+    const allowed = ROLE_GROUPS[spec.roles] ?? []
+    if (!role || !allowed.includes(role)) return json(req, deps, 403, { error: "Forbidden: your role does not permit this action" })
+  }
 
   // 5. the handler's own checks, then the upstream call
   for (const [q, message] of Object.entries(spec.required_query ?? {})) if (!url.searchParams.get(q)) return json(req, deps, 400, { error: message })
 
   let body: unknown = undefined
-  if (spec.body === "json") {
-    const read = await readBody(req)
-    if (!read.ok) return json(req, deps, read.status, { error: read.error })
-    body = read.value
+  if (spec.body === "json" || spec.body === "json_lenient" || spec.body === "empty") {
+    if (spec.body === "empty") body = {} // the handler sends a constant {} and never reads the request body
+    else {
+      const read = await readBody(req)
+      // json_lenient: `request.json().catch(() => ({}))`, an empty or broken body is {} (a body over the size limit is still refused)
+      if (!read.ok && !(spec.body === "json_lenient" && read.status === 400)) return json(req, deps, read.status, { error: read.error })
+      body = read.ok ? read.value : {}
+    }
+    if (spec.body_defaults) body = { ...spec.body_defaults, ...(body as Json) }
     if (spec.body_actor_email === "always") body = { ...(body as Json), actorEmail: verdict.email ?? null }
     // veridian-client.ts withSessionActorEmail(): on a call whose acting person comes from the session, a top-level actorEmail is always
     // the person's own email; a call that names its person explicitly leaves the body as it is.
@@ -307,7 +335,9 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   const headers: Record<string, string> = { Authorization: `Bearer ${key}`, "X-Acting-User": verdict.sub }
   if (verdict.email) headers["X-Acting-User-Email"] = verdict.email
   if (body) headers["Content-Type"] = "application/json"
-  const target = deps.upstreamBase.replace(/\/+$/, "") + upstreamPathOf(spec, matched.params, url.searchParams, url.search)
+  // veridian-client.ts: a `root: true` call goes to VERIDIAN_API_ROOT = the base without its trailing /projexa
+  const base = deps.upstreamBase.replace(/\/+$/, "")
+  const target = (spec.root ? base.replace(/\/projexa$/, "") : base) + upstreamPathOf(spec, matched.params, url.searchParams, url.search)
   const result = await callUpstream(deps, target, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store" } as RequestInit, timeoutMs)
   if (!result.ok) {
     logLine(deps, `${method} ${matched.route.route} upstream failure ${result.failure.kind === "upstream" ? result.failure.status : "other"}`)
