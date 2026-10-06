@@ -16,7 +16,8 @@ Caveat: facts about #365/#366, the ~21s stalls, the democeo link and extension s
 - VERIFIED: 81 of 100 (81%)
 - PARTIAL: 7, BUILT-UNTESTED: 3, BLOCKED-OWNER: 9
 - Open for the owner: the vendor engine runs and connectors (B37-B42, B48-B50, closing A10/A27/A28/A30/A31/A37), the real passcode sign-in (B1), real composers from a signed-in browser (B52).
-- Open for engineering: A2 (remaining Vercel proxies, batches in progress), B7 (one real-backend run when the live database is calm).
+- A2 progress (2026-10-06): batches 7 + 8 live (projexa-api: 236 proxy routes + the 2 G-09 org routes). Vercel-served /api routes 94 -> 92 -> 78 -> 74 of 312 (one of them the new /api/cache/revalidate). Live smokes 410/410 and 431/431 identical to Vercel; evidence in projexa ai-os/audit37/evidence/a2-batch7-* and a2-batch8-*.
+- Open for engineering: A2 (74 /api routes still on Vercel: 21 downloads / uploads / share links, 17 own-logic routes, 5 server-only, 29 stay by plan, and 3 fan-outs that need their own design: /api/shell, /api/work-progress/report, the company project detail), B7 (one real-backend run when the live database is calm).
 
 ## 1. Summary
 
