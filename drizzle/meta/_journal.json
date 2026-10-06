@@ -3747,6 +3747,13 @@
       "when": 1790600010000,
       "tag": "0729_projexa_org_credentials_and_provision",
       "breakpoints": true
+    },
+    {
+      "idx": 537,
+      "version": "7",
+      "when": 1790600011000,
+      "tag": "0730_audit_trail_stamp_columns",
+      "breakpoints": true
     }
   ]
 }

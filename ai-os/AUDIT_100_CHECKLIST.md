@@ -16,6 +16,7 @@ Caveat: facts about #365/#366, the ~21s stalls, the democeo link and extension s
 - VERIFIED: 81 of 100 (81%)
 - PARTIAL: 7, BUILT-UNTESTED: 3, BLOCKED-OWNER: 9
 - Open for the owner: the vendor engine runs and connectors (B37-B42, B48-B50, closing A10/A27/A28/A30/A31/A37), the real passcode sign-in (B1), real composers from a signed-in browser (B52).
+- Shared audit trail (design ai-os/audit37/AUDIT_TRAIL_DESIGN_2026-10-06.md): slice 1 built 2026-10-06 (drizzle 0730 stamp columns on compliance.audit_logs, internal-only column privileges, src/lib/audit-stamp.ts, optional stamp on logActivity, 2 committed tests mutation-proven). Slice 2 next: wire channel stamps in the AI link, offline sync push and access_events.
 - Open for engineering: A2 (remaining Vercel proxies, batches in progress), B7 (one real-backend run when the live database is calm).
 
 ## 1. Summary
