@@ -16,7 +16,7 @@ import type { SessionVerifier } from "../../../supabase/functions/ai-work-link/s
 const DIR = join(import.meta.dir, "..", "..", "..", "supabase", "functions", "projexa-api")
 type Identity = { sub: string; email: string | null; membership: { organization_id: string; role: string } | null | "error" }
 type Upstream = { kind: "json"; status: number; body: unknown } | { kind: "text"; status: number; status_text: string; text: string } | { kind: "refused" }
-/** raw_body (batch 5): the body sent as text (empty / broken / JSON null), for the lenient and defaulted body reads. */
+/** raw_body (batch 5): the body sent as text (empty / broken / JSON null / array / number), for the lenient, defaulted and validated body reads. */
 type Case = { name: string; method: string; path: string; body?: unknown; raw_body?: string; who: string; upstream: Upstream }
 type Call = { method: string; path: string; authorization: string | null; acting_user: string | null; acting_email: string | null; content_type: string | null; body: unknown }
 /** cache_control: present only when the answer sets a Cache-Control other than "no-store" (the projexa recorder normalises the same way). */
@@ -117,9 +117,18 @@ describe("deny by default, and what the edge never does", () => {
   })
   test("batch 5: a Vercel route that is a literal sibling of a dynamic edge route is 404 here, not answered as the dynamic route", async () => {
     // GET /api/drawings/export is the xlsx download (stays on Vercel), not /api/drawings/:id with id "export"; same for /api/materials/master
-    for (const [method, path] of [["GET", "/api/drawings/export?projectId=p-1"], ["GET", "/api/materials/master"], ["POST", "/api/timesheets/review-day"], ["POST", "/api/scope/categories/approve"], ["PATCH", "/api/projects/overview"]]) {
+    // (batch 6 moved /api/timesheets/review-day, /api/scope/categories/:id and /api/projects/overview to the edge, so they are no longer
+    // shadows; /api/work-progress/photos and /report became shadows of the new /api/work-progress/:id)
+    for (const [method, path] of [["GET", "/api/drawings/export?projectId=p-1"], ["GET", "/api/materials/master"], ["GET", "/api/work-progress/photos?veridianEntryId=e-1"], ["GET", "/api/work-progress/report?projectId=p-1"], ["POST", "/api/work-progress/photos"]]) {
       const out = await runEdge({ ...owner, method, path, body: method === "GET" ? undefined : {} })
       expect(out.status, `${method} ${path}`).toBe(404)
+      expect(out.upstream_calls).toHaveLength(0)
+    }
+    // batch 6: a literal edge route wins like in the App Router, and a method it lacks is 405 there too (POST /api/scope/categories/approve
+    // is /api/scope/categories/:id with id "approve", which has PATCH and DELETE only; /api/projects/overview has GET only)
+    for (const [method, path] of [["POST", "/api/scope/categories/approve"], ["PATCH", "/api/projects/overview"]]) {
+      const out = await runEdge({ ...owner, method, path, body: {} })
+      expect(out.status, `${method} ${path}`).toBe(405)
       expect(out.upstream_calls).toHaveLength(0)
     }
     // and the dynamic route itself still answers
