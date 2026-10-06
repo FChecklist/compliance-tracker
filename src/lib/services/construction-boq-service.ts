@@ -19,7 +19,7 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects, constructionChangeOrders,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
+import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
 // R67 F-27 (R-243): a BOQ write moves contract value, earned value and
@@ -1525,6 +1525,12 @@ export async function updateLineItemBudget(
     materialAmount?: number | null
     manpowerAmount?: number | null
     category?: string | null
+    /**
+     * G-14 (two laptops edit the same field offline): the category the caller SAW when it made its edit. Absent = no check (every older
+     * caller). Present and different from what is stored now = the edit is refused with EditConflictError (409) carrying what is stored,
+     * so the person can choose, instead of the later write silently replacing the earlier one.
+     */
+    expectedCategory?: string | null
   }
 ) {
   if (input.budgetPercentage !== undefined && (input.budgetPercentage < 0 || input.budgetPercentage > 100)) {
@@ -1546,6 +1552,9 @@ export async function updateLineItemBudget(
     if (!existing) throw new ServiceError("Line item not found", 404)
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, existing.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("Line item not found", 404)
+    if (input.expectedCategory !== undefined && normalizeCategory(existing.category) !== normalizeCategory(input.expectedCategory)) {
+      throw new EditConflictError({ category: normalizeCategory(existing.category) })
+    }
 
     const setValues = {
       ...(input.budgetPercentage !== undefined ? { budgetPercentage: String(input.budgetPercentage) } : {}),
@@ -1577,10 +1586,25 @@ export async function updateLineItemBudget(
       return withComputedRate(existing)
     }
 
+    // The compare-and-set is repeated IN the update, so another writer between the read above and this write cannot slip through.
+    const expected = input.expectedCategory === undefined ? undefined : normalizeCategory(input.expectedCategory)
+    const sameAsExpected = expected === undefined ? undefined : expected === null ? isNull(constructionBoqLineItems.category) : eq(constructionBoqLineItems.category, expected)
     const [updated] = await db.update(constructionBoqLineItems).set(setValues)
-      .where(eq(constructionBoqLineItems.id, lineItemId)).returning()
+      .where(and(eq(constructionBoqLineItems.id, lineItemId), sameAsExpected)).returning()
+    if (!updated) {
+      const now = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
+      throw new EditConflictError({ category: normalizeCategory(now?.category) })
+    }
     return withComputedRate(updated)
   })
+}
+
+/** 409: the field was changed by someone else since the caller read it. `current` is what is stored now, for the person to choose from. */
+export class EditConflictError extends ServiceError {
+  constructor(public readonly current: { category: string | null }) {
+    super("This line was changed by someone else since you started editing it.", 409)
+    this.code = "EDIT_CONFLICT"
+  }
 }
 
 // R85 Addendum 3 v4, Phase 2 (gates 2-01/2-02/2-04) -- the grid's own write
