@@ -574,7 +574,7 @@ export function buildManualSections(input: ManualInput): ManualSection[] {
         "- You can send HTTP POST: `POST /check` under this address with `{\"function\":\"<id>\",\"params\":{}}` checks a change and records nothing. `POST " + base + "/drafts` (the same body, optional `idempotency_key`) records a draft and answers `confirm_url`: give that address to the person, who opens it, signs in, types the code the page shows and confirms. A draft is kept 48 hours and `GET /drafts/{id}` under this address shows its state." + (av.changes_run ? "" : " Confirming is not switched on yet: a draft waits until it expires."),
         "- `POST /actions` (under this address) makes a change directly, deletes included, when it is on.",
         "- You can only open web addresses: `GET " + manifest.urls.propose_example + "` returns a confirm link. Give it to the person. Nothing is recorded.",
-        "- You cannot open web addresses: print one fenced block labelled projexa-proposal per change (format in /card.md under this address) and tell the person to paste them at " + manifest.urls.inbox.split("#")[0] + " .",
+        "- You cannot open web addresses: print one fenced block labelled projexa-proposal per change (format in /card.md under this address) and tell the person to paste them at " + manifest.urls.inbox.split("#")[0] + " . Or print one plain confirm link per change, alone on its own line (its form and a worked example are under What I can do in /workspace).",
         suggestionsLine(),
       ].join("\n"),
     },
