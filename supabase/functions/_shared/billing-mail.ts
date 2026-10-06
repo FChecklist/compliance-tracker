@@ -7,8 +7,10 @@
 // sendViaResend, which takes the API key as an argument and uses fetch.
 //
 // WORDING RULES (dpdp-app/scripts/check-claims.mjs spirit): plain, factual, no "instant",
-// no "secure", no "guaranteed". The two promises that ARE true and ARE the owner's own
-// rule are said plainly: access never locks, and the card is entered on Razorpay's page.
+// no "secure", no "guaranteed". The promises that ARE true are said plainly: the card is entered
+// on Razorpay's page, the data is safe, and (policy of 2026-10-06, drizzle/0734) the working
+// screens pause only after the trial, the due day and a short grace, never the data, the payment
+// screen, the download, a breach record or a grievance answer.
 
 import { type OutboundEnvelope, resendPayload } from "./mail-outbound.ts"
 
@@ -116,7 +118,7 @@ export function renderReminder(r: ReminderInput): Rendered {
       lines = [
         `Your free trial of VERIDIAN DPDP for ${r.orgName} ends on ${due}, ${DAYS(r.daysLeft)} from now.`,
         ``,
-        `Nothing stops working when it ends: your data stays, and access to your account does not change. This is a heads-up so you can plan the payment.`,
+        `Everything keeps working through the end of the trial and for a few days after it, so there is time to arrange the payment. Your data stays safe either way. If the payment has still not been made by then, the working screens pause until it is, and you can always pay, download your data, and record a breach or answer a grievance. This is a heads-up so you can plan the payment.`,
         ``,
         ...PAY_LINES(r.priceLabel, r.appUrl),
       ]
@@ -126,7 +128,7 @@ export function renderReminder(r: ReminderInput): Rendered {
       lines = [
         `The free trial of VERIDIAN DPDP for ${r.orgName} ended on ${due}.`,
         ``,
-        `Your data is safe and your access is unchanged: you can keep working exactly as before. We will not lock you out of your own compliance work over an unpaid invoice.`,
+        `Your data is safe, and everything still works for a few days while you arrange the payment. If it has not been made by then, the working screens pause until it is. Nothing is taken away, and you can always pay, download your data, and record a breach or answer a grievance.`,
         ``,
         ...PAY_LINES(r.priceLabel, r.appUrl),
       ]
@@ -139,12 +141,52 @@ export function renderReminder(r: ReminderInput): Rendered {
         ``,
         `To renew (${r.priceLabel} for the year), open your owner page and press Billing, bottom left:`,
         r.appUrl,
-        `You can pay online through Razorpay or by bank transfer. We email you a receipt once the payment is confirmed. Your access does not stop if you pay a little late.`,
+        `You can pay online through Razorpay or by bank transfer. We email you a receipt once the payment is confirmed. If you pay a little late, everything still works for a few days first.`,
       ]
       break
   }
   lines.push(``, `Questions? Just reply to this email.`)
   return brandWrap({ subject, text: lines.join("\n"), html: toHtml(lines) })
+}
+
+export type BillingDueInput = {
+  orgName: string
+  state: "DUE" | "GRACE" | "LOCKED"
+  /** dpdp.billing_due_line(state), the one calm sentence, worded in the database so the screens and the e-mails never drift apart. */
+  line: string
+  role: "owner" | "head of department" | "billing contact"
+  payUrl: string
+  unsubscribeUrl: string
+  /** 90+ days past the period end and this account has not yet had the final download notice. */
+  finalDownload: boolean
+  downloadUrl: string
+}
+
+/**
+ * The weekly note to an account's own contacts while it is DUE, in GRACE or LOCKED (drizzle/0734). Calm on purpose: the data is safe, nothing is
+ * removed, and the way to pay is one link. Every message carries a one-click unsubscribe link; the contact can stop these and nothing else changes.
+ * The final-download variant goes once, when the account is 90+ days past its period end.
+ */
+export function renderBillingDue(d: BillingDueInput): Rendered {
+  const subject = d.finalDownload
+    ? `Please download a copy of your data -- ${oneLine(d.orgName)}`
+    : `A gentle note about payment -- ${oneLine(d.orgName)}`
+  const lines = [
+    d.line,
+    ``,
+    d.finalDownload
+      ? `It has been a while, so this is a last reminder to take a copy of what is kept for ${d.orgName}: the jobs and the dated record. Your data is kept for a year in all, and the owner can download it here:`
+      : d.role === "owner" || d.role === "billing contact"
+      ? `To pay for ${d.orgName}, open:`
+      : `The owner of ${d.orgName} can pay here, so please let them know:`,
+    d.finalDownload ? d.downloadUrl : d.payUrl,
+    ``,
+    `You can pay by bank transfer or UPI and tell us on that page. We email a receipt once the payment is confirmed.`,
+    ``,
+    `You get this note because you are a contact for the account (${d.role}). To stop these notes, one click:`,
+    d.unsubscribeUrl,
+  ]
+  return brandWrap({ subject, text: lines.join("\n") + "\n\n-- VERIDIAN AI DPDP", html: toHtml(lines) })
 }
 
 /** "Addresses that can never receive mail": reserved example/test domains. Same rule as dpdp-monday-email/render.ts's isDeliverableAddress (the test pins them together). */

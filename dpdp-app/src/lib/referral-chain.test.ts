@@ -93,10 +93,16 @@ describe("referral carry-through: share link -> ref.js -> localStorage -> sign-u
     await withLocalStorage(store, () => expect(recallReferral()).toBe("ABCD2345"))
   })
 
-  test("App.tsx passes the remembered code to createMyOrg (the argument must not be dropped)", () => {
+  test("App.tsx passes the remembered code to openAccount, which hands it to dpdp_create_my_org (the argument must not be dropped)", () => {
     const app = read("src/App.tsx")
-    expect(app).toContain("await createMyOrg(client, name, product, landing.referralCode ?? recallReferral())")
-    expect(app).toContain('import { clearJoin, readLanding, recallEdition, recallEmail, recallJoin, recallReferral, rememberEmail')
+    // drizzle/0734: the sign-up is now dpdp_open_account, which calls dpdp_create_my_org itself with the referral code
+    expect(app).toContain("referralCode: landing.referralCode ?? recallReferral()")
+    expect(app).toContain("await openAccount(client, {")
+    expect(app).toContain("recallReferral")
+    const api = read("src/lib/api.ts")
+    expect(api).toContain("p_referral_code: i.referralCode?.trim() || null")
+    const sql = readFileSync(join(root, "..", "drizzle", "0734_dpdp_account_opening_plans_billing.sql"), "utf8")
+    expect(sql).toContain("v_res := public.dpdp_create_my_org(p_org_name, p_account_type, v_ref_code);")
   })
 
   test("the RPC argument names in api.ts are the parameter names of the real dpdp_create_my_org", () => {
@@ -116,7 +122,7 @@ describe("referral carry-through: share link -> ref.js -> localStorage -> sign-u
 
   test("the sign-up never carries the code anywhere else: no cookie, no URL, no second storage key", () => {
     const landing = read("src/lib/landing.ts")
-    expect([...landing.matchAll(/const (\w+_KEY) = "([^"]+)"/g)].map((m) => m[2]).sort()).toEqual(["dpdp-edition", "dpdp-join", "dpdp-referral", "dpdp-signin-email"])
+    expect([...landing.matchAll(/const (\w+_KEY) = "([^"]+)"/g)].map((m) => m[2]).sort()).toEqual(["dpdp-edition", "dpdp-first-seen", "dpdp-join", "dpdp-partner", "dpdp-referral", "dpdp-signin-email", "dpdp-source", "dpdp_vid"])
     expect(refScript).not.toMatch(/cookie|fetch|XMLHttpRequest|sendBeacon/)
   })
 })

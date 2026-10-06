@@ -1227,6 +1227,19 @@ export function createMockClient(scenario?: string): DpdpClient {
             tdsPercentSet: state.partnerTdsPercent != null, tdsPercent: state.partnerTdsPercent ?? 0, minPayoutPaise: 50000, payoutDay: 10, partners: [], held: [],
           })
         }
+        // --- drizzle/0734: open an account, the plans, the account's state. The mock keeps no billing clock: every account it shows is ACTIVE. ---
+        case "dpdp_open_account": {
+          const made = await this.rpc("dpdp_create_my_org", { p_name: args?.p_org_name, p_product: args?.p_account_type, p_referral_code: args?.p_referral_code })
+          if (made.error) return made
+          return ok({ ...(made.data as object), accountType: args?.p_account_type, planKey: args?.p_account_type === "institution" ? "institution" : "firm_starter", attribution: "none", verification: args?.p_professional_body ? "pending" : "none" })
+        }
+        case "dpdp_public_plans":
+          return ok([
+            { key: "institution", accountType: "institution", name: "Institution", maxClients: 0, requiresVerified: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", offerEndsOn: null, yearlyMonthsCharged: 10 },
+            { key: "firm_starter", accountType: "firm", name: "Starter", maxClients: 10, requiresVerified: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", offerEndsOn: null, yearlyMonthsCharged: 10 },
+          ])
+        case "dpdp_my_account":
+          return ok({ orgId: String(args?.p_org_id ?? HOME_ORG), hasAccount: false, state: "ACTIVE" })
         default:
           return fail(`Unknown RPC ${fn}`)
       }

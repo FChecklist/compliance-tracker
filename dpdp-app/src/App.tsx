@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createDpdpClient, type DpdpClient } from "./lib/client"
 import {
   RpcFailure, acknowledgeWelcome, addNote, answerGroup, assignPerson, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
-  createMyOrg, fetchOrgSetup, flagNotMe, joinOrgViaInvite, markDone, markNotApplicable, ownerConfirmSetup, readDraftFragment, readUndoFragment, setDueDate, viewerContext,
+  fetchPublicPlans, openAccount, fetchOrgSetup, flagNotMe, joinOrgViaInvite, markDone, markNotApplicable, ownerConfirmSetup, readDraftFragment, readUndoFragment, setDueDate, viewerContext,
   type Area, type CaClient, type DraftFragment, type MyPage, type UndoFragment,
 } from "./lib/api"
-import type { OrgSetupPayload } from "./lib/rpc-types"
-import { clearJoin, readLanding, recallEdition, recallEmail, recallJoin, recallReferral, rememberEmail, type Landing } from "./lib/landing"
+import type { OrgSetupPayload, PlanWirePayload } from "./lib/rpc-types"
+import { isPaymentDueError } from "./lib/billing-state"
+import { clearJoin, firstSeenAt, readLanding, recallEdition, recallEmail, recallJoin, recallPartner, recallReferral, recallSourceTag, rememberEmail, type Landing } from "./lib/landing"
+import { PaymentDue } from "./components/PaymentDue"
+import { OwnerAccountsAdmin } from "./components/OwnerAccountsAdmin"
 import { OnePageView } from "./components/onepage/OnePageView"
 import { FirstVisitWizard } from "./components/onepage/FirstVisitWizard"
 import { RoleWelcome } from "./components/onepage/RoleWelcome"
@@ -25,7 +28,7 @@ import { OwnerPartnerPayouts } from "./components/OwnerPartnerPayouts"
 import { SalesPartner } from "./components/SalesPartner"
 import { DraftConfirm } from "./components/DraftConfirm"
 import { AiUndoConfirm } from "./components/AiUndoConfirm"
-import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type ResendState } from "./components/Screens"
+import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type OpenAccountExtra, type ResendState } from "./components/Screens"
 import { BrandLine } from "./components/BrandLine"
 import { shareRoleFor } from "./lib/brand"
 import { AiFirstSteps } from "./components/AiFirstSteps"
@@ -51,6 +54,8 @@ type Phase =
   | { name: "loading" }
   | { name: "app"; page: MyPage; clients: CaClient[] }
   | { name: "no-membership"; busy: boolean; error: string | null }
+  // drizzle/0734: the account is LOCKED (payment due). Working screens give way to the Payment due screen.
+  | { name: "payment-due" }
   | { name: "error"; message: string }
 
 const SIGNED_OUT: Phase = { name: "signed-out", busy: false, error: null }
@@ -105,6 +110,15 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
     window.history.replaceState(null, "", `${url.pathname}${url.search}#ai-link-settings`)
     requestAnimationFrame(() => document.getElementById("ai-link-settings")?.scrollIntoView({ behavior: "smooth", block: "start" }))
   }, [phase.name])
+  // The plans (public prices, from dpdp.plan) for the opening screen's one calm money line. Best effort: the screen works without them.
+  const [plans, setPlans] = useState<PlanWirePayload[] | undefined>(undefined)
+  const wantsPlans = phase.name === "no-membership"
+  useEffect(() => {
+    if (!wantsPlans || plans) return
+    let cancelled = false
+    fetchPublicPlans(client).then((p) => { if (!cancelled) setPlans(p) }, () => { /* an older database: no price line */ })
+    return () => { cancelled = true }
+  }, [wantsPlans, plans, client])
   // Written only from the auth-event handler, never during render: whether
   // this session's first page fetch has been kicked off, so supabase-js's
   // SIGNED_IN re-emits on tab focus don't fetch the page again.
@@ -162,7 +176,8 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       // (e.g. the function isn't deployed yet) -- those are shown as real
       // errors rather than mis-labelled as a membership problem.
       const isPostgrest = e instanceof RpcFailure && !!e.code?.startsWith("PGRST")
-      if (e instanceof RpcFailure && !isPostgrest) setPhase({ name: "no-membership", busy: false, error: null })
+      if (e instanceof RpcFailure && isPaymentDueError(e.message)) setPhase({ name: "payment-due" })
+      else if (e instanceof RpcFailure && !isPostgrest) setPhase({ name: "no-membership", busy: false, error: null })
       else setPhase({ name: "error", message: e instanceof Error ? e.message : String(e) })
     }
   }, [client, landing.joinCode, store])
@@ -279,10 +294,18 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   // WO-DPDP-016: the referral code they arrived with (landing.ts's ?ref=,
   // or one remembered from an earlier visit on this device) rides along --
   // a bad/unknown code is ignored server-side, never blocks the signup.
-  async function openMyOrg(name: string, product: "firm" | "institution") {
+  // drizzle/0734: the same sign-up, now as an ACCOUNT (type, plan, price, firm details, where the visitor came from). dpdp_open_account calls
+  // dpdp_create_my_org itself, so the referral code still ends there. A partner code outranks a referral code, the first link wins for 30 days,
+  // and nothing is paid now.
+  async function openMyOrg(name: string, product: "firm" | "institution", extra: OpenAccountExtra) {
     setPhase({ name: "no-membership", busy: true, error: null })
     try {
-      await createMyOrg(client, name, product, landing.referralCode ?? recallReferral())
+      await openAccount(client, {
+        accountType: product, orgName: name,
+        professionalBody: extra.professionalBody, registrationNo: extra.registrationNo,
+        referralCode: landing.referralCode ?? recallReferral(), partnerCode: landing.partnerCode ?? recallPartner(),
+        sourceTag: landing.sourceTag ?? recallSourceTag(), firstSeenAt: firstSeenAt(), billingContactEmail: extra.billingContactEmail,
+      })
     } catch (e) {
       setPhase({ name: "no-membership", busy: false, error: e instanceof Error ? e.message : String(e) })
       return
@@ -326,7 +349,10 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       screen = <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} onVerify={(code) => verifyCode(phase.email, code)} />
       break
     case "no-membership":
-      screen = <OpenOrganisation email={email} initialEdition={landing.edition ?? recallEdition()} busy={phase.busy} error={phase.error} onCreate={openMyOrg} onSignOut={signOut} onOpenPartner={() => setPartnerOpen(true)} />
+      screen = <OpenOrganisation email={email} initialEdition={landing.edition ?? recallEdition()} busy={phase.busy} error={phase.error} onCreate={openMyOrg} onSignOut={signOut} onOpenPartner={() => setPartnerOpen(true)} plans={plans} />
+      break
+    case "payment-due":
+      screen = <PaymentDue client={client} email={email} onSignOut={signOut} onRetry={load} />
       break
     case "error":
       screen = <ErrorScreen message={phase.message} onRetry={load} onSignOut={signOut} />
@@ -466,6 +492,8 @@ function Page({
       <OwnerPaymentAdmin client={client} />
       {/* Sales Partner payouts (drizzle/0673): the same VERIDIAN-team-only check, stacked above the payments pill. */}
       <OwnerPartnerPayouts client={client} />
+      {/* Account checks (drizzle/0734): firm verification and "mark paid", the same VERIDIAN-team-only check, stacked above the partner payouts pill. */}
+      <OwnerAccountsAdmin client={client} />
     </div>
   )
 }

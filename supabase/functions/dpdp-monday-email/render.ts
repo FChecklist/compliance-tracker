@@ -86,6 +86,12 @@ export type Digest = {
    */
   subscriptionState?: "trial" | "awaiting_confirmation" | "active"
   /**
+   * drizzle/0734: when this account is DUE, in GRACE or LOCKED, the one calm sentence (dpdp.billing_due_line) the e-mail carries above
+   * everything else, with a link to pay. It never replaces or hides the statutory list: the e-mail goes out either way. Absent/null =
+   * nothing is due (an older caller, or the account is trialling or paid).
+   */
+  billingDueLine?: string | null
+  /**
    * WO-DPDP-016 Step 2: this person's own referral code / this org's own
    * invite code, from dpdp.build_monday_digests' new LEFT JOINs (drizzle/
    * 0657) -- null until dpdp_timer_ensure_link_codes has run for this org
@@ -648,6 +654,13 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
     const banner = "DPDP is important — complete the billing."
     htmlParts.push(`<p style="background:#FEF3C7;color:#92400E;font-weight:700;font-size:14px;line-height:1.5;margin:0 0 16px;padding:10px 14px;border-radius:8px;">${esc(banner)}</p>`)
     textParts.push(banner.toUpperCase(), "")
+  }
+
+  // drizzle/0734: a calm "payment for this account is due" line with a pay link, for as long as the account is DUE / GRACE / LOCKED. A line, not a gate.
+  if (digest.billingDueLine) {
+    const payLink = "https://dpdp.veridian-aios.com/app/"
+    htmlParts.push(`<p style="background:#EEF2FF;color:#3730A3;font-size:14px;line-height:1.5;margin:0 0 16px;padding:10px 14px;border-radius:8px;">${esc(digest.billingDueLine)} <a href="${payLink}" style="color:#3730A3;font-weight:700;">Pay for this account</a></p>`)
+    textParts.push(digest.billingDueLine, `Pay for this account: ${payLink}`, "")
   }
 
   const carriesAiLink = kind !== "statutory" && !digest.aiChangesOnly && !!links.aiLink
