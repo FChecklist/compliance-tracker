@@ -44,6 +44,7 @@ import { playbookFor } from "./playbook.ts"
 import { paymentPendingNotice, type BillingNotice } from "./brief.ts"
 import { alertEmail, clientPrefix, uaFamily, type UseAlert } from "./unfamiliar.ts"
 import { buildOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
+import { mailGate } from "../_shared/mail-gate.ts"
 // Audit trail (drizzle/0731): one audit row per call, joined to the call log above by ai_call_id. Never blocks or fails a call.
 import { GUIDE_ROUTES, auditAiLinkCall, sha256HexOfBytes } from "../_shared/audit/ai-call.ts"
 import { parseVendorRanges } from "../_shared/audit/provenance.ts"
@@ -135,6 +136,7 @@ async function noteUse(token: string, req: Request): Promise<void> {
     if (r.error || !r.data.alert || !r.data.to || !RESEND_API_KEY) return
     const a = r.data as UseAlert
     const mail = alertEmail(a)
+    if (!(await mailGate(a.to, "dpdp-ai-link")).send) return // Test mode: not on the allowlist (drizzle/0735)
     const out = buildOutbound("support", mail.subject, { from: EMAIL_FROM })
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",

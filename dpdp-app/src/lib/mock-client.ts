@@ -1235,8 +1235,8 @@ export function createMockClient(scenario?: string): DpdpClient {
         }
         case "dpdp_public_plans":
           return ok([
-            { key: "institution", accountType: "institution", name: "Institution", maxClients: 0, requiresVerified: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", offerEndsOn: null, yearlyMonthsCharged: 10 },
-            { key: "firm_starter", accountType: "firm", name: "Starter", maxClients: 10, requiresVerified: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", offerEndsOn: null, yearlyMonthsCharged: 10 },
+            { key: "institution", accountType: "institution", name: "Institution", maxClients: 0, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
+            { key: "firm_starter", accountType: "firm", name: "Starter", maxClients: 10, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
           ])
         case "dpdp_my_account":
           return ok({ orgId: String(args?.p_org_id ?? HOME_ORG), hasAccount: false, state: "ACTIVE" })

@@ -3775,6 +3775,7 @@
       "when": 1790700013000,
       "tag": "0734_dpdp_account_opening_plans_billing",
       "breakpoints": true
+<<<<<<< HEAD
     },
     {
       "idx": 541,
@@ -3782,6 +3783,16 @@
       "when": 1790700014000,
       "tag": "0735_awl_person_card",
       "breakpoints": true
+||||||| 3ff77b1e
+=======
+    },
+    {
+      "idx": 541,
+      "version": "7",
+      "when": 1790700014000,
+      "tag": "0735_dpdp_test_live_mode_profile_capture",
+      "breakpoints": true
+>>>>>>> origin/main
     }
   ]
 }

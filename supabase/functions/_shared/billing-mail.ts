@@ -13,6 +13,7 @@
 // screen, the download, a breach record or a grievance answer.
 
 import { type OutboundEnvelope, resendPayload } from "./mail-outbound.ts"
+import { SUPPRESSED_MESSAGE_ID, mailGate } from "./mail-gate.ts"
 
 import { brandWrap } from "./brand-mail.ts"
 
@@ -205,6 +206,7 @@ export function isDeliverableAddress(email: string): boolean {
  * message a no-op on Resend's side: if a first attempt was accepted but we never recorded it, a retry
  * returns the first send instead of mailing again. */
 export async function sendViaResend(apiKey: string, to: string, out: OutboundEnvelope, body: { html: string; text: string }, idempotencyKey?: string): Promise<string> {
+  if (!(await mailGate(to, "billing-mail")).send) return SUPPRESSED_MESSAGE_ID // Test mode: not on the allowlist (drizzle/0735)
   const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }
   if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey.slice(0, 256)
   const res = await fetch("https://api.resend.com/emails", {
