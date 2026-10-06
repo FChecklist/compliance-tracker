@@ -26,10 +26,17 @@ ORDER (binding): merge + DEPLOY this function with a new route BEFORE the projex
 
 Spec keys per method: `upstream` (with `{param}` / `{query:x}`), `fallback`, `acting_user`, `required_query`, `timeout_ms`, `search_params`,
 `forward_search` (append the request's query string byte for byte, like `request.nextUrl.search`), `body`, `body_actor_email`,
-`success_status` (201 for a create), `cache_control` (`private, max-age=<n>` only), `error_style`.
+`success_status` (201 for a create), `cache_control` (`private, max-age=<n>` only), `error_style`. Batch 5 added: `roles` (the handler's
+own `requireRole(ctx, ROLE_GROUPS.X)`, checked right after the organisation is known: no role or a role outside the set is 403), `root`
+(VERIDIAN's `/api/v1` root instead of `/api/v1/projexa`, veridian-client's `root: true`), `body` `json_lenient` (`request.json().catch(() =>
+({}))`: an empty or broken body is `{}`) and `empty` (a constant `{}`, the request body is not read), and `body_defaults` (spread under the
+caller's body, `{ action: "status", ...body }`). The generated `SHADOW_ROUTES` are Next routes that stay on Vercel but win over a dynamic
+edge route for some path (GET `/api/drawings/export` is not `/api/drawings/:id`): 404 here, and the browser switch keeps them same-origin;
+a literal edge route also beats a dynamic one (`/api/materials/issues` is not `/api/materials/:id`), as in the App Router.
 
 Batches: 1 = the shell's 7 routes (2026-10-05); 2 = the 40 most-used plain proxies of the online screens (2026-10-06); 3 = the next 33;
-4 = the last 33 plain proxies (2026-10-06): 113 routes in all.
+4 = the last 33 plain proxies (2026-10-06): 113 routes in all; 5 = 72 proxies that were plain in all but form (own role sets, the VERIDIAN
+root, empty / lenient / defaulted bodies, options in any order): 185 routes.
 
 ## Secrets
 
@@ -48,9 +55,9 @@ curl https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/projexa-api/_policy  
 ## Known, deliberate differences from the Next routes
 
 - An invalid JSON body is `400 {"error":"Invalid JSON body"}` (the Next route throws, a 500).
-- A path parameter is always percent-encoded into the upstream path. Some Next handlers insert it raw (`/leads/${id}`), so an id holding
-  `/`, `?` or `#` would address a different upstream path there; the edge is the stricter of the two. Ordinary ids (and a space, which
-  fetch encodes on the wire either way) reach the upstream identically: the parity contract compares the path as it goes on the wire.
+- (Fixed in batch 5, no longer a difference.) A path parameter is percent-encoded into the upstream path on both sides: 35 Next handler
+  sites that inserted it raw (`/leads/${id}`, so `..%2F` in an id walked the upstream path with the org's key) now encode it, and the
+  parity contract holds path-walking ids (`..%2F..%2Fadmin`) for both.
 - Sign-in keys unreachable is `503` with Retry-After (the Next route says 401).
 - The upstream is still the VERIDIAN backend (`VERIDIAN_API_BASE_URL`): a call costs one VERIDIAN invocation instead of one PROJEXA Vercel
   invocation plus one VERIDIAN invocation.

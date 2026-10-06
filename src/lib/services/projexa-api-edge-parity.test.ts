@@ -16,7 +16,8 @@ import type { SessionVerifier } from "../../../supabase/functions/ai-work-link/s
 const DIR = join(import.meta.dir, "..", "..", "..", "supabase", "functions", "projexa-api")
 type Identity = { sub: string; email: string | null; membership: { organization_id: string; role: string } | null | "error" }
 type Upstream = { kind: "json"; status: number; body: unknown } | { kind: "text"; status: number; status_text: string; text: string } | { kind: "refused" }
-type Case = { name: string; method: string; path: string; body?: unknown; who: string; upstream: Upstream }
+/** raw_body (batch 5): the body sent as text (empty / broken / JSON null), for the lenient and defaulted body reads. */
+type Case = { name: string; method: string; path: string; body?: unknown; raw_body?: string; who: string; upstream: Upstream }
 type Call = { method: string; path: string; authorization: string | null; acting_user: string | null; acting_email: string | null; content_type: string | null; body: unknown }
 /** cache_control: present only when the answer sets a Cache-Control other than "no-store" (the projexa recorder normalises the same way). */
 type Outcome = { status: number; body: unknown; retry_after: string | null; upstream_calls: Call[]; cache_control?: string }
@@ -28,6 +29,14 @@ const golden = JSON.parse(readFileSync(join(DIR, "parity.golden.json"), "utf8"))
 }
 
 const ISSUER = "https://evpckeuxgvahguwsaeul.supabase.co/auth/v1"
+const ROOT = golden.upstream_base.replace(/\/projexa$/, "")
+function wirePath(url: string): string {
+  const href = new URL(url).href
+  const base = new URL(golden.upstream_base).href
+  if (href.startsWith(base)) return href.slice(base.length)
+  if (!href.startsWith(new URL(ROOT).href + "/")) throw new Error(`unexpected upstream ${href}`)
+  return `[root]${href.slice(new URL(ROOT).href.length)}`
+}
 const FN = "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/projexa-api"
 
 /** The edge function with fakes for the session, the two PROJEXA reads and the upstream; `policy` lets a mutation test swap the gate. */
@@ -40,8 +49,8 @@ async function runEdge(c: Case, over: Partial<ApiDeps> = {}, extraHeaders: Recor
     const h = new Headers(init?.headers)
     calls.push({
       method: (init?.method ?? "GET").toUpperCase(),
-      // as it goes on the wire (URL-normalised), exactly how the projexa recorder writes it
-      path: new URL(url).href.slice(new URL(golden.upstream_base).href.length),
+      // as it goes on the wire (URL-normalised), exactly how the projexa recorder writes it ("[root]" + the path under /api/v1 for a root call)
+      path: wirePath(url),
       authorization: h.get("authorization"),
       acting_user: h.get("x-acting-user"),
       acting_email: h.get("x-acting-user-email"),
@@ -64,8 +73,9 @@ async function runEdge(c: Case, over: Partial<ApiDeps> = {}, extraHeaders: Recor
   }
   const headers: Record<string, string> = { ...extraHeaders }
   if (c.who !== "signed_out") headers.authorization = `Bearer tok:${c.who}`
-  if (c.body !== undefined) headers["content-type"] = "application/json"
-  const res = await handleApi(new Request(`${FN}${c.path}`, { method: c.method, headers, body: c.body === undefined ? undefined : JSON.stringify(c.body) }), deps)
+  const sent = c.raw_body !== undefined ? c.raw_body : c.body === undefined ? undefined : JSON.stringify(c.body)
+  if (sent !== undefined) headers["content-type"] = "application/json"
+  const res = await handleApi(new Request(`${FN}${c.path}`, { method: c.method, headers, body: sent }), deps)
   const text = await res.text()
   let body: unknown = null
   try {
@@ -99,11 +109,22 @@ describe("projexa-api parity contract: the edge handler answers exactly what PRO
 describe("deny by default, and what the edge never does", () => {
   const owner = golden.cases.find((c) => c.case.who === "owner")!.case
   test("a path that is not one of the function's routes is 404 before anything else (even a real Vercel route, even signed in)", async () => {
-    for (const path of ["/api/assistant", "/api/payroll/runs/r-1/process", "/api/scope/line-items", "/api/documents/d-1/dispose", "/api/org/invites", "/api/permits/x/extra", "/rest/v1/memberships", "/api"]) {
+    for (const path of ["/api/assistant", "/api/payroll/payslips/p-1/pdf", "/api/scope/line-items", "/api/documents/d-1/versions", "/api/org/invites", "/api/permits/x/extra", "/rest/v1/memberships", "/api"]) {
       const out = await runEdge({ ...owner, method: "POST", path, body: {} })
       expect(out.status).toBe(404)
       expect(out.upstream_calls).toHaveLength(0)
     }
+  })
+  test("batch 5: a Vercel route that is a literal sibling of a dynamic edge route is 404 here, not answered as the dynamic route", async () => {
+    // GET /api/drawings/export is the xlsx download (stays on Vercel), not /api/drawings/:id with id "export"; same for /api/materials/master
+    for (const [method, path] of [["GET", "/api/drawings/export?projectId=p-1"], ["GET", "/api/materials/master"], ["POST", "/api/timesheets/review-day"], ["POST", "/api/scope/categories/approve"], ["PATCH", "/api/projects/overview"]]) {
+      const out = await runEdge({ ...owner, method, path, body: method === "GET" ? undefined : {} })
+      expect(out.status, `${method} ${path}`).toBe(404)
+      expect(out.upstream_calls).toHaveLength(0)
+    }
+    // and the dynamic route itself still answers
+    expect((await runEdge({ ...owner, method: "GET", path: "/api/drawings/dr-9" })).status).toBe(200)
+    expect((await runEdge({ ...owner, method: "GET", path: "/api/materials/m-9" })).status).toBe(200)
   })
   test("a method the route does not have is 405 (PATCH a dashboard, DELETE a line)", async () => {
     expect((await runEdge({ ...owner, method: "PATCH", path: "/api/dashboard/project/p-1", body: {} })).status).toBe(405)
