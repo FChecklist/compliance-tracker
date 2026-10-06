@@ -10,6 +10,7 @@ One generic Edge Function that answers a LISTED set of PROJEXA `/api/*` routes w
 | `lookups.ts` | PROJEXA `memberships` (with the person's own token, RLS decides) and `veridian_credentials` (service role) reads. |
 | `index.ts` | Deno wiring. |
 | `member-link.ts` | `POST /link-member` (not an `/api/*` proxy, so outside the generated route table): gives the signed-in PROJEXA person their own VERIDIAN user in their organisation, role mapped down (owner/admin -> admin, pm -> manager, site_engineer/member -> member, client_viewer -> client_viewer), idempotent, never an upgrade. Organisation and role come only from PROJEXA `memberships` (person's own token) and `veridian_credentials.veridian_org_id` (service role); SQL `public.projexa_ensure_member_user` (drizzle/0728). Called by PROJEXA after an invitation is accepted and lazily when an AI work link call answers USER_NOT_LINKED. Uses the platform-injected `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` for that one rpc. Tests: `src/lib/services/projexa-api-member-link.test.ts`, `src/lib/services/projexa-member-link.pglite.test.ts`. |
+| `org-provision.ts` | `POST /api/org/provision`, `GET|POST /api/org/repair` (G-09, not `/api/*` proxies: outside the generated route table, like `/link-member`): new-organisation provisioning entirely inside the function. VERIDIAN side = `public.projexa_provision_org` (drizzle/0729, one transaction: organisation, branches, currency, fiscal year, chart, department, the key's HASH); the key is generated here (crypto) and stored only via `public.projexa_org_credential_put` into `compliance.projexa_org_credentials` (RLS forced, no grants, service_role only through the functions); PROJEXA's `organizations` / `memberships` rows are written with the CALLER'S token (RLS as before). Same step order as the Next routes (VERIDIAN first, documented orphan tradeoff). Parity: `org-parity.golden.json` (recorded from the Next routes by projexa `src/lib/org-provision-parity.test.ts`), replayed by `src/lib/services/projexa-org-edge-parity.test.ts`; SQL: `src/lib/services/projexa-org-provision.pglite.test.ts`. |
 | `policy.generated.ts` | GENERATED in the projexa repo (`bun scripts/projexa-api-edge.mjs --write --ct <this checkout>`): the role-tier table of projexa `src/lib/authz/api-write-policy.ts`, its decision functions, and the route list `ai-os/audit37/projexa-api-routes.json`. Never edit by hand: `SOURCE_SHA256` is checked. |
 | `parity.golden.json` | the PARITY CONTRACT, recorded from the REAL projexa Next pipeline (`src/lib/projexa-api-parity.test.ts`); replayed here by `src/lib/services/projexa-api-edge-parity.test.ts`. |
 
@@ -54,7 +55,9 @@ reports, vendor / customer deactivate): 217 routes.
 
 ## Secrets
 
-`PROJEXA_SUPABASE_URL`, `PROJEXA_SUPABASE_ANON_KEY` (public), `PROJEXA_SERVICE_ROLE_KEY` (reads `veridian_credentials` only), `VERIDIAN_API_BASE_URL`.
+`PROJEXA_SUPABASE_URL`, `PROJEXA_SUPABASE_ANON_KEY` (public), `PROJEXA_SERVICE_ROLE_KEY` (the LEGACY PROJEXA `veridian_credentials`: fallback read for an organisation not backfilled yet, and the transition mirror write), `VERIDIAN_API_BASE_URL`; platform-injected `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` (the compliance-side credentials and provisioning functions, drizzle/0729). `PX_MIRROR_LEGACY_CREDENTIALS=false` stops mirroring a new organisation's credentials to the legacy table (set it once every reader of `veridian_credentials` on Vercel is switched; until then a new organisation's key must also be readable by the routes that still run on Vercel).
+
+Per-organisation key lookup (every proxied route): the compliance-side table first (`public.projexa_org_credential_get`), the legacy PROJEXA table only when the organisation has no row there. Backfill of the existing rows: `scripts/g09-backfill-credentials.mjs` (dry run by default; counts only; reviewed, never automatic).
 
 ## Deploy (owner-authorised; from a clean checkout of origin/main)
 
@@ -67,6 +70,8 @@ curl https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/projexa-api/_policy  
 `--no-verify-jwt`: the caller's token is signed by the PROJEXA Auth project, not verdian-ai; `handler.ts` verifies it (ES256, PROJEXA issuer only).
 
 ## Known, deliberate differences from the Next routes
+
+- (G-09) `/api/org/provision`: an `orgName` that is not a string is `400 {"error":"orgName is required"}` (the Next route throws: an empty 500); a membership lookup that fails twice is `503` (the Next route's own lookup read a failure as "no membership" and could open a second organisation); VERIDIAN-side provisioning is atomic (no orphan VERIDIAN organisation from a half-done step inside VERIDIAN); the 20-per-minute provisioning limit is per function instance.
 
 - An invalid JSON body on a route that reads it strictly OUTSIDE its try is `400 {"error":"Invalid JSON body"}` (the Next route throws, an
   empty 500). A route with its own message (`invalid_body_error`), a lenient read, or the read inside its try (`body_in_try`, batch 6) is
