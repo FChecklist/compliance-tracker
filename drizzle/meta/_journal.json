@@ -3782,6 +3782,13 @@
       "when": 1790700014000,
       "tag": "0735_dpdp_test_live_mode_profile_capture",
       "breakpoints": true
+    },
+    {
+      "idx": 542,
+      "version": "7",
+      "when": 1790700015000,
+      "tag": "0736_awl_person_card",
+      "breakpoints": true
     }
   ]
 }

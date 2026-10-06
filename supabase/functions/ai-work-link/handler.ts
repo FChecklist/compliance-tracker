@@ -27,6 +27,9 @@
 // and any project that does not bind is a 404). Outside a project it may only draft create_project; everything else is 400 PROJECT_REQUIRED. POST /user-link (mint.ts) makes it.
 //
 // The token is never logged and never echoed: log lines carry a route name and a status only, and errorBody scrubs anything token-shaped.
+import { configForRequest } from "./config.ts"
+import { explainCheck } from "./explain.ts"
+import { receiptOf } from "./risk.ts"
 import {
   CORS_PREFLIGHT_HEADERS, LIMITS, LINK_GONE, NO_QUERY_TOKEN, ROBOTS_DOC, contentTypeFor, errorBody, hasQueryToken, isRateLimited, linkBase, negotiateFormat, paginate,
   parseTarget, privateHeaders, relativePathOf, remainingCalls, throttleAddress, tokenFromHeaders, uaFamilyOf, type Format,
@@ -221,6 +224,7 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   if (method === "OPTIONS") return new Response(null, { status: 204, headers: privateHeaders(null, { extra: CORS_PREFLIGHT_HEADERS }) })
 
   const url = new URL(req.url)
+  const config = configForRequest(deps.config, url.host)
   if (hasQueryToken(url.searchParams)) return finish(plain(400, NO_QUERY_TOKEN))
 
   const target = parseTarget(url.pathname)
@@ -231,7 +235,7 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   if (!token) return finish(plain(404, LINK_GONE, "In header mode send the token in the Link-Token header."))
   const rest = target.rest
   const mode = target.mode
-  const base = linkBase(deps.config.functionBase, mode === "path" ? token : null)
+  const base = linkBase(config.functionBase, mode === "path" ? token : null)
 
   // 1. THE CALL LOG, before anything is read or answered (fail closed) ---------------------------------------------------------------
   let callId: string | null = null
@@ -296,7 +300,7 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
       if (e instanceof DbTimeout) throw fail(503, "Service unavailable. Try again in a minute.", "The link check is slow right now; nothing was read.")
       throw e
     }
-    const env: ReadEnv = { rpc: deps.rpc, token, ctx, config: deps.config, base, mode, exec: deps.exec }
+    const env: ReadEnv = { rpc: deps.rpc, token, ctx, config, base, mode, exec: deps.exec }
     if (!["GET", "HEAD", "POST"].includes(method)) return await settle(plain(405, "Wrong method for this path.", undefined, { Allow: ALLOW_ALL }))
 
     // 3. ROUTE ---------------------------------------------------------------------------------------------------------------------------
@@ -316,7 +320,12 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   }
 }
 
-const actionOut = (a: { status: number; body: unknown; headers?: Record<string, string> }): Out => json(a.status, a.body, a.headers)
+/** A change or a draft carries its receipt (R-XXXXX, from the intent id) so the person can read it back to their AI and find it in the workspace. */
+const actionOut = (a: { status: number; body: unknown; headers?: Record<string, string> }): Out => {
+  const b = a.body && typeof a.body === "object" && !Array.isArray(a.body) ? (a.body as Record<string, unknown>) : null
+  const id = b && typeof b.intent_id === "string" ? b.intent_id : b && typeof b.draft_id === "string" ? b.draft_id : null
+  return json(a.status, id && b && b.receipt === undefined ? { ...b, receipt: receiptOf(id) } : a.body, a.headers)
+}
 
 function formatOf(req: Request, url: URL, offered: ReadonlyArray<Format>): Format {
   return negotiateFormat(offered, url.searchParams.get("format"), req.headers.get("accept"), "md")
@@ -538,7 +547,8 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
     }
     case "check": {
       const body = await readJsonObject(req)
-      return json(200, checkChange({ ctx, config }, body.function, body.params))
+      const checked = checkChange({ ctx, config }, body.function, body.params)
+      return json(200, { ...checked, ...(await explainCheck(env, checked, body.params)) })
     }
     case "actions":
       return actionOut(await actionCreate(env, await readJsonObject(req)))

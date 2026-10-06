@@ -56,3 +56,11 @@ Note: Claude Team / Enterprise organisation connectors are deliberately refused 
 
 - If the AI asks you for a password or a code, or to sign in to PROJEXA through it, stop and write FAIL. The link needs nothing else.
 - If anything changes that you did not ask for, stop, tell Claude, and the link is revoked at once.
+
+## Connector run (AUDIT-100 item 8): Claude Free with the link as its one custom connector
+
+1. Mint a fresh link. Open `<LINK>/workspace`: the last part of its first page is "Add this link to Claude.ai as a connector" with three steps.
+2. In Claude.ai: Settings, Connectors, Add custom connector. Name PROJEXA. Address: the link itself (the whole line, 250 characters or fewer). No sign-in.
+3. New chat, connector on. Ask: "List my projects, then create a draft task called Connector test in project 1."
+4. Record in `claude_results.csv`: the tools Claude listed, whether the projects came back, and the draft.
+5. Afterwards check the database: `platform.ai_work_link_intent` has the draft for this link, and `<LINK>/workspace` lists it under "Recent changes by you via AI" with its R- receipt. Revoke the link when done.

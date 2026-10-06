@@ -39,3 +39,19 @@ export function confirmLinkRecipe(confirmHost: string, token: string | null, for
     ...(forPerson ? ["  Inside a project (project id from the list above):", "", confirmLinkExample(confirmHost, token, { ...PROGRESS_EXAMPLE, pid: "123" }), ""] : []),
   ]
 }
+
+/**
+ * AUDIT-100 item 8: how a person adds this link to Claude.ai as its ONE free custom connector (ENGINE_CAPABILITIES finding 4). The address is the link itself: it is
+ * an MCP server (Streamable HTTP, no sign-in). The person does this once; after that Claude reads and proposes changes with its own tool approvals and no page.
+ */
+export function claudeConnectorHowTo(base: string): string[] {
+  return [
+    "## Add this link to Claude.ai as a connector (once, for Claude users)",
+    "",
+    "1. In Claude.ai open Settings, then Connectors, then Add custom connector.",
+    `2. Name: PROJEXA. Address (the whole line): ${base}`,
+    "3. Choose no sign-in (this address is your private link: keep it to yourself) and save. Start a new chat and switch the connector on.",
+    "After that Claude can list your projects, read them and make changes with its own approval prompts; you do not open any page. If you remove the connector or revoke the link in PROJEXA, access stops.",
+    "",
+  ]
+}
