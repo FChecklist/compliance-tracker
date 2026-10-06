@@ -46,7 +46,9 @@ describe("GET /workspace: everything in one page for a user link", () => {
     const { r, md } = await text(`/${TOKENS.userManager}/workspace`)
     expect(r.status).toBe(200)
     expect(r.headers.get("content-type")).toBe("text/plain; charset=utf-8")
-    expect(r.headers.get("x-robots-tag")).toBe(ROBOTS_PRIVATE)
+    // the page an engine reads instead of following links is a document like the guide: no noarchive, no nosnippet (Gemini, ENGINE_CAPABILITIES finding 3)
+    expect(r.headers.get("x-robots-tag")).toBe("noindex, nofollow")
+    expect(r.headers.get("x-robots-tag")).not.toBe(ROBOTS_PRIVATE)
     const order = ["# Everything in one page: all your projects", "## Your projects", "## Report on all projects (portfolio)", "### Project 1", "### Project 2", "## What I can do for you", "This is the last page.", "## All addresses"]
     for (let i = 1; i < order.length; i++) expect({ a: order[i - 1], before: md.indexOf(order[i - 1]) < md.indexOf(order[i]) && md.indexOf(order[i - 1]) >= 0 }).toEqual({ a: order[i - 1], before: true })
     const list = (await text(`/${TOKENS.userManager}/projects`)).md
@@ -74,6 +76,8 @@ describe("GET /workspace: everything in one page for a user link", () => {
     expect(file.r.status).toBe(200)
     expect(file.r.headers.get("content-type")).toBe("text/plain; charset=utf-8")
     expect(file.r.headers.get("content-disposition")).toBe('attachment; filename="projexa-workspace.txt"')
+    expect(file.r.headers.get("x-robots-tag")).toBe("noindex, nofollow")
+    expect((await setup().run(`/${TOKENS.manager}/workspace`)).headers.get("x-robots-tag")).toBe("noindex, nofollow")
     expect(file.md).toBe(md)
   })
 
