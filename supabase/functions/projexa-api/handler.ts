@@ -26,6 +26,12 @@
 //      bare "?"; `forward_query_normalized`: `searchParams.toString()`; `required_query_any`: one of several is needed), `roles_also`
 //      (roles allowed on top of the own role set) and the answer it reshapes (`response_pick`: `{ k: data.k ?? default }`;
 //      `response_wrap`: `{ ...with, id, into: data }`).
+//   5d. (AUDIT-100 A2 batch 7) `cache_ttl`: a person-free read (the Next route caches it per organisation with unstable_cache, the call runs with
+//      NO acting person) is kept in a per-instance cache for the same TTL, keyed organisation + upstream URL, a failure never kept; `body:
+//      "multipart"` relays an upload form as it is (documents / drawings / permits); `search_param_defaults` / `include_allow` build the two
+//      queries that depend on another parameter; `response_redact` hides a field of a list for some roles; `boq_create_verify` is the BOQ
+//      create's own check of what came back. `revalidate` is read by the BROWSER only (the Next handler clears page-side cache entries the edge
+//      cannot reach: the browser asks Vercel to, after the edge answered).
 //   6. The answer is the Next route's answer: 200 (201 for a create) + the upstream JSON, or the same error body and status
 //      (veridian-response.ts). A route whose handler forwards its whole query string (`forward_search`) gets it byte for byte.
 // Nothing here logs a token, an email, a key or a body.
@@ -41,6 +47,11 @@ export const UPSTREAM_TIMEOUT_MS = 8_000
 export const UPSTREAM_TOTAL_BUDGET_MS = 9_000
 export const RETRY_AFTER_SECONDS = 5
 export const BODY_MAX_BYTES = 1_048_576
+/** A multipart upload (a document, drawing or permit file). Vercel's own function limit was 4.5 MB (a larger body never reached the handler);
+ *  here the form is held in memory (256 MB isolate) and relayed, so the ceiling is a stated, larger one. */
+export const UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+/** The per-instance cache of person-free reads: most entries kept (oldest dropped first). */
+export const CACHE_MAX_ENTRIES = 256
 
 export type Membership = { organization_id: string; role: string | null }
 export type MembershipLookup = (token: string, sub: string) => Promise<{ ok: true; row: Membership | null } | { ok: false }>
@@ -54,6 +65,8 @@ export type ApiDeps = {
   /** VERIDIAN_API_BASE_URL (".../api/v1/projexa"), what PROJEXA's veridian-client.ts uses. */
   upstreamBase: string
   fetchImpl?: typeof fetch
+  /** AUDIT-100 A2 batch 7: the per-instance cache of `cache_ttl` reads; tests inject a fresh one with a fake clock. Default: one per isolate. */
+  cache?: UpstreamCache
   allowedOrigins?: readonly string[]
   /** Tests shorten the budgets. */
   timeoutMs?: number
@@ -61,6 +74,40 @@ export type ApiDeps = {
 }
 
 type Json = Record<string, unknown>
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The per-instance cache (batch 7). The Next routes of /api/currencies, /api/cost-centers and /api/fiscal-years keep the organisation's answer
+// 60 s with unstable_cache (veridian-client.ts createCachedVeridianGet over personFreeCache): keyed by the callback + the organisation id, the call
+// runs as nobody (no acting person), a throw is never stored. This is the same per isolate: key = organisation + upstream URL, fresh for `ttl`
+// seconds, a failure never stored. One difference, on purpose: after the TTL the real cache serves the stale answer once and refreshes in the
+// background; an isolate that may be stopped after answering cannot promise that refresh, so it refetches at once (never older than the TTL).
+// ---------------------------------------------------------------------------------------------------------------------------------
+export type UpstreamCache = {
+  get(key: string, ttlSeconds: number): unknown | undefined
+  set(key: string, value: unknown): void
+  clear(): void
+}
+export function createUpstreamCache(now: () => number = Date.now, maxEntries = CACHE_MAX_ENTRIES): UpstreamCache {
+  const store = new Map<string, { at: number; value: unknown }>()
+  return {
+    get(key, ttlSeconds) {
+      const hit = store.get(key)
+      if (!hit) return undefined
+      if (now() - hit.at >= ttlSeconds * 1000) {
+        store.delete(key)
+        return undefined
+      }
+      return hit.value
+    },
+    set(key, value) {
+      store.delete(key)
+      store.set(key, { at: now(), value })
+      while (store.size > maxEntries) store.delete(store.keys().next().value as string)
+    },
+    clear: () => store.clear(),
+  }
+}
+const isolateCache = createUpstreamCache()
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Responses
@@ -157,6 +204,13 @@ export function upstreamPathOf(spec: EdgeMethodSpec, params: Record<string, stri
   if (spec.search_params) {
     const out = new URLSearchParams()
     for (const k of spec.search_params) {
+      // batch 7 search_param_defaults: `if (id) params.set("linkedEntityType", searchParams.get("linkedEntityType") ?? "project")`: sent only when the
+      // "when" parameter is set, as the request's value (even an empty one) or the default
+      const rule = spec.search_param_defaults?.[k]
+      if (rule) {
+        if (search.get(rule.when)) out.set(k, search.get(k) ?? rule.default)
+        continue
+      }
       const v = search.get(k)
       if (v) out.set(k, v)
     }
@@ -171,6 +225,12 @@ export function upstreamPathOf(spec: EdgeMethodSpec, params: Record<string, stri
     if (v) path += `${sep()}${k}=${encodeURIComponent(v)}`
   }
   for (const [k, want] of Object.entries(spec.query_flags ?? {})) if (search.get(k) === want) path += `${sep()}${k}=${encodeURIComponent(want)}`
+  // include_allow (batch 7): `["variation", "compare"].filter((v) => requested.has(v))` over the trimmed, comma-split `include`, joined with ","
+  if (spec.include_allow) {
+    const requested = new Set((search.get("include") ?? "").split(",").map((s) => s.trim()))
+    const allowed = spec.include_allow.filter((v) => requested.has(v))
+    if (allowed.length > 0) path += `&include=${allowed.join(",")}`
+  }
   // forward_query_normalized: `const qs = request.nextUrl.searchParams.toString(); qs ? `?${qs}` : ""` (re-serialised, not byte for byte)
   if (spec.forward_query_normalized) {
     const s = search.toString()
@@ -339,7 +399,17 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   if (spec.required_query_any && !spec.required_query_any.params.some((q) => url.searchParams.get(q))) return json(req, deps, 400, { error: spec.required_query_any.error })
 
   let body: unknown = undefined
-  if (spec.body_const) body = JSON.parse(JSON.stringify(spec.body_const)) // batch 6: a constant body; the request body is never read
+  let form: FormData | undefined
+  if (spec.body === "multipart") {
+    // batch 7: `const formData = await request.formData()` inside the handler's try; anything that is not a form is the handler's catch (the fallback 502)
+    const len = Number(req.headers.get("content-length") ?? "0")
+    if (Number.isFinite(len) && len > UPLOAD_MAX_BYTES) return json(req, deps, 413, { error: "Request body too large" })
+    try {
+      form = await req.formData()
+    } catch {
+      return failureResponse(req, deps, spec, { kind: "other" }, 0)
+    }
+  } else if (spec.body_const) body = JSON.parse(JSON.stringify(spec.body_const)) // batch 6: a constant body; the request body is never read
   else if (spec.body === "json" || spec.body === "json_lenient" || spec.body === "empty") {
     if (spec.body === "empty") body = {} // the handler sends a constant {} and never reads the request body
     else {
@@ -351,7 +421,10 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
         else if (spec.invalid_body_error !== undefined) return json(req, deps, 400, { error: spec.invalid_body_error })
         // the body is read inside the handler's try: its catch answers veridianErrorResponse(err, fallback), the 502 of a non-upstream error
         else if (spec.body_in_try) return failureResponse(req, deps, spec, { kind: "other" }, 0)
-        else return json(req, deps, read.status, { error: read.error })
+        // a strict body read OUTSIDE the handler's try (`const body = await request.json()`, what almost every handler does): the read throws, and Next
+        // answers an unhandled throw with an empty 500. (Until batch 7 this was a 400 {"error":"Invalid JSON body"}: an answer the recorded contract never
+        // compared, found by recording a non-JSON body for every route that reads one.)
+        else return thrown(req, deps)
       } else if (!read.ok) return json(req, deps, read.status, { error: read.error }) // over the size limit
       else body = read.value
     }
@@ -383,6 +456,17 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   }
 
   const timeoutMs = deps.timeoutMs ?? spec.timeout_ms ?? UPSTREAM_TIMEOUT_MS
+  const base = deps.upstreamBase.replace(/\/+$/, "")
+  // veridian-client.ts: a `root: true` call goes to VERIDIAN_API_ROOT = the base without its trailing /projexa
+  const target = (spec.root ? base.replace(/\/projexa$/, "") : base) + upstreamPathOf(spec, matched.params, url.searchParams, url.search)
+  // batch 7 cache_ttl: a fresh answer of this organisation for this URL is served without a key lookup or an upstream call (the cached function of
+  // the Next route is keyed by the organisation alone and resolves the key only when it has to fill)
+  const cache = deps.cache ?? isolateCache
+  const cacheKey = `${orgId}|${target}`
+  if (spec.cache_ttl !== undefined) {
+    const hit = cache.get(cacheKey, spec.cache_ttl)
+    if (hit !== undefined) return json(req, deps, spec.success_status ?? 200, hit, spec.cache_control ? { "Cache-Control": spec.cache_control } : {})
+  }
   let key: string | null
   try {
     key = await deps.orgKey(orgId)
@@ -394,13 +478,15 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
     return spec.error_style === "plain" ? json(req, deps, 500, { error: message }) : json(req, deps, 500, { error: message, code: null }, { "Server-Timing": "upstream;dur=0" })
   }
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${key}`, "X-Acting-User": verdict.sub }
-  if (verdict.email) headers["X-Acting-User-Email"] = verdict.email
+  const headers: Record<string, string> = { Authorization: `Bearer ${key}` }
+  // acting_user "none" (a cached person-free read): the call carries no acting person, as personFreeCache's fill (runWithoutActingPerson) sends none
+  if (spec.acting_user !== "none") {
+    headers["X-Acting-User"] = verdict.sub
+    if (verdict.email) headers["X-Acting-User-Email"] = verdict.email
+  }
+  // a multipart form gets its Content-Type (with the boundary) from fetch itself, never written by hand
   if (body) headers["Content-Type"] = "application/json"
-  // veridian-client.ts: a `root: true` call goes to VERIDIAN_API_ROOT = the base without its trailing /projexa
-  const base = deps.upstreamBase.replace(/\/+$/, "")
-  const target = (spec.root ? base.replace(/\/projexa$/, "") : base) + upstreamPathOf(spec, matched.params, url.searchParams, url.search)
-  const result = await callUpstream(deps, target, { method: spec.upstream_method ?? method, headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store" } as RequestInit, timeoutMs)
+  const result = await callUpstream(deps, target, { method: spec.upstream_method ?? method, headers, body: form ?? (body ? JSON.stringify(body) : undefined), cache: "no-store" } as RequestInit, timeoutMs)
   if (!result.ok) {
     logLine(deps, `${method} ${matched.route.route} upstream failure ${result.failure.kind === "upstream" ? result.failure.status : "other"}`)
     return failureResponse(req, deps, spec, result.failure, result.durationMs)
@@ -408,6 +494,23 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   // batch 6: the handler's own reshaping of the answer. response_pick `{ k: data.k ?? default }` (a null answer throws inside the handler's
   // try: its catch's fallback 502); response_wrap `{ ...with, <params>, [into]: data }`
   let data = result.data
+  // batch 7 boq_create_verify (src/lib/services/boq-create-service.ts createBoqVerified): the answer must carry the saved BOQ's id and at least as many
+  // line items as were sent, else 502 with the service's own message (no `code`)
+  if (spec.boq_create_verify) {
+    const requested = Array.isArray((body as { lineItems?: unknown } | null | undefined)?.lineItems) ? ((body as { lineItems: unknown[] }).lineItems.length) : 0
+    const answer = data as { id?: unknown; lineItems?: unknown } | null | undefined
+    const savedId = typeof answer?.id === "string" ? answer.id.trim() : ""
+    if (!savedId) return json(req, deps, 502, { error: "BOQ was not created: the scope service reported success but returned no saved BOQ. Nothing has been saved -- please try again." })
+    const savedLineItems = Array.isArray(answer!.lineItems) ? (answer!.lineItems as unknown[]).length : 0
+    if (savedLineItems < requested) return json(req, deps, 502, { error: `BOQ was not saved correctly: ${requested} line item(s) were submitted but only ${savedLineItems} came back saved. Check the BOQ list before retrying.` })
+  }
+  if (spec.cache_ttl !== undefined) cache.set(cacheKey, data)
+  // batch 7 response_redact: `ctx.role && ROLES.has(ctx.role) ? { ...data, [list]: list.map((m) => (m && typeof m === "object" ? { ...m, ...set } : m)) } : data`
+  if (spec.response_redact && role && spec.response_redact.roles.includes(role) && data && typeof data === "object") {
+    const rr = spec.response_redact
+    const rows = (data as Record<string, unknown>)[rr.list]
+    if (Array.isArray(rows)) data = { ...(data as Json), [rr.list]: rows.map((m) => (m && typeof m === "object" ? { ...(m as Json), ...rr.set } : m)) }
+  }
   if (spec.response_pick) {
     if (data === null || data === undefined) return failureResponse(req, deps, spec, { kind: "other" }, 0)
     const src = data as Record<string, unknown>
