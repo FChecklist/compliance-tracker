@@ -4,6 +4,8 @@ Status: DESIGN ONLY. No migration applied, nothing deployed, no code. Author: Cl
 Products: PROJEXA (low security, keep it small), VERIDIAN-AIOS DPDP app, Corporate Tambola.
 Method: read the repo and the live database read-only (project `pcrjmlpuqsbocqfwoxod`, column lists only, no row data). Anything I did not verify is marked UNKNOWN.
 
+> **OWNER DECISIONS 2026-10-06 (section 10) SUPERSEDE anything below that conflicts**: full IP, full device id and full browser details are kept (no truncation, no `ip_prefix`-only rule, no 90-day cut); the log is INTERNAL ONLY (users cannot view or download it); a user-own-actions copy also lives on that user's laptop. Sections 4 and 8 are marked where they changed.
+
 ## 0. Summary in plain words
 
 - Most of the stamp already exists. We should add columns to what exists, not build a new system.
@@ -181,3 +183,39 @@ Title: "audit trail phase 1: additive stamp columns and stamp helper (no behavio
 - An offline edit's IP shows the sync location, not the edit location.
 - Live DB: only column and table lists were read. Row counts and current RLS policies of `audit_logs` were not re-checked.
 - The migration number 0730 may be taken at build time.
+
+## 10. Owner decisions of 2026-10-06 (binding; override sections 2.1, 4, 8 where they conflict)
+
+### 10.1 Keep everything in full
+- Store the FULL IP address (`ip_address`, already on `audit_logs`), the full device id, the full user-agent string (`user_agent`; `ua_family` stays as a convenience column), all AI details, all logs. Drop the `ip_prefix` truncation idea and the "cut IP after 90 days" function. Where this spec says "prefix", read "full address, plus an optional `ip_prefix` helper column for grouping".
+- First PR change: `buildStamp()` no longer truncates; it validates and stores the full IP. The test "IPv4/IPv6 prefix" becomes "full IPv4 and IPv6 kept unchanged, malformed address stored as null". Everything else in section 7 is unchanged.
+- Cost: full IPs, device ids and user agents are personal data held for the whole retention period. That is the owner's choice; 10.4 covers the legal side.
+
+### 10.2 Internal only
+- No UI, no API, no export for users or org admins. Remove the "My activity" list (phase 8) and the "Access" paragraph of section 4.
+- Reads only by staff and the service role, enforced in the database: RLS on `audit_logs` and `access_events` with no SELECT policy for `authenticated` or `app_runtime`. UNKNOWN: which existing routes and pages read `audit_logs` today (the `/audit` pages, `audit_search_view` of 0229). They conflict with this rule; owner must say whether they stay as an admin-only view of org changes or go (D10). Until answered, this spec adds nothing new that users can read.
+- Proof test: a normal user session selecting from both tables gets zero rows or permission denied; the service role gets rows.
+
+### 10.3 Two copies: Supabase and the user's own laptop
+- Supabase copy: the complete record, including everything the server stamps (AI-link stamps, `ai_call_id`, observed IP, `server_at`, `relay_device_id`).
+- Laptop copy: a table `audit_local` in the existing local replica (IndexedDB, `local-first/local-db.ts`), written by the offline/replica layer at the moment of the edit, for THAT USER'S OWN actions only. Fields: `correlation_id` (= the outbox `op_id`), `entity`, `entity_id`, `action_class`, `diff`, `client_at`, `device_id`, `channel` (offline or online as the laptop knows it), `source`, and `synced_at` once the server accepted the op. The laptop does NOT hold: the observed public IP (it does not know it), server time, AI-link stamps, `ai_call_id`, other people's events, access events of anyone else.
+- Sync: the local row's `correlation_id` is the id the push op carries, so the Supabase audit row and the laptop row join on `(org_id, correlation_id)`. A laptop row with no Supabase row after sync means the op was rejected or lost: laptop-side evidence for the offline case. Pruning proposal: keep 90 days after `synced_at`; never delete an unsynced row.
+- AI changes happen on the server through the AI link. Recommended: do not copy AI stamps down to the laptop.
+- HONEST TENSION (owner to confirm, D11): anything on the user's laptop is readable by that user (devtools, IndexedDB) and can be edited or deleted by them. So (a) the laptop copy is convenience and extra evidence, not the authoritative record (Supabase is); (b) it only partly contradicts "users cannot view or download the log": it is their own actions, no server stamps, no other people's rows; (c) simplest way to remove the tension: keep the copy but never show it in the UI and keep only unsynced rows (delete on sync). Recommended: (c) if the owner means "users must never see audit data"; keep the 90-day copy if offline traceability on the laptop matters more.
+- Effort: LOW once phase 4 exists (one more local store, one more write in `local-writes.ts`). Proof: an offline edit writes the local row with the op id; after sync both rows exist and ids match; a conflict-rejected edit leaves the local row marked rejected.
+
+### 10.4 DPDP with no self-service
+- Notice text (replaces the draft in section 4): "We keep a security record of what happens in your account: when you sign in or change something, the time, your network address, your device and browser details, and a random device code made by this app. If you connect an AI helper, we record its activity the same way. We use these records only to keep your account safe, to show who changed what, and to settle disputes. Our staff can see them; you cannot download them. We keep sign-in records for 24 months and change records for 5 years. To ask what we hold about you, or to ask us to correct or erase it, write to the contact address on our privacy page; we answer within 30 days." (Lawyer to approve, D8.)
+- Access request, internal process: the request arrives at the contact mailbox; staff verify identity by replying to the registered e-mail; staff run one reviewed, saved SQL function by `user_id` over `audit_logs` and `access_events` (service role only); staff remove other people's data and security internals; send the extract to the registered e-mail; record request and answer in the staff log. Target 30 days. Effort: a written runbook plus the saved function, no product UI.
+- Erasure request: audit rows are not deleted on request (accountability and dispute basis). After a legal check staff replace `user_id` and `actor_name` with a one-way pseudonym and null IP, device id and user agent on that person's rows; "someone changed X at time Y" stays. If the owner wants full deletion, traceability breaks and a lawyer must advise. UNKNOWN: current DPDP rule requirements.
+- Retention default (owner decides, D5): access events 24 months; change log 5 years; DPDP product follows the records it describes; Tambola with the game purge. With no truncation, the time limit is the only privacy control left. Enforce with a scheduled staff-run function that nulls the personal columns and keeps the event.
+- Protect the full data: RLS as in 10.2, never log the secret AI token (link id only), keep these tables out of exports, backup shares and analytics.
+
+### 10.5 Tamper-evidence
+Unchanged and simple: append-only (privileges already revoked), no hash chain for PROJEXA or Tambola, DPDP keeps its existing chain. A hash chain stays optional (D6).
+
+### 10.6 Changed or new decisions
+- D4 resolved: full IP kept. D7 refined: pseudonymise on erasure after a legal check. D5 defaults now 24 months and 5 years.
+- D10 (new): existing in-app audit pages and `audit_search_view`: keep as admin-only org-change views, or remove?
+- D11 (new): laptop copy contents and lifetime (10.3), and confirm the user can technically read their own laptop copy.
+- D12 (new): which roles count as "staff" (named internal accounts plus service role); org owners are NOT staff.
