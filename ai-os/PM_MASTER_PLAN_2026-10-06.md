@@ -25,17 +25,17 @@ Owner key: **PM** = this session (builds, commits locally). **S2** = the other s
 | A9 | Installed-laptop update pick-up (after #410 is in) | PM | PENDING, blocked by A12 |
 | A10 | After #410: installer hook after `manifestDigestOk`, `RELEASE_ORIGIN` in projexa-sync, peer relay (spec `ai-os/audit37/RELEASE_DISTRIBUTION_2026-10-06.md`) | PM | PENDING, blocked by A12 |
 | A11 | 111 Sumeet table pass/fail, closed only by the 6-condition rule; then Chrome run | PM | PENDING |
-| A12 | Projexa PRs #409 #410 #412 #413: state | S2 (watchers) | VERIFY, no network |
+| A12 | Projexa PRs (checked 2026-10-06 20:00) | PM | #413 green; #412 fails `Test`; #410 and #409 fail `Offline e2e (local-first)`; all open. #412/#413 content is inside the train. Causes of the 3 failures NOT yet read |
 
 ### B. AWL / DPDP (repo `FChecklist/compliance-tracker`, PR #2119, branch `feat/awl-items-4-5-6-8`)
 | ID | Item | Owner | State |
 |---|---|---|---|
 | B1 | Journal conflict markers removed; migration renumbered 0735→0736; commit `c7d605e7` pushed | S2 | DONE |
-| B2 | Local commit `b972eb49` (merge with main + renumber) in `w-awl-guide2` | S2 | UNPUSHED, relation to B1 VERIFY |
-| B3 | Move `0736_awl_person_card.down.sql` into `drizzle/down/` (fixes Migration Integrity AR-12) | S2 | PENDING |
-| B4 | Add `-- PRE-APPROVED-LIVE-DDL:` citation to `0736_awl_person_card.sql` and its down file (fixes DDL Authorization). Wording: the owner's delegated PM authority for the 100-point audit, chat 2026-10-05, same as the neighbouring AWL migrations | S2 | PENDING |
-| B5 | Regenerate `docs/master/TEST_COVERAGE_GAP.md` (`node scripts/report-test-coverage-gap.mjs`) | S2 | PENDING |
-| B6 | Check whether `0735_awl_person_card` was ever applied live under its old name; reconcile ledger before 0736 runs (query `drizzle.__drizzle_migrations` + the live function) | S2 | VERIFY |
+| B2 | S2 local commit `b972eb49` (duplicate renumber) | PM took over (S2 archived) | DONE: kept as branch `backup/awl-b972eb49`; worktree `C:\ct\w-awl-guide2` reset to pushed `c7d605e7` |
+| B3 | Move 0736 down script into `drizzle/down/` | PM | DONE local, commit `976f1cb6`, `check-migration-integrity` passes |
+| B4 | (DONE local `976f1cb6`, `check-ddl-authorization --base origin/main` passes) Add `-- PRE-APPROVED-LIVE-DDL:` citation to `0736_awl_person_card.sql` and its down file (fixes DDL Authorization). Wording: the owner's delegated PM authority for the 100-point audit, chat 2026-10-05, same as the neighbouring AWL migrations | S2 | PENDING |
+| B5 | Regenerate `docs/master/TEST_COVERAGE_GAP.md` | PM | DONE local `976f1cb6`; 104 AWL tests pass (--isolate) |
+| B6 | Live check | PM | DONE: `public.ai_work_link_person_card` exists live (SECURITY DEFINER, STABLE, search_path empty, EXECUTE only postgres + service_role); Supabase ledger row `20261006120716 awl_person_card`; drizzle ledger 477 rows. 0736 is idempotent (CREATE OR REPLACE), no reconcile needed beyond the runner applying the journal entry |
 | B7 | Unit Tests / Lint / Type Check results on the new commit | S2 | VERIFY, no network |
 | B8 | compliance-tracker #2110 merge watcher | S2 | VERIFY |
 | B9 | AI-link deploy, live check, static pages publish | PM (decides) | AFTER all gates; PM never deploys without the ritual below |
@@ -86,16 +86,16 @@ Owner key: **PM** = this session (builds, commits locally). **S2** = the other s
 Before a heavy step: close Chrome and any dev servers (`windows-dev-process-guard.ps1 -Cleanup` for orphaned `tsc`), take the lock, confirm free RAM > 1.2 GB, run, release. Never start two heavy steps at once. Never `attrib /S` across the `node_modules` junction.
 
 ## 6. CHECKLIST (tick by editing this file; every tick needs a commit SHA)
-- [ ] B3 down script moved
-- [ ] B4 DDL citations
-- [ ] B5 coverage report regenerated
-- [ ] B2 reconciled with `c7d605e7` (no lost commit)
-- [ ] B6 live ledger checked
+- [x] B3 down script moved
+- [x] B4 DDL citations
+- [x] B5 coverage report regenerated
+- [x] B2 reconciled with `c7d605e7` (no lost commit)
+- [x] B6 live ledger checked
 - [x] A3 upload spec passes
 - [x] A4 upload spec failed on the unfixed code, passes on the fix
 - [ ] Gate 1 recorded
 - [ ] Merge locally, re-run batch
-- [ ] 0736 applied live + verified
+- [x] 0736 already live + verified (see B6)
 - [ ] A5, A6, A7, A8 live/peer tests
 - [ ] A9, A10 (after #410)
 - [ ] A11 Sumeet 111 table + Chrome run
@@ -106,3 +106,4 @@ Before a heavy step: close Chrome and any dev servers (`windows-dev-process-guar
 
 ## 7. LOG
 - 2026-10-06 PM: A2/A3/A4 done. Product bug fixed in projexa train: the file-upload scheduler (LocalShell.tsx) is now nudged when the connection returns and when the tab regains focus. Lesson: wait for `C:\ct\heavy.lock` to be gone before starting a run, and release it with `rm -rf` (rmdir fails on a non-empty folder). GitHub still unreachable; B3-B8 and A12 unchanged (S2 / VERIFY).
+- 2026-10-06 PM: GitHub reachable again. B2-B6 done (S2 archived, PM took its lease). #2119 CI before my fix: DDL Authorization, Migration Integrity, Test Coverage Gap failed; fixes committed locally in `w-awl-guide2` (`976f1cb6`), NOT pushed. #2110: CONFLICTING + DDL Authorization failing (not yet read). Next: read failing logs of projexa #409/#410/#412 and ct #2110, fix locally.
