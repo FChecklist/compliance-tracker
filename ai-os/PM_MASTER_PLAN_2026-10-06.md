@@ -93,8 +93,8 @@ Before a heavy step: close Chrome and any dev servers (`windows-dev-process-guar
 - [x] B6 live ledger checked
 - [x] A3 upload spec passes
 - [x] A4 upload spec failed on the unfixed code, passes on the fix
-- [ ] Gate 1 recorded
-- [ ] Merge locally, re-run batch
+- [x] Gate 1 recorded (2026-10-07: projexa train merged with #409+#410, full local-first run 90 passed / 1 failed, the 1 fixed in 5e5cc3e1 and re-run 5/5; #2110 merged with main locally, ef67ebd5, 11 audit-stamp tests pass)
+- [x] Merge locally, re-run batch (train bbd185a5 + 5e5cc3e1; #2110 ef67ebd5)
 - [x] 0736 already live + verified (see B6)
 - [ ] A5, A6, A7, A8 live/peer tests
 - [ ] A9, A10 (after #410)
@@ -108,3 +108,5 @@ Before a heavy step: close Chrome and any dev servers (`windows-dev-process-guar
 - 2026-10-06 PM: A2/A3/A4 done. Product bug fixed in projexa train: the file-upload scheduler (LocalShell.tsx) is now nudged when the connection returns and when the tab regains focus. Lesson: wait for `C:\ct\heavy.lock` to be gone before starting a run, and release it with `rm -rf` (rmdir fails on a non-empty folder). GitHub still unreachable; B3-B8 and A12 unchanged (S2 / VERIFY).
 - 2026-10-06 PM: GitHub reachable again. B2-B6 done (S2 archived, PM took its lease). #2119 CI before my fix: DDL Authorization, Migration Integrity, Test Coverage Gap failed; fixes committed locally in `w-awl-guide2` (`976f1cb6`), NOT pushed. #2110: CONFLICTING + DDL Authorization failing (not yet read). Next: read failing logs of projexa #409/#410/#412 and ct #2110, fix locally.
 - 2026-10-06 PM, causes of the projexa PR failures (read from CI logs, not yet fixed): #410 = Turbopack build cannot fetch the Google font (`@vercel/turbopack-next/internal/font/google/font`), an infra/font-fetch failure, expected to clear on rerun; #409 = the e2e stub does not answer the `memberships` query ("not part of the local stub"), so requireAuth returns a transient failure, likely needs a stub update, VERIFY against the train; #412 = one unit test fails, `outbox-shared (production wiring) > a browser online event flushes ...` (passes in the train with --isolate per the earlier local run? NOT confirmed, re-run that one file with `bun test --isolate`). Fix order: re-run the #412 file locally first, then decide #409/#410 against the train.
+
+- 2026-10-07 PM: CORRECTION to the 2026-10-06 note on #409: the `memberships` lines are log noise from passing tests; the real #409 failure is ONE flaky test (R2 `page.reload` on a detached page). #412's `outbox-shared` test was a CI timing flake (extra push of the same op); now asserts op ids (dc4cdc66). #409 and #410 merged into the train locally. Full local-first run found one REAL regression from A1: lf-documents-docs.spec expected /moms/new to hand over to the server; it is now a laptop screen (fixed in 5e5cc3e1). #2110: journal conflict resolved (0730 re-timed idx 543 / when 1790700016000 after 0736), PRE-APPROVED-LIVE-DDL added, ef67ebd5 in worktree C:\ct\ct-audittrail. A5/A7 (real-backend login specs) NOT run: they type the shared E2E test-org password into the real remote Supabase Auth, which is outside the local-dev test-credential exception; they stay owner-run (`bunx playwright test -c playwright.audit37-real.config.ts`).
