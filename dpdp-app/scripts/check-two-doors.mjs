@@ -465,7 +465,7 @@ function main() {
     const hiddenText = findHiddenText(html, css)
     expect(hiddenText.length === 0, `${rel}: hidden text -- ${hiddenText.map((h) => `${h.kind}: ${h.detail}`).join("; ")}`)
     const scripts = (html.match(/<script\b[^>]*>/gi) ?? []).filter((t) => !/type="application\/ld\+json"/i.test(t))
-    expect(JSON.stringify(scripts) === JSON.stringify(rel === "index.html" ? HOME_SCRIPT_OPENS : PUBLIC_SCRIPT_OPENS), `${rel}: <script> tag(s) besides JSON-LD must be exactly ${REF_SCRIPT.tag} then ${RUM_SCRIPT.tag} (the home page also ${THEME_SCRIPT.tag} first), found ${JSON.stringify(scripts)}`)
+    expect(JSON.stringify(scripts) === JSON.stringify(rel === "index.html" ? HOME_SCRIPT_OPENS : PUBLIC_SCRIPT_OPENS), `${rel}: <script> tag(s) besides JSON-LD must be exactly ${REF_SCRIPT.tag} then ${RUM_SCRIPT.tag} then <script defer src="/visit.js"></script> (the home page also ${THEME_SCRIPT.tag} first), found ${JSON.stringify(scripts)}`)
     const spelling = findSpellingVariants(html)
     expect(spelling.length === 0, `${rel}: brand spelling variant(s) ${spelling.map((s) => JSON.stringify(s.variant)).join(", ")}`)
     const deviations = findBrandLineDeviations(html, facts.brand)

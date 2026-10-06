@@ -40,6 +40,11 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (DPDP first-party visitor journey tracking + SEO checks; worktree .claude/worktrees/agent-a4b0a446eb7227e69, branch feat/dpdp-visitor-journey)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0733 (dpdp.visit_* + RPCs + retention cron), supabase/functions/dpdp-track + _shared/visit, dpdp-app/public/visit.js + functions/api/visit*,
+      public-surface script lists/checks/tests, privacy line, SPA sign-in link call, SEO audit test. Does NOT touch the dpdp-audit chain tables. No Vercel, no live DDL.
   - session_label: "claude-code (PROJEXA upload sign route: projexa-api POST /uploads/sign + public bucket projexa-files; worktree C:/ct/wt-upload, branch feat/projexa-upload-sign)"
     claimed_at: "2026-10-06 (this session)"
     claim: |

@@ -18,6 +18,7 @@ import { OwnerReview } from "./components/OwnerReview"
 import { AiWorkLink } from "./components/AiWorkLink"
 import { AuditLogPanel } from "./components/AuditLogPanel"
 import { forgetLoginReport, reportFailedLogin, reportLogin } from "./lib/audit-api"
+import { linkVisitToPerson, noteSignInStart } from "./lib/visit-link"
 import { BillingPanel } from "./components/BillingPanel"
 import { OwnerPaymentAdmin } from "./components/OwnerPaymentAdmin"
 import { OwnerPartnerPayouts } from "./components/OwnerPartnerPayouts"
@@ -150,6 +151,8 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       if (mine !== loadSeq.current) return
       setCopyInfo((c) => ({ ...c, offline: got.source === "device", savedAt: got.savedAt }))
       setPhase({ name: "app", page: got.page, clients: got.clients })
+      // Visit journey: tell the server this person is the visitor the public pages saw (links by identity id; silent, once per tab once it has a person to name).
+      void linkVisitToPerson(client)
       // Counted after the page is on screen, so the page never waits on the device database.
       const who = emailRef.current
       if (store && who) void store.pending(who).then((t) => setCopyInfo((c) => (c.pending === t.length ? c : { ...c, pending: t.length })), () => {})
@@ -226,6 +229,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   // own login form: membership is decided by dpdp_my_page after sign-in, not
   // by whether an auth.users row already exists.
   async function requestLink(address: string): Promise<string | null> {
+    void noteSignInStart()
     const { error } = await client.auth.signInWithOtp({ email: address, options: { emailRedirectTo: new URL("/app/", window.location.origin).href } })
     if (error) return error.message
     rememberEmail(address)

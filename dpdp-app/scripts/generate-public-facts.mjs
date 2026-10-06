@@ -55,7 +55,7 @@ import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, companyFooterHtml, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
-import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, RUM_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
+import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, RUM_SCRIPT, VISIT_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
 
@@ -275,6 +275,7 @@ function head(facts, { path, title, description, nodes, hidden = false }) {
     `<link rel="stylesheet" href="/src/site.css" />`,
     REF_SCRIPT.tag,
     RUM_SCRIPT.tag,
+    VISIT_SCRIPT.tag,
     jsonLdScript(nodes),
   )
   return lines.map((l) => "    " + l).join("\n")
@@ -610,13 +611,13 @@ export function applyToLanding(facts, html, path, file) {
     "og:description (to attach the image and card tags)",
   )
 
-  // The two allowed scripts besides JSON-LD: /ref.js then /rum.js, right after the stylesheet link (idempotent).
+  // The two allowed scripts besides JSON-LD: /ref.js then /rum.js then /visit.js, right after the stylesheet link (idempotent).
   out = replaceOne(
     out,
-    /^([ \t]*)(<link rel="stylesheet" href="\/src\/site\.css" \/>)\r?\n(?:[ \t]*<script defer src="\/ref\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/rum\.js"><\/script>\r?\n)?/m,
-    (m) => `${m[1]}${m[2]}\n${m[1]}${REF_SCRIPT.tag}\n${m[1]}${RUM_SCRIPT.tag}\n`,
+    /^([ \t]*)(<link rel="stylesheet" href="\/src\/site\.css" \/>)\r?\n(?:[ \t]*<script defer src="\/ref\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/rum\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/visit\.js"><\/script>\r?\n)?/m,
+    (m) => `${m[1]}${m[2]}\n${m[1]}${REF_SCRIPT.tag}\n${m[1]}${RUM_SCRIPT.tag}\n${m[1]}${VISIT_SCRIPT.tag}\n`,
     file,
-    "the stylesheet link (to attach /ref.js and /rum.js)",
+    "the stylesheet link (to attach /ref.js, /rum.js and /visit.js)",
   )
 
   const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/i.exec(out)

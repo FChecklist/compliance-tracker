@@ -413,3 +413,15 @@ What it is, who sees what, and how to run it. Design and deploy order: `supabase
 - **Legal hold** suspends both the notice and the deletion for an organisation: `POST /staff/legal-hold` (platform owner) or `select public.dpdp_audit_set_legal_hold('<owner email>', '<org id>', true, '<reason>')`.
 - **After deletion** only two kinds of row remain, for ever: `dpdp.audit_stats_daily` (counts, no identifier) and `dpdp.audit_deletion_certificate`.
 - **Known limits, stated plainly.** The address, user-agent and AI vendor are what the server observed; a caller reaching the Edge Function directly can still send its own `x-dpdp-client-ip`. The AI's model, version, session and machine are claims. Vendor IP ranges are only checked if `DPDP_AUDIT_VENDOR_IP_RANGES` is set. Rows are written by an Edge Function after the response is sent where the platform allows, so a crash between could lose one row; the database triggers (events, AI drafts, confirms, AI actions) are inside the business transaction's own statement and cannot be skipped, but a fault in one is recorded in `dpdp.audit_failure` instead of blocking the action.
+## Visitor journey: where visitors come from, what they read, where they leave, who buys (2026-10-06)
+
+First-party, owner-approved. Full detail, routes and secrets: `supabase/functions/dpdp-track/README.md`. The short version:
+
+- **What it records** (public pages only): source (site, campaign tags, search / AI assistant), landing page, device, language, country and city, repeat visits, sections seen and for how long, links clicked, dropdown / radio / tick-box choices, scroll depth, and where the visit ended. A random visitor id (cookie `dpdp_vid`, one year). A shortened IP and a keyed hash of the full IP (secret `DPDP_VISIT_KEY`), never the raw IP. Never typed text, names or e-mails.
+- **Privacy signal** (Global Privacy Control / Do Not Track): no id, no cookie; the visit is only counted in a daily total.
+- **Signed in?** The browser tells `dpdp-track` its visitor id and the server links it to the person's identity id. Nothing else is recorded on the signed-in screens beyond a page view named `app:home`.
+- **Crawlers** are kept apart (SEO crawl visibility) and are never in a human number.
+- **Owner report**: `GET .../functions/v1/dpdp-track/report?days=30&format=md` (platform owner's own sign-in token; every read goes to the audit access log first). One visitor's whole path: `/journey?vid=...` or `?identity=...`.
+- **Funnel**: visit, key page, call to action, sign-up, organisation, first-visit wizard, paid; "converted by source" uses the visitor's first source. "Paid" is the product's own `payment_confirmed` record.
+- **Retention**: 365 days, then raw rows go and only anonymous day totals stay (pg_cron `dpdp-visit-retention`, 00:40 UTC).
+- **Site check**: `scripts/live-smoke.mjs` and `scripts/site-health.mjs` also check `/visit.js` and that `POST /api/visit` answers 204.
