@@ -11,6 +11,7 @@
 // A link for ONE project gets the same page for its own project only (no list, no portfolio).
 // LIMITS. At most WORKSPACE_MAX_BYTES a page; `?page=N` continues with the next projects. Each read is inside the DB time box; one that fails or is slow is SAID in
 // the document and the page goes on; the whole page stops reading after WORKSPACE_BUDGET_MS and says which projects were not read.
+import { confirmLinkRecipe } from "./confirm-link.ts"
 import { DATA_CLOSING, cleanDeep, cleanText, fenceRows } from "../_shared/ai-link/core.ts"
 import { LINK_FUNCTIONS } from "./api-definition.ts"
 import { mdLink } from "./manual.ts"
@@ -145,7 +146,8 @@ function whatICanDo(env: ReadEnv, forPerson: boolean): string {
   out.push(
     "",
     "How a change is made:",
-    `- If you can only read pages: print one block per change, in the format below (the same as the paste card, ${mdLink(`${env.base}/card.md`)}), and ask the person to paste the blocks at ${inbox} and confirm each one there, signed in. Nothing changes until they do.`,
+    ...confirmLinkRecipe(env.config.confirmHost, env.mode === "path" ? env.token : null, forPerson),
+    `- If you can only read pages and cannot print a link: print one block per change, in the format below (the same as the paste card, ${mdLink(`${env.base}/card.md`)}), and ask the person to paste the blocks at ${inbox} and confirm each one there, signed in. Nothing changes until they do.`,
     "",
     "```projexa-proposal",
     forPerson ? "{\"v\":1,\"function\":\"create_project\",\"params\":{\"name\":\"Marina Club\"},\"note\":\"a new project\"}" : "{\"v\":1,\"function\":\"record_work_progress\",\"params\":{\"itemCode\":\"EX-01\",\"percent\":40},\"note\":\"slab poured\"}",

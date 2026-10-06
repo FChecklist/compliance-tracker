@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Sw4UyDxiIw5KTEO70+2jaSc6sTQ9gjsmWTMgeztTpmQ='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-MzMMD7ksON4iIp3WhO2MIN4xaliNwvWDZhdAgWn+N4E='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co; base-uri 'none'; form-action 'none'">
 <title>Changes your AI proposed</title>
 <style>
 body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1c2b3a; background: #fffdf9; }
@@ -51,11 +51,17 @@ small { color: #4a5663; }
   var $ = function (id) { return document.getElementById(id); };
   var token = "", proposals = [], codes = {};
 
-  // The link token is in the fragment (#t=pxa_...) and optionally one proposal (#p=<base64url JSON>). Both are read into memory and the
-  // fragment is removed from the address bar. The token then travels in a header (header mode), never in an address.
+  // The link token is in the fragment (#t=pxa_...) with the changes after it, in one of two forms. Both are read into memory and the fragment is
+  // removed from the address bar. The token then travels in a header (header mode), never in an address.
+  //   plain words:  #t=pxa_...&do=create_project&name=Tower%20B&n=a%20new%20project   (one `do=` per change, its details follow it;
+  //                 `pid=<project id>` names the project, `n=` is the note, `ik=` an idempotency key, `<name>:j=<JSON>` carries a list or an object)
+  //   base64:       #t=pxa_...&p=<base64url JSON of {"v":1,"function":...,"params":{...}}>   (still read, for the links older answers made)
+  // A link that cannot be read is said so, and nothing is sent.
   var frag = location.hash.replace(/^#/, "");
   var tm = /(?:^|&)t=(pxa_[0-9a-f]{64})(?:&|$)/.exec(frag);
   var pm = /(?:^|&)p=([A-Za-z0-9_-]{1,6000})(?:&|$)/.exec(frag);
+  var unreadable = false;
+  if (!pm && /(?:^|&)p=/.test(frag)) unreadable = true;
   if (tm) token = tm[1];
   if (pm) {
     try {
@@ -64,7 +70,57 @@ small { color: #4a5663; }
       var bin = atob(b64), bytes = new Uint8Array(bin.length);
       for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       proposals.push(JSON.parse(new TextDecoder().decode(bytes)));
-    } catch (e) { /* an unreadable proposal is ignored */ }
+    } catch (e) { unreadable = true; }
+  }
+
+  function plainValue(raw) {
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    // a whole number or a decimal written the usual way (no leading zero, no plus sign) is a number; everything else stays text
+    if (/^-?(0|[1-9][0-9]{0,14})(\.[0-9]{1,8})?$/.test(raw)) return Number(raw);
+    return raw;
+  }
+  // The plain-words form. Returns the list of changes, or null when any part of it cannot be read.
+  function parsePlain(text) {
+    var out = [], cur = null, pid = "";
+    var pairs = text.split("&");
+    for (var q = 0; q < pairs.length; q++) {
+      var pair = pairs[q];
+      if (pair === "") continue;
+      var eq = pair.indexOf("=");
+      if (eq < 1) return null;
+      var key, val;
+      try {
+        key = decodeURIComponent(pair.slice(0, eq).replace(/\+/g, " "));
+        val = decodeURIComponent(pair.slice(eq + 1).replace(/\+/g, " "));
+      } catch (e) { return null; }
+      if (key === "t" || key === "p") continue;
+      if (key === "do") {
+        if (!/^[a-z][a-z0-9_]{0,63}$/.test(val) || out.length >= 20) return null;
+        cur = { v: 1, function: val, params: {} };
+        if (pid) cur.pid = pid;
+        out.push(cur);
+        continue;
+      }
+      if (key === "pid") {
+        if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(val)) return null;
+        if (cur) cur.pid = val; else pid = val;
+        continue;
+      }
+      if (!cur) return null;
+      if (key === "n") { cur.note = val.slice(0, 500); continue; }
+      if (key === "ik") { if (!/^[A-Za-z0-9_-]{1,64}$/.test(val)) return null; cur.idempotency_key = val; continue; }
+      var asJson = false;
+      if (key.slice(-2) === ":j") { asJson = true; key = key.slice(0, -2); }
+      if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(key) || Object.prototype.hasOwnProperty.call(cur.params, key)) return null;
+      if (asJson) { try { cur.params[key] = JSON.parse(val); } catch (e) { return null; } }
+      else cur.params[key] = plainValue(val);
+    }
+    return out;
+  }
+  if (/(?:^|&)(?!t=|p=)[^&]/.test(frag)) {
+    var plain = frag.length <= 8000 ? parsePlain(frag) : null;
+    if (plain === null || plain.length === 0) unreadable = true; else proposals = proposals.concat(plain);
   }
   if (location.hash) history.replaceState(null, "", location.pathname + location.search);
 
@@ -90,15 +146,16 @@ small { color: #4a5663; }
     return d;
   }
 
+  var UNREADABLE = "This link could not be read. Nothing was sent. Ask your AI for the link again.";
   if (!token) {
-    $("status").textContent = "Open this page from the link your AI gave you: it carries your link in the address.";
+    $("status").textContent = unreadable ? UNREADABLE : "Open this page from the link your AI gave you: it carries your link in the address.";
   } else {
     $("status").textContent = "Loading the drafts waiting for you...";
     // Only a read: the link's own history, newest first. Nothing is posted on page load.
     api("GET", "/history?format=json&limit=50").then(function (r) {
       var list = $("drafts");
       if (r.status !== 200) { $("status").textContent = "Your link could not be read (" + r.status + "). Ask your AI for a new link."; return; }
-      $("status").textContent = "";
+      $("status").textContent = unreadable ? UNREADABLE : "";
       var waiting = (r.j.items || []).filter(function (it) { return it.kind === "draft" && it.status === "awaiting_confirmation"; });
       if (!waiting.length) { var li0 = document.createElement("li"); li0.textContent = "Nothing is waiting."; list.appendChild(li0); return; }
       waiting.forEach(function (it) {
@@ -143,12 +200,18 @@ small { color: #4a5663; }
       line(box, "Change: " + p.function);
       Object.keys(p.params).forEach(function (k) { line(box, "  " + k + ": " + String(p.params[k])); });
       if (p.note) line(box, "Note: " + String(p.note));
+      // a change inside one project of a person's link goes through that project's address
+      var at = "";
+      if (p.pid !== undefined) {
+        if (typeof p.pid !== "string" || !/^[A-Za-z0-9_.:-]{1,128}$/.test(p.pid)) { line(box, "This block could not be read.", "bad"); return; }
+        at = "/projects/" + encodeURIComponent(p.pid);
+      }
       var verdict = line(box, token ? "Checking..." : "No link: it cannot be checked.");
       var btn = document.createElement("button");
       btn.type = "button"; btn.textContent = "Confirm"; btn.disabled = true;
       box.appendChild(btn);
       var direct = false;
-      if (token) api("POST", "/check", { function: p.function, params: p.params }).then(function (r) {
+      if (token) api("POST", at + "/check", { function: p.function, params: p.params }).then(function (r) {
         if (r.status === 200 && r.j.valid) { verdict.textContent = "Checked: valid."; verdict.className = "msg ok"; direct = !!r.j.will_execute_directly; btn.disabled = false; }
         else { verdict.textContent = "Checked: " + (r.j.error || (r.j.problems || []).join(" ") || "not valid") + (r.j.missing && r.j.missing.length ? " Missing: " + r.j.missing.join(", ") : ""); verdict.className = "msg bad"; }
       });
@@ -158,7 +221,7 @@ small { color: #4a5663; }
         btn.disabled = true;
         var body = { function: p.function, params: p.params };
         if (p.idempotency_key) body.idempotency_key = String(p.idempotency_key);
-        api("POST", direct ? "/actions" : "/drafts", body).then(function (r) {
+        api("POST", at + (direct ? "/actions" : "/drafts"), body).then(function (r) {
           if (r.status !== 200 && r.status !== 201) { line(box, (r.j.error || "Not sent") + " (" + r.status + ")", "bad"); return; }
           if (direct) { line(box, "Sent.", "ok"); return; }
           // A draft is not done until the person confirms it: show the confirm link, or say plainly that there is none.
@@ -181,6 +244,7 @@ small { color: #4a5663; }
   }
   $("read").addEventListener("click", function () { render(parseBlocks($("paste").value)); });
   if (proposals.length) render(proposals);
+  if (unreadable && token) $("status").textContent = UNREADABLE;
 })();
 </script>
 </body>
