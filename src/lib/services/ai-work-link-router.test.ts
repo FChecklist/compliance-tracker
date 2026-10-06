@@ -661,7 +661,7 @@ describe("check and propose: dry runs that record nothing", () => {
     expect(direct.will_execute_directly).toBe(true)
     const level2Direct = await (await on.run(at(TOKENS.manager, "/check"), { method: "POST", body: { function: "add_roster_entry", params: { name: "A", dailyRate: 1 } } })).json()
     expect(level2Direct).toMatchObject({ valid: true, will_execute_directly: true, level: 2 })
-    expect(fake.names().every((n) => ["ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link__resolve"].includes(n))).toBe(true)
+    expect(fake.names().every((n) => ["ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link__resolve", "ai_work_link_person_card"].includes(n))).toBe(true)
   })
 
   test("POST /check body rules: not JSON 400, not an object 400, over 8 KB 413, params not an object 400", async () => {
@@ -686,7 +686,7 @@ describe("check and propose: dry runs that record nothing", () => {
     const packed = afterHash.split("&p=")[1].replace(/-/g, "+").replace(/_/g, "/")
     expect(JSON.parse(atob(packed))).toEqual({ v: 1, function: "record_work_progress", params: { itemCode: "EX-01", percent: "10" } })
     expect(doc.check.valid).toBe(true)
-    expect(fake.names().every((n) => ["ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link__resolve"].includes(n))).toBe(true)
+    expect(fake.names().every((n) => ["ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link__resolve", "ai_work_link_person_card"].includes(n))).toBe(true)
     const header = await (await run("/header/propose?fn=record_work_progress&p.itemCode=EX-01&p.percent=10", { headers: { ...JSONH, "link-token": TOKENS.manager } })).json()
     expect(header.confirm_url).not.toContain("t=")
     expect(header.confirm_url).not.toContain("pxa_")

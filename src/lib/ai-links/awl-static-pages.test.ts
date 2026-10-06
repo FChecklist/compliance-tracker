@@ -561,6 +561,105 @@ describe("ai-inbox.html run as code", () => {
   })
 })
 
+// ------------------------------------------------------------------------------------------------------------------------------- AUDIT-100 item 4
+describe("the confirm screens: plain words, who you are, and the extra tick for a delete or money change", () => {
+  const DELETE_CHECK = { valid: true, will_execute_directly: true, plain: "Archive a task. This deletes or cancels something.", acting_for: { name: "Asha Rao", organisation: "Rao Builders" }, risk: { delete: true, money: false, needs_tick: true, tick_text: "I understand this deletes or cancels what is shown above." }, targets: [{ param: "issueId", kind: "tasks", id: "t9", found: true, name: "Pour slab" }], targets_ok: true }
+  const inbox = async (fn: string, check: Record<string, unknown>, done: Reply = { status: 201, json: { intent_id: "int7", receipt: "R-7F3KQ" } }) => {
+    const proposal = Buffer.from(JSON.stringify({ v: 1, function: fn, params: { issueId: "t9" } })).toString("base64url")
+    const p = run("ai-inbox.html", { hash: `#t=${TOKEN}&p=${proposal}`, replies: (s) => (s.url.endsWith("/check") ? { status: 200, json: check } : s.url.includes("/history") ? { status: 200, json: { items: [] } } : done) })
+    await tick()
+    const box = p.$("blocks").children[0]
+    const btn = box.children.find((c) => c.textContent === "Confirm")!
+    return { p, box, btn, tickBox: () => box.children.flatMap((c) => c.children).find((c) => c.type === "checkbox"), changes: () => posts(p.sent).filter((s) => !s.url.endsWith("/check")) }
+  }
+
+  test("inbox: the plain sentence, who you are, and the record's real name are shown; Confirm waits for the tick, the typed code and then sends once, with a receipt", async () => {
+    const { p, box, btn, tickBox, changes } = await inbox("archive_task", DELETE_CHECK)
+    const text = box.text()
+    expect(text).toContain("This deletes or cancels something.")
+    expect(text).toContain("You are: Asha Rao (Rao Builders)")
+    expect(text).toContain("Record: Pour slab (t9)")
+    expect(btn.disabled).toBe(true)
+    p.$("confirm-code").input(p.shownCode())
+    btn.click()
+    await tick()
+    expect(changes()).toEqual([])
+    const tb = tickBox()!
+    tb.checked = true
+    tb.listeners.change?.()
+    expect(btn.disabled).toBe(false)
+    btn.click()
+    await tick()
+    expect(changes()).toHaveLength(1)
+    expect(box.text()).toContain("Done. Receipt: R-7F3KQ")
+  })
+
+  test("inbox: a delete the server did not flag is still ticked (the function id decides too), and a record that was not found keeps Confirm off with no tick able to open it", async () => {
+    const plain = await inbox("delete_meeting", { valid: true, will_execute_directly: true })
+    expect(plain.btn.disabled).toBe(true)
+    expect(plain.tickBox()).toBeDefined()
+    const gone = await inbox("archive_task", { ...DELETE_CHECK, targets: [{ param: "issueId", kind: "tasks", id: "t9", found: false, name: null }], targets_ok: false })
+    expect(gone.box.text()).toContain("was not found in your projects. Nothing can be sent.")
+    const tb = gone.tickBox()!
+    tb.checked = true
+    tb.listeners.change?.()
+    gone.p.$("confirm-code").input(gone.p.shownCode())
+    expect(gone.btn.disabled).toBe(true)
+    gone.btn.click()
+    await tick()
+    expect(gone.changes()).toEqual([])
+  })
+
+  test("inbox: a change with no delete and no money has no tick and works as before", async () => {
+    const { p, btn, tickBox, changes } = await inbox("record_work_progress", { valid: true, will_execute_directly: true, risk: { delete: false, money: false, needs_tick: false }, targets: [], targets_ok: true })
+    expect(tickBox()).toBeUndefined()
+    expect(btn.disabled).toBe(false)
+    p.$("confirm-code").input(p.shownCode())
+    btn.click()
+    await tick()
+    expect(changes()).toHaveLength(1)
+  })
+
+  const RISKY_PREVIEW: Reply = { status: 200, json: { ...(PREVIEW.json as object), function_id: "delete_meeting", label: "Delete a meeting", plain: "Delete a meeting. This deletes or cancels something.", acting_for: { name: "Asha Rao", organisation: "Rao Builders" }, risk: { delete: true, money: false, needs_tick: true, tick_text: "I understand this deletes or cancels what is shown above." }, receipt: "R-7F3KQ" } }
+  const signedIn = async (preview: Reply) => {
+    const p = run("ai-confirm.html", {
+      hash: `#d=drf123.${CONFIRM_CODE}`,
+      config: { authKey: "public-test-key" },
+      replies: (s) => (s.url.includes("/auth/v1/token") ? { status: 200, json: { access_token: "t" } } : s.url.endsWith("/preview") ? preview : { status: 200, json: { message: "ok", receipt: "R-7F3KQ" } }),
+    })
+    p.$("signin").click()
+    await tick()
+    p.$("confirm-code").input(p.shownCode())
+    return p
+  }
+
+  test("confirm page: for a delete it shows who you are and the tick; Confirm stays disabled until ticked, and the request carries acknowledged: true", async () => {
+    const p = await signedIn(RISKY_PREVIEW)
+    expect(p.$("preview").text()).toContain("You are: Asha Rao (Rao Builders)")
+    expect(p.$("ack-row").hidden).toBe(false)
+    expect(p.$("ack-text").textContent).toContain("deletes or cancels")
+    expect(p.$("confirm").disabled).toBe(true)
+    p.$("ack").checked = true
+    p.$("ack").listeners.change?.()
+    expect(p.$("confirm").disabled).toBe(false)
+    p.$("confirm").click()
+    await tick()
+    const c = posts(p.sent).filter((s) => s.url.includes("/confirm"))
+    expect(c).toHaveLength(1)
+    expect(c[0].body).toEqual({ confirmToken: CONFIRM_CODE, acknowledged: true })
+    expect(p.$("result").textContent).toContain("Receipt: R-7F3KQ")
+  })
+
+  test("confirm page: an ordinary change has no tick row and its request is unchanged", async () => {
+    const p = await signedIn(PREVIEW)
+    expect(p.$("ack-row").hidden).toBe(true)
+    expect(p.$("confirm").disabled).toBe(false)
+    p.$("confirm").click()
+    await tick()
+    expect(posts(p.sent).filter((s) => s.url.includes("/confirm"))[0].body).toEqual({ confirmToken: CONFIRM_CODE })
+  })
+})
+
 // ------------------------------------------------------------------------------------------------------------------------------- BR-496
 describe("BR-496's own script against a local server that serves these files", () => {
   const server = Bun.serve({
