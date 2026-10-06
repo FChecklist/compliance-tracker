@@ -40,6 +40,11 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (PROJEXA upload sign route: projexa-api POST /uploads/sign + public bucket projexa-files; worktree C:/ct/wt-upload, branch feat/projexa-upload-sign)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: supabase/functions/projexa-api/upload-sign.ts (new) + index.ts wiring + README, drizzle/0732 (bucket + sign log), src test projexa-upload-sign.test.ts,
+      ai-os/audit37/UPLOAD_CONTRACT_2026-10-06.md. Does NOT touch handler.ts / policy.generated.ts. No Vercel, no DNS, no spend. One projexa-api deploy after merge.
   - session_label: "claude-code (G-12 scope list perf + release distribution without Vercel/Cloudflare; worktrees C:/ct/ct-scopeperf, C:/ct/px-release) -- 2026-10-06"
     claimed_at: "2026-10-06 (this session)"
     claim: |
