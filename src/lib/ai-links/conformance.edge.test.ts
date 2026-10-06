@@ -58,6 +58,8 @@ const ALL_23 = [
 const EDGE_RPCS = [
   "ai_work_link_context", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_log_call", "ai_work_link_log_call_result",
   "ai_work_link_record", "ai_work_link_records", "ai_work_link__resolve",
+  // AUDIT-100 item 4: the person's name and organisation for the confirm screen (drizzle/0735): a read
+  "ai_work_link_person_card",
   // the suggestions board (drizzle/0672): its address is in the manifest, so H13 reads it with a plain GET; that is the list, a read that writes nothing.
   // ai_suggestion_add is NOT here: the harness never records a suggestion (asserted below)
   "ai_suggestion_list",
@@ -360,7 +362,7 @@ describe("detail rows of BR-523 that need no deployed function (BR-581, BR-583 a
     expect(over.valid).toBe(false)
     expect(over.problems.join(" ")).toContain("TEXT_TOO_LONG")
     // a dry run records nothing: no SQL function that writes exists in the Edge's list, and the fake refuses any other name
-    expect([...new Set(edge.fake.names())].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_log_call", "ai_work_link_log_call_result"].sort())
+    expect([...new Set(edge.fake.names())].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_person_card"].sort())
     edge.stop()
   }, 60_000)
 

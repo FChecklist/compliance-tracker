@@ -38,6 +38,8 @@ export type AwlConfig = {
    * false a draft is still recorded, and the person can still see it, but no change is applied.
    */
   execPresent: boolean
+  /** AUDIT-100 item 6: other hosts (besides the project's own) the function answers on and may print in its addresses, from AWL_ALT_HOSTS. Empty by default. */
+  altHosts?: string[]
 }
 
 /**

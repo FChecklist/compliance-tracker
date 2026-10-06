@@ -11,11 +11,12 @@
 // A link for ONE project gets the same page for its own project only (no list, no portfolio).
 // LIMITS. At most WORKSPACE_MAX_BYTES a page; `?page=N` continues with the next projects. Each read is inside the DB time box; one that fails or is slow is SAID in
 // the document and the page goes on; the whole page stops reading after WORKSPACE_BUDGET_MS and says which projects were not read.
-import { confirmLinkRecipe } from "./confirm-link.ts"
+import { claudeConnectorHowTo, confirmLinkRecipe } from "./confirm-link.ts"
+import { receiptOf } from "./risk.ts"
 import { DATA_CLOSING, cleanDeep, cleanText, fenceRows } from "../_shared/ai-link/core.ts"
-import { LINK_FUNCTIONS } from "./api-definition.ts"
+import { LINK_FUNCTIONS, functionDef } from "./api-definition.ts"
 import { mdLink } from "./manual.ts"
-import { PROJECTS_MAX, effectiveFunctionViews, fail, functionView, readPortfolio, readProjects, readRecords, type FunctionView, type ReadEnv } from "./reads.ts"
+import { PROJECTS_MAX, effectiveFunctionViews, fail, functionView, readHistory, readPortfolio, readProjects, readRecords, type FunctionView, type ReadEnv } from "./reads.ts"
 import { projectListLines } from "./render.ts"
 
 export const WORKSPACE_MAX_BYTES = 60000
@@ -159,6 +160,32 @@ function whatICanDo(env: ReadEnv, forPerson: boolean): string {
   return out.join("\n")
 }
 
+/**
+ * AUDIT-100 item 5: "Recent changes by you via AI", newest first, each with its receipt (R-XXXXX, the code the confirm screen showed). It is read from this link's
+ * own history, so a change made a minute ago is in the next fetch of this page. A failed or slow read is said, never the whole page.
+ */
+async function recentChanges(env: ReadEnv, opts: WorkspaceOpts): Promise<string[]> {
+  const got = await attempt(() => readHistory(env, "20"), opts)
+  if (!got.ok) return ["## Recent changes by you via AI", "", "The history could not be read right now. Open this page again in a minute.", ""]
+  const items = (Array.isArray(got.value.items) ? got.value.items : []) as Array<Record<string, unknown>>
+  const rows = items
+    .filter((it) => typeof it.intent_id === "string" && typeof it.function_id === "string")
+    .slice(0, 20)
+    .map((it) => {
+      const fn = String(it.function_id)
+      const label = functionDef(fn)?.label ?? fn
+      const when = typeof it.created_at === "string" ? it.created_at.slice(0, 16).replace("T", " ") + " UTC" : "time not known"
+      return `- ${receiptOf(String(it.intent_id))} | ${when} | ${cleanText(label, 90)} | ${cleanText(String(it.status ?? "unknown"), 40)}`
+    })
+  return [
+    "## Recent changes by you via AI",
+    "",
+    rows.length ? "Newest first. The code on the left is the receipt the confirm screen showed. Say these back to the person when asked what changed." : "No change has been made through this link yet.",
+    ...(rows.length ? ["", ...rows] : []),
+    "",
+  ]
+}
+
 /** One page of the workspace document. Never throws for a read that fails: that part says so and the page goes on. A bad `page` is 400. */
 export async function renderWorkspace(env: ReadEnv, pageParam: string | null, opts: WorkspaceOpts): Promise<string> {
   let page = 1
@@ -222,7 +249,10 @@ export async function renderWorkspace(env: ReadEnv, pageParam: string | null, op
 
   const from = (page - 1) * WORKSPACE_PROJECTS_PER_PAGE
   const after = Math.max(0, totalProjects - from - targets.length)
+  const recent = page === 1 ? await recentChanges(env, opts) : []
   const tail = [
+    ...recent,
+    ...(page === 1 && env.mode === "path" ? claudeConnectorHowTo(env.base) : []),
     ...(page === 1 ? [whatICanDo(env, forPerson)] : ["## What I can do for you", "", `On page 1: ${mdLink(self)}.`, ""]),
     ...(after > 0 ? [`${after} more project${after === 1 ? "" : "s"}: open ${mdLink(`${self}?page=${page + 1}`)} for the next ${Math.min(after, WORKSPACE_PROJECTS_PER_PAGE)}.`, ""] : [targets.length === 0 && page > 1 ? "There is nothing on this page: every project is on the pages before it." : "This is the last page.", ""]),
     DATA_CLOSING,

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-MzMMD7ksON4iIp3WhO2MIN4xaliNwvWDZhdAgWn+N4E='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-OA0bgXFyv/GpwNrREoSXtDB9EEnwnk5vhY6sWgSZCtg='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co; base-uri 'none'; form-action 'none'">
 <title>Changes your AI proposed</title>
 <style>
 body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1c2b3a; background: #fffdf9; }
@@ -50,6 +50,7 @@ small { color: #4a5663; }
   var cfg = JSON.parse(document.getElementById("awl-config").textContent);
   var $ = function (id) { return document.getElementById(id); };
   var token = "", proposals = [], codes = {};
+  var DELETE_RE = /^(delete_|remove_|void_|archive_|cancel_|retire_|reject_)/;
 
   // The link token is in the fragment (#t=pxa_...) with the changes after it, in one of two forms. Both are read into memory and the fragment is
   // removed from the address bar. The token then travels in a header (header mode), never in an address.
@@ -210,25 +211,50 @@ small { color: #4a5663; }
       var btn = document.createElement("button");
       btn.type = "button"; btn.textContent = "Confirm"; btn.disabled = true;
       box.appendChild(btn);
-      var direct = false;
+      var direct = false, checked = false, targetsOk = true, needTick = DELETE_RE.test(p.function), tick = null;
+      // Confirm is enabled only when the check is valid, every record the change points at was found, and (for a delete or money change) the extra tick is ticked
+      function sync() { btn.disabled = !(checked && targetsOk && (!needTick || (tick !== null && tick.checked === true))); }
       if (token) api("POST", at + "/check", { function: p.function, params: p.params }).then(function (r) {
-        if (r.status === 200 && r.j.valid) { verdict.textContent = "Checked: valid."; verdict.className = "msg ok"; direct = !!r.j.will_execute_directly; btn.disabled = false; }
+        if (r.status === 200 && r.j.valid) {
+          verdict.textContent = "Checked: valid."; verdict.className = "msg ok"; direct = !!r.j.will_execute_directly;
+          // the change in plain words, as the service read it just now: who you are, the records it points at (their real names), and the extra tick
+          if (typeof r.j.plain === "string") line(box, r.j.plain);
+          if (r.j.acting_for && typeof r.j.acting_for.name === "string") line(box, "You are: " + r.j.acting_for.name + (r.j.acting_for.organisation ? " (" + r.j.acting_for.organisation + ")" : "") + ". If this is not you, close this page.");
+          (Array.isArray(r.j.targets) ? r.j.targets : []).forEach(function (t) {
+            line(box, t.found === true ? "Record: " + (t.name || "no name") + " (" + String(t.id) + ")" : "Record " + String(t.id) + (t.found === false ? " was not found in your projects. Nothing can be sent." : " could not be read just now. Try again in a minute."), t.found === true ? "" : "bad");
+          });
+          targetsOk = r.j.targets_ok !== false;
+          if (r.j.risk && r.j.risk.needs_tick === true) needTick = true;
+          if (needTick) {
+            var tl = document.createElement("div"); tl.className = "msg bad";
+            tick = document.createElement("input"); tick.type = "checkbox"; tick.id = "tick-" + String(Math.random()).slice(2, 8);
+            tick.addEventListener("change", sync);
+            tl.appendChild(tick);
+            var tt = document.createElement("span"); tt.textContent = " " + String((r.j.risk && r.j.risk.tick_text) || "I understand this deletes, cancels or changes money figures and cannot be undone from here.");
+            tl.appendChild(tt);
+            box.appendChild(tl);
+          }
+          checked = true; sync();
+        }
         else { verdict.textContent = "Checked: " + (r.j.error || (r.j.problems || []).join(" ") || "not valid") + (r.j.missing && r.j.missing.length ? " Missing: " + r.j.missing.join(", ") : ""); verdict.className = "msg bad"; }
       });
       // The only requests that change anything, and only from this click, only after the typed code matches.
       btn.addEventListener("click", function () {
+        if (!checked || !targetsOk) return;
+        if (needTick && !(tick !== null && tick.checked === true)) { line(box, "Tick the box above first.", "bad"); return; }
         if (!codeOk()) { line(box, "Type the code shown above first.", "bad"); return; }
         btn.disabled = true;
         var body = { function: p.function, params: p.params };
         if (p.idempotency_key) body.idempotency_key = String(p.idempotency_key);
         api("POST", at + (direct ? "/actions" : "/drafts"), body).then(function (r) {
           if (r.status !== 200 && r.status !== 201) { line(box, (r.j.error || "Not sent") + " (" + r.status + ")", "bad"); return; }
-          if (direct) { line(box, "Sent.", "ok"); return; }
+          var receipt = typeof r.j.receipt === "string" ? " Receipt: " + r.j.receipt + " (tell your AI this code)." : "";
+          if (direct) { line(box, "Done." + receipt, "ok"); return; }
           // A draft is not done until the person confirms it: show the confirm link, or say plainly that there is none.
           var link = confirmLinkOf(r.j);
           if (link) {
             codes[String(r.j.draft_id)] = link.code;
-            line(box, "Recorded as a draft. Nothing has changed. Open the confirm page to review it and confirm:", "ok");
+            line(box, "Recorded as a draft. Nothing has changed." + receipt + " Open the confirm page to review it and confirm:", "ok");
             var a = document.createElement("a");
             a.textContent = "Open the confirm page for this draft";
             a.href = cfg.confirmPage + link.hash;
