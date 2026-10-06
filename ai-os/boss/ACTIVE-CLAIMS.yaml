@@ -55,6 +55,20 @@ active:
       (new spec keys: per-instance TTL cache, multipart upload passthrough, response redaction, BOQ create verification), and the projexa side
       (projexa-api-routes.json batch 7, parity cases, px-api.ts, vercel inventory, one small Vercel cache-revalidate route). One deploy of projexa-api only
       (after the compliance PR merges). Migration numbers: none planned. No Vercel dashboard/deploy, no DNS, no spend. Not touching projexa-sync / offline gate.
+  - session_label: "claude-code (DPDP audit trail: append-only hash-chained audit_event + masked user download + lifecycle; worktree .claude/worktrees/agent-a1164b8f7cc0d1b84, branch feat/dpdp-audit-trail)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0731_dpdp_audit_trail.sql (+ down), supabase/functions/_shared/audit/*, supabase/functions/dpdp-audit + dpdp-audit-lifecycle (new),
+      supabase/functions/dpdp-ai-link/index.ts (logging hook, nosnippet removal), dpdp-monday-email/ai-link-email.ts (read-only default),
+      dpdp-app/src/lib/ai-chat-options.ts (no secret link in other companies' URLs), dpdp-app privacy page text. Migration number planned: 0730 (NOT applied live; lead applies).
+      No Vercel, no DNS, no spend.
+  - session_label: "claude-code (AUDIT-100 A2 batch 7: group (b) cache / write-invalidation routes + group (c) fan-out routes off Vercel; worktrees C:/ct/ct-b7 + C:/ct/px-a2b7, branches px-edge-batch7 / a2-edge-batch7)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md}, src/lib/services/projexa-api-edge-parity.test.ts
+      (new spec keys: per-instance TTL cache, multipart upload passthrough, response redaction, BOQ create verification), and the projexa side
+      (projexa-api-routes.json batch 7, parity cases, px-api.ts, vercel inventory, one small Vercel cache-revalidate route). One deploy of projexa-api only
+      (after the compliance PR merges). Migration numbers: none planned. No Vercel dashboard/deploy, no DNS, no spend. Not touching projexa-sync / offline gate.
   - session_label: "claude-code (AUDIT-100 G-09: PROJEXA new-organisation provisioning inside projexa-api; worktrees C:/ct/ct-g09 + C:/ct/px-g09, branches feat/g09-org-provision-edge + feat/g09-org-provision-client)"
   - session_label: "claude-code (AUDIT-100 AI work link guide, items 3,4,5,6,8; worktree C:/ct/w-awl-guide2, branches feat/awl-*)"
     claimed_at: "2026-10-06 (this session)"

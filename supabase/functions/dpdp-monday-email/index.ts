@@ -79,8 +79,8 @@ const UNSUBSCRIBE_PATH = env("DPDP_UNSUBSCRIBE_PATH") || "/unsubscribe/"
 // The AI work link inside the Monday email (drizzle/0663 + 0664; ai-link-email.ts). Owner, 2026-09-30: the emailed link is
 // READ / EDIT / WORK, which is level 1 (read + small edits directly; anything with legal weight is a draft the person confirms).
 // FAIL CLOSED: a switch is on only when unset or exactly "1". DPDP_EMAIL_AI_LINK_ENABLED=0 takes the link out of the email;
-// DPDP_EMAIL_AI_CHANGES_ENABLED=0 stops listing what the person's AI changed; DPDP_EMAIL_AI_LINK_LEVEL is 1 unless set to
-// anything else (then read-only); DPDP_EMAIL_AI_LINK_DAYS is 1, 7 or 30 (default 7). Emergency: update dpdp.ai_link set
+// DPDP_EMAIL_AI_CHANGES_ENABLED=0 stops listing what the person's AI changed; DPDP_EMAIL_AI_LINK_LEVEL is 1 ONLY when set to exactly "1"
+// (unset or anything else: read-only, owner 2026-10-06); DPDP_EMAIL_AI_LINK_DAYS is 1, 7 or 30 (default 7). Emergency: update dpdp.ai_link set
 // revoked_at = now() where label = 'Monday email' and revoked_at is null.
 const AI = parseAiLinkConfig((k) => env(k).trim())
 for (const w of AI.warnings) console.warn(`dpdp-monday-email: ${w}`)

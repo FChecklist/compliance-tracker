@@ -167,7 +167,7 @@ describe("WO-DPDP-013 §1.3: sections A-G, generated", () => {
     const m = buildManual({ context: context(), base: BASE, now: NOW })
     const html = renderManualHtml(m)
     expect(html).not.toContain("<script")
-    expect(html).toContain('<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">')
+    expect(html).toContain('<meta name="robots" content="noindex, nofollow, noarchive">')
     expect(html).toContain("Sharma &amp; &lt;Sons&gt; LLP")
     expect(html).not.toContain("<Sons>")
     expect(html).toContain('<section id="A">')

@@ -6,7 +6,7 @@
 //      GET /projects: rows fenced as data, "Report on all above" second to last, "Create New Project" last, an as-of time, at most INLINE_PROJECTS_MAX rows
 //      ("And N more"), within its own byte budget and the guide's; a PROJECT link's guide has none; a reader that fails or hangs leaves the guide 200 without it;
 //   2. the GET addresses in the guide's steps and in section H are Markdown links whose text is the absolute address; no POST address is ever linked;
-//   3. the guide and its documents answer X-Robots-Tag "noindex, nofollow"; every data answer keeps "noindex, nofollow, noarchive, nosnippet";
+//   3. the guide and its documents answer X-Robots-Tag "noindex, nofollow"; every data answer keeps "noindex, nofollow, noarchive";
 //   4. a plain fetch still gets text/plain, and markdown only on Accept.
 // Run: bun test --isolate src/lib/services/ai-work-link-guide-inline-projects.test.ts
 import { describe, test, expect } from "bun:test"
@@ -234,13 +234,13 @@ describe("3 and 4. headers of the guide and of the data", () => {
     expect(ROBOTS_DOC).toBe("noindex, nofollow")
   })
 
-  test("every data answer and every error keeps noindex, nofollow, noarchive, nosnippet", async () => {
+  test("every data answer and every error keeps noindex, nofollow, noarchive", async () => {
     const { run } = setup()
     for (const [token, rest] of [[TOKENS.userManager, "/projects"], [TOKENS.userManager, "/portfolio"], [TOKENS.manager, "/context"], [TOKENS.manager, "/records/tasks"], [TOKENS.manager, "/history"], [TOKENS.manager, "/nosuch"], [TOKENS.revoked, ""]] as const) {
       const r = await run(`/${token}${rest}`)
       expect({ rest, robots: r.headers.get("x-robots-tag") }).toEqual({ rest, robots: ROBOTS_PRIVATE })
     }
-    expect(ROBOTS_PRIVATE).toBe("noindex, nofollow, noarchive, nosnippet")
+    expect(ROBOTS_PRIVATE).toBe("noindex, nofollow, noarchive")
   })
 
   test("a plain fetch of the guide is text/plain; text/markdown only when Accept asks for it", async () => {

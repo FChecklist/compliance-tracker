@@ -62,7 +62,7 @@ describe("daysUntil / rowStatus / summarise", () => {
 describe("renderHtml", () => {
   const html = renderHtml(view, opts)
   test("is private and clean: noindex meta, no <script>, no external resource, inline CSS only", () => {
-    expect(html).toContain('<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">')
+    expect(html).toContain('<meta name="robots" content="noindex, nofollow, noarchive">')
     expect(html).toContain('<meta name="referrer" content="no-referrer">')
     expect(html).not.toMatch(/<script/i)
     expect(html).not.toMatch(/<link\s/i)
