@@ -27,6 +27,8 @@ import { spawn, spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { readFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
+import { handleAwl } from "../../../supabase/functions/ai-work-link/handler"
+import { TOKENS, makeFake, req, testConfig } from "../services/__test-helpers__/awl-edge-fake"
 
 const ROOT = join(import.meta.dir, "..", "..", "..")
 const DIR = join(ROOT, "projexa-link-pages")
@@ -475,6 +477,82 @@ describe("ai-inbox.html run as code", () => {
     expect(blocks[0].children.find((c) => c.textContent === "Confirm")!.disabled).toBe(true)
     expect(blocks[1].text()).toContain("could not be read")
     expect(posts(p.sent).every((s) => s.url.endsWith("/check"))).toBe(true)
+  })
+
+  // AUDIT-100 item 3: plain key=value proposals after the # (engines write words far more reliably than base64)
+  describe("plain-words links", () => {
+    const check = (s: Sent): Reply => (s.url.endsWith("/check") ? { status: 200, json: { valid: true, will_execute_directly: false } } : { status: 404, json: {} })
+    const open = async (frag: string) => {
+      const p = run("ai-inbox.html", { hash: frag, replies: (s) => (s.url.includes("/history") ? { status: 200, json: { items: [] } } : check(s)) })
+      await tick()
+      return p
+    }
+    const shown = (p: ReturnType<typeof run>) => p.$("blocks").children.map((b) => b.text())
+
+    test("a name with spaces and an ampersand reads as the person wrote it, numbers become numbers, and the check carries exactly that", async () => {
+      const p = await open(`#t=${TOKEN}&do=create_project&name=Tower%20B%20%26%20Annex&percent=40&code=007&n=a%20new%20project`)
+      expect(shown(p)[0]).toContain("Change: create_project")
+      expect(shown(p)[0]).toContain("name: Tower B & Annex")
+      expect(shown(p)[0]).toContain("Note: a new project")
+      const c = posts(p.sent)
+      expect(c).toHaveLength(1)
+      expect(c[0].url).toBe(`${F}/header/check`)
+      expect(c[0].body).toEqual({ function: "create_project", params: { name: "Tower B & Annex", percent: 40, code: "007" } })
+      expect(p.replaced).toEqual(["/ai-page.html"])
+    })
+
+    test("several changes, a project id, an idempotency key and a JSON list: each change keeps its own details, and a project change goes through that project's address", async () => {
+      const p = await open(`#t=${TOKEN}&do=add_task&pid=prj1&title=Pour%20slab&do=add_boq_lines&pid=prj2&lines%3Aj=%5B%7B%22a%22%3A1%7D%5D&ik=k1`)
+      expect(p.$("blocks").children).toHaveLength(2)
+      const c = posts(p.sent)
+      expect(c.map((s) => s.url.replace(F + "/header", ""))).toEqual(["/projects/prj1/check", "/projects/prj2/check"])
+      expect(c[0].body).toEqual({ function: "add_task", params: { title: "Pour slab" } })
+      expect(c[1].body).toEqual({ function: "add_boq_lines", params: { lines: [{ a: 1 }] } })
+      p.$("confirm-code").input(p.shownCode())
+      p.$("blocks").children[1].children.find((x) => x.textContent === "Confirm")!.click()
+      await tick()
+      const sent = posts(p.sent).filter((s) => !s.url.endsWith("/check"))
+      expect(sent.map((s) => s.url.replace(F + "/header", ""))).toEqual(["/projects/prj2/drafts"])
+      expect((sent[0].body as { idempotency_key?: string }).idempotency_key).toBe("k1")
+    })
+
+    test("a link that cannot be read says so and sends nothing; the fragment is still removed", async () => {
+      for (const bad of ["&do=Bad%20Fn", "&do=x&name=%E0%A4%A", "&name=orphan", "&do=x&a=1&a=2", "&do=x&__proto__=1", "&do=x&n", "&do=x&lines%3Aj=%7Bnot"]) {
+        const p = await open(`#t=${TOKEN}${bad}`)
+        expect(`${bad} ${posts(p.sent).length}`).toBe(`${bad} 0`)
+        expect(`${bad} ${p.$("status").textContent.includes("could not be read")}`).toBe(`${bad} true`)
+        expect(p.$("blocks").children).toHaveLength(0)
+        expect(p.replaced).toEqual(["/ai-page.html"])
+      }
+      const b64 = await open(`#t=${TOKEN}&p=!!!`)
+      expect(b64.$("status").textContent).toContain("could not be read")
+    })
+
+    test("every example link the workspace prints stands alone on its line and, run through this page, gives a check for the function it names", async () => {
+      for (const [tok, fns] of [[TOKENS.userManager, ["create_project", "record_work_progress"]], [TOKENS.manager, ["record_work_progress"]]] as const) {
+        const fake = makeFake({})
+        const r = await handleAwl(req(`/${tok}/workspace`), { rpc: fake.rpc, config: testConfig(), log: () => {}, now: () => Date.parse("2026-10-06T02:47:04Z") })
+        const md = await r.text()
+        const lines = md.split(String.fromCharCode(10)).filter((l) => /^https:[/][/][^ ]*ai-inbox[.]html#/.test(l))
+        expect(lines.length).toBeGreaterThanOrEqual(fns.length)
+        for (const l of lines) {
+          expect(l).not.toMatch(/[<> `]/)
+          const frag = l.slice(l.indexOf("#"))
+          const t = /t=(pxa_[0-9a-f]{64})/.exec(frag)![1]
+          const p = await open(frag)
+          expect(p.$("status").textContent).not.toContain("could not be read")
+          expect(p.$("blocks").children.length).toBeGreaterThan(0)
+          const c = posts(p.sent)[0]
+          expect(fns).toContain((c.body as { function: string }).function)
+          expect(c.headers["link-token"]).toBe(t)
+        }
+      }
+    })
+
+    test("the base64 form still works beside it", async () => {
+      const p = await open(`#t=${TOKEN}&p=${Buffer.from(JSON.stringify({ v: 1, function: "create_project", params: { name: "X" } })).toString("base64url")}`)
+      expect(posts(p.sent)[0].body).toEqual({ function: "create_project", params: { name: "X" } })
+    })
   })
 
   test("text written by an AI is shown as text: nothing in the script builds markup from it", () => {
