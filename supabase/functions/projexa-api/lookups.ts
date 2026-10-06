@@ -41,13 +41,31 @@ export function createMembershipLookup(o: { projexaUrl: string; anonKey: string;
   }
 }
 
-export function createOrgKeyLookup(o: { projexaUrl: string; serviceRoleKey: string; fetchImpl?: typeof fetch; now?: () => number }): (orgId: string) => Promise<string | null> {
+/** G-09: the verdian-ai service-role rpc that reads the compliance-side credentials table (public.projexa_org_credential_get, drizzle/0729). */
+export type CredentialRpc = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>
+
+export function createOrgKeyLookup(o: { projexaUrl: string; serviceRoleKey: string; rpc?: CredentialRpc; fetchImpl?: typeof fetch; now?: () => number }): (orgId: string) => Promise<string | null> {
   const cache = new Map<string, { key: string; at: number }>()
   const now = o.now ?? (() => Date.now())
   return async (orgId) => {
-    if (!o.projexaUrl || !o.serviceRoleKey || !UUID_RE.test(orgId)) return null
+    if ((!o.rpc && (!o.projexaUrl || !o.serviceRoleKey)) || !UUID_RE.test(orgId)) return null
     const hit = cache.get(orgId)
     if (hit && now() - hit.at < KEY_TTL_MS) return hit.key
+    // G-09: the compliance-side table is the source of truth; the legacy PROJEXA table answers for an organisation not moved yet
+    if (o.rpc) {
+      try {
+        const r = await o.rpc("projexa_org_credential_get", { p_projexa_org_id: orgId })
+        const row = (Array.isArray(r.data) ? r.data[0] : r.data) as { api_key?: unknown } | null | undefined
+        if (!r.error && typeof row?.api_key === "string" && row.api_key) {
+          cache.set(orgId, { key: row.api_key, at: now() })
+          if (cache.size > 1000) cache.delete(cache.keys().next().value as string)
+          return row.api_key
+        }
+      } catch {
+        // fall through to the legacy table
+      }
+    }
+    if (!o.projexaUrl || !o.serviceRoleKey) return null
     const url = `${o.projexaUrl.replace(/\/+$/, "")}/rest/v1/veridian_credentials?select=veridian_api_key&organization_id=eq.${encodeURIComponent(orgId)}&limit=1`
     const out = await getJson(o.fetchImpl ?? fetch, url, { apikey: o.serviceRoleKey, Authorization: `Bearer ${o.serviceRoleKey}` })
     if (!out.ok) return null

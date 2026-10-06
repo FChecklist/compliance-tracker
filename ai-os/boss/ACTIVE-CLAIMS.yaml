@@ -40,6 +40,14 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (AUDIT-100 G-09: PROJEXA new-organisation provisioning inside projexa-api; worktrees C:/ct/ct-g09 + C:/ct/px-g09, branches feat/g09-org-provision-edge + feat/g09-org-provision-client)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: veridian_credentials moves to the compliance side. compliance-tracker: drizzle/0729_projexa_org_credentials_and_provision.sql (+down, journal;
+      applied live), supabase/functions/projexa-api/{org-provision.ts,lookups.ts,member-link.ts,index.ts,README.md,org-parity.golden.json}, scripts/g09-backfill-credentials.mjs
+      (one-off, NOT run), tests. projexa: src/lib/px-api.ts (+ signup/login callers), src/lib/veridian-client.ts reader, org-provision parity test + golden,
+      vercel route inventory / plan. One deploy of projexa-api only (after the compliance PR merges). No Vercel dashboard, no DNS, no spend.
+      NOT touching projexa-sync or the offline gate (another session).
   - session_label: "claude-code (DPDP AI work link SHORT paste + GET fallback + role parity; worktree C:/ct/ct-shortlink, branch feat/ai-short-link-manual)"
     claimed_at: "2026-10-04T (this session)"
     claim: |

@@ -3740,6 +3740,13 @@
       "when": 1790600009000,
       "tag": "0728_projexa_ensure_member_user",
       "breakpoints": true
+    },
+    {
+      "idx": 536,
+      "version": "7",
+      "when": 1790600010000,
+      "tag": "0729_projexa_org_credentials_and_provision",
+      "breakpoints": true
     }
   ]
 }
