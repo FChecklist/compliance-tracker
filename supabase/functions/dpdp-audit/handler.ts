@@ -2,7 +2,7 @@
 // drives every route with a fake database, a fake sign-in and a real key ring). index.ts is the thin Deno wrapper.
 //
 //   POST /event               the browser tells us about a sign-in (login / failed_login) or a read of personal data. Only these three types are accepted from a browser;
-//                             every mutation is recorded by the database itself (triggers, drizzle/0730), never by a browser's say-so.
+//                             every mutation is recorded by the database itself (triggers, drizzle/0731), never by a browser's say-so.
 //   GET  /orgs                what this signed-in person may download (own log; whole organisation if owner / head of department)
 //   GET  /my                  the person's OWN rows, masked, as a downloadable file         -- signed in + a code confirmed in the last 10 minutes + rate limited
 //   GET  /org                 the organisation's whole log, masked (owner or head of department only; same three conditions)

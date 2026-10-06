@@ -1,4 +1,4 @@
-// DPDP audit trail -- the daily job (owner spec 2026-10-06, items 5 and 6). PURE apart from the injected `Deps`. Posted once a day by pg_cron (drizzle/0730,
+// DPDP audit trail -- the daily job (owner spec 2026-10-06, items 5 and 6). PURE apart from the injected `Deps`. Posted once a day by pg_cron (drizzle/0731,
 // job `dpdp-audit-daily`, 00:20 UTC) with the Vault bearer, exactly like dpdp-operator-digest.
 //
 //   1. HEADS     record each organisation's chain head for yesterday (UTC) and e-mail it to that organisation's owner(s): the hash and counts only -- no event, no name,

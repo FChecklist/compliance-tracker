@@ -2,7 +2,7 @@
 //
 // Deployed with verify_jwt = FALSE: the one unauthenticated route (POST /event for a failed sign-in) cannot carry a user token, so the platform's own JWT gate is off
 // and every other route authenticates here, by asking Supabase Auth (`auth.getUser`) to validate the bearer token -- a forged or expired token is refused. The database
-// is reached with the service-role client only; the audit RPCs (drizzle/0730) are executable by service_role alone.
+// is reached with the service-role client only; the audit RPCs (drizzle/0731) are executable by service_role alone.
 //
 // Secrets: DPDP_AUDIT_SEAL_KEY (+ _ID), optionally DPDP_AUDIT_SEAL_KEY_OLD (+ _ID) for rotation, DPDP_AUDIT_CODE_MAX_AGE_SECONDS, DPDP_AUDIT_EXPORTS_PER_HOUR,
 // DPDP_AUDIT_ALLOWED_ORIGINS, APP_ORIGIN. SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are platform-injected and never leave this process.

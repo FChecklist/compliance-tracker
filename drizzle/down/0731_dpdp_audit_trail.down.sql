@@ -1,4 +1,4 @@
--- Roll-back of 0730_dpdp_audit_trail.sql. DESTROYS every audit row, access-log row, daily head, statistic and deletion certificate this migration's tables hold.
+-- Roll-back of 0731_dpdp_audit_trail.sql. DESTROYS every audit row, access-log row, daily head, statistic and deletion certificate this migration's tables hold.
 -- Do NOT run this on a database whose audit data matters; it exists so a failed rollout can be undone cleanly.
 select cron.unschedule('dpdp-audit-daily') where exists (select 1 from pg_extension where extname = 'pg_cron') and exists (select 1 from cron.job where jobname = 'dpdp-audit-daily');
 

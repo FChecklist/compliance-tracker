@@ -58,7 +58,7 @@ active:
   - session_label: "claude-code (DPDP audit trail: append-only hash-chained audit_event + masked user download + lifecycle; worktree .claude/worktrees/agent-a1164b8f7cc0d1b84, branch feat/dpdp-audit-trail)"
     claimed_at: "2026-10-06 (this session)"
     claim: |
-      Scope: drizzle/0730_dpdp_audit_trail.sql (+ down), supabase/functions/_shared/audit/*, supabase/functions/dpdp-audit + dpdp-audit-lifecycle (new),
+      Scope: drizzle/0731_dpdp_audit_trail.sql (+ down), supabase/functions/_shared/audit/*, supabase/functions/dpdp-audit + dpdp-audit-lifecycle (new),
       supabase/functions/dpdp-ai-link/index.ts (logging hook, nosnippet removal), dpdp-monday-email/ai-link-email.ts (read-only default),
       dpdp-app/src/lib/ai-chat-options.ts (no secret link in other companies' URLs), dpdp-app privacy page text. Migration number planned: 0730 (NOT applied live; lead applies).
       No Vercel, no DNS, no spend.

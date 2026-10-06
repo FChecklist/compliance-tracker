@@ -1,6 +1,6 @@
 # dpdp-audit / dpdp-audit-lifecycle -- the DPDP audit trail
 
-Owner-approved specification 2026-10-06. Database: `drizzle/0730_dpdp_audit_trail.sql`. Shared code: `supabase/functions/_shared/audit/*`.
+Owner-approved specification 2026-10-06. Database: `drizzle/0731_dpdp_audit_trail.sql`. Shared code: `supabase/functions/_shared/audit/*`.
 Tests: `src/lib/services/dpdp-audit-*.test.ts` (pure, handler, lifecycle, and the whole migration on real Postgres via PGlite).
 
 ## What is recorded, and how it extends what was already there
@@ -38,7 +38,7 @@ Keep a copy of the seal key somewhere that is not Supabase. Losing it makes ever
 ## Deploy order (the lead; nothing here has been applied)
 
 1. Set `DPDP_AUDIT_SEAL_KEY` (+ `_ID`) as an Edge Function secret on project `pcrjmlpuqsbocqfwoxod`.
-2. Apply `drizzle/0730_dpdp_audit_trail.sql` (Supabase MCP `apply_migration`). It creates tables, triggers, functions and the `dpdp-audit-daily` cron job (skipped by its own guard if pg_cron/pg_net are missing).
+2. Apply `drizzle/0731_dpdp_audit_trail.sql` (Supabase MCP `apply_migration`). It creates tables, triggers, functions and the `dpdp-audit-daily` cron job (skipped by its own guard if pg_cron/pg_net are missing).
 3. Deploy `dpdp-audit` with `verify_jwt: false`, `dpdp-audit-lifecycle` with `verify_jwt: false`, and redeploy `dpdp-ai-link` and `dpdp-monday-email` (read-only default level).
 4. Deploy the Pages app (`dpdp-app`: proxy forwards the `x-ai-*` headers and country; panel; privacy v1.7).
 5. Smoke: `POST /event` failed login for a known address answers 202; sign in and download with a fresh code; `POST /verify`; check `select * from dpdp.audit_event order by seq desc limit 5`.

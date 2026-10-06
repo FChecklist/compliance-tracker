@@ -25,7 +25,7 @@
 -- Edge Function secret (DPDP_AUDIT_SEAL_KEY), NOT the database login and NOT a Vault secret in this database. The database holds ciphertext only. (The older payout
 -- encryption, 0723, keeps its key in this database's Vault; the owner asked for a key apart from the DB login here.)
 --
--- Roll-back: drizzle/down/0730_dpdp_audit_trail.down.sql (drops everything this file creates; the audit rows go with it -- do not run it on a database whose audit rows matter).
+-- Roll-back: drizzle/down/0731_dpdp_audit_trail.down.sql (drops everything this file creates; the audit rows go with it -- do not run it on a database whose audit rows matter).
 --
 -- Conventions: functions in `public` (the only schema PostgREST exposes), SECURITY DEFINER, search_path = '', execute granted to service_role (and app_runtime for the
 -- append); refusals raise 42501, caller mistakes 22023. Dates are UTC.

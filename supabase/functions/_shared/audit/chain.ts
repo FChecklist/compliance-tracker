@@ -3,7 +3,7 @@
 // One chain PER ORGANISATION. Every row's `row_hash` binds the previous row's hash, the row's own content, and the values only the DATABASE decides (the row id,
 // the organisation, the server clock in microseconds). Change, delete or reorder any row and every hash after it stops matching.
 //
-//   content_hash = sha256(content_canonical)                       -- computed IN POSTGRES from the stored canonical text (drizzle/0730), so the writer cannot lie
+//   content_hash = sha256(content_canonical)                       -- computed IN POSTGRES from the stored canonical text (drizzle/0731), so the writer cannot lie
 //   row_hash     = sha256(prev_hash | content_hash | id | org_id | server_time_us)
 //   the first row of an org has prev_hash = GENESIS; after the 365-day purge the first REMAINING row's prev_hash is the hash of the last deleted row, which
 //   the deletion certificate and dpdp.audit_chain_anchor keep for ever, so verification continues from that anchor.

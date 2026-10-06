@@ -405,7 +405,7 @@ Principle (owner, 2026-10-03): use the individual user's own machine (laptop, ph
 
 ## Audit trail (2026-10-06, owner-approved spec; not yet applied live)
 
-What it is, who sees what, and how to run it. Design and deploy order: `supabase/functions/dpdp-audit/README.md`. Database: `drizzle/0730_dpdp_audit_trail.sql`.
+What it is, who sees what, and how to run it. Design and deploy order: `supabase/functions/dpdp-audit/README.md`. Database: `drizzle/0731_dpdp_audit_trail.sql`.
 
 - **One append-only, hash-chained log per organisation** (`dpdp.audit_event`). Personal values are sealed with AES-256-GCM using the Edge Function secret `DPDP_AUDIT_SEAL_KEY`, which is not the database login. Back that key up outside Supabase; without it the sealed values cannot be read again.
 - **Who can see it.** Each person downloads their own entries from the signed-in page ("Your audit log"); the owner and any head of department the owner names can download the organisation's whole log and run "Verify chain". The file is masked on the server (e-mail `pr***ah@acme.in`; IP, mobile, device id `203***.45`; under 8 characters fully starred), needs a code confirmed in the last 10 minutes, is limited to 5 an hour, and is never e-mailed. Internal full access is the platform owner only, needs a written reason, and is itself logged (`dpdp.audit_access_log`, plus a `staff_read` row on the organisation's own chain).

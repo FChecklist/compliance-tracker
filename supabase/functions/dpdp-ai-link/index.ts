@@ -44,7 +44,7 @@ import { playbookFor } from "./playbook.ts"
 import { paymentPendingNotice, type BillingNotice } from "./brief.ts"
 import { alertEmail, clientPrefix, uaFamily, type UseAlert } from "./unfamiliar.ts"
 import { buildOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
-// Audit trail (drizzle/0730): one audit row per call, joined to the call log above by ai_call_id. Never blocks or fails a call.
+// Audit trail (drizzle/0731): one audit row per call, joined to the call log above by ai_call_id. Never blocks or fails a call.
 import { GUIDE_ROUTES, auditAiLinkCall, sha256HexOfBytes } from "../_shared/audit/ai-call.ts"
 import { parseVendorRanges } from "../_shared/audit/provenance.ts"
 import { type KeyRing, keyRingFrom } from "../_shared/audit/seal.ts"
