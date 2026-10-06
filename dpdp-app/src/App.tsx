@@ -16,6 +16,8 @@ import { CaClients, type NewClient } from "./components/CaClients"
 import { CaPartnerFirstVisit } from "./components/CaPartnerFirstVisit"
 import { OwnerReview } from "./components/OwnerReview"
 import { AiWorkLink } from "./components/AiWorkLink"
+import { AuditLogPanel } from "./components/AuditLogPanel"
+import { forgetLoginReport, reportFailedLogin, reportLogin } from "./lib/audit-api"
 import { BillingPanel } from "./components/BillingPanel"
 import { OwnerPaymentAdmin } from "./components/OwnerPaymentAdmin"
 import { OwnerPartnerPayouts } from "./components/OwnerPartnerPayouts"
@@ -178,6 +180,8 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
         }
         return
       }
+      // Audit trail: tell the server this person has signed in (once per tab; the server records the address and browser it actually saw).
+      if (event === "SIGNED_IN") setTimeout(() => void reportLogin(client), 0)
       if ((event === "INITIAL_SESSION" || event === "SIGNED_IN") && !fetchStarted.current) {
         fetchStarted.current = true
         // Deferred a tick because calling back into the client from inside
@@ -237,6 +241,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   // The passcode in the same e-mail (Supabase verifyOtp, type "email"). Success arrives through onAuthStateChange like a link does.
   async function verifyCode(address: string, code: string): Promise<string | null> {
     const { error } = await client.auth.verifyOtp({ email: address, token: code, type: "email" })
+    if (error) void reportFailedLogin(address, "otp")
     return error ? "That passcode did not work. Check it, or send a new code." : null
   }
 
@@ -258,6 +263,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
     if (store && who && navigator.onLine) await store.flush(who, (id) => markDone(client, id), isNetworkError).catch(() => null)
     await store?.wipe().catch(() => {})
     await client.auth.signOut()
+    forgetLoginReport()
     orgRef.current = null
     setView("page")
     setPartnerOpen(false)
@@ -423,6 +429,7 @@ function Page({
           }}
         />
         <div id="ai-link-settings"><AiWorkLink client={client} orgId={org.id} onMade={refetch} /></div>
+        <AuditLogPanel client={client} orgId={org.id} email={email} />
         {viewer.kind !== "staff" && <History client={client} page={page} />}
       </>
     )

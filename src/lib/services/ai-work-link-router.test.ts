@@ -97,7 +97,7 @@ describe("core: address grammar, formats, pages, errors", () => {
     const h = privateHeaders("application/json", { remaining: 7.9 })
     expect(h["Cache-Control"]).toBe("no-store")
     expect(h["Referrer-Policy"]).toBe("no-referrer")
-    expect(h["X-Robots-Tag"]).toBe("noindex, nofollow, noarchive, nosnippet")
+    expect(h["X-Robots-Tag"]).toBe("noindex, nofollow, noarchive")
     expect(h["X-Content-Type-Options"]).toBe("nosniff")
     expect(h["Content-Security-Policy"]).toBe("default-src 'none'; frame-ancestors 'none'")
     expect(h["Access-Control-Allow-Origin"]).toBe("*")
