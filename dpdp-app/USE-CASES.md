@@ -61,13 +61,13 @@ Sign-in is a magic link only. There is no password, so there is no password rese
 
 ## D. The 30-day trial and "Payment pending"
 
-Owner rule (0655): access never locks; trial, awaiting_confirmation and active behave the same.
+Owner policy (0734, 2026-10-06; it replaced the 0655 never-lock rule): TRIAL 30 days, DUE from day 31, GRACE 7 more days, then LOCKED. Until LOCKED everything works. A LOCKED account refuses working screens and the AI link, and still allows paying, Download my data, recording a breach, answering a grievance and a consent withdrawal.
 
 | ID | Actor | Precondition | Steps | Expected | Failure modes | Test | Status |
 |---|---|---|---|---|---|---|---|
 | D01 | New org | sign-up | trial end = signup instant (UTC) + 30 days | within a second of 30 days | calendar-aligned or local-time trial | live-RB (29d 23:59:54 measured a few seconds after creation) | PASS |
 | D02 | System | trial | reminder windows at day 20 (10 days left), 27 (3 left), 30 (0, "ended"): see group E | exact boundaries | off-by-one, overlap | NEW pglite (12 boundary cases + 340-hour sweep) and live-RB | PASS |
-| D03 | Owner | trial ended | open the page | still works; pill says "Payment pending" (0 days left); message "your data is safe" | screen locks | NEW `dpdp-access-never-locks` (6 scans) | PASS |
+| D03 | Owner | trial ended | open the page | still works through the due day and the 7-day grace; the pill says "Payment due"; "your data is safe"; after the grace the Payment due screen appears | working screens stay open for ever, or lock with no way to pay | NEW `dpdp-access-lock-policy` (scans) + `dpdp-account-billing.pglite` (every boundary) | PASS |
 | D04 | Owner | IST browser | the pill counts days left | counted from the true UTC end | the billing RPC returns `2026-10-29T08:38:15` with no zone; `new Date()` read it as local time, so IST users saw the end 5.5 hours early and US users hours late | NEW `db-time.test` (runs the parser under IST, UTC, New York, Auckland) | PASS (fixed) |
 | D05 | Owner | trial | day 0 / 10 / 27 / 30 / 31 labels | 30, 20, 3, 0 days left then "Payment pending" | wrong label at 0 | pglite + review of `daysLeft` (ceil, never negative) | PASS |
 | D06 | System | trial end at 23:30 UTC | reminder key uses the UTC date (`trial3:2027-03-31`) although it is 1 April in IST | consistent key, no double send around midnight | key flips with the zone | NEW pglite; NEW billing-mail test (`dateLabel`) | PASS |
@@ -90,7 +90,7 @@ Owner rule (0655): access never locks; trial, awaiting_confirmation and active b
 | E08 | System | recipient rules | unsubscribed owner, revoked owner, no primary e-mail, no trial date, two owners (earliest only) | not mailed / one recipient | wrong person mailed | NEW pglite | PASS |
 | E09 | System | cron down 1-2 days | catch-up | still sent inside the 3-day window; nothing after it | gap | NEW pglite (window edges); live: a `dpdp-partner-mail` run failed "job startup timeout" at 19:30 UTC 2026-10-01 under DB load, which this window design absorbs | PASS |
 | E10 | System | Edge function | bad bearer (short, wrong, missing), GET, DELETE | 401 or 405, never 5xx | open endpoint | live-GET (cases below in K) | PASS |
-| E11 | Owner | no overdue reminder | the renewal date passes unpaid | none is sent (design: access never locks; the in-app panel shows the renewal) | owner never nudged after the date | review | PASS (as designed; noted in report) |
+| E11 | Owner | no overdue reminder | the renewal date passes unpaid | a weekly calm note goes to the owner, head of department and billing contact while it is unpaid, each with a one-click unsubscribe (0734 dpdp_billing_due_worklist) | owner never nudged after the date | review | PASS (as designed; noted in report) |
 | E12 | System | Resend ok, "mark sent" RPC fails | next daily run | claim is retaken after 30 minutes, so the reminder can be sent twice | duplicate | review of `dpdp-lifecycle-email/index.ts` | FAIL (low; proposed fix in report) |
 | E13 | System | first live run | pg_cron `dpdp-sales-lifecycle` has not run yet (first slot 04:00 UTC 2026-10-02); `dpdp.sales_reminder_sent` is empty | first run in dry-run if no `RESEND_API_KEY`, nothing recorded | surprise mass mail | live read-only | NOT-TESTABLE-WITHOUT-OWNER (needs the run to happen and the owner's Resend key) |
 
@@ -198,7 +198,7 @@ Razorpay is NOT configured live (the function answers 503 "not switched on"). No
 
 | ID | Rule | Test | Status |
 |---|---|---|---|
-| L01 | Access never locks over an unpaid invoice | NEW `dpdp-access-never-locks` (migration scan, app scan, Monday e-mail scan) | PASS |
+| L01 | An unpaid account locks only through the one gate, only after trial + due + grace, and always leaves pay / download / breach / grievance open | NEW `dpdp-access-lock-policy` (migration scan, allow-list scan, app scan, Monday e-mail scan) | PASS |
 | L02 | Price on the screen equals the price the server charges | `dpdp-pay-logic.test` | PASS |
 | L03 | The reminder text never promises a lock-out and always says access is unchanged | NEW billing-mail test | PASS |
 | L04 | Migration 0673 and 0674 carry the DDL authorization line and apply twice cleanly | `dpdp-pay-logic.test`, pglite tests (apply twice) | PASS |

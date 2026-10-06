@@ -3768,6 +3768,13 @@
       "when": 1790700012000,
       "tag": "0733_dpdp_visitor_journey",
       "breakpoints": true
+    },
+    {
+      "idx": 540,
+      "version": "7",
+      "when": 1790700013000,
+      "tag": "0734_dpdp_account_opening_plans_billing",
+      "breakpoints": true
     }
   ]
 }

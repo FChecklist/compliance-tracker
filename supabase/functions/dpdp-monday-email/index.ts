@@ -348,6 +348,14 @@ async function runMonday(sb: SupabaseClient, now: Date, orgId: string | null, dr
           console.warn(`dpdp_timer_ensure_link_codes failed for org ${id}: ${e instanceof Error ? e.message : String(e)}`)
         }
         const digests = await rpc<Digest[]>(sb, "dpdp_timer_build_monday_digests", { p_now: now.toISOString(), p_org_id: id })
+        // drizzle/0734: an account that is DUE / GRACE / LOCKED carries one calm "payment is due" line in every e-mail it sends. Best effort:
+        // a failure here never withholds the digest (it goes out without the line this once).
+        try {
+          const due = await rpc<{ state: string; line: string } | null>(sb, "dpdp_timer_billing_due_line", { p_org_id: id })
+          if (due?.line) for (const d of digests) d.billingDueLine = due.line
+        } catch (e) {
+          console.warn(`dpdp_timer_billing_due_line failed for org ${id}: ${e instanceof Error ? e.message : String(e)}`)
+        }
         await deliverDigests(sb, digests, dryRun, summary)
       } catch (e) {
         summary.failed++

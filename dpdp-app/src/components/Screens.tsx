@@ -1,6 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import "./onepage/dpdp-onepage-tokens.css"
 import { SIGNIN_BENEFITS } from "@/lib/signin-benefits"
+import { formatRupees } from "@/lib/billing-state"
+import { EarningsCalculator } from "./EarningsCalculator"
+import type { PlanWirePayload, ProfessionalBody } from "@/lib/rpc-types"
 
 export function Card({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
   return (
@@ -197,24 +200,44 @@ export function Loading() {
  * and the visitor becomes its owner with the library's jobs opened. Someone
  * who was invited by an owner is told what to ask for instead.
  */
+export type OpenAccountExtra = { professionalBody: ProfessionalBody | null; registrationNo: string; billingContactEmail: string }
+
+/** The one calm line about money on the opening screen: no payment now; what it is after the trial. Prices come from dpdp_public_plans, never from here. */
+function priceLine(plans: PlanWirePayload[] | undefined, product: "firm" | "institution" | null): string | null {
+  if (!plans || !product) return null
+  const plan = plans.find((p) => (product === "institution" ? p.key === "institution" : p.key === "firm_starter"))
+  if (!plan) return null
+  const now = formatRupees(plan.monthlyPaise)
+  const offer = plan.offerLabel
+  return offer
+    ? `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month + GST. ${offer} (normally ${formatRupees(plan.listMonthlyPaise)}).`
+    : `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month + GST.`
+}
+
 export function OpenOrganisation({
-  email, initialEdition, busy, error, onCreate, onSignOut, onOpenPartner,
+  email, initialEdition, busy, error, onCreate, onSignOut, onOpenPartner, plans,
 }: {
   onOpenPartner?: () => void
   email: string | null
   initialEdition: "firm" | "institution" | null
   busy: boolean
   error: string | null
-  onCreate: (name: string, product: "firm" | "institution") => void
+  onCreate: (name: string, product: "firm" | "institution", extra: OpenAccountExtra) => void
   onSignOut: () => void
+  plans?: PlanWirePayload[]
 }) {
   const [name, setName] = useState("")
   const [product, setProduct] = useState<"firm" | "institution" | null>(initialEdition)
+  const [body, setBody] = useState<ProfessionalBody | "">("")
+  const [registration, setRegistration] = useState("")
+  const [billing, setBilling] = useState("")
   function submit(e: FormEvent) {
     e.preventDefault()
     if (!product) return
-    onCreate(name.trim(), product)
+    const wantsCheck = product === "firm" && body !== "" && registration.trim() !== ""
+    onCreate(name.trim(), product, { professionalBody: wantsCheck ? (body as ProfessionalBody) : null, registrationNo: wantsCheck ? registration.trim() : "", billingContactEmail: billing.trim() })
   }
+  const money = priceLine(plans, product)
   const optionStyle = { borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" } as const
   return (
     <Card icon="🏛️" title="Open your organisation">
@@ -241,6 +264,33 @@ export function OpenOrganisation({
             A school or institution
           </label>
         </fieldset>
+        <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: 0 }}>
+          A firm that looks after other organisations&rsquo; DPDP work, or a company or institution that uses it for itself: pick the one closest. You can add clients later.
+        </p>
+        {product === "firm" && (
+          <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
+            <legend style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)", padding: 0, marginBottom: 6 }}>A CA, CS or ICMAI practice? (optional)</legend>
+            <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: 0 }}>Give your professional body and your membership or firm registration number. We check it, and a verified firm&rsquo;s own file is free.</p>
+            <select id="pro-body" aria-label="Professional body" value={body} onChange={(e) => setBody(e.target.value as ProfessionalBody | "")} disabled={busy}
+              className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }}>
+              <option value="">Professional body</option>
+              <option value="ICAI">ICAI (Chartered Accountants)</option>
+              <option value="ICSI">ICSI (Company Secretaries)</option>
+              <option value="ICMAI">ICMAI (Cost and Management Accountants)</option>
+              <option value="other">Another body</option>
+            </select>
+            <input id="pro-reg" aria-label="Membership or firm registration number" type="text" maxLength={40} placeholder="Membership or firm registration number" value={registration}
+              onChange={(e) => setRegistration(e.target.value)} disabled={busy} autoComplete="off"
+              className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }} />
+          </fieldset>
+        )}
+        <label htmlFor="billing-contact" style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)" }}>Who should get payment notes? (optional)</label>
+        <input id="billing-contact" type="email" maxLength={120} placeholder="A billing contact e-mail, if not you" value={billing} onChange={(e) => setBilling(e.target.value)} disabled={busy} autoComplete="off"
+          className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }} />
+        {product === "firm" && plans && plans.length > 0 && <EarningsCalculator plans={plans} />}
+        <p style={{ fontSize: 13, color: "var(--dpdp-ink2)", margin: "2px 0 0" }}>
+          <b>Nothing to pay now.</b> You get 30 days with everything switched on.{money ? ` ${money}` : ""}
+        </p>
         <button type="submit" disabled={busy || !product} className="font-bold text-white" style={{ ...primaryButton, opacity: busy || !product ? 0.6 : 1 }}>
           {busy ? "Opening…" : "Open my organisation"}
         </button>

@@ -45,6 +45,13 @@ active:
     claim: |
       Scope: drizzle/0733 (dpdp.visit_* + RPCs + retention cron), supabase/functions/dpdp-track + _shared/visit, dpdp-app/public/visit.js + functions/api/visit*,
       public-surface script lists/checks/tests, privacy line, SPA sign-in link call, SEO audit test. Does NOT touch the dpdp-audit chain tables. No Vercel, no live DDL.
+  - session_label: "claude-code (DPDP account opening: account types, plans config, firm verification, billing state machine; branch feat/dpdp-account-opening)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0734_dpdp_account_opening_plans_billing.sql (new tables dpdp.plan/billing_setting/account/partner_offer_code, billing state functions,
+      open-account + owner verify + mark-paid RPCs, lock gate in dpdp__caller_membership / dpdp__ai_link_for_token), dpdp-app/src/lib/billing-state.ts +
+      OpenOrganisation/PaymentDue screens, dpdp-app/dpdp-firm earnings calculator, src/lib/services/dpdp-account-*.test.ts, dpdp-access-never-locks.test.ts
+      (owner reversed the never-lock rule in chat 2026-10-06). No Vercel, no live migration apply, no spend.
   - session_label: "claude-code (PROJEXA upload sign route: projexa-api POST /uploads/sign + public bucket projexa-files; worktree C:/ct/wt-upload, branch feat/projexa-upload-sign)"
     claimed_at: "2026-10-06 (this session)"
     claim: |
