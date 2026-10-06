@@ -13,7 +13,7 @@ import * as jose from "npm:jose@6.2.10"
 import { createKeyResolvers, createSessionVerifier, type JoseLike } from "../ai-work-link/session.ts"
 import { PROJEXA_ISSUER } from "../ai-work-link/jwt.ts"
 import { handleApi } from "./handler.ts"
-import { createMembershipLookup, createOrgKeyLookup } from "./lookups.ts"
+import { createCompanyMembershipLookup, createMembershipLookup, createOrgKeyLookup } from "./lookups.ts"
 import { handleOrg, isOrgRequest } from "./org-provision.ts"
 import { createEnsureMemberRpc, createVeridianOrgIdLookup, handleMemberLink, isMemberLinkRequest } from "./member-link.ts"
 
@@ -27,6 +27,7 @@ const projexaUrl = Deno.env.get("PROJEXA_SUPABASE_URL") ?? ""
 const joseLike = jose as unknown as JoseLike
 const session = createSessionVerifier({ jose: joseLike, keys: createKeyResolvers(joseLike) })
 const membership = createMembershipLookup({ projexaUrl, anonKey: Deno.env.get("PROJEXA_SUPABASE_ANON_KEY") ?? "" })
+const companyMembership = createCompanyMembershipLookup({ projexaUrl, anonKey: Deno.env.get("PROJEXA_SUPABASE_ANON_KEY") ?? "" })
 const upstreamBase = Deno.env.get("VERIDIAN_API_BASE_URL") ?? "https://veridian-compliance-ai.vercel.app/api/v1/projexa"
 
 // audit100/link-invited-members (member-link.ts): POST /link-member gives the signed-in person their own VERIDIAN user (drizzle/0728). The verdian-ai
@@ -60,4 +61,4 @@ const memberLinkDeps = {
   }),
 }
 
-Deno.serve((req: Request) => (isOrgRequest(req) ? handleOrg(req, orgDeps) : isMemberLinkRequest(req) ? handleMemberLink(req, memberLinkDeps) : handleApi(req, { session, issuer: PROJEXA_ISSUER, membership, orgKey, upstreamBase })))
+Deno.serve((req: Request) => (isOrgRequest(req) ? handleOrg(req, orgDeps) : isMemberLinkRequest(req) ? handleMemberLink(req, memberLinkDeps) : handleApi(req, { session, issuer: PROJEXA_ISSUER, membership, companyMembership, orgKey, upstreamBase })))
