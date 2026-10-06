@@ -100,8 +100,8 @@ Before a heavy step: close Chrome and any dev servers (`windows-dev-process-guar
 - [ ] A9, A10 (after #410)
 - [ ] A11 Sumeet 111 table + Chrome run
 - [ ] Gate 2 recorded
-- [ ] Push once per repo, one PR each, one CI run
-- [ ] Merge on green
+- [x] Push once per repo, one PR each, one CI run (projexa #417; ct #2119, #2110)
+- [x] Merge on green (2026-10-07: projexa #417 squash 77fa9571, ct #2119 1b5ba296, ct #2110; #409/#410/#412/#413 closed as inside #417)
 - [ ] Deploy ritual, live check, static pages
 
 ## 7. LOG
@@ -110,3 +110,5 @@ Before a heavy step: close Chrome and any dev servers (`windows-dev-process-guar
 - 2026-10-06 PM, causes of the projexa PR failures (read from CI logs, not yet fixed): #410 = Turbopack build cannot fetch the Google font (`@vercel/turbopack-next/internal/font/google/font`), an infra/font-fetch failure, expected to clear on rerun; #409 = the e2e stub does not answer the `memberships` query ("not part of the local stub"), so requireAuth returns a transient failure, likely needs a stub update, VERIFY against the train; #412 = one unit test fails, `outbox-shared (production wiring) > a browser online event flushes ...` (passes in the train with --isolate per the earlier local run? NOT confirmed, re-run that one file with `bun test --isolate`). Fix order: re-run the #412 file locally first, then decide #409/#410 against the train.
 
 - 2026-10-07 PM: CORRECTION to the 2026-10-06 note on #409: the `memberships` lines are log noise from passing tests; the real #409 failure is ONE flaky test (R2 `page.reload` on a detached page). #412's `outbox-shared` test was a CI timing flake (extra push of the same op); now asserts op ids (dc4cdc66). #409 and #410 merged into the train locally. Full local-first run found one REAL regression from A1: lf-documents-docs.spec expected /moms/new to hand over to the server; it is now a laptop screen (fixed in 5e5cc3e1). #2110: journal conflict resolved (0730 re-timed idx 543 / when 1790700016000 after 0736), PRE-APPROVED-LIVE-DDL added, ef67ebd5 in worktree C:\ct\ct-audittrail. A5/A7 (real-backend login specs) NOT run: they type the shared E2E test-org password into the real remote Supabase Auth, which is outside the local-dev test-credential exception; they stay owner-run (`bunx playwright test -c playwright.audit37-real.config.ts`).
+
+- 2026-10-07 PM, stage 3 done: CI for #417 needed one more flake fix (reloadAgain retries 5x, R10 reload-while-worker-takes-control). Merging #417 into projexa main STARTED a Vercel production build (dpl_3imx...), CANCELLED by the PM because of the owner's zero-Vercel instruction; projexa-ai.com therefore still serves the previous build (cd93bc5e) and the merged train is NOT live. ct main merges did not create Vercel builds (R87 gate). Migrations 0730 and 0736 already live in Supabase (verified read-only). Remaining: A5/A7 real-backend login specs (owner-run), A9/A10 follow-ups, A11 Sumeet 111 table, deploy (needs an owner decision on Vercel vs a non-Vercel host).
