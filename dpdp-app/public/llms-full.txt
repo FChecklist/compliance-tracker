@@ -110,6 +110,8 @@ What if we stop paying?
 Your record stays readable and can be exported. You lose new entries, not old ones.
 Has anyone been fined yet?
 No penalty order has been issued in India to date. The date to prepare for is 13 May 2027.
+### A quick example
+This is an example, not a promise. Say you charge each client Rs 500 a month for DPDP work. Ten clients bring in Rs 5,000 a month, fifty bring in Rs 25,000, two hundred bring in Rs 1,00,000. The price of your plan comes off that, and you see it, with a calculator you can change, when you open your account.
 ### Start with one client
 One email. No card. Fifteen minutes.
 Start free →

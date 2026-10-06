@@ -5,7 +5,7 @@
 //                           Oldest membership first (R81_F03: the same order as requireAuth() and src/middleware.ts).
 //   orgKey(orgId)           PROJEXA public.veridian_credentials.veridian_api_key, which only the service role may read (drizzle/0001 of projexa).
 //                           Remembered for 5 minutes per isolate (a rotated key is picked up within 5 minutes); "no row" is never remembered.
-import type { Membership, MembershipLookup } from "./handler.ts"
+import type { CompanyMembershipLookup, Membership, MembershipLookup } from "./handler.ts"
 
 export const LOOKUP_TIMEOUT_MS = 5_000
 export const KEY_TTL_MS = 300_000
@@ -38,6 +38,19 @@ export function createMembershipLookup(o: { projexaUrl: string; anonKey: string;
     if (typeof row.organization_id !== "string") return { ok: false }
     const m: Membership = { organization_id: row.organization_id, role: typeof row.role === "string" ? row.role : null }
     return { ok: true, row: m }
+  }
+}
+
+/** AUDIT-100 A2 batch 8: the person's membership of ONE named company (src/lib/company-scope.ts requireCompanyScope), read like the oldest one: the person's own
+ *  token under row level security. A company id or person id that is not a UUID is a failed lookup (the Next route's database refuses it too). */
+export function createCompanyMembershipLookup(o: { projexaUrl: string; anonKey: string; fetchImpl?: typeof fetch }): CompanyMembershipLookup {
+  return async (token, sub, companyId) => {
+    if (!o.projexaUrl || !o.anonKey || !UUID_RE.test(sub) || !UUID_RE.test(companyId)) return { ok: false }
+    const url = `${o.projexaUrl.replace(/\/+$/, "")}/rest/v1/memberships?select=role&user_id=eq.${encodeURIComponent(sub)}&organization_id=eq.${encodeURIComponent(companyId)}&limit=1`
+    const out = await getJson(o.fetchImpl ?? fetch, url, { apikey: o.anonKey, Authorization: `Bearer ${token}` })
+    if (!out.ok) return { ok: false }
+    const row = out.rows[0] as { role?: unknown } | undefined
+    return { ok: true, row: row ? { role: typeof row.role === "string" ? row.role : null } : null }
   }
 }
 

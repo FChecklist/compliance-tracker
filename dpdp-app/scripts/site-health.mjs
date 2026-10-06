@@ -43,6 +43,7 @@ for (const path of PAGES) {
 }
 for (const [path, opts, label] of [
   ["/rum.js", { expectText: "/api/telemetry" }, "monitoring script"],
+  ["/visit.js", { expectText: "/api/visit" }, "visit-journey script"],
   ["/sitemap.xml", { expectText: "<urlset" }, "sitemap"],
   ["/robots.txt", { expectText: "Sitemap:" }, "robots.txt"],
   ["/definitely-not-a-page-" + Date.now() + "/", { expectText: "", expectStatus: 404 }, "unknown address is a real 404"],

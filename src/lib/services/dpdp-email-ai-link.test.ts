@@ -306,8 +306,8 @@ const minted = { linkId: "L1", token: TOKEN, level: 1, expiresAt: "2026-10-12T00
 
 describe("parseAiLinkConfig: a switch on a credential fails CLOSED", () => {
   const cfg = (env: Record<string, string>) => parseAiLinkConfig((k) => env[k] ?? "")
-  test("unset means the documented defaults: on, level 1, 2 days (48 hours)", () => {
-    expect(cfg({})).toEqual({ linkEnabled: true, changesEnabled: true, level: 1, days: 2, copyPageUrl: null, warnings: [] })
+  test("unset means the documented defaults: on, level 0 (read-only, owner 2026-10-06), 2 days (48 hours)", () => {
+    expect(cfg({})).toEqual({ linkEnabled: true, changesEnabled: true, level: 0, days: 2, copyPageUrl: null, warnings: [] })
   })
   test("'1' is on and '0' is off, with no warning", () => {
     expect(cfg({ DPDP_EMAIL_AI_LINK_ENABLED: "1", DPDP_EMAIL_AI_CHANGES_ENABLED: "0" })).toMatchObject({ linkEnabled: true, changesEnabled: false, warnings: [] })
@@ -320,7 +320,7 @@ describe("parseAiLinkConfig: a switch on a credential fails CLOSED", () => {
       expect(c.warnings.length).toBe(2)
     }
   })
-  test("the level is 1 only when unset or exactly '1'; 'read', 'false', '0 ' and '2' are read-only, never edit rights", () => {
+  test("the level is 1 only when exactly '1'; 'read', 'false', '0 ' and '2' are read-only, never edit rights", () => {
     expect(cfg({ DPDP_EMAIL_AI_LINK_LEVEL: "1" }).level).toBe(1)
     expect(cfg({ DPDP_EMAIL_AI_LINK_LEVEL: "0" })).toMatchObject({ level: 0, warnings: [] })
     for (const v of ["read", "false", "0 ", "2", "yes"]) {

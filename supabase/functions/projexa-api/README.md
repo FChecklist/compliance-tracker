@@ -51,7 +51,25 @@ Batches: 1 = the shell's 7 routes (2026-10-05); 2 = the 40 most-used plain proxi
 4 = the last 33 plain proxies (2026-10-06): 113 routes in all; 5 = 72 proxies that were plain in all but form (own role sets, the VERIDIAN
 root, empty / lenient / defaulted bodies, options in any order): 185 routes; 6 = 32 proxies with their own validation, query rebuilding or
 answer reshaping (schedule, timesheets day submit/review, tasks, BOQ categories / lines / compare / cost visibility, billing milestones,
-reports, vendor / customer deactivate): 217 routes.
+reports, vendor / customer deactivate): 217 routes; 7 = 15 cache / invalidation / upload routes: 232 routes.
+
+Batch 7 (cache / write-invalidation / upload / verified-create routes, 15 routes: cost centers, currencies, fiscal years, documents, drawings,
+permits, labour roster, materials master, meetings, minutes, mood boards, knowledge base (+ :id), projects, scope list/create) added: `cache_ttl` +
+`acting_user: "none"` (a per-isolate TTL cache of a person-free read: key = organisation + upstream URL, hit served before any key lookup or upstream
+call, a failure never kept, at most 256 entries; unlike the real unstable_cache it never serves an answer older than the TTL, because an isolate cannot
+promise the background refresh), `body: "multipart"` (an upload form relayed as it is, no Content-Type of its own, 30 s budget, never retried, 20 MB
+ceiling = 413; Vercel's own function limit was 4.5 MB), `search_param_defaults`, `include_allow`, `response_redact` (a field of a list set for some
+roles: material unit costs), `boq_create_verify` (src/lib/services/boq-create-service.ts), and the client-only `revalidate` (the page-side cache entries
+the Next write handler clears; the browser asks Vercel's /api/cache/revalidate after the edge answered, projexa `src/lib/px-api.ts`). Contract: 3794
+cases + 7 cache sequences (a moving clock) recorded from the real handlers; the edge-only behaviour is tested apart in the replay test. FOUND: a body that
+is not JSON on a route whose handler reads `await request.json()` outside its try (almost all) is an unhandled throw = an empty 500 on Next; the edge had
+answered 400 {"error":"Invalid JSON body"} since batch 1. Now the empty 500 (and `body_in_try` on the 5 routes whose handler catches it).
+
+Batch 8 (4 routes: category distribution of a project and of a company's project, the company dashboard and departments) added: `company_scope`
+(src/lib/company-scope.ts requireCompanyScope: a second membership read for the company named in the path with the person's own token, `lookups.ts`
+createCompanyMembershipLookup; 403 "Not a member of this company", a failed read or a non-UUID id is the unhandled-throw empty 500; the company is the organisation
+whose key is used), `acting_user: "id_only"`, and `category_distribution` (two reads in parallel combined by `category-distribution.ts`, the projexa repo's pure
+builder copied byte for byte: never edit it here). 236 routes.
 
 ## Secrets
 
@@ -83,3 +101,7 @@ curl https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/projexa-api/_policy  
 - Sign-in keys unreachable is `503` with Retry-After (the Next route says 401).
 - The upstream is still the VERIDIAN backend (`VERIDIAN_API_BASE_URL`): a call costs one VERIDIAN invocation instead of one PROJEXA Vercel
   invocation plus one VERIDIAN invocation.
+
+## POST /uploads/sign (file uploads without Vercel)
+
+Not a proxied `/api` route: `upload-sign.ts` (own handler, like `/link-member`). Returns a one-time signed Supabase Storage upload address into the public bucket `projexa-files`; the laptop PUTs the bytes there itself and saves the record with `externalUrl`. Contract and examples: `ai-os/audit37/UPLOAD_CONTRACT_2026-10-06.md`. Tests: `src/lib/services/projexa-upload-sign.test.ts`. Not in `policy.generated.ts` / the parity golden (those describe proxied routes only; nothing to regenerate).

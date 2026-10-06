@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
-import { declarePayment, myBilling, startOnlinePayment, uploadPaymentProof } from "@/lib/api"
-import type { BillingStatusPayload } from "@/lib/rpc-types"
+import { declarePayment, fetchMyAccount, myBilling, startOnlinePayment, uploadPaymentProof } from "@/lib/api"
+import type { BillingStatusPayload, MyAccountPayload } from "@/lib/rpc-types"
 import { parseDbTimestamp } from "@/lib/db-time"
 import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
 
@@ -18,17 +18,20 @@ const PAY_WHATSAPP_NUMBER = "" // e.g. "919999999999" -- wa.me link is hidden un
 
 // WO-DPDP-016 §7-8: the billing widget, lower-left of the owner's own page
 // (Owner instruction, this session). Owner-only -- App.tsx only renders
-// this for viewer.kind === "owner". Access to the product never depends
-// on anything shown here: trial, awaiting_confirmation and active all
-// work identically. "I've paid" is a claim, not a fact -- the Owner's own
-// manual confirmation (outside this app) is what actually moves an org to
-// active and, if it was referred, is the one moment a referral commission
-// is earned.
+// this for viewer.kind === "owner". "I've paid" is a claim, not a fact --
+// the Owner's own manual confirmation (outside this app) is what actually
+// moves an org to active.
 //
-// Prices are the Owner's own numbers (chat, this session): both editions
-// Rs 1999/mo (shown for comparison; not the plan actually sold) or
-// Rs 9999/yr (yearly is what's actually sold). Paise, matching every other
-// money column in this schema (dpdp.band.annual_paise).
+// POLICY CHANGE 2026-10-06 (drizzle/0734, Owner decision in chat): an
+// account that stays unpaid past its trial, the due day and a short grace
+// is LOCKED, and its working screens give way to the Payment due screen
+// (PaymentDue.tsx, which embeds this panel). Until then (trial, due, grace)
+// everything works. The state and the price come from dpdp_my_account.
+//
+// The prices below are ONLY the fallback for an older organisation that has
+// no account row yet (the old flat Rs 1999/mo, Rs 9999/yr). A real account's
+// price is the plan's price from the dpdp.plan table, read through
+// dpdp_my_account; it is never typed into a screen.
 const MONTHLY_PAISE = 199_900
 const YEARLY_PAISE = 999_900
 
@@ -82,8 +85,9 @@ function daysLeft(iso: string | null): number | null {
   return Math.max(0, Math.ceil(ms / 86_400_000))
 }
 
-export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: string }) {
-  const [open, setOpen] = useState(false)
+export function BillingPanel({ client, orgId, inline = false }: { client: DpdpClient; orgId: string; inline?: boolean }) {
+  const [open, setOpen] = useState(inline)
+  const [account, setAccount] = useState<MyAccountPayload | null>(null)
   const [billing, setBilling] = useState<BillingStatusPayload | null | undefined>(undefined)
   const [chosen, setChosen] = useState<"month" | "year">("year")
   const [reference, setReference] = useState("")
@@ -93,6 +97,12 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
   const [error, setError] = useState<string | null>(null)
   const [onlineOff, setOnlineOff] = useState(false)
   const [payStatus, setPayStatus] = useState<"idle" | "waiting" | "received" | "slow">("idle")
+
+  useEffect(() => {
+    let cancelled = false
+    fetchMyAccount(client, orgId).then((a) => { if (!cancelled) setAccount(a) }, () => { /* an older database: the fallback prices below apply */ })
+    return () => { cancelled = true }
+  }, [client, orgId])
 
   useEffect(() => {
     let cancelled = false
@@ -156,7 +166,7 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
     setBusy(true)
     setError(null)
     try {
-      const amount = chosen === "year" ? YEARLY_PAISE : MONTHLY_PAISE
+      const amount = amountDue
       const proofPath = proofFile ? (await uploadPaymentProof(client, orgId, proofFile)) ?? undefined : undefined
       await declarePayment(client, chosen, amount, orgId, { reference: reference.trim(), note: note.trim(), proofPath })
       setBilling(await myBilling(client, orgId))
@@ -167,10 +177,17 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
     }
   }
 
-  const amountDue = chosen === "year" ? YEARLY_PAISE : MONTHLY_PAISE
+  const price = account?.hasAccount && account.money ? account.money : null
+  const monthPaise = price ? price.monthPaise : MONTHLY_PAISE
+  const yearPaise = price ? price.yearPaise : YEARLY_PAISE
+  const amountDue = chosen === "year" ? yearPaise : monthPaise
   const waMessage = encodeURIComponent(`VERIDIAN payment -- org ${orgId}, ${formatRupees(amountDue)} (${chosen}ly). Reference: ${reference || "(see attached)"}`)
   const proofMailto = paymentProofMailto({ orgId, amountLabel: formatRupees(amountDue), interval: chosen, reference })
 
+  // A real account's price is not the Razorpay price the server charges online (drizzle/0673 still carries the old flat figure), so while an
+  // account row exists the online button stays off and the bank-transfer path, which declares the account's own price, is the one shown.
+  const onlineUnavailable = onlineOff || price !== null
+  const state = account?.hasAccount ? account.state : null
   const trialDays = billing.state === "trial" ? daysLeft(billing.trialEndsAt) : null
   const pillLabel = payStatus === "waiting"
     ? "Billing: checking your payment…"
@@ -187,7 +204,8 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
     : `Free trial -- ${trialDays} day${trialDays === 1 ? "" : "s"} left`
 
   return (
-    <div style={{ position: "fixed", left: 14, bottom: 14, zIndex: 40, maxWidth: 320 }}>
+    <div style={inline ? { maxWidth: 420, margin: "0 auto" } : { position: "fixed", left: 14, bottom: 14, zIndex: 40, maxWidth: 320 }}>
+      {!inline && (
       <button
         type="button" onClick={() => setOpen((o) => !o)}
         style={{
@@ -195,8 +213,9 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
           padding: "9px 14px", fontSize: 12.5, fontWeight: 600, color: "var(--dpdp-ink2)", boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
         }}
       >
-        💳 {pillLabel}
+        💳 {state === "DUE" || state === "GRACE" ? "Payment due" : pillLabel}
       </button>
+      )}
       {open && (
         <div
           role="dialog" aria-label="Billing"
@@ -239,7 +258,7 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
               <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--dpdp-ink)" }}>Thanks -- we've noted your payment</p>
               <p style={{ margin: 0 }}>
                 {billing.selfDeclaredAmountPaise != null && `${formatRupees(billing.selfDeclaredAmountPaise)} (${billing.selfDeclaredInterval === "year" ? "yearly" : "monthly"}), `}
-                We usually confirm within 48 hours once we've seen the payment. Your account keeps working exactly as before in the meantime.
+                We usually confirm within 48 hours once we've seen the payment.
               </p>
               {billing.selfDeclaredReference && <p style={{ margin: "6px 0 0", fontSize: 12 }}>Reference: {billing.selfDeclaredReference}</p>}
               {billing.selfDeclaredProofPath && <p style={{ margin: "2px 0 0", fontSize: 12 }}>Screenshot attached.</p>}
@@ -247,20 +266,29 @@ export function BillingPanel({ client, orgId }: { client: DpdpClient; orgId: str
           ) : (
             <>
               <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--dpdp-ink)" }}>
-                {trialDays === null ? "Choose a plan" : trialDays === 0 ? "Payment pending -- your free trial has ended" : `${trialDays} day${trialDays === 1 ? "" : "s"} left in your free trial`}
+                {state === "DUE" || state === "GRACE" || state === "LOCKED" || trialDays === 0
+                  ? "Payment is due for this account"
+                  : trialDays === null ? "Choose a plan" : `${trialDays} day${trialDays === 1 ? "" : "s"} left in your free trial`}
               </p>
-              <p style={{ margin: "0 0 10px" }}>{trialDays === 0 ? "You can keep signing in and your data is safe. Please choose a plan below to continue." : "Nothing stops working when the trial ends -- this is just so you can plan ahead."}</p>
+              <p style={{ margin: "0 0 10px" }}>
+                {state === "LOCKED"
+                  ? "Your data is safe. Everything opens again as soon as we have seen the payment."
+                  : state === "DUE" || state === "GRACE" || trialDays === 0
+                  ? "Everything still works for now, and your data is safe. Please pay when you can so it stays that way."
+                  : "Everything works during the trial. Paying before it ends keeps it that way."}
+              </p>
+              {price?.offerLabel && <p style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--dpdp-v)" }}>{price.offerLabel}</p>}
               <div className="flex gap-2 mb-3" role="radiogroup" aria-label="Plan">
                 <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <input type="radio" name="dpdp-plan" checked={chosen === "year"} onChange={() => setChosen("year")} /> Yearly -- {formatRupees(YEARLY_PAISE)}
+                  <input type="radio" name="dpdp-plan" checked={chosen === "year"} onChange={() => setChosen("year")} /> Yearly -- {formatRupees(yearPaise)}
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <input type="radio" name="dpdp-plan" checked={chosen === "month"} onChange={() => setChosen("month")} /> Monthly -- {formatRupees(MONTHLY_PAISE)}
+                  <input type="radio" name="dpdp-plan" checked={chosen === "month"} onChange={() => setChosen("month")} /> Monthly -- {formatRupees(monthPaise)}
                 </label>
               </div>
               {chosen === "year" && (
                 <div style={{ margin: "0 0 10px" }}>
-                  {onlineOff ? (
+                  {onlineUnavailable ? (
                     <p style={{ margin: 0, fontSize: 12.5 }}>Online payment is not switched on yet. Please pay by bank transfer below.</p>
                   ) : (
                     <>

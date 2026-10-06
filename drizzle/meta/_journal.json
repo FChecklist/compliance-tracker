@@ -3747,6 +3747,34 @@
       "when": 1790600010000,
       "tag": "0729_projexa_org_credentials_and_provision",
       "breakpoints": true
+    },
+    {
+      "idx": 537,
+      "version": "7",
+      "when": 1790700010000,
+      "tag": "0731_dpdp_audit_trail",
+      "breakpoints": true
+    },
+    {
+      "idx": 538,
+      "version": "7",
+      "when": 1790700011000,
+      "tag": "0732_projexa_files_bucket_and_sign_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 539,
+      "version": "7",
+      "when": 1790700012000,
+      "tag": "0733_dpdp_visitor_journey",
+      "breakpoints": true
+    },
+    {
+      "idx": 540,
+      "version": "7",
+      "when": 1790700013000,
+      "tag": "0734_dpdp_account_opening_plans_billing",
+      "breakpoints": true
     }
   ]
 }
