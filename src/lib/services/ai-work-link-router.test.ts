@@ -9,7 +9,7 @@
 // Run: bun test --isolate src/lib/services/ai-work-link-router.test.ts
 import { describe, test, expect } from "bun:test"
 import {
-  APP_ROOTS, LIMITS, LINK_GONE, checkRecordQuery, cleanText, errorBody, fenceRows, hasQueryToken, isRateLimited, negotiateFormat, paginate, parseTarget, privateHeaders,
+  APP_ROOTS, LIMITS, LINK_GONE, ROBOTS_DOC, checkRecordQuery, cleanText, errorBody, fenceRows, hasQueryToken, isRateLimited, negotiateFormat, paginate, parseTarget, privateHeaders,
   redactItem, remainingCalls, throttleAddress, tokenFromHeaders, type KindDef,
 } from "../../../supabase/functions/_shared/ai-link/core"
 import { handleAwl } from "../../../supabase/functions/ai-work-link/handler"
@@ -104,6 +104,8 @@ describe("core: address grammar, formats, pages, errors", () => {
     expect(h["RateLimit-Remaining"]).toBe("7")
     expect(h["Retry-After"]).toBeUndefined()
     expect(privateHeaders(null, { remaining: 0, retryAfter: 60 })["Retry-After"]).toBe("60")
+    // the guide's own robots value (AUDIT-100): only when asked, and only the X-Robots-Tag changes
+    expect(privateHeaders("text/plain", { robots: ROBOTS_DOC })["X-Robots-Tag"]).toBe("noindex, nofollow")
   })
 
   test("rate arithmetic: the 120th call is served, the 121st is over", () => {
@@ -356,7 +358,7 @@ describe("every response carries the private headers", () => {
     const all: Response[] = []
     const go = async (path: string, init: Parameters<typeof req>[1] = {}) => { const r = await run(path, init); all.push(r); remember(r); return r }
     await go(at(TOKENS.manager, "/context"))
-    await go(at(TOKENS.manager, ""))
+    const guide = await go(at(TOKENS.manager, ""))
     await go(at(TOKENS.manager, "/context?token=x"))
     await go("/mint", { method: "POST" })
     await go(at(TOKENS.manager, "/check"), { method: "POST", body: { function: "record_work_progress", params: { projectId: "proj_b" } } })
@@ -373,7 +375,8 @@ describe("every response carries the private headers", () => {
     await go(at(TOKENS.manager, "/context"))
     const codes = [...seen.keys()].sort()
     for (const c of [200, 201, 204, 400, 401, 403, 404, 405, 410, 501, 503]) expect(codes).toContain(c)
-    for (const r of all) for (const [k, v] of Object.entries(PRIVATE_HEADERS)) expect(r.headers.get(k)).toBe(v)
+    // AUDIT-100 (2026-10-06): the guide answers X-Robots-Tag "noindex, nofollow" (ROBOTS_DOC: Gemini may refuse a nosnippet page); every other answer keeps the full set
+    for (const r of all) for (const [k, v] of Object.entries(PRIVATE_HEADERS)) expect(r.headers.get(k)).toBe(r === guide && k === "x-robots-tag" ? ROBOTS_DOC : v)
     // the 429
     const b = setup()
     for (let i = 0; i < 121; i++) all.push(await b.run(at(TOKENS.manager, "/context")))
