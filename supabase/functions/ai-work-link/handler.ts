@@ -556,10 +556,11 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
     case "workspace_all":
     case "workspace_txt": {
       const page = await renderWorkspace(env, url.searchParams.get("page"), { dbMs: opts.dbMs, now: opts.now, timeBox, bind: (pid) => bindProject(env, pid), footer: opts.footer ?? undefined })
+      // the page an engine reads INSTEAD of following links is a document like the guide: ROBOTS_DOC, so Gemini (which may refuse a nosnippet page) can use it
       // /workspace.txt: the same words as a file to save, always text/plain (an engine that reads attachments, or the person, can keep it)
       return id === "workspace_txt"
-        ? { status: 200, contentType: "text/plain; charset=utf-8", body: page, headers: { "Content-Disposition": "attachment; filename=\"projexa-workspace.txt\"" } }
-        : text("md", page)
+        ? { status: 200, contentType: "text/plain; charset=utf-8", body: page, robots: ROBOTS_DOC, headers: { "Content-Disposition": "attachment; filename=\"projexa-workspace.txt\"" } }
+        : asDoc(text("md", page))
     }
     case "suggestions_add":
       return actionOut(await suggestionAdd(env, await readJsonObject(req), req.headers.get("user-agent")))
