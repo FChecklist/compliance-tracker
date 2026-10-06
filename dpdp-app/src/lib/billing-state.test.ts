@@ -82,10 +82,10 @@ describe("the calm line and the locked-screen rules", () => {
 
 describe("plans, prices and the client cap", () => {
   const plans: PlanWire[] = [
-    { key: "firm_free", accountType: "firm", name: "Free", maxClients: 0, requiresVerified: true, listMonthlyPaise: 0, monthlyPaise: 0, offerLabel: null, offerEndsOn: null, yearlyMonthsCharged: 10 },
-    { key: "firm_growth", accountType: "firm", name: "Growth", maxClients: 100, requiresVerified: false, listMonthlyPaise: 200100, monthlyPaise: 99900, offerLabel: "Festive offer: 50% off", offerEndsOn: "2026-12-31", yearlyMonthsCharged: 10 },
-    { key: "firm_starter", accountType: "firm", name: "Starter", maxClients: 10, requiresVerified: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", offerEndsOn: "2026-12-31", yearlyMonthsCharged: 10 },
-    { key: "institution", accountType: "institution", name: "Institution", maxClients: 0, requiresVerified: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: null, offerEndsOn: null, yearlyMonthsCharged: 10 },
+    { key: "firm_free", accountType: "firm", name: "Free", maxClients: 0, requiresDeclaration: true, listMonthlyPaise: 0, monthlyPaise: 0, offerLabel: null, yearlyMonthsCharged: 10 },
+    { key: "firm_growth", accountType: "firm", name: "Growth", maxClients: 100, requiresDeclaration: false, listMonthlyPaise: 200100, monthlyPaise: 99900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
+    { key: "firm_starter", accountType: "firm", name: "Starter", maxClients: 10, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
+    { key: "institution", accountType: "institution", name: "Institution", maxClients: 0, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: null, yearlyMonthsCharged: 10 },
   ]
 
   test("a year is ten months", () => {

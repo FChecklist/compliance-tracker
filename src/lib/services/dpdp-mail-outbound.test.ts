@@ -273,6 +273,8 @@ beforeAll(async () => {
   }
   mock.module("npm:@supabase/supabase-js@2", () => ({ createClient: () => fakeClient() }))
   globalThis.fetch = (async (input: unknown, init?: { body?: string }) => {
+    // the Test/Live mail gate (drizzle/0735): LIVE, so every send goes on; it is not a Resend call
+    if (String(input).includes("dpdp_mail_gate")) return new Response(JSON.stringify({ send: true, reason: "live", mode: "LIVE" }), { status: 200 })
     fetchCalls.push({ url: String(input), body: JSON.parse(String(init?.body ?? "{}")) })
     return new Response(JSON.stringify(resendResponse.body), { status: resendResponse.status, headers: { "Content-Type": "application/json" } })
   }) as typeof fetch

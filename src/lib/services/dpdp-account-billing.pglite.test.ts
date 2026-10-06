@@ -16,121 +16,13 @@
 //
 // Run: bun test --isolate src/lib/services/dpdp-account-billing.pglite.test.ts
 import { beforeAll, describe, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
+import { BASE_SQL, read } from './dpdp-pglite-base'
 import { billingState, dueLine, finalDownloadDue, periodEnd, DEFAULT_BILLING_SETTINGS } from '../../../dpdp-app/src/lib/billing-state'
 
-const REPO_ROOT = new URL('../../../', import.meta.url)
-const read = (rel: string) => readFileSync(new URL(rel, REPO_ROOT), 'utf8').replace(/\r\n/g, '\n')
-function fnFrom(file: string, name: string): string {
-  const all = read(file).match(new RegExp(`create or replace function public\\.${name}\\([\\s\\S]*?\\n\\$\\$;`, 'g'))
-  if (!all || all.length === 0) throw new Error(`${file}: function ${name} not found`)
-  return all[all.length - 1]
-}
+const F0733 = 'drizzle/0733_dpdp_visitor_journey.sql'
 const F0734 = 'drizzle/0734_dpdp_account_opening_plans_billing.sql'
-
-const BASE_SQL = `
-create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls; create role app_runtime nologin;
-create schema dpdp; create schema auth;
-create function auth.jwt() returns jsonb language sql stable as $f$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $f$;
-create type dpdp.referral_outcome as enum ('signed_up', 'chose_band', 'free_only', 'blocked');
-create type dpdp.membership_level as enum ('owner', 'staff');
-create type dpdp.membership_state as enum ('active', 'revoked');
-create type dpdp.joined_via as enum ('created', 'named_in_role', 'invited');
-create table dpdp.identity (id text primary key, primary_email text unique not null, created_at timestamp not null default now());
-create table dpdp.identity_email (id text primary key, identity_id text not null references dpdp.identity (id), email text not null, is_primary boolean not null default false);
-create table dpdp.organisation (id text primary key, name text not null, slug text unique not null, product text, created_at timestamp not null default now());
-create table dpdp.membership (
-  id text primary key, identity_id text not null references dpdp.identity (id), org_id text not null references dpdp.organisation (id),
-  level dpdp.membership_level not null, can_sign boolean not null default false, state dpdp.membership_state not null default 'active',
-  joined_via dpdp.joined_via not null, created_at timestamp not null default now(), revoked_at timestamp, unique (identity_id, org_id)
-);
-create table dpdp.subscription (
-  org_id text primary key references dpdp.organisation (id), band_key text, seats_used integer not null default 0, trial_ends_at timestamp,
-  state text not null default 'trial', "interval" text, self_declared_at timestamp, last_confirmed_at timestamp,
-  self_declared_interval text, self_declared_amount_paise integer, self_declared_reference text, self_declared_proof_path text, self_declared_note text
-);
-create table dpdp.referral (identity_id text primary key references dpdp.identity (id), code text not null unique, consented_at timestamp, state text not null default 'active');
-create table dpdp.referral_event (
-  id text primary key, referral_id text not null references dpdp.referral (identity_id), referred_org_id text not null references dpdp.organisation (id),
-  at timestamp not null default now(), outcome dpdp.referral_outcome not null, block_reason text, credit_months integer not null default 0
-);
-create table dpdp.payment (
-  id text primary key, org_id text not null references dpdp.organisation (id), plan text not null check (plan in ('firm', 'institution')),
-  "interval" text not null check ("interval" in ('month', 'year')), amount_paise integer not null check (amount_paise > 0),
-  period_start date not null default current_date, confirmed_at timestamp not null default (clock_timestamp() at time zone 'UTC'),
-  confirmed_note text, created_at timestamp not null default (clock_timestamp() at time zone 'UTC')
-);
-create table dpdp.referral_commission (
-  id text primary key, referral_event_id text not null references dpdp.referral_event (id), payment_id text not null references dpdp.payment (id),
-  referrer_identity_id text not null references dpdp.identity (id), rate numeric(5, 4) not null, amount_paise integer not null check (amount_paise >= 0),
-  basis text not null check (basis in ('first_month', 'yearly')), payout_status text not null default 'pending' check (payout_status in ('pending', 'paid')),
-  paid_at timestamp, paid_note text, created_at timestamp not null default (clock_timestamp() at time zone 'UTC')
-);
-create table dpdp.event (
-  id text primary key, org_id text not null, actor_identity_id text, actor_label text not null, kind text not null, summary text not null, detail text,
-  route text, device text, occurred_at timestamp not null default now(), prev_hash text, hash text not null, sealed_in_batch text
-);
-create table dpdp.platform_admin (email text primary key, added_at timestamp not null default (clock_timestamp() at time zone 'UTC'), note text);
-create table dpdp.sales_partner (identity_id text primary key references dpdp.identity (id), status text not null default 'applied');
-create table dpdp.partner_notice (
-  id text primary key default replace(gen_random_uuid()::text, '-', ''), identity_id text not null references dpdp.identity (id), kind text not null,
-  dedupe_key text not null, payload jsonb not null default '{}'::jsonb, created_at timestamp not null default now(), unique (identity_id, kind, dedupe_key)
-);
-create table dpdp.partner_event (id text primary key default replace(gen_random_uuid()::text, '-', ''), identity_id text, kind text not null, summary text not null, detail text, at timestamp not null default now());
-create table dpdp.email_preference (membership_id text primary key, unsubscribed_at timestamptz, statutory_only boolean not null default false, updated_at timestamptz not null default now());
-create table dpdp.audit_org_policy (org_id text primary key, hod_identity_ids text[] not null default '{}');
-create table dpdp.ai_link (id text primary key, token_hash text unique, membership_id text, org_id text, revoked_at timestamp, expires_at timestamp not null);
-create table dpdp.obligation_template (id text primary key, name text not null);
-create table dpdp.obligation (id text primary key, org_id text not null, template_id text not null, state text not null default 'open', due_on date not null, na_reason text, closed_at timestamp);
-create table dpdp.breach (id text primary key, org_id text not null, became_aware_at timestamp not null default now(), deadline_at timestamp not null, state text not null default 'open', description text);
-create table dpdp.grievance (id text primary key, org_id text not null, ref text not null unique, summary text not null, state text not null default 'open', officer_decision text);
-create table public.t_my_org_calls (ref text, at timestamptz default now());
-create table public.t_core_client_calls (name text);
-${fnFrom('drizzle/0604_dpdp_wo011_step2_browser_rpc.sql', 'dpdp__caller_identity_id')}
-${fnFrom('drizzle/0604_dpdp_wo011_step2_browser_rpc.sql', 'dpdp__caller_membership')}
-${fnFrom('drizzle/0605_dpdp_wo011_step3_owner_rpc.sql', 'dpdp__append_event')}
-${fnFrom('drizzle/0655_dpdp_wo016_refer_and_earn.sql', 'dpdp_record_confirmed_payment')}
-${fnFrom('drizzle/0658_dpdp_payment_confirmation_flow.sql', 'dpdp__is_platform_admin')}
-${fnFrom('drizzle/0674_dpdp_sales_partner_lifecycle.sql', 'dpdp__partner_notify')}
-
--- stand-ins for functions that already exist live; the migration under test wraps or replaces them
-create function dpdp.unsubscribe(p_token text) returns jsonb language sql as $f$ select jsonb_build_object('ok', false, 'reason', 'old path') $f$;
-create function public.dpdp_create_my_org(p_name text, p_product text, p_referral_code text default null) returns jsonb language plpgsql security definer set search_path = '' as $f$
-declare v_email text := lower(auth.jwt() ->> 'email'); v_identity text; v_org text := replace(gen_random_uuid()::text, '-', '');
-begin
-  insert into public.t_my_org_calls (ref) values (p_referral_code);
-  select ie.identity_id into v_identity from dpdp.identity_email ie where ie.email = v_email;
-  if v_identity is null then
-    v_identity := 'i_' || v_org;
-    insert into dpdp.identity (id, primary_email) values (v_identity, v_email);
-    insert into dpdp.identity_email (id, identity_id, email, is_primary) values ('ie_' || v_org, v_identity, v_email, true);
-  end if;
-  insert into dpdp.organisation (id, name, slug, product) values (v_org, p_name, v_org, p_product);
-  insert into dpdp.membership (id, identity_id, org_id, level, joined_via) values ('m_' || v_org, v_identity, v_org, 'owner', 'created');
-  insert into dpdp.subscription (org_id, trial_ends_at, state) values (v_org, (clock_timestamp() at time zone 'UTC') + interval '30 days', 'trial');
-  return jsonb_build_object('ok', true, 'orgId', v_org, 'slug', v_org, 'membershipId', 'm_' || v_org, 'jobs', 0, 'existing', false);
-end $f$;
-create function public.dpdp_create_client_org(p_name text, p_product text, p_owner_email text default null) returns jsonb language plpgsql security definer set search_path = '' as $f$
-declare v_identity text := public.dpdp__caller_identity_id(); v_org text := replace(gen_random_uuid()::text, '-', '');
-begin
-  if v_identity is null then raise exception 'Not a member of this organisation' using errcode = '42501'; end if;
-  insert into public.t_core_client_calls (name) values (p_name);
-  insert into dpdp.organisation (id, name, slug, product) values (v_org, p_name, v_org, p_product);
-  insert into dpdp.membership (id, identity_id, org_id, level, joined_via) values ('m_' || v_org, v_identity, v_org, 'staff', 'created');
-  return jsonb_build_object('ok', true, 'orgId', v_org, 'slug', v_org, 'jobs', 0, 'ownerMembershipId', null);
-end $f$;
-create function public.dpdp_my_billing(p_org_id text default null) returns jsonb language plpgsql stable security definer set search_path = '' as $f$
-declare m dpdp.membership; begin m := public.dpdp__caller_membership(p_org_id); return jsonb_build_object('orgId', m.org_id); end $f$;
-create function public.dpdp_declare_payment(p_interval text, p_amount_paise integer, p_org_id text default null, p_reference text default null, p_proof_path text default null, p_note text default null)
-returns jsonb language plpgsql security definer set search_path = '' as $f$
-declare m dpdp.membership; begin m := public.dpdp__caller_membership(p_org_id); return jsonb_build_object('ok', true, 'orgId', m.org_id); end $f$;
-create function public.dpdp_pay_begin(p_interval text, p_org_id text default null) returns jsonb language plpgsql security definer set search_path = '' as $f$
-declare m dpdp.membership; begin m := public.dpdp__caller_membership(p_org_id); return jsonb_build_object('orgId', m.org_id); end $f$;
--- a stand-in for any WORKING screen: it uses the gated door like every real one
-create function public.t_work(p_org_id text default null) returns jsonb language plpgsql stable security definer set search_path = '' as $f$
-declare m dpdp.membership; begin m := public.dpdp__caller_membership(p_org_id); if m.id is null then raise exception 'Not a member of this organisation' using errcode = '42501'; end if; return jsonb_build_object('org', m.org_id); end $f$;
-`
+const F0735 = 'drizzle/0735_dpdp_test_live_mode_profile_capture.sql'
 
 let db: PGlite
 const as = (email: string) => db.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify(email ? { email } : {})])
@@ -168,7 +60,9 @@ const addPartner = async (key: string, code: string) => {
 beforeAll(async () => {
   db = new PGlite()
   await db.exec(BASE_SQL)
+  await db.exec(read(F0733))
   await db.exec(read(F0734))
+  await db.exec(read(F0735))
   await db.query(`insert into dpdp.platform_admin (email) values ('admin@veridian.test')`)
   await db.query(`insert into dpdp.identity (id, primary_email) values ('i_admin', 'admin@veridian.test')`)
   await db.query(`insert into dpdp.identity_email (id, identity_id, email, is_primary) values ('ie_admin', 'i_admin', 'admin@veridian.test', true)`)
@@ -177,6 +71,7 @@ beforeAll(async () => {
 describe('the migration file itself', () => {
   test('runs a second time without error (every statement is re-runnable, and the renames are guarded)', async () => {
     await db.exec(read(F0734))
+    await db.exec(read(F0735))
     expect((await rows(`select to_regprocedure('public.dpdp__my_billing_core(text)') is not null as ok`))[0].ok).toBe(true)
     expect((await rows(`select to_regprocedure('public.dpdp__create_client_org_core(text, text, text)') is not null as ok`))[0].ok).toBe(true)
     // the wrapper is still the public name (a re-run did not rename it onto the core)
@@ -287,16 +182,23 @@ describe('opening an account', () => {
     expect((await account(orgId)).locked_monthly_paise).toBe(39900)
   })
 
-  test('professional details at opening: stored, status pending, audited; body and number must come together and look right', async () => {
+  test('professional details at opening are optional and never block: stored when they fit, left out when they do not, never "pending", never an event about checking', async () => {
     const { orgId, r } = await openAccount('firm', { body: 'ICAI', reg: '123456/W100' })
-    expect(r.verification).toBe('pending')
-    expect(await account(orgId)).toMatchObject({ professional_body: 'ICAI', registration_no: '123456/W100', verification_status: 'pending' })
-    expect((await rows(`select 1 from dpdp.event where org_id = $1 and kind = 'firm_verification_requested'`, [orgId])).length).toBe(1)
+    expect(r.verification).toBe('none')
+    expect(await account(orgId)).toMatchObject({ professional_body: 'ICAI', registration_no: '123456/W100', verification_status: 'none' })
     await as('bad@acct.test')
-    await expect(db.query(`select public.dpdp_open_account('firm', 'X', 'ICAI', null)`)).rejects.toThrow(/both the professional body and/)
-    await expect(db.query(`select public.dpdp_open_account('firm', 'X', 'BAR', '123456')`)).rejects.toThrow(/must be ICAI, ICSI, ICMAI or other/)
-    await expect(db.query(`select public.dpdp_open_account('firm', 'X', 'ICSI', 'a;drop table')`)).rejects.toThrow(/looks wrong/)
-    await expect(db.query(`select public.dpdp_open_account('institution', 'X', 'ICSI', '123456')`)).rejects.toThrow(/only for a firm account/)
+    for (const args of ["'ICAI', null", "'BAR', '123456'", "'ICSI', 'a;drop table'"] as const) {
+      const out = await one<J>(`select public.dpdp_open_account('firm', 'X', ${args}) as r`)
+      expect(out.ok).toBe(true)
+      await db.query(`delete from dpdp.account where org_id = $1`, [out.orgId])
+      await db.query(`delete from dpdp.membership where org_id = $1`, [out.orgId])
+      await db.query(`delete from dpdp.subscription where org_id = $1`, [out.orgId])
+      await db.query(`delete from dpdp.referral_event where referred_org_id = $1`, [out.orgId])
+      await db.query(`delete from dpdp.organisation where id = $1`, [out.orgId])
+    }
+    const inst = await openAccount('institution', { body: 'ICSI', reg: '123456' })
+    expect(await account(inst.orgId)).toMatchObject({ professional_body: null, registration_no: null })
+    await as('bad2@acct.test')
     await expect(db.query(`select public.dpdp_open_account('hospital', 'X')`)).rejects.toThrow(/Choose whether/)
   })
 
@@ -430,80 +332,120 @@ describe('where the sale came from (attribution) and the partner code', () => {
   })
 })
 
-describe('firm verification: only the platform owner decides, and free is only for the verified', () => {
-  test('the owner of the firm gives the details; a non-firm and a bad number are refused', async () => {
-    const { email, orgId } = await openAccount('firm')
-    await as(email)
-    await db.query(`select public.dpdp_account_set_professional('ICSI', 'FCS 7788')`)
-    expect(await account(orgId)).toMatchObject({ professional_body: 'ICSI', registration_no: 'FCS 7788', verification_status: 'pending' })
-    await expect(db.query(`select public.dpdp_account_set_professional('ICSI', '??')`)).rejects.toThrow(/looks wrong/)
-    const inst = await openAccount('institution')
-    await as(inst.email)
-    await expect(db.query(`select public.dpdp_account_set_professional('ICAI', '123456')`)).rejects.toThrow(/for a firm account/)
-  })
+describe('self-declared firms: no owner verification, free is the practitioner declaration, the owner may downgrade', () => {
+  const declare = (v: boolean) => db.query(`select public.dpdp_account_save_profile($1::jsonb)`, [JSON.stringify({ practitionerDeclared: v })])
 
-  test('only the platform owner can list, verify or reject; an ordinary owner and an anonymous caller are refused', async () => {
-    const { email, orgId } = await openAccount('firm', { body: 'ICAI', reg: '445566' })
-    for (const who of [email, '']) {
-      await as(who)
-      await expect(db.query(`select public.dpdp_owner_pending_verifications()`)).rejects.toThrow(/Owner only/)
-      await expect(db.query(`select public.dpdp_owner_verify_firm($1, 'verified')`, [orgId])).rejects.toThrow(/Owner only/)
+  test('the owner-verifies gate is gone: its three functions no longer exist', async () => {
+    for (const f of ['dpdp_owner_verify_firm', 'dpdp_owner_pending_verifications', 'dpdp_account_set_professional']) {
+      expect((await rows(`select 1 from pg_proc where proname = $1 and pronamespace = 'public'::regnamespace`, [f])).length, f).toBe(0)
     }
-    expect((await account(orgId)).verification_status).toBe('pending')
-    await as('admin@veridian.test')
-    const list = await one<J[]>(`select public.dpdp_owner_pending_verifications() as r`)
-    expect(list.find((x) => x.orgId === orgId)).toMatchObject({ professionalBody: 'ICAI', registrationNo: '445566' })
   })
 
-  test('verified is audited WITHOUT the number or any e-mail, and unlocks the free plan; an unverified firm cannot choose it', async () => {
+  test('a firm that gives a professional body and number at opening is NOT on the free plan until it ticks the declaration', async () => {
+    const { orgId, r } = await openAccount('firm', { body: 'ICAI', reg: '123456/W100' })
+    expect(r.verification).toBe('none')
+    expect(await account(orgId)).toMatchObject({ professional_body: 'ICAI', registration_no: '123456/W100', verification_status: 'none', plan_key: 'firm_starter', locked_monthly_paise: 39900 })
+    expect((await rows(`select 1 from dpdp.event where org_id = $1 and kind like 'firm_verification%'`, [orgId])).length).toBe(0)
+  })
+
+  test('the declaration is the free own-use plan at once: audited without the number or any e-mail, free for ever, and it can be withdrawn', async () => {
     const { email, orgId } = await openAccount('firm', { body: 'ICMAI', reg: 'CMA-99887' })
     await as(email)
-    await expect(db.query(`select public.dpdp_account_choose_plan('firm_free')`)).rejects.toThrow(/verified firms/)
-    await as('admin@veridian.test')
-    await db.query(`select public.dpdp_owner_verify_firm($1, 'verified', 'checked on the ICMAI register')`, [orgId])
-    const ev = await rows<J>(`select kind, summary, detail, actor_label from dpdp.event where org_id = $1 and kind = 'firm_verification_verified'`, [orgId])
-    expect(ev.length).toBe(1)
+    await expect(db.query(`select public.dpdp_account_choose_plan('firm_free')`)).rejects.toThrow(/practising CA, CS and cost accountants/)
+    const r = await one<J>(`select public.dpdp_account_save_profile('{"practitionerDeclared": true}'::jsonb) as r`)
+    expect(r).toMatchObject({ ok: true, status: 'declared', planKey: 'firm_free' })
+    expect(await account(orgId)).toMatchObject({ verification_status: 'declared', plan_key: 'firm_free', locked_monthly_paise: 0 })
+    const ev = await rows<J>(`select kind, summary, detail from dpdp.event where org_id = $1 and kind in ('firm_self_declared', 'plan_chosen')`, [orgId])
+    expect(ev.map((e) => e.kind).sort()).toEqual(['firm_self_declared', 'plan_chosen'])
     expect(JSON.stringify(ev)).not.toMatch(/CMA-99887|@/)
-    await as(email)
-    await db.query(`select public.dpdp_account_choose_plan('firm_free')`)
     expect(await stateOf(orgId)).toBe('ACTIVE')
-    // a verified firm on the free plan is active for ever, even with the clock far past the trial
-    await setClock(orgId, 400, null)
+    await setClock(orgId, 400, null) // active for ever, even with the clock far past the trial
     expect(await stateOf(orgId)).toBe('ACTIVE')
     await db.query(`select public.t_work()`) // and its working screens open
+    await declare(false)
+    expect(await account(orgId)).toMatchObject({ verification_status: 'none', plan_key: 'firm_starter', locked_monthly_paise: 39900 })
   })
 
-  test('an unverified firm behaves as an institution-priced account: no free, the offer price, locks like any other', async () => {
-    const { orgId } = await openAccount('firm')
-    expect((await account(orgId)).locked_monthly_paise).toBe(39900)
-    await setClock(orgId, 400, null)
-    expect(await stateOf(orgId)).toBe('LOCKED')
+  test('the membership number is optional (declaring without one works) and its format is only checked, per body, for information', async () => {
+    const a = await openAccount('firm')
+    await as(a.email)
+    await declare(true)
+    expect(await account(a.orgId)).toMatchObject({ verification_status: 'declared', registration_no: null, registration_format_ok: null })
+    const ok = async (body: string, no: string) => (await one<boolean | null>(`select dpdp.registration_format_ok($1, $2) as r`, [body, no])) as unknown as boolean | null
+    expect(await ok('ICAI', '123456')).toBe(true)
+    expect(await ok('ICAI', '001234S')).toBe(true)
+    expect(await ok('ICAI', '12')).toBe(false)
+    expect(await ok('ICSI', 'FCS 7788')).toBe(true)
+    expect(await ok('ICSI', 'hello')).toBe(false)
+    expect(await ok('ICMAI', 'F12345')).toBe(true)
+    expect(await ok('other', 'anything at all')).toBeNull()
+    expect(await ok('ICAI', ' ')).toBeNull()
+    // a number that does not look right is KEPT and flagged, never refused
+    await one(`select public.dpdp_account_save_profile('{"professionalBody": "ICAI", "registrationNo": "9999"}'::jsonb) as r`)
+    expect((await account(a.orgId)).registration_no).toBe('9999')
+    await one(`select public.dpdp_account_save_profile('{"professionalBody": "ICAI", "registrationNo": "123456"}'::jsonb) as r`)
+    expect(await account(a.orgId)).toMatchObject({ professional_body: 'ICAI', registration_no: '123456', registration_format_ok: true })
   })
 
-  test('"free" is decided by being verified, not by the plan name: a firm on the free plan whose verification is not in place locks like any other', async () => {
-    const { orgId } = await openAccount('firm')
-    await db.query(`update dpdp.account set plan_key = 'firm_free', locked_monthly_paise = 0 where org_id = $1`, [orgId]) // forced: no verification
-    await setClock(orgId, 100, null)
-    expect(await stateOf(orgId)).toBe('LOCKED')
-    await db.query(`update dpdp.account set verification_status = 'verified' where org_id = $1`, [orgId])
-    expect(await stateOf(orgId)).toBe('ACTIVE')
-    await db.query(`update dpdp.account set verification_status = 'rejected' where org_id = $1`, [orgId])
-    expect(await stateOf(orgId)).toBe('LOCKED')
+  test('a declaration needs a firm account, and a firm with clients keeps its plan', async () => {
+    const inst = await openAccount('institution')
+    await as(inst.email)
+    const r = await one<J>(`select public.dpdp_account_save_profile('{"practitionerDeclared": true}'::jsonb) as r`)
+    expect(r.ignored).toContain('practitionerDeclared')
+    expect((await account(inst.orgId)).verification_status).toBe('none')
+    const f = await openAccount('firm')
+    await as(f.email)
+    await db.query(`select public.dpdp_create_client_org('A client', 'dpdp')`)
+    const r2 = await one<J>(`select public.dpdp_account_save_profile('{"practitionerDeclared": true}'::jsonb, $1) as r`, [f.orgId])
+    expect(r2).toMatchObject({ status: 'declared', planKey: 'firm_starter' })
+    expect(r2.note).toMatch(/own file, with no clients/)
   })
 
-  test('rejected: the free plan is taken back and the firm is on Starter at today\'s price', async () => {
-    const { email, orgId } = await openAccount('firm', { body: 'ICAI', reg: '000111' })
-    await as('admin@veridian.test')
-    await db.query(`select public.dpdp_owner_verify_firm($1, 'verified')`, [orgId])
+  test('only the platform owner sees the declared firms and may downgrade one; an ordinary owner and an anonymous caller are refused', async () => {
+    const { email, orgId } = await openAccount('firm', { body: 'ICAI', reg: '445566' })
     await as(email)
-    await db.query(`select public.dpdp_account_choose_plan('firm_free')`)
+    await declare(true)
+    for (const who of [email, '']) {
+      await as(who)
+      await expect(db.query(`select public.dpdp_owner_declared_firms()`)).rejects.toThrow(/Owner only/)
+      await expect(db.query(`select public.dpdp_owner_downgrade_firm($1)`, [orgId])).rejects.toThrow(/Owner only/)
+    }
     await as('admin@veridian.test')
-    await db.query(`select public.dpdp_owner_verify_firm($1, 'rejected')`, [orgId])
-    expect(await account(orgId)).toMatchObject({ verification_status: 'rejected', plan_key: 'firm_starter' })
-    await expect(db.query(`select public.dpdp_owner_verify_firm($1, 'maybe')`, [orgId])).rejects.toThrow(/decision must be/)
+    const list = await one<J[]>(`select public.dpdp_owner_declared_firms() as r`)
+    expect(list.find((x) => x.orgId === orgId)).toMatchObject({ status: 'declared', professionalBody: 'ICAI', registrationNo: '445566', formatOk: true, planKey: 'firm_free', isTest: false })
+  })
+
+  test('downgrade to paid: audited, back on Starter at today\'s price, and the firm cannot declare itself free again', async () => {
+    const { email, orgId } = await openAccount('firm', { body: 'ICAI', reg: '000111' })
+    await as(email)
+    await declare(true)
+    await as('admin@veridian.test')
+    const r = await one<J>(`select public.dpdp_owner_downgrade_firm($1, 'abuse review') as r`, [orgId])
+    expect(r).toMatchObject({ ok: true, status: 'downgraded', planKey: 'firm_starter' })
+    expect(await account(orgId)).toMatchObject({ verification_status: 'downgraded', plan_key: 'firm_starter', locked_monthly_paise: 39900 })
+    const ev = await rows<J>(`select kind, detail from dpdp.event where org_id = $1 and kind = 'firm_downgraded'`, [orgId])
+    expect(ev.length).toBe(1)
+    expect(JSON.stringify(ev)).not.toMatch(/000111|@/)
+    expect((await rows(`select 1 from dpdp.audit_platform_event where kind = 'firm_downgraded'`)).length).toBeGreaterThan(0)
+    await as(email)
+    const again = await one<J>(`select public.dpdp_account_save_profile('{"practitionerDeclared": true}'::jsonb) as r`)
+    expect(again.ignored).toContain('practitionerDeclared')
+    expect(again.note).toMatch(/paid plan/)
+    expect((await account(orgId)).verification_status).toBe('downgraded')
     const inst = await openAccount('institution')
     await as('admin@veridian.test')
-    await expect(db.query(`select public.dpdp_owner_verify_firm($1, 'verified')`, [inst.orgId])).rejects.toThrow(/No such firm account/)
+    await expect(db.query(`select public.dpdp_owner_downgrade_firm($1)`, [inst.orgId])).rejects.toThrow(/No such firm account/)
+  })
+
+  test('"free" is decided by the declaration plus a free plan, not by the plan name alone', async () => {
+    const { orgId } = await openAccount('firm')
+    await db.query(`update dpdp.account set plan_key = 'firm_free', locked_monthly_paise = 0 where org_id = $1`, [orgId]) // forced: no declaration
+    await setClock(orgId, 100, null)
+    expect(await stateOf(orgId)).toBe('LOCKED')
+    await db.query(`update dpdp.account set verification_status = 'declared' where org_id = $1`, [orgId])
+    expect(await stateOf(orgId)).toBe('ACTIVE')
+    await db.query(`update dpdp.account set verification_status = 'downgraded' where org_id = $1`, [orgId])
+    expect(await stateOf(orgId)).toBe('LOCKED')
   })
 })
 
@@ -539,12 +481,11 @@ describe('the client cap, enforced on the server when a firm adds a client organ
     expect(caps.map((c) => [c.key, c.max_clients])).toEqual([['firm_free', 0], ['firm_starter', 10], ['firm_growth', 100], ['firm_practice', 500], ['firm_large', 1000]])
   })
 
-  test('Free means zero clients, even for a verified firm', async () => {
+  test('Free means zero clients, even for a declared practitioner', async () => {
     const { email, orgId } = await openAccount('firm', { body: 'ICAI', reg: '135790' })
-    await as('admin@veridian.test')
-    await db.query(`select public.dpdp_owner_verify_firm($1, 'verified')`, [orgId])
     await as(email)
-    await db.query(`select public.dpdp_account_choose_plan('firm_free')`)
+    await db.query(`select public.dpdp_account_save_profile('{"practitionerDeclared": true}'::jsonb)`)
+    expect((await account(orgId)).plan_key).toBe('firm_free')
     await expect(addClient()).rejects.toThrow(/Your plan is for your own firm's file/)
     expect(await used(orgId)).toBe(0)
   })

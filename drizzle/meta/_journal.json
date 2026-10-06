@@ -3775,6 +3775,13 @@
       "when": 1790700013000,
       "tag": "0734_dpdp_account_opening_plans_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 541,
+      "version": "7",
+      "when": 1790700014000,
+      "tag": "0735_dpdp_test_live_mode_profile_capture",
+      "breakpoints": true
     }
   ]
 }

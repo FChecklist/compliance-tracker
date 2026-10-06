@@ -187,7 +187,8 @@ export type JoinOrgResult = { ok: true; orgId: string; membershipId: string; alr
 // ---------------------------------------------------------------------
 
 export type ProfessionalBody = "ICAI" | "ICSI" | "ICMAI" | "other"
-export type VerificationStatus = "none" | "pending" | "verified" | "rejected"
+/** No owner verification exists: "declared" is the firm's own tick of "I am a practising CA / CS / cost accountant"; "downgraded" is the owner's audited move to a paid plan. */
+export type VerificationStatus = "none" | "declared" | "downgraded"
 export type AccountBillingState = "TRIAL" | "ACTIVE" | "DUE" | "GRACE" | "LOCKED"
 
 /** dpdp_open_account: the dpdp_create_my_org result plus what the account was opened as. attribution is only the KIND (never a name). */
@@ -208,11 +209,10 @@ export type PlanWirePayload = {
   accountType: "firm" | "institution"
   name: string
   maxClients: number
-  requiresVerified: boolean
+  requiresDeclaration: boolean
   listMonthlyPaise: number
   monthlyPaise: number
   offerLabel: string | null
-  offerEndsOn: string | null
   yearlyMonthsCharged: number
 }
 
@@ -235,7 +235,11 @@ export type MyAccountPayload =
       retentionEndsOn: string
       dueLine: string | null
       clients: { used: number; cap: number }
-      verification: { status: VerificationStatus; body: ProfessionalBody | null }
+      verification: { status: VerificationStatus; declared: boolean; body: ProfessionalBody | null; registrationNo?: string | null }
+      /** How much of the optional account information is filled; `fields` (the values) only for the owner. */
+      profile: ProfileProgress | null
+      /** True on a test account: the Test payment action is offered only here, and only while the platform is in Test mode. */
+      isTest: boolean
       money: null | {
         interval: "month" | "year"
         monthlyPaise: number
@@ -247,7 +251,24 @@ export type MyAccountPayload =
       }
     }
 
-export type PendingVerificationWire = { orgId: string; orgName: string; professionalBody: ProfessionalBody; registrationNo: string; requestedAt: string }
+export type ProfileFields = Partial<{
+  firmName: string; clientsEstimate: number; legalName: string; institutionType: "company" | "school" | "NGO" | "other"; sizeBand: string
+  dpoName: string; dpoEmail: string; city: string; gstin: string; contactPerson: string; phone: string
+  professionalBody: ProfessionalBody; registrationNo: string
+}>
+export type ProfileProgress = { done: number; total: number; percent: number; missing: Array<{ key: string; label: string }>; fields?: ProfileFields }
+
+/** dpdp_account_save_profile: a value that does not fit is named in `ignored` and left out, never refused. */
+export type SaveProfilePayload = { ok: true; ignored: string[]; note: string | null; status: VerificationStatus; planKey: string; profile: ProfileProgress }
+
+/** dpdp_owner_declared_firms: the firms that ticked the declaration (and those the owner downgraded). formatOk is informational only. */
+export type DeclaredFirmWire = {
+  orgId: string; orgName: string; status: VerificationStatus; planKey: string; professionalBody: ProfessionalBody | null; registrationNo: string | null
+  formatOk: boolean | null; firmName: string | null; city: string | null; clientsEstimate: number | null; declaredAt: string | null; isTest: boolean
+}
+
+/** dpdp_platform_mode: readable by anyone. */
+export type PlatformModePayload = { mode: "TEST" | "LIVE"; test: boolean }
 
 /** dpdp_locked_download: everything a locked account can take away. */
 export type DataExportPayload = {

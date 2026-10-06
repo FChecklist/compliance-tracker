@@ -6,6 +6,7 @@
 // recorded, nothing is mailed, nothing is marked as mailed (so adding the key later loses nothing); the day-365 deletion still runs on schedule.
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
+import { mailGate } from "../_shared/mail-gate.ts"
 import { runDaily } from "./handler.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
@@ -42,6 +43,7 @@ async function bearerOk(req: Request): Promise<boolean> {
 }
 
 async function sendMail(to: string, subject: string, text: string, html: string, idempotencyKey: string): Promise<void> {
+  if (!(await mailGate(to, "dpdp-audit-lifecycle")).send) return // Test mode: not on the allowlist (drizzle/0735)
   const out = buildOutbound("support", subject, { from: EMAIL_FROM })
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
