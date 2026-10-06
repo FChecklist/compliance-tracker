@@ -16,6 +16,7 @@ export const THIRD_PARTY_NOTE = "These buttons open other companies' websites, w
 // SECURITY (owner, 2026-10-06): the paste holds the secret AI link, so it is NEVER placed in another company's address (it would reach their
 // logs, history and referrers). Every button copies to the clipboard first and opens the plain site; the person pastes. `paste` is kept in the
 // signature for callers and to make the rule testable: no returned href may contain any part of it.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function chatOptions(_paste: string): ChatOption[] {
   return [
     { id: "chatgpt", label: "Copy, then open ChatGPT", kind: "copy-open", href: "https://chatgpt.com/" },

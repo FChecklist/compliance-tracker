@@ -32,7 +32,7 @@ export function deviceId(storage: Pick<Storage, "getItem" | "setItem"> | null = 
 }
 
 function clientFacts(storage?: Pick<Storage, "getItem" | "setItem"> | null): Record<string, string | null> {
-  let tz: string | null = null
+  let tz: string | null
   try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null } catch { tz = null }
   return { device_id: deviceId(storage ?? undefined), client_time: new Date().toISOString(), client_tz: tz }
 }
