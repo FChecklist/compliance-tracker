@@ -40,14 +40,13 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (AUDIT-100 G-09: PROJEXA new-organisation provisioning inside projexa-api; worktrees C:/ct/ct-g09 + C:/ct/px-g09, branches feat/g09-org-provision-edge + feat/g09-org-provision-client)"
+  - session_label: "claude-code (AUDIT-100 AI work link guide, items 3,4,5,6,8; worktree C:/ct/w-awl-guide2, branches feat/awl-*)"
     claimed_at: "2026-10-06 (this session)"
     claim: |
-      Scope: veridian_credentials moves to the compliance side. compliance-tracker: drizzle/0729_projexa_org_credentials_and_provision.sql (+down, journal;
-      applied live), supabase/functions/projexa-api/{org-provision.ts,lookups.ts,member-link.ts,index.ts,README.md,org-parity.golden.json}, scripts/g09-backfill-credentials.mjs
-      (one-off, NOT run), tests. projexa: src/lib/px-api.ts (+ signup/login callers), src/lib/veridian-client.ts reader, org-provision parity test + golden,
-      vercel route inventory / plan. One deploy of projexa-api only (after the compliance PR merges). No Vercel dashboard, no DNS, no spend.
-      NOT touching projexa-sync or the offline gate (another session).
+      Scope: supabase/functions/ai-work-link/* (workspace.ts, manual.ts, reads.ts, handler.ts, confirm.ts, drafts.ts, new risk/receipt modules),
+      projexa-link-pages/ai-inbox.html + ai-confirm.html, src/lib/ai-links/awl-static-pages.test.ts and new ai-work-link tests, one small drizzle
+      migration for the person-card read, ai-os/AUDIT_100_CHECKLIST.md. Deploys ai-work-link only, under C:/ct/deploy-ai-work-link.lock.
+      No Vercel, no DNS, no spend. Does not touch projexa-sync or projexa-api.
   - session_label: "claude-code handover/PM session (AUDIT-100 programme: 100-point audit) -- 2026-10-06"
     claimed_at: "2026-10-06T09:30+05:30"
     claim: |
@@ -5255,6 +5254,15 @@ active:
       instruction.
 
 recently_completed:
+  - session_label: "claude-code (AUDIT-100 G-09: PROJEXA new-organisation provisioning inside projexa-api; worktrees C:/ct/ct-g09 + C:/ct/px-g09, branches feat/g09-org-provision-edge + feat/g09-org-provision-client)"
+    claimed_at: "2026-10-06 (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2100 merged 79226210, drizzle/0729 applied live, projexa-api v7 deployed, live smoke + repair passed, backfill 13 live credentials; projexa #405 client switch)"
+    claim: |
+      Scope: veridian_credentials moves to the compliance side. compliance-tracker: drizzle/0729_projexa_org_credentials_and_provision.sql (+down, journal;
+      applied live), supabase/functions/projexa-api/{org-provision.ts,lookups.ts,member-link.ts,index.ts,README.md,org-parity.golden.json}, scripts/g09-backfill-credentials.mjs
+      (one-off, NOT run), tests. projexa: src/lib/px-api.ts (+ signup/login callers), src/lib/veridian-client.ts reader, org-provision parity test + golden,
+      vercel route inventory / plan. One deploy of projexa-api only (after the compliance PR merges). No Vercel dashboard, no DNS, no spend.
+      NOT touching projexa-sync or the offline gate (another session).
   - session_label: "claude-code (AUDIT-100 A2 batch 6: 32 more PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2b6 + C:/ct/px-a2b6, branch audit100/a2-batch-6 in both repos)"
     claimed_at: "2026-10-06 (this session)"
     completed_at: "2026-10-06 (compliance-tracker #2093 merged 94647af1; projexa-api v6 deployed, 217 routes, live smoke 359/359; projexa #403 = batch 6 client list)"
