@@ -182,10 +182,10 @@ describe("1. a user link's guide carries the numbered project list itself", () =
     expect(sec).toContain("- 2. Create New Project")
   })
 
-  test("the manual JSON is unchanged by the list (sections A to L, no read of the project list)", async () => {
+  test("the manual JSON is unchanged by the list (sections A to M, no read of the project list)", async () => {
     const { run, fake } = setup()
     const j = await (await run(`/${TOKENS.userManager}/manual.json`)).json() as any
-    expect(j.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"])
+    expect(j.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"])
     expect(fake.names()).not.toContain("ai_work_link_projects")
   })
 })
