@@ -74,4 +74,18 @@ describe("what the AI is told", () => {
     expect(md).toContain("you may add, edit and delete records in this project")
     expect(md).toContain("without asking permission for any step")
   })
+
+  test("section L tells the AI how to look any function up in full", () => {
+    const md = manual(0, true, "project")
+    const L = md.slice(md.indexOf("## L."), md.indexOf("## M."))
+    expect(L).toContain("/functions?fn=<id>")
+    expect(L).toContain("describe_function")
+  })
+
+  test("a link made before newer functions existed says so, a complete link does not", () => {
+    const old = manual(0, true, "project", ids.slice(0, 20))
+    expect(old).toContain("This link was made with 20 functions and")
+    expect(old).toContain("the newer ones are not on it")
+    expect(manual(0, true, "project")).not.toContain("the newer ones are not on it")
+  })
 })

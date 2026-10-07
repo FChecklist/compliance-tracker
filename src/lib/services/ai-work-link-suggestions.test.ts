@@ -345,8 +345,8 @@ describe("the MCP tools", () => {
     expect(add.inputSchema.properties.kind.enum).toEqual(["feature", "improvement", "report", "workflow", "integration", "bug", "other"])
     expect(add.description).toContain("cannot change the app")
     expect(add.description).toContain("list_suggestions")
-    // every other tool stays read-only
-    for (const t of tools.filter((x) => x.name !== "suggest_improvement")) expect(t.annotations.readOnlyHint).toBe(true)
+    // every other tool stays read-only, except make_change (a change, advertised as destructive so the AI tool asks its user first)
+    for (const t of tools.filter((x) => x.name !== "suggest_improvement" && x.name !== "make_change")) expect(t.annotations.readOnlyHint).toBe(true)
   })
 
   test("a call records, a repeat replays, list_suggestions shows it, and the same tools work on a link made for a person with a project", async () => {

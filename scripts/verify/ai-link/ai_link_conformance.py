@@ -50,7 +50,12 @@ READ_URL_KEYS = ("context", "functions", "history", "propose_example", "records"
 READ_TOOL_NAMES = {"get_context", "list_records", "get_record", "get_history", "search", "fetch",
                    "check_change", "propose_change", "list_projects", "get_portfolio",
                    # the suggestions board (drizzle/0672): suggest_improvement records an idea for the PROJEXA team and changes no data; list_suggestions reads
-                   "suggest_improvement", "list_suggestions"}
+                   "suggest_improvement", "list_suggestions",
+                   # 2026-10-07 (owner order: a connector AI must be able to learn what exists and use it, not only check and propose). Four generic dispatchers, each
+                   # re-checking the link's scope on every call exactly as the HTTP routes do (requireScope, availability, level): list_functions and describe_function
+                   # read the function dictionary; run_read_function is POST /functions/{fn}; make_change is POST /actions (direct, when the link allows that function)
+                   # or POST /drafts (the person confirms). None can name a function outside the link's own list.
+                   "list_functions", "describe_function", "run_read_function", "make_change"}
 BUSINESS = ("intents", "submissions")
 
 

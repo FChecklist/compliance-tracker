@@ -500,7 +500,7 @@ describe("the manual, the card and the OpenAPI document of a user link", () => {
     expect(md).not.toContain("`{\"function\":\"create_project\"")
     const json = (await get(TOKENS.userManager, "/manual.json")).json
     expect(json.manifest).toMatchObject({ scope: "user", project: null })
-    expect(json.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"])
+    expect(json.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"])
   })
 
   test("a project link's manual is untouched: one project, its manifest names it, no section C Start here", async () => {

@@ -375,6 +375,8 @@ function whoYouAre(input: ManualInput, forPerson: boolean, views: FunctionView[]
   } else {
     lines.push("This link only proposes changes for now: every change is a draft the person confirms. Say a change is done only after its draft shows status `done`.")
   }
+  const missing = LINK_FUNCTIONS.filter((f) => !ctx.allowed_functions.includes(f.function_id) && f.function_id !== "create_project").length
+  if (missing > 0) lines.push(`This link was made with ${ctx.allowed_functions.length} functions and ${missing} more exist now; the newer ones are not on it. If the person asks for something no function here does, tell them in everyday words and offer to wait for a new link.`)
   if (edits.length) lines.push(`Edit functions: ${tick(edits)}.`)
   if (deletes.length) lines.push(`Delete or cancel functions: ${tick(deletes)}.${forPerson ? " Which of them a project allows depends on the person's role in it." : ""}`)
   return lines.join("\n")
@@ -494,7 +496,7 @@ function sectionFunctions(views: FunctionView[], forPerson: boolean, P: string):
   const byModule = new Map<string, FunctionView[]>()
   for (const f of views) byModule.set(f.module, [...(byModule.get(f.module) ?? []), f])
   const out: string[] = [
-    `${views.length} functions${forPerson ? " in the registry; which of them a project allows depends on the person's role there, so `GET " + P + "/functions` is the exact list" : " on this link"}. R = a read (\`POST ${P}/functions/<id>\`), C = a change that may be made directly, D = a draft the person confirms (changes go through section ${forPerson ? "E" : "D"}). After each id: what it does, then what it needs.`,
+    `${views.length} functions${forPerson ? " in the registry; which of them a project allows depends on the person's role there, so `GET " + P + "/functions` is the exact list" : " on this link"}. R = a read (\`POST ${P}/functions/<id>\`), C = a change that may be made directly, D = a draft the person confirms (changes go through section ${forPerson ? "E" : "D"}). After each id: what it needs (a * in the full entry marks a required field). The exact fields, their types and a worked example of ANY function: \`GET ${P}/functions?fn=<id>\` (a whole area: \`?module=<name>\`); in an MCP tool, \`describe_function\` and \`list_functions\`.`,
   ]
   for (const [module, fns] of [...byModule.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     out.push("", `**${module}**`)
