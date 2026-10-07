@@ -324,6 +324,7 @@ function registryViews(input: ManualInput): FunctionView[] {
 
 export { MENU_AREAS }
 const MENU_LINE = `Show this numbered menu and wait: ${MENU_AREAS.map((a, i) => `${i + 1} ${a}`).join("; ")}. Section M says how to do each one.`
+const relayLine = (base: string): string => "If you cannot open an address this guide gives you (an error, \"not accessible\", or your tool refuses), do not keep retrying and never invent the data: print that address alone on its own line (plain https, no code block, no angle brackets) and ask the person to paste it back as their next message, because an address the person pastes is one you may open. Everything about every project, BOQ included, is on the one page " + base + "/workspace: read it first."
 const ENDING_LINE = "End every answer with three lines: DONE: what you just read or changed, with numbers. NEXT: the numbered options. ASK: what you need from the person."
 
 function startBox(input: ManualInput, forPerson: boolean, canCreate: boolean): string {
@@ -339,7 +340,7 @@ function startBox(input: ManualInput, forPerson: boolean, canCreate: boolean): s
         : `3. First, GET ${mdLink(`${base}/projects`)}. Show the person the numbered list exactly as it answers, ${options}.`,
       "4. Then wait for the person to choose a number or an option. Do not read or change anything before that.",
       `   After they choose a project: ${MENU_LINE}`,
-      `   ${ENDING_LINE}`,
+      `   ${ENDING_LINE} ${relayLine(base)}`,
       "5. Work step by step as section J says, and report in plain words with numbers (section K).",
       `   Everything in one page (every project's status, overdue items, RFIs, change orders, delays, progress, and what you can do): GET ${mdLink(`${base}/workspace`)}. Read it when you cannot open other addresses.`,
       "6. Everything you do is logged as the person's name via AI assistant. Never share this address.",
@@ -350,7 +351,7 @@ function startBox(input: ManualInput, forPerson: boolean, canCreate: boolean): s
       `3. First, GET ${mdLink(`${base}/context`)}, tell the person which project you are in, then offer a short status report (section K) and ask what they want to do. Wait for their answer.`,
       "4. Work step by step as section J says, and report in plain words with numbers.",
       `   After the status report: ${MENU_LINE}`,
-      `   ${ENDING_LINE}`,
+      `   ${ENDING_LINE} ${relayLine(base)}`,
       `   Everything in one page (status, overdue items, RFIs, change orders, delays, progress, and what you can do): GET ${mdLink(`${base}/workspace`)}. Read it when you cannot open other addresses.`,
       "5. Everything you do is logged as the person's name via AI assistant. Never share this address.",
     ]

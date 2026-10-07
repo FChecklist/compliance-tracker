@@ -125,6 +125,21 @@ export const AI_FETCHERS: ReadonlyArray<string> = [
   "meta-externalagent", "Amazonbot", "cohere-ai", "YouBot", "Grok", "xAI", "Zhipu", "ChatGLM",
 ]
 
+/**
+ * Chat engines whose page fetcher opens ONLY an address the person typed (ChatGPT: OpenAI's documented link-safety rule; the others are unproven and treated the
+ * same, because one page that holds everything is harmless for an engine that could have followed links). Claude is left out: it follows links found in a
+ * fetched page, and it has the connector. Matched against uaFamilyOf, so only a fixed name from AI_FETCHERS (or the first product of the string) can match.
+ */
+export const READER_ENGINES: ReadonlyArray<string> = [
+  "ChatGPT-User", "OAI-SearchBot", "Google", "Google-NotebookLM", "Google-Extended", "GoogleOther", "Gemini", "Perplexity-User", "MistralAI-User",
+  "DeepSeek", "DeepSeekBot", "Grok", "xAI", "Zhipu", "ChatGLM",
+]
+
+export function isReaderEngine(userAgent: string | null | undefined): boolean {
+  const family = uaFamilyOf(userAgent)
+  return family !== null && READER_ENGINES.includes(family)
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Format, pages, errors: the three helpers the DPDP router also exports
 // ---------------------------------------------------------------------------------------------------------------------------------

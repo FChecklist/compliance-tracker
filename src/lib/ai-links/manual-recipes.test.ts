@@ -88,4 +88,18 @@ describe("what the AI is told", () => {
     expect(old).toContain("the newer ones are not on it")
     expect(manual(0, true, "project")).not.toContain("the newer ones are not on it")
   })
+
+  for (const scope of ["user", "project"] as const) {
+    test(`${scope} link: an AI that cannot open an address is told to relay it and never to invent the data, and where the whole picture is`, () => {
+      const md = manual(0, true, scope)
+      const start = md.slice(0, md.indexOf("## A."))
+      expect(start).toContain("If you cannot open an address this guide gives you")
+      expect(start).toContain("never invent the data")
+      expect(start).toContain("paste it back as their next message")
+      expect(start).toMatch(/\/workspace: read it first/)
+      // the Start here box stays about ten lines
+      const box = md.indexOf("> **Start here.**")
+      expect(md.slice(box, md.indexOf("\n\n", box)).split("\n").length).toBeLessThanOrEqual(10)
+    })
+  }
 })
