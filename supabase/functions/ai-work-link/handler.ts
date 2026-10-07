@@ -32,7 +32,7 @@ import { explainCheck } from "./explain.ts"
 import { receiptOf } from "./risk.ts"
 import {
   CORS_PREFLIGHT_HEADERS, LIMITS, LINK_GONE, NO_QUERY_TOKEN, ROBOTS_DOC, contentTypeFor, errorBody, hasQueryToken, isRateLimited, linkBase, negotiateFormat, paginate,
-  parseTarget, privateHeaders, relativePathOf, remainingCalls, throttleAddress, tokenFromHeaders, uaFamilyOf, type Format,
+  parseTarget, privateHeaders, relativePathOf, remainingCalls, throttleAddress, tokenFromHeaders, uaFamilyOf, isReaderEngine, type Format,
 } from "../_shared/ai-link/core.ts"
 import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, LINK_FUNCTIONS, USER_LEVEL_IDS, bodyLimitFor, functionDef, kb, matchEndpoint, underlyingOf, type EndpointId } from "./api-definition.ts"
 import { dictionaryEntry, signatureOf } from "./dictionary.ts"
@@ -452,7 +452,15 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
     }
     case "manual": {
       const f = formatOf(req, url, ["md", "json"])
-      return f === "json" ? asDoc(json(200, renderManualJson(manualInput(env)))) : await guideMarkdown(env, opts)
+      if (f === "json") return asDoc(json(200, renderManualJson(manualInput(env))))
+      // An engine that opens only the address the person typed (ChatGPT, Gemini ...) gets ONE page that holds everything: the workspace, with a briefing on top.
+      // `?edition=full` is always the full guide; `?edition=reader` is the reader page for an engine this list does not know.
+      const edition = url.searchParams.get("edition")
+      if (edition === "reader" || (edition !== "full" && isReaderEngine(req.headers.get("user-agent")))) {
+        const page = await renderWorkspace(env, url.searchParams.get("page"), { dbMs: opts.dbMs, now: opts.now, timeBox, bind: (pid) => bindProject(env, pid), footer: opts.footer ?? undefined, reader: true })
+        return asDoc(text("md", page))
+      }
+      return await guideMarkdown(env, opts)
     }
     case "manual_md":
       return await guideMarkdown(env, opts)
