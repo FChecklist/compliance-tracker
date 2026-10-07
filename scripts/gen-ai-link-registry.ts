@@ -85,6 +85,13 @@ export type LinkFunctionRow = {
   declared_params: string[]
   required_params: { name: string; label: string; any_of: string[] }[]
   id_params: string[]
+  /**
+   * The typed fields of the function's confirmation card (the registry's `card.fields`): what a person is asked, so what an AI is asked too. JSON only, not a
+   * database fact (dbShape does not read it, so the registry version constant is unchanged). Functions that take only ids have none.
+   */
+  fields: { key: string; label: string; type: string; required: boolean; unit?: string; default?: string | number }[]
+  /** Parameters the function accepts that are neither required nor a card field (a list, a retry key): JSON only. */
+  optional_params: string[]
 }
 
 export type RecordKindRow = {
@@ -190,6 +197,12 @@ export function buildFunctionRows(
       declared_params: declared,
       required_params: requiredParamsOf(spec, p),
       id_params: declared.filter((n) => /Ids?$/.test(n) && n !== "projectId"),
+      fields: (spec.card?.fields ?? []).map((f) => ({
+        key: f.key, label: f.label, type: f.type, required: f.required,
+        ...(f.unit ? { unit: f.unit } : {}),
+        ...(f.default !== undefined ? { default: f.default } : {}),
+      })),
+      optional_params: [...(spec.optionalParams ?? [])],
     })
   }
   return rows.sort((a, b) => (a.function_id < b.function_id ? -1 : a.function_id > b.function_id ? 1 : 0))

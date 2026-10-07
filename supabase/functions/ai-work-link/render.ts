@@ -96,16 +96,34 @@ export function recordMarkdown(doc: Record<string, unknown>): string {
   return `# Record: ${line(String(doc.kind ?? ""))}\n\n${fenceValue(doc.record)}\n\n${DATA_CLOSING}\n`
 }
 
-export function functionsMarkdown(functions: FunctionView[], note: string): string {
-  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.module} | ${f.kind} | ${f.level} | ${availableWord(f)} | ${f.required.join(", ") || "none"} |`)
+export function functionsMarkdown(functions: FunctionView[], note: string, filtered = false): string {
+  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.module} | ${f.kind} | ${f.level} | ${availableWord(f)} | ${f.signature} |`)
+  const detail = filtered || functions.length <= 6
+    ? functions.flatMap((f) => [
+      "",
+      `## ${f.id}: ${f.label}`,
+      "",
+      "| Field | What it is | Type | Required | How to write it |",
+      "| --- | --- | --- | --- | --- |",
+      ...(f.fields.length ? f.fields.map((x) => `| ${x.name} | ${x.label} | ${x.type}${x.unit ? ` (${x.unit})` : ""} | ${x.required ? "yes" : "no"} | ${x.note ?? ""} |`) : ["| (none) | | | | |"]),
+      "",
+      "Example parameters:",
+      "```json",
+      JSON.stringify({ function: f.id, params: f.example_params }),
+      "```",
+    ])
+    : []
   return [
     "# Functions on this link",
     "",
     note,
     "",
-    "| Function | What it does | Module | Kind | Level | Available | Required parameters |",
+    "A * marks a required field. Add `?fn=<id>` for one function in full, or `?module=<name>` for one area (scope, work_progress, budget ...).",
+    "",
+    "| Function | What it does | Module | Kind | Level | Available | Fields |",
     "| --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
+    ...detail,
     "",
   ].join("\n")
 }

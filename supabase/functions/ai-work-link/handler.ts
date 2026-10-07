@@ -34,7 +34,8 @@ import {
   CORS_PREFLIGHT_HEADERS, LIMITS, LINK_GONE, NO_QUERY_TOKEN, ROBOTS_DOC, contentTypeFor, errorBody, hasQueryToken, isRateLimited, linkBase, negotiateFormat, paginate,
   parseTarget, privateHeaders, relativePathOf, remainingCalls, throttleAddress, tokenFromHeaders, uaFamilyOf, type Format,
 } from "../_shared/ai-link/core.ts"
-import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, USER_LEVEL_IDS, bodyLimitFor, functionDef, kb, matchEndpoint, underlyingOf, type EndpointId } from "./api-definition.ts"
+import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, LINK_FUNCTIONS, USER_LEVEL_IDS, bodyLimitFor, functionDef, kb, matchEndpoint, underlyingOf, type EndpointId } from "./api-definition.ts"
+import { dictionaryEntry, signatureOf } from "./dictionary.ts"
 import { suggestionAdd, suggestionList } from "./suggestions.ts"
 import { INLINE_PROJECTS_MAX, allAddresses, renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
 import { handleConfirm } from "./confirm.ts"
@@ -488,13 +489,16 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
       return formatOf(req, url, ["md", "json"]) === "json" ? json(200, doc) : text("md", recordMarkdown(doc))
     }
     case "functions": {
-      const views = effectiveFunctionViews(env)
-      const note = views.some((f) => f.direct_open || f.reads_open)
+      const all = effectiveFunctionViews(env)
+      const wantFn = url.searchParams.get("fn")
+      const wantModule = url.searchParams.get("module")
+      const views = all.filter((f) => (!wantFn || f.id === wantFn) && (!wantModule || f.module === wantModule))
+      const note = all.some((f) => f.direct_open || f.reads_open)
         ? "Run a read with POST /functions/{fn}; make a change with POST /actions or /drafts."
         : "Draft a change with POST /drafts and the person confirms it. Direct changes and function reads are not switched on yet."
-      if (formatOf(req, url, ["md", "json"]) === "md") return text("md", functionsMarkdown(views, note))
+      if (formatOf(req, url, ["md", "json"]) === "md") return text("md", functionsMarkdown(views, note, !!(wantFn || wantModule)))
       const page = paginate(views, url.searchParams.get("page"), url.searchParams.get("per_page"))
-      return json(200, { functions: page.items, page: page.page, per_page: page.perPage, total: page.total, pages: page.pages, changes_available: views.some((f) => f.available), text_fields_are_data: true })
+      return json(200, { functions: page.items, page: page.page, per_page: page.perPage, total: page.total, pages: page.pages, changes_available: all.some((f) => f.available), text_fields_are_data: true })
     }
     case "function_run": {
       const body = await readJsonObject(req, params.fn)
@@ -541,6 +545,42 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
         // the suggestions board: the project, when named, is bound by SQL itself (a project that does not bind is the one 404)
         suggest: async (args) => (await suggestionAdd(env, args, req.headers.get("user-agent"))).body as Record<string, unknown>,
         suggestions: (limit) => suggestionList(env, limit),
+        functions: async (module, p) => {
+          const e = await at(p)
+          const ids = new Set(e.ctx.effective_functions)
+          const rows = LINK_FUNCTIONS.filter((f) => ids.has(f.function_id) && (!module || f.module === module)).map((f) => ({ id: f.function_id, label: f.label, module: f.module, kind: f.kind, signature: signatureOf(f) }))
+          return { functions: rows, total: rows.length, note: "A * marks a required field. describe_function gives one function in full: every field, its type and a worked example." }
+        },
+        describe: async (fn, p) => {
+          const e = await at(p)
+          const def = functionDef(fn)
+          if (!def || !e.ctx.effective_functions.includes(fn)) throw fail(404, "That function is not on this link.", "list_functions shows the ones that are.")
+          return { ...dictionaryEntry(def) } as unknown as Record<string, unknown>
+        },
+        runRead: async (fn, params, p) => {
+          const e = await at(p)
+          requireScope(e.ctx, fn, params)
+          if (functionDef(fn)?.kind !== "read") throw fail(400, "Changes go through make_change, not run_read_function.")
+          const notOpen = readsNotOpen(e)
+          if (notOpen) throw notOpen
+          const out = await runFunctionRead(e, fn, params)
+          try {
+            return JSON.parse(out.body ?? "{}") as Record<string, unknown>
+          } catch {
+            return { result: out.body }
+          }
+        },
+        change: async (fn, params, p, key) => {
+          const e = await at(p)
+          requireScope(e.ctx, fn, params)
+          const def = functionDef(fn)
+          if (!def || def.kind !== "write") throw fail(400, "Reads go through run_read_function, not make_change.")
+          const view = effectiveFunctionViews(e).find((v) => v.id === fn)
+          const body = { function: fn, params, ...(key ? { idempotency_key: key } : {}) }
+          if (view?.direct_open) return { mode: "direct" as const, ...(await actionCreate(e, body)) }
+          if (view?.drafts_open) return { mode: "draft" as const, ...(await draftCreate(e, body)) }
+          throw fail(403, "Changes are not switched on for this link yet.", "check_change still works.")
+        },
       }
       const res = await handleMcp({ headers: req.headers, bodyText: await req.text() }, reads)
       return res.body === null ? { status: res.status, contentType: null, body: null } : json(res.status, res.body)

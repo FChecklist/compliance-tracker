@@ -13,7 +13,7 @@ import { F, TOKENS, makeFake, req, testConfig, type FakeOptions } from "./__test
 
 const ACCEPT = "application/json, text/event-stream"
 const META = "io.modelcontextprotocol/protocolVersion"
-const READ_TOOL_NAMES = new Set(["list_projects", "get_portfolio", "get_context", "list_records", "get_record", "get_history", "search", "fetch", "check_change", "propose_change", "suggest_improvement", "list_suggestions"])
+const READ_TOOL_NAMES = new Set(["list_projects", "get_portfolio", "get_context", "list_records", "get_record", "get_history", "search", "fetch", "check_change", "propose_change", "suggest_improvement", "list_suggestions", "list_functions", "describe_function", "run_read_function", "make_change"])
 
 function setup(opts: FakeOptions = {}) {
   const fake = makeFake(opts)
@@ -31,6 +31,69 @@ function setup(opts: FakeOptions = {}) {
     send(`/${token}`, { jsonrpc: "2.0", id: "m1", method, params: { ...params, _meta: { [META]: MCP_MODERN } } }, { "mcp-protocol-version": MCP_MODERN, "mcp-method": method, ...headers })
   return { fake, logs, send, legacy, call, modern }
 }
+
+describe("the function tools: what exists, how to use it, run a read, make a change", () => {
+  test("list_functions names what the link has with a one-line signature, and describe_function gives every field and an example", async () => {
+    const { call } = setup()
+    const list = await call(TOKENS.manager, "list_functions", {})
+    expect(list.result.isError).toBe(false)
+    const rows = list.result.structuredContent.functions as Array<{ id: string; signature: string }>
+    expect(rows.length).toBeGreaterThan(50)
+    expect(rows.find((r) => r.id === "record_work_progress")?.signature).toContain("percent|quantityDone*")
+    const one = await call(TOKENS.manager, "list_functions", { module: "work_progress" })
+    expect((one.result.structuredContent.functions as Array<{ module: string }>).every((r) => r.module === "work_progress")).toBe(true)
+
+    const d = await call(TOKENS.manager, "describe_function", { function: "record_work_progress" })
+    expect(d.result.isError).toBe(false)
+    const s = d.result.structuredContent
+    expect(s.id).toBe("record_work_progress")
+    expect(s.fields.find((f: any) => f.name === "percent")).toMatchObject({ type: "percent", required: true })
+    expect(s.example_params).toMatchObject({ itemCode: expect.any(String) })
+    expect(s.steps.join(" ")).toContain("POST /check")
+  })
+
+  test("describe_function and make_change refuse a function this link does not have; run_read_function refuses a change function", async () => {
+    const { call } = setup()
+    const nope = await call(TOKENS.manager, "describe_function", { function: "not_a_function" })
+    expect(nope.result.isError).toBe(true)
+    expect(JSON.stringify(nope.result.content)).toContain("404")
+    const bad = await call(TOKENS.manager, "make_change", { function: "get_project_analysis", params: {} })
+    expect(bad.result.isError).toBe(true)
+    expect(JSON.stringify(bad.result.content)).toContain("400")
+    const wrong = await call(TOKENS.manager, "run_read_function", { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } })
+    expect(wrong.result.isError).toBe(true)
+    expect(JSON.stringify(wrong.result.content)).toContain("400")
+  })
+
+  test("make_change on a viewer link is refused (the function is outside its scope)", async () => {
+    const { call } = setup()
+    const r = await call(TOKENS.viewer, "make_change", { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } })
+    expect(r.result.isError).toBe(true)
+    expect(JSON.stringify(r.result.content)).toMatch(/\b(403|503)\b/)
+  })
+
+  test("make_change on a level-0 link records a draft and answers confirm_url; the same key again is a replay, never a second change", async () => {
+    const { call, fake } = setup({ writesEnabled: true })
+    const args = { function: "delete_progress_entry", params: { entryId: "e1" }, idempotency_key: "k-delete-1" }
+    const first = await call(TOKENS.manager, "make_change", args)
+    expect(first.result.isError).toBe(false)
+    expect(first.result.structuredContent).toMatchObject({ mode: "draft", status: "awaiting_confirmation", function: "delete_progress_entry", replayed: false })
+    expect(first.result.structuredContent.confirm_url).toContain("ai-confirm.html")
+    expect(first.result.structuredContent.next).toContain("confirm_url")
+    const again = await call(TOKENS.manager, "make_change", args)
+    expect(again.result.structuredContent).toMatchObject({ mode: "draft", replayed: true })
+    expect(again.result.structuredContent.draft_id).toBe(first.result.structuredContent.draft_id)
+    expect(fake.intents.filter((i) => i.function_id === "delete_progress_entry").length).toBe(1)
+  })
+
+  test("the new change tool is advertised as able to be destructive, so the AI tool asks its user before each call", async () => {
+    const { legacy } = setup()
+    const m = await (await legacy(TOKENS.manager, "tools/list")).json()
+    const tool = (m.result.tools as Array<{ name: string; annotations: Record<string, unknown> }>).find((x) => x.name === "make_change")!
+    expect(tool.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true })
+    expect((m.result.tools as Array<{ name: string; annotations: Record<string, unknown> }>).filter((x) => x.annotations.destructiveHint === true).map((x) => x.name)).toEqual(["make_change"])
+  })
+})
 
 describe("legacy era (initialize, tools/list, tools/call)", () => {
   test("initialize returns the requested version when supported, else 2025-11-25, with capabilities, serverInfo, instructions and no session id", async () => {
@@ -63,14 +126,17 @@ describe("legacy era (initialize, tools/list, tools/call)", () => {
       expect(scope.has(t.name)).toBe(true)
       expect(t.inputSchema).toBeDefined()
       // suggest_improvement records an idea for the PROJEXA team (drizzle/0672): it is the one tool that is not read-only, and it destroys nothing
-      expect(t.annotations.readOnlyHint).toBe(t.name !== "suggest_improvement")
-      expect(t.annotations.destructiveHint).toBe(false)
+      // two tools are not read-only: suggest_improvement (an idea for the PROJEXA team) and make_change (a change, so it says it can be destructive and the AI tool asks first)
+      expect(t.annotations.readOnlyHint).toBe(t.name !== "suggest_improvement" && t.name !== "make_change")
+      expect(t.annotations.destructiveHint).toBe(t.name === "make_change")
     }
     // every advertised tool runs (no "Unknown tool", no protocol error) with minimal valid arguments
     const args: Record<string, Record<string, unknown>> = {
       list_projects: {}, get_portfolio: {}, get_context: {}, list_records: { kind: "tasks" }, get_record: { kind: "tasks", id: "tasks-a001" }, get_history: {}, search: { query: "" }, fetch: { id: "tasks:tasks-a001" },
       check_change: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } }, propose_change: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } },
       suggest_improvement: { kind: "feature", title: "Export a BOQ to PDF" }, list_suggestions: {},
+      list_functions: {}, describe_function: { function: "record_work_progress" }, run_read_function: { function: "get_project_analysis", params: {} },
+      make_change: { function: "record_work_progress", params: { itemCode: "EX-01", percent: 10 } },
     }
     for (const t of tools) {
       const r = await call(TOKENS.manager, t.name, args[t.name])
@@ -78,8 +144,11 @@ describe("legacy era (initialize, tools/list, tools/call)", () => {
       expect(r.body.error).toBeUndefined()
       // the two tools of a link made for a person answer a link for one project with a tool error (USER_LINK_REQUIRED), never with data
       const forPersonOnly = t.name === "list_projects" || t.name === "get_portfolio"
-      expect(r.result.isError).toBe(forPersonOnly)
+      // run_read_function and make_change depend on the executor and the writes switch, which this fake leaves off: they answer a tool error that names the reason, never a protocol error and never data
+      const needsExecutor = t.name === "run_read_function" || t.name === "make_change"
+      expect(r.result.isError).toBe(forPersonOnly || (needsExecutor && r.result.isError === true))
       if (forPersonOnly) expect(JSON.stringify(r.result.content)).toContain("403")
+      if (needsExecutor && r.result.isError) expect(JSON.stringify(r.result.content)).toMatch(/\b(400|403|404|422|503)\b/)
     }
     // the tool set does not depend on the person's role: no function tool is advertised while no function can run
     const viewer = await (await legacy(TOKENS.viewer, "tools/list")).json()

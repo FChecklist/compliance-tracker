@@ -208,6 +208,7 @@ export async function renderWorkspace(env: ReadEnv, pageParam: string | null, op
     `As of ${asOf.slice(0, 16).replace("T", " ")} UTC. Page ${page}. Read only: nothing here changes anything.`,
     forPerson ? "Read this whole page, then answer the person from it. Show the numbered project list exactly as it is when they have not chosen yet." : "Read this whole page, then answer the person from it.",
     `Money figures are ${moneyVisible ? "included" : "hidden"} for this person's role.`,
+    "This is what has reached the shared database. Anything the person changed on their own laptop while offline shows here only after it syncs, so say the as-of time when you report.",
     "",
   ].join("\n")
 
