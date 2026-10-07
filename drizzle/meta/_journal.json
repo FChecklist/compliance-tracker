@@ -3795,6 +3795,13 @@
       "when": 1790700016000,
       "tag": "0730_audit_trail_stamp_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 544,
+      "version": "7",
+      "when": 1790700017000,
+      "tag": "0737_projexa_oauth",
+      "breakpoints": true
     }
   ]
 }
