@@ -63,6 +63,8 @@ function partsFor(today: string): Part[] {
     { title: "Change orders (newest first)", kind: "change_orders", params: { sort: "-created_at" }, fields: ["number", "title", "status", "cost_impact", "schedule_impact_days"], rows: WORKSPACE_ROWS, empty: "None." },
     { title: "Schedule delays: milestones past their target date and not completed", kind: "milestones", params: { target_date_lt: today, status_in: "planned,in_progress" }, fields: ["name", "status", "target_date"], rows: WORKSPACE_ROWS, empty: "None." },
     { title: "Latest progress entries", kind: "progress", params: { sort: "-entry_date" }, fields: ["entry_date", "percent_complete", "quantity_done", "remarks"], rows: WORKSPACE_PROGRESS_ROWS, empty: "None recorded." },
+    { title: "BOQ versions (newest first)", kind: "boqs", params: { sort: "-created_at" }, fields: ["id", "title", "version", "status", "approved_at"], rows: 5, empty: "No BOQ yet." },
+    { title: "BOQ lines (the first rows; a sub-task line has parent_line_item_id and breakdown_percentage; boq_id names its version)", kind: "boq_lines", params: {}, fields: ["boq_id", "item_code", "description", "unit", "quantity", "rate", "amount", "parent_line_item_id", "breakdown_percentage", "budget_percentage"], rows: WORKSPACE_PROGRESS_ROWS * 2, empty: "No BOQ lines yet." },
   ]
 }
 

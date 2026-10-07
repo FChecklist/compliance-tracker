@@ -66,7 +66,7 @@ describe("GET /workspace: everything in one page for a user link", () => {
     // the reads are the existing readers, bound per project exactly as /projects/{id}/... binds them
     expect(fake.calls.filter((c) => c.name === "ai_work_link__resolve_in").map((c) => c.args.p_project_id)).toEqual(["proj_a", "proj_b"])
     const recs = fake.calls.filter((c) => c.name === "ai_work_link_records")
-    expect(new Set(recs.map((c) => c.args.p_kind))).toEqual(new Set(["tasks", "rfis", "change_orders", "milestones", "progress"]))
+    expect(new Set(recs.map((c) => c.args.p_kind))).toEqual(new Set(["tasks", "rfis", "change_orders", "milestones", "progress", "boqs", "boq_lines"]))
     expect(recs.find((c) => c.args.p_kind === "rfis")!.args.p_filters).toEqual({ status_eq: "open" })
     expect(recs.find((c) => c.args.p_kind === "tasks")!.args.p_filters).toEqual({ due_date_lt: "2026-10-06", is_archived_eq: "false" })
     expect(bytes(md)).toBeLessThanOrEqual(WORKSPACE_MAX_BYTES)
