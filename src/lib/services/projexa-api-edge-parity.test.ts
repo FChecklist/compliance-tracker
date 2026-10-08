@@ -132,6 +132,9 @@ async function runEdge(c: Pick<Case, "name" | "method" | "path" | "body" | "raw_
  *  the edge does not clear anything, so that field is not part of what the edge answers. */
 const withoutRevalidated = ({ revalidated: _r, ...rest }: Outcome): Outcome => rest
 
+/** Routes with no Next handler (edge_only in projexa-api-routes.json): the recorded contract cannot cover them, describe("P6 ...") at the end of this file does. */
+const EDGE_ONLY_ROUTES = ["/api/org/internal-ai"]
+
 describe("projexa-api parity contract: the edge handler answers exactly what PROJEXA's Next pipeline answered (AUDIT-100 A2)", () => {
   test("the contract is the real one: more than 100 cases, every route of the function, every role", () => {
     expect(golden.cases.length).toBeGreaterThan(100)
@@ -140,7 +143,8 @@ describe("projexa-api parity contract: the edge handler answers exactly what PRO
       const segs = path.split("?")[0].split("/").filter(Boolean)
       return pat.length === segs.length && pat.every((p, i) => p.startsWith(":") || p === segs[i])
     }
-    for (const r of EDGE_ROUTES) for (const m of Object.keys(r.methods)) expect(golden.cases.some((c) => c.case.method === m && matches(r.route, c.case.path)), `${m} ${r.route}`).toBe(true)
+    // an edge_only route (projexa-api-routes.json: no Next handler to record from) is held by the hand-written describe below instead
+    for (const r of EDGE_ROUTES.filter((x) => !EDGE_ONLY_ROUTES.includes(x.route))) for (const m of Object.keys(r.methods)) expect(golden.cases.some((c) => c.case.method === m && matches(r.route, c.case.path)), `${m} ${r.route}`).toBe(true)
     for (const who of ["owner", "admin", "pm", "site_engineer", "member", "client_viewer", "signed_out", "no_org", "wrong_org"]) expect(golden.cases.some((c) => c.case.who === who)).toBe(true)
   })
 
@@ -390,5 +394,76 @@ describe("the two PROJEXA reads", () => {
     expect(await lookup(ORG)).toBe("k2")
     expect(await lookup("x' or 1=1")).toBeNull()
     expect(n).toBe(3)
+  })
+})
+
+// P6 / A2: /api/org/internal-ai is edge_only (the Vercel route was removed so the number of Vercel routes does not grow), so there is no Next
+// pipeline to record a contract from. These are the cases that contract would have held: the same role gate the Next handler had
+// (ROLE_GROUPS.ORG_ADMIN for the write, open read), the same refusal for a body without a boolean, the same single field sent upstream.
+describe("P6: /api/org/internal-ai on the function (edge_only): role gate and behaviour", () => {
+  const P = "/api/org/internal-ai"
+  const UP = "/internal-ai-allowance"
+  const state = { kind: "json", status: 200, body: { allowed: false, changedAt: null, changedById: null } } as const
+  const ALL = ["owner", "admin", "pm", "site_engineer", "member", "client_viewer"]
+  const put = (who: string, body: unknown, upstream: Upstream = state) => runEdge({ name: `PUT ${P} as ${who}`, method: "PUT", path: P, body, who, upstream })
+
+  test("it is one of the function's routes, with both methods", () => {
+    const r = EDGE_ROUTES.find((x) => x.route === P)!
+    expect(Object.keys(r.methods).sort()).toEqual(["GET", "PUT"])
+  })
+
+  for (const who of ALL) {
+    test(`GET as ${who}: any signed-in person of the organisation can read the state`, async () => {
+      const out = await runEdge({ name: "g", method: "GET", path: P, who, upstream: state })
+      expect(out.status).toBe(200)
+      expect(out.body).toEqual(state.body)
+      expect(out.upstream_calls).toHaveLength(1)
+      expect(out.upstream_calls[0]).toMatchObject({ method: "GET", path: UP })
+    })
+  }
+
+  for (const who of ["owner", "admin"]) {
+    test(`PUT as ${who}: allowed, sends only { allowed } upstream, as the acting person`, async () => {
+      const out = await put(who, { allowed: true, actorEmail: "someone@else.test", extra: 1 })
+      expect(out.status).toBe(200)
+      expect(out.upstream_calls).toHaveLength(1)
+      expect(out.upstream_calls[0]).toMatchObject({ method: "PUT", path: UP, body: { allowed: true }, acting_user: golden.identities[who].sub, acting_email: golden.identities[who].email })
+    })
+  }
+
+  test("PUT { allowed: false } is a real value, forwarded as false (an owner switching it OFF), not a missing field", async () => {
+    const out = await put("owner", { allowed: false })
+    expect(out.status).toBe(200)
+    expect(out.upstream_calls[0]).toMatchObject({ method: "PUT", path: UP, body: { allowed: false } })
+  })
+
+  for (const who of ["pm", "site_engineer", "member", "client_viewer"]) {
+    test(`PUT as ${who}: refused 403 and NOTHING is sent upstream`, async () => {
+      const out = await put(who, { allowed: true })
+      expect(out.status).toBe(403)
+      expect(out.upstream_calls).toHaveLength(0)
+    })
+  }
+
+  test("PUT signed out is 401, and with no organisation 400; nothing is sent upstream", async () => {
+    const a = await put("signed_out", { allowed: true })
+    expect([a.status, a.upstream_calls.length]).toEqual([401, 0])
+    const b = await put("no_org", { allowed: true })
+    expect([b.status, b.upstream_calls.length]).toEqual([400, 0])
+  })
+
+  test("PUT without a JSON object is refused 400 with the Next handler's sentence, nothing sent upstream", async () => {
+    for (const raw of ["null", "", "{not json"]) {
+      const out = await runEdge({ name: "raw", method: "PUT", path: P, raw_body: raw, who: "admin", upstream: state })
+      expect(out.status, raw).toBe(400)
+      expect(out.body).toEqual({ error: "allowed must be true or false." })
+      expect(out.upstream_calls).toHaveLength(0)
+    }
+  })
+
+  test("VERIDIAN's own refusal (its second role check) reaches the person with its message", async () => {
+    const out = await put("admin", { allowed: true }, { kind: "json", status: 403, body: { error: "Only an organisation owner or admin can change this" } })
+    expect(out.status).toBe(403)
+    expect(out.body).toMatchObject({ error: "Only an organisation owner or admin can change this" })
   })
 })
