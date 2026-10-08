@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner approved the 100% gap-closure plan (package P5, AI function coverage: update_drawing on the AI work link) and its Stage 2 'local + Supabase', in chat on 2026-10-08 ("Agreed on all three, start Stage 1, than stage 2 than stage 3"); additive, one registry row.
 -- P5 (AI function coverage, 2026-10-08): the registry seed with update_drawing (ai-os/audit37/AI_FUNCTION_COVERAGE_2026-10-08.md).
 -- NOT YET AUTHORIZED FOR LIVE APPLY: the generated block REVOKEs/GRANTs on the registry-version function, so scripts/check-ddl-authorization.mjs
 -- needs a PRE-APPROVED-LIVE-DDL citation from the owner on the first line of this file and of its down file. The engineer did not add one.

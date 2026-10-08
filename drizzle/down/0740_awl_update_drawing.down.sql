@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner approved the 100% gap-closure plan (package P5, AI function coverage: update_drawing on the AI work link) and its Stage 2 'local + Supabase', in chat on 2026-10-08 ("Agreed on all three, start Stage 1, than stage 2 than stage 3"); additive, one registry row.
 -- Down-migration for drizzle/0740_awl_update_drawing.sql. Convention: docs/ROLLBACK_RUNBOOK.md section 3. Not auto-applied.
 -- Needs the same owner PRE-APPROVED-LIVE-DDL citation as the forward file before it may run (REVOKE/GRANT below).
 -- WHAT IT RESTORES: the 0687 seed exactly (its generated block, copied verbatim): the update_drawing row is deleted and
