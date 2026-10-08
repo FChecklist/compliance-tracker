@@ -81,6 +81,35 @@ describe("GET /workspace: everything in one page for a user link", () => {
     expect(file.md).toBe(md)
   })
 
+  test("/workspace.txt: the file is word-for-word /workspace for every role and link kind (money hidden for a member, no create for a viewer, one project for a project link)", async () => {
+    for (const t of [TOKENS.userManager, TOKENS.userMember, TOKENS.userViewer, TOKENS.userOrgTwo, TOKENS.manager]) {
+      const s = setup()
+      const page = await s.text(`/${t}/workspace`)
+      const file = await s.text(`/${t}/workspace.txt`)
+      expect(file.r.status).toBe(200)
+      expect(file.r.headers.get("content-disposition")).toBe('attachment; filename="projexa-workspace.txt"')
+      expect(file.md).toBe(page.md)
+    }
+    for (const leaks of [false, true]) {
+      const { md } = await setup({ leaksMoney: leaks }).text(`/${TOKENS.userMember}/workspace.txt`)
+      expect(md).toContain('{"cost_impact":null,"redacted":true}')
+      expect(md).not.toContain("project_value")
+      expect(md).not.toContain("1000000")
+    }
+  })
+
+  test("/workspace.txt: an unknown, revoked or expired link is 410 with no document and no download header", async () => {
+    for (const t of [TOKENS.revoked, TOKENS.expired, TOKENS.unknown]) {
+      const { r, md } = await setup().text(`/${t}/workspace.txt`)
+      const page = await setup().text(`/${t}/workspace`)
+      expect(r.status).toBe(410)
+      expect(page.r.status).toBe(410)
+      expect(r.headers.get("content-disposition")).toBeNull()
+      expect(md).toBe(page.md)
+      expect(md).not.toContain("Everything in one page")
+    }
+  })
+
   test("money: a member's change orders carry null and redacted, no project value or BOQ total appears, even when SQL leaks money; the manager sees the values", async () => {
     for (const leaks of [false, true]) {
       const { md } = await setup({ leaksMoney: leaks }).text(`/${TOKENS.userMember}/workspace`)
