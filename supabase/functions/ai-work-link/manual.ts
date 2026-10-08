@@ -460,7 +460,7 @@ export const RECIPES: ReadonlyArray<{ area: number; text: string }> = [
   { area: 7, text: "People and materials: `add_roster_entry`, `update_roster_entry`, `record_attendance` or `record_attendance_batch`, `update_attendance`, `delete_attendance`; `create_material`, `record_material_receipt`, `record_material_issue`, `void_material_receipt`; cost reports `get_manpower_cost_report`, `get_material_cost_report`." },
   { area: 8, text: "Schedule: `create_schedule_task`, `update_task`, `archive_task`, `capture_schedule_baseline`, `compare_schedule_baseline`, `get_gantt_schedule`, `get_project_schedule`." },
   { area: 9, text: "Timesheets: `record_timesheet`, `update_time_entry`, `delete_time_entry`, `submit_timesheet`; managers use `approve_timesheet` and `reject_timesheet`; report: `get_designer_timesheet_report`." },
-  { area: 10, text: "Documents and meetings: after the person has uploaded the file, `create_document`, `create_permit`, `create_drawing` with its link; `update_document_metadata`, `update_permit`, `delete_permit`, `dispose_document`. Meetings: `create_meeting`, `create_mom`, `update_mom_minutes`, `publish_mom`, `delete_meeting`, `delete_mom`." },
+  { area: 10, text: "Documents and meetings: after the person has uploaded the file, `create_document`, `create_permit`, `create_drawing` with its link; `update_document_metadata`, `update_permit`, `delete_permit`, `update_drawing`, `dispose_document`. Meetings: `create_meeting`, `create_mom`, `update_mom_minutes`, `publish_mom`, `delete_meeting`, `delete_mom`." },
   { area: 11, text: "Projects: `update_project`, `archive_project`; create a new project exactly as the Start here line says." },
 ]
 

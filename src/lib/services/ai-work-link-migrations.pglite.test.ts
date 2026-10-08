@@ -374,7 +374,7 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
   // 0650 and 0643, then
   // 0628's own idempotent file), so the tests after this one see the state
   // they always saw.
-  test("the seeded rows, after 0644, 0643, 0650, 0647, 0648, 0649, 0651, 0669, 0685 and 0687, are exactly the generated JSON, row by row (the seed and the Edge Function's registry cannot differ)", async () => {
+  test("the seeded rows, after 0644, 0643, 0650, 0647, 0648, 0649, 0651, 0669, 0685, 0687 and 0738, are exactly the generated JSON, row by row (the seed and the Edge Function's registry cannot differ)", async () => {
     type FnJson = { function_id: string; product: string; kind: string; link_level: number | null; money_sensitive: boolean; min_role_rank: number; excluded_reason: string | null; text_params: string[] }
     type KindJson = { kind: string; money_columns: string[]; filters: unknown }
     const kindJson = JSON.parse(read("supabase/functions/ai-work-link/record-kinds.generated.json")) as KindJson[]
@@ -394,6 +394,8 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
     // lf-b5-ai-crud: the current seed is now 0687 (19 more). Its generated block only, for the same reason as 0685's: the rest of 0687 (the meeting
     // column and tombstone, the enum value, the impact read) is proven by ai-work-link-b5.pglite.test.ts on a base that has those tables.
     await db.exec(extractBlock(forwardSql("0687_awl_ai_crud_b5"))!)
+    // P5 (2026-10-08): the current seed is now 0738 (update_drawing). It is only a generated block.
+    await db.exec(forwardSql("0738_awl_update_drawing"))
     const fnJson = (JSON.parse(read("supabase/functions/ai-work-link/function-registry.generated.json")) as FnJson[]).map((f) => ({
       function_id: f.function_id, product: f.product, kind: f.kind, link_level: f.link_level, money_sensitive: f.money_sensitive, min_role_rank: f.min_role_rank, excluded_reason: f.excluded_reason, text_params: f.text_params,
     }))
@@ -403,8 +405,11 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
     expect(kindRows).toHaveLength(33)
     expect([...kindRows].sort((a, b) => (a.kind < b.kind ? -1 : 1))).toEqual([...kindJson].sort((a, b) => (a.kind < b.kind ? -1 : 1)))
     const version = (await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v
-    expect(read("drizzle/0687_awl_ai_crud_b5.sql")).toContain(`-- registry version ${version}`)
-    // back to the 0628 state: 0687's down file deletes exactly its 19 rows and puts 0685's hash back, then 0685's deletes its 27 and puts 0669's back
+    expect(read("drizzle/0738_awl_update_drawing.sql")).toContain(`-- registry version ${version}`)
+    // back to the 0628 state: 0738's down file puts 0687's block back (159 rows, 0687's hash), then 0687's down file deletes exactly its 19 rows and puts 0685's hash back, then 0685's deletes its 27 and puts 0669's back
+    await db.exec(downSql("0738_awl_update_drawing"))
+    expect((await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_functions")).n).toBe(159)
+    expect(read("drizzle/0687_awl_ai_crud_b5.sql")).toContain(`-- registry version ${(await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v}`)
     await db.exec(downSql("0687_awl_ai_crud_b5"))
     expect((await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_functions")).n).toBe(140)
     expect((await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v).toBe("1ebba97f7025068298c0f1a5b466e35c30f35ef8b1350ff3b174ad71d1f54763")

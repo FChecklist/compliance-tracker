@@ -255,6 +255,7 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   remove_mood_board_item: { moodBoardId: "<id of a mood board of this project>", itemId: "<item id of that mood board>" },
   update_permit: { permitId: "<id from records/permits>", expiryDate: "2027-05-01", notes: "Renewed for one year" },
   delete_permit: { permitId: "<id from records/permits>" },
+  update_drawing: { drawingId: "<id from records/drawings>", name: "GF plan rev C", discipline: "architectural", category: "drawing" },
   archive_project: { status: "cancelled" },
   // lf-b5-ai-crud: the eight edits/deletes that had no service, and the organisation masters (a record of the organisation, not of the project).
   update_activity: { activityId: "<id from records/activities>", name: "Door frames, ground floor", plannedQuantity: 24 },
