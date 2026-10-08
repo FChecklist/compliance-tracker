@@ -5243,6 +5243,7 @@
       "remarks"
     ],
     "declared_params": [
+      "activityId",
       "boqLineItemId",
       "entryDate",
       "itemCode",
@@ -5277,6 +5278,7 @@
       }
     ],
     "id_params": [
+      "activityId",
       "boqLineItemId"
     ],
     "fields": [
@@ -5306,7 +5308,9 @@
         "required": false
       }
     ],
-    "optional_params": []
+    "optional_params": [
+      "activityId"
+    ]
   },
   {
     "function_id": "reject_progress_claim",

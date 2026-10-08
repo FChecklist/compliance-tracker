@@ -164,6 +164,8 @@ const BASE_SPECS: readonly FunctionSpec[] = [
       // reach the same column.
       { name: "percent", label: "Percent complete", code: "VALUE_REQUIRED", alsoSatisfiedBy: ["quantityDone"] },
     ],
+    // P2b: the activity the entry is recorded against; absent keeps the old behaviour (the project's first activity).
+    optionalParams: ["activityId"],
     card: {
       fields: [
         { key: "itemCode", label: "BOQ line", type: "select", required: true, picker: "boq-line" },

@@ -257,7 +257,7 @@ describe("exactly the spec's 10 functions, the five BUILD-002 adds and the 78 of
       "drawingDocumentId", "entryId", "evidenceDocumentId", "ffeItemId", "floorPlanId", "fromCurrencyId", "issueId", "itemId", "kpiDefinitionId", "lineItemId", "materialId", "meetingId", "milestoneId", "moodBoardId", "pageId", "parentBoqId", "parentCategoryId",
       "parentCompanyId", "parentPageId", "permitId", "placementId", "predecessorId", "productId", "progressEntryId", "receiptId", "rfiId", "roomId", "rosterId", "sourceChangeOrderId", "sprintId", "statusId", "submittalId", "timeEntryId", "toCurrencyId", "typeId", "vendorId",
     ])
-    expect(on.find((r) => r.function_id === "record_work_progress")!.id_params).toEqual(["boqLineItemId"])
+    expect(on.find((r) => r.function_id === "record_work_progress")!.id_params).toEqual(["activityId", "boqLineItemId"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params.map((p) => p.name)).toEqual(["projectId", "itemCode", "percent"])
     expect(on.find((r) => r.function_id === "record_work_progress")!.required_params[1].any_of).toEqual(["itemCode", "boqLineItemId"])
   })

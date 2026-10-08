@@ -211,6 +211,7 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
   // converted below, once the line (and therefore its total quantity) is
   // known -- it cannot be converted before the read.
   const quantityDone = num(task.params.quantityDone);
+  const chosenActivityId = str(task.params.activityId);
   const projectId = task.projectId ?? str(task.params.projectId) ?? null;
   if (!itemCode && !boqLineItemId) return { success: false, failure: pipelineFailure("BOQ_LINE_REQUIRED", ["boqLine"]) };
   if (typeof percent !== "number" && quantityDone === undefined) {
@@ -339,9 +340,18 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     // changes only the last step: a project that genuinely has none used to
     // fail with ACTIVITY_REQUIRED; it now gets one default activity, made
     // below by executors/activity.ts through the existing service.
-    const activity = await db.query.constructionActivities.findFirst({
-      where: and(eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
-    });
+    // P2b: a caller-chosen activityId is honoured only when it is an activity of THIS project and org; anything else reads as absent
+    // (RECORD_NOT_FOUND, the failure a boqId of another project gets). Absent: the project's first activity, exactly as before.
+    const activity = chosenActivityId
+      ? await db.query.constructionActivities.findFirst({
+          where: and(eq(constructionActivities.id, chosenActivityId), eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
+        })
+      : await db.query.constructionActivities.findFirst({
+          where: and(eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
+        });
+    if (chosenActivityId && !activity) {
+      return { ok: false, failure: pipelineFailure("RECORD_NOT_FOUND", ["activityId"]) };
+    }
     // BUILD-002 WP-07: no activity used to end the task with ACTIVITY_REQUIRED, and no function an AI could
     // call made one. The default activity is created after this transaction closes (below), through the
     // same service PROJEXA's own screens use, rather than refusing a project that has just been set up.
