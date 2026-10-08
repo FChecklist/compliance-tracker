@@ -153,6 +153,15 @@ describe("error branches a laptop depends on (tests-quality:F09)", () => {
     }
   })
 
+  test("the manifest carries the organisation's internal_ai flag through, only as a real boolean (absent otherwise)", async () => {
+    const ok = (extra: J) => fakeDb({ projexa_sync_manifest: async () => ({ data: { status: "ok", user: { id: "u1", org_id: "org-a" }, projects: [], kinds: [], view_class: "vc-member", org_view_class: "ovc-member", ...extra }, error: null }) })
+    expect(((await (await call(deps(ok({ internal_ai: true }).rpc), "manifest")).json()) as J).internal_ai).toBe(true)
+    expect(((await (await call(deps(ok({ internal_ai: false }).rpc), "manifest")).json()) as J).internal_ai).toBe(false)
+    for (const bad of [{}, { internal_ai: "true" }, { internal_ai: 1 }, { internal_ai: null }]) {
+      expect("internal_ai" in ((await (await call(deps(ok(bad).rpc), "manifest")).json()) as J)).toBe(false)
+    }
+  })
+
   test("an SQL error is a closed 500 (no relation name, no message); a thrown RPC is 503 with no address", async () => {
     const { rpc } = fakeDb({ projexa_sync_manifest: async () => ({ data: null, error: { message: "relation platform.secret does not exist", code: "42P01" } }) })
     const r = await call(deps(rpc), "manifest")

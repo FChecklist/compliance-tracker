@@ -70,6 +70,11 @@ const uploadDeps = {
     const { data, error } = await veridianDb.rpc("projexa_upload_sign_reserve", { p_org: orgId, p_limit: limit })
     return error || typeof data !== "boolean" ? ({ ok: false } as const) : ({ ok: true, allowed: data } as const)
   },
+  orgUsage: async (orgId: string) => {
+    const { data, error } = await veridianDb.rpc("projexa_org_storage_used", { p_org: orgId })
+    const n = typeof data === "string" ? Number(data) : data
+    return error || typeof n !== "number" || !Number.isFinite(n) || n < 0 ? ({ ok: false } as const) : ({ ok: true, bytes: n } as const)
+  },
   sign: async (objectPath: string) => {
     const { data, error } = await veridianDb.storage.from(UPLOAD_BUCKET).createSignedUploadUrl(objectPath)
     return error || !data?.signedUrl ? ({ ok: false } as const) : ({ ok: true, signedUrl: data.signedUrl } as const)

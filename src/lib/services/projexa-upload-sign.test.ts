@@ -129,3 +129,43 @@ describe("POST /uploads/sign", () => {
     expect((await handleUploadSign(new Request(URL_, { method: "OPTIONS", headers: { origin: "http://localhost:3100" } }), deps())).status).toBe(204)
   })
 })
+
+describe("per-organisation storage cap (100 MB)", () => {
+  const withUsage = (bytes: number | "fail", o: Parameters<typeof deps>[0] = {}): UploadSignDeps => ({
+    ...deps(o),
+    orgUsage: async () => (bytes === "fail" ? { ok: false } : { ok: true, bytes }),
+  })
+  test("under the cap -> 200; exactly at the cap -> 200", async () => {
+    expect((await handleUploadSign(post(good), withUsage(0))).status).toBe(200)
+    expect((await handleUploadSign(post(good), withUsage(104857600 - 1234))).status).toBe(200)
+  })
+  test("over the cap -> 413 ORG_QUOTA with plain words; nothing signed, no rate slot used", async () => {
+    const signed: string[] = []
+    const reserved: { org: string; limit: number }[] = []
+    const res = await handleUploadSign(post(good), withUsage(104857600 - 1233, { signed, reserved }))
+    expect(res.status).toBe(413)
+    const j = await res.json()
+    expect(j.code).toBe("ORG_QUOTA")
+    expect(j.error).toContain("100 MB")
+    expect(j.orgQuotaBytes).toBe(104857600)
+    expect(signed).toEqual([])
+    expect(reserved).toEqual([])
+  })
+  test("usage lookup failing -> 503 retryable, never silently skipped", async () => {
+    const res = await handleUploadSign(post(good), withUsage("fail"))
+    expect(res.status).toBe(503)
+    expect(res.headers.get("retry-after")).toBeTruthy()
+  })
+  test("the lookup is asked for the caller's membership org only", async () => {
+    const asked: string[] = []
+    await handleUploadSign(post({ ...good, orgId: ORG_B }), { ...deps({ org: ORG_A }), orgUsage: async (o) => (asked.push(o), { ok: true, bytes: 0 }) })
+    expect(asked).toEqual([ORG_A])
+  })
+  test("existing refusals keep their order: 413 file too large and 415 come before the cap lookup", async () => {
+    const asked: string[] = []
+    const d = { ...deps(), orgUsage: async (o: string) => (asked.push(o), { ok: true as const, bytes: 0 }) }
+    expect((await handleUploadSign(post({ ...good, size: 52428801 }), d)).status).toBe(413)
+    expect((await handleUploadSign(post({ ...good, contentType: "text/html" }), d)).status).toBe(415)
+    expect(asked).toEqual([])
+  })
+})

@@ -3802,6 +3802,20 @@
       "when": 1790700017000,
       "tag": "0737_projexa_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 545,
+      "version": "7",
+      "when": 1790700018000,
+      "tag": "0738_projexa_org_storage_used",
+      "breakpoints": true
+    },
+    {
+      "idx": 546,
+      "version": "7",
+      "when": 1790700019000,
+      "tag": "0739_projexa_sync_manifest_internal_ai",
+      "breakpoints": true
     }
   ]
 }

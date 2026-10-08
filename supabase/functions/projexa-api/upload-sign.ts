@@ -16,6 +16,8 @@ export const UPLOAD_BUCKET = "projexa-files"
 export const UPLOAD_MAX_FILE_BYTES = 52_428_800
 export const UPLOAD_ORG_SIGNS_PER_HOUR = 200
 export const UPLOAD_URL_TTL_SECONDS = 7200
+/** Per-organisation total of stored bytes (Supabase Free Storage is 1 GB for the whole project, about 10 orgs). */
+export const UPLOAD_ORG_QUOTA_BYTES = 104_857_600
 export const FILE_NAME_MAX = 120
 export const UPLOAD_KINDS = ["permit", "drawing", "document"] as const
 export const ALLOWED_CONTENT_TYPES: ReadonlySet<string> = new Set([
@@ -35,6 +37,8 @@ export type UploadSignDeps = {
   membership: MembershipLookup
   /** Counts the org's signs in the last hour and records this one when under `limit` (public.projexa_upload_sign_reserve). */
   reserve: (orgId: string, limit: number) => Promise<{ ok: true; allowed: boolean } | { ok: false }>
+  /** Bytes already stored under the org folder of the bucket (public.projexa_org_storage_used). Required in production; a failure answers 503 so the cap is never skipped. */
+  orgUsage?: (orgId: string) => Promise<{ ok: true; bytes: number } | { ok: false }>
   /** Storage createSignedUploadUrl on the service role, for an object path inside the bucket. */
   sign: (objectPath: string) => Promise<SignedUpload>
   /** Public URL of an object path. */
@@ -130,6 +134,25 @@ export async function handleUploadSign(req: Request, deps: UploadSignDeps): Prom
   if (size > UPLOAD_MAX_FILE_BYTES) return json(req, deps, 413, { error: "File too large", maxBytes: UPLOAD_MAX_FILE_BYTES })
   const ct = contentType.split(";")[0].trim().toLowerCase()
   if (!ALLOWED_CONTENT_TYPES.has(ct)) return json(req, deps, 415, { error: "File type not allowed" })
+
+  // Per-organisation storage cap (100 MB). Checked before the hourly reserve so a refused request does not use up a rate-limit slot.
+  if (deps.orgUsage) {
+    let used: Awaited<ReturnType<NonNullable<UploadSignDeps["orgUsage"]>>>
+    try {
+      used = await deps.orgUsage(orgId)
+    } catch {
+      used = { ok: false }
+    }
+    if (!used.ok) return json(req, deps, 503, { error: "Could not prepare the upload just now, please retry" }, { "Retry-After": String(RETRY_AFTER_SECONDS) })
+    if (used.bytes + size > UPLOAD_ORG_QUOTA_BYTES) {
+      return json(req, deps, 413, {
+        error: "Your organisation has used its 100 MB of file storage. Remove old files or ask your administrator to raise the limit.",
+        code: "ORG_QUOTA",
+        orgQuotaBytes: UPLOAD_ORG_QUOTA_BYTES,
+        usedBytes: used.bytes,
+      })
+    }
+  }
 
   let reserved: Awaited<ReturnType<UploadSignDeps["reserve"]>>
   try {

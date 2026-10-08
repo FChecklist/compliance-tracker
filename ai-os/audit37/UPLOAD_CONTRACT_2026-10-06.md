@@ -37,6 +37,7 @@ Client: `PUT uploadUrl` with exactly `headers` and the raw file bytes as body (S
 | 400 | `{"error":"No organization"}` | no membership | stop |
 | 403 | `{"error":"Forbidden"}` | read-only role (client_viewer) | stop |
 | 413 | `{"error":"File too large","maxBytes":52428800}` | size > 50 MB | stop, do not retry |
+| 413 | `{"error":"Your organisation has used its 100 MB of file storage. ...","code":"ORG_QUOTA","orgQuotaBytes":104857600,"usedBytes":N}` | the organisation would go over 100 MB stored in total (added 2026-10-08, migration 0738) | stop, do not retry; remove old files or raise the limit |
 | 415 | `{"error":"File type not allowed"}` | content type not in the allow-list | stop |
 | 422 | `{"error":"..."}` | bad body (kind, projectId, fileName, contentType, size) | fix |
 | 429 | `{"error":"Too many uploads this hour"}` + `Retry-After: 300` | org signed > 200 in the last hour | back off |
@@ -63,5 +64,5 @@ select bucket_id, count(*) files, pg_size_pretty(sum((metadata->>'size')::bigint
        round(100.0 * sum((metadata->>'size')::bigint) / 1073741824, 1) as pct_of_1gb
 from storage.objects group by rollup (bucket_id);
 ```
-Proposed per-org cap (NOT implemented, needs your yes): 100 MB per organisation (about 10 orgs fill 1 GB). Enforcement would be a sum over `storage.objects` with the org prefix inside `/uploads/sign` (413-style refusal `ORG_QUOTA`). Alternative: accept Pro ($25/month, 100 GB) before real customers upload.
+Per-org cap: IMPLEMENTED 2026-10-08 (PM package P9): 100 MB per organisation, counted from `storage.objects` under `<orgId>/` by `public.projexa_org_storage_used` (drizzle/0738), checked in `/uploads/sign` before the hourly rate slot is taken; refusal is the 413 `ORG_QUOTA` row above; a failed lookup is a retryable 503 (the cap is never skipped). A signed-but-not-yet-uploaded file counts only once it lands. Alternative still open: accept Pro ($25/month, 100 GB) before real customers upload.
 Also note: deleting a record in PROJEXA does not delete the file (public permanent link); a cleanup job is a later decision.

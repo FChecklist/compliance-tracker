@@ -320,6 +320,8 @@ async function manifest(req: Request, deps: SyncDeps, who: Who, now: Date): Prom
     view_class: typeof r.data.view_class === "string" ? r.data.view_class : null,
     org_kinds: Array.isArray(r.data.org_kinds) ? (r.data.org_kinds as Array<Record<string, unknown>>).filter((k) => isOrgKind(k.kind)) : [],
     org_view_class: typeof r.data.org_view_class === "string" ? r.data.org_view_class : null,
+    // the per-organisation internal-AI allow flag (drizzle/0739): passed through only as a real boolean, absent otherwise (the laptop treats absent as off)
+    ...(typeof r.data.internal_ai === "boolean" ? { internal_ai: r.data.internal_ai } : {}),
     release: { current: (rel?.current?.release_version as string | undefined) ?? null, min_compatible: rel?.min_compatible || null, protocol: SERVER_PROTOCOL },
     server_time: now.toISOString(),
   })
