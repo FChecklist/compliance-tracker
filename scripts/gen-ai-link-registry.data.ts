@@ -249,6 +249,8 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   // The app has no route that changes a project's status, so archive_project asks for the manager rank and is always a draft by default.
   update_permit: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "permitNumber", "permitAuthority", "notes"] },
   delete_permit: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  // P5 (2026-10-08): the drawing edit of PATCH /api/v1/projexa/drawings/{id} (name, discipline, drawing/3D); member rank like the route, direct like update_permit
+  update_drawing: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "discipline"] },
   archive_project: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
 }
 
