@@ -30,6 +30,8 @@ export type SyncDeps = {
   publicKeys?: () => Promise<PublicKeyInfo[]>
   /** per-person organisation (and view class) memory for signing a pull (one manifest call a minute at most) */
   orgCache?: Map<string, { org: string; exp: number; view?: string; orgView?: string }>
+  /** PX_RELEASE_ORIGIN: where release bytes are served from (see releaseOriginOf). Absent = RELEASE_ORIGIN. */
+  releaseOrigin?: string
   /** fetch used to read the owner-published release manifest (tests inject a fake); defaults to the global fetch */
   fetchImpl?: typeof fetch
   /** five-minute memory of the registry's current release, shared by every request of the isolate */
@@ -95,6 +97,24 @@ export const JOB_BODY_MAX_BYTES_BY_ACTION: Readonly<Record<string, number>> = { 
 export const PULL_BODY_MAX_BYTES = 16_384
 export const RELEASE_ORIGIN = "https://projexa-ai.com"
 export const RELEASE_MANIFEST_URL = `${RELEASE_ORIGIN}/_release/release.json`
+/**
+ * Where the release BYTES are served from (RELEASE_DISTRIBUTION_2026-10-06.md, P4): the owner's choice, set as the PX_RELEASE_ORIGIN secret of this function
+ * (for example the public Supabase Storage bucket `projexa-release`). Absent or not a plain https URL = the default above. The registry reads the manifest
+ * from here and tells every laptop the same base in /release/current (`origin`), so one setting moves both. The origin is only ever WHERE bytes come from:
+ * a laptop still checks the manifest digest, the release signature (pinned keys) and every file hash, so a wrong origin can withhold an update, never
+ * change what is installed.
+ */
+export function releaseOriginOf(configured: string | null | undefined): string {
+  const raw = typeof configured === "string" ? configured.trim().replace(/\/+$/, "") : ""
+  if (!raw) return RELEASE_ORIGIN
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash) return RELEASE_ORIGIN
+    return `${u.origin}${u.pathname.replace(/\/+$/, "")}`
+  } catch {
+    return RELEASE_ORIGIN
+  }
+}
 export const RELEASE_MANIFEST_MAX_BYTES = 2_000_000
 // the gate and the manifest need only version and floor; each refresh reads the release row from the database, so five minutes, not one (review D1 F7)
 export const RELEASE_TTL_MS = 300_000
@@ -717,7 +737,7 @@ async function releaseCurrent(req: Request, deps: SyncDeps, now: Date): Promise<
   const reportsRelease = clientRelease !== null && /^\d{4}\.\d{2}\.\d{2}-\d{3}$/.test(clientRelease)
   const currentVersion = current && typeof (current as Record<string, unknown>).release_version === "string" ? ((current as Record<string, unknown>).release_version as string) : null
   const registered = rel.registered && (!reportsRelease || clientRelease === currentVersion)
-  return respond(req, deps, 200, { registered, current, min_compatible: rel.min_compatible || null, protocol: SERVER_PROTOCOL, server_time: now.toISOString() })
+  return respond(req, deps, 200, { registered, current, min_compatible: rel.min_compatible || null, protocol: SERVER_PROTOCOL, origin: releaseOriginOf(deps.releaseOrigin), server_time: now.toISOString() })
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -808,7 +828,7 @@ async function releaseRegisterOnce(deps: SyncDeps, now: Date): Promise<{ status:
   const doFetch = deps.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   let text: string | null
   try {
-    const res = await doFetch(RELEASE_MANIFEST_URL, { redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000), headers: { accept: "application/json" } })
+    const res = await doFetch(`${releaseOriginOf(deps.releaseOrigin)}/_release/release.json`, { redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000), headers: { accept: "application/json" } })
     if (!res.ok) {
       await res.body?.cancel().catch(() => {})
       return answer(502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
