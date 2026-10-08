@@ -2395,6 +2395,27 @@ const BASE_SPECS: readonly FunctionSpec[] = [
       primaryLabel: "Save permit",
     },
   },
+  // P5 (2026-10-08, ai-os/audit37/AI_FUNCTION_COVERAGE_2026-10-08.md): the drawing edit PATCH /api/v1/projexa/drawings/{id} already offers
+  {
+    functionId: "update_drawing",
+    label: "Change a drawing",
+    module: "drawings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "drawingId", label: "Drawing", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: false },
+        { key: "discipline", label: "Discipline", type: "text", required: false },
+        { key: "category", label: "Drawing or 3D", type: "select", required: false },
+      ],
+      primaryLabel: "Save drawing",
+    },
+  },
   {
     functionId: "delete_permit",
     label: "Delete a permit",

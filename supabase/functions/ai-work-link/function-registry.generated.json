@@ -6657,6 +6657,68 @@
     "optional_params": []
   },
   {
+    "function_id": "update_drawing",
+    "label": "Change a drawing",
+    "module": "drawings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "discipline"
+    ],
+    "declared_params": [
+      "category",
+      "discipline",
+      "drawingId",
+      "name",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "drawingId",
+        "label": "Drawing",
+        "any_of": [
+          "drawingId"
+        ]
+      }
+    ],
+    "id_params": [
+      "drawingId"
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "discipline",
+        "label": "Discipline",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "category",
+        "label": "Drawing or 3D",
+        "type": "select",
+        "required": false
+      }
+    ],
+    "optional_params": []
+  },
+  {
     "function_id": "update_ffe_status",
     "label": "Change an FF&E item's status",
     "module": "interior",
