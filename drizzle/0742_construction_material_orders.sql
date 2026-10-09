@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat on 2026-10-10 ("go ahead and build create_material_order"; "apply 0742 and 0743 after CI passes"), within the approved 111-requirements completion plan (M-ORDER).
 -- WHAT: adds compliance.construction_material_orders, the purchase-order side of the site materials ledger (create_material_order, M-ORDER).
 --   An order says "this much of this material is expected on this date"; receipts (construction_material_receipts) are what actually arrived.
 --   Closes EXC-ITEM-18 (material ordered without a BOQ line: boq_line_item_id is nullable on purpose and is what the exception check reads)

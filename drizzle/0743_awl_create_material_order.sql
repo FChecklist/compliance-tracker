@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat on 2026-10-10 ("go ahead and build create_material_order"; "apply 0742 and 0743 after CI passes"), within the approved 111-requirements completion plan (M-ORDER).
 -- WHAT: the registry seed with create_material_order on the AI work link (level 2 write, member rank 2, not money; reference and notes are free text).
 --   Needs drizzle/0742_construction_material_orders.sql applied first (the table the function writes to).
 --   1. platform.ai_work_link_functions gets one row, create_material_order.

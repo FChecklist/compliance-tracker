@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat on 2026-10-10 ("go ahead and build create_material_order"; "apply 0742 and 0743 after CI passes"), within the approved 111-requirements completion plan (M-ORDER).
 -- Down-migration for drizzle/0743_awl_create_material_order.sql. Convention: docs/ROLLBACK_RUNBOOK.md section 3. Not auto-applied.
 -- WHAT IT RESTORES: the 0741 seed exactly (its generated block, copied verbatim): the create_material_order row is deleted and public.ai_work_link__registry_version() returns the 0741 value.
 
