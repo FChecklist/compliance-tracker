@@ -35,7 +35,7 @@ Requirement to AI function table (plan item P5). Source: platform.sumeet_require
 | R-45 | Parent % complete = cum amount / total amount | SERVER-RULE | get_construction_project_dashboard | Server roll-up. |
 | R-46 | Progress recorded twice keeps history and does not double count | SERVER-RULE | record_work_progress, delete_progress_entry | History kept server-side; delete_progress_entry for corrections. |
 | R-47 | Progress above 100% rejected or capped | SERVER-RULE | record_work_progress | Server rejects or caps. |
-| R-48 | Daily progress report with photos | MISSING | get_daily_progress_report | Report read exists; attaching photos has no function (M-PHOTO). |
+| R-48 | Daily progress report with photos | UI-ONLY | get_daily_progress_report | Report read exists; attaching photos has no function (M-PHOTO). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | R-50 | R-50 (EXPANDED per D91, claude_log id 375): the system maintains an INTERNAL view and a CU | AI-COVERED | get_construction_project_dashboard, get_project_analysis | Internal and customer views come from the dual-view service; AI reads the dashboard. |
 | R-51 | Dashboard earned value matches progress | AI-COVERED | get_construction_project_dashboard | - |
 | R-52 | Only the LATEST revision is counted | SERVER-RULE | get_construction_project_dashboard | Latest-revision rule is server-side. |
@@ -74,40 +74,40 @@ Requirement to AI function table (plan item P5). Source: platform.sumeet_require
 | R-C14 | Upload site instruction form | AI-COVERED | create_site_instruction | - |
 | R-C15 | Save reports as PDF and share to WhatsApp | UI-ONLY | - | PDF export and WhatsApp share are browser actions. |
 | R-C16 | CRR (Capture / Recall / Reuse): a generic backend capability. CAPTURE -- any artefact from | MISSING | capture_artifact | Capture exists; recall has no function (M-RECALL). |
-| R-C17 | Owner-initiated 2026-09-13 (not from Sumeet's original spec -- tracked in this register at | MISSING | - | No email function (M-EMAIL). |
+| R-C17 | Owner-initiated 2026-09-13 (not from Sumeet's original spec -- tracked in this register at | OWNER-INFRA | - | No email function (M-EMAIL). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | R-92 | Left rail and right pane must stay in sync both ways: (1) pressing any left-rail button/mo | UI-ONLY | - | Left-right sync is UI. |
 | R-93 | BOQ must track 4 variables: CONTRACT VALUE (unit numbers + unit price in contract value) a | AI-COVERED | update_project, update_boq_line_amounts, get_boq_line_items | Contract and project value fields. |
 | R-94 | A project must show TIMELINES and MILESTONES as two different things, both usable in the U | AI-COVERED | list_milestones, create_milestone, update_milestone, get_project_schedule | Timelines are the schedule; milestones are separate. |
 | R-95 | Billing milestones must be a real, usable feature -- not just visible as a count. Owner di | AI-COVERED | create_progress_claim, draft_progress_claim, submit_progress_claim, list_billing_claims, get_billing_due_queue | - |
-| R-96 | Scope of work in a project must be a real, usable concept in PROJEXA. Owner directive 2026 | MISSING | - | No scope-of-work function exists (M-SCOPE). |
+| R-96 | Scope of work in a project must be a real, usable concept in PROJEXA. Owner directive 2026 | AI-COVERED | - | No scope-of-work function exists (M-SCOPE). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | R-97 | Change of scope of work in a project must work end-to-end. Owner directive 2026-09-18, Sum | AI-COVERED | create_change_order, update_change_order, submit_change_order_for_approval, cancel_change_order, list_change_orders, get_change_order | - |
 | R-98 | BOQ must change/track when scope of work changes. Owner directive 2026-09-18, Sumeet requi | AI-COVERED | create_change_order, create_boq_revision, compare_boq_revisions | BOQ change follows a change order. |
 | R-99 | For a project: one combined analysis view over change of BOQ, change of scope, billing, mi | AI-COVERED | get_project_analysis, compare_boq_revisions, list_change_orders, list_billing_claims, list_milestones | - |
 | R-100 | Profit and loss analysis for the project. Owner directive 2026-09-18, Sumeet requirement ( | AI-COVERED | get_project_analysis, run_named_report | Profit and loss read. |
 | EXC-ITEM-01 | Extra work is done, never captured | AI-COVERED | get_project_exceptions, create_change_order | Detect then capture. |
 | EXC-ITEM-02 | Extra work is done, never billed | AI-COVERED | get_billing_due_queue, create_progress_claim | - |
-| EXC-ITEM-03 | Site builds from the drawing but not confirmed | MISSING | get_project_exceptions, update_drawing | Needs list_drawings (M-DRAWINGS). |
-| EXC-ITEM-04 | Site builds from the old drawing | MISSING | get_project_exceptions, update_drawing | Needs list_drawings (M-DRAWINGS). |
-| EXC-ITEM-05 | Approvals stuck | MISSING | get_project_exceptions, answer_rfi, close_rfi, review_submittal | Needs list_rfis (M-RFIS). |
+| EXC-ITEM-03 | Site builds from the drawing but not confirmed | AI-COVERED | get_project_exceptions, update_drawing | Needs list_drawings (M-DRAWINGS). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
+| EXC-ITEM-04 | Site builds from the old drawing | AI-COVERED | get_project_exceptions, update_drawing | Needs list_drawings (M-DRAWINGS). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
+| EXC-ITEM-05 | Approvals stuck | AI-COVERED | get_project_exceptions, answer_rfi, close_rfi, review_submittal | Needs list_rfis (M-RFIS). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | EXC-ITEM-06 | Wrong approval given | AI-COVERED | get_project_exceptions, compare_boq_revisions | - |
 | EXC-ITEM-07 | Work without approval happened | AI-COVERED | get_project_exceptions | - |
 | EXC-ITEM-08 | Work happened not captured | AI-COVERED | get_project_exceptions, record_work_progress | - |
 | EXC-ITEM-09 | Work happened not billed | AI-COVERED | get_billing_due_queue, create_progress_claim | - |
 | EXC-ITEM-10 | Work disputed with vendor | AI-COVERED | record_vendor_dispute | - |
-| EXC-ITEM-11 | Work disputed by customer | MISSING | record_customer_complaint | No customer-dispute function (M-CUSTDISPUTE). |
+| EXC-ITEM-11 | Work disputed by customer | AI-COVERED | record_customer_complaint | No customer-dispute function (M-CUSTDISPUTE). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | EXC-ITEM-12 | Customer complained | AI-COVERED | record_customer_complaint | - |
-| EXC-ITEM-13 | New SCOPE OF WORK decided | MISSING | create_change_order | Scope register missing (M-SCOPE). |
+| EXC-ITEM-13 | New SCOPE OF WORK decided | AI-COVERED | create_change_order | Scope register missing (M-SCOPE). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | EXC-ITEM-14 | New BOQ decided | AI-COVERED | create_boq, create_boq_revision | - |
-| EXC-ITEM-15 | Approval from customer on new SCOPE OF WORK | MISSING | record_customer_approval | Approval on BOQ exists; scope approval needs M-SCOPE. |
+| EXC-ITEM-15 | Approval from customer on new SCOPE OF WORK | AI-COVERED | record_customer_approval | Approval on BOQ exists; scope approval needs M-SCOPE. | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | EXC-ITEM-16 | Approval from customer on new BOQ | AI-COVERED | record_customer_approval, submit_boq_for_approval | - |
-| EXC-ITEM-17 | Approvals given without comparing SCOPE OF WORK AND BOQ | MISSING | compare_boq_revisions, get_project_exceptions | Scope side of the comparison missing (M-SCOPE). |
+| EXC-ITEM-17 | Approvals given without comparing SCOPE OF WORK AND BOQ | AI-COVERED | compare_boq_revisions, get_project_exceptions | Scope side of the comparison missing (M-SCOPE). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | EXC-ITEM-18 | Material ordered WITHOUT SCOPE OF WORK AND BOQ | MISSING | get_project_exceptions | No material order function (M-ORDER). |
 | EXC-ITEM-19 | Material ordered twice, or late | MISSING | record_material_receipt | No material order function (M-ORDER). |
 | EXC-ITEM-20 | The daily report never arrives | AI-COVERED | get_daily_progress_report, get_project_exceptions | - |
 | EXC-ITEM-21 | Manpower on paper, payroll disputes | AI-COVERED | get_manpower_cost_report, record_attendance, update_attendance | - |
 | EXC-ITEM-22 | Multiple versions of the BOQ -- which one is final, which is worked upon | AI-COVERED | compare_boq_revisions, get_boq_line_items | - |
 | EXC-ITEM-23 | Subcontractor invoices don't match the work | AI-COVERED | get_project_budget_variance, get_manpower_cost_report, get_project_exceptions | - |
-| EXC-ITEM-24 | Snags lost, retention held | MISSING | mark_punch_item_ready, verify_punch_item_closed | Needs list_punch_list_items (M-PUNCH). |
+| EXC-ITEM-24 | Snags lost, retention held | AI-COVERED | mark_punch_item_ready, verify_punch_item_closed | Needs list_punch_list_items (M-PUNCH). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | EXC-ITEM-25 | The user decides from memory | AI-COVERED | get_project_exceptions, get_project_analysis | AI answers from data. |
 | EXC-ITEM-26 | The user forgets | AI-COVERED | get_project_exceptions, get_billing_due_queue | Overdue items surfaced by exceptions. |
 | EXC-ITEM-27 | The user doesn't remember | MISSING | capture_artifact | Recall missing (M-RECALL). |
@@ -116,22 +116,15 @@ Requirement to AI function table (plan item P5). Source: platform.sumeet_require
 | EXC-ITEM-30 | The software should have proper engine, wiring, logic, calculation for all above (META) | SERVER-RULE | - | Meta; engine and calculations are server code. |
 | EXC-ITEM-31 | PROJEXA-AI.COM should be able to capture, analyze, fix all of these as software for every  | SERVER-RULE | get_project_exceptions, get_project_analysis | Meta; the work link itself. |
 
-Counts: AI-COVERED 53, UI-ONLY 10, SERVER-RULE 24, OWNER-INFRA 9, MISSING 15
+Counts (rechecked 2026-10-09): AI-COVERED 62, UI-ONLY 11, SERVER-RULE 24, OWNER-INFRA 10, MISSING 4
 
-## Missing functions
+## Missing functions (real gaps after the recheck)
 
-Services checked by ls under src/lib/services unless stated.
+The first draft listed 11. Seven were not gaps: list_drawings / list_rfis / list_punch_list_items / list_permits / list_documents are served by the generic run_read over the record kinds drawings, rfis, punch_list, permits, documents (record-kinds.generated.json); record_customer_dispute is record_customer_complaint; the scope-item set is the BOQ (R-96, by design); photos and outbound mail stay with the person / owner policy.
 
-| tag | proposed function | kind | params | backing service |
-|---|---|---|---|---|
-| M-PHOTO | attach_progress_photo | write L1 | projectId, progressEntryId, documentId | src/lib/services/construction-progress-service.ts |
-| M-RECALL | recall_artifact | read L0 | query, limit | src/lib/crr/recall.ts (not under services) |
-| M-EMAIL | send_project_email | write L2 | projectId, to, subject, body | src/lib/email.ts (not under services; needs owner policy on outbound mail) |
-| M-SCOPE | create_scope_item, list_scope_items, approve_scope_item | write and read | projectId, title, description, linkedBoqLineIds | no scope-of-work service found; new one needed; change flow lives in src/lib/services/construction-change-order-service.ts |
-| M-DRAWINGS | list_drawings | read L0 | projectId, status | src/lib/services/construction-field-workflow-service.ts (list function name unverified) |
-| M-RFIS | list_rfis | read L0 | projectId, status | src/lib/services/construction-field-workflow-service.ts (listRfis) |
-| M-PUNCH | list_punch_list_items | read L0 | projectId, status | src/lib/services/construction-field-workflow-service.ts (listPunchListItems) |
-| M-PERMITS | list_permits | read L0 | projectId | src/lib/services/construction-field-workflow-service.ts (list function name unverified) |
-| M-DOCS | list_documents | read L0 | projectId, category | src/lib/services/document-service.ts (listDocuments) |
-| M-ORDER | create_material_order | write L2 | projectId, materialId, quantity, expectedDate | src/lib/services/construction-materials-service.ts (no order function found) |
-| M-CUSTDISPUTE | record_customer_dispute | write L2 | projectId, description | disputes module, beside record_vendor_dispute |
+| tag | proposed function | kind | params | backing service | closes |
+|---|---|---|---|---|---|
+| M-RECALL | recall_artifact | read L0 | query, limit | src/lib/crr/recall.ts | R-C16, EXC-ITEM-27 |
+| M-ORDER | create_material_order | write L2 | projectId, materialId, quantity, expectedDate | no order function exists in construction-materials-service.ts; needs a table first | EXC-ITEM-18, EXC-ITEM-19 |
+
+Both need a design decision (recall touches the institutional-memory subsystem, tracked separately as roadmap in R-C16's own status; a material-order function needs a new table and a migration). They are parked for a planned build, not hidden.
