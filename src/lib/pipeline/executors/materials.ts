@@ -1,3 +1,4 @@
+// create_material_order (M-ORDER, migration 0742) is at the end of this file: it records an order for stock expected on a date and does not change on-hand.
 // PROJEXA-BUILD-002 WP-05d (register row AW-304) -- record_material_issue, create_material, void_material_receipt and
 // get_material_cost_report.
 //
@@ -16,7 +17,7 @@
 import { and, eq } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { constructionMaterials } from "@/lib/db/schema";
-import { createMaterial, createMaterialIssue, getMaterialCostReport, voidMaterialReceipt } from "@/lib/services/construction-materials-service";
+import { createMaterial, createMaterialIssue, createMaterialOrder, getMaterialCostReport, ServiceError, voidMaterialReceipt } from "@/lib/services/construction-materials-service";
 import { pipelineFailure } from "../error-codes";
 import type { ExecutableTask, ExecutionOutcome } from "../executor";
 import { created, RANK_MANAGER, RANK_MEMBER, refuse } from "./common";
@@ -118,5 +119,37 @@ export async function executeGetMaterialCostReport(task: ExecutableTask): Promis
     if (groupBy === BAD) return bad(task, "groupBy");
     const report = await getMaterialCostReport({ orgId: task.orgId }, projectId, { from, to, groupBy: groupBy as "material" | "vendor" | undefined });
     return ok(report);
+  });
+}
+
+
+export async function executeCreateMaterialOrder(task: ExecutableTask): Promise<ExecutionOutcome> {
+  return guarded(task, { write: true, minRank: RANK_MEMBER }, async ({ projectId, actorId }) => {
+    const materialId = needText(task, "materialId");
+    if (materialId === BAD) return bad(task, "materialId");
+    const quantity = optNumber(task, "quantity");
+    if (quantity === BAD || quantity === undefined || quantity <= 0) return bad(task, "quantity");
+    const expectedDate = needDate(task, "expectedDate");
+    if (expectedDate === BAD) return bad(task, "expectedDate");
+    const boqLineItemId = optText(task, "boqLineItemId");
+    if (boqLineItemId === BAD) return bad(task, "boqLineItemId");
+    const reference = optText(task, "reference");
+    if (reference === BAD) return bad(task, "reference");
+    const notes = optText(task, "notes");
+    if (notes === BAD) return bad(task, "notes");
+
+    if (!(await recordInProject(task, "material", materialId, projectId))) return notFound(task, "materialId");
+    if (boqLineItemId !== undefined && !(await boqLineInProject(task, boqLineItemId, projectId))) return notFound(task, "boqLineItemId");
+
+    // A twin is refused with the code create_material uses for a repeat, so a retried call reads as "already done", not as a new failure.
+    try {
+      const row = await createMaterialOrder({ orgId: task.orgId }, { projectId, materialId, quantity, expectedDate, boqLineItemId, reference, notes, createdById: actorId });
+      return created(row.id, "/materials", row);
+    } catch (error) {
+      if (error instanceof ServiceError && error.status === 409) {
+        return refuse(pipelineFailure("ALREADY_RECORDED", [], { status: 409, functionId: task.functionId, param: "materialId" }));
+      }
+      throw error;
+    }
   });
 }

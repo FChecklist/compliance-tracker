@@ -3830,6 +3830,19 @@
       "when": 1790700021000,
       "tag": "0741_awl_recall_precedent",
       "breakpoints": true
+    },
+    {
+      "idx": 549,
+      "version": "7",
+      "when": 1790700022000,
+      "tag": "0742_construction_material_orders",
+      "breakpoints": true},
+    {
+      "idx": 550,
+      "version": "7",
+      "when": 1790700023000,
+      "tag": "0743_awl_create_material_order",
+      "breakpoints": true
     }
   ]
 }

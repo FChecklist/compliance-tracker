@@ -118,6 +118,7 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   get_daily_progress_report: { linkLevel: 0, moneySensitive: false, minRank: 2, textParams: [] },
   record_attendance_batch: { linkLevel: 1, moneySensitive: true, minRank: 2, textParams: [] },
   update_roster_entry: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "trade", "skillLevel"] },
+  create_material_order: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: ["reference", "notes"] },
   record_material_issue: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["issuedTo", "note"] },
   create_material: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "unit", "spec"] },
   void_material_receipt: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: ["reason"] },

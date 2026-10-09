@@ -11648,6 +11648,26 @@ export const constructionMaterialIssues = complianceSchemaDB.table('construction
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// create_material_order (M-ORDER, drizzle/0742): the purchase-order side of the ledger. An order is what was asked for and when it is due;
+// receipts are what arrived. Kept apart from receipts on purpose, so on-hand (receipts minus issues) is never changed by an order that has not
+// arrived. boq_line_item_id is nullable and un-referenced like it is on issues: an order with no BOQ line is the "ordered without scope" exception
+// (EXC-ITEM-18), which has to be recordable to be reportable.
+export const constructionMaterialOrders = complianceSchemaDB.table('construction_material_orders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
+  quantity: numeric('quantity').notNull(),
+  orderedDate: date('ordered_date', { mode: 'string' }).notNull(),
+  expectedDate: date('expected_date', { mode: 'string' }).notNull(),
+  status: text('status').notNull().default('ordered'),
+  boqLineItemId: text('boq_line_item_id'),
+  reference: text('reference'),
+  notes: text('notes'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const constructionMaterialsRelations = relations(constructionMaterials, ({ many }) => ({
   receipts: many(constructionMaterialReceipts),
   issues: many(constructionMaterialIssues),
