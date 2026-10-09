@@ -327,16 +327,16 @@ describe("detail rows of BR-523 that need no deployed function (BR-581, BR-583 a
   // BUILD-002 WP-05e/05f and AW-312 added 21 more (waves 5 and 6 and the exception-capture functions): 73; WP-05g/05h added the 20 of waves 7, 8 and 9: 93; the persona-run finding 3 added submit_timesheet: 94; the user-wide link added create_project: 95 in all.
   // lf-b2-ai-crud (0685) added 27 update/delete/archive functions: 122 (this test was not updated then and failed on the integration branch);
   // lf-b5-ai-crud (0687) added 19 (the eight edits/deletes that had no service, the organisation class and its read): 141;
-  // P5 (0740) added update_drawing: 142 in all.
-  test("BR-581: exactly 142 functions are offered on links (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9 submit_timesheet, the user link's create_project, B2's 27, B5's 19 and P5's update_drawing), a manager sees all on a project link, a member only what its rank allows, none offered twice", async () => {
+  // P5 (0740) added update_drawing, (0741) recall_precedent: 143 in all.
+  test("BR-581: exactly 143 functions are offered on links (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9 submit_timesheet, the user link's create_project, B2's 27, B5's 19 and P5's update_drawing), a manager sees all on a project link, a member only what its rank allows, none offered twice", async () => {
     const edge = startEdge({ writesEnabled: true })
-    expect(onLinks).toHaveLength(142)
-    // create_project is offered on a USER link only (never on a project link), so a project link sees the other 141
+    expect(onLinks).toHaveLength(143)
+    // create_project is offered on a USER link only (never on a project link), so a project link sees the other 142
     const onProjectLinks = onLinks.filter((f) => f.function_id !== "create_project")
     const allowed = async (token: string) => ((await (await fetch(edge.link(token) + "/context", { headers: { accept: "application/json" } })).json()) as { allowed_functions: string[] }).allowed_functions
     const manager = await allowed(TOKENS.manager)
     expect(sorted(manager)).toEqual(sorted(onProjectLinks.map((f) => f.function_id)))
-    expect(new Set(manager).size).toBe(141)
+    expect(new Set(manager).size).toBe(142)
     const member = await allowed(TOKENS.member)
     expect(sorted(member)).toEqual(sorted(onProjectLinks.filter((f) => f.min_role_rank <= 2).map((f) => f.function_id)))
     expect(member).not.toContain("get_construction_budget_status")

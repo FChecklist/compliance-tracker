@@ -117,7 +117,7 @@ const CRUD_B2_ON_LINKS: Record<string, [number, number]> = {
   update_meeting: [1, 2], update_material: [2, 2], update_room: [1, 2], remove_room: [2, 2], update_placement: [1, 2], remove_placement: [2, 2],
   update_floor_plan_status: [2, 2], update_mood_board: [1, 2], remove_mood_board_item: [2, 2],
   // GROUP 3
-  update_permit: [1, 2], delete_permit: [2, 2], archive_project: [2, 3], update_drawing: [1, 2],
+  update_permit: [1, 2], delete_permit: [2, 2], archive_project: [2, 3], update_drawing: [1, 2], recall_precedent: [0, 2],
 }
 const CRUD_B2_MONEY = ["delete_boq", "update_boq_line_amounts", "update_material", "update_time_entry"]
 // lf-b5-ai-crud (owner order 2026-10-02): the eight edits/deletes that had no service, and the organisation-scoped class. Every delete, rename and
@@ -173,7 +173,7 @@ describe("the committed outputs are current", () => {
     const io = fsIo(ROOT)
     for (const f of [FUNCTIONS_JSON, KINDS_JSON, CURRENT_SEED_MIGRATION]) expect(io.exists(f)).toBe(true)
     expect(FUNCTIONS_JSON).toBe("supabase/functions/ai-work-link/function-registry.generated.json")
-    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0740_awl_update_drawing.sql")
+    expect(CURRENT_SEED_MIGRATION).toBe("drizzle/0741_awl_recall_precedent.sql")
   })
 
   test("AWL-S03's own reading: a JSON list whose entries with a non-null link_level are every function reviewed onto links, and none of the five bad ones", () => {
