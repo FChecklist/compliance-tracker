@@ -73,7 +73,7 @@ Requirement to AI function table (plan item P5). Source: platform.sumeet_require
 | R-C13 | Negative variation must be checked against WPR in case work is already done | SERVER-RULE | create_change_order, get_daily_progress_report | Server check against progress; AI can read progress first. |
 | R-C14 | Upload site instruction form | AI-COVERED | create_site_instruction | - |
 | R-C15 | Save reports as PDF and share to WhatsApp | UI-ONLY | - | PDF export and WhatsApp share are browser actions. |
-| R-C16 | CRR (Capture / Recall / Reuse): a generic backend capability. CAPTURE -- any artefact from | MISSING | capture_artifact | Capture exists; recall has no function (M-RECALL). |
+| R-C16 | CRR (Capture / Recall / Reuse): a generic backend capability. CAPTURE -- any artefact from | AI-COVERED | capture_artifact, recall_precedent | Capture exists; recall has no function (M-RECALL). | [2026-10-09: recall_precedent put on links (migration 0741); keyword tier, no model call.]
 | R-C17 | Owner-initiated 2026-09-13 (not from Sumeet's original spec -- tracked in this register at | OWNER-INFRA | - | No email function (M-EMAIL). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | R-92 | Left rail and right pane must stay in sync both ways: (1) pressing any left-rail button/mo | UI-ONLY | - | Left-right sync is UI. |
 | R-93 | BOQ must track 4 variables: CONTRACT VALUE (unit numbers + unit price in contract value) a | AI-COVERED | update_project, update_boq_line_amounts, get_boq_line_items | Contract and project value fields. |
@@ -110,21 +110,20 @@ Requirement to AI function table (plan item P5). Source: platform.sumeet_require
 | EXC-ITEM-24 | Snags lost, retention held | AI-COVERED | mark_punch_item_ready, verify_punch_item_closed | Needs list_punch_list_items (M-PUNCH). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | EXC-ITEM-25 | The user decides from memory | AI-COVERED | get_project_exceptions, get_project_analysis | AI answers from data. |
 | EXC-ITEM-26 | The user forgets | AI-COVERED | get_project_exceptions, get_billing_due_queue | Overdue items surfaced by exceptions. |
-| EXC-ITEM-27 | The user doesn't remember | MISSING | capture_artifact | Recall missing (M-RECALL). |
+| EXC-ITEM-27 | The user doesn't remember | AI-COVERED | capture_artifact, recall_precedent | Recall missing (M-RECALL). | [2026-10-09: recall_precedent put on links (migration 0741); keyword tier, no model call.]
 | EXC-ITEM-28 | The user reports wrong but it should be caught by software | AI-COVERED | get_project_exceptions | - |
 | EXC-ITEM-29 | The software should do all above (META) | SERVER-RULE | get_project_exceptions | Meta; covered by rows 01 to 28. |
 | EXC-ITEM-30 | The software should have proper engine, wiring, logic, calculation for all above (META) | SERVER-RULE | - | Meta; engine and calculations are server code. |
 | EXC-ITEM-31 | PROJEXA-AI.COM should be able to capture, analyze, fix all of these as software for every  | SERVER-RULE | get_project_exceptions, get_project_analysis | Meta; the work link itself. |
 
-Counts (rechecked 2026-10-09): AI-COVERED 62, UI-ONLY 11, SERVER-RULE 24, OWNER-INFRA 10, MISSING 4
+Counts (rechecked 2026-10-09): AI-COVERED 64, UI-ONLY 11, SERVER-RULE 24, OWNER-INFRA 10, MISSING 2
 
-## Missing functions (real gaps after the recheck)
+## Missing functions (the one real gap left; recall_precedent went on links in migration 0741)
 
 The first draft listed 11. Seven were not gaps: list_drawings / list_rfis / list_punch_list_items / list_permits / list_documents are served by the generic run_read over the record kinds drawings, rfis, punch_list, permits, documents (record-kinds.generated.json); record_customer_dispute is record_customer_complaint; the scope-item set is the BOQ (R-96, by design); photos and outbound mail stay with the person / owner policy.
 
 | tag | proposed function | kind | params | backing service | closes |
 |---|---|---|---|---|---|
-| M-RECALL | recall_artifact | read L0 | query, limit | src/lib/crr/recall.ts | R-C16, EXC-ITEM-27 |
 | M-ORDER | create_material_order | write L2 | projectId, materialId, quantity, expectedDate | no order function exists in construction-materials-service.ts; needs a table first | EXC-ITEM-18, EXC-ITEM-19 |
 
-Both need a design decision (recall touches the institutional-memory subsystem, tracked separately as roadmap in R-C16's own status; a material-order function needs a new table and a migration). They are parked for a planned build, not hidden.
+Both need a design decision (a material-order function needs a new table and a migration). They are parked for a planned build, not hidden.

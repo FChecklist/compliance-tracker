@@ -4654,6 +4654,35 @@
     "optional_params": []
   },
   {
+    "function_id": "recall_precedent",
+    "label": "Recall a precedent",
+    "module": "memory",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "query"
+    ],
+    "declared_params": [
+      "query"
+    ],
+    "required_params": [
+      {
+        "name": "query",
+        "label": "What to recall",
+        "any_of": [
+          "query"
+        ]
+      }
+    ],
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
+  },
+  {
     "function_id": "record_attendance",
     "label": "Mark attendance",
     "module": "manpower",
