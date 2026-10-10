@@ -79,11 +79,21 @@ describe("legal pages: search and sharing basics", () => {
 
   test("the privacy notice says the public pages measure speed and errors, without cookies, and is dated", () => {
     const html = read("public/privacy/index.html")
-    expect(html).toContain("Version 1.6 · Effective 5 October 2026")
+    expect(html).toContain("Version 1.8 · Effective 6 October 2026")
+    expect(html).toContain("Visit journey (public pages only)")
+    expect(html).toContain("one random visitor-id cookie for a year")
+    expect(html).toContain("gets no cookie and is only counted")
+    expect(html).toContain("Kept for 365 days, then only anonymous totals remain")
     expect(html).toContain("Website measurement (public pages only)")
     expect(html).toContain("No cookie, no browser storage")
     expect(html).toContain("Do Not Track")
     expect(html).toContain("does not run on the signed-in application")
     expect(html).toContain("Records are kept for 90 days")
+    // the audit-trail disclosure (owner spec 2026-10-06, item 7): what is logged, why, the retention, and what erasure does and does not remove
+    expect(html).toContain("Audit log of activity in the application")
+    expect(html).toContain("Rules 6 and 8(3)")
+    expect(html).toContain("365 days, then deleted")
+    expect(html).toContain("entries about you in the audit log")
+    expect(html).toContain("We never e-mail the log itself")
   })
 })

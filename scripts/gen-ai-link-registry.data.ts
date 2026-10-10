@@ -118,6 +118,7 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   get_daily_progress_report: { linkLevel: 0, moneySensitive: false, minRank: 2, textParams: [] },
   record_attendance_batch: { linkLevel: 1, moneySensitive: true, minRank: 2, textParams: [] },
   update_roster_entry: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "trade", "skillLevel"] },
+  create_material_order: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: ["reference", "notes"] },
   record_material_issue: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["issuedTo", "note"] },
   create_material: { linkLevel: 2, moneySensitive: true, minRank: 2, textParams: ["name", "unit", "spec"] },
   void_material_receipt: { linkLevel: 2, moneySensitive: true, minRank: 3, textParams: ["reason"] },
@@ -249,7 +250,11 @@ export const LINK_FUNCTIONS: Readonly<Record<string, LinkFunctionPolicy>> = {
   // The app has no route that changes a project's status, so archive_project asks for the manager rank and is always a draft by default.
   update_permit: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "permitNumber", "permitAuthority", "notes"] },
   delete_permit: { linkLevel: 2, moneySensitive: false, minRank: 2, textParams: [] },
+  // P5 (2026-10-08): the drawing edit of PATCH /api/v1/projexa/drawings/{id} (name, discipline, drawing/3D); member rank like the route, direct like update_permit
+  update_drawing: { linkLevel: 1, moneySensitive: false, minRank: 2, textParams: ["name", "discipline"] },
   archive_project: { linkLevel: 2, moneySensitive: false, minRank: 3, textParams: [] },
+  // P5 (2026-10-09): institutional-memory recall, keyword tier only (no embedding call on a link); member rank, scoped to what the caller may see by recallMemory itself
+  recall_precedent: { linkLevel: 0, moneySensitive: false, minRank: 2, textParams: ["query"] },
 }
 
 /** Why each of the 17 functions the spec excludes is on no link (spec 9.1). */

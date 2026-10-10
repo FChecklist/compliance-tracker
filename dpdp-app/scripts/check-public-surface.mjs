@@ -36,6 +36,8 @@ import {
   REF_SCRIPT,
   REQUIRED_BOTS,
   RUM_SCRIPT,
+  VISIT_SCRIPT,
+  LEGAL_SCRIPT_OPENS,
   SITEMAP_PAGES,
   SITE_ORIGIN,
   LEGACY_APP_ORIGIN,
@@ -264,6 +266,7 @@ for (const page of PUBLIC_PAGES) {
   expect(JSON.stringify(scripts) === JSON.stringify(scriptOpensFor(page.path)), `${label}: public page must have exactly the scripts ${JSON.stringify(scriptOpensFor(page.path))} besides JSON-LD, found ${JSON.stringify(scripts)}`)
   expect(has(REF_SCRIPT.src.slice(1)), `dist${REF_SCRIPT.src} missing`)
   expect(has(RUM_SCRIPT.src.slice(1)), `dist${RUM_SCRIPT.src} missing`)
+  expect(has(VISIT_SCRIPT.src.slice(1)), `dist${VISIT_SCRIPT.src} missing`)
   if (page.path === "/") expect(has(THEME_SCRIPT.src.slice(1)), `dist${THEME_SCRIPT.src} missing`)
   checkCrossOrigin(label, html)
 
@@ -294,6 +297,7 @@ for (const priv of PRIVATE_PAGES) {
   expect(meta(html, "name", "referrer") === "no-referrer", `${label}: <meta name="referrer" content="no-referrer"> missing`)
   expect(linkHref(html, "canonical") === null, `${label}: a private page must not declare a canonical`)
   expect(!html.includes(RUM_SCRIPT.src), `${label}: a private page must never load ${RUM_SCRIPT.src} -- private pages are not measured`)
+  expect(!html.includes(VISIT_SCRIPT.src), `${label}: a private page must never load ${VISIT_SCRIPT.src} -- the signed-in and private pages carry no visit tracking`)
   checkCrossOrigin(label, html)
 }
 
@@ -322,7 +326,7 @@ for (const page of LEGAL_PAGES) {
   const h1s = tagsOf(html, /<h1\b[^>]*>[\s\S]*?<\/h1>/gi)
   expect(h1s.length === 1 && textOf(h1s[0]) === page.h1, `${label}: expected exactly one <h1> reading "${page.h1}"`)
   const scripts = tagsOf(html, /<script\b[^>]*>/gi)
-  expect(JSON.stringify(scripts) === JSON.stringify([RUM_SCRIPT.open]), `${label}: legal page must have exactly the one <script> ${RUM_SCRIPT.tag}, found ${JSON.stringify(scripts)}`)
+  expect(JSON.stringify(scripts) === JSON.stringify(LEGAL_SCRIPT_OPENS), `${label}: legal page must have exactly the scripts ${RUM_SCRIPT.tag} ${VISIT_SCRIPT.tag}, found ${JSON.stringify(scripts)}`)
   const icon = linkHref(html, "icon")
   expect(!!icon && has(icon.slice(1)), `${label}: <link rel="icon"> ${icon} is not a file in dist/`)
   const footerHtml = /<footer[\s\S]*<\/footer>/i.exec(html)?.[0] ?? ""
@@ -347,7 +351,7 @@ for (const hidden of HIDDEN_PAGES) {
   expect(linkHref(html, "canonical") === null, `${label}: a hidden page must not declare a canonical`)
   expect(meta(html, "property", "og:url") === null, `${label}: a hidden page must not carry Open Graph tags`)
   const scripts = tagsOf(html, /<script\b[^>]*>/gi).filter((t) => !/type="application\/ld\+json"/i.test(t))
-  expect(JSON.stringify(scripts) === JSON.stringify(PUBLIC_SCRIPT_OPENS), `${label}: hidden page must have exactly the scripts ${REF_SCRIPT.tag} ${RUM_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
+  expect(JSON.stringify(scripts) === JSON.stringify(PUBLIC_SCRIPT_OPENS), `${label}: hidden page must have exactly the scripts ${REF_SCRIPT.tag} ${RUM_SCRIPT.tag} ${VISIT_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
   checkCrossOrigin(label, html)
 }
 
@@ -517,6 +521,18 @@ if (has("rum.js")) {
   for (const prefix of PRIVATE_PAGES) expect(rum.includes(`"${prefix.prefix}"`), `rum.js does not refuse the private prefix ${prefix.prefix}`)
 }
 
+// visit.js: the visit-journey script must stay first-party and honour the privacy signal.
+expect(has("visit.js"), "dist/visit.js missing")
+if (has("visit.js")) {
+  const v = read("visit.js")
+  for (const bad of ["XMLHttpRequest", "fetch(", "http://", "https://", "sendImage", "new Image", "location.hash"]) {
+    expect(!v.includes(bad), `visit.js uses ${bad} -- the visit script must stay first-party and send only through sendBeacon`)
+  }
+  expect(v.includes('"/api/visit"'), "visit.js does not post to /api/visit")
+  expect((v.match(/sendBeacon\(/g) ?? []).length === 1, "visit.js must send through exactly one navigator.sendBeacon call")
+  expect(v.includes("globalPrivacyControl") && v.includes("doNotTrack"), "visit.js does not check Global Privacy Control / Do Not Track")
+  for (const prefix of PRIVATE_PAGES) expect(v.includes(`"${prefix.prefix}"`), `visit.js does not refuse the private prefix ${prefix.prefix}`)
+}
 // --------------------------------------------------------------------- summary
 if (failures.length) {
   console.error(`check-public-surface: FAIL -- ${failures.length} of ${checks} checks failed`)

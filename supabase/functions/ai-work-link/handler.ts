@@ -27,13 +27,17 @@
 // and any project that does not bind is a 404). Outside a project it may only draft create_project; everything else is 400 PROJECT_REQUIRED. POST /user-link (mint.ts) makes it.
 //
 // The token is never logged and never echoed: log lines carry a route name and a status only, and errorBody scrubs anything token-shaped.
+import { configForRequest } from "./config.ts"
+import { explainCheck } from "./explain.ts"
+import { receiptOf } from "./risk.ts"
 import {
-  CORS_PREFLIGHT_HEADERS, LIMITS, LINK_GONE, NO_QUERY_TOKEN, contentTypeFor, errorBody, hasQueryToken, isRateLimited, linkBase, negotiateFormat, paginate,
-  parseTarget, privateHeaders, relativePathOf, remainingCalls, throttleAddress, tokenFromHeaders, uaFamilyOf, type Format,
+  CORS_PREFLIGHT_HEADERS, LIMITS, LINK_GONE, NO_QUERY_TOKEN, ROBOTS_DOC, contentTypeFor, errorBody, hasQueryToken, isRateLimited, linkBase, negotiateFormat, paginate,
+  parseTarget, privateHeaders, relativePathOf, remainingCalls, throttleAddress, tokenFromHeaders, uaFamilyOf, isReaderEngine, type Format,
 } from "../_shared/ai-link/core.ts"
-import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, USER_LEVEL_IDS, bodyLimitFor, functionDef, kb, matchEndpoint, underlyingOf, type EndpointId } from "./api-definition.ts"
+import { CARD_DATA_DEFAULT_KINDS, KIND_NAMES, LINK_FUNCTIONS, USER_LEVEL_IDS, bodyLimitFor, functionDef, kb, matchEndpoint, underlyingOf, type EndpointId } from "./api-definition.ts"
+import { dictionaryEntry, signatureOf } from "./dictionary.ts"
 import { suggestionAdd, suggestionList } from "./suggestions.ts"
-import { renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
+import { INLINE_PROJECTS_MAX, allAddresses, renderCard, renderCardData, renderManualJson, renderManualMarkdown, type ManualInput } from "./manual.ts"
 import { handleConfirm } from "./confirm.ts"
 import { handlePersonSetting } from "./person-settings.ts"
 import { actionCreate, draftCreate, draftGet, draftPreview } from "./drafts.ts"
@@ -45,6 +49,7 @@ import {
   requireScope, resolveInProject, resolveLink, searchRecords, fetchRecord, type AwlConfig, type ExecClient, type LinkCtx, type ReadEnv, type Rpc,
 } from "./reads.ts"
 import type { SessionVerifier } from "./session.ts"
+import { renderWorkspace } from "./workspace.ts"
 import { contextMarkdown, functionsMarkdown, historyMarkdown, intentMarkdown, portfolioMarkdown, projectsMarkdown, proposalMarkdown, recordMarkdown, recordsCsv, recordsMarkdown, suggestionsMarkdown } from "./render.ts"
 
 export type { AwlConfig, Rpc } from "./reads.ts"
@@ -90,7 +95,8 @@ const ALLOW_ALL = "GET, HEAD, POST, OPTIONS"
 /** What public.ai_work_link_log_call answers (drizzle/0624): ok, gone, unknown, throttled (with a scope) or malformed. */
 type LoggedCall = { status: string; call_id?: string; calls_last_minute?: number; limit_per_minute?: number; scope?: string }
 
-type Out = { status: number; contentType: string | null; body: string | null; headers?: Record<string, string> }
+/** `robots` replaces the X-Robots-Tag: ROBOTS_DOC on the guide and its documents (core.ts), the default everywhere else. */
+type Out = { status: number; contentType: string | null; body: string | null; headers?: Record<string, string>; robots?: string }
 
 const json = (status: number, body: unknown, headers?: Record<string, string>): Out => ({ status, contentType: contentTypeFor("json"), body: JSON.stringify(body), headers })
 const text = (format: Format, body: string): Out => ({ status: 200, contentType: contentTypeFor(format), body })
@@ -211,7 +217,7 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
     contentType?.startsWith("text/markdown") && !(req.headers.get("accept") ?? "").toLowerCase().includes("text/markdown") ? "text/plain; charset=utf-8" : contentType
 
   const finish = (out: Out): Response => {
-    const headers = privateHeaders(readerSafe(out.contentType), { remaining, retryAfter: out.status === 429 ? (retryAfter ?? LIMITS.retryAfterSeconds) : null, extra: out.headers })
+    const headers = privateHeaders(readerSafe(out.contentType), { remaining, retryAfter: out.status === 429 ? (retryAfter ?? LIMITS.retryAfterSeconds) : null, extra: out.headers, robots: out.robots })
     const body = head || out.body === null ? null : out.body
     return new Response(body, { status: out.status, headers })
   }
@@ -219,6 +225,7 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   if (method === "OPTIONS") return new Response(null, { status: 204, headers: privateHeaders(null, { extra: CORS_PREFLIGHT_HEADERS }) })
 
   const url = new URL(req.url)
+  const config = configForRequest(deps.config, url.host)
   if (hasQueryToken(url.searchParams)) return finish(plain(400, NO_QUERY_TOKEN))
 
   const target = parseTarget(url.pathname)
@@ -229,7 +236,7 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   if (!token) return finish(plain(404, LINK_GONE, "In header mode send the token in the Link-Token header."))
   const rest = target.rest
   const mode = target.mode
-  const base = linkBase(deps.config.functionBase, mode === "path" ? token : null)
+  const base = linkBase(config.functionBase, mode === "path" ? token : null)
 
   // 1. THE CALL LOG, before anything is read or answered (fail closed) ---------------------------------------------------------------
   let callId: string | null = null
@@ -294,7 +301,7 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
       if (e instanceof DbTimeout) throw fail(503, "Service unavailable. Try again in a minute.", "The link check is slow right now; nothing was read.")
       throw e
     }
-    const env: ReadEnv = { rpc: deps.rpc, token, ctx, config: deps.config, base, mode, exec: deps.exec }
+    const env: ReadEnv = { rpc: deps.rpc, token, ctx, config, base, mode, exec: deps.exec }
     if (!["GET", "HEAD", "POST"].includes(method)) return await settle(plain(405, "Wrong method for this path.", undefined, { Allow: ALLOW_ALL }))
 
     // 3. ROUTE ---------------------------------------------------------------------------------------------------------------------------
@@ -304,8 +311,9 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
     const hit = matchEndpoint(rest, method)
     if (hit.kind === "none") return await settle(plain(404, "No such path"))
     if (hit.kind === "method") return await settle(plain(405, "Wrong method for this path.", undefined, { Allow: hit.allow.join(", ") }))
-    const out = await route(hit.matched.endpoint.id, hit.matched.params, req, url, env)
-    return await settle(out)
+    const opts: RouteOpts = { dbMs, now: deps.now ?? Date.now, footer: footerFor(env, hit.matched.params.pid ?? null) }
+    const out = await route(hit.matched.endpoint.id, hit.matched.params, req, url, env, opts)
+    return await settle(withFooter(out, hit.matched.endpoint.id, opts.footer))
   } catch (e) {
     if (e instanceof AwlError) return settle(fromError(e))
     log("ai-work-link: unhandled error -> 500")
@@ -313,7 +321,12 @@ export async function handleAwl(req: Request, deps: AwlDeps): Promise<Response> 
   }
 }
 
-const actionOut = (a: { status: number; body: unknown; headers?: Record<string, string> }): Out => json(a.status, a.body, a.headers)
+/** A change or a draft carries its receipt (R-XXXXX, from the intent id) so the person can read it back to their AI and find it in the workspace. */
+const actionOut = (a: { status: number; body: unknown; headers?: Record<string, string> }): Out => {
+  const b = a.body && typeof a.body === "object" && !Array.isArray(a.body) ? (a.body as Record<string, unknown>) : null
+  const id = b && typeof b.intent_id === "string" ? b.intent_id : b && typeof b.draft_id === "string" ? b.draft_id : null
+  return json(a.status, id && b && b.receipt === undefined ? { ...b, receipt: receiptOf(id) } : a.body, a.headers)
+}
 
 function formatOf(req: Request, url: URL, offered: ReadonlyArray<Format>): Format {
   return negotiateFormat(offered, url.searchParams.get("format"), req.headers.get("accept"), "md")
@@ -322,6 +335,44 @@ function formatOf(req: Request, url: URL, offered: ReadonlyArray<Format>): Forma
 function manualInput(env: ReadEnv): ManualInput {
   return { base: env.base, mode: env.mode, token: env.mode === "path" ? env.token : null, config: env.config, ctx: env.ctx, functions: effectiveFunctionViews(env) }
 }
+
+/** `footer`: the "All addresses" footer of a link made for a person (manual.ts allAddresses), null on a link for one project. */
+type RouteOpts = { dbMs: number; now: () => number; footer: string | null }
+
+/** The footer of a link made for a PERSON (AUDIT-100, owner decision 2026-10-06), with the project's own reads when the answer is inside one. */
+function footerFor(env: ReadEnv, projectId: string | null): string | null {
+  return env.ctx.scope === "user" && env.ctx.project_id === null ? allAddresses(env.base, projectId) : null
+}
+
+/** The routes that place the footer themselves (inside their own byte budget) and the two that never carry an address (the paste card and its data). */
+const FOOTER_SELF_OR_NEVER: ReadonlySet<string> = new Set(["manual", "manual_md", "workspace", "workspace_all", "workspace_txt", "card", "card_data"])
+
+/** Every other 200 Markdown/text answer of a person's link ends with the footer (JSON and CSV are left exactly as they were). */
+function withFooter(out: Out, id: EndpointId, footer: string | null): Out {
+  if (!footer || out.status !== 200 || out.body === null || !(out.contentType ?? "").startsWith("text/markdown") || FOOTER_SELF_OR_NEVER.has(id)) return out
+  return { ...out, body: `${out.body}\n${footer}` }
+}
+
+/**
+ * The Markdown guide (AUDIT-100, the owner's real engine runs, 2026-10-06: ChatGPT, Gemini and DeepSeek could fetch only the one address in the prompt). For a
+ * link made for a person it carries the numbered project list itself, read with the SAME reader as GET /projects (readProjects, at INLINE_PROJECTS_MAX), inside
+ * the same DB time box as the link check. The list is a help, never a condition: if the read fails, times out or is refused, the guide answers 200 without it.
+ */
+async function guideMarkdown(env: ReadEnv, opts: RouteOpts): Promise<Out> {
+  const input = manualInput(env)
+  if (opts.footer) input.footer = opts.footer
+  if (env.ctx.scope === "user" && env.ctx.project_id === null) {
+    try {
+      const doc = await timeBox(readProjects(env, String(INLINE_PROJECTS_MAX)), opts.dbMs)
+      input.projectsNow = { doc, asOf: new Date(opts.now()).toISOString() }
+    } catch {
+      input.projectsNow = null
+    }
+  }
+  return { ...text("md", renderManualMarkdown(input)), robots: ROBOTS_DOC }
+}
+
+const asDoc = (out: Out): Out => ({ ...out, robots: ROBOTS_DOC })
 
 /** Function reads run on the exec host with the same switch as changes (reads.ts availabilityOf): refused with the true reason until they can. */
 function readsNotOpen(env: ReadEnv): AwlError | null {
@@ -376,11 +427,11 @@ async function bindProject(env: ReadEnv, projectId: string): Promise<ReadEnv> {
   return { ...env, ctx, base: `${env.base}/projects/${encodeURIComponent(projectId)}` }
 }
 
-async function route(id: EndpointId, params: Record<string, string>, req: Request, url: URL, env: ReadEnv): Promise<Out> {
+async function route(id: EndpointId, params: Record<string, string>, req: Request, url: URL, env: ReadEnv, opts: RouteOpts): Promise<Out> {
   const inner = underlyingOf(id)
   if (inner !== null) {
     const { pid, ...rest } = params
-    return await route(inner, rest, req, url, await bindProject(env, pid))
+    return await route(inner, rest, req, url, await bindProject(env, pid), opts)
   }
   if ((id === "projects" || id === "portfolio") && (env.ctx.scope !== "user" || env.ctx.project_id !== null)) {
     throw fail(403, "This needs a link for all of a person's projects.", "This link is for one project.", { code: "USER_LINK_REQUIRED" })
@@ -401,14 +452,22 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
     }
     case "manual": {
       const f = formatOf(req, url, ["md", "json"])
-      return f === "json" ? json(200, renderManualJson(manualInput(env))) : text("md", renderManualMarkdown(manualInput(env)))
+      if (f === "json") return asDoc(json(200, renderManualJson(manualInput(env))))
+      // An engine that opens only the address the person typed (ChatGPT, Gemini ...) gets ONE page that holds everything: the workspace, with a briefing on top.
+      // `?edition=full` is always the full guide; `?edition=reader` is the reader page for an engine this list does not know.
+      const edition = url.searchParams.get("edition")
+      if (edition === "reader" || (edition !== "full" && isReaderEngine(req.headers.get("user-agent")))) {
+        const page = await renderWorkspace(env, url.searchParams.get("page"), { dbMs: opts.dbMs, now: opts.now, timeBox, bind: (pid) => bindProject(env, pid), footer: opts.footer ?? undefined, reader: true })
+        return asDoc(text("md", page))
+      }
+      return await guideMarkdown(env, opts)
     }
     case "manual_md":
-      return text("md", renderManualMarkdown(manualInput(env)))
+      return await guideMarkdown(env, opts)
     case "manual_json":
-      return json(200, renderManualJson(manualInput(env)))
+      return asDoc(json(200, renderManualJson(manualInput(env))))
     case "card":
-      return text("md", renderCard({ ctx, functions: effectiveFunctionViews(env) }))
+      return asDoc(text("md", renderCard({ ctx, functions: effectiveFunctionViews(env) })))
     case "card_data": {
       const kinds = (url.searchParams.get("kinds") ?? "").split(",").map((k) => k.trim()).filter(Boolean)
       const wanted = kinds.length ? kinds : [...CARD_DATA_DEFAULT_KINDS]
@@ -420,7 +479,7 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
     case "swagger": {
       const header = env.mode === "header" || url.searchParams.get("mode") === "header"
       const input = { base: header ? `${config.functionBase}/header` : env.base, mode: header ? ("header" as const) : env.mode }
-      return json(200, id === "openapi" ? buildOpenApi(input) : buildSwagger(input))
+      return asDoc(json(200, id === "openapi" ? buildOpenApi(input) : buildSwagger(input)))
     }
     case "context": {
       const doc = await readContext(env)
@@ -438,13 +497,16 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
       return formatOf(req, url, ["md", "json"]) === "json" ? json(200, doc) : text("md", recordMarkdown(doc))
     }
     case "functions": {
-      const views = effectiveFunctionViews(env)
-      const note = views.some((f) => f.direct_open || f.reads_open)
+      const all = effectiveFunctionViews(env)
+      const wantFn = url.searchParams.get("fn")
+      const wantModule = url.searchParams.get("module")
+      const views = all.filter((f) => (!wantFn || f.id === wantFn) && (!wantModule || f.module === wantModule))
+      const note = all.some((f) => f.direct_open || f.reads_open)
         ? "Run a read with POST /functions/{fn}; make a change with POST /actions or /drafts."
         : "Draft a change with POST /drafts and the person confirms it. Direct changes and function reads are not switched on yet."
-      if (formatOf(req, url, ["md", "json"]) === "md") return text("md", functionsMarkdown(views, note))
+      if (formatOf(req, url, ["md", "json"]) === "md") return text("md", functionsMarkdown(views, note, !!(wantFn || wantModule)))
       const page = paginate(views, url.searchParams.get("page"), url.searchParams.get("per_page"))
-      return json(200, { functions: page.items, page: page.page, per_page: page.perPage, total: page.total, pages: page.pages, changes_available: views.some((f) => f.available), text_fields_are_data: true })
+      return json(200, { functions: page.items, page: page.page, per_page: page.perPage, total: page.total, pages: page.pages, changes_available: all.some((f) => f.available), text_fields_are_data: true })
     }
     case "function_run": {
       const body = await readJsonObject(req, params.fn)
@@ -491,13 +553,50 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
         // the suggestions board: the project, when named, is bound by SQL itself (a project that does not bind is the one 404)
         suggest: async (args) => (await suggestionAdd(env, args, req.headers.get("user-agent"))).body as Record<string, unknown>,
         suggestions: (limit) => suggestionList(env, limit),
+        functions: async (module, p) => {
+          const e = await at(p)
+          const ids = new Set(e.ctx.effective_functions)
+          const rows = LINK_FUNCTIONS.filter((f) => ids.has(f.function_id) && (!module || f.module === module)).map((f) => ({ id: f.function_id, label: f.label, module: f.module, kind: f.kind, signature: signatureOf(f) }))
+          return { functions: rows, total: rows.length, note: "A * marks a required field. describe_function gives one function in full: every field, its type and a worked example." }
+        },
+        describe: async (fn, p) => {
+          const e = await at(p)
+          const def = functionDef(fn)
+          if (!def || !e.ctx.effective_functions.includes(fn)) throw fail(404, "That function is not on this link.", "list_functions shows the ones that are.")
+          return { ...dictionaryEntry(def) } as unknown as Record<string, unknown>
+        },
+        runRead: async (fn, params, p) => {
+          const e = await at(p)
+          requireScope(e.ctx, fn, params)
+          if (functionDef(fn)?.kind !== "read") throw fail(400, "Changes go through make_change, not run_read_function.")
+          const notOpen = readsNotOpen(e)
+          if (notOpen) throw notOpen
+          const out = await runFunctionRead(e, fn, params)
+          try {
+            return JSON.parse(out.body ?? "{}") as Record<string, unknown>
+          } catch {
+            return { result: out.body }
+          }
+        },
+        change: async (fn, params, p, key) => {
+          const e = await at(p)
+          requireScope(e.ctx, fn, params)
+          const def = functionDef(fn)
+          if (!def || def.kind !== "write") throw fail(400, "Reads go through run_read_function, not make_change.")
+          const view = effectiveFunctionViews(e).find((v) => v.id === fn)
+          const body = { function: fn, params, ...(key ? { idempotency_key: key } : {}) }
+          if (view?.direct_open) return { mode: "direct" as const, ...(await actionCreate(e, body)) }
+          if (view?.drafts_open) return { mode: "draft" as const, ...(await draftCreate(e, body)) }
+          throw fail(403, "Changes are not switched on for this link yet.", "check_change still works.")
+        },
       }
       const res = await handleMcp({ headers: req.headers, bodyText: await req.text() }, reads)
       return res.body === null ? { status: res.status, contentType: null, body: null } : json(res.status, res.body)
     }
     case "check": {
       const body = await readJsonObject(req)
-      return json(200, checkChange({ ctx, config }, body.function, body.params))
+      const checked = checkChange({ ctx, config }, body.function, body.params)
+      return json(200, { ...checked, ...(await explainCheck(env, checked, body.params)) })
     }
     case "actions":
       return actionOut(await actionCreate(env, await readJsonObject(req)))
@@ -510,6 +609,16 @@ async function route(id: EndpointId, params: Record<string, string>, req: Reques
     case "suggestions": {
       const doc = await suggestionList(env, url.searchParams.get("limit"))
       return formatOf(req, url, ["md", "json"]) === "json" ? json(200, doc) : text("md", suggestionsMarkdown(doc))
+    }
+    case "workspace":
+    case "workspace_all":
+    case "workspace_txt": {
+      const page = await renderWorkspace(env, url.searchParams.get("page"), { dbMs: opts.dbMs, now: opts.now, timeBox, bind: (pid) => bindProject(env, pid), footer: opts.footer ?? undefined })
+      // the page an engine reads INSTEAD of following links is a document like the guide: ROBOTS_DOC, so Gemini (which may refuse a nosnippet page) can use it
+      // /workspace.txt: the same words as a file to save, always text/plain (an engine that reads attachments, or the person, can keep it)
+      return id === "workspace_txt"
+        ? { status: 200, contentType: "text/plain; charset=utf-8", body: page, robots: ROBOTS_DOC, headers: { "Content-Disposition": "attachment; filename=\"projexa-workspace.txt\"" } }
+        : asDoc(text("md", page))
     }
     case "suggestions_add":
       return actionOut(await suggestionAdd(env, await readJsonObject(req), req.headers.get("user-agent")))

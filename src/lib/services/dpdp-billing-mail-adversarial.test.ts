@@ -80,7 +80,7 @@ describe('days-left wording at every boundary the SQL can produce (0, 1, 2, 3, 1
       expect(r.subject).toBe(`Your free trial ends in ${sing(n)} -- Acme`)
     })
   }
-  test('the day-30 message (trial ended) and the renewals never promise a lock-out, and say access is unchanged', () => {
+  test('the day-30 message (trial ended) and the renewals stay calm: no lock-out vocabulary, and they say the data is safe / it still works for a few days', () => {
     for (const kind of ['trial0', 'renew30', 'renew7'] as ReminderKind[]) {
       const t = renderReminder({ ...base, kind, orgName: 'Acme', daysLeft: 0 }).text.toLowerCase()
       expect(t).not.toMatch(/locked|suspend|disabled|deactivat|terminate|lose access|will be removed|deleted/)

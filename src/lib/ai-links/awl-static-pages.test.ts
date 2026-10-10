@@ -27,6 +27,8 @@ import { spawn, spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { readFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
+import { handleAwl } from "../../../supabase/functions/ai-work-link/handler"
+import { TOKENS, makeFake, req, testConfig } from "../services/__test-helpers__/awl-edge-fake"
 
 const ROOT = join(import.meta.dir, "..", "..", "..")
 const DIR = join(ROOT, "projexa-link-pages")
@@ -477,9 +479,184 @@ describe("ai-inbox.html run as code", () => {
     expect(posts(p.sent).every((s) => s.url.endsWith("/check"))).toBe(true)
   })
 
+  // AUDIT-100 item 3: plain key=value proposals after the # (engines write words far more reliably than base64)
+  describe("plain-words links", () => {
+    const check = (s: Sent): Reply => (s.url.endsWith("/check") ? { status: 200, json: { valid: true, will_execute_directly: false } } : { status: 404, json: {} })
+    const open = async (frag: string) => {
+      const p = run("ai-inbox.html", { hash: frag, replies: (s) => (s.url.includes("/history") ? { status: 200, json: { items: [] } } : check(s)) })
+      await tick()
+      return p
+    }
+    const shown = (p: ReturnType<typeof run>) => p.$("blocks").children.map((b) => b.text())
+
+    test("a name with spaces and an ampersand reads as the person wrote it, numbers become numbers, and the check carries exactly that", async () => {
+      const p = await open(`#t=${TOKEN}&do=create_project&name=Tower%20B%20%26%20Annex&percent=40&code=007&n=a%20new%20project`)
+      expect(shown(p)[0]).toContain("Change: create_project")
+      expect(shown(p)[0]).toContain("name: Tower B & Annex")
+      expect(shown(p)[0]).toContain("Note: a new project")
+      const c = posts(p.sent)
+      expect(c).toHaveLength(1)
+      expect(c[0].url).toBe(`${F}/header/check`)
+      expect(c[0].body).toEqual({ function: "create_project", params: { name: "Tower B & Annex", percent: 40, code: "007" } })
+      expect(p.replaced).toEqual(["/ai-page.html"])
+    })
+
+    test("several changes, a project id, an idempotency key and a JSON list: each change keeps its own details, and a project change goes through that project's address", async () => {
+      const p = await open(`#t=${TOKEN}&do=add_task&pid=prj1&title=Pour%20slab&do=add_boq_lines&pid=prj2&lines%3Aj=%5B%7B%22a%22%3A1%7D%5D&ik=k1`)
+      expect(p.$("blocks").children).toHaveLength(2)
+      const c = posts(p.sent)
+      expect(c.map((s) => s.url.replace(F + "/header", ""))).toEqual(["/projects/prj1/check", "/projects/prj2/check"])
+      expect(c[0].body).toEqual({ function: "add_task", params: { title: "Pour slab" } })
+      expect(c[1].body).toEqual({ function: "add_boq_lines", params: { lines: [{ a: 1 }] } })
+      p.$("confirm-code").input(p.shownCode())
+      p.$("blocks").children[1].children.find((x) => x.textContent === "Confirm")!.click()
+      await tick()
+      const sent = posts(p.sent).filter((s) => !s.url.endsWith("/check"))
+      expect(sent.map((s) => s.url.replace(F + "/header", ""))).toEqual(["/projects/prj2/drafts"])
+      expect((sent[0].body as { idempotency_key?: string }).idempotency_key).toBe("k1")
+    })
+
+    test("a link that cannot be read says so and sends nothing; the fragment is still removed", async () => {
+      for (const bad of ["&do=Bad%20Fn", "&do=x&name=%E0%A4%A", "&name=orphan", "&do=x&a=1&a=2", "&do=x&__proto__=1", "&do=x&n", "&do=x&lines%3Aj=%7Bnot"]) {
+        const p = await open(`#t=${TOKEN}${bad}`)
+        expect(`${bad} ${posts(p.sent).length}`).toBe(`${bad} 0`)
+        expect(`${bad} ${p.$("status").textContent.includes("could not be read")}`).toBe(`${bad} true`)
+        expect(p.$("blocks").children).toHaveLength(0)
+        expect(p.replaced).toEqual(["/ai-page.html"])
+      }
+      const b64 = await open(`#t=${TOKEN}&p=!!!`)
+      expect(b64.$("status").textContent).toContain("could not be read")
+    })
+
+    test("every example link the workspace prints stands alone on its line and, run through this page, gives a check for the function it names", async () => {
+      for (const [tok, fns] of [[TOKENS.userManager, ["create_project", "record_work_progress"]], [TOKENS.manager, ["record_work_progress"]]] as const) {
+        const fake = makeFake({})
+        const r = await handleAwl(req(`/${tok}/workspace`), { rpc: fake.rpc, config: testConfig(), log: () => {}, now: () => Date.parse("2026-10-06T02:47:04Z") })
+        const md = await r.text()
+        const lines = md.split(String.fromCharCode(10)).filter((l) => /^https:[/][/][^ ]*ai-inbox[.]html#/.test(l))
+        expect(lines.length).toBeGreaterThanOrEqual(fns.length)
+        for (const l of lines) {
+          expect(l).not.toMatch(/[<> `]/)
+          const frag = l.slice(l.indexOf("#"))
+          const t = /t=(pxa_[0-9a-f]{64})/.exec(frag)![1]
+          const p = await open(frag)
+          expect(p.$("status").textContent).not.toContain("could not be read")
+          expect(p.$("blocks").children.length).toBeGreaterThan(0)
+          const c = posts(p.sent)[0]
+          expect(fns).toContain((c.body as { function: string }).function)
+          expect(c.headers["link-token"]).toBe(t)
+        }
+      }
+    })
+
+    test("the base64 form still works beside it", async () => {
+      const p = await open(`#t=${TOKEN}&p=${Buffer.from(JSON.stringify({ v: 1, function: "create_project", params: { name: "X" } })).toString("base64url")}`)
+      expect(posts(p.sent)[0].body).toEqual({ function: "create_project", params: { name: "X" } })
+    })
+  })
+
   test("text written by an AI is shown as text: nothing in the script builds markup from it", () => {
     // no innerHTML and friends (asserted above for the file); every proposal string reaches the page through textContent
     expect(inlineScript(html("ai-inbox.html"))).toContain(".textContent = text")
+  })
+})
+
+// ------------------------------------------------------------------------------------------------------------------------------- AUDIT-100 item 4
+describe("the confirm screens: plain words, who you are, and the extra tick for a delete or money change", () => {
+  const DELETE_CHECK = { valid: true, will_execute_directly: true, plain: "Archive a task. This deletes or cancels something.", acting_for: { name: "Asha Rao", organisation: "Rao Builders" }, risk: { delete: true, money: false, needs_tick: true, tick_text: "I understand this deletes or cancels what is shown above." }, targets: [{ param: "issueId", kind: "tasks", id: "t9", found: true, name: "Pour slab" }], targets_ok: true }
+  const inbox = async (fn: string, check: Record<string, unknown>, done: Reply = { status: 201, json: { intent_id: "int7", receipt: "R-7F3KQ" } }) => {
+    const proposal = Buffer.from(JSON.stringify({ v: 1, function: fn, params: { issueId: "t9" } })).toString("base64url")
+    const p = run("ai-inbox.html", { hash: `#t=${TOKEN}&p=${proposal}`, replies: (s) => (s.url.endsWith("/check") ? { status: 200, json: check } : s.url.includes("/history") ? { status: 200, json: { items: [] } } : done) })
+    await tick()
+    const box = p.$("blocks").children[0]
+    const btn = box.children.find((c) => c.textContent === "Confirm")!
+    return { p, box, btn, tickBox: () => box.children.flatMap((c) => c.children).find((c) => c.type === "checkbox"), changes: () => posts(p.sent).filter((s) => !s.url.endsWith("/check")) }
+  }
+
+  test("inbox: the plain sentence, who you are, and the record's real name are shown; Confirm waits for the tick, the typed code and then sends once, with a receipt", async () => {
+    const { p, box, btn, tickBox, changes } = await inbox("archive_task", DELETE_CHECK)
+    const text = box.text()
+    expect(text).toContain("This deletes or cancels something.")
+    expect(text).toContain("You are: Asha Rao (Rao Builders)")
+    expect(text).toContain("Record: Pour slab (t9)")
+    expect(btn.disabled).toBe(true)
+    p.$("confirm-code").input(p.shownCode())
+    btn.click()
+    await tick()
+    expect(changes()).toEqual([])
+    const tb = tickBox()!
+    tb.checked = true
+    tb.listeners.change?.()
+    expect(btn.disabled).toBe(false)
+    btn.click()
+    await tick()
+    expect(changes()).toHaveLength(1)
+    expect(box.text()).toContain("Done. Receipt: R-7F3KQ")
+  })
+
+  test("inbox: a delete the server did not flag is still ticked (the function id decides too), and a record that was not found keeps Confirm off with no tick able to open it", async () => {
+    const plain = await inbox("delete_meeting", { valid: true, will_execute_directly: true })
+    expect(plain.btn.disabled).toBe(true)
+    expect(plain.tickBox()).toBeDefined()
+    const gone = await inbox("archive_task", { ...DELETE_CHECK, targets: [{ param: "issueId", kind: "tasks", id: "t9", found: false, name: null }], targets_ok: false })
+    expect(gone.box.text()).toContain("was not found in your projects. Nothing can be sent.")
+    const tb = gone.tickBox()!
+    tb.checked = true
+    tb.listeners.change?.()
+    gone.p.$("confirm-code").input(gone.p.shownCode())
+    expect(gone.btn.disabled).toBe(true)
+    gone.btn.click()
+    await tick()
+    expect(gone.changes()).toEqual([])
+  })
+
+  test("inbox: a change with no delete and no money has no tick and works as before", async () => {
+    const { p, btn, tickBox, changes } = await inbox("record_work_progress", { valid: true, will_execute_directly: true, risk: { delete: false, money: false, needs_tick: false }, targets: [], targets_ok: true })
+    expect(tickBox()).toBeUndefined()
+    expect(btn.disabled).toBe(false)
+    p.$("confirm-code").input(p.shownCode())
+    btn.click()
+    await tick()
+    expect(changes()).toHaveLength(1)
+  })
+
+  const RISKY_PREVIEW: Reply = { status: 200, json: { ...(PREVIEW.json as object), function_id: "delete_meeting", label: "Delete a meeting", plain: "Delete a meeting. This deletes or cancels something.", acting_for: { name: "Asha Rao", organisation: "Rao Builders" }, risk: { delete: true, money: false, needs_tick: true, tick_text: "I understand this deletes or cancels what is shown above." }, receipt: "R-7F3KQ" } }
+  const signedIn = async (preview: Reply) => {
+    const p = run("ai-confirm.html", {
+      hash: `#d=drf123.${CONFIRM_CODE}`,
+      config: { authKey: "public-test-key" },
+      replies: (s) => (s.url.includes("/auth/v1/token") ? { status: 200, json: { access_token: "t" } } : s.url.endsWith("/preview") ? preview : { status: 200, json: { message: "ok", receipt: "R-7F3KQ" } }),
+    })
+    p.$("signin").click()
+    await tick()
+    p.$("confirm-code").input(p.shownCode())
+    return p
+  }
+
+  test("confirm page: for a delete it shows who you are and the tick; Confirm stays disabled until ticked, and the request carries acknowledged: true", async () => {
+    const p = await signedIn(RISKY_PREVIEW)
+    expect(p.$("preview").text()).toContain("You are: Asha Rao (Rao Builders)")
+    expect(p.$("ack-row").hidden).toBe(false)
+    expect(p.$("ack-text").textContent).toContain("deletes or cancels")
+    expect(p.$("confirm").disabled).toBe(true)
+    p.$("ack").checked = true
+    p.$("ack").listeners.change?.()
+    expect(p.$("confirm").disabled).toBe(false)
+    p.$("confirm").click()
+    await tick()
+    const c = posts(p.sent).filter((s) => s.url.includes("/confirm"))
+    expect(c).toHaveLength(1)
+    expect(c[0].body).toEqual({ confirmToken: CONFIRM_CODE, acknowledged: true })
+    expect(p.$("result").textContent).toContain("Receipt: R-7F3KQ")
+  })
+
+  test("confirm page: an ordinary change has no tick row and its request is unchanged", async () => {
+    const p = await signedIn(PREVIEW)
+    expect(p.$("ack-row").hidden).toBe(true)
+    expect(p.$("confirm").disabled).toBe(false)
+    p.$("confirm").click()
+    await tick()
+    expect(posts(p.sent).filter((s) => s.url.includes("/confirm"))[0].body).toEqual({ confirmToken: CONFIRM_CODE })
   })
 })
 

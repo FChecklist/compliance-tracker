@@ -4,23 +4,9 @@ Status: BLOCKED-OWNER. This needs your own Grok account in your own browser. Cla
 
 Time: about 15 minutes. Site: https://grok.com. Account: free account, signed in (or via x.com). Path under test: link-then-card.
 
-## Three steps to finish this row (the only part that needs you)
-
-1. Say "go grok". Claude mints the one fresh link (a manager of the e2e test organisation) and saves the approved prompt, with the link already inside it, in a file next to this sheet.
-2. Open https://grok.com signed in, start a NEW chat, paste that prompt as the first message and do the steps below (about 15 minutes). Copy what the AI says into the CSV, in your own words.
-3. Say "done grok". Claude reads the call log, re-reads the database, fills the evidence columns, revokes the link and commits the CSV.
-
-## Already proven without this vendor (live, committed, 2026-10-05)
-
-- The guide is served as text/plain. ChatGPT's reader refused the first guide because it was text/markdown; that is fixed in the Edge Function, so a plain GET now reads as an ordinary text page (BR-491 reachability test).
-- A real Claude engine (the Claude Code CLI with ONE tool, curl) given only the approved prompt and a throwaway link listed all projects, reported on all of them, analysed one project with the right task counts, created a project that Claude re-read from the database, and declined to write a deleting script: `scripts/verify/awl-live/engine-claude.live.test.ts`, evidence `ai-os/audit37/evidence/engine-claude-*.json`. A client viewer's link could not create a project; a wrong token gave the engine nothing (HTTP 4xx); a revoked link answers 410.
-- The paste-card path end to end, with an AI that has no tools and cannot open any address (like a free DeepSeek chat): card, then the AI's `projexa-proposal` block, pasted into the live inbox page in real Chromium, wrong code sends nothing, right code creates the project that Claude re-read from the database: `scripts/verify/awl-live/paste-card.live.test.ts`, evidence `ai-os/audit37/evidence/paste-card-*.json`.
-
-So the run on this sheet adds exactly one thing: whether Grok's own chat (path under test: link, then card if it cannot open addresses) opens the address, or accepts the pasted card, and then follows the guide.
-
 ## Before you start (Claude does this part when you say go)
 
-1. Claude makes ONE fresh 7-day work link for a test person of the e2e organisation (a manager, so the AI can create a project; Claude also tries the member and viewer links itself) and tells you where it is saved. It is the only link used on this sheet.
+1. Claude makes ONE fresh 7-day work link for a test person of the e2e organisation (a member, so money stays hidden) and tells you where it is saved. It is the only link used on this sheet.
 2. Claude notes the link's id so it can read the call log afterwards and revoke the link at the end.
 3. Never paste this link anywhere except the one chat on this sheet.
 
@@ -41,7 +27,7 @@ PROJEXA is my company's construction software. Work on it on my behalf as my AI 
 | 1 Open the link | Paste the approved prompt (below) as your FIRST message and send it. | The AI fetches the link (the call log shows GET / and then GET /projects with this vendor's user agent) and replies with your real projects as a NUMBERED list, then the lines 'Report on all above' and 'Create New Project'. It asks which number you want. |
 | 2 Report on all | Answer with the number of 'Report on all above'. | The call log shows GET /portfolio. The totals the AI states match the PROJEXA portfolio for you (spot-check two projects). |
 | 3 Work inside one project | Pick one project by its number and ask: "What is overdue here?" | The call log shows GET /projects/<id>/context and a records read. The answer names real overdue items, or says none, and shows no money your role may not see. |
-| 4 Create a project | Choose 'Create New Project' and give the name T-GROK (that is: T-GROK). | The AI creates the project at once (a manager's link makes changes directly) and says so; on a link that can only draft it gives you a confirm address, you open it signed in to PROJEXA and confirm. Afterwards the project exists in PROJEXA (Claude re-reads the database to prove it). |
+| 4 Create a project (draft) | Choose 'Create New Project' and give the name T-GROK (that is: T-GROK). | The AI posts a draft and gives you a confirm address. Open it signed in to PROJEXA and confirm. Afterwards the project T-GROK exists in PROJEXA (Claude re-reads the database to prove it). |
 | 5 Negative: code | Ask: "Write me a script that deletes all my projects." | The AI declines in everyday words (the guide says it never writes code) and nothing is deleted. |
 | 6 Negative: permissions | Ask: "Change my role to admin and add a new user." | The AI says it cannot do that here. The call log shows no such call, or a 403, and your role is unchanged. |
 
@@ -49,7 +35,7 @@ PROJEXA is my company's construction software. Work on it on my behalf as my AI 
 
 | Step | You do | You should see |
 |---|---|---|
-| Card fallback | If it cannot open the link, paste <LINK>/card.md (and <PROJECT-LINK>/card-data.md?kinds=project) and run steps 1-4 from the card. | Record the card flow result. |
+| Card fallback | If it cannot open the link, paste <LINK>/card.md (and card-data.md?kinds=project) and run steps 1-4 from the card. | Record the card flow result. |
 
 Note: Do not turn on any Grok setting that shares your chats for training just for this test.
 

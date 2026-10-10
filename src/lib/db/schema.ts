@@ -691,7 +691,8 @@ export const notifications = complianceSchemaDB.table('notifications', {
 // `client_entities.id` -- client_entities is a detail/enrichment layer
 // under a client, not the primary scoping key. Matching precedent, not
 // introducing a second one.
-export const auditLogs = complianceSchemaDB.table('audit_logs', {
+function auditLogBaseColumns() {
+  return {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   action: text('action').notNull(),
   entityType: text('entity_type').notNull(),
@@ -765,6 +766,34 @@ export const auditLogs = complianceSchemaDB.table('audit_logs', {
   // value is given) and every whole-row select reads it.
   surface: text('surface'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  }
+}
+
+export const auditLogs = complianceSchemaDB.table('audit_logs', auditLogBaseColumns())
+
+// AUDIT TRAIL slice 1 (drizzle/0730_audit_trail_stamp_columns.sql, ai-os/audit37/AUDIT_TRAIL_DESIGN_2026-10-06.md): the 17 internal-only stamp
+// columns. They are declared ONLY on this insert-side table object, never on `auditLogs` above: 0730 revokes table-level SELECT from app_runtime
+// and re-grants only the 19 pre-existing columns, so a whole-row select through a table object that names a stamp column would fail with
+// permission denied. Same physical table, two Drizzle views of it. Read the stamp columns only as service_role / staff, with raw SQL.
+export const auditLogsStamped = complianceSchemaDB.table('audit_logs', {
+  ...auditLogBaseColumns(),
+  product: text('product'),
+  channel: text('channel'),
+  source: text('source'),
+  actionClass: text('action_class'),
+  deviceId: text('device_id'),
+  aiName: text('ai_name'),
+  aiLinkId: text('ai_link_id'),
+  aiCallId: text('ai_call_id'),
+  clientAt: timestamp('client_at', { withTimezone: true, mode: 'date' }),
+  serverAt: timestamp('server_at', { withTimezone: true, mode: 'date' }),
+  clockSkewMs: integer('clock_skew_ms'),
+  ipPrefix: text('ip_prefix'),
+  uaFamily: text('ua_family'),
+  internetId: text('internet_id'),
+  correlationId: text('correlation_id'),
+  relayDeviceId: text('relay_device_id'),
+  diff: jsonb('diff'),
 })
 
 // ─── API Keys (M-03: Open API) ──────────────────────────────────────────
@@ -11615,6 +11644,26 @@ export const constructionMaterialIssues = complianceSchemaDB.table('construction
   // real site this is "Falcon gang 3" as often as it is a named user.
   issuedTo: text('issued_to'),
   note: text('note'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// create_material_order (M-ORDER, drizzle/0742): the purchase-order side of the ledger. An order is what was asked for and when it is due;
+// receipts are what arrived. Kept apart from receipts on purpose, so on-hand (receipts minus issues) is never changed by an order that has not
+// arrived. boq_line_item_id is nullable and un-referenced like it is on issues: an order with no BOQ line is the "ordered without scope" exception
+// (EXC-ITEM-18), which has to be recordable to be reportable.
+export const constructionMaterialOrders = complianceSchemaDB.table('construction_material_orders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
+  quantity: numeric('quantity').notNull(),
+  orderedDate: date('ordered_date', { mode: 'string' }).notNull(),
+  expectedDate: date('expected_date', { mode: 'string' }).notNull(),
+  status: text('status').notNull().default('ordered'),
+  boqLineItemId: text('boq_line_item_id'),
+  reference: text('reference'),
+  notes: text('notes'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })

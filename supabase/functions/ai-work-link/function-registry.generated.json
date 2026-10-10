@@ -49,7 +49,22 @@
     ],
     "id_params": [
       "boqId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "boqId",
+        "label": "BOQ version",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "batchNo",
+        "label": "Batch number",
+        "type": "number",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "add_meeting_action_item",
@@ -97,7 +112,34 @@
     "id_params": [
       "assigneeUserId",
       "meetingId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "meetingId",
+        "label": "Meeting",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Action",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "assigneeUserId",
+        "label": "Owner",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "dueDate",
+        "label": "Due",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "add_meeting_outcome",
@@ -142,7 +184,22 @@
     ],
     "id_params": [
       "meetingId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "meetingId",
+        "label": "Meeting",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "notes",
+        "label": "Outcome",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "add_mood_board_item",
@@ -184,6 +241,23 @@
     "id_params": [
       "documentId",
       "moodBoardId"
+    ],
+    "fields": [
+      {
+        "key": "label",
+        "label": "Label",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "notes",
+        "label": "Notes",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "documentId"
     ]
   },
   {
@@ -238,7 +312,24 @@
     ],
     "id_params": [
       "floorPlanId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Room",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "ceilingHeightCm",
+        "label": "Ceiling height",
+        "type": "number",
+        "required": false,
+        "unit": "cm",
+        "default": 270
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "add_roster_entry",
@@ -285,7 +376,34 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "dailyRate",
+        "label": "Daily rate",
+        "type": "number",
+        "required": true
+      },
+      {
+        "key": "trade",
+        "label": "Trade",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "employeeCode",
+        "label": "ID",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "add_sprint_task",
@@ -329,7 +447,9 @@
     "id_params": [
       "issueId",
       "sprintId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "answer_rfi",
@@ -374,7 +494,16 @@
     ],
     "id_params": [
       "rfiId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "answer",
+        "label": "Answer",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "apply_boq_import",
@@ -414,6 +543,23 @@
     "id_params": [
       "documentId",
       "parentBoqId"
+    ],
+    "fields": [
+      {
+        "key": "documentId",
+        "label": "Document",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "parentBoqId"
     ]
   },
   {
@@ -449,7 +595,9 @@
     ],
     "id_params": [
       "entryId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "approve_timesheet",
@@ -476,7 +624,16 @@
     ],
     "id_params": [
       "timeEntryId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "timeEntryId",
+        "label": "Time entry",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "archive_project",
@@ -502,7 +659,17 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "select",
+        "required": false,
+        "default": "cancelled"
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "archive_task",
@@ -538,6 +705,10 @@
     ],
     "id_params": [
       "issueId"
+    ],
+    "fields": [],
+    "optional_params": [
+      "isArchived"
     ]
   },
   {
@@ -573,7 +744,9 @@
     ],
     "id_params": [
       "changeOrderId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "capture_artifact",
@@ -609,7 +782,22 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "text",
+        "label": "Text",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "capture_schedule_baseline",
@@ -644,7 +832,16 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Baseline name",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "close_rfi",
@@ -679,7 +876,9 @@
     ],
     "id_params": [
       "rfiId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "close_sprint",
@@ -714,7 +913,9 @@
     ],
     "id_params": [
       "sprintId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "compare_boq_revisions",
@@ -743,6 +944,10 @@
     "id_params": [
       "againstBoqId",
       "boqId"
+    ],
+    "fields": [],
+    "optional_params": [
+      "againstBoqId"
     ]
   },
   {
@@ -770,7 +975,9 @@
     ],
     "id_params": [
       "baselineId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "create_activity",
@@ -810,6 +1017,29 @@
       }
     ],
     "id_params": [
+      "categoryId"
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "unit",
+        "label": "Unit",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "plannedQuantity",
+        "label": "Planned quantity",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "optional_params": [
       "categoryId"
     ]
   },
@@ -856,7 +1086,19 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": [
+      "lineItems",
+      "idempotency_key"
+    ]
   },
   {
     "function_id": "create_boq_category",
@@ -891,7 +1133,16 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_boq_revision",
@@ -933,6 +1184,25 @@
     "id_params": [
       "boqId",
       "sourceChangeOrderId"
+    ],
+    "fields": [
+      {
+        "key": "boqId",
+        "label": "From version",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "lineItems",
+      "sourceChangeOrderId",
+      "allowScopeReductionOverride"
     ]
   },
   {
@@ -976,7 +1246,47 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "reason",
+        "label": "Reason",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "trade",
+        "label": "Trade",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "costImpact",
+        "label": "Cost impact",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "scheduleImpactDays",
+        "label": "Schedule impact",
+        "type": "number",
+        "required": false,
+        "unit": "days"
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_company",
@@ -1020,7 +1330,46 @@
     ],
     "id_params": [
       "parentCompanyId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "companyName",
+        "label": "Company name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "abbr",
+        "label": "Short name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "country",
+        "label": "Country",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "parentCompanyId",
+        "label": "Parent company",
+        "type": "select",
+        "required": false
+      },
+      {
+        "key": "isGroup",
+        "label": "Group company",
+        "type": "select",
+        "required": false
+      },
+      {
+        "key": "dateOfIncorporation",
+        "label": "Incorporated on",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_currency",
@@ -1066,7 +1415,28 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "code",
+        "label": "Currency code",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "symbol",
+        "label": "Symbol",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_customer",
@@ -1107,7 +1477,40 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "customerName",
+        "label": "Customer name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "gstin",
+        "label": "GST number",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "pan",
+        "label": "PAN",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "defaultPaymentTermsDays",
+        "label": "Payment terms (days)",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "creditLimit",
+        "label": "Credit limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_document",
@@ -1152,7 +1555,34 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "category",
+        "label": "Category",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "externalUrl",
+        "label": "Link",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "expiryDate",
+        "label": "Expires",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_drawing",
@@ -1205,7 +1635,49 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "externalUrl",
+        "label": "Link",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "drawingNo",
+        "label": "Drawing No.",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "rev",
+        "label": "Revision",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "select",
+        "required": false,
+        "default": "for_approval"
+      },
+      {
+        "key": "discipline",
+        "label": "Discipline",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "kind"
+    ]
   },
   {
     "function_id": "create_exchange_rate",
@@ -1265,7 +1737,22 @@
     "id_params": [
       "fromCurrencyId",
       "toCurrencyId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "rate",
+        "label": "Rate",
+        "type": "number",
+        "required": true
+      },
+      {
+        "key": "rateDate",
+        "label": "Rate date",
+        "type": "date",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_ffe_item",
@@ -1317,6 +1804,89 @@
     ],
     "id_params": [
       "documentId"
+    ],
+    "fields": [
+      {
+        "key": "itemName",
+        "label": "Item",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "roomOrArea",
+        "label": "Room or area",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "category",
+        "label": "Category",
+        "type": "select",
+        "required": false,
+        "default": "furniture"
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "sku",
+        "label": "SKU",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "quantity",
+        "label": "Quantity",
+        "type": "number",
+        "required": false,
+        "default": 1
+      },
+      {
+        "key": "unitCost",
+        "label": "Trade cost",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "unitPrice",
+        "label": "Client price",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "leadTimeDays",
+        "label": "Lead time",
+        "type": "number",
+        "required": false,
+        "unit": "days"
+      },
+      {
+        "key": "widthCm",
+        "label": "Width",
+        "type": "number",
+        "required": false,
+        "unit": "cm"
+      },
+      {
+        "key": "depthCm",
+        "label": "Depth",
+        "type": "number",
+        "required": false,
+        "unit": "cm"
+      },
+      {
+        "key": "heightCm",
+        "label": "Height",
+        "type": "number",
+        "required": false,
+        "unit": "cm"
+      }
+    ],
+    "optional_params": [
+      "documentId"
     ]
   },
   {
@@ -1354,7 +1924,22 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "floorLevel",
+        "label": "Floor",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_material",
@@ -1402,7 +1987,133 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "unit",
+        "label": "Unit",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "spec",
+        "label": "Specification",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "unitCost",
+        "label": "Unit cost",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "reorderLevel",
+        "label": "Reorder level",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "optional_params": []
+  },
+  {
+    "function_id": "create_material_order",
+    "label": "Order material",
+    "module": "materials",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "reference",
+      "notes"
+    ],
+    "declared_params": [
+      "boqLineItemId",
+      "expectedDate",
+      "materialId",
+      "notes",
+      "projectId",
+      "quantity",
+      "reference"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "materialId",
+        "label": "Material",
+        "any_of": [
+          "materialId"
+        ]
+      },
+      {
+        "name": "quantity",
+        "label": "Quantity",
+        "any_of": [
+          "quantity"
+        ]
+      },
+      {
+        "name": "expectedDate",
+        "label": "Expected date",
+        "any_of": [
+          "expectedDate"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqLineItemId",
+      "materialId"
+    ],
+    "fields": [
+      {
+        "key": "materialId",
+        "label": "Material",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "quantity",
+        "label": "Quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "key": "expectedDate",
+        "label": "Expected on",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "reference",
+        "label": "PO / reference",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "notes",
+        "label": "Notes",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "boqLineItemId"
+    ]
   },
   {
     "function_id": "create_meeting",
@@ -1446,7 +2157,29 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "scheduledAt",
+        "label": "Date and time",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "durationMinutes",
+        "label": "Duration",
+        "type": "number",
+        "required": false,
+        "unit": "min"
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_milestone",
@@ -1484,7 +2217,28 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "targetDate",
+        "label": "Target date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_mom",
@@ -1536,7 +2290,33 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "scheduledAt",
+        "label": "Date and time",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "minutes",
+        "label": "Minutes",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "meetingType",
+      "attendees",
+      "agenda",
+      "actionItems"
+    ]
   },
   {
     "function_id": "create_mood_board",
@@ -1575,7 +2355,28 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "roomOrArea",
+        "label": "Room or area",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_permit",
@@ -1646,7 +2447,46 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Permit name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "externalUrl",
+        "label": "Link",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "permitNumber",
+        "label": "Permit number",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "permitAuthority",
+        "label": "Authority",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "expiryDate",
+        "label": "End date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "issueDate",
+        "label": "Issue date",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_progress_category",
@@ -1683,6 +2523,17 @@
       }
     ],
     "id_params": [
+      "parentCategoryId"
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": [
       "parentCategoryId"
     ]
   },
@@ -1747,7 +2598,29 @@
     "id_params": [
       "boqId",
       "customerId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "milestoneDescription",
+        "label": "Milestone",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "scheduledDate",
+        "label": "Billing date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "retentionPercent",
+        "label": "Retention",
+        "type": "percent",
+        "required": false,
+        "unit": "%"
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_project",
@@ -1785,6 +2658,37 @@
     "id_params": [
       "clientId",
       "productId"
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "startDate",
+        "label": "Start date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "targetDate",
+        "label": "Target date",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "shell",
+      "productId",
+      "clientId"
     ]
   },
   {
@@ -1828,6 +2732,42 @@
       }
     ],
     "id_params": [
+      "assignedToId"
+    ],
+    "fields": [
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "location",
+        "label": "Location",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "trade",
+        "label": "Trade",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "priority",
+        "label": "Priority",
+        "type": "select",
+        "required": false,
+        "default": "medium"
+      },
+      {
+        "key": "dueDate",
+        "label": "Due date",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": [
       "assignedToId"
     ]
   },
@@ -1877,6 +2817,36 @@
       }
     ],
     "id_params": [
+      "assignedToId"
+    ],
+    "fields": [
+      {
+        "key": "subject",
+        "label": "Subject",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "question",
+        "label": "Question",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "dueDate",
+        "label": "Due date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "ballInCourt",
+        "label": "With",
+        "type": "select",
+        "required": false,
+        "default": "architect"
+      }
+    ],
+    "optional_params": [
       "assignedToId"
     ]
   },
@@ -1935,6 +2905,46 @@
       "boqLineItemId",
       "predecessorId",
       "typeId"
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "startDate",
+        "label": "Start date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "dueDate",
+        "label": "Finish date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "durationDays",
+        "label": "Duration",
+        "type": "number",
+        "required": false,
+        "unit": "days"
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "priority",
+      "predecessorId",
+      "boqLineItemId",
+      "assigneeIds",
+      "typeId"
     ]
   },
   {
@@ -1984,7 +2994,64 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "diaryDate",
+        "label": "Diary date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "weather",
+        "label": "Weather",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "workDone",
+        "label": "Work done",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "visitors",
+        "label": "Visitors",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "issues",
+        "label": "Issues",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "instructions",
+        "label": "Instructions",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "materialReceived",
+        "label": "Material received",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "labourCount",
+        "label": "Labour count",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "remarks",
+        "label": "Remarks",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_site_instruction",
@@ -2043,6 +3110,37 @@
     ],
     "id_params": [
       "boqId"
+    ],
+    "fields": [
+      {
+        "key": "issueDate",
+        "label": "Issue date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "toContractor",
+        "label": "To contractor",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "description",
+        "label": "Instruction",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "drawingRef",
+        "label": "Drawing reference",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "costImpact",
+      "timeImpact",
+      "boqId"
     ]
   },
   {
@@ -2082,7 +3180,34 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "goal",
+        "label": "Goal",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "startDate",
+        "label": "Start",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "endDate",
+        "label": "End",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_submittal",
@@ -2121,7 +3246,35 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "specSection",
+        "label": "Spec section",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "type",
+        "label": "Type",
+        "type": "select",
+        "required": false,
+        "default": "shop_drawing"
+      },
+      {
+        "key": "dueDate",
+        "label": "Due date",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_vendor",
@@ -2166,7 +3319,52 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "vendorName",
+        "label": "Vendor name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "vendorType",
+        "label": "Type",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "gst",
+        "label": "GST number",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "pan",
+        "label": "PAN",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "trade",
+        "label": "Trade",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "defaultPaymentTermsDays",
+        "label": "Payment terms (days)",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "creditLimit",
+        "label": "Credit limit",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "create_wiki_page",
@@ -2206,6 +3404,23 @@
     ],
     "id_params": [
       "parentPageId"
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "content",
+        "label": "Text",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "parentPageId"
     ]
   },
   {
@@ -2241,7 +3456,9 @@
     ],
     "id_params": [
       "attendanceId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "delete_boq",
@@ -2276,7 +3493,9 @@
     ],
     "id_params": [
       "boqId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "delete_boq_category",
@@ -2311,7 +3530,9 @@
     ],
     "id_params": [
       "categoryId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "delete_meeting",
@@ -2346,7 +3567,9 @@
     ],
     "id_params": [
       "meetingId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "delete_mom",
@@ -2381,7 +3604,9 @@
     ],
     "id_params": [
       "meetingId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "delete_permit",
@@ -2416,7 +3641,9 @@
     ],
     "id_params": [
       "permitId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "delete_progress_entry",
@@ -2451,7 +3678,9 @@
     ],
     "id_params": [
       "entryId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "delete_time_entry",
@@ -2486,7 +3715,9 @@
     ],
     "id_params": [
       "entryId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "detect_construction_budget_schedule_risk",
@@ -2501,7 +3732,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "dispose_document",
@@ -2536,7 +3769,9 @@
     ],
     "id_params": [
       "documentId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "draft_progress_claim",
@@ -2571,7 +3806,9 @@
     ],
     "id_params": [
       "claimId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "generate_construction_progress_summary",
@@ -2586,7 +3823,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_billing_due_queue",
@@ -2601,7 +3840,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_boq_line_items",
@@ -2622,6 +3863,12 @@
     "required_params": [],
     "id_params": [
       "boqId"
+    ],
+    "fields": [],
+    "optional_params": [
+      "boqId",
+      "cursor",
+      "limit"
     ]
   },
   {
@@ -2649,7 +3896,9 @@
     ],
     "id_params": [
       "changeOrderId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_compliance_stats",
@@ -2664,7 +3913,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_construction_budget_status",
@@ -2679,7 +3930,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_construction_kpi_status",
@@ -2694,7 +3947,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_construction_project_dashboard",
@@ -2709,7 +3964,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_daily_progress_report",
@@ -2734,7 +3991,9 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_designer_timesheet_report",
@@ -2752,7 +4011,12 @@
       "to"
     ],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": [
+      "from",
+      "to"
+    ]
   },
   {
     "function_id": "get_ffe_margin_summary",
@@ -2767,7 +4031,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_gantt_schedule",
@@ -2782,7 +4048,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_manpower_cost_report",
@@ -2802,7 +4070,14 @@
       "trade"
     ],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": [
+      "date",
+      "trade",
+      "dateFrom",
+      "dateTo"
+    ]
   },
   {
     "function_id": "get_material_cost_report",
@@ -2821,7 +4096,13 @@
       "to"
     ],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": [
+      "from",
+      "to",
+      "groupBy"
+    ]
   },
   {
     "function_id": "get_overdue_items",
@@ -2836,7 +4117,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_project_analysis",
@@ -2851,7 +4134,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_project_budget_variance",
@@ -2879,6 +4164,10 @@
     ],
     "id_params": [
       "budgetId"
+    ],
+    "fields": [],
+    "optional_params": [
+      "asOfDate"
     ]
   },
   {
@@ -2894,7 +4183,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "get_project_schedule",
@@ -2915,6 +4206,11 @@
     "id_params": [
       "assigneeId",
       "statusId"
+    ],
+    "fields": [],
+    "optional_params": [
+      "statusId",
+      "assigneeId"
     ]
   },
   {
@@ -2930,7 +4226,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "link_roster_employee",
@@ -2974,7 +4272,22 @@
     "id_params": [
       "employeeId",
       "rosterId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "rosterId",
+        "label": "Worker",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "employeeId",
+        "label": "Employee",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "list_billing_claims",
@@ -2989,7 +4302,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_change_orders",
@@ -3006,7 +4321,11 @@
       "status"
     ],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": [
+      "status"
+    ]
   },
   {
     "function_id": "list_compliance_items",
@@ -3021,7 +4340,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_customers",
@@ -3036,7 +4357,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_delayed_activities",
@@ -3051,7 +4374,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_departments",
@@ -3066,7 +4391,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_gst_import_batches",
@@ -3081,7 +4408,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_gst_returns",
@@ -3096,7 +4425,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_leads",
@@ -3111,7 +4442,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_milestones",
@@ -3126,7 +4459,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_notices",
@@ -3141,7 +4476,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_opportunities",
@@ -3156,7 +4493,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_organisation_records",
@@ -3181,7 +4520,9 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_over_budget_projects",
@@ -3196,7 +4537,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "list_sales_orders",
@@ -3211,7 +4554,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "mark_punch_item_ready",
@@ -3246,7 +4591,9 @@
     ],
     "id_params": [
       "itemId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "place_furniture",
@@ -3295,6 +4642,35 @@
       "ffeItemId",
       "floorPlanId",
       "roomId"
+    ],
+    "fields": [
+      {
+        "key": "x",
+        "label": "Across",
+        "type": "number",
+        "required": false,
+        "unit": "cm",
+        "default": 0
+      },
+      {
+        "key": "y",
+        "label": "Down",
+        "type": "number",
+        "required": false,
+        "unit": "cm",
+        "default": 0
+      },
+      {
+        "key": "rotationDeg",
+        "label": "Rotation",
+        "type": "number",
+        "required": false,
+        "unit": "deg",
+        "default": 0
+      }
+    ],
+    "optional_params": [
+      "roomId"
     ]
   },
   {
@@ -3322,7 +4698,9 @@
     ],
     "id_params": [
       "documentId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "publish_mom",
@@ -3357,7 +4735,45 @@
     ],
     "id_params": [
       "meetingId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "meetingId",
+        "label": "Meeting",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
+  },
+  {
+    "function_id": "recall_precedent",
+    "label": "Recall a precedent",
+    "module": "memory",
+    "product": "projexa",
+    "kind": "read",
+    "link_level": 0,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "query"
+    ],
+    "declared_params": [
+      "query"
+    ],
+    "required_params": [
+      {
+        "name": "query",
+        "label": "What to recall",
+        "any_of": [
+          "query"
+        ]
+      }
+    ],
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "record_attendance",
@@ -3402,7 +4818,36 @@
     ],
     "id_params": [
       "rosterId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "rosterId",
+        "label": "Worker",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "date",
+        "label": "Date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "select",
+        "required": false,
+        "default": "present"
+      },
+      {
+        "key": "hours",
+        "label": "Hours worked",
+        "type": "number",
+        "required": false,
+        "unit": "h"
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "record_attendance_batch",
@@ -3443,7 +4888,16 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "date",
+        "label": "Date",
+        "type": "date",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "record_customer_approval",
@@ -3488,7 +4942,28 @@
     "id_params": [
       "boqId",
       "evidenceDocumentId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "boqId",
+        "label": "BOQ version",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "evidenceDocumentId",
+        "label": "Evidence document",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "approvedOn",
+        "label": "Approved on",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "record_customer_complaint",
@@ -3526,7 +5001,30 @@
         ]
       }
     ],
-    "id_params": []
+    "id_params": [],
+    "fields": [
+      {
+        "key": "description",
+        "label": "Complaint",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "category",
+        "label": "Kind",
+        "type": "text",
+        "required": false,
+        "default": "general"
+      },
+      {
+        "key": "severity",
+        "label": "Severity",
+        "type": "select",
+        "required": false,
+        "default": "medium"
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "record_material_issue",
@@ -3584,6 +5082,41 @@
     "id_params": [
       "boqLineItemId",
       "materialId"
+    ],
+    "fields": [
+      {
+        "key": "materialId",
+        "label": "Material",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "quantity",
+        "label": "Quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "key": "issuedDate",
+        "label": "Date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "issuedTo",
+        "label": "Issued to",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "note",
+        "label": "Note",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "boqLineItemId"
     ]
   },
   {
@@ -3641,6 +5174,43 @@
     ],
     "id_params": [
       "materialId"
+    ],
+    "fields": [
+      {
+        "key": "materialId",
+        "label": "Material",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "quantity",
+        "label": "Quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "key": "receivedDate",
+        "label": "Date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "unitCost",
+        "label": "Unit cost",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "reference",
+        "label": "Reference",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "unit",
+      "spec",
+      "notes"
     ]
   },
   {
@@ -3691,7 +5261,35 @@
     ],
     "id_params": [
       "issueId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "task",
+        "label": "Task",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "hours",
+        "label": "Hours",
+        "type": "number",
+        "required": true,
+        "unit": "h"
+      },
+      {
+        "key": "spentOn",
+        "label": "Date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "activityType",
+        "label": "Category",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "record_vendor_dispute",
@@ -3730,7 +5328,28 @@
     ],
     "id_params": [
       "boqLineItemId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "description",
+        "label": "What is disputed",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "amountDisputed",
+        "label": "Amount disputed",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "boqLineItemId",
+        "label": "BOQ line",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "record_work_progress",
@@ -3746,6 +5365,7 @@
       "remarks"
     ],
     "declared_params": [
+      "activityId",
       "boqLineItemId",
       "entryDate",
       "itemCode",
@@ -3780,7 +5400,38 @@
       }
     ],
     "id_params": [
+      "activityId",
       "boqLineItemId"
+    ],
+    "fields": [
+      {
+        "key": "itemCode",
+        "label": "BOQ line",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "percent",
+        "label": "Percent complete",
+        "type": "percent",
+        "required": true,
+        "unit": "%"
+      },
+      {
+        "key": "entryDate",
+        "label": "Date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "remarks",
+        "label": "Remarks",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "activityId"
     ]
   },
   {
@@ -3819,7 +5470,16 @@
     ],
     "id_params": [
       "claimId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "rejectionReason",
+        "label": "Reason",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "reject_timesheet",
@@ -3856,7 +5516,22 @@
     ],
     "id_params": [
       "timeEntryId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "timeEntryId",
+        "label": "Time entry",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "rejectionReason",
+        "label": "Reason",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "remove_mood_board_item",
@@ -3900,7 +5575,9 @@
     "id_params": [
       "itemId",
       "moodBoardId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "remove_placement",
@@ -3944,7 +5621,9 @@
     "id_params": [
       "floorPlanId",
       "placementId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "remove_room",
@@ -3988,7 +5667,9 @@
     "id_params": [
       "floorPlanId",
       "roomId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "remove_sprint_task",
@@ -4032,7 +5713,9 @@
     "id_params": [
       "issueId",
       "sprintId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "rename_boq_category",
@@ -4077,7 +5760,16 @@
     ],
     "id_params": [
       "categoryId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "New name",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "review_budget",
@@ -4092,7 +5784,9 @@
     "text_params": [],
     "declared_params": [],
     "required_params": [],
-    "id_params": []
+    "id_params": [],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "review_submittal",
@@ -4138,7 +5832,22 @@
     ],
     "id_params": [
       "submittalId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "status",
+        "label": "Decision",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "comments",
+        "label": "Comments",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "run_named_report",
@@ -4173,6 +5882,16 @@
     "id_params": [
       "boqId",
       "vendorId"
+    ],
+    "fields": [],
+    "optional_params": [
+      "weekStart",
+      "date",
+      "trade",
+      "category",
+      "groupBy",
+      "vendorId",
+      "boqId"
     ]
   },
   {
@@ -4225,7 +5944,22 @@
     ],
     "id_params": [
       "boqId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "boqId",
+        "label": "BOQ version",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "expectedLineCount",
+        "label": "Line count",
+        "type": "number",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "set_progress_drawing",
@@ -4270,6 +6004,23 @@
     "id_params": [
       "drawingDocumentId",
       "progressEntryId"
+    ],
+    "fields": [
+      {
+        "key": "progressEntryId",
+        "label": "Progress entry",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "drawingDocumentId",
+        "label": "Drawing",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": [
+      "confirmed"
     ]
   },
   {
@@ -4305,7 +6056,9 @@
     ],
     "id_params": [
       "boqId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "submit_change_order_for_approval",
@@ -4348,7 +6101,9 @@
     ],
     "id_params": [
       "changeOrderId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "submit_kpi_entry",
@@ -4401,7 +6156,22 @@
     ],
     "id_params": [
       "kpiDefinitionId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "period",
+        "label": "Period",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "actualValue",
+        "label": "Value",
+        "type": "number",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "submit_progress_claim",
@@ -4436,7 +6206,9 @@
     ],
     "id_params": [
       "claimId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "submit_timesheet",
@@ -4471,7 +6243,16 @@
     ],
     "id_params": [
       "timeEntryId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "timeEntryId",
+        "label": "Time entry",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_activity",
@@ -4514,7 +6295,34 @@
     "id_params": [
       "activityId",
       "categoryId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "unit",
+        "label": "Unit",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "plannedQuantity",
+        "label": "Planned quantity",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "categoryId",
+        "label": "Category",
+        "type": "select",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_attendance",
@@ -4551,7 +6359,22 @@
     ],
     "id_params": [
       "attendanceId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "select",
+        "required": false
+      },
+      {
+        "key": "hoursWorked",
+        "label": "Hours worked",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_boq",
@@ -4596,7 +6419,16 @@
     ],
     "id_params": [
       "boqId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_boq_line",
@@ -4636,7 +6468,22 @@
     ],
     "id_params": [
       "lineItemId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "unit",
+        "label": "Unit",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_boq_line_amounts",
@@ -4675,7 +6522,34 @@
     ],
     "id_params": [
       "lineItemId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "qtyProject",
+        "label": "Quantity (project)",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "rateProject",
+        "label": "Rate (project)",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "qtyContract",
+        "label": "Quantity (contract)",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "rateContract",
+        "label": "Rate (contract)",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_change_order",
@@ -4721,7 +6595,46 @@
     ],
     "id_params": [
       "changeOrderId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "reason",
+        "label": "Reason",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "trade",
+        "label": "Trade",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "costImpact",
+        "label": "Cost impact",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "scheduleImpactDays",
+        "label": "Schedule impact (days)",
+        "type": "number",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_customer",
@@ -4766,7 +6679,46 @@
     ],
     "id_params": [
       "customerId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "customerName",
+        "label": "Customer name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "gstin",
+        "label": "GST number",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "pan",
+        "label": "PAN",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "defaultPaymentTermsDays",
+        "label": "Payment terms (days)",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "creditLimit",
+        "label": "Credit limit",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "isActive",
+        "label": "Active",
+        "type": "select",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_document_metadata",
@@ -4807,7 +6759,90 @@
     ],
     "id_params": [
       "documentId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "category",
+        "label": "Category",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "expiryDate",
+        "label": "Expiry date",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": []
+  },
+  {
+    "function_id": "update_drawing",
+    "label": "Change a drawing",
+    "module": "drawings",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 1,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "name",
+      "discipline"
+    ],
+    "declared_params": [
+      "category",
+      "discipline",
+      "drawingId",
+      "name",
+      "projectId"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "drawingId",
+        "label": "Drawing",
+        "any_of": [
+          "drawingId"
+        ]
+      }
+    ],
+    "id_params": [
+      "drawingId"
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "discipline",
+        "label": "Discipline",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "category",
+        "label": "Drawing or 3D",
+        "type": "select",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_ffe_status",
@@ -4850,7 +6885,17 @@
     ],
     "id_params": [
       "itemId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "select",
+        "required": false,
+        "default": "specified"
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_floor_plan_status",
@@ -4893,7 +6938,17 @@
     ],
     "id_params": [
       "floorPlanId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "select",
+        "required": false,
+        "default": "final"
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_line_item_budget",
@@ -4936,6 +6991,48 @@
     ],
     "id_params": [
       "boqLineItemId",
+      "vendorId"
+    ],
+    "fields": [
+      {
+        "key": "boqLineItemId",
+        "label": "BOQ line",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "budgetPercentage",
+        "label": "Budget share",
+        "type": "percent",
+        "required": false,
+        "unit": "%"
+      },
+      {
+        "key": "vendorAmount",
+        "label": "Vendor amount",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "materialAmount",
+        "label": "Material amount",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "manpowerAmount",
+        "label": "Manpower amount",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "category",
+        "label": "Category",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
       "vendorId"
     ]
   },
@@ -4982,7 +7079,46 @@
     ],
     "id_params": [
       "materialId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "unit",
+        "label": "Unit",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "spec",
+        "label": "Specification",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "unitCost",
+        "label": "Unit cost",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "reorderLevel",
+        "label": "Reorder level",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "isActive",
+        "label": "In use",
+        "type": "select",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_meeting",
@@ -5022,7 +7158,29 @@
     ],
     "id_params": [
       "meetingId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "scheduledAt",
+        "label": "When",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "durationMinutes",
+        "label": "Duration",
+        "type": "number",
+        "required": false,
+        "unit": "min"
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_milestone",
@@ -5064,7 +7222,40 @@
     ],
     "id_params": [
       "milestoneId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "milestoneId",
+        "label": "Milestone",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "targetDate",
+        "label": "Target date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_mom_details",
@@ -5107,6 +7298,30 @@
     ],
     "id_params": [
       "meetingId"
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "meetingType",
+        "label": "Type",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "scheduledAt",
+        "label": "When",
+        "type": "date",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "attendees",
+      "agenda"
     ]
   },
   {
@@ -5152,7 +7367,22 @@
     ],
     "id_params": [
       "meetingId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "meetingId",
+        "label": "Meeting",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "minutes",
+        "label": "Minutes",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_mood_board",
@@ -5194,7 +7424,28 @@
     ],
     "id_params": [
       "moodBoardId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "roomOrArea",
+        "label": "Room or area",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_permit",
@@ -5240,7 +7491,46 @@
     ],
     "id_params": [
       "permitId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "permitNumber",
+        "label": "Permit number",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "permitAuthority",
+        "label": "Authority",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "issueDate",
+        "label": "Issued",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "expiryDate",
+        "label": "Expires",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "notes",
+        "label": "Notes",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_placement",
@@ -5289,6 +7579,32 @@
       "floorPlanId",
       "placementId",
       "roomId"
+    ],
+    "fields": [
+      {
+        "key": "x",
+        "label": "Across",
+        "type": "number",
+        "required": false,
+        "unit": "cm"
+      },
+      {
+        "key": "y",
+        "label": "Down",
+        "type": "number",
+        "required": false,
+        "unit": "cm"
+      },
+      {
+        "key": "rotationDeg",
+        "label": "Rotation",
+        "type": "number",
+        "required": false,
+        "unit": "deg"
+      }
+    ],
+    "optional_params": [
+      "roomId"
     ]
   },
   {
@@ -5329,7 +7645,22 @@
     "id_params": [
       "categoryId",
       "parentCategoryId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "parentCategoryId",
+        "label": "Parent category",
+        "type": "select",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_progress_entry",
@@ -5374,6 +7705,37 @@
       "activityId",
       "boqLineItemId",
       "entryId"
+    ],
+    "fields": [
+      {
+        "key": "quantityDone",
+        "label": "Quantity done",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "percentComplete",
+        "label": "Percent complete",
+        "type": "percent",
+        "required": false,
+        "unit": "%"
+      },
+      {
+        "key": "entryDate",
+        "label": "Date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "remarks",
+        "label": "Remarks",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "activityId",
+      "boqLineItemId"
     ]
   },
   {
@@ -5411,6 +7773,55 @@
       }
     ],
     "id_params": [
+      "clientId"
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "startDate",
+        "label": "Start date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "targetDate",
+        "label": "Target date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "projectValue",
+        "label": "Project value",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "vatRatePercent",
+        "label": "VAT",
+        "type": "percent",
+        "required": false,
+        "unit": "%"
+      },
+      {
+        "key": "retentionPercent",
+        "label": "Retention",
+        "type": "percent",
+        "required": false,
+        "unit": "%"
+      }
+    ],
+    "optional_params": [
       "clientId"
     ]
   },
@@ -5461,6 +7872,24 @@
     "id_params": [
       "floorPlanId",
       "roomId"
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Room",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "ceilingHeightCm",
+        "label": "Ceiling height",
+        "type": "number",
+        "required": false,
+        "unit": "cm"
+      }
+    ],
+    "optional_params": [
+      "polygon"
     ]
   },
   {
@@ -5505,6 +7934,35 @@
     ],
     "id_params": [
       "rosterId"
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "trade",
+        "label": "Trade",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "dailyRate",
+        "label": "Daily rate",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "skillLevel",
+        "label": "Skill level",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "isActive"
     ]
   },
   {
@@ -5548,7 +8006,40 @@
     ],
     "id_params": [
       "sprintId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "goal",
+        "label": "Goal",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "startDate",
+        "label": "Start",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "endDate",
+        "label": "End",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "type": "select",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_task",
@@ -5598,6 +8089,65 @@
       "issueId",
       "milestoneId",
       "statusId"
+    ],
+    "fields": [
+      {
+        "key": "issueId",
+        "label": "Task",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "description",
+        "label": "Description",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "statusId",
+        "label": "Status",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "priority",
+        "label": "Priority",
+        "type": "select",
+        "required": false
+      },
+      {
+        "key": "startDate",
+        "label": "Start",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "dueDate",
+        "label": "Due",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "completionPercentage",
+        "label": "Complete",
+        "type": "percent",
+        "required": false
+      },
+      {
+        "key": "milestoneId",
+        "label": "Milestone",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "assigneeIds"
     ]
   },
   {
@@ -5641,6 +8191,35 @@
     ],
     "id_params": [
       "entryId",
+      "issueId"
+    ],
+    "fields": [
+      {
+        "key": "hours",
+        "label": "Hours",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "spentOn",
+        "label": "Date",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "activityType",
+        "label": "Category",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "comments",
+        "label": "Comments",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
       "issueId"
     ]
   },
@@ -5691,7 +8270,58 @@
     ],
     "id_params": [
       "vendorId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "vendorName",
+        "label": "Vendor name",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "vendorType",
+        "label": "Type",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "gst",
+        "label": "GST number",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "pan",
+        "label": "PAN",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "trade",
+        "label": "Trade",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "defaultPaymentTermsDays",
+        "label": "Payment terms (days)",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "creditLimit",
+        "label": "Credit limit",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "isActive",
+        "label": "Active",
+        "type": "select",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "update_wiki_page",
@@ -5731,7 +8361,22 @@
     ],
     "id_params": [
       "pageId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "content",
+        "label": "Text",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": []
   },
   {
     "function_id": "verify_punch_item_closed",
@@ -5766,7 +8411,9 @@
     ],
     "id_params": [
       "itemId"
-    ]
+    ],
+    "fields": [],
+    "optional_params": []
   },
   {
     "function_id": "void_material_receipt",
@@ -5811,6 +8458,15 @@
     ],
     "id_params": [
       "receiptId"
-    ]
+    ],
+    "fields": [
+      {
+        "key": "reason",
+        "label": "Reason",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "optional_params": []
   }
 ]

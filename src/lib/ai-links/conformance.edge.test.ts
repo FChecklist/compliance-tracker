@@ -58,6 +58,8 @@ const ALL_23 = [
 const EDGE_RPCS = [
   "ai_work_link_context", "ai_work_link_history", "ai_work_link_intent_status", "ai_work_link_log_call", "ai_work_link_log_call_result",
   "ai_work_link_record", "ai_work_link_records", "ai_work_link__resolve",
+  // AUDIT-100 item 4: the person's name and organisation for the confirm screen (drizzle/0735): a read
+  "ai_work_link_person_card",
   // the suggestions board (drizzle/0672): its address is in the manifest, so H13 reads it with a plain GET; that is the list, a read that writes nothing.
   // ai_suggestion_add is NOT here: the harness never records a suggestion (asserted below)
   "ai_suggestion_list",
@@ -324,16 +326,17 @@ describe("detail rows of BR-523 that need no deployed function (BR-581, BR-583 a
   // scripts/gen-ai-link-registry.data.ts is the one place it changes.
   // BUILD-002 WP-05e/05f and AW-312 added 21 more (waves 5 and 6 and the exception-capture functions): 73; WP-05g/05h added the 20 of waves 7, 8 and 9: 93; the persona-run finding 3 added submit_timesheet: 94; the user-wide link added create_project: 95 in all.
   // lf-b2-ai-crud (0685) added 27 update/delete/archive functions: 122 (this test was not updated then and failed on the integration branch);
-  // lf-b5-ai-crud (0687) added 19 (the eight edits/deletes that had no service, the organisation class and its read): 141 in all.
-  test("BR-581: exactly 141 functions are offered on links (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9 submit_timesheet, the user link's create_project, B2's 27 and B5's 19), a manager sees all on a project link, a member only what its rank allows, none offered twice", async () => {
+  // lf-b5-ai-crud (0687) added 19 (the eight edits/deletes that had no service, the organisation class and its read): 141;
+  // P5 (0740) added update_drawing, (0741) recall_precedent, (0743) create_material_order: 144 in all.
+  test("BR-581: exactly 144 functions are offered on links (the spec's 10, BUILD-002's five, the 19 of WP-05a waves 1 and 2, the 18 of waves 3 and 4, the 21 of waves 5 and 6 and the 20 of waves 7 to 9 submit_timesheet, the user link's create_project, B2's 27, B5's 19 and P5's update_drawing), a manager sees all on a project link, a member only what its rank allows, none offered twice", async () => {
     const edge = startEdge({ writesEnabled: true })
-    expect(onLinks).toHaveLength(141)
-    // create_project is offered on a USER link only (never on a project link), so a project link sees the other 140
+    expect(onLinks).toHaveLength(144)
+    // create_project is offered on a USER link only (never on a project link), so a project link sees the other 143
     const onProjectLinks = onLinks.filter((f) => f.function_id !== "create_project")
     const allowed = async (token: string) => ((await (await fetch(edge.link(token) + "/context", { headers: { accept: "application/json" } })).json()) as { allowed_functions: string[] }).allowed_functions
     const manager = await allowed(TOKENS.manager)
     expect(sorted(manager)).toEqual(sorted(onProjectLinks.map((f) => f.function_id)))
-    expect(new Set(manager).size).toBe(140)
+    expect(new Set(manager).size).toBe(143)
     const member = await allowed(TOKENS.member)
     expect(sorted(member)).toEqual(sorted(onProjectLinks.filter((f) => f.min_role_rank <= 2).map((f) => f.function_id)))
     expect(member).not.toContain("get_construction_budget_status")
@@ -360,7 +363,7 @@ describe("detail rows of BR-523 that need no deployed function (BR-581, BR-583 a
     expect(over.valid).toBe(false)
     expect(over.problems.join(" ")).toContain("TEXT_TOO_LONG")
     // a dry run records nothing: no SQL function that writes exists in the Edge's list, and the fake refuses any other name
-    expect([...new Set(edge.fake.names())].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_log_call", "ai_work_link_log_call_result"].sort())
+    expect([...new Set(edge.fake.names())].sort()).toEqual(["ai_work_link__resolve", "ai_work_link_log_call", "ai_work_link_log_call_result", "ai_work_link_person_card"].sort())
     edge.stop()
   }, 60_000)
 

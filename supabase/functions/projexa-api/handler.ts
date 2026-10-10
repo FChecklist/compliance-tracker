@@ -16,10 +16,32 @@
 //      after the organisation is known (`roles`); a `root` route calls VERIDIAN's /api/v1 root instead of /api/v1/projexa; a body is read
 //      strictly (`json`), leniently (`json_lenient`: an empty or broken body is {}, as `request.json().catch(() => ({}))`) or not at all and
 //      sent as {} (`empty`); `body_defaults` are spread UNDER the caller's body, as `{ action: "status", ...body }`.
+//   5c. (AUDIT-100 A2 batch 6) The handler's own statements, each one a spec key ported from its source and proven by the parity contract:
+//      body checks in the handler's order (`body_object_error`: `!body || typeof body !== "object"`; `body_reject_if`: a field combination
+//      the handler refuses; `body_required`: `if (!body.a || !body.b) 400`, and a JSON-null body there throws in the handler, so it is an
+//      empty 500 here too), `body_pick` (`{ a: body.a, b: body.b }`), `body_const` (a constant body, the request body unread) with
+//      `upstream_method` (DELETE answered by an upstream PATCH), `invalid_body_error` (the handler's own message for a bad JSON body),
+//      `body_in_try` (a bad JSON body is caught by the handler's catch: the fallback 502), the query it rebuilds (`optional_query`:
+//      `?k=` / `&k=` + encodeURIComponent when set; `query_flags`: `?k=v` only when the value is exactly v; `search_params_omit_empty`: no
+//      bare "?"; `forward_query_normalized`: `searchParams.toString()`; `required_query_any`: one of several is needed), `roles_also`
+//      (roles allowed on top of the own role set) and the answer it reshapes (`response_pick`: `{ k: data.k ?? default }`;
+//      `response_wrap`: `{ ...with, id, into: data }`).
+//   5d. (AUDIT-100 A2 batch 7) `cache_ttl`: a person-free read (the Next route caches it per organisation with unstable_cache, the call runs with
+//      NO acting person) is kept in a per-instance cache for the same TTL, keyed organisation + upstream URL, a failure never kept; `body:
+//      "multipart"` relays an upload form as it is (documents / drawings / permits); `search_param_defaults` / `include_allow` build the two
+//      queries that depend on another parameter; `response_redact` hides a field of a list for some roles; `boq_create_verify` is the BOQ
+//      create's own check of what came back. `revalidate` is read by the BROWSER only (the Next handler clears page-side cache entries the edge
+//      cannot reach: the browser asks Vercel to, after the edge answered).
+//   5e. (AUDIT-100 A2 batch 8) `company_scope` (src/lib/company-scope.ts requireCompanyScope): the route names a :companyId; after the ordinary
+//      organisation step the person must be a member of THAT company (403 "Not a member of this company"; a failed lookup is the unhandled throw =
+//      an empty 500), and the company, not the oldest membership, is the organisation whose key, cache and answer are used. `acting_user:
+//      "id_only"` sends X-Acting-User without the e-mail (the company dashboard names the user id only). `category_distribution`: two reads in
+//      parallel combined by the projexa repo's own pure builder (category-distribution.ts, copied byte for byte).
 //   6. The answer is the Next route's answer: 200 (201 for a create) + the upstream JSON, or the same error body and status
 //      (veridian-response.ts). A route whose handler forwards its whole query string (`forward_search`) gets it byte for byte.
 // Nothing here logs a token, an email, a key or a body.
 import type { SessionVerifier } from "../ai-work-link/session.ts"
+import { buildCategoryDistribution } from "./category-distribution.ts"
 import { checkApiWriteAccess, EDGE_ROUTES, ROLE_GROUPS, SHADOW_ROUTES, SOURCE_SHA256, type EdgeMethodSpec } from "./policy.generated.ts"
 
 export const ALLOWED_ORIGINS = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100", "http://localhost:3101"] as const
@@ -31,19 +53,30 @@ export const UPSTREAM_TIMEOUT_MS = 8_000
 export const UPSTREAM_TOTAL_BUDGET_MS = 9_000
 export const RETRY_AFTER_SECONDS = 5
 export const BODY_MAX_BYTES = 1_048_576
+/** A multipart upload (a document, drawing or permit file). Vercel's own function limit was 4.5 MB (a larger body never reached the handler);
+ *  here the form is held in memory (256 MB isolate) and relayed, so the ceiling is a stated, larger one. */
+export const UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+/** The per-instance cache of person-free reads: most entries kept (oldest dropped first). */
+export const CACHE_MAX_ENTRIES = 256
 
 export type Membership = { organization_id: string; role: string | null }
 export type MembershipLookup = (token: string, sub: string) => Promise<{ ok: true; row: Membership | null } | { ok: false }>
+/** AUDIT-100 A2 batch 8: the person's membership of ONE named company (PROJEXA public.memberships, the person's own token, row level security). */
+export type CompanyMembershipLookup = (token: string, sub: string, companyId: string) => Promise<{ ok: true; row: { role: string | null } | null } | { ok: false }>
 export type ApiDeps = {
   session: SessionVerifier
   /** Only tokens of this issuer are accepted (the PROJEXA Auth project): PROJEXA's own routes accept nothing else. */
   issuer: string
   membership: MembershipLookup
+  /** batch 8: the company routes (`company_scope`): is the person a member of the company named in the path. */
+  companyMembership?: CompanyMembershipLookup
   /** The organisation's own VERIDIAN key, or null when it has none. */
   orgKey: (organizationId: string) => Promise<string | null>
   /** VERIDIAN_API_BASE_URL (".../api/v1/projexa"), what PROJEXA's veridian-client.ts uses. */
   upstreamBase: string
   fetchImpl?: typeof fetch
+  /** AUDIT-100 A2 batch 7: the per-instance cache of `cache_ttl` reads; tests inject a fresh one with a fake clock. Default: one per isolate. */
+  cache?: UpstreamCache
   allowedOrigins?: readonly string[]
   /** Tests shorten the budgets. */
   timeoutMs?: number
@@ -51,6 +84,40 @@ export type ApiDeps = {
 }
 
 type Json = Record<string, unknown>
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The per-instance cache (batch 7). The Next routes of /api/currencies, /api/cost-centers and /api/fiscal-years keep the organisation's answer
+// 60 s with unstable_cache (veridian-client.ts createCachedVeridianGet over personFreeCache): keyed by the callback + the organisation id, the call
+// runs as nobody (no acting person), a throw is never stored. This is the same per isolate: key = organisation + upstream URL, fresh for `ttl`
+// seconds, a failure never stored. One difference, on purpose: after the TTL the real cache serves the stale answer once and refreshes in the
+// background; an isolate that may be stopped after answering cannot promise that refresh, so it refetches at once (never older than the TTL).
+// ---------------------------------------------------------------------------------------------------------------------------------
+export type UpstreamCache = {
+  get(key: string, ttlSeconds: number): unknown | undefined
+  set(key: string, value: unknown): void
+  clear(): void
+}
+export function createUpstreamCache(now: () => number = Date.now, maxEntries = CACHE_MAX_ENTRIES): UpstreamCache {
+  const store = new Map<string, { at: number; value: unknown }>()
+  return {
+    get(key, ttlSeconds) {
+      const hit = store.get(key)
+      if (!hit) return undefined
+      if (now() - hit.at >= ttlSeconds * 1000) {
+        store.delete(key)
+        return undefined
+      }
+      return hit.value
+    },
+    set(key, value) {
+      store.delete(key)
+      store.set(key, { at: now(), value })
+      while (store.size > maxEntries) store.delete(store.keys().next().value as string)
+    },
+    clear: () => store.clear(),
+  }
+}
+const isolateCache = createUpstreamCache()
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Responses
@@ -147,10 +214,42 @@ export function upstreamPathOf(spec: EdgeMethodSpec, params: Record<string, stri
   if (spec.search_params) {
     const out = new URLSearchParams()
     for (const k of spec.search_params) {
+      // batch 7 search_param_defaults: `if (id) params.set("linkedEntityType", searchParams.get("linkedEntityType") ?? "project")`: sent only when the
+      // "when" parameter is set, as the request's value (even an empty one) or the default
+      const rule = spec.search_param_defaults?.[k]
+      if (rule) {
+        if (search.get(rule.when)) out.set(k, search.get(k) ?? rule.default)
+        continue
+      }
       const v = search.get(k)
       if (v) out.set(k, v)
     }
-    path += `?${out.toString()}`
+    const s = out.toString()
+    // search_params_omit_empty: `qs.toString() ? `?${qs}` : ""` instead of an always-present "?"
+    if (!spec.search_params_omit_empty || s) path += `?${s}`
+  }
+  // optional_query: `${k ? `?k=${encodeURIComponent(k)}` : ""}` ("&" when the path already has a query); query_flags: only an exact value
+  const sep = () => (path.includes("?") ? "&" : "?")
+  for (const k of spec.optional_query ?? []) {
+    const v = search.get(k)
+    if (v) path += `${sep()}${k}=${encodeURIComponent(v)}`
+  }
+  for (const [k, want] of Object.entries(spec.query_flags ?? {})) if (search.get(k) === want) path += `${sep()}${k}=${encodeURIComponent(want)}`
+  // include_allow (batch 7): `["variation", "compare"].filter((v) => requested.has(v))` over the trimmed, comma-split `include`, joined with ","
+  if (spec.include_allow) {
+    const requested = new Set((search.get("include") ?? "").split(",").map((s) => s.trim()))
+    const allowed = spec.include_allow.filter((v) => requested.has(v))
+    if (allowed.length > 0) path += `&include=${allowed.join(",")}`
+  }
+  // category_distribution.boq_id (batch 8): `const boqIdParam = boqId ? `&boqId=${encodeURIComponent(boqId)}` : ""` after the project id
+  if (spec.category_distribution?.boq_id) {
+    const boq = search.get("boqId")
+    if (boq) path += `&boqId=${encodeURIComponent(boq)}`
+  }
+  // forward_query_normalized: `const qs = request.nextUrl.searchParams.toString(); qs ? `?${qs}` : ""` (re-serialised, not byte for byte)
+  if (spec.forward_query_normalized) {
+    const s = search.toString()
+    if (s) path += `?${s}`
   }
   // forward_search: the Next handler appends request.nextUrl.search as it came ("" or "?a=1&b=2"), byte for byte
   if (spec.forward_search) path += rawSearch
@@ -238,6 +337,17 @@ function failureResponse(req: Request, deps: ApiDeps, spec: EdgeMethodSpec, fail
   return json(req, deps, retryable ? 503 : failure.status, { error: failure.message, code: failure.code }, retryable ? { ...timing, "Retry-After": String(RETRY_AFTER_SECONDS) } : timing)
 }
 
+/** Next renders an unhandled throw of a route handler (here: a field read on a JSON-null body) as an empty 500. */
+function thrown(req: Request, deps: ApiDeps): Response {
+  return new Response(null, { status: 500, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...corsHeaders(req, deps) } })
+}
+class NullBodyRead extends Error {}
+/** `body.field` as the handler reads it: undefined on a primitive, a TypeError (=> the empty 500) on null. */
+function fieldOf(body: unknown, f: string): unknown {
+  if (body === null || body === undefined) throw new NullBodyRead()
+  return (body as Record<string, unknown>)[f]
+}
+
 function bearer(req: Request): string | null {
   const m = (req.headers.get("authorization") ?? "").match(/^Bearer\s+(\S+)$/i)
   return m ? m[1] : null
@@ -294,21 +404,72 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   const orgId = found.row.organization_id
   // the handler's own requireRole(ctx, ROLE_GROUPS.X) (auth-guard.ts: no role or a role outside the set is 403), its first statement
   if (spec.roles) {
-    const allowed = ROLE_GROUPS[spec.roles] ?? []
+    // roles_also (batch 6): `if (ctx.role !== "member") requireRole(ctx, X)` is the set X plus member
+    const allowed = [...(ROLE_GROUPS[spec.roles] ?? []), ...(spec.roles_also ?? [])]
     if (!role || !allowed.includes(role)) return json(req, deps, 403, { error: "Forbidden: your role does not permit this action" })
+  }
+
+  // batch 8 company_scope: requireCompanyScope runs first in the handler, right after requireAuth
+  let workOrg = orgId
+  if (spec.company_scope) {
+    const company = matched.params.companyId ?? ""
+    const lookup = deps.companyMembership
+    const mem = lookup ? await lookup(token, verdict.sub, company) : ({ ok: false } as const)
+    if (!mem.ok) return thrown(req, deps) // a database error / a company id that is not a UUID: nothing in the handler catches it
+    if (!mem.row) return json(req, deps, 403, { error: "Not a member of this company" })
+    workOrg = company
   }
 
   // 5. the handler's own checks, then the upstream call
   for (const [q, message] of Object.entries(spec.required_query ?? {})) if (!url.searchParams.get(q)) return json(req, deps, 400, { error: message })
+  if (spec.required_query_any && !spec.required_query_any.params.some((q) => url.searchParams.get(q))) return json(req, deps, 400, { error: spec.required_query_any.error })
 
   let body: unknown = undefined
-  if (spec.body === "json" || spec.body === "json_lenient" || spec.body === "empty") {
+  let form: FormData | undefined
+  if (spec.body === "multipart") {
+    // batch 7: `const formData = await request.formData()` inside the handler's try; anything that is not a form is the handler's catch (the fallback 502)
+    const len = Number(req.headers.get("content-length") ?? "0")
+    if (Number.isFinite(len) && len > UPLOAD_MAX_BYTES) return json(req, deps, 413, { error: "Request body too large" })
+    try {
+      form = await req.formData()
+    } catch {
+      return failureResponse(req, deps, spec, { kind: "other" }, 0)
+    }
+  } else if (spec.body_const) body = JSON.parse(JSON.stringify(spec.body_const)) // batch 6: a constant body; the request body is never read
+  else if (spec.body === "json" || spec.body === "json_lenient" || spec.body === "empty") {
     if (spec.body === "empty") body = {} // the handler sends a constant {} and never reads the request body
     else {
       const read = await readBody(req)
-      // json_lenient: `request.json().catch(() => ({}))`, an empty or broken body is {} (a body over the size limit is still refused)
-      if (!read.ok && !(spec.body === "json_lenient" && read.status === 400)) return json(req, deps, read.status, { error: read.error })
-      body = read.ok ? read.value : {}
+      if (!read.ok && read.status === 400) {
+        // json_lenient: `request.json().catch(() => ({}))`, an empty or broken body is {}; with body_object_error it is `.catch(() => null)`
+        if (spec.body === "json_lenient") body = spec.body_object_error !== undefined ? null : {}
+        // the handler's own `try { body = await request.json() } catch { return 400 <its message> }`
+        else if (spec.invalid_body_error !== undefined) return json(req, deps, 400, { error: spec.invalid_body_error })
+        // the body is read inside the handler's try: its catch answers veridianErrorResponse(err, fallback), the 502 of a non-upstream error
+        else if (spec.body_in_try) return failureResponse(req, deps, spec, { kind: "other" }, 0)
+        // a strict body read OUTSIDE the handler's try (`const body = await request.json()`, what almost every handler does): the read throws, and Next
+        // answers an unhandled throw with an empty 500. (Until batch 7 this was a 400 {"error":"Invalid JSON body"}: an answer the recorded contract never
+        // compared, found by recording a non-JSON body for every route that reads one.)
+        else return thrown(req, deps)
+      } else if (!read.ok) return json(req, deps, read.status, { error: read.error }) // over the size limit
+      else body = read.value
+    }
+    // batch 6: the handler's own body checks, in its order
+    if (spec.body_object_error !== undefined && (!body || typeof body !== "object")) return json(req, deps, 400, { error: spec.body_object_error })
+    for (const rule of spec.body_reject_if ?? []) {
+      // `body?.a === x && body?.b === y` (optional chaining: a null body is never refused here)
+      if (Object.entries(rule.match).every(([k, v]) => (body === null || body === undefined ? undefined : (body as Record<string, unknown>)[k]) === v)) return json(req, deps, 400, { error: rule.error })
+    }
+    try {
+      for (const check of spec.body_required ?? []) if (check.fields.some((f) => !fieldOf(body, f))) return json(req, deps, 400, { error: check.error })
+      if (spec.body_pick) {
+        const picked: Json = {}
+        for (const f of spec.body_pick) picked[f] = fieldOf(body, f) // an undefined field is dropped by JSON.stringify, as on the Next side
+        body = picked
+      }
+    } catch (err) {
+      if (err instanceof NullBodyRead) return thrown(req, deps)
+      throw err
     }
     if (spec.body_defaults) body = { ...spec.body_defaults, ...(body as Json) }
     if (spec.body_actor_email === "always") body = { ...(body as Json), actorEmail: verdict.email ?? null }
@@ -321,28 +482,86 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   }
 
   const timeoutMs = deps.timeoutMs ?? spec.timeout_ms ?? UPSTREAM_TIMEOUT_MS
+  const base = deps.upstreamBase.replace(/\/+$/, "")
+  // veridian-client.ts: a `root: true` call goes to VERIDIAN_API_ROOT = the base without its trailing /projexa
+  const upPath = upstreamPathOf(spec, matched.params, url.searchParams, url.search)
+  const target = (spec.root ? base.replace(/\/projexa$/, "") : base) + upPath
+  // batch 7 cache_ttl: a fresh answer of this organisation for this URL is served without a key lookup or an upstream call (the cached function of
+  // the Next route is keyed by the organisation alone and resolves the key only when it has to fill)
+  const cache = deps.cache ?? isolateCache
+  const cacheKey = `${workOrg}|${target}`
+  if (spec.cache_ttl !== undefined) {
+    const hit = cache.get(cacheKey, spec.cache_ttl)
+    if (hit !== undefined) return json(req, deps, spec.success_status ?? 200, hit, spec.cache_control ? { "Cache-Control": spec.cache_control } : {})
+  }
   let key: string | null
   try {
-    key = await deps.orgKey(orgId)
+    key = await deps.orgKey(workOrg)
   } catch {
     key = null // veridian-client.ts getVeridianApiKey(): a failed lookup is "no key", never a shared key
   }
   if (!key) {
-    const message = `No VERIDIAN credentials configured for organization ${orgId}, and per-org requests may not fall back to a shared key (AR-04)`
+    const message = `No VERIDIAN credentials configured for organization ${workOrg}, and per-org requests may not fall back to a shared key (AR-04)`
     return spec.error_style === "plain" ? json(req, deps, 500, { error: message }) : json(req, deps, 500, { error: message, code: null }, { "Server-Timing": "upstream;dur=0" })
   }
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${key}`, "X-Acting-User": verdict.sub }
-  if (verdict.email) headers["X-Acting-User-Email"] = verdict.email
+  const headers: Record<string, string> = { Authorization: `Bearer ${key}` }
+  // acting_user "none" (a cached person-free read): the call carries no acting person, as personFreeCache's fill (runWithoutActingPerson) sends none
+  if (spec.acting_user !== "none") {
+    headers["X-Acting-User"] = verdict.sub
+    if (verdict.email && spec.acting_user !== "id_only") headers["X-Acting-User-Email"] = verdict.email
+  }
+  // a multipart form gets its Content-Type (with the boundary) from fetch itself, never written by hand
   if (body) headers["Content-Type"] = "application/json"
-  // veridian-client.ts: a `root: true` call goes to VERIDIAN_API_ROOT = the base without its trailing /projexa
-  const base = deps.upstreamBase.replace(/\/+$/, "")
-  const target = (spec.root ? base.replace(/\/projexa$/, "") : base) + upstreamPathOf(spec, matched.params, url.searchParams, url.search)
-  const result = await callUpstream(deps, target, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store" } as RequestInit, timeoutMs)
+  // batch 8 category_distribution: `Promise.all([amounts, progress])`, then buildCategoryDistribution; the first failure (in array order) is the answer, and a
+  // builder that throws on a malformed answer is the handler's catch (the fallback 502)
+  let result: Awaited<ReturnType<typeof callUpstream>>
+  if (spec.category_distribution) {
+    const second = target.slice(0, target.length - upPath.length) + spec.category_distribution.progress.replace(/\{(\w+)\}/g, (_m, p: string) => encodeURIComponent(matched.params[p] ?? ""))
+    const init = { method: "GET", headers, cache: "no-store" } as RequestInit
+    const [amounts, progress] = await Promise.all([callUpstream(deps, target, init, timeoutMs), callUpstream(deps, second, init, timeoutMs)])
+    if (!amounts.ok) result = amounts
+    else if (!progress.ok) result = progress
+    else {
+      try {
+        result = { ok: true, data: buildCategoryDistribution(amounts.data as never, progress.data as never) }
+      } catch {
+        result = { ok: false, failure: { kind: "other" }, durationMs: 0 }
+      }
+    }
+  } else result = await callUpstream(deps, target, { method: spec.upstream_method ?? method, headers, body: form ?? (body ? JSON.stringify(body) : undefined), cache: "no-store" } as RequestInit, timeoutMs)
   if (!result.ok) {
     logLine(deps, `${method} ${matched.route.route} upstream failure ${result.failure.kind === "upstream" ? result.failure.status : "other"}`)
     return failureResponse(req, deps, spec, result.failure, result.durationMs)
   }
+  // batch 6: the handler's own reshaping of the answer. response_pick `{ k: data.k ?? default }` (a null answer throws inside the handler's
+  // try: its catch's fallback 502); response_wrap `{ ...with, <params>, [into]: data }`
+  let data = result.data
+  // batch 7 boq_create_verify (src/lib/services/boq-create-service.ts createBoqVerified): the answer must carry the saved BOQ's id and at least as many
+  // line items as were sent, else 502 with the service's own message (no `code`)
+  if (spec.boq_create_verify) {
+    const requested = Array.isArray((body as { lineItems?: unknown } | null | undefined)?.lineItems) ? ((body as { lineItems: unknown[] }).lineItems.length) : 0
+    const answer = data as { id?: unknown; lineItems?: unknown } | null | undefined
+    const savedId = typeof answer?.id === "string" ? answer.id.trim() : ""
+    if (!savedId) return json(req, deps, 502, { error: "BOQ was not created: the scope service reported success but returned no saved BOQ. Nothing has been saved -- please try again." })
+    const savedLineItems = Array.isArray(answer!.lineItems) ? (answer!.lineItems as unknown[]).length : 0
+    if (savedLineItems < requested) return json(req, deps, 502, { error: `BOQ was not saved correctly: ${requested} line item(s) were submitted but only ${savedLineItems} came back saved. Check the BOQ list before retrying.` })
+  }
+  if (spec.cache_ttl !== undefined) cache.set(cacheKey, data)
+  // batch 7 response_redact: `ctx.role && ROLES.has(ctx.role) ? { ...data, [list]: list.map((m) => (m && typeof m === "object" ? { ...m, ...set } : m)) } : data`
+  if (spec.response_redact && role && spec.response_redact.roles.includes(role) && data && typeof data === "object") {
+    const rr = spec.response_redact
+    const rows = (data as Record<string, unknown>)[rr.list]
+    if (Array.isArray(rows)) data = { ...(data as Json), [rr.list]: rows.map((m) => (m && typeof m === "object" ? { ...(m as Json), ...rr.set } : m)) }
+  }
+  if (spec.response_pick) {
+    if (data === null || data === undefined) return failureResponse(req, deps, spec, { kind: "other" }, 0)
+    const src = data as Record<string, unknown>
+    data = Object.fromEntries(Object.entries(spec.response_pick).map(([k, d]) => [k, src[k] ?? d]))
+  } else if (spec.response_wrap) {
+    const w = spec.response_wrap
+    data = { ...w.with, ...Object.fromEntries(w.params.map((p) => [p, matched.params[p]])), [w.into]: data }
+  }
   // the Next handler's own success answer: 200, or 201 for a create; a private browser cache only where the handler sets one
-  return json(req, deps, spec.success_status ?? 200, result.data, spec.cache_control ? { "Cache-Control": spec.cache_control } : {})
+  return json(req, deps, spec.success_status ?? 200, data, spec.cache_control ? { "Cache-Control": spec.cache_control } : {})
 }

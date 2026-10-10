@@ -71,7 +71,8 @@ export function renderNotice(n: Notice): Rendered {
       ])
     }
     case "commission_earned": {
-      const basis = str(p.basis) === "yearly" ? "a yearly payment" : "a first monthly payment"
+      const b = str(p.basis)
+      const basis = b === "yearly" ? "a yearly payment" : b === "monthly_first_year" ? "a monthly payment in its first year" : "a first monthly payment"
       return shell(`You earned a commission of ${rupees(num(p.amountPaise))}`, [
         hi, "",
         `We confirmed ${basis} from an organisation you referred.`,

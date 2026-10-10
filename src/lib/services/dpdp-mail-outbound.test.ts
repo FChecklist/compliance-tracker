@@ -273,6 +273,8 @@ beforeAll(async () => {
   }
   mock.module("npm:@supabase/supabase-js@2", () => ({ createClient: () => fakeClient() }))
   globalThis.fetch = (async (input: unknown, init?: { body?: string }) => {
+    // the Test/Live mail gate (drizzle/0735): LIVE, so every send goes on; it is not a Resend call
+    if (String(input).includes("dpdp_mail_gate")) return new Response(JSON.stringify({ send: true, reason: "live", mode: "LIVE" }), { status: 200 })
     fetchCalls.push({ url: String(input), body: JSON.parse(String(init?.body ?? "{}")) })
     return new Response(JSON.stringify(resendResponse.body), { status: resendResponse.status, headers: { "Content-Type": "application/json" } })
   }) as typeof fetch
@@ -666,7 +668,7 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
     expect(text).toContain("BEFORE YOU PASTE.")
     expect(text.indexOf("BEFORE YOU PASTE.")).toBeLessThan(text.indexOf(`https://dpdp.veridian-aios.com/ai/${TOKEN}`))
     expect(html).toContain("Before you paste.")
-    expect(callsTo("dpdp_timer_mint_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_level: 1, p_days: 2 })
+    expect(callsTo("dpdp_timer_mint_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_level: 0, p_days: 2 }) // read-only unless DPDP_EMAIL_AI_LINK_LEVEL is exactly "1" (owner, 2026-10-06)
     // order: made before the send; retired after the row is marked sent
     expect(order("dpdp_timer_mint_email_ai_link")).toBeLessThan(order("dpdp_mail_log_outbound"))
     expect(order("dpdp_mail_log_outbound")).toBeLessThan(order("dpdp_timer_mark_email_send_result"))

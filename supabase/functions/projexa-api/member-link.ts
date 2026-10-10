@@ -172,9 +172,24 @@ async function postOrGet(fetchImpl: typeof fetch, url: string, init: RequestInit
 }
 
 /** PROJEXA public.veridian_credentials.veridian_org_id for one PROJEXA organisation (service role; the key column is never selected). */
-export function createVeridianOrgIdLookup(o: { projexaUrl: string; serviceRoleKey: string; fetchImpl?: typeof fetch }): (organizationId: string) => Promise<string | null> {
+export function createVeridianOrgIdLookup(o: {
+  projexaUrl: string
+  serviceRoleKey: string
+  /** G-09: the compliance-side credentials table first (public.projexa_org_veridian_id_get); the legacy PROJEXA table answers for an organisation not moved yet */
+  rpc?: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>
+  fetchImpl?: typeof fetch
+}): (organizationId: string) => Promise<string | null> {
   return async (organizationId) => {
-    if (!o.projexaUrl || !o.serviceRoleKey || !UUID_RE.test(organizationId)) return null
+    if (!UUID_RE.test(organizationId)) return null
+    if (o.rpc) {
+      try {
+        const r = await o.rpc("projexa_org_veridian_id_get", { p_projexa_org_id: organizationId })
+        if (!r.error && typeof r.data === "string" && r.data !== "") return r.data
+      } catch {
+        // fall through to the legacy table
+      }
+    }
+    if (!o.projexaUrl || !o.serviceRoleKey) return null
     const url = `${o.projexaUrl.replace(/\/+$/, "")}/rest/v1/veridian_credentials?select=veridian_org_id&organization_id=eq.${encodeURIComponent(organizationId)}&limit=1`
     const out = await postOrGet(o.fetchImpl ?? fetch, url, { headers: { apikey: o.serviceRoleKey, Authorization: `Bearer ${o.serviceRoleKey}`, Accept: "application/json" } })
     if (!out.ok || !Array.isArray(out.body)) return null

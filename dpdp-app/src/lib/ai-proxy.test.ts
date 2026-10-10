@@ -73,7 +73,7 @@ describe("GET /ai/<token>", () => {
     expect(await res.text()).toContain("jobs")
     expect(calls[0].url).toBe(`${UPSTREAM}/${GOOD}`)
     expect(new Headers(calls[0].init?.headers).get("accept")).toBe("text/html")
-    expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive, nosnippet")
+    expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive")
     expect(res.headers.get("referrer-policy")).toBe("no-referrer")
     expect(res.headers.get("cache-control")).toBe("no-store")
     expect(res.headers.get("x-content-type-options")).toBe("nosniff")
@@ -192,6 +192,18 @@ describe("[[path]]: proxyRequest", () => {
     expect(new Headers(calls[0].init?.headers).get("accept")).toBe("application/json")
     expect(calls[0].init?.body).toBeUndefined()
     for (const [k, v] of Object.entries(PRIVATE_HEADERS)) expect(res.headers.get(k)).toBe(v)
+  })
+
+  test("audit trail: the AI's optional self-declaration headers and Cloudflare's country reach the Edge Function; a caller-supplied country / address header does not", async () => {
+    const calls: Call[] = []
+    const fn = async (url: string, init?: RequestInit) => { calls.push({ url, init }); return new Response("{}", { status: 200, headers: { "content-type": "application/json" } }) }
+    await proxyRequest(new Request(`https://app.example/ai/${GOOD}/jobs`, {
+      headers: { "x-ai-model": "gpt-5", "x-ai-version": "5", "x-ai-session": "s-1", "x-ai-machine": "m-1", "cf-ipcountry": "IN", "cf-connecting-ip": "203.0.113.45", "x-dpdp-client-country": "XX", "x-dpdp-client-ip": "6.6.6.6" },
+    }), [GOOD, "jobs"], fn)
+    const h = new Headers(calls[0].init?.headers)
+    expect(h.get("x-ai-model")).toBe("gpt-5"); expect(h.get("x-ai-version")).toBe("5"); expect(h.get("x-ai-session")).toBe("s-1"); expect(h.get("x-ai-machine")).toBe("m-1")
+    expect(h.get("x-dpdp-client-country")).toBe("IN") // from cf-ipcountry, not the caller's own x-dpdp-client-country
+    expect(h.get("x-dpdp-client-ip")).toBe("203.0.113.45") // from cf-connecting-ip, not the caller's own x-dpdp-client-ip
   })
 
   test("the manual at the root comes back as real text/html even though the gateway said text/plain", async () => {
