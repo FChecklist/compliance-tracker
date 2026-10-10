@@ -40,6 +40,11 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (PROJEXA D3: public e-sign token lookup under RLS; worktree C:/ct/ct-d3, branch fix/esign-token-lookup-rls)"
+    claimed_at: "2026-10-10 (this session)"
+    claim: |
+      Scope: drizzle/0745_esign_resolve_signer_fn.sql (+journal idx 552), src/lib/services/esignature-service.ts (public token path only),
+      src/lib/services/esignature-service.token.test.ts. Applies 0745 live via Supabase MCP (additive SECURITY DEFINER function, owner approved 2026-10-10). No Vercel, no DNS, no spend.
   - session_label: "claude-code (scheduled cloud routine, task P5: AI work link function coverage vs Sumeet's 111; branch claude/gap-p5-function-map)"
     claimed_at: "2026-10-08 (this session)"
     claim: |
