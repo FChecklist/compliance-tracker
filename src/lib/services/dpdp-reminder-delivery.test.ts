@@ -84,7 +84,10 @@ describe("Idempotency-Key", () => {
 
   test("sendViaResend puts it on the request; without one there is no header", async () => {
     const seen: Array<Record<string, string>> = []
-    globalThis.fetch = (async (_u: unknown, init: { headers: Record<string, string> }) => {
+    // the Test/Live mail gate (drizzle/0735) asks the database first: LIVE, so the send goes on
+    ;(globalThis as unknown as { Deno: unknown }).Deno = { env: { get: (k: string) => (k === "SUPABASE_URL" ? "https://x.test" : "service-key") } }
+    globalThis.fetch = (async (u: unknown, init: { headers: Record<string, string> }) => {
+      if (String(u).includes("/rpc/dpdp_mail_gate")) return new Response(JSON.stringify({ send: true, reason: "live", mode: "LIVE" }), { status: 200 })
       seen.push(init.headers)
       return new Response(JSON.stringify({ id: "re_1" }), { status: 200 })
     }) as unknown as typeof fetch

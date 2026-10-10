@@ -104,10 +104,17 @@ export const RUM_SCRIPT = { src: "/rum.js", tag: '<script defer src="/rum.js"></
  * is on <html data-theme> before the first paint. It keeps the three-dot colour choice in this browser's localStorage and sends nothing. */
 export const THEME_SCRIPT = { src: "/theme.js", tag: '<script src="/theme.js"></script>', open: '<script src="/theme.js">' }
 /** Exactly these opening tags, in this order, are the only scripts a public page may carry besides its JSON-LD: ref.js then rum.js; the home page adds theme.js first. */
-export const PUBLIC_SCRIPT_OPENS = [REF_SCRIPT.open, RUM_SCRIPT.open]
-export const HOME_SCRIPT_OPENS = [THEME_SCRIPT.open, REF_SCRIPT.open, RUM_SCRIPT.open]
+/** The FOURTH script (2026-10-06): public/visit.js, same origin, deferred, right after rum.js. First-party visit journey (where a visit came from, which sections were seen,
+ * where it ended), posted with sendBeacon to this site's own /api/visit -> the dpdp-track Edge Function. A random visitor id (cookie + local storage, one year); with Global
+ * Privacy Control / Do Not Track it stores no id and sends one count-only ping. Never on the private prefixes. */
+export const VISIT_SCRIPT = { src: "/visit.js", tag: '<script defer src="/visit.js"></script>', open: '<script defer src="/visit.js">' }
+export const PUBLIC_SCRIPT_OPENS = [REF_SCRIPT.open, RUM_SCRIPT.open, VISIT_SCRIPT.open]
+export const HOME_SCRIPT_OPENS = [THEME_SCRIPT.open, REF_SCRIPT.open, RUM_SCRIPT.open, VISIT_SCRIPT.open]
+/** The hand-kept legal pages carry rum.js then visit.js and nothing else. */
+export const LEGAL_SCRIPT_OPENS = [RUM_SCRIPT.open, VISIT_SCRIPT.open]
 export const scriptOpensFor = (path) => (path === "/" ? HOME_SCRIPT_OPENS : PUBLIC_SCRIPT_OPENS)
 FACT_COPY.push(RUM_SCRIPT.tag)
+FACT_COPY.push(VISIT_SCRIPT.tag)
 
 /** The ownership line at the end of every public footer (coordinator, 2026-10-02), from facts.company. */
 const COMPANY_FOOTER = companyFooterParts(FACTS)

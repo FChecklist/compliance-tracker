@@ -1,6 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import "./onepage/dpdp-onepage-tokens.css"
 import { SIGNIN_BENEFITS } from "@/lib/signin-benefits"
+import { formatRupees } from "@/lib/billing-state"
+import { EarningsCalculator } from "./EarningsCalculator"
+import type { PlanWirePayload, ProfessionalBody } from "@/lib/rpc-types"
 
 export function Card({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
   return (
@@ -197,24 +200,59 @@ export function Loading() {
  * and the visitor becomes its owner with the library's jobs opened. Someone
  * who was invited by an owner is told what to ask for instead.
  */
+export type OpenAccountExtra = {
+  professionalBody: ProfessionalBody | null; registrationNo: string; billingContactEmail: string
+  /** Optional details typed on the opening page (any may be empty); sent after the account opens and never blocking. */
+  profile: Record<string, string>
+  practitionerDeclared: boolean
+}
+
+const OPENING_FIRM_FIELDS: Array<[string, string]> = [["firmName", "Firm name"], ["city", "City"], ["gstin", "GSTIN"], ["clientsEstimate", "About how many clients"], ["contactPerson", "Contact person"], ["phone", "Phone"]]
+const OPENING_INSTITUTION_FIELDS: Array<[string, string]> = [["legalName", "Legal name"], ["city", "City"], ["gstin", "GSTIN"], ["contactPerson", "Contact person"], ["phone", "Phone"], ["dpoName", "DPO or Grievance Officer name"], ["dpoEmail", "DPO or Grievance Officer e-mail"]]
+
+/** The one calm line about money on the opening screen: no payment now; what it is after the trial. Prices come from dpdp_public_plans, never from here. */
+function priceLine(plans: PlanWirePayload[] | undefined, product: "firm" | "institution" | null): string | null {
+  if (!plans || !product) return null
+  const plan = plans.find((p) => (product === "institution" ? p.key === "institution" : p.key === "firm_starter"))
+  if (!plan) return null
+  const now = formatRupees(plan.monthlyPaise)
+  const offer = plan.offerLabel
+  return offer
+    ? `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month + GST. ${offer} (normally ${formatRupees(plan.listMonthlyPaise)}).`
+    : `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month + GST.`
+}
+
 export function OpenOrganisation({
-  email, initialEdition, busy, error, onCreate, onSignOut, onOpenPartner,
+  email, initialEdition, busy, error, onCreate, onSignOut, onOpenPartner, plans,
 }: {
   onOpenPartner?: () => void
   email: string | null
   initialEdition: "firm" | "institution" | null
   busy: boolean
   error: string | null
-  onCreate: (name: string, product: "firm" | "institution") => void
+  onCreate: (name: string, product: "firm" | "institution", extra: OpenAccountExtra) => void
   onSignOut: () => void
+  plans?: PlanWirePayload[]
 }) {
   const [name, setName] = useState("")
   const [product, setProduct] = useState<"firm" | "institution" | null>(initialEdition)
+  const [body, setBody] = useState<ProfessionalBody | "">("")
+  const [registration, setRegistration] = useState("")
+  const [billing, setBilling] = useState("")
+  const [declared, setDeclared] = useState(false)
+  const [more, setMore] = useState<Record<string, string>>({})
   function submit(e: FormEvent) {
     e.preventDefault()
     if (!product) return
-    onCreate(name.trim(), product)
+    const isFirm = product === "firm"
+    const profile: Record<string, string> = {}
+    for (const [k, v] of Object.entries(more)) if (v.trim() !== "") profile[k] = v.trim()
+    onCreate(name.trim(), product, {
+      professionalBody: isFirm && body !== "" ? (body as ProfessionalBody) : null, registrationNo: isFirm ? registration.trim() : "", billingContactEmail: billing.trim(),
+      profile, practitionerDeclared: isFirm && declared,
+    })
   }
+  const money = priceLine(plans, product)
   const optionStyle = { borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" } as const
   return (
     <Card icon="🏛️" title="Open your organisation">
@@ -241,6 +279,49 @@ export function OpenOrganisation({
             A school or institution
           </label>
         </fieldset>
+        <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: 0 }}>
+          A firm that looks after other organisations&rsquo; DPDP work, or a company or institution that uses it for itself: pick the one closest. You can add clients later.
+        </p>
+        {product === "firm" && (
+          <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
+            <legend style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)", padding: 0, marginBottom: 6 }}>A CA, CS or cost accountant practice? (optional)</legend>
+            <label className="flex gap-2 items-center" style={{ fontSize: 14.5, color: "var(--dpdp-ink)" }}>
+              <input type="checkbox" checked={declared} onChange={(e) => setDeclared(e.target.checked)} disabled={busy} />
+              I am a practising CA / CS / cost accountant
+            </label>
+            <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: 0 }}>Tick it and your own firm&rsquo;s file is free (no client organisations). Nobody checks it first. The membership number below is optional.</p>
+            <select id="pro-body" aria-label="Professional body" value={body} onChange={(e) => setBody(e.target.value as ProfessionalBody | "")} disabled={busy}
+              className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }}>
+              <option value="">Professional body</option>
+              <option value="ICAI">ICAI (Chartered Accountants)</option>
+              <option value="ICSI">ICSI (Company Secretaries)</option>
+              <option value="ICMAI">ICMAI (Cost and Management Accountants)</option>
+              <option value="other">Another body</option>
+            </select>
+            <input id="pro-reg" aria-label="Membership or firm registration number" type="text" maxLength={40} placeholder="Membership or firm registration number" value={registration}
+              onChange={(e) => setRegistration(e.target.value)} disabled={busy} autoComplete="off"
+              className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }} />
+          </fieldset>
+        )}
+        {product && (
+          <details>
+            <summary style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)", cursor: "pointer" }}>More about your {product === "firm" ? "firm" : "organisation"} (optional, any time later)</summary>
+            <div className="flex flex-col gap-2" style={{ marginTop: 8 }}>
+              {(product === "firm" ? OPENING_FIRM_FIELDS : OPENING_INSTITUTION_FIELDS).map(([k, label]) => (
+                <input key={k} aria-label={label} placeholder={label} type="text" maxLength={160} value={more[k] ?? ""} disabled={busy} autoComplete="off"
+                  onChange={(e) => setMore((m) => ({ ...m, [k]: e.target.value }))}
+                  className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }} />
+              ))}
+            </div>
+          </details>
+        )}
+        <label htmlFor="billing-contact" style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)" }}>Who should get payment notes? (optional)</label>
+        <input id="billing-contact" type="email" maxLength={120} placeholder="A billing contact e-mail, if not you" value={billing} onChange={(e) => setBilling(e.target.value)} disabled={busy} autoComplete="off"
+          className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }} />
+        {product === "firm" && plans && plans.length > 0 && <EarningsCalculator plans={plans} />}
+        <p style={{ fontSize: 13, color: "var(--dpdp-ink2)", margin: "2px 0 0" }}>
+          <b>Nothing to pay now.</b> You get 30 days with everything switched on.{money ? ` ${money}` : ""}
+        </p>
         <button type="submit" disabled={busy || !product} className="font-bold text-white" style={{ ...primaryButton, opacity: busy || !product ? 0.6 : 1 }}>
           {busy ? "Opening…" : "Open my organisation"}
         </button>

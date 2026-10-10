@@ -13,7 +13,8 @@ import {
   HIDDEN_FIELD, LIMITS, LINK_GONE, checkRecordQuery, cleanDeep, cleanText, errorBody, redactItem, redactToken,
   type ApiErrorBody, type KindDef,
 } from "../_shared/ai-link/core.ts"
-import { EXAMPLE_PARAMS, KIND_NAMES, SEARCH_KINDS, SEARCH_MAX_RESULTS, SEARCH_ROWS, bodyLimitFor, functionDef, kb, kindDef, type RegistryFunction } from "./api-definition.ts"
+import { KIND_NAMES, SEARCH_KINDS, SEARCH_MAX_RESULTS, SEARCH_ROWS, bodyLimitFor, functionDef, kb, kindDef, type RegistryFunction } from "./api-definition.ts"
+import { exampleOf, fieldsOf, signatureOf, type DictField } from "./dictionary.ts"
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Dependencies and errors
@@ -38,6 +39,8 @@ export type AwlConfig = {
    * false a draft is still recorded, and the person can still see it, but no change is applied.
    */
   execPresent: boolean
+  /** AUDIT-100 item 6: other hosts (besides the project's own) the function answers on and may print in its addresses, from AWL_ALT_HOSTS. Empty by default. */
+  altHosts?: string[]
 }
 
 /**
@@ -262,6 +265,10 @@ export type FunctionView = {
   min_role_rank: number
   required: string[]
   example_params: Record<string, unknown>
+  /** Every field the function takes, typed (dictionary.ts): what an AI needs to call it without guessing. */
+  fields: DictField[]
+  /** `title*, idempotency_key*; optional: lineItems`: a * marks a required field. */
+  signature: string
 }
 
 export function functionView(def: RegistryFunction, env: { ctx: LinkCtx; config: AwlConfig }): FunctionView {
@@ -283,7 +290,9 @@ export function functionView(def: RegistryFunction, env: { ctx: LinkCtx; config:
     money_sensitive: def.money_sensitive,
     min_role_rank: def.min_role_rank,
     required: def.required_params.filter((r) => r.name !== "projectId").map((r) => r.any_of.join("|")),
-    example_params: EXAMPLE_PARAMS[def.function_id] ?? {},
+    example_params: exampleOf(def),
+    fields: fieldsOf(def),
+    signature: signatureOf(def),
   }
 }
 

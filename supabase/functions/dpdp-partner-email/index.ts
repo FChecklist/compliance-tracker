@@ -13,6 +13,7 @@
 // marked, so the notices go out once the key is set.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { type OutboundEnvelope, foreignSenderWarning, logOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
+import { SUPPRESSED_MESSAGE_ID, mailGate } from "../_shared/mail-gate.ts"
 import { flushNotices } from "./flush.ts"
 import type { Notice, Rendered } from "./render.ts"
 
@@ -65,6 +66,7 @@ async function ownerJwtOk(authHeader: string): Promise<boolean> {
 }
 
 async function sendViaResend(to: string, rendered: Rendered, out: OutboundEnvelope): Promise<string> {
+  if (!(await mailGate(to, "dpdp-partner-email")).send) return SUPPRESSED_MESSAGE_ID // Test mode: not on the allowlist (drizzle/0735)
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },

@@ -550,19 +550,19 @@ describe("listBoqs -- R67 F-23: one transaction, one grouped statement, variatio
 
 describe("parseBoqInclude -- the route's ?include= contract", () => {
   test("recognises both values, in either order, with whitespace", () => {
-    expect(parseBoqInclude("variation, lineItems")).toEqual({ lineItems: true, variation: true, compare: false })
+    expect(parseBoqInclude("variation, lineItems")).toEqual({ lineItems: true, variation: true, compare: false, headers: false })
   })
 
   test("an unknown include is ignored rather than failing a list the caller can otherwise read", () => {
-    expect(parseBoqInclude("nonsense")).toEqual({ lineItems: false, variation: false, compare: false })
-    expect(parseBoqInclude(null)).toEqual({ lineItems: false, variation: false, compare: false })
-    expect(parseBoqInclude(undefined)).toEqual({ lineItems: false, variation: false, compare: false })
+    expect(parseBoqInclude("nonsense")).toEqual({ lineItems: false, variation: false, compare: false, headers: false })
+    expect(parseBoqInclude(null)).toEqual({ lineItems: false, variation: false, compare: false, headers: false })
+    expect(parseBoqInclude(undefined)).toEqual({ lineItems: false, variation: false, compare: false, headers: false })
   })
 
   // R67 F-29 (R-273)
   test("recognises 'compare' alongside the other two", () => {
-    expect(parseBoqInclude("lineItems,variation,compare")).toEqual({ lineItems: true, variation: true, compare: true })
-    expect(parseBoqInclude("compare")).toEqual({ lineItems: false, variation: false, compare: true })
+    expect(parseBoqInclude("lineItems,variation,compare")).toEqual({ lineItems: true, variation: true, compare: true, headers: false })
+    expect(parseBoqInclude("compare")).toEqual({ lineItems: false, variation: false, compare: true, headers: false })
   })
 })
 

@@ -5,7 +5,7 @@
 //                           Oldest membership first (R81_F03: the same order as requireAuth() and src/middleware.ts).
 //   orgKey(orgId)           PROJEXA public.veridian_credentials.veridian_api_key, which only the service role may read (drizzle/0001 of projexa).
 //                           Remembered for 5 minutes per isolate (a rotated key is picked up within 5 minutes); "no row" is never remembered.
-import type { Membership, MembershipLookup } from "./handler.ts"
+import type { CompanyMembershipLookup, Membership, MembershipLookup } from "./handler.ts"
 
 export const LOOKUP_TIMEOUT_MS = 5_000
 export const KEY_TTL_MS = 300_000
@@ -41,13 +41,44 @@ export function createMembershipLookup(o: { projexaUrl: string; anonKey: string;
   }
 }
 
-export function createOrgKeyLookup(o: { projexaUrl: string; serviceRoleKey: string; fetchImpl?: typeof fetch; now?: () => number }): (orgId: string) => Promise<string | null> {
+/** AUDIT-100 A2 batch 8: the person's membership of ONE named company (src/lib/company-scope.ts requireCompanyScope), read like the oldest one: the person's own
+ *  token under row level security. A company id or person id that is not a UUID is a failed lookup (the Next route's database refuses it too). */
+export function createCompanyMembershipLookup(o: { projexaUrl: string; anonKey: string; fetchImpl?: typeof fetch }): CompanyMembershipLookup {
+  return async (token, sub, companyId) => {
+    if (!o.projexaUrl || !o.anonKey || !UUID_RE.test(sub) || !UUID_RE.test(companyId)) return { ok: false }
+    const url = `${o.projexaUrl.replace(/\/+$/, "")}/rest/v1/memberships?select=role&user_id=eq.${encodeURIComponent(sub)}&organization_id=eq.${encodeURIComponent(companyId)}&limit=1`
+    const out = await getJson(o.fetchImpl ?? fetch, url, { apikey: o.anonKey, Authorization: `Bearer ${token}` })
+    if (!out.ok) return { ok: false }
+    const row = out.rows[0] as { role?: unknown } | undefined
+    return { ok: true, row: row ? { role: typeof row.role === "string" ? row.role : null } : null }
+  }
+}
+
+/** G-09: the verdian-ai service-role rpc that reads the compliance-side credentials table (public.projexa_org_credential_get, drizzle/0729). */
+export type CredentialRpc = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>
+
+export function createOrgKeyLookup(o: { projexaUrl: string; serviceRoleKey: string; rpc?: CredentialRpc; fetchImpl?: typeof fetch; now?: () => number }): (orgId: string) => Promise<string | null> {
   const cache = new Map<string, { key: string; at: number }>()
   const now = o.now ?? (() => Date.now())
   return async (orgId) => {
-    if (!o.projexaUrl || !o.serviceRoleKey || !UUID_RE.test(orgId)) return null
+    if ((!o.rpc && (!o.projexaUrl || !o.serviceRoleKey)) || !UUID_RE.test(orgId)) return null
     const hit = cache.get(orgId)
     if (hit && now() - hit.at < KEY_TTL_MS) return hit.key
+    // G-09: the compliance-side table is the source of truth; the legacy PROJEXA table answers for an organisation not moved yet
+    if (o.rpc) {
+      try {
+        const r = await o.rpc("projexa_org_credential_get", { p_projexa_org_id: orgId })
+        const row = (Array.isArray(r.data) ? r.data[0] : r.data) as { api_key?: unknown } | null | undefined
+        if (!r.error && typeof row?.api_key === "string" && row.api_key) {
+          cache.set(orgId, { key: row.api_key, at: now() })
+          if (cache.size > 1000) cache.delete(cache.keys().next().value as string)
+          return row.api_key
+        }
+      } catch {
+        // fall through to the legacy table
+      }
+    }
+    if (!o.projexaUrl || !o.serviceRoleKey) return null
     const url = `${o.projexaUrl.replace(/\/+$/, "")}/rest/v1/veridian_credentials?select=veridian_api_key&organization_id=eq.${encodeURIComponent(orgId)}&limit=1`
     const out = await getJson(o.fetchImpl ?? fetch, url, { apikey: o.serviceRoleKey, Authorization: `Bearer ${o.serviceRoleKey}` })
     if (!out.ok) return null

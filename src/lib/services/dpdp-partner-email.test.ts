@@ -36,6 +36,14 @@ describe("partner email text", () => {
     expect(renderNotice(notice("welcome")).text).toContain("Tax (TDS) is deducted where the law requires it and shown on your statement.")
   })
 
+  test("a commission notice names what was paid in words, including a monthly payment inside the first year (drizzle/0734), never the buyer", () => {
+    const r = (basis: string) => renderNotice(notice("commission_earned", { amountPaise: 19950, basis })).text
+    expect(r("yearly")).toContain("a yearly payment")
+    expect(r("monthly_first_year")).toContain("a monthly payment in its first year")
+    expect(r("first_month")).toContain("a first monthly payment")
+    expect(r("monthly_first_year")).not.toMatch(/Acme|Org \d/) // the payload carries counts and money only, so there is nothing of the buyer to print
+  })
+
   test("the payout email shows gross, TDS, net and the reference; the signup email never names the client", () => {
     const p = renderNotice(notice("payout_sent", { period: "2026-09", grossPaise: 210025, tdsPaise: 21003, netPaise: 189022, method: "bank", reference: "UTR1234567", commissions: 3 }))
     expect(p.text).toContain("Gross: Rs 2,100.25")

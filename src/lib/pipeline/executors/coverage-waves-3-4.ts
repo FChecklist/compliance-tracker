@@ -20,7 +20,7 @@ import {
 import { executeCreateSiteDiary } from "./site-diary";
 import { executeCreateProgressCategory, executeGetDailyProgressReport, executeUpdateProgressEntry } from "./progress";
 import { executeRecordAttendanceBatch, executeUpdateRosterEntry } from "./labour";
-import { executeCreateMaterial, executeGetMaterialCostReport, executeRecordMaterialIssue, executeVoidMaterialReceipt } from "./materials";
+import { executeCreateMaterial, executeCreateMaterialOrder, executeGetMaterialCostReport, executeRecordMaterialIssue, executeVoidMaterialReceipt } from "./materials";
 
 export const WAVE_3_4_EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   create_rfi: executeCreateRfi,
@@ -39,6 +39,7 @@ export const WAVE_3_4_EXECUTORS: Record<string, (task: ExecutableTask) => Promis
   update_roster_entry: executeUpdateRosterEntry,
   record_material_issue: executeRecordMaterialIssue,
   create_material: executeCreateMaterial,
+  create_material_order: executeCreateMaterialOrder,
   void_material_receipt: executeVoidMaterialReceipt,
   get_material_cost_report: executeGetMaterialCostReport,
 };

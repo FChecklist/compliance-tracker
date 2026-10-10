@@ -4,7 +4,7 @@
 // not built. receipt.unitCost defaults from the master's unitCost but is
 // stored per receipt (a delivery can be priced differently), matching
 // construction-labour-service.ts's dailyCost-computed-at-write-time posture.
-import { constructionMaterials, constructionMaterialIssues, constructionMaterialReceipts, erpSuppliers, users } from "@/lib/db"
+import { constructionMaterials, constructionMaterialIssues, constructionMaterialOrders, constructionMaterialReceipts, erpSuppliers, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -649,6 +649,67 @@ export async function createMaterialIssue(ctx: { orgId: string }, input: Materia
       boqLineItemId: input.boqLineItemId?.trim() || null,
       issuedTo: input.issuedTo?.trim() || null,
       note: input.note?.trim() || null,
+      createdById: input.createdById,
+    }).returning()
+    return row
+  })
+}
+
+
+export type MaterialOrderInput = {
+  projectId: string
+  materialId: string
+  quantity: number | string
+  expectedDate: string
+  orderedDate?: string
+  boqLineItemId?: string | null
+  reference?: string | null
+  notes?: string | null
+  createdById: string
+}
+
+// create_material_order (M-ORDER, drizzle/0742). An order is a promise of stock, not stock: it never touches on-hand, which stays receipts minus
+// issues. The twin rule is HERE and not only in the executor: a retried call, or two people ordering from two phones, would otherwise place the
+// same order twice (EXC-ITEM-19). A twin is an open order for the same material on the same project with the same quantity and expected date.
+export async function createMaterialOrder(ctx: { orgId: string }, input: MaterialOrderInput) {
+  if (!input.projectId) throw new ServiceError("projectId is required", 400)
+  if (!input.materialId) throw new ServiceError("materialId is required", 400)
+  if (!input.expectedDate) throw new ServiceError("expectedDate is required", 400)
+  const quantity = Number(input.quantity)
+  if (input.quantity === undefined || input.quantity === null || !Number.isFinite(quantity) || quantity <= 0) {
+    throw new ServiceError("quantity must be greater than 0", 400)
+  }
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const material = await db.query.constructionMaterials.findFirst({
+      where: and(eq(constructionMaterials.id, input.materialId), eq(constructionMaterials.orgId, ctx.orgId)),
+    })
+    if (!material || material.projectId !== input.projectId) throw new ServiceError("Material not found", 404)
+
+    const open = await db.query.constructionMaterialOrders.findMany({
+      where: and(
+        eq(constructionMaterialOrders.orgId, ctx.orgId),
+        eq(constructionMaterialOrders.projectId, input.projectId),
+        eq(constructionMaterialOrders.materialId, input.materialId),
+        eq(constructionMaterialOrders.expectedDate, input.expectedDate),
+        eq(constructionMaterialOrders.status, "ordered")
+      ),
+      columns: { quantity: true },
+    })
+    const twin = open.some((o) => Number(o.quantity) === quantity)
+    if (twin) throw new ServiceError("An open order for this material, quantity and date already exists", 409)
+
+    const [row] = await db.insert(constructionMaterialOrders).values({
+      orgId: ctx.orgId,
+      projectId: input.projectId,
+      materialId: input.materialId,
+      quantity: String(quantity),
+      orderedDate: input.orderedDate ?? new Date().toISOString().slice(0, 10),
+      expectedDate: input.expectedDate,
+      status: "ordered",
+      boqLineItemId: input.boqLineItemId?.trim() || null,
+      reference: input.reference?.trim() || null,
+      notes: input.notes?.trim() || null,
       createdById: input.createdById,
     }).returning()
     return row

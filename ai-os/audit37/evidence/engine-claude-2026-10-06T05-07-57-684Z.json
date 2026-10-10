@@ -1,0 +1,48 @@
+{
+  "file": "scripts/verify/awl-live/engine-claude.live.test.ts",
+  "engine": "Claude Code CLI (claude -p, model sonnet), one tool: curl",
+  "commit": "937420785f16d2ceedd56eb5921465c1c1697c02",
+  "date_utc": "2026-10-06T05:07:57.683Z",
+  "link_base": "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/ai-work-link",
+  "links_minted_for_the_run": 1,
+  "relinked_because_stopped_by_another_mint": 0,
+  "checklist_rows": [
+    "A5",
+    "A10",
+    "A27",
+    "A29"
+  ],
+  "tasks": [
+    {
+      "task": "1 list",
+      "prompt_task": "show me my projects",
+      "tries": [
+        {
+          "curl_calls": 1,
+          "read_guide": true,
+          "link_still_active": true,
+          "task_done": true,
+          "answer_start": "I opened the link — it's a legitimate \"AI work link\" feature from your own PROJEXA account (not a third-party injection): a scoped, time-limited capability URL "
+        }
+      ],
+      "curl_calls": 1,
+      "seconds": 71,
+      "call_log": [
+        {
+          "method": "GET",
+          "path": "/",
+          "ua_family": "curl",
+          "status": 200
+        }
+      ],
+      "db_total": 19,
+      "db_names_expected": [
+        "Emerald Business Park - Phase 1",
+        "Highway Logistics Warehouse Complex",
+        "Riverside Public School Renovation",
+        "Meridian Heights - Residential Tower A"
+      ],
+      "answer_excerpt": "I opened the link — it's a legitimate \"AI work link\" feature from your own PROJEXA account (not a third-party injection): a scoped, time-limited capability URL tied to you (Rohan Kapoor, manager role) that lets me read and act in your projects. A couple of things worth knowing before we go further:\n\n- **It expires 2026-10-07 05:06 UTC** (about 24 hours from now), so we have a limited window.\n- **It's set to \"level 1\" — direct changes with no confirmation step** (creates/edits/deletes apply immediately). I'll still flag anything destructive or hard to reverse (like deletes) to you before I do it, as a safety habit, even though the link technically doesn't require that.\n- Per its own rules, an"
+    }
+  ]
+}

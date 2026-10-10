@@ -884,7 +884,7 @@ describe("the real handler serves Start here first, from this link's own numbers
     expect(md).not.toContain("- 1. ")
     expect(md).not.toContain("-   ")
     expect(md).toContain("It works until 06:00 on 12 October 2026 (India time).")
-    expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_jobs", "dpdp_ai_link_billing_notice", "dpdp_ai_link_context", "dpdp_ai_link_log_call_result"])
+    expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_jobs", "dpdp_ai_link_billing_notice", "dpdp_ai_link_context", "dpdp_ai_link_log_call_result", "dpdp_audit_link_context"]) // + the audit row's link lookup (drizzle/0730); it reads nothing the answer shows
     expect(calls[2].args).toEqual({ p_token: TOKEN, p_filters: {} })
   })
   test("the numbers cannot be read: the page is still served, and tells the AI to fetch them", async () => {
