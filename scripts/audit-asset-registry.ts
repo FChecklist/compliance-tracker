@@ -78,7 +78,7 @@
 //      either way.
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 import { sql } from "drizzle-orm"
 import { db, assetRegistrationConfig } from "../src/lib/db"
 
