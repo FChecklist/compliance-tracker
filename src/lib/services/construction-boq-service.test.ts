@@ -667,6 +667,19 @@ describe("listBoqs -- R67 F-29: the compare summary for TWENTY revisions in one 
     expect(f29ExecutedSql).toHaveLength(1)
   })
 
+  test("the summary statement totals ROOT lines only (A7/R-32) but measures variation over every line (R-24)", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })
+    const statement = f29ExecutedSql[0].replace(/\s+/g, " ")
+
+    // A sub-task's money is already inside its root line: 5,000 must not read 7,500.
+    expect(statement).toContain("FILTER (WHERE li.parent_line_item_id IS NULL)")
+    // ...yet a breakdown-% change on a sub-task still has to register as a variation.
+    expect(statement).toContain("coalesce(c.all_total, 0) - coalesce(p.all_total, 0)")
+  })
+
   test("compare.deltaAmount on the second revision is total(rev2) - total(rev1)", async () => {
     await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
     const { listBoqs } = await import("./construction-boq-service")
@@ -719,7 +732,7 @@ describe("listBoqs -- R67 F-29: the compare summary for TWENTY revisions in one 
     await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })
 
     const text = f29ExecutedSql[0].replace(/\s+/g, " ").toLowerCase()
-    expect(text).toContain("nullif(coalesce(p.total, 0), 0)")
+    expect(text).toContain("nullif(coalesce(p.all_total, 0), 0)")
     expect(text).toContain("group by li.boq_id")
   })
 

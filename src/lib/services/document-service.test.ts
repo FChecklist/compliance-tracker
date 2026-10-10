@@ -622,3 +622,18 @@ describe("buildDocumentMetadata -- R67 D-14", () => {
     expect(buildDocumentMetadata({}, { projectId: "   ", email: { subject: "\t" } })).toEqual({})
   })
 })
+
+describe("uploadContentType -- a CAD file must not be sent as application/octet-stream (the bucket refuses it)", () => {
+  test("empty browser type: .dwg and .dxf get their CAD type, case-insensitively; anything else keeps the old fallback", async () => {
+    const { uploadContentType } = await loadService()
+    expect(uploadContentType({ name: "Villa-Floor-Plan.dwg", type: "" })).toBe("image/vnd.dwg")
+    expect(uploadContentType({ name: "PLAN.DXF", type: "" })).toBe("image/vnd.dxf")
+    expect(uploadContentType({ name: "notes.xyz", type: "" })).toBe("application/octet-stream")
+  })
+
+  test("a type the browser did send is never overridden", async () => {
+    const { uploadContentType } = await loadService()
+    expect(uploadContentType({ name: "x.dwg", type: "application/acad" })).toBe("application/acad")
+    expect(uploadContentType({ name: "permit.pdf", type: "application/pdf" })).toBe("application/pdf")
+  })
+})

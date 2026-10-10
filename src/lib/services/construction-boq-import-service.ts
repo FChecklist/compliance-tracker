@@ -166,7 +166,11 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     // format to decide this, only blank-ness of Qty/Rate.
     const quantityRaw = mapping.quantity ? String(row[mapping.quantity] ?? "").trim() : ""
     const rateRaw = mapping.rate ? String(row[mapping.rate] ?? "").trim() : ""
-    if (descriptionRaw && !subTaskRaw && quantityRaw === "" && rateRaw === "") {
+    // A row carrying an explicit Parent code is a sub-task even with no Sub Task text and blank Qty/Rate (the
+    // derived-rate rule leaves them blank), so it must NOT be mistaken for a category header. Declared here, before
+    // the header test, because the sub-task exemption further down comes too late to save it.
+    const parentCodeRaw = mapping.parentItemCode ? String(row[mapping.parentItemCode] ?? "").trim() : ""
+    if (descriptionRaw && !subTaskRaw && !parentCodeRaw && quantityRaw === "" && rateRaw === "") {
       warnings.push(`Row ${idx + 2}: skipped (category header: "${descriptionRaw}")`)
       issues.push({ row: sheetRow, message: `Row ${sheetRow}: skipped (category header: "${descriptionRaw}")`, blocking: false })
       return
@@ -207,7 +211,6 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     // explicit Parent code -- the same two signals the hierarchy resolution
     // below uses. The category-header branch above already catches a row where
     // BOTH cells are blank and neither signal is present.
-    const parentCodeRaw = mapping.parentItemCode ? String(row[mapping.parentItemCode] ?? "").trim() : ""
     const isSubTaskRow = !!subTaskRaw || !!parentCodeRaw
     if (!isSubTaskRow) {
       if (rateRaw === "") {

@@ -24,6 +24,19 @@ function getStorageAdminClient() {
   )
 }
 
+/**
+ * The content type to store a file under. Browsers send an empty type for CAD files, and the old fallback
+ * (application/octet-stream) is not in the bucket's allow-list, so a .dwg was refused. Name the CAD types by extension.
+ * Anything else keeps what the browser said, then the octet-stream fallback it always had.
+ */
+export function uploadContentType(file: { name: string; type: string }): string {
+  if (file.type) return file.type
+  const ext = file.name.toLowerCase().split(".").pop()
+  if (ext === "dwg") return "image/vnd.dwg"
+  if (ext === "dxf") return "image/vnd.dxf"
+  return "application/octet-stream"
+}
+
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120)
 }
@@ -113,10 +126,16 @@ async function prepareDocumentStorage(
     const bytes = new Uint8Array(await input.file.arrayBuffer())
     const admin = getStorageAdminClient()
     const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, bytes, {
-      contentType: input.file.type || "application/octet-stream",
+      contentType: uploadContentType(input.file),
       upsert: false,
     })
-    if (uploadError) throw new ServiceError("Failed to upload file", 500)
+    if (uploadError) {
+      // The bucket refuses a type it does not list; say so, rather than the flat sentence that made a rejected DWG look like an outage.
+      if (/mime|not supported|unsupported/i.test(uploadError.message ?? "")) {
+        throw new ServiceError(`This file type is not accepted (${input.file.type || input.file.name.split(".").pop() || "unknown"}). Upload a PDF, image, Office file or CAD drawing (DWG, DXF).`, 415)
+      }
+      throw new ServiceError("Failed to upload file", 500)
+    }
     fileType = input.file.type || null
     fileSize = input.file.size
   } else {

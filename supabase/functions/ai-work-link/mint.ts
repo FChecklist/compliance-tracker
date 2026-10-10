@@ -56,7 +56,7 @@ export type MintAnswer = { status: number; body: unknown; headers?: Record<strin
 export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a PROJEXA user - ask your admin"
 
 // The PROJEXA browser origins of supabase/functions/projexa-read/handler.ts ALLOWED_ORIGINS (production and the local dev server).
-export const PROJEXA_ORIGINS: ReadonlyArray<string> = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100"]
+export const PROJEXA_ORIGINS: ReadonlyArray<string> = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100", "http://localhost:3110"]
 
 export const MINT_SESSION_MAX_AGE_SECONDS = 15 * 60
 export const MINT_LIMIT_PER_MINUTE = 5

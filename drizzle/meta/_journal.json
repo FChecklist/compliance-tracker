@@ -3843,6 +3843,13 @@
       "when": 1790700023000,
       "tag": "0743_awl_create_material_order",
       "breakpoints": true
+    },
+    {
+      "idx": 551,
+      "version": "7",
+      "when": 1790700024000,
+      "tag": "0744_documents_bucket_cad_mime_types",
+      "breakpoints": true
     }
   ]
 }
