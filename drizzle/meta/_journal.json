@@ -3836,7 +3836,8 @@
       "version": "7",
       "when": 1790700022000,
       "tag": "0742_construction_material_orders",
-      "breakpoints": true},
+      "breakpoints": true
+    },
     {
       "idx": 550,
       "version": "7",
@@ -3849,6 +3850,13 @@
       "version": "7",
       "when": 1790700024000,
       "tag": "0744_documents_bucket_cad_mime_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 552,
+      "version": "7",
+      "when": 1790700025000,
+      "tag": "0745_esign_resolve_signer_fn",
       "breakpoints": true
     }
   ]
