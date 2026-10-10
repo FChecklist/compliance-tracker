@@ -7,7 +7,7 @@
 // comparison) rather than a DocuSign/Documenso API wrapper.
 import { esignatureRequests, esignatureSigners, documents, erpContracts, constructionChangeOrders, users, db as rawDb } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { createId } from "@paralleldrive/cuid2"
@@ -254,117 +254,125 @@ export async function voidSignatureRequest(ctx: { orgId: string }, requestId: st
 // getSupplierPortalData()/getGuestConversation() elsewhere in this codebase.
 // ============================================================
 
-async function resolveSignerFromToken(token: string) {
-  const signer = await rawDb.query.esignatureSigners.findFirst({ where: eq(esignatureSigners.accessToken, token) })
+// D3 (2026-10-10): the old lookup read esignature_signers through the shared db handle, which only finds a row when the connecting role bypasses RLS
+// (postgres does, app_runtime does not -> a valid link answered 404). The token -> (signer, org) mapping now goes through ONE narrow SECURITY DEFINER
+// function (drizzle/0745), and every other read/write runs inside withTenantContext({ orgId }), so RLS stays on. The raw fallback below only fires when the
+// function is not installed yet (Postgres 42883), so the code can be deployed before the migration is applied.
+type ResolvedSigner = { signer: typeof esignatureSigners.$inferSelect; orgId: string }
+
+async function lookupSignerOrg(token: string): Promise<{ signerId: string; orgId: string } | null> {
+  try {
+    const rows = (await rawDb.execute(sql`SELECT signer_id, org_id FROM compliance.esign_resolve_signer(${token})`)) as unknown as Array<{ signer_id: string; org_id: string }>
+    const row = rows[0]
+    return row ? { signerId: row.signer_id, orgId: row.org_id } : null
+  } catch (err) {
+    const e = err as { code?: string; cause?: { code?: string } }
+    if ((e?.code ?? e?.cause?.code) !== "42883") throw err
+    const signer = await rawDb.query.esignatureSigners.findFirst({ where: eq(esignatureSigners.accessToken, token) })
+    return signer ? { signerId: signer.id, orgId: signer.orgId } : null
+  }
+}
+
+export async function resolveSignerFromToken(token: string): Promise<ResolvedSigner> {
+  const hit = await lookupSignerOrg(token)
+  if (!hit) throw new ServiceError("This signing link is invalid", 404)
+  const signer = await withTenantContext({ orgId: hit.orgId }, (db) => db.query.esignatureSigners.findFirst({ where: and(eq(esignatureSigners.id, hit.signerId), eq(esignatureSigners.orgId, hit.orgId)) }))
   if (!signer) throw new ServiceError("This signing link is invalid", 404)
   if (signer.tokenExpiresAt < new Date()) throw new ServiceError("This signing link has expired", 410)
-  return signer
+  return { signer, orgId: hit.orgId }
 }
 
 export async function getSigningSession(token: string) {
-  const signer = await resolveSignerFromToken(token)
-  const request = await rawDb.query.esignatureRequests.findFirst({ where: eq(esignatureRequests.id, signer.requestId) })
-  if (!request) throw new ServiceError("Signature request not found", 404)
-  if (request.status === "voided") throw new ServiceError("This signature request has been voided", 409)
+  const { signer, orgId } = await resolveSignerFromToken(token)
+  return withTenantContext({ orgId }, async (db) => {
+    const request = await db.query.esignatureRequests.findFirst({ where: eq(esignatureRequests.id, signer.requestId) })
+    if (!request) throw new ServiceError("Signature request not found", 404)
+    if (request.status === "voided") throw new ServiceError("This signature request has been voided", 409)
 
-  const allSigners = await rawDb.query.esignatureSigners.findMany({ where: eq(esignatureSigners.requestId, request.id) })
-  const isMyTurn = signer.signOrder == null || !allSigners.some((s) => (s.signOrder ?? Infinity) < signer.signOrder! && s.status === "pending")
+    const allSigners = await db.query.esignatureSigners.findMany({ where: eq(esignatureSigners.requestId, request.id) })
+    const isMyTurn = signer.signOrder == null || !allSigners.some((s) => (s.signOrder ?? Infinity) < signer.signOrder! && s.status === "pending")
 
-  return {
-    requestTitle: request.title, requestStatus: request.status,
-    signerName: signer.name, signerStatus: signer.status, signerId: signer.id,
-    isMyTurn,
-  }
+    return {
+      requestTitle: request.title, requestStatus: request.status,
+      signerName: signer.name, signerStatus: signer.status, signerId: signer.id,
+      isMyTurn,
+    }
+  })
 }
 
 export async function submitSignature(token: string, input: { signatureImageData: string; signatureMethod: "drawn" | "typed"; ipAddress?: string; userAgent?: string }) {
-  const signer = await resolveSignerFromToken(token)
+  const { signer, orgId } = await resolveSignerFromToken(token)
   if (signer.status !== "pending") throw new ServiceError("This signature has already been recorded", 409)
 
-  const request = await rawDb.query.esignatureRequests.findFirst({ where: eq(esignatureRequests.id, signer.requestId) })
-  if (!request) throw new ServiceError("Signature request not found", 404)
-  if (request.status === "voided") throw new ServiceError("This signature request has been voided", 409)
+  // Read phase. computeDocumentHash opens its own tenant transaction, so it must run AFTER this one closes (no nesting).
+  const request = await withTenantContext({ orgId }, async (db) => {
+    const r = await db.query.esignatureRequests.findFirst({ where: eq(esignatureRequests.id, signer.requestId) })
+    if (!r) throw new ServiceError("Signature request not found", 404)
+    if (r.status === "voided") throw new ServiceError("This signature request has been voided", 409)
+    if (signer.signOrder != null) {
+      const allSigners = await db.query.esignatureSigners.findMany({ where: eq(esignatureSigners.requestId, r.id) })
+      const outOfTurn = allSigners.some((s) => (s.signOrder ?? Infinity) < signer.signOrder! && s.status === "pending")
+      if (outOfTurn) throw new ServiceError("An earlier signer in the sequence has not signed yet", 409)
+    }
+    return r
+  })
 
-  if (signer.signOrder != null) {
-    const allSigners = await rawDb.query.esignatureSigners.findMany({ where: eq(esignatureSigners.requestId, request.id) })
-    const outOfTurn = allSigners.some((s) => (s.signOrder ?? Infinity) < signer.signOrder! && s.status === "pending")
-    if (outOfTurn) throw new ServiceError("An earlier signer in the sequence has not signed yet", 409)
-  }
-
-  // Recompute the hash right now -- comparing it against the request's
-  // baseline documentHash is how a later audit detects whether the
-  // underlying document/contract changed between request creation and
-  // this signature.
+  // Recompute the hash right now -- comparing it against the request's baseline documentHash is how a later audit detects whether the underlying
+  // document/contract changed between request creation and this signature.
   const documentHashAtSigning = await computeDocumentHash(request.orgId, request.linkedEntityType, request.linkedEntityId)
 
-  const [updatedSigner] = await rawDb.update(esignatureSigners).set({
-    status: "signed", signatureImageData: input.signatureImageData, signatureMethod: input.signatureMethod,
-    signedAt: new Date(), ipAddress: input.ipAddress, userAgent: input.userAgent, documentHashAtSigning,
-  }).where(eq(esignatureSigners.id, signer.id)).returning()
+  // Write phase: one transaction, so the signer row, the request status and the change-order transition land together or not at all.
+  return withTenantContext({ orgId }, async (db) => {
+    const [updatedSigner] = await db.update(esignatureSigners).set({
+      status: "signed", signatureImageData: input.signatureImageData, signatureMethod: input.signatureMethod,
+      signedAt: new Date(), ipAddress: input.ipAddress, userAgent: input.userAgent, documentHashAtSigning,
+    }).where(eq(esignatureSigners.id, signer.id)).returning()
 
-  const remainingSigners = await rawDb.query.esignatureSigners.findMany({ where: eq(esignatureSigners.requestId, request.id) })
-  // The request-status transition is now decided by the pure
-  // computeSignatureRequestStatusAfterSign() helper (above); null means "no
-  // change", preserving the original `... : request.status` fallback exactly.
-  const newStatus = computeSignatureRequestStatusAfterSign(remainingSigners)
-  await rawDb.update(esignatureRequests).set({
-    status: newStatus ?? request.status,
-    completedAt: newStatus === "completed" ? new Date() : undefined,
-  }).where(eq(esignatureRequests.id, request.id))
+    const remainingSigners = await db.query.esignatureSigners.findMany({ where: eq(esignatureSigners.requestId, request.id) })
+    // The request-status transition is decided by the pure computeSignatureRequestStatusAfterSign() helper (above); null means "no change".
+    const newStatus = computeSignatureRequestStatusAfterSign(remainingSigners)
+    await db.update(esignatureRequests).set({
+      status: newStatus ?? request.status,
+      completedAt: newStatus === "completed" ? new Date() : undefined,
+    }).where(eq(esignatureRequests.id, request.id))
 
-  // Wave 141's construction-change-order-service.ts built markChangeOrderApproved()/
-  // markChangeOrderRejected() specifically for this moment ("Called from the
-  // e-signature completion path") but nothing ever called them -- a change
-  // order sent for approval would sit at "pending_approval" forever even
-  // after every signer signed. The change-order transition is now decided by
-  // the pure changeOrderTransitionAfter() helper (above), which returns the
-  // exact {status, approvedAt?} to apply or null for no transition. This
-  // avoids a circular import (construction-change-order-service.ts already
-  // imports createSignatureRequest from this file) and sidesteps the fact
-  // that markChangeOrderApproved/Rejected require a real ctx.userId, which
-  // doesn't exist on this public, tokenized-signer-access path. approvedById
-  // is deliberately left untouched (no real dbUser performed this action -- an
-  // external signer did); only status and approvedAt are set. Only
-  // change_order is handled -- document/erp_contract have no status field to
-  // transition (the helper returns null for them).
-  const coTransition = changeOrderTransitionAfter("sign", request.linkedEntityType, remainingSigners, new Date())
-  if (coTransition) {
-    await rawDb.update(constructionChangeOrders).set({
-      status: coTransition.status,
-      ...(coTransition.approvedAt ? { approvedAt: coTransition.approvedAt } : {}),
-    }).where(and(eq(constructionChangeOrders.id, request.linkedEntityId), eq(constructionChangeOrders.orgId, request.orgId)))
-  }
+    // A change order sent for approval must leave "pending_approval" once every signer has signed (Wave 141). The transition is decided by the pure
+    // changeOrderTransitionAfter() helper (above); approvedById is deliberately left untouched (an external signer, not a real dbUser, did this).
+    const coTransition = changeOrderTransitionAfter("sign", request.linkedEntityType, remainingSigners, new Date())
+    if (coTransition) {
+      await db.update(constructionChangeOrders).set({
+        status: coTransition.status,
+        ...(coTransition.approvedAt ? { approvedAt: coTransition.approvedAt } : {}),
+      }).where(and(eq(constructionChangeOrders.id, request.linkedEntityId), eq(constructionChangeOrders.orgId, request.orgId)))
+    }
 
-  return updatedSigner
+    return updatedSigner
+  })
 }
 
 export async function declineSignature(token: string, reason?: string) {
-  const signer = await resolveSignerFromToken(token)
+  const { signer, orgId } = await resolveSignerFromToken(token)
   if (signer.status !== "pending") throw new ServiceError("This signer has already responded", 409)
 
-  const request = await rawDb.query.esignatureRequests.findFirst({ where: eq(esignatureRequests.id, signer.requestId) })
-  if (!request) throw new ServiceError("Signature request not found", 404)
+  return withTenantContext({ orgId }, async (db) => {
+    const request = await db.query.esignatureRequests.findFirst({ where: eq(esignatureRequests.id, signer.requestId) })
+    if (!request) throw new ServiceError("Signature request not found", 404)
 
-  const [updatedSigner] = await rawDb.update(esignatureSigners).set({
-    status: "declined", declinedAt: new Date(), declineReason: reason,
-  }).where(eq(esignatureSigners.id, signer.id)).returning()
+    const [updatedSigner] = await db.update(esignatureSigners).set({
+      status: "declined", declinedAt: new Date(), declineReason: reason,
+    }).where(eq(esignatureSigners.id, signer.id)).returning()
 
-  await rawDb.update(esignatureRequests).set({ status: "declined" }).where(eq(esignatureRequests.id, request.id))
+    await db.update(esignatureRequests).set({ status: "declined" }).where(eq(esignatureRequests.id, request.id))
 
-  // Same rationale as submitSignature() above -- a decline should reject the
-  // linked change order rather than leaving it stuck at "pending_approval"
-  // forever. The transition is now decided by the pure
-  // changeOrderTransitionAfter() helper (above), which for a decline event
-  // against a change_order returns {status:"rejected"} (no approvedAt --
-  // matching markChangeOrderRejected()'s own field set exactly). null for
-  // document/erp_contract (no status field).
-  const coTransition = changeOrderTransitionAfter("decline", request.linkedEntityType, [], new Date())
-  if (coTransition) {
-    await rawDb.update(constructionChangeOrders).set({
-      status: coTransition.status,
-      ...(coTransition.approvedAt ? { approvedAt: coTransition.approvedAt } : {}),
-    }).where(and(eq(constructionChangeOrders.id, request.linkedEntityId), eq(constructionChangeOrders.orgId, request.orgId)))
-  }
+    // A decline rejects the linked change order instead of leaving it at "pending_approval" (changeOrderTransitionAfter: {status:"rejected"}, no approvedAt).
+    const coTransition = changeOrderTransitionAfter("decline", request.linkedEntityType, [], new Date())
+    if (coTransition) {
+      await db.update(constructionChangeOrders).set({
+        status: coTransition.status,
+        ...(coTransition.approvedAt ? { approvedAt: coTransition.approvedAt } : {}),
+      }).where(and(eq(constructionChangeOrders.id, request.linkedEntityId), eq(constructionChangeOrders.orgId, request.orgId)))
+    }
 
-  return updatedSigner
+    return updatedSigner
+  })
 }
