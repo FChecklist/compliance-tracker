@@ -705,7 +705,11 @@ async function loadRevisionSummaries(
     ),
     totals AS (
       SELECT li.boq_id AS boq_id,
-             coalesce(sum(li.quantity * li.rate), 0)::float AS total,
+             -- total is ROOT lines only (A7/R-32): a sub-task's money is already inside its root line, so adding
+             -- it again overstated the BOQ (5,000 showed as 7,500). all_total keeps every line so a sub-task
+             -- breakdown-% change still registers as a variation (R-24) -- variation is a change measure, not a total.
+             coalesce(sum(li.quantity * li.rate) FILTER (WHERE li.parent_line_item_id IS NULL), 0)::float AS total,
+             coalesce(sum(li.quantity * li.rate), 0)::float AS all_total,
              count(*)::int AS line_count
       FROM compliance.construction_boq_line_items li
       JOIN revision r ON r.id = li.boq_id
@@ -715,15 +719,15 @@ async function loadRevisionSummaries(
            coalesce(c.total, 0)::float AS total,
            coalesce(c.line_count, 0)::int AS line_count,
            CASE WHEN r.parent_boq_id IS NULL THEN NULL
-                ELSE (coalesce(c.total, 0) - coalesce(p.total, 0))::float END AS variation_vs_prior,
+                ELSE (coalesce(c.all_total, 0) - coalesce(p.all_total, 0))::float END AS variation_vs_prior,
            CASE WHEN r.parent_boq_id IS NULL THEN NULL
                 ELSE (coalesce(c.line_count, 0) - coalesce(p.line_count, 0))::int END AS line_delta,
            -- NULLIF, not a division: a percentage change from a parent that
            -- totalled nothing is not a number, and "∞%" or "0%" beside a real
            -- increase would be a false statement about the project's money.
            CASE WHEN r.parent_boq_id IS NULL THEN NULL
-                ELSE ((coalesce(c.total, 0) - coalesce(p.total, 0))
-                      / NULLIF(coalesce(p.total, 0), 0) * 100)::float END AS delta_pct
+                ELSE ((coalesce(c.all_total, 0) - coalesce(p.all_total, 0))
+                      / NULLIF(coalesce(p.all_total, 0), 0) * 100)::float END AS delta_pct
     FROM revision r
     LEFT JOIN totals c ON c.boq_id = r.id
     LEFT JOIN totals p ON p.boq_id = r.parent_boq_id
