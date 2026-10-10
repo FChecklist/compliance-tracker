@@ -398,6 +398,8 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
     await db.exec(forwardSql("0740_awl_update_drawing"))
     // P5 (2026-10-09): the current seed is now 0741 (recall_precedent), a whole generated block on top of 0740.
     await db.exec(forwardSql("0741_awl_recall_precedent"))
+    // create_material_order (M-ORDER, 2026-10-10): the current seed is now 0743, a whole generated block on top of 0741 (0742 is the orders table, no seed).
+    await db.exec(forwardSql("0743_awl_create_material_order"))
     const fnJson = (JSON.parse(read("supabase/functions/ai-work-link/function-registry.generated.json")) as FnJson[]).map((f) => ({
       function_id: f.function_id, product: f.product, kind: f.kind, link_level: f.link_level, money_sensitive: f.money_sensitive, min_role_rank: f.min_role_rank, excluded_reason: f.excluded_reason, text_params: f.text_params,
     }))
@@ -407,8 +409,11 @@ describe("drizzle/0621 to 0630 forward files on PGlite over the live-shaped base
     expect(kindRows).toHaveLength(33)
     expect([...kindRows].sort((a, b) => (a.kind < b.kind ? -1 : 1))).toEqual([...kindJson].sort((a, b) => (a.kind < b.kind ? -1 : 1)))
     const version = (await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v
-    expect(read("drizzle/0741_awl_recall_precedent.sql")).toContain(`-- registry version ${version}`)
+    expect(read("drizzle/0743_awl_create_material_order.sql")).toContain(`-- registry version ${version}`)
     // back to the 0628 state: 0738's down file puts 0687's block back (159 rows, 0687's hash), then 0687's down file deletes exactly its 19 rows and puts 0685's hash back, then 0685's deletes its 27 and puts 0669's back
+    await db.exec(downSql("0743_awl_create_material_order"))
+    expect((await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_functions")).n).toBe(161)
+    expect(read("drizzle/0741_awl_recall_precedent.sql")).toContain(`-- registry version ${(await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v}`)
     await db.exec(downSql("0741_awl_recall_precedent"))
     expect((await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_functions")).n).toBe(160)
     expect(read("drizzle/0740_awl_update_drawing.sql")).toContain(`-- registry version ${(await one<{ v: string }>(db, "select public.ai_work_link__registry_version() v")).v}`)

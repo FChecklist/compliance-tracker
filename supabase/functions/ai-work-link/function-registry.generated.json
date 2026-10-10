@@ -2023,6 +2023,99 @@
     "optional_params": []
   },
   {
+    "function_id": "create_material_order",
+    "label": "Order material",
+    "module": "materials",
+    "product": "projexa",
+    "kind": "write",
+    "link_level": 2,
+    "money_sensitive": false,
+    "min_role_rank": 2,
+    "excluded_reason": null,
+    "text_params": [
+      "reference",
+      "notes"
+    ],
+    "declared_params": [
+      "boqLineItemId",
+      "expectedDate",
+      "materialId",
+      "notes",
+      "projectId",
+      "quantity",
+      "reference"
+    ],
+    "required_params": [
+      {
+        "name": "projectId",
+        "label": "Project",
+        "any_of": [
+          "projectId"
+        ]
+      },
+      {
+        "name": "materialId",
+        "label": "Material",
+        "any_of": [
+          "materialId"
+        ]
+      },
+      {
+        "name": "quantity",
+        "label": "Quantity",
+        "any_of": [
+          "quantity"
+        ]
+      },
+      {
+        "name": "expectedDate",
+        "label": "Expected date",
+        "any_of": [
+          "expectedDate"
+        ]
+      }
+    ],
+    "id_params": [
+      "boqLineItemId",
+      "materialId"
+    ],
+    "fields": [
+      {
+        "key": "materialId",
+        "label": "Material",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "quantity",
+        "label": "Quantity",
+        "type": "number",
+        "required": true
+      },
+      {
+        "key": "expectedDate",
+        "label": "Expected on",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "reference",
+        "label": "PO / reference",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "notes",
+        "label": "Notes",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "optional_params": [
+      "boqLineItemId"
+    ]
+  },
+  {
     "function_id": "create_meeting",
     "label": "New meeting",
     "module": "meetings",

@@ -178,6 +178,7 @@ export const EXAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   record_attendance_batch: { date: "2026-09-20", entries: [{ rosterId: "<id from records/roster>", status: "present" }] },
   update_roster_entry: { rosterId: "<id from records/roster>", trade: "Carpenter", dailyRate: 850 },
   record_material_issue: { materialId: "<id from records/materials>", quantity: 10, issuedDate: "2026-09-20", issuedTo: "Falcon gang 3" },
+  create_material_order: { materialId: "<id from records/materials>", quantity: 200, expectedDate: "2026-09-28", reference: "PO-1042" },
   create_material: { name: "Sand, fine", unit: "cum", spec: "Zone II", unitCost: 1800 },
   void_material_receipt: { receiptId: "<id from records/material_receipts>", reason: "Wrong quantity keyed" },
   get_material_cost_report: { from: "2026-09-01", to: "2026-09-30", groupBy: "vendor" },

@@ -101,8 +101,8 @@ Requirement to AI function table (plan item P5). Source: platform.sumeet_require
 | EXC-ITEM-15 | Approval from customer on new SCOPE OF WORK | AI-COVERED | record_customer_approval | Approval on BOQ exists; scope approval needs M-SCOPE. | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
 | EXC-ITEM-16 | Approval from customer on new BOQ | AI-COVERED | record_customer_approval, submit_boq_for_approval | - |
 | EXC-ITEM-17 | Approvals given without comparing SCOPE OF WORK AND BOQ | AI-COVERED | compare_boq_revisions, get_project_exceptions | Scope side of the comparison missing (M-SCOPE). | [recheck 2026-10-09: drawings, rfis, punch_list, permits, documents are readable through run_read (record-kinds.generated.json); record_customer_complaint covers a customer dispute; BOQ is the Scope of Work by design (R-96); photos are files and stay with the person.]
-| EXC-ITEM-18 | Material ordered WITHOUT SCOPE OF WORK AND BOQ | MISSING | get_project_exceptions | No material order function (M-ORDER). |
-| EXC-ITEM-19 | Material ordered twice, or late | MISSING | record_material_receipt | No material order function (M-ORDER). |
+| EXC-ITEM-18 | Material ordered WITHOUT SCOPE OF WORK AND BOQ | AI-COVERED | create_material_order, get_project_exceptions | [2026-10-10: create_material_order stores boq_line_item_id (nullable, checked against the project); an order with none is the exception. The exceptions read does not flag it yet.] |
+| EXC-ITEM-19 | Material ordered twice, or late | AI-COVERED | create_material_order, record_material_receipt | [2026-10-10: a twin open order (same material, quantity, expected date) is refused 409; expected_date plus status make late a query. The exceptions read does not list late orders yet.] |
 | EXC-ITEM-20 | The daily report never arrives | AI-COVERED | get_daily_progress_report, get_project_exceptions | - |
 | EXC-ITEM-21 | Manpower on paper, payroll disputes | AI-COVERED | get_manpower_cost_report, record_attendance, update_attendance | - |
 | EXC-ITEM-22 | Multiple versions of the BOQ -- which one is final, which is worked upon | AI-COVERED | compare_boq_revisions, get_boq_line_items | - |
@@ -116,7 +116,7 @@ Requirement to AI function table (plan item P5). Source: platform.sumeet_require
 | EXC-ITEM-30 | The software should have proper engine, wiring, logic, calculation for all above (META) | SERVER-RULE | - | Meta; engine and calculations are server code. |
 | EXC-ITEM-31 | PROJEXA-AI.COM should be able to capture, analyze, fix all of these as software for every  | SERVER-RULE | get_project_exceptions, get_project_analysis | Meta; the work link itself. |
 
-Counts (rechecked 2026-10-09): AI-COVERED 64, UI-ONLY 11, SERVER-RULE 24, OWNER-INFRA 10, MISSING 2
+Counts (rechecked 2026-10-09): AI-COVERED 66, UI-ONLY 11, SERVER-RULE 24, OWNER-INFRA 10, MISSING 0
 
 ## Missing functions (the one real gap left; recall_precedent went on links in migration 0741)
 
@@ -124,6 +124,6 @@ The first draft listed 11. Seven were not gaps: list_drawings / list_rfis / list
 
 | tag | proposed function | kind | params | backing service | closes |
 |---|---|---|---|---|---|
-| M-ORDER | create_material_order | write L2 | projectId, materialId, quantity, expectedDate | no order function exists in construction-materials-service.ts; needs a table first | EXC-ITEM-18, EXC-ITEM-19 |
+| M-ORDER | create_material_order | write L2 | projectId, materialId, quantity, expectedDate | BUILT 2026-10-10: createMaterialOrder in construction-materials-service.ts, table construction_material_orders (drizzle/0742), link seed 0743. Not yet applied to the live database. | EXC-ITEM-18, EXC-ITEM-19 |
 
 Both need a design decision (a material-order function needs a new table and a migration). They are parked for a planned build, not hidden.

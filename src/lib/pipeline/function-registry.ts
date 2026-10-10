@@ -1250,6 +1250,32 @@ const BASE_SPECS: readonly FunctionSpec[] = [
     },
   },
   {
+    functionId: "create_material_order",
+    label: "Order material",
+    module: "materials",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "materialId", label: "Material", code: "MATERIAL_REQUIRED", field: "material" },
+      { name: "quantity", label: "Quantity", code: "QUANTITY_REQUIRED", field: "value" },
+      { name: "expectedDate", label: "Expected date", code: "DATE_REQUIRED", field: "date" },
+    ],
+    optionalParams: ["boqLineItemId"],
+    card: {
+      fields: [
+        { key: "materialId", label: "Material", type: "select", required: true, picker: "material" },
+        { key: "quantity", label: "Quantity", type: "number", required: true },
+        { key: "expectedDate", label: "Expected on", type: "date", required: true },
+        { key: "reference", label: "PO / reference", type: "text", required: false },
+        { key: "notes", label: "Notes", type: "text", required: false },
+      ],
+      facts: [{ label: "Effect", value: "Records an order. Stock on hand changes only when the delivery is recorded as a receipt.", editable: false }],
+      primaryLabel: "Save order",
+    },
+  },
+  {
     functionId: "create_material",
     label: "New material",
     module: "materials",
