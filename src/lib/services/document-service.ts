@@ -25,12 +25,13 @@ function getStorageAdminClient() {
 }
 
 /**
- * The content type to store a file under. Browsers send an empty type for CAD files, and the old fallback
+ * The content type to store a file under. Browsers send an empty type for CAD files (and a proxy turns that into octet-stream), and the old fallback
  * (application/octet-stream) is not in the bucket's allow-list, so a .dwg was refused. Name the CAD types by extension.
  * Anything else keeps what the browser said, then the octet-stream fallback it always had.
  */
 export function uploadContentType(file: { name: string; type: string }): string {
-  if (file.type) return file.type
+  // octet-stream is "the sender did not know", and is what a file arrives as after a proxy re-wraps it: treat it like an empty type.
+  if (file.type && file.type !== "application/octet-stream") return file.type
   const ext = file.name.toLowerCase().split(".").pop()
   if (ext === "dwg") return "image/vnd.dwg"
   if (ext === "dxf") return "image/vnd.dxf"
@@ -136,7 +137,7 @@ async function prepareDocumentStorage(
       }
       throw new ServiceError("Failed to upload file", 500)
     }
-    fileType = input.file.type || null
+    fileType = uploadContentType(input.file)
     fileSize = input.file.size
   } else {
     // Link-only record -- fileUrl holds the raw external URL directly

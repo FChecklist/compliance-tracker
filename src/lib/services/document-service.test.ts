@@ -631,6 +631,12 @@ describe("uploadContentType -- a CAD file must not be sent as application/octet-
     expect(uploadContentType({ name: "notes.xyz", type: "" })).toBe("application/octet-stream")
   })
 
+  test("octet-stream (what a proxy re-wrap produces) is treated as unknown for CAD files, but never overrides a real type", async () => {
+    const { uploadContentType } = await loadService()
+    expect(uploadContentType({ name: "plan.dwg", type: "application/octet-stream" })).toBe("image/vnd.dwg")
+    expect(uploadContentType({ name: "notes.bin", type: "application/octet-stream" })).toBe("application/octet-stream")
+  })
+
   test("a type the browser did send is never overridden", async () => {
     const { uploadContentType } = await loadService()
     expect(uploadContentType({ name: "x.dwg", type: "application/acad" })).toBe("application/acad")
