@@ -1,0 +1,38 @@
+# veridian-aios.com: the public pages are open to every bot; the pages that
+# belong to a signed-in person are closed to every bot.
+#
+# Public: the home page (/), /dpdp-firm/, /dpdp-institution/, /about/,
+# /partner/, and the site's CSS, JS and fonts under /assets/ and /fonts/.
+# Private: the prefixes in the Disallow lines below (/api/ is the monitoring beacon target, never linked).
+
+# The named bots: allowed on public paths, kept out of the private prefixes.
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: Applebot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+Allow: /
+Disallow: /app/
+Disallow: /act/
+Disallow: /unsubscribe/
+Disallow: /p/
+Disallow: /copy/
+Disallow: /ai/
+Disallow: /api/
+
+# Everything else: the same public paths, the same private prefixes.
+User-agent: *
+Allow: /
+Disallow: /app/
+Disallow: /act/
+Disallow: /unsubscribe/
+Disallow: /p/
+Disallow: /copy/
+Disallow: /ai/
+Disallow: /api/
+
+Sitemap: https://veridian-aios.com/sitemap.xml

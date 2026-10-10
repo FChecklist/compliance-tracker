@@ -6,7 +6,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { ErpContext, ActorCtx } from "./actor-context"
 
@@ -47,7 +47,7 @@ export async function createItem(ctx: ActorCtx, input: { itemCode: string; itemN
       hasBatchNo: input.hasBatchNo ?? false, hasSerialNo: input.hasSerialNo ?? false,
       hsnSacCode: input.hsnSacCode?.trim() || null,
     }).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_item.created", entityType: "erp_item", entityId: item.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_item.created", entityType: "erp_item", entityId: item.id })
     return item
   })
 }
@@ -64,7 +64,7 @@ export async function createWarehouse(ctx: ActorCtx, input: { warehouseName: str
   if (!input.warehouseName?.trim()) throw new ServiceError("warehouseName is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [wh] = await db.insert(erpWarehouses).values({ orgId: ctx.orgId, warehouseName: input.warehouseName, parentWarehouseId: input.parentWarehouseId }).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_warehouse.created", entityType: "erp_warehouse", entityId: wh.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_warehouse.created", entityType: "erp_warehouse", entityId: wh.id })
     return wh
   })
 }

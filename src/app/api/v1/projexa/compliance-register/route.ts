@@ -8,7 +8,7 @@
 // "compliance item" is already generic vocabulary that applies directly to
 // a construction org's own statutory/regulatory obligations.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listComplianceItems, createComplianceItem, ServiceError, type CreateComplianceInput } from "@/lib/services/compliance-service"
 
 export async function GET(request: NextRequest) {
@@ -43,8 +43,10 @@ export async function POST(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const body = await request.json()
-    const actor = ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }
+    const actor = acting.actor
     const input: CreateComplianceInput = {
       title: body.title, description: body.description, complianceType: body.complianceType,
       priority: body.priority, dueDate: body.dueDate, departmentId: body.departmentId,

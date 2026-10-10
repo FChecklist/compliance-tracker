@@ -46,7 +46,15 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 const SUPABASE_URL = "https://evpckeuxgvahguwsaeul.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2cGNrZXV4Z3ZhaGd1d3NhZXVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjM4MzIsImV4cCI6MjA5OTA5OTgzMn0.3vDtJ-XlsVse2jJ8XNozM-Szyt-Wb6FxX9ZoC2_q8pk";
-const MINT_SECRET = "r33-mint-2026";
+// 2026-09-30: mint-session-r33's own MINT_SECRET was rotated server-side in
+// the Supabase dashboard (closing the residual-risk gap its own header
+// comment flagged -- "the published literal below stops working immediately,
+// with no redeploy"), so this literal now gets a genuine 401 from the
+// function's own code (`{"error":"unauthorized"}`, confirmed live -- not a
+// gateway/JWT rejection). Reads the real value from CI's own MINT_SECRET env
+// var when set; the literal stays only as the pre-rotation fallback for a
+// local run where that env var isn't configured.
+const MINT_SECRET = process.env.MINT_SECRET || "r33-mint-2026";
 const DEMO_EMAIL = "democeo@projexa-ai.com";
 // R75 Part 4: E2E_PROJEXA_ORIGIN overrides both the base URL AND the
 // cookie's domain together -- a cookie scoped to "projexa-ai.com" is never

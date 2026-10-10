@@ -1,0 +1,67 @@
+// Types for public-surface.mjs (see that file's header for why it is plain
+// ESM). Keep the two in step by hand -- there is no generator.
+
+export interface PublicPage {
+  readonly path: string
+  readonly source: string
+  readonly title: string
+  readonly h1: string
+  readonly jsonLd: readonly string[]
+  readonly mustContain: readonly string[]
+}
+
+export interface PrivatePage {
+  readonly prefix: string
+  /** HTML entry relative to dpdp-app/, or null when a Pages Function serves the prefix. */
+  readonly source: string | null
+}
+
+export interface RobotsGroup {
+  agents: string[]
+  allow: string[]
+  disallow: string[]
+}
+
+export interface HeaderRule {
+  path: string
+  set: [string, string][]
+  unset: string[]
+}
+
+export interface HiddenPage {
+  readonly prefix: string
+  readonly source: string
+}
+
+import type { Facts } from "./facts.mjs"
+
+export declare const SITE_ORIGIN: string
+export declare const LEGACY_APP_ORIGIN: string
+export declare const PUBLIC_ORIGIN: string
+export declare const OG_IMAGE: { readonly path: string; readonly width: number; readonly height: number; readonly alt: string }
+export declare const FOOTER_LINKS: readonly (readonly [string, string])[]
+export declare const RUM_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
+export declare const VISIT_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
+export declare const LEGAL_SCRIPT_OPENS: readonly string[]
+export declare const PUBLIC_SCRIPT_OPENS: readonly string[]
+export declare const HOME_SCRIPT_OPENS: readonly string[]
+export declare const THEME_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
+export declare function scriptOpensFor(path: string): readonly string[]
+export declare const COMPANY_FOOTER_COPY: readonly string[]
+export declare const LEGAL_PAGES: readonly { readonly path: string; readonly source: string; readonly h1: string }[]
+export declare const SITEMAP_PAGES: readonly { readonly path: string; readonly source: string }[]
+export declare const REF_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
+export declare const NAV_AI: { readonly href: string; readonly label: string }
+export declare const NAV_PARTNER: { readonly href: string; readonly label: string }
+export declare const NAV_SIGN_IN: { readonly href: string; readonly label: string }
+export declare const FACTS: Facts
+export declare const REQUIRED_BOTS: readonly string[]
+export declare const PRIVATE_PAGES: readonly PrivatePage[]
+export declare const PUBLIC_PAGES: readonly PublicPage[]
+export declare const HIDDEN_PAGES: readonly HiddenPage[]
+export declare function pageUrl(path: string): string
+export declare function isW3cDatetime(s: string): boolean
+export declare function renderSitemap(entries: ReadonlyArray<{ path: string; lastmod: string }>): string
+export declare function parseRobots(text: string): { groups: RobotsGroup[]; sitemaps: string[] }
+export declare function parseHeadersFile(text: string): HeaderRule[]
+export declare function resolveHeaders(rules: readonly HeaderRule[], path: string): Record<string, string>

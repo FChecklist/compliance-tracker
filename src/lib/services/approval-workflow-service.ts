@@ -24,7 +24,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, asc } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
+import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
 import { logActivity } from "@/lib/audit"
 import { evaluateAttributeConditions, type AttributeCondition } from "@/lib/abac"
 import { checkAbacDenyPoliciesWithDb } from "./abac-policy-service"

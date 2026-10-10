@@ -64,3 +64,21 @@ export interface ValidatedItem extends ExtractedItem {
   // Validation adds errors for truly broken items
   errors: string[]
 }
+
+// Every sheet of a workbook as rows of cell text, for readers that need more than the first sheet
+// (multisheet-bill-reader.ts). Same shape as WorkbookDigest in document-extraction-schema.ts, so a digest
+// can be passed where a grid is wanted. Row numbers are the real 1-based worksheet rows; rows with no
+// content are left out; a cell's line breaks are kept as "\n".
+export interface GridRow {
+  row: number
+  cells: string[]
+}
+
+export interface GridSheet {
+  name: string
+  rows: GridRow[]
+}
+
+export interface WorkbookGrid {
+  sheets: GridSheet[]
+}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { getComplianceItem, updateComplianceItem, deleteComplianceItem, ServiceError, serviceErrorBody } from "@/lib/services/compliance-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -28,10 +28,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const { id } = await context.params
     const body = await request.json()
     const result = await updateComplianceItem(
-      { orgId: ctx.orgId, actor: ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }, request },
+      { orgId: ctx.orgId, actor: acting.actor, request },
       id, body
     )
     return NextResponse.json(result)
@@ -51,9 +53,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const { id } = await context.params
     const result = await deleteComplianceItem(
-      { orgId: ctx.orgId, actor: ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }, request },
+      { orgId: ctx.orgId, actor: acting.actor, request },
       id
     )
     return NextResponse.json(result)

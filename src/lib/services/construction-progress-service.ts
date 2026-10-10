@@ -11,7 +11,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, desc, eq, gte, lte, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { users as usersTable } from "@/lib/db"
 // R67 F-27 (R-243): logging or deleting progress moves % complete, earned
 // value and the progress bar on the per-project dashboard, which now holds a
@@ -124,6 +124,101 @@ export async function createActivity(ctx: { orgId: string }, input: { projectId:
       orgId: ctx.orgId, projectId: input.projectId, categoryId: input.categoryId, name,
       unit: input.unit || null, plannedQuantity: input.plannedQuantity !== undefined ? String(input.plannedQuantity) : null,
     }).returning()
+    return row
+  })
+}
+
+// lf-b5-ai-crud (owner order 2026-10-02, R7) -- the EDIT of a category and of an activity, which did not exist (both were create-only).
+// The schema carries no dates and no weights on either (a name, a parent; a name, a unit, a planned quantity, a category), so there is no
+// weight sum to break. The conservative rules, chosen here and written into ai-os/AI_CRUD_COVERAGE.md for the owner to veto:
+//   - a category's parent must be another category of the SAME project, and never itself or one of its own descendants (no cycle);
+//   - an activity may move only to a category of its own project;
+//   - an activity's UNIT is refused once any progress entry is recorded against it (409): every quantity already logged was counted in
+//     the old unit, and relabelling it would orphan their meaning without a conversion nobody asked for;
+//   - a planned quantity is a finite number >= 0 (a project's own figure, not money);
+//   - a blank name is refused; names are trimmed and at most 200 characters.
+export const ACTIVITY_UNIT_LOCKED_MESSAGE =
+  "The unit cannot change once progress is recorded against this activity: the quantities already logged were counted in the old unit."
+
+function cleanName(name: unknown): string {
+  const n = typeof name === "string" ? name.trim() : ""
+  if (!n) throw new ServiceError("name cannot be empty", 400)
+  if (n.length > 200) throw new ServiceError("name must be 200 characters or fewer", 400)
+  return n
+}
+
+export async function updateCategory(
+  ctx: { orgId: string },
+  categoryId: string,
+  patch: { name?: string; parentCategoryId?: string | null }
+) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionCategories.findFirst({ where: and(eq(constructionCategories.id, categoryId), eq(constructionCategories.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Category not found", 404)
+    const set: { name?: string; parentCategoryId?: string | null } = {}
+    if (patch.name !== undefined) set.name = cleanName(patch.name)
+    if (patch.parentCategoryId !== undefined) {
+      if (patch.parentCategoryId === null) {
+        set.parentCategoryId = null
+      } else {
+        if (patch.parentCategoryId === categoryId) throw new ServiceError("A category cannot be its own parent", 400)
+        // walk up from the new parent: it must be of this project and the chain must never come back to this category
+        let cursor: string | null = patch.parentCategoryId
+        for (let depth = 0; cursor; depth++) {
+          if (depth > 50) throw new ServiceError("The category tree is too deep", 400)
+          const node: { projectId: string; parentCategoryId: string | null } | undefined = await db.query.constructionCategories.findFirst({
+            where: and(eq(constructionCategories.id, cursor), eq(constructionCategories.orgId, ctx.orgId)),
+            columns: { projectId: true, parentCategoryId: true },
+          })
+          if (!node || node.projectId !== existing.projectId) throw new ServiceError("Parent category not found", 404)
+          if (node.parentCategoryId === categoryId) throw new ServiceError("A category cannot sit under one of its own sub-categories", 400)
+          cursor = node.parentCategoryId
+        }
+        set.parentCategoryId = patch.parentCategoryId
+      }
+    }
+    if (Object.keys(set).length === 0) throw new ServiceError("Nothing to change", 400)
+    const [row] = await db.update(constructionCategories).set(set).where(eq(constructionCategories.id, categoryId)).returning()
+    return row
+  })
+}
+
+export async function updateActivity(
+  ctx: { orgId: string },
+  activityId: string,
+  patch: { name?: string; unit?: string | null; plannedQuantity?: number | null; categoryId?: string }
+) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, activityId), eq(constructionActivities.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Activity not found", 404)
+    const set: { name?: string; unit?: string | null; plannedQuantity?: string | null; categoryId?: string } = {}
+    if (patch.name !== undefined) set.name = cleanName(patch.name)
+    if (patch.categoryId !== undefined) {
+      const category = await db.query.constructionCategories.findFirst({ where: and(eq(constructionCategories.id, patch.categoryId), eq(constructionCategories.orgId, ctx.orgId)), columns: { projectId: true } })
+      if (!category || category.projectId !== existing.projectId) throw new ServiceError("Category not found", 404)
+      set.categoryId = patch.categoryId
+    }
+    if (patch.plannedQuantity !== undefined) {
+      if (patch.plannedQuantity !== null && (!Number.isFinite(patch.plannedQuantity) || patch.plannedQuantity < 0)) {
+        throw new ServiceError("plannedQuantity must be a number of at least 0", 400)
+      }
+      set.plannedQuantity = patch.plannedQuantity === null ? null : String(patch.plannedQuantity)
+    }
+    if (patch.unit !== undefined) {
+      const unit = patch.unit === null ? null : patch.unit.trim() || null
+      if (unit !== null && unit.length > 40) throw new ServiceError("unit must be 40 characters or fewer", 400)
+      if (unit !== (existing.unit ?? null)) {
+        const logged = await db.query.constructionWorkProgressEntries.findFirst({
+          where: and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.activityId, activityId)),
+          columns: { id: true },
+        })
+        if (logged) throw new ServiceError(ACTIVITY_UNIT_LOCKED_MESSAGE, 409)
+      }
+      set.unit = unit
+    }
+    if (Object.keys(set).length === 0) throw new ServiceError("Nothing to change", 400)
+    const [row] = await db.update(constructionActivities).set(set).where(eq(constructionActivities.id, activityId)).returning()
+    bustProjectDashboardCache(ctx.orgId, existing.projectId)
     return row
   })
 }
@@ -971,7 +1066,7 @@ export async function setActivityCompletionManually(
   ctx: { orgId: string; userId: string },
   issueId: string,
   input: { completionPercentage: number; note: string },
-  audit?: { dbUser?: typeof usersTable.$inferSelect; apiKey?: { id: string; name: string } }
+  audit?: { dbUser?: typeof usersTable.$inferSelect; apiKey?: { id: string; name: string }; actingViaApiKey?: true }
 ) {
   const note = input.note?.trim()
   if (!note) throw new ServiceError("A note is required when you set the percentage manually", 400)
@@ -997,7 +1092,9 @@ export async function setActivityCompletionManually(
 
     // Same transaction as the write it explains -- an override whose reason
     // failed to record is exactly the state this function exists to prevent.
-    if (audit?.dbUser) {
+    // U-20b: auditActorOf keeps the person AND the key when an API-key caller
+    // named the person it acts for (actingViaApiKey).
+    if (audit && (audit.dbUser || audit.apiKey)) {
       await logActivity({
         tx: db,
         action: "pms_issue.completion_manual_override",
@@ -1005,17 +1102,7 @@ export async function setActivityCompletionManually(
         entityId: issueId,
         details: `Set to ${Math.round(input.completionPercentage)}% manually (was ${issue.completionPercentage}%, source ${issue.completionSource}). Reason: ${note}`,
         orgId: ctx.orgId,
-        dbUser: audit.dbUser,
-      })
-    } else if (audit?.apiKey) {
-      await logActivity({
-        tx: db,
-        action: "pms_issue.completion_manual_override",
-        entityType: "pms_issue",
-        entityId: issueId,
-        details: `Set to ${Math.round(input.completionPercentage)}% manually (was ${issue.completionPercentage}%, source ${issue.completionSource}). Reason: ${note}`,
-        orgId: ctx.orgId,
-        apiKey: audit.apiKey,
+        ...auditActorOf(audit),
       })
     }
 

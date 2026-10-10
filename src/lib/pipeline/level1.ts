@@ -21,11 +21,25 @@
 import { and, eq, desc } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { constructionBoqLineItems, constructionBoqs } from "@/lib/db/schema";
-import { getAiProvider, assertAiProviderAllowed } from "@/lib/ai/adapter";
+import { getAiProvider, assertAiProviderAllowed, AiProviderRefusalError, type AiProviderRefusalKind } from "@/lib/ai/adapter";
 import type { ResolvedFunction } from "./classify";
+import { isInternalAiAllowedForOrg } from "@/lib/ai/internal-ai-org-allowance";
+import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai";
+import { promptParamsFor, type PromptParams } from "./function-registry";
 
 /** M26's acceptance floor. A resolution below this is a FAIL, not a maybe. */
 export const MIN_CONFIDENCE = 0.8;
+
+/**
+ * Audit 100 A4 follow-up (2026-10-05): what the user is told when Level 1 named a function but was below MIN_CONFIDENCE. It used to
+ * fall through to dry-run.ts's "That is not enabled for this workspace yet", which is false: the function exists, the model was unsure.
+ */
+export const NOT_SURE_SENTENCE = "I was not sure what you meant: please say it again with the name and the date";
+const BELOW_FLOOR_REASON_TAIL = ` floor`;
+/** True for the per-segment reason runLevel1 records when the answer was below the confidence floor. */
+export function isBelowConfidenceFloorReason(reason: string | null | undefined): boolean {
+  return typeof reason === "string" && reason.startsWith("Level 1 confidence ") && reason.endsWith(`below the ${MIN_CONFIDENCE}${BELOW_FLOOR_REASON_TAIL}`);
+}
 
 /**
  * The bound context M26 requires: "Pass the module's 5-15 candidate
@@ -35,6 +49,13 @@ export const MIN_CONFIDENCE = 0.8;
 export type Level1Context = {
   orgId: string;
   userId: string;
+  /**
+   * PROJEXA-BUILD-001 U-49: the compliance.users id of the ACTING PERSON --
+   * the identity the provider gate compares. `userId` above is the org API
+   * key's id on the PROJEXA proxy, so it is never used for that. Absent or
+   * null means no person resolved, which the gate refuses (fail closed).
+   */
+  personId?: string | null;
   projectId: string | null;
   candidateFunctionIds: readonly string[];
 };
@@ -80,6 +101,19 @@ export async function loadValidItemCodes(orgId: string, projectId: string | null
 }
 
 /**
+ * Audit 100 A4 follow-up: the parameter names of each candidate, from the registry (promptParamsFor). Before this the model saw
+ * only function ids and guessed field names. Bounded by the candidate set (5-15 functions), so the prompt stays small.
+ */
+export function functionParamsFor(candidateFunctionIds: readonly string[]): Record<string, PromptParams> {
+  const out: Record<string, PromptParams> = {};
+  for (const id of candidateFunctionIds) {
+    const params = promptParamsFor(id);
+    if (params) out[id] = params;
+  }
+  return out;
+}
+
+/**
  * ONE batched call for every unresolved segment (M27: "3 segments cost the
  * same as 1 and are 3x faster than 3 calls"). Level 0 hits never reach here.
  *
@@ -87,8 +121,25 @@ export async function loadValidItemCodes(orgId: string, projectId: string | null
  * produced nothing this code is willing to act on. It NEVER throws for a bad
  * model answer -- a bad answer is a fail, and a fail is data.
  */
+export const LEVEL1_ORG_NOT_ALLOWED_REASON = "Level 1 is off: the assistant is not switched on for this organisation";
+/** The reason every text carries when Level 1 is skipped because PROJEXA's internal AI is off. */
+export const LEVEL1_INTERNAL_AI_OFF_REASON = "Level 1 is off: PROJEXA does not run its own AI";
+
 export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Level1Outcome> {
   if (texts.length === 0) return { resolutions: [], reasons: [], modelCalls: 0 };
+
+  // lf-b3-ai-off: PROJEXA's internal AI is off by default (projexa-internal-ai.ts). Off, this is level1OffRunner's answer -- nothing
+  // resolved, zero model calls, no provider consulted -- so a caller that reaches runLevel1 without going through
+  // run-submission.ts's effectiveLevel1() (classify-only.ts, reuse-cache.ts, a future caller) still costs nothing.
+  if (!projexaInternalAiEnabled()) {
+    return { resolutions: texts.map(() => null), reasons: texts.map(() => LEVEL1_INTERNAL_AI_OFF_REASON), modelCalls: 0 };
+  }
+
+  // Audit 37 point 11: the master switch on is not enough; this organisation must also have been allowed our AI (default closed).
+  // Same quiet outcome as "off": nothing resolved, zero model calls, no provider consulted.
+  if (!(await isInternalAiAllowedForOrg(ctx.orgId))) {
+    return { resolutions: texts.map(() => null), reasons: texts.map(() => LEVEL1_ORG_NOT_ALLOWED_REASON), modelCalls: 0 };
+  }
 
   // Refuses closed. Anthropic's Claude Code policy permits OAuth/subscription
   // auth for ordinary individual use only, never to serve another person's
@@ -96,7 +147,8 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
   // Explicit level ("pipeline_l1", this file's only level) so the identity
   // gate and getAiProvider() below always agree on which level's provider
   // config they're each resolving -- see provider-config.ts (P1.1).
-  assertAiProviderAllowed(ctx.userId, "pipeline_l1");
+  // U-49: the acting person, never ctx.userId (an API key's id on the proxy).
+  assertAiProviderAllowed(ctx.personId ?? null, "pipeline_l1");
 
   const validItemCodes = await loadValidItemCodes(ctx.orgId, ctx.projectId);
 
@@ -106,6 +158,7 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
       orgId: ctx.orgId,
       projectId: ctx.projectId ?? undefined,
       validIds: validItemCodes.length > 0 ? { itemCode: validItemCodes } : undefined,
+      functionParams: functionParamsFor(ctx.candidateFunctionIds),
     });
   } catch (error) {
     // A provider outage is a FAIL for every segment in the batch, with the
@@ -137,7 +190,7 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
     }
     if (typeof r.confidence !== "number" || !Number.isFinite(r.confidence) || r.confidence < MIN_CONFIDENCE) {
       resolutions.push(null);
-      reasons.push(`Level 1 confidence ${String(r.confidence)} is below the ${MIN_CONFIDENCE} floor`);
+      reasons.push(`Level 1 confidence ${String(r.confidence)} is below the ${MIN_CONFIDENCE}${BELOW_FLOOR_REASON_TAIL}`);
       return;
     }
     const params = (r.params ?? {}) as Record<string, unknown>;
@@ -160,4 +213,91 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
   });
 
   return { resolutions, reasons, modelCalls: 1 };
+}
+
+// ─── PROJEXA-BUILD-001 U-49: a refusal is an answer, and it is measured ────
+
+/**
+ * What the Level 1 lane did for one submission -- drizzle/0571's CHECK on
+ * compliance.submissions.level1_outcome admits exactly these four. See
+ * dry-run.ts's DryRunTelemetry for what each one means; a provider outage
+ * that runLevel1 caught itself ("Level 1 unavailable") is `resolved` with a
+ * model call, because the lane ran and returned.
+ */
+export type Level1LaneOutcome = "resolved" | "refused" | "not_needed" | "error";
+
+/**
+ * drizzle/0571's closed vocabulary for compliance.submissions.level1_refusal_code,
+ * the subset this pipeline writes. A CODE, never the message -- see 0571's header.
+ *
+ * `user_not_permitted` is the code for a request with no resolvable acting
+ * person (AiProviderRefusalError kind `actor_unresolved`): it is the one value
+ * the CHECK already admits that says the refusal was about WHO asked, not the
+ * provider, so a distinct code needs no migration.
+ */
+export type Level1RefusalCode = "provider_not_allowed" | "user_not_permitted" | "provider_unreachable" | "unknown";
+
+/** Null when nothing was refused or faulted, so a resolved row stores NULL rather than a misleading "unknown". */
+export function level1RefusalCode(
+  outcome: Level1LaneOutcome,
+  kind: AiProviderRefusalKind | null | undefined,
+  reason: string | null
+): Level1RefusalCode | null {
+  // AiProviderRefusalError is what assertAiProviderAllowed throws; its kind
+  // separates "this person is not the permitted account" (or RAJAT_USER_ID is
+  // unset) from "no person was named at all" -- see ai/adapter.ts.
+  if (outcome === "refused") return kind === "actor_unresolved" ? "user_not_permitted" : "provider_not_allowed";
+  if (outcome !== "error") return null;
+  const lower = (reason ?? "").toLowerCase();
+  if (lower.includes("fetch") || lower.includes("timeout") || lower.includes("econnrefused")) return "provider_unreachable";
+  return "unknown";
+}
+
+/**
+ * A REFUSAL IS NOT A DEAD END (BR-221). assertAiProviderAllowed() throws before
+ * any model work when the provider may not serve this caller. Thrown through
+ * resolveMissesWithReuseCache(), that also discarded what the reuse cache and
+ * the fuzzy tier had already answered, and on the runSubmission() and
+ * classifyOnly() paths it reached the route as an HTTP 400 carrying
+ * NO_COMMENTARY_SENTENCE -- "here is what the records say" -- with no records.
+ *
+ * This wraps a Level 1 runner so a refusal comes back as "nothing resolved"
+ * for the texts that reached it, with zero model calls -- the shape a Level 1
+ * "no function" answer already has, so each caller turns those texts into
+ * gaps with no new branch -- and tells `onRefused` why, for telemetry. Any
+ * other error still throws: a fault is not a policy decision.
+ *
+ * `run` is passed in, not imported here, so a test that replaces this
+ * module's runLevel1 still replaces the runner the pipeline actually calls.
+ */
+export function refusalAsUnresolved(
+  run: (texts: string[], ctx: Level1Context) => Promise<Level1Outcome>,
+  onRefused: (error: AiProviderRefusalError) => void
+): (texts: string[], ctx: Level1Context) => Promise<Level1Outcome> {
+  return async (texts, ctx) => {
+    try {
+      return await run(texts, ctx);
+    } catch (error) {
+      if (!(error instanceof AiProviderRefusalError)) throw error;
+      onRefused(error);
+      return { resolutions: texts.map(() => null), reasons: texts.map(() => "Level 1 refused for this caller"), modelCalls: 0 };
+    }
+  };
+}
+
+/**
+ * PROJEXA-BUILD-001 U-43 / U-46c (BR-287): the Level 1 step of a caller that
+ * must never reach the internal model -- the AI work link, whose own AI is
+ * Level 1. It calls no model and consults no provider: every text that reaches
+ * it comes back unresolved with zero model calls, so each caller turns it into
+ * the gap a Level 1 "no function" answer already produces. Shared by
+ * run-submission.ts and dry-run.ts so the two cannot disagree on what "off"
+ * means.
+ */
+export function level1OffRunner(): (texts: string[], ctx: Level1Context) => Promise<Level1Outcome> {
+  return async (texts) => ({
+    resolutions: texts.map(() => null),
+    reasons: texts.map(() => "Level 1 is off for this caller"),
+    modelCalls: 0,
+  });
 }

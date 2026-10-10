@@ -6,7 +6,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, ne, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { ErpContext, ActorCtx } from "./actor-context"
 
@@ -167,7 +167,7 @@ export async function createPurchaseOrder(
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_order.created", entityType: "erp_purchase_order", entityId: po.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_purchase_order.created", entityType: "erp_purchase_order", entityId: po.id })
     return po
   })
 }
@@ -179,7 +179,7 @@ export async function submitPurchaseOrder(ctx: ActorCtx, purchaseOrderId: string
     if (!po) throw new ServiceError("Purchase order not found", 404)
     if (po.status !== "draft") throw new ServiceError("Only draft purchase orders can be submitted", 409)
     const [updated] = await db.update(erpPurchaseOrders).set({ status: "submitted", updatedAt: new Date() }).where(eq(erpPurchaseOrders.id, purchaseOrderId)).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_order.submitted", entityType: "erp_purchase_order", entityId: purchaseOrderId })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_purchase_order.submitted", entityType: "erp_purchase_order", entityId: purchaseOrderId })
     return updated
   })
 }
@@ -285,7 +285,7 @@ export async function updatePurchaseOrder(ctx: ActorCtx, purchaseOrderId: string
       updatedAt: new Date(),
     }).where(eq(erpPurchaseOrders.id, purchaseOrderId)).returning()
 
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_order.updated", entityType: "erp_purchase_order", entityId: purchaseOrderId })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_purchase_order.updated", entityType: "erp_purchase_order", entityId: purchaseOrderId })
     return updated
   })
 }
@@ -296,7 +296,7 @@ export async function cancelPurchaseOrder(ctx: ActorCtx, purchaseOrderId: string
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     await loadMutablePurchaseOrder(db, ctx.orgId, purchaseOrderId, "cancelled")
     const [updated] = await db.update(erpPurchaseOrders).set({ status: "cancelled", updatedAt: new Date() }).where(eq(erpPurchaseOrders.id, purchaseOrderId)).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_order.cancelled", entityType: "erp_purchase_order", entityId: purchaseOrderId })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_purchase_order.cancelled", entityType: "erp_purchase_order", entityId: purchaseOrderId })
     return updated
   })
 }

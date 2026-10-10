@@ -3,7 +3,7 @@
 // invoices only (see that function's own comment for why a submitted
 // invoice needs a reversing credit note instead of a direct cancel).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { cancelSalesInvoice, ServiceError } from "@/lib/services/erp-invoicing-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +15,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const { id } = await params
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const updated = await cancelSalesInvoice({ orgId: ctx.orgId, userId: actorId }, id)
     return NextResponse.json(updated)
   } catch (error) {

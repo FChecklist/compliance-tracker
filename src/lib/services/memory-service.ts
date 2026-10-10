@@ -340,6 +340,13 @@ export type CreateMemoryRecordInput = {
     documentId?: string | null
     sheetRowRef?: string | null
   }
+  // BUILD-002 WP-09b (spec 9.11, write-path gap G9): true stores the row WITHOUT
+  // an embedding -- no embedding-provider call and no second (postgres-role)
+  // connection. A row without one is left out of searchMemories() until a repair
+  // pass embeds it (the same state a crash between the two writes leaves, see
+  // this file's header). Used for text an AI work link wrote: no model call runs
+  // on link traffic. Default false: every other caller embeds as before.
+  skipEmbedding?: boolean
 }
 
 /**
@@ -482,7 +489,7 @@ export async function createMemoryRecord(
     `)
   }
 
-  await embedAndMirror(tx, record.id, trimmedContent, orgId)
+  if (!input.skipEmbedding) await embedAndMirror(tx, record.id, trimmedContent, orgId)
 
   return record
 }

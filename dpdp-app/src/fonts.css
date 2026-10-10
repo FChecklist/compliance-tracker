@@ -1,0 +1,27 @@
+/* WO-DPDP-012 §1: Sora and Instrument Sans are self-hosted -- no Google
+   Fonts <link>, no request to a third party of any kind. Both are SIL Open
+   Font License 1.1; the licence texts sit next to the files in
+   public/fonts/ and ship with them. Latin subset only, as the Google Fonts
+   CSS API serves it to a modern browser, on a variable weight axis -- one
+   file per family covers every weight the pages use, so both are preloaded
+   from each page. Glyphs outside Latin (the rupee sign in the penalty band,
+   the arrows in link text) fall back to the system font. font-display:
+   swap -- text is readable at once in the fallback face and re-renders when
+   the file arrives. */
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/sora-latin-wght.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-latin-wght.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

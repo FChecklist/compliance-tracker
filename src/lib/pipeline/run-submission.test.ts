@@ -27,7 +27,14 @@
 // which takes an injectable fake repo AND an injectable fake runLevel1Fn
 // (same seam pattern level0.ts's L0Repo already established) and has real,
 // dedicated coverage in reuse-cache.test.ts.
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test, beforeAll, afterAll, mock } from "bun:test"
+// Audit 37 point 11: the per-organisation allow flag (internal-ai-org-allowance.ts) is default closed; this file tests behaviour for an ALLOWED org.
+mock.module("@/lib/ai/internal-ai-org-allowance", () => ({ INTERNAL_AI_BRANCH_KEY: "internal_ai", isInternalAiAllowedForOrg: async () => true, isInternalAiAllowedForOrgWithDb: async () => true }))
+// lf-b3-ai-off: these tests pin the behaviour with PROJEXA's internal AI switched ON (PROJEXA_INTERNAL_AI_ENABLED="1"); since
+// that package the switch is default OFF, and src/lib/projexa-internal-ai*.test.ts pin the off side.
+const savedInternalAiFlag = process.env.PROJEXA_INTERNAL_AI_ENABLED
+beforeAll(() => { process.env.PROJEXA_INTERNAL_AI_ENABLED = "1" })
+afterAll(() => { if (savedInternalAiFlag === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED; else process.env.PROJEXA_INTERNAL_AI_ENABLED = savedInternalAiFlag })
 import { buildTaskResultMemoryContent } from "./run-submission"
 
 describe("buildTaskResultMemoryContent -- R65 Part C Phase 3 task memory", () => {

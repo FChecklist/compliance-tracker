@@ -6,7 +6,7 @@
 // (../wiki/*), which is a genuinely different concept (org-wide reference
 // docs vs. per-project working notes).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listKbPages, createKbPage, ServiceError } from "@/lib/services/knowledge-base-service"
 
 export async function GET(request: NextRequest) {
@@ -30,11 +30,13 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()
-    const result = await createKbPage({ orgId: ctx.orgId, userId: actorId, isRealUser: Boolean(ctx.dbUser) }, body)
+    const result = await createKbPage({ orgId: ctx.orgId, userId: actorId, isRealUser: true /* U-20b: actorId is always a real compliance.users row now */ }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

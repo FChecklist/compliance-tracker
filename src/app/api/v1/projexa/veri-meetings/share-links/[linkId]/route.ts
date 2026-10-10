@@ -4,7 +4,7 @@
 // sibling action-items/share-links POST routes. Revoking a share link had
 // no PROJEXA-reachable route at all before this.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { revokeMeetingShareLink, ServiceError } from "@/lib/services/veri-meeting-service"
 
 type RouteContext = { params: Promise<{ linkId: string }> }
@@ -18,8 +18,10 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
   try {
     const { linkId } = await params
-    const actorId = ctx.dbUser?.id ?? null
-    const meetingCtx = { orgId: ctx.orgId, userId: actorId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }) }
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
+    const meetingCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const result = await revokeMeetingShareLink(meetingCtx, linkId)
     return NextResponse.json(result)
   } catch (error) {

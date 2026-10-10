@@ -5,7 +5,7 @@
 // unchanged (Wave 44) -- no second share mechanism, matching R-C15's own
 // precedent (compliance-tracker#1331) this row explicitly says to reuse.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { createMeetingShareLink, listMeetingShareLinks, composeMeetingShareTarget, ServiceError } from "@/lib/services/veri-meeting-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -34,8 +34,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   // R39/R-C04: ctx.apiKey?.id is not a real compliance.users row -- see
   // veriMeetings.createdById's schema.ts comment. veriMeetingShareLinks'
   // createdById was already made nullable in R38 (PR #1331) for the same
-  // reason on the reports-share surface.
-  const actorId = ctx.dbUser?.id ?? null
+  // reason on the reports-share surface. U-20b: the actor is now the person
+  // the API-key caller names (X-Acting-User / X-Acting-User-Email).
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     // that sends nothing still gets the pre-D-21 VERIDIAN link and wording.
     const body = await request.json().catch(() => ({} as Record<string, unknown>))
     const link = await createMeetingShareLink(
-      { orgId: ctx.orgId, userId: actorId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }) },
+      { orgId: ctx.orgId, userId: actorId, ...acting.actor },
       id
     )
     const share = composeMeetingShareTarget({

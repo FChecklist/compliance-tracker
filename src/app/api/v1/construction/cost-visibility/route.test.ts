@@ -15,11 +15,13 @@
 // proves the route + service wiring together, not a route that merely
 // trusts a mocked service to refuse correctly.
 import { describe, test, expect, mock, beforeEach } from "bun:test"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 
 const ORG_ID = "org-1"
 
 function mockAuth(role: string) {
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...actingPersonDouble(),
     requireAuthOrApiKey: mock(async () => ({
       response: null,
       orgId: ORG_ID,

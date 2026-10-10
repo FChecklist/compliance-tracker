@@ -44,11 +44,20 @@ await mock.module("@/lib/db", () => ({
   apiKeys: { id: "id" },
 }))
 
+// The production writes now go through audit-writer-client.ts (dedicated, cancellable connection), not `db`.
+const capturedInserts: { payloadJson: string; timeoutMs: number }[] = []
+const capturedTouches: { apiKeyId: string; at: Date; timeoutMs: number }[] = []
+await mock.module("./audit-writer-client", () => ({
+  insertAuditRows: async (payloadJson: string, timeoutMs: number) => { capturedInserts.push({ payloadJson, timeoutMs }) },
+  touchApiKeyLastUsed: async (apiKeyId: string, at: Date, timeoutMs: number) => { capturedTouches.push({ apiKeyId, at, timeoutMs }) },
+}))
+
 const {
   createApiKeyAuditRecorder,
   FLUSH_INTERVAL_MS,
   LAST_USED_AT_THROTTLE_MS,
   MAX_BUFFERED_ROWS,
+  WRITE_TIMEOUT_MS,
   recordApiKeyUse,
   flushApiKeyAuditNow,
   pendingApiKeyRequestCount,
@@ -68,7 +77,7 @@ type Harness = {
 }
 
 function harness(
-  overrides: Partial<Pick<ApiKeyAuditDeps, "insertRequestLog" | "touchLastUsedAt">> = {}
+  overrides: Partial<Pick<ApiKeyAuditDeps, "insertRequestLog" | "touchLastUsedAt" | "backgroundFlush" | "writeTimeoutMs">> = {}
 ): Harness {
   let clock = Date.parse("2026-09-03T10:00:00.000Z")
   const deferred: (() => void)[] = []
@@ -87,6 +96,8 @@ function harness(
     startTimer: (task, ms) => { timerTask = task; timerDelay = ms; return "timer" },
     cancelTimer: () => { timerTask = null },
     onError: (stage, error) => { errors.push({ stage, error }) },
+    backgroundFlush: overrides.backgroundFlush,
+    writeTimeoutMs: overrides.writeTimeoutMs,
   })
 
   return {
@@ -389,6 +400,50 @@ describe("the rate limiter can still see what is queued", () => {
   })
 })
 
+describe("2026-10-01 pool-clog fix: no background timer on Vercel, and every write is time-boxed", () => {
+  test("backgroundFlush=false never arms the timer: every record goes out through the deferred (after()) path", async () => {
+    const h = harness({ backgroundFlush: false })
+
+    await h.recorder.recordApiKeyUse(use())
+    await h.runDeferred() // first flush
+    expect(h.inserts).toHaveLength(1)
+
+    // Under the default this second record would sit waiting for the 5 s timer.
+    await h.recorder.recordApiKeyUse(use())
+    await h.recorder.recordApiKeyUse(use())
+    expect(h.timerArmed()).toBe(false)
+    await h.runDeferred()
+
+    expect(h.inserts).toHaveLength(2)
+    expect(h.inserts[1]).toHaveLength(2) // still coalesced: rows recorded before the flush ran go out together
+  })
+
+  test("a write that never finishes is abandoned after the time box, and the queue keeps working", async () => {
+    let hang = true
+    const written: ApiKeyUse[][] = []
+    const h = harness({
+      writeTimeoutMs: 20,
+      insertRequestLog: (rows) => (hang ? new Promise<void>(() => {}) : (written.push(rows), Promise.resolve())),
+    })
+
+    await h.recorder.recordApiKeyUse(use())
+    await h.runDeferred() // would hang forever without the time box
+    expect(h.errors.map((e) => e.stage)).toEqual(["insert"])
+    expect(String(h.errors[0].error)).toContain("timed out")
+    expect(h.recorder.pendingRowCount()).toBe(0)
+
+    hang = false
+    await h.recorder.recordApiKeyUse(use())
+    await h.fireTimer()
+    expect(written).toHaveLength(1)
+  })
+
+  test("the default time box is a few seconds, not minutes", () => {
+    expect(WRITE_TIMEOUT_MS).toBeGreaterThan(0)
+    expect(WRITE_TIMEOUT_MS).toBeLessThanOrEqual(10_000)
+  })
+})
+
 describe("the module-level recorder, bound to the production dependencies", () => {
   test("recordApiKeyUse buffers, flushApiKeyAuditNow writes one row set, and the request's own time is preserved", async () => {
     // This exercises the REAL default dependencies -- the drizzle insert/update
@@ -408,12 +463,9 @@ describe("the module-level recorder, bound to the production dependencies", () =
     await expect(flushApiKeyAuditNow()).resolves.toBeUndefined()
 
     expect(pendingApiKeyRequestCount("key-live", windowStart)).toBe(0)
-    expect(stubbedExecutes).toHaveLength(1)
-    // The interpolated jsonb param is the one chunk that is a plain string
-    // rather than a StringChunk -- see this file's header comment.
-    const query = stubbedExecutes[0] as { queryChunks: unknown[] }
-    const jsonChunk = query.queryChunks.find((c) => typeof c === "string") as string
-    expect(JSON.parse(jsonChunk)).toEqual([{
+    expect(capturedInserts).toHaveLength(1)
+    expect(capturedInserts[0].timeoutMs).toBe(WRITE_TIMEOUT_MS)
+    expect(JSON.parse(capturedInserts[0].payloadJson)).toEqual([{
       apiKeyId: "key-live",
       orgId: "org-live",
       route: "/api/v1/projexa/projects",
@@ -423,6 +475,6 @@ describe("the module-level recorder, bound to the production dependencies", () =
       // 60 s rate-limit window and the usage analytics both read the truth.
       createdAt: requestedAt.toISOString(),
     }])
-    expect(stubbedLastUsedWrites).toEqual([{ lastUsedAt: requestedAt }])
+    expect(capturedTouches).toEqual([{ apiKeyId: "key-live", at: requestedAt, timeoutMs: WRITE_TIMEOUT_MS }])
   })
 })

@@ -8,7 +8,7 @@
 // DELETE is a CANCEL (status -> 'cancelled'), never a row delete, for the same
 // reason cancelSalesInvoice() is.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { getPurchaseOrder, updatePurchaseOrder, cancelPurchaseOrder, ServiceError } from "@/lib/services/erp-buying-service"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -35,14 +35,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return requireOrg(ctx)!
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const { id } = await params
     const body = await request.json()
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const po = await updatePurchaseOrder(actorCtx, id, {
       supplierId: body.supplierId, orderDate: body.orderDate, expectedDeliveryDate: body.expectedDeliveryDate,
       companyId: body.companyId, projectId: body.projectId, currencyId: body.currencyId, exchangeRate: body.exchangeRate,
@@ -61,13 +61,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return requireOrg(ctx)!
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const { id } = await params
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const po = await cancelPurchaseOrder(actorCtx, id)
     return NextResponse.json(po)
   } catch (error) {

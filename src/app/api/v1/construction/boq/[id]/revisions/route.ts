@@ -4,7 +4,7 @@
 // variation that reduces already-completed work is blocked with a 409
 // unless the caller explicitly passes allowScopeReductionOverride: true.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { createBoqRevision, ScopeReductionError, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,7 +17,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const { id } = await params
     const body = await request.json()
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const result = await createBoqRevision({ orgId: ctx.orgId, userId: actorId }, id, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      The one-click confirmation page from the Monday email (WO-DPDP-011
+      §2.3), served at /act/#<token>. The token rides in the URL FRAGMENT,
+      which a browser never sends to any server. Opening the page changes
+      nothing: it only shows what the button would do (dpdp_preview_email_
+      action); the button itself is dpdp_apply_email_action. PRIVATE
+      (WO-DPDP-012 §2): never indexed, never crawled, no referrer --
+      public/_headers and public/robots.txt say the same over HTTP. No
+      third-party <link>/<script> of any kind belongs on this page.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>VERIDIAN DPDP</title>
+    <link rel="preload" href="/fonts/sora-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/act.tsx"></script>
+  </body>
+</html>

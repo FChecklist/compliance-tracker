@@ -1,0 +1,36 @@
+# VERIDIAN DPDP
+
+> dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
+
+VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India.
+
+## Who it is for
+
+1. CA, CS, audit and legal firms · their clients
+2. Companies, institutions, schools and NGOs
+
+## What it does
+
+- It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
+- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
+- Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+
+It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
+
+## Pages
+
+- [DPDP Compliance Management Software for India](https://veridian-aios.com/): the home page: choose CA, CS, legal or audit firm doing it for clients, or company, institution, school or NGO doing it for itself
+- [DPDP Act Compliance for CA, CS, Audit and Legal Firms](https://veridian-aios.com/dpdp-firm/): for a CA, CS, audit or legal firm doing DPDP compliance for its clients
+- [DPDP Act Compliance for Companies, Institutions, Schools and NGOs](https://veridian-aios.com/dpdp-institution/): for a company, institution, school or NGO doing DPDP compliance for itself
+- [About VERIDIAN](https://veridian-aios.com/about/): what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company
+- [Become a Sales Partner](https://veridian-aios.com/partner/): who can be a Sales Partner, how to get a personal link, what is earned when a referred organisation pays, and how payment is made
+- [Sales Partner terms](https://veridian-aios.com/partner/terms/): the Sales Partner agreement: who can join, what a partner may and may not say, how commission is earned and paid, tax, ending, changes
+- [Your DPDP AI Assistant](https://veridian-aios.com/ai-assistant/): how to get the free AI assistant, what it can and cannot do, what it costs, and how you stay in charge
+- The sitemap: https://veridian-aios.com/sitemap.xml
+
+## Contact
+
+- Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
+- Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
+
+We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.

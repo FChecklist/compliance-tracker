@@ -179,7 +179,9 @@ export function summarize(totalEntries, failures) {
   }
 }
 
-async function openPgliteEngine() {
+// Exported for scripts/verify/rollback-tools.mjs (BUILD-001 U-17 PGlite rollback replay), which loads a per-migration
+// base snapshot into the same engine instead of the whole drizzle/ folder.
+export async function openPgliteEngine() {
   let PGlite, pg_trgm, pgcrypto
   try {
     ;({ PGlite } = await import("@electric-sql/pglite"))

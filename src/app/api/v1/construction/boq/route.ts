@@ -2,8 +2,13 @@
 // external client) targets instead of the internal /api/construction/*
 // routes, which can change without notice. Same service calls either way.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listBoqs, parseBoqInclude, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
+// PROJEXA-BUILD-001 U-27 (BR-404): the paged list is reached through the module namespace, not a named import.
+// boq-route.client-boundary.test.ts replaces construction-boq-service with a partial mock of the names imported
+// above; a new named import would fail that file at link time although its flag-OFF path never calls it.
+import * as boqService from "@/lib/services/construction-boq-service"
+import { isBoqKeysetPaginationEnabled } from "@/lib/boq-line-keyset"
 import { withRouteTiming } from "@/lib/route-timing"
 // R85 Addendum 3 v4 Phase 6 (gates 6-01/6-03a): THE ONE GATE every BOQ read
 // route must call before returning line items -- see cost-visibility-
@@ -47,16 +52,39 @@ async function GET_impl(request: NextRequest) {
     // lineCount / total / deltaAmount / deltaPct on the row. It shares the
     // SAME statement as `variation`, so asking for both is not a second query.
     const include = request.nextUrl.searchParams.get("include")
-    const { variation, compare } = parseBoqInclude(include)
-    const parts = ["lineItems"]
+    const { variation, compare, headers } = parseBoqInclude(include)
+    // PROJEXA G-12 (2026-10-06): `include=headers` is the list screens' opt-out of line items. On the largest live
+    // project (dd486dad: 14,013 BOQ headers, 25,328 lines, ~12 MB of line-item JSON) the database answers in ~0.2 s and the
+    // request still blew PROJEXA's 8 s upstream budget, because the cost is building and shipping every line of every
+    // BOQ. The banners/list need only headers (+ the SQL variation/compare figures); callers that send no `headers`
+    // token get exactly the response they always got. Not combined with the keyset flag path below: that path pages lines.
+    const parts = headers && !isBoqKeysetPaginationEnabled() ? [] : ["lineItems"]
     if (variation) parts.push("variation")
     if (compare) parts.push("compare")
-    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId, { include: parts.join(",") })
     // 6-01/6-03a: rate_project/qty_project (and any future project-side
-    // figure) are stripped out here for any caller who is not granted cost
+    // figure) are stripped out below for any caller who is not granted cost
     // visibility -- client_viewer can NEVER pass this, unconditionally (see
     // canRoleSeeCost's hard floor).
     const role = (ctx.dbUser?.role as UserRole | undefined) ?? null
+
+    // PROJEXA-BUILD-001 U-27 (BR-404, D-11 as amended by PMD-09): with BUILD001_BOQ_KEYSET_PAGINATION on (read on
+    // every request), the response is the current revision's chain of headers with ONE page of the current
+    // revision's line items plus revision/limit/nextCursor/hasMore; `cursor`, `limit` (1 to 200, default 50) and
+    // `revision` query parameters page it (a bad value is 400). See listBoqsPage() in construction-boq-service.ts.
+    // Same cost-visibility gate around it. With the flag off, nothing below this block changes.
+    if (isBoqKeysetPaginationEnabled()) {
+      const params = request.nextUrl.searchParams
+      const page = await boqService.listBoqsPage({ orgId: ctx.orgId }, projectId, {
+        include: parts.join(","),
+        cursor: params.get("cursor"),
+        limit: params.get("limit"),
+        revision: params.get("revision"),
+      })
+      const pagedBody = await applyCostVisibility({ orgId: ctx.orgId }, role, page)
+      return NextResponse.json(pagedBody)
+    }
+
+    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId, { include: parts.join(",") })
     const responseBody = await applyCostVisibility({ orgId: ctx.orgId }, role, { boqs })
     return NextResponse.json(responseBody)
   } catch (error) {
@@ -92,11 +120,13 @@ async function POST_impl(request: NextRequest) {
     // Create, and approveBoq's self-approval guard could therefore never
     // distinguish two different PROJEXA users (see the sibling approve
     // route's own fix, same root cause). Resolves the real acting user via
-    // the X-Acting-User/X-Acting-User-Email headers PROJEXA now sends,
-    // falling back to the api key id only when neither header is present
-    // (a genuine external API-key-only integration).
-    const { user: actingUser } = await resolveActingUser(ctx, readActingUserEmail(request), readActingUserId(request))
-    const actorId = actingUser?.id ?? ctx.dbUser?.id ?? ctx.apiKey!.id
+    // the X-Acting-User/X-Acting-User-Email headers PROJEXA now sends.
+    // U-20b (BR-215): the api-key-id fallback for "neither header present" is
+    // gone -- that call now gets 400 ACTING_USER_REQUIRED, and a header that
+    // does not resolve is refused (USER_NOT_LINKED) instead of being ignored.
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const result = await createBoq({ orgId: ctx.orgId, userId: actorId }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {

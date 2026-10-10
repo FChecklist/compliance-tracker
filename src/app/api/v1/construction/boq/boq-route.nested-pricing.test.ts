@@ -8,6 +8,7 @@
 // REAL against a small in-memory fake `db`, only the DB layer and auth guard
 // are mocked.
 import { describe, test, expect, mock, beforeEach } from "bun:test"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 import { ROLE_RANK } from "@/lib/supabase/role-rank"
 
 const PROJECT_ID = "test-project-1"
@@ -94,6 +95,7 @@ let store: ReturnType<typeof makeFakeStore>
 beforeEach(() => {
   store = makeFakeStore()
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...actingPersonDouble(),
     ROLE_RANK,
     requireAuthOrApiKey: mock(async () => ({ response: null, orgId: ORG_ID, dbUser: { id: "user-1" }, apiKey: null })),
     requireRoleOrScope: mock(() => null),

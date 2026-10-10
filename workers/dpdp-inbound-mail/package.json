@@ -1,0 +1,23 @@
+{
+  "name": "dpdp-inbound-mail",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Email Worker for dpdp@veridian-aios.com: parse inbound mail, hand it to the dpdp-inbound-mail Supabase Edge Function, forward the raw mail to the operator if anything at all goes wrong.",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "bundle": "bun build src/index.ts --target=browser --format=esm --outfile=dist/worker.js",
+    "check:bundle": "wrangler deploy --dry-run --outdir dist-wrangler",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "postal-mime": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.143.1"
+  }
+}

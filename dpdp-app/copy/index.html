@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      The one-tap Copy page behind the "Copy" button in the Monday email's prompt box, served at /copy/#<token>. The token rides in the
+      URL FRAGMENT, which a browser never sends to any server, and the page removes it from the address bar as soon as it has read it.
+      Opening the page changes nothing on the server: it reads the prompt the person's own AI work link already serves
+      (GET /ai/<token>/prompt) and puts it on the clipboard. PRIVATE (WO-DPDP-012 §2): never indexed, never crawled, no referrer --
+      public/_headers and public/robots.txt say the same over HTTP. No third-party <link>/<script> of any kind belongs on this page.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>VERIDIAN DPDP</title>
+    <link rel="preload" href="/fonts/sora-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/copy.tsx"></script>
+  </body>
+</html>

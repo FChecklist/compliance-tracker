@@ -127,7 +127,7 @@ export type InvoiceApprovedClaimInput = { billDate: string; taxTemplateId: strin
 // apiKey is threaded through so generateInterimBill -> createSalesInvoice
 // can still attribute the invoice to a real identity in that case.
 export async function invoiceApprovedClaim(
-  ctx: ClaimContext & { dbUser: typeof users.$inferSelect | null; apiKey?: { id: string; name: string } },
+  ctx: ClaimContext & { dbUser: typeof users.$inferSelect | null; apiKey?: { id: string; name: string }; actingViaApiKey?: true },
   claimId: string,
   input: InvoiceApprovedClaimInput
 ) {
@@ -141,7 +141,7 @@ export async function invoiceApprovedClaim(
   if (existing.status !== "client_approved") throw new ServiceError(`Only a 'client_approved' claim can be invoiced (this one is '${existing.status}')`, 409)
 
   const { bill, invoice } = await generateInterimBill(
-    { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser, apiKey: ctx.apiKey },
+    { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser, apiKey: ctx.apiKey, actingViaApiKey: ctx.actingViaApiKey },
     {
       projectId: existing.projectId, boqId: existing.boqId, customerId: existing.customerId,
       billDate: input.billDate, retentionPercent: Number(existing.retentionPercent), taxTemplateId: input.taxTemplateId,

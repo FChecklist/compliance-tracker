@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { submitBudget, ServiceError } from "@/lib/services/erp-budget-service"
 
 // Real-screen conversion (2026-08-30): exposes the already-existing
@@ -12,7 +12,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const roleErr = requireRoleOrScope(ctx, "manager", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const { id } = await params

@@ -117,9 +117,24 @@
 // etc.) was used to work around it.
 //
 // CURRENT STATE, HONESTLY: neither DATABASE_URL nor the service-role REST
-// path can reach this data from CI today. This script therefore degrades
-// to a WARNING and exits 0 without running any of the 4 proofs, exactly
-// like an unreachable database would -- it does NOT fabricate a PASS.
+// path can reach this data from CI today, so none of the 4 proofs can run.
+// This script says so out loud (a `SKIPPED (reason)` line, see EXIT CODES
+// below) and does NOT fabricate a PASS.
+//
+// BR-312 / F-A09-5 (PROJEXA-BUILD-001, 2026-09-25): until then this script
+// found that out the expensive way on EVERY run. It always sent an
+// Accept-Profile header naming the platform schema, PostgREST answered 406
+// PGRST106 (the project's edge logs counted 123 + 17 + 61 such requests on
+// three consecutive days), and the catch block at the bottom turned that
+// into a quiet warning and exit 0. A request that is known to fail on every
+// run is noise in the edge logs and hides that the check never ran. The REST
+// schema is now explicit configuration instead: env REGISTER_REST_SCHEMA.
+//   - Unset (the default, and what CI has today): the script makes NO
+//     request at all and prints a loud `SKIPPED (...)` line.
+//   - Set to a schema PostgREST exposes (`platform` once that schema has been
+//     exposed, or a `public` view over the two tables): the script sends that
+//     name as the Accept-Profile header and runs the proofs as before.
+//
 // UNBLOCKING THIS (owner or an authorized session, not a future agent
 // working around the classifier): either (a) have the Owner/an authorized
 // human apply the two-policy migration above directly (drizzle/ file left
@@ -127,16 +142,26 @@
 // platform-schema-migration workflow -- see check-register-consistency
 // .sql.example if one is added alongside this, or re-derive the exact DDL
 // from this comment), or (b) add `platform` to PostgREST's exposed-schema
-// list (a project-level Supabase setting) and keep the REST path this
-// script already implements. Until one of those happens, treat every
-// "Register Consistency Check: PASS (warned)" run as "did not run," not as
-// evidence the register is consistent.
+// list (a project-level Supabase setting) and set REGISTER_REST_SCHEMA=platform
+// in the register-consistency-check job's env in .github/workflows/ci.yml.
+// Until one of those happens, treat every SKIPPED run as "did not run," not
+// as evidence the register is consistent.
 //
-// DEGRADES TO WARNING, same convention as the DATABASE_URL-gated jobs: an
-// unreachable/misconfigured Supabase endpoint is an infrastructure
-// condition, not proof of drift, so it warns and exits 0 rather than
-// blocking every PR in the repo -- but see the honest caveat immediately
-// above: today that warning fires on EVERY run, not just transient outages.
+// EXIT CODES (also the honest answer to "does a skip fail CI?")
+//   0  every runnable proof passed, OR the check was SKIPPED. SKIPPED means
+//      one of: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set;
+//      REGISTER_REST_SCHEMA not set; or the register could not be read or
+//      evaluated (network error, non-2xx from PostgREST, ...). Each prints a
+//      `SKIPPED (reason)` line on stdout and, under GitHub Actions, a
+//      `::warning::` annotation. The exit stays 0 by default for the same
+//      reason as the DATABASE_URL-gated jobs: an unreachable or misconfigured
+//      endpoint is an infrastructure condition, not proof of drift, so it
+//      must not block every PR in the repo. It is never silent, and it is
+//      never reported as a pass.
+//   1  a real, runnable proof failed.
+//   3  SKIPPED while running in strict mode (`--strict`, or env
+//      REGISTER_CONSISTENCY_STRICT=1). Use this to make a skip fail the job
+//      once the register is meant to be readable.
 //
 // Proofs 2 and 3 additionally need a GitHub token with cross-repo read
 // access (closure_repo can be 'projexa', a different repo than this one)
@@ -145,13 +170,70 @@
 // sync-vercel-env.yml already uses) and degrade to their own, independent
 // warning if it's absent, without blocking proofs 1/4.
 //
-// Usage: SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+// Usage: SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... REGISTER_REST_SCHEMA=<exposed schema> \
 //          [GITHUB_TOKEN=... or PAT_FCHECKLIST=...] \
-//          node scripts/check-register-consistency.mjs
-// Exit code 0 = all runnable proofs pass (or DB/token unavailable, warned),
-// 1 = a real, currently-runnable proof failed.
+//          node scripts/check-register-consistency.mjs [--strict]
+// Exit code: see EXIT CODES above (0 = pass or SKIPPED, 1 = a proof failed,
+// 3 = SKIPPED under --strict).
 
 import { pathToFileURL } from "url"
+
+// ---------------------------------------------------------------------
+// Exit codes, REST configuration and skip handling (BR-312)
+// ---------------------------------------------------------------------
+
+export const EXIT_OK = 0
+export const EXIT_PROOF_FAILED = 1
+export const EXIT_SKIPPED_STRICT = 3
+
+/** The schema to read the register through, or null when none is configured. */
+export function resolveRestSchema(env) {
+  const value = (env.REGISTER_REST_SCHEMA ?? "").trim()
+  return value === "" ? null : value
+}
+
+/**
+ * PostgREST request headers. Accept-Profile is sent only when a schema is
+ * named: no schema configured means no request is made at all (see main()),
+ * so this script never asks PostgREST for a schema it has not been told is
+ * exposed.
+ */
+export function buildRestHeaders(serviceRoleKey, schema) {
+  const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` }
+  if (schema) headers["Accept-Profile"] = schema
+  return headers
+}
+
+export function isStrict(argv, env) {
+  return argv.includes("--strict") || env.REGISTER_CONSISTENCY_STRICT === "1"
+}
+
+/** Exit code for a SKIPPED run: 0 normally, 3 in strict mode. */
+export function skippedExitCode(strict) {
+  return strict ? EXIT_SKIPPED_STRICT : EXIT_OK
+}
+
+/** Message plus the underlying cause code (for example ECONNREFUSED), so a failed read is diagnosable from the log alone. */
+export function describeError(err) {
+  const message = err?.message ?? String(err)
+  const cause = err?.cause
+  return cause ? `${message} [cause: ${cause.code ?? cause.message ?? cause}]` : message
+}
+
+/**
+ * Prints the loud SKIPPED line and exits. Never returns.
+ * A skip is "this run did not check the register", not "the register is
+ * consistent" -- the wording says so on purpose.
+ */
+function skip(reason) {
+  const oneLine = String(reason).replace(/[\r\n]+/g, " ")
+  console.log(`SKIPPED (${oneLine})`)
+  console.log("This run did NOT check the register. Read it as 'did not run', never as 'consistent'.")
+  if (process.env.GITHUB_ACTIONS === "true") {
+    console.log(`::warning title=Register Consistency Check SKIPPED::${oneLine}`)
+  }
+  process.exit(skippedExitCode(isStrict(process.argv, process.env)))
+}
 
 // ---------------------------------------------------------------------
 // Proof 1: closure-state (c1) vs c6 drift
@@ -353,17 +435,13 @@ async function ghApiText(repo, path, token) {
   return res.text()
 }
 
-async function supabaseRestSelect(table, params, url, serviceRoleKey) {
+async function supabaseRestSelect(table, params, url, serviceRoleKey, schema) {
   const qs = new URLSearchParams(params).toString()
   const res = await fetch(`${url}/rest/v1/${table}?${qs}`, {
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      "Accept-Profile": "platform",
-    },
+    headers: buildRestHeaders(serviceRoleKey, schema),
   })
   if (!res.ok) {
-    throw new Error(`Supabase REST select on platform.${table} failed: ${res.status} ${await res.text()}`)
+    throw new Error(`Supabase REST select on ${schema}.${table} failed: ${res.status} ${await res.text()}`)
   }
   return res.json()
 }
@@ -372,22 +450,25 @@ async function main() {
   const supabaseUrl = process.env.SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!supabaseUrl || !serviceRoleKey) {
-    console.warn("WARNING: SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set -- skipping the register-consistency check.")
-    console.warn("(Not DATABASE_URL -- see this script's own header for why these two tables need the service-role REST path instead.)")
-    process.exit(0)
+    skip("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set -- the service-role REST path needs both (not DATABASE_URL: see this script's own header for why these two tables cannot be read that way)")
   }
 
-  let exitCode = 0
+  const restSchema = resolveRestSchema(process.env)
+  if (!restSchema) {
+    skip("REGISTER_REST_SCHEMA is not set -- platform.sumeet_requirements and platform.sumeet_requirement_components are not readable through PostgREST (only public, graphql_public and compliance are exposed, so asking for the platform schema is answered 406 PGRST106 on every run); no request was made. Unblock: see this script's header, then set REGISTER_REST_SCHEMA")
+  }
+
+  let exitCode = EXIT_OK
   try {
     const requirements = await supabaseRestSelect(
       "sumeet_requirements",
       { select: "id,closure_state,closure_repo,closure_ci_run_id,closure_commit_sha,closure_test_path" },
-      supabaseUrl, serviceRoleKey
+      supabaseUrl, serviceRoleKey, restSchema
     )
     const components = await supabaseRestSelect(
       "sumeet_requirement_components",
       { select: "requirement_id,component,state,na_ruling_id,verified_by" },
-      supabaseUrl, serviceRoleKey
+      supabaseUrl, serviceRoleKey, restSchema
     )
 
     // ---- Proof 1 ----
@@ -400,7 +481,7 @@ async function main() {
       console.error("FAIL -- the drifted-row set has changed since it was last recorded:")
       if (p1.missing.length) console.error(`  no longer drifting (update EXPECTED_CLOSURE_DRIFT_IDS in this same PR if genuinely fixed via c6 evidence): ${p1.missing.join(", ")}`)
       if (p1.extra.length) console.error(`  NEWLY drifting (real new incident, investigate before updating the literal array): ${p1.extra.join(", ")}`)
-      exitCode = 1
+      exitCode = EXIT_PROOF_FAILED
     }
 
     // ---- Proof 4 ----
@@ -412,7 +493,7 @@ async function main() {
     } else {
       console.error("FAIL -- na_ruling_id literally equals verified_by for:")
       for (const v of p4.violations) console.error(`  - ${v.requirement_id}/${v.component}: "${v.na_ruling_id}"`)
-      exitCode = 1
+      exitCode = EXIT_PROOF_FAILED
     }
 
     // ---- Proofs 2 & 3 (need cross-repo GitHub API access) ----
@@ -433,7 +514,7 @@ async function main() {
       } else {
         console.error("FAIL -- the following row(s) cite a commit that is NOT an ancestor of main in their own closure_repo:")
         for (const f of p2.failures) console.error(`  - ${f.id}: repo=${f.repo ?? "?"} sha=${f.sha ?? "?"} status=${f.status ?? f.reason}`)
-        exitCode = 1
+        exitCode = EXIT_PROOF_FAILED
       }
 
       const resolveJobIdFn = async (repo, runId) => {
@@ -449,15 +530,16 @@ async function main() {
       } else {
         console.error("FAIL -- the following row(s) cite a test path that does NOT appear in their own cited run's job log:")
         for (const f of p3.failures) console.error(`  - ${f.id}: ${f.reason}`)
-        exitCode = 1
+        exitCode = EXIT_PROOF_FAILED
       }
     }
 
     process.exit(exitCode)
   } catch (err) {
-    console.warn(`WARNING: could not complete the register-consistency check (${err.message ?? err}).`)
-    console.warn("Not failing CI on this -- an unreachable/misconfigured Supabase REST endpoint is an infrastructure condition, not proof of drift.")
-    process.exit(0)
+    // Same SKIPPED contract as every other "did not run" path above (loud
+    // line, exit 0 unless --strict): an unreachable/misconfigured Supabase REST
+    // endpoint is an infrastructure condition, not proof of drift.
+    skip(`could not read or evaluate the register (${describeError(err)})`)
   }
 }
 

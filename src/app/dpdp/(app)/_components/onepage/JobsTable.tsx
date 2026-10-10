@@ -1,6 +1,12 @@
 "use client"
 
-import { LAWS, PARTS, SENSITIVE_DATA_TYPES, avatarColor, avatarInitial, blocked, daysLate, dueStatus, isToday, type ObligationRow, type PartSummary, type ViewerContext } from "@/lib/dpdp-onepage/view-model"
+import { LAWS, PARTS, SENSITIVE_DATA_TYPES, avatarColor, avatarInitial, blocked, daysLate, dueStatus, isToday, type GroupAnswerKind, type ObligationRow, type PartSummary, type ViewerContext } from "@/lib/dpdp-onepage/view-model"
+
+const GROUP_ANSWER_LABEL: Record<GroupAnswerKind, string> = {
+  done: "Done",
+  never_had_any: "Doesn't apply to me",
+  cannot: "I can't",
+}
 
 function Avatar({ email, small }: { email: string; small?: boolean }) {
   const size = small ? 20 : 26
@@ -76,9 +82,35 @@ function DueCell({ row, now }: { row: ObligationRow; now: Date }) {
   )
 }
 
+function GroupAnswerButtons({ row, onAnswerGroup }: { row: ObligationRow; onAnswerGroup: (obligationId: string, answer: GroupAnswerKind) => void }) {
+  return (
+    <div className="flex flex-col gap-1 items-start">
+      <div className="flex gap-1 flex-wrap">
+        {(["done", "never_had_any", "cannot"] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onAnswerGroup(row.id, k)}
+            className="rounded-lg font-semibold"
+            style={{
+              fontSize: 11, padding: "4px 8px",
+              background: row.myGroupAnswer === k ? "var(--dpdp-g)" : "#fff",
+              color: row.myGroupAnswer === k ? "#fff" : "var(--dpdp-ink2)",
+              border: `1.4px solid ${row.myGroupAnswer === k ? "var(--dpdp-g)" : "var(--dpdp-line)"}`,
+            }}
+          >
+            {GROUP_ANSWER_LABEL[k]}
+          </button>
+        ))}
+      </div>
+      <span style={{ fontSize: 11, color: "var(--dpdp-ink3)" }}>{row.groupDone ?? 0} of {row.groupTotal ?? 0} answered</span>
+    </div>
+  )
+}
+
 function StampOrAction({
-  row, allRows, viewer, mine, onMarkYes,
-}: { row: ObligationRow; allRows: ObligationRow[]; viewer: ViewerContext; mine: boolean; onMarkYes?: (id: string) => void }) {
+  row, allRows, viewer, mine, onMarkYes, onAnswerGroup,
+}: { row: ObligationRow; allRows: ObligationRow[]; viewer: ViewerContext; mine: boolean; onMarkYes?: (id: string) => void; onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void }) {
   if (row.na) return <span className="inline-block rounded-lg" style={{ fontSize: 12, fontWeight: 700, padding: "3px 11px", background: "#EFEFF4", color: "var(--dpdp-ink3)" }}>Doesn't apply</span>
   if (row.yes && row.answer === "n") return <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 11px", background: "var(--dpdp-rL)", color: "var(--dpdp-r)", borderRadius: 8, display: "inline-block" }}>No</span>
   if (row.yes) {
@@ -90,6 +122,9 @@ function StampOrAction({
   }
   if (blocked(row, allRows)) {
     return <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 11px", background: "var(--dpdp-cL)", color: "var(--dpdp-c)", borderRadius: 8, display: "inline-block" }}>Waiting</span>
+  }
+  if (row.isGroup && row.viewerIsGroupMember && onAnswerGroup) {
+    return <GroupAnswerButtons row={row} onAnswerGroup={onAnswerGroup} />
   }
   if (mine && onMarkYes) {
     return (
@@ -106,7 +141,7 @@ function StampOrAction({
 }
 
 export function JobsTable({
-  rows, allRows, partSummaries, viewer, staffView, now = new Date(), onMarkYes,
+  rows, allRows, partSummaries, viewer, staffView, now = new Date(), onMarkYes, onAnswerGroup,
 }: {
   rows: ObligationRow[] // the currently chip-filtered rows to render in the table body
   allRows: ObligationRow[] // the full, unfiltered set -- for blocked()/dependency lookups, which must see rows even when a filter hides them
@@ -115,6 +150,7 @@ export function JobsTable({
   staffView?: boolean // narrower table for staff/parents (WO §3: "Narrow table for staff and parents")
   now?: Date
   onMarkYes?: (id: string) => void
+  onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void
 }) {
   const byPart = new Map<number, ObligationRow[]>()
   for (const r of rows) {
@@ -139,7 +175,7 @@ export function JobsTable({
         </thead>
         <tbody>
           {PARTS.filter((p) => byPart.has(p.n)).map((p) => (
-            <PartGroup key={p.n} part={p} rows={byPart.get(p.n)!} summary={summaryByPart.get(p.n)} viewer={viewer} allRows={allRows} now={now} staffView={staffView} onMarkYes={onMarkYes} />
+            <PartGroup key={p.n} part={p} rows={byPart.get(p.n)!} summary={summaryByPart.get(p.n)} viewer={viewer} allRows={allRows} now={now} staffView={staffView} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} />
           ))}
         </tbody>
       </table>
@@ -148,8 +184,8 @@ export function JobsTable({
 }
 
 function PartGroup({
-  part, rows, summary, viewer, allRows, now, staffView, onMarkYes,
-}: { part: { n: number; name: string; color: string }; rows: ObligationRow[]; summary?: PartSummary; viewer: ViewerContext; allRows: ObligationRow[]; now: Date; staffView?: boolean; onMarkYes?: (id: string) => void }) {
+  part, rows, summary, viewer, allRows, now, staffView, onMarkYes, onAnswerGroup,
+}: { part: { n: number; name: string; color: string }; rows: ObligationRow[]; summary?: PartSummary; viewer: ViewerContext; allRows: ObligationRow[]; now: Date; staffView?: boolean; onMarkYes?: (id: string) => void; onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void }) {
   // summary.done/all is the stable, na-excluding count from the FULL row
   // set (partsForRows), not derived from `rows` (which is whatever the
   // active filter chip happens to show) -- found live: with a chip other
@@ -184,7 +220,7 @@ function PartGroup({
                 : <span className="inline-block rounded-[20px]" style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", background: "var(--dpdp-aL)", color: "#8A5A00" }}>nobody</span>}
             </td>
             <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><DueCell row={row} now={now} /></td>
-            <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><StampOrAction row={row} allRows={allRows} viewer={viewer} mine={mine} onMarkYes={onMarkYes} /></td>
+            <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><StampOrAction row={row} allRows={allRows} viewer={viewer} mine={mine} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} /></td>
             <td className="text-center" style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>{row.sent}</td>
           </tr>
         )

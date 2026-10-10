@@ -14,6 +14,11 @@
 // A field-by-field assertion, not a spot check: the point is that adding a
 // financial figure to the payload must fail here until it is redacted here too.
 import { describe, test, expect, mock } from "bun:test"
+// PROJEXA-BUILD-001 U-01e: the route reads dbUser.role through
+// financialsAllowedForRole() (construction-tools.ts) instead of calling
+// hasRole(), and construction-tools.ts reads ROLE_RANK from this module -- so
+// the real module is spread first and only requireAuth is replaced.
+import * as realAuthGuard from "@/lib/supabase/auth-guard"
 
 class ServiceError extends Error {
   status: number
@@ -55,8 +60,8 @@ function summary() {
 
 function mockAuth(isManager: boolean) {
   mock.module("@/lib/supabase/auth-guard", () => ({
-    requireAuth: mock(async () => ({ response: null, orgId: "org-1", dbUser: { id: "u-1" } })),
-    hasRole: mock(() => isManager),
+    ...realAuthGuard,
+    requireAuth: mock(async () => ({ response: null, orgId: "org-1", dbUser: { id: "u-1", role: isManager ? "manager" : "member" } })),
   }))
 }
 

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { resolveFinancialRole } from "@/lib/supabase/acting-role"
 import { getOrgDashboard, getProjectDashboards, ServiceError } from "@/lib/services/construction-dashboard-service"
+import {
+  financialsAllowedForRole,
+  redactOrgProjectFinancials,
+  redactProjectDashboardFinancials,
+} from "@/lib/task-execution/construction-tools"
 import { withRouteTiming } from "@/lib/route-timing"
-import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
 
 /** Cap on ?projectIds= -- a portfolio view, not an unbounded fan-out. */
 const MAX_BATCH_PROJECTS = 50
@@ -20,22 +25,18 @@ const MAX_BATCH_PROJECTS = 50
 // not just the single-project sibling -- leaving either branch on the old
 // check would have let client_viewer read the identical figures straight
 // through this route instead.
-async function resolveRoleForFinancialVisibility(
-  request: Request,
-  ctx: Awaited<ReturnType<typeof requireAuthOrApiKey>>
-): Promise<UserRole | null> {
-  if (ctx.dbUser) return (ctx.dbUser.role as UserRole | undefined) ?? null
-  if (!ctx.apiKey) return null
-  const acting = await resolveActingUser(ctx, readActingUserEmail(request), readActingUserId(request))
-  return (acting.user?.role as UserRole | undefined) ?? null
-}
-
-/** Same "manager" floor F059/R48 always used, just evaluated against a
- * resolved role value instead of requiring a live dbUser record. */
-function hasFinancialVisibility(role: UserRole | null): boolean {
-  if (!role) return false
-  return (ROLE_RANK[role] ?? 0) >= ROLE_RANK.manager
-}
+//
+// PROJEXA-BUILD-001 U-01e (2026-09-25): both branches now use the shared rule
+// and the shared field lists instead of this file's own copies, which had
+// drifted: the org-summary rows still carried projectValue, and the batch rows
+// still carried ledgerBudget and progressByBoqValuePct, to a member-rank
+// caller. The role comes from acting-role.ts's resolveFinancialRole() (session
+// role; for an API-key caller the person named by X-Acting-User /
+// X-Acting-User-Email; anything unresolved is null), and
+// financialsAllowedForRole() passes only a known role of manager rank or
+// above -- the same floor this file applied before, now in one place. An
+// unresolved role reads as "redacted", never as an error. Each redacted row
+// carries financialsRedacted: true.
 
 // R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
 // route guards read it with a regex -- and delegates to its original body so
@@ -86,14 +87,12 @@ async function GET_impl(request: NextRequest) {
       const dashboards = await getProjectDashboards({ orgId: ctx.orgId }, ids)
       // Same redaction rule the org summary and the single-project route
       // already apply (R48 F059): a member sees task counts, not money.
-      const batchFinancialRole = await resolveRoleForFinancialVisibility(request, ctx)
-      if (!hasFinancialVisibility(batchFinancialRole)) {
+      // U-01e: the shared list adds ledgerBudget and progressByBoqValuePct,
+      // which this branch's own copy left out.
+      const batchFinancialRole = await resolveFinancialRole(ctx, request, {})
+      if (!financialsAllowedForRole(batchFinancialRole)) {
         return NextResponse.json({
-          dashboards: dashboards.map((d) => ({
-            ...d,
-            budget: null, revenue: null, expenses: null,
-            projectValue: null, earnedValue: null, percentByValue: null, contractValue: null,
-          })),
+          dashboards: dashboards.map((d) => ({ ...redactProjectDashboardFinancials(d), financialsRedacted: true })),
         })
       }
       return NextResponse.json({ dashboards })
@@ -135,8 +134,8 @@ async function GET_impl(request: NextRequest) {
     // to this list is exactly how F059 happened the first time.
     // progressPercent, tasksDue/tasksLate and hasSchedule are NOT money and
     // stay visible: a site engineer still needs their own schedule.
-    const summaryFinancialRole = await resolveRoleForFinancialVisibility(request, ctx)
-    if (!hasFinancialVisibility(summaryFinancialRole)) {
+    const summaryFinancialRole = await resolveFinancialRole(ctx, request, {})
+    if (!financialsAllowedForRole(summaryFinancialRole)) {
       return NextResponse.json({
         ...summary,
         // R67 E-06: the ledger sum is a financial figure too, and so is the
@@ -159,12 +158,10 @@ async function GET_impl(request: NextRequest) {
         // progressPercent, percentByActivity, tasksDue/tasksLate, hasSchedule
         // and permitsExpiring30d stay: none of them is financial, and a site
         // engineer's whole job depends on their own schedule.
-        projects: summary.projects.map((p) => ({
-          ...p,
-          revenue: null, expenses: null, spent: null, budget: null, ledgerBudget: null,
-          value: null, contractValue: null,
-          earnedValue: null, earnedValuePrevWeek: null, percentByValue: null, spendOverValue: null,
-        })),
+        // U-01e: redactOrgProjectFinancials() is this same list plus
+        // projectValue, which the inline copy here left out, and it marks each
+        // row financialsRedacted: true.
+        projects: summary.projects.map(redactOrgProjectFinancials),
       })
     }
     return NextResponse.json(summary)

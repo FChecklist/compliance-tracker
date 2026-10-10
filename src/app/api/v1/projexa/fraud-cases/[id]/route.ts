@@ -3,7 +3,7 @@
 // reported -> investigating -> confirmed/unsubstantiated -> resolved
 // status machine (enforced server-side by VALID_FRAUD_TRANSITIONS).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { getFraudCase, updateFraudCaseStatus, ServiceError } from "@/lib/services/fraud-case-service"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -30,11 +30,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const { id } = await params
     const body = await request.json()
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: acting.person.id, ...acting.actor }
     const updated = await updateFraudCaseStatus(actorCtx, id, body.status, body.resolutionSummary)
     return NextResponse.json(updated)
   } catch (error) {

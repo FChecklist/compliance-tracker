@@ -48,7 +48,7 @@ const FEATURES: { icon: string; title: string; body: string; badge?: string }[] 
   { icon: "🔗", title: "Your vendors, in the same system", body: "Free for them, walled off from each other, and blocked until they sign." },
 ]
 
-const WE_DO = "Write down what you hold and where · turn the Act into duties with names and dates · chase them · check the proof · publish your officer and your notices · keep a record nobody can edit · answer people who ask"
+const WE_DO = "Write down what you hold and where · turn the Act into duties with names and dates · chase them · check the proof · publish your officer and your notices · keep a record that is added to, not edited · answer people who ask"
 const WE_DONT = "Touch your systems · keep your documents · certify you as compliant · give legal advice · quote penalties at you · promise nobody will ever be fined"
 
 const SEGMENTS: { icon: string; title: string; body: string }[] = [
@@ -403,8 +403,10 @@ export function DpdpMarketingPage({ edition = "firm" }: { edition?: DpdpEdition 
           Your DPDP proof — not just your DPDP policy. People move on. The proof stays.
         </p>
         <p className="mt-4 text-xs text-[#9D94C4]">
-          Grievance Officer: <b className="text-white">grievance@veridian-aios.com</b> &nbsp;·&nbsp; Partners:{" "}
-          <b className="text-white">partners@veridian-aios.com</b>
+          Write to <b className="text-white">dpdp@veridian-aios.com</b> and put the topic in the subject: Grievance, Data request, Sales or Partner
+        </p>
+        <p className="mt-1 text-xs text-[#9D94C4]">
+          Grievance Officer: <b className="text-white">dpdp@veridian-aios.com</b> (subject: Grievance)
         </p>
         <p className="mt-2 text-xs text-[#9D94C4]">
           🏠 Stored in India &nbsp;·&nbsp; 🔑 no passwords &nbsp;·&nbsp; 🗄️ we never keep your documents

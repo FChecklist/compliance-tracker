@@ -1,0 +1,1343 @@
+{
+ "agents": [
+  "A01",
+  "A02",
+  "A03",
+  "A04",
+  "A05",
+  "A06",
+  "A07",
+  "A08",
+  "A09",
+  "A10",
+  "A11",
+  "A12",
+  "AI inside email clients (Gmail Gemini, Outlook Copilot, Apple Mail intelligence, Yahoo/Proton/Superhuman) plus email as a transport",
+  "AI on the laptop (desktop chat apps, local model runners, browser AI sidebars, IDE/CLI agents)",
+  "ChatGPT (OpenAI)",
+  "Claude (Anthropic)",
+  "DeepSeek",
+  "Google Gemini",
+  "Microsoft Copilot family (consumer Copilot web/app, Copilot in Edge, Copilot on Windows, Microsoft 365 Copilot and Copilot Studio) and GitHub Copilot (IDE, cloud agent, CLI)",
+  "Microsoft enterprise AI (Microsoft Copilot / Copilot Chat, Copilot Studio, M365 agents, Power Platform connectors, Azure/Foundry)",
+  "R10",
+  "S02",
+  "Z.ai (Zhipu GLM)"
+ ],
+ "findings": [
+  {
+   "id": "F-A06-1",
+   "source": "A06-gate-2-8",
+   "severity": "high",
+   "title": "External AI (MCP link) path makes its own server-side L1 call and is refused for non-owners",
+   "evidence": "mcp/[token]/route.ts:58,68 -> runSubmission -> runLevel1 -> assertAiProviderAllowed. Under openrouter this is a second, metered model call on top of the user's own external AI; under claude-cli it returns -32000 on any L0 miss. Target architecture needs zero server model calls on this path."
+  },
+  {
+   "id": "F-A06-2",
+   "source": "A06-gate-2-8",
+   "severity": "high",
+   "title": "Gate identity on the PROJEXA proxy is the org API key, so one match covers every user in that org",
+   "evidence": "actorId = ctx.dbUser?.id ?? ctx.apiKey!.id (4 routes); auth-guard.ts:424,445 dbUser:null. If RAJAT_USER_ID equals a PROJEXA org key id (consistent with d85txngc refused 12:32 UTC then resolved 12:40 UTC on 2026-09-18, value UNVERIFIABLE), all 20 Demo Organization users pass the individual-licence gate."
+  },
+  {
+   "id": "F-A06-3",
+   "source": "A06-gate-2-8",
+   "severity": "medium",
+   "title": "level1 telemetry written only on the submitForVerdict path; 51/58 rows unmeasured",
+   "evidence": "run-submission.ts:1297-1312 only; runSubmission (assistant/submissions/MCP/execute) leaves level1_outcome NULL; SQL: 51 NULL rows"
+  },
+  {
+   "id": "F-A06-4",
+   "source": "A06-gate-2-8",
+   "severity": "medium",
+   "title": "Refusal dead end still live on 5 paths despite B-05",
+   "evidence": "assistant, submissions, classify, tasks execute:true -> HTTP 400 {error: NO_COMMENTARY_SENTENCE}; MCP -> -32000; the sentence promises records but none are attached; a submissions row is already inserted (run-submission.ts:359-372)"
+  },
+  {
+   "id": "F-A06-5",
+   "source": "A06-gate-2-8",
+   "severity": "low",
+   "title": "L2 nightly batch cannot run on any subscription provider, owner included",
+   "evidence": "adapter.ts:110-118 refuses claude-cli/claude-cli-remote unconditionally; analyse.ts:185; only openrouter (metered) runs it"
+  },
+  {
+   "id": "F-A02-1",
+   "source": "A02-d02-requirements",
+   "severity": "high",
+   "title": "The 31 exceptions items have no IDs, so D-02's test (every one of 111 IDs present by ID) cannot run as written",
+   "evidence": "KT Part B Section 2 lists the 31 as unnumbered text. Code numbers them only as item 1-28. No platform table holds them. The CSV uses positional labels EXC-ITEM-01..31, which are proposed, not existing."
+  },
+  {
+   "id": "F-A02-2",
+   "source": "A02-d02-requirements",
+   "severity": "medium",
+   "title": "Register evidence and closure data gaps behind the DONE/CLOSED claim",
+   "evidence": "9 of 80 rows have empty evidence: R-16..R-19, R-21..R-24 (all CLOSED) and R-C17. R-93..R-100 have 0 component rows and 0 UAT rows; R-92 and R-C17 have 0 UAT rows. R-A1, R-A2, R-A3, R-A5, R-A7 have no closure_test_path or closure_commit_sha and only 2 of 7 components TRUE (rest NA). R-93, R-96, R-98 have no closure_commit_sha."
+  },
+  {
+   "id": "F-A02-3",
+   "source": "A02-d02-requirements",
+   "severity": "low",
+   "title": "platform.sumeet_gap has 31 rows (GAP-01..GAP-31), a coincidental 31 that is not the exceptions directive",
+   "evidence": "select from platform.sumeet_gap: GAP-01..GAP-31, modules Scope/Work Progress/Manpower/Budget/Reports etc., refs point at R-ids. Risk of a builder conflating it with the 31 exceptions."
+  },
+  {
+   "id": "F-A02-4",
+   "source": "A02-d02-requirements",
+   "severity": "low",
+   "title": "KT doc says 24 detector functions; origin/main exports 23 find* detectors plus getProjectExceptions",
+   "evidence": "Regex over construction-exceptions-service.ts on origin/main: 24 exports total = 23 find* functions + getProjectExceptions. Unverified whether the KT doc meant this."
+  },
+  {
+   "id": "F-A02-5",
+   "source": "A02-d02-requirements",
+   "severity": "low",
+   "title": "Only 3 of the 31 lack a detector, but 7 of 31 are PARTIAL per the AI-written truth report; not re-verified here",
+   "evidence": "TRUTH_REPORT_EXCEPTIONS_31.md rows 10, 11, 12, 23, 31 PARTIAL (no drill-down screen for vendor_dispute/customer_complaint/invoice_item). Written by a prior AI session 2026-09-21, unverified by this assignment."
+  },
+  {
+   "id": "F-A05-1",
+   "source": "A05-live-facts",
+   "severity": "high",
+   "title": "AI-link audit rows can never carry a user under the current logActivity contract",
+   "evidence": "src/lib/audit.ts:114-116 forces userId null for apiKey callers; 267 of 267 key-attributed audit rows have user_id null; resolveActingUser (auth-guard.ts:549) is opt-in per route."
+  },
+  {
+   "id": "F-A05-2",
+   "source": "A05-live-facts",
+   "severity": "high",
+   "title": "Browser-direct BOQ read needs GRANTs and a JWT tenant helper, not just policies",
+   "evidence": "authenticated has no SELECT on construction_boq_line_items; current_org_id() is a server-set setting; 0 auth.uid() functions; authenticated statement_timeout is 8s."
+  },
+  {
+   "id": "F-A05-3",
+   "source": "A05-live-facts",
+   "severity": "medium",
+   "title": "The 10,907-line BOQ is test residue; the largest real BOQ has 153 lines",
+   "evidence": "5,924 BOQ headers with titles like 'R4 revision spec 1789907959081' created 2026-09-17..24; max lines per BOQ 153. The spec's 22-sheet BOQ extraction sizing needs a real large-BOQ fixture."
+  },
+  {
+   "id": "F-A05-4",
+   "source": "A05-live-facts",
+   "severity": "medium",
+   "title": "Four migration ledgers disagree",
+   "evidence": "449 drizzle files, 442 journal entries, 438 drizzle.__drizzle_migrations rows, 655 supabase_migrations rows. Test 2.6 must compare a hash before and after on the same database, not branch against production."
+  },
+  {
+   "id": "F-A05-5",
+   "source": "A05-live-facts",
+   "severity": "medium",
+   "title": "The list route returns every revision with every line item",
+   "evidence": "GET /api/v1/construction/boq?projectId= calls listBoqs with include=lineItems, so the largest project returns 5,924 headers plus 10,907 lines (7.56 MB or more). DB time is only 13-17 ms."
+  },
+  {
+   "id": "F-A05-6",
+   "source": "A05-live-facts",
+   "severity": "low",
+   "title": "Addendum table counts by schema and total do not reproduce",
+   "evidence": "Live tables: 739 total, compliance 523, platform 93, dpdp 62. A2 says 760 total and 689 RLS (live 695); A6 says 526/111/56."
+  },
+  {
+   "id": "F-A03-1",
+   "source": "A03-d05-contradictions",
+   "severity": "medium",
+   "title": "Spec says Pattern 3 has a '14-function write ceiling', but EXECUTORS has 27 functions",
+   "evidence": "Spec L28-29 vs L162/L218; executor.ts:672-685 = 7 writes + 20 reads, all reachable via runSubmission from [token]/route.ts"
+  },
+  {
+   "id": "F-A03-2",
+   "source": "A03-d05-contradictions",
+   "severity": "medium",
+   "title": "WO D-10 misquotes the spec: the spec proposes a NULLABLE project_id; NOT NULL comes only from WO exits 2.1/2.2 and settles Q6 in advance",
+   "evidence": "Spec L208 'a nullable column', L288 'add a nullable projectId'; WO section 2 D-10 and exit tests 2.1/2.2; Q6 still open"
+  },
+  {
+   "id": "F-A03-3",
+   "source": "A03-d05-contradictions",
+   "severity": "medium",
+   "title": "Trap: platform.sumeet_gap has exactly 31 rows but is NOT the 31-item exceptions directive",
+   "evidence": "SQL count(platform.sumeet_gap)=31 (GAP-01..GAP-31, mixed statuses); exceptions directive = construction-exceptions-service.ts header, commit 6d531f53, ACTIVE-CLAIMS.yaml L5073-5078"
+  },
+  {
+   "id": "F-A03-4",
+   "source": "A03-d05-contradictions",
+   "severity": "low",
+   "title": "The register row R-98 is stale: sourceChangeOrderId linkage exists in code",
+   "evidence": "sumeet_requirements R-98 status says no such linkage; origin/main construction-boq-service.ts:1426 sourceChangeOrderId?: string, :1434-1437 validation"
+  },
+  {
+   "id": "F-A03-5",
+   "source": "A03-d05-contradictions",
+   "severity": "medium",
+   "title": "Spec's 'trust this boundary today' (L399) covers only the server path; 0 policies on construction_* tables name authenticated or public",
+   "evidence": "SQL pg_policies: total 1290, authenticated 6, anon 8, construction_* with authenticated/public = 0 (60 construction_* policies exist for other roles)"
+  },
+  {
+   "id": "F-A03-6",
+   "source": "A03-d05-contradictions",
+   "severity": "medium",
+   "title": "Spec Gap 9 places autonomous work on Vercel /api/internal/*/run crons, which conflicts with the normative Addendum's pg_cron+pg_net+Edge Function design",
+   "evidence": "Spec L147-148; Addendum A1 table and E-04"
+  },
+  {
+   "id": "F-A04-1",
+   "source": "A04-d08-surface-matrix",
+   "severity": "high",
+   "title": "Surface 3 is split across two unrelated AI-link token systems",
+   "evidence": "PROJEXA-minted link = orgAiLink (projexa src/lib/services/ai-link-service.ts L16) giving a read-only projection plus /api/ai/apply on pipeline_tasks (apply/route.ts L15-36). The write-capable link = platform.user_ai_links, reached through compliance-tracker src/app/api/mcp/[token]/route.ts L17-18. projexa src has 0 references to api/mcp or user_ai_links. Spec Gap 4 and WO test 2.1 patch user_ai_links, which is not the link PROJEXA users mint."
+  },
+  {
+   "id": "F-A04-2",
+   "source": "A04-d08-surface-matrix",
+   "severity": "medium",
+   "title": "compliance.audit_logs cannot record a surface today, so the convergence tests have no data source",
+   "evidence": "audit_logs has no surface column; details is TEXT (details->>'surface' raises 42883). WO 4.2 fails as written. The verify commands in surface_matrix.json use a CASE with pg_input_is_valid(details,'jsonb') and require writers to stamp a 'surface' key, and no writer does that today."
+  },
+  {
+   "id": "F-A04-3",
+   "source": "A04-d08-surface-matrix",
+   "severity": "medium",
+   "title": "Exceptions have no persisted record, so 'all four surfaces write the same record_id' is undefined for 1 of 7 types",
+   "evidence": "No compliance table matches 'exception' (pg_class query). TRUTH_REPORT_EXCEPTIONS_31.md L109 says the feature is GET-only and never writes; the exceptions report is computed from other records."
+  },
+  {
+   "id": "F-A04-4",
+   "source": "A04-d08-surface-matrix",
+   "severity": "low",
+   "title": "The spec's record-type list disagrees with the owner's 7",
+   "evidence": "PROJEXA_BUILD_SPEC L65 lists rfis, submittals, punch_list, change_orders, work_progress and calls them 'the other six'. NEXT-001 L68 has no submittals, and includes billing claims, BOQ progress and exceptions."
+  },
+  {
+   "id": "F-A04-5",
+   "source": "A04-d08-surface-matrix",
+   "severity": "low",
+   "title": "Punch list is missing from the only one-page project view",
+   "evidence": "projexa src/lib/workspace-visibility.ts L35-46 WORKSPACE_SECTIONS has no punch list; ProjectWorkspaceClient.tsx has 0 'punch' matches."
+  },
+  {
+   "id": "F-A04-6",
+   "source": "A04-d08-surface-matrix",
+   "severity": "low",
+   "title": "The Phase 4 record type is named two ways",
+   "evidence": "WO §6 ENTRY names 'BOQ line items'; NEXT-001 L68 names 'BOQ progress'. record_work_progress writes a work-progress entry against boqLineItemId (executor.ts L141), so daily work progress and BOQ progress share one AI write path, and the record_id table has to be chosen explicitly."
+  },
+  {
+   "id": "F-A08-1",
+   "source": "A08-billing-1-9",
+   "severity": "high",
+   "title": "Speed Insights Plus is a team-level license that kept billing after usage fell to 0 Projects",
+   "evidence": "ConsumedQuantity 0 Projects on 09-17..09-25 with BilledCost 0.64516/day each day; Tags {} (not project-scoped); 10 days billed = 6.4516"
+  },
+  {
+   "id": "F-A08-2",
+   "source": "A08-billing-1-9",
+   "severity": "medium",
+   "title": "Cumulative spend already 29.24 USD since 08-26, above the 20 USD cap in PROJEXA-COST-001",
+   "evidence": "Sum of daily totalBilledCost 08-26..09-25 = 29.2436; the cap-versus-billing relationship depends on the unverifiable Pro credit"
+  },
+  {
+   "id": "F-A08-3",
+   "source": "A08-billing-1-9",
+   "severity": "low",
+   "title": "Billing API is unusable for per-project splits and needs one call per day",
+   "evidence": "Multi-week range fails with 4194304-byte limit error; single-day summary has byService only (top 50 of 67 groups) and no ProjectName except in a 100-record sample"
+  },
+  {
+   "id": "F-A08-4",
+   "source": "A08-billing-1-9",
+   "severity": "low",
+   "title": "Billing day boundary is 07:00Z (Pacific midnight), not 00:00Z",
+   "evidence": "Requesting 2026-09-24T00:00Z returned periodStart 2026-09-23T07:00:00Z; any test must use 07:00Z boundaries"
+  },
+  {
+   "id": "F-A01-1",
+   "source": "A01-d01-topology",
+   "severity": "medium",
+   "title": "Three projexa routes call non-existent compliance-tracker endpoints",
+   "evidence": "Routes: POST construction-budget/lines, POST documents/[id]/dispose, GET schedule-tracker. Each uses root:true, and no matching route.ts exists in CT origin/main src/app/api/v1. Expect HTTP 404 upstream. Runtime behaviour not exercised."
+  },
+  {
+   "id": "F-A01-2",
+   "source": "A01-d01-topology",
+   "severity": "low",
+   "title": "Module name collision: 'ai' and 'organization'/'org' are not counterparts",
+   "evidence": "projexa ai = 2 AI-Link routes (ai/[token], ai/apply); CT ai = 4 routes (progress-summary, risk-detection etc.) that no projexa file calls. A name-based diff will mislead."
+  },
+  {
+   "id": "F-A01-3",
+   "source": "A01-d01-topology",
+   "severity": "low",
+   "title": "Duplicate chain-options logic in two repos",
+   "evidence": "CT has v1/projexa/chain-options, which no projexa call reaches. projexa route chain-options calls /scope and /construction/labour-roster and resolves levels locally in src/lib/chain-options.ts (314 lines). Its header says the CT endpoint 'does not exist yet'; the comment is stale."
+  },
+  {
+   "id": "F-A01-4",
+   "source": "A01-d01-topology",
+   "severity": "medium",
+   "title": "Two AI-link implementations exist",
+   "evidence": "projexa src/app/api/ai/[token]/route.ts is a public, unauthenticated snapshot backed by own-DB ai_link_projection and CT /tasks. CT has src/app/api/mcp/[token]/route.ts and mcp/tokens. Both need to be in scope for the external-AI-link work orders."
+  },
+  {
+   "id": "F-A01-5",
+   "source": "A01-d01-topology",
+   "severity": "low",
+   "title": "16 CT-only modules have no projexa consumer",
+   "evidence": "No references in projexa src for boq-scenarios, dunning-list, asset-to-gl-reconciliation, cost-center-hierarchy, cost-center-line-items, customer-payment-behavior, payment-proposal-list, phrase-map, predictions, sales-rep-performance, statistical-key-figure-report, subcontractor-payment-application-status, subcontractor-retention-summary, vendor-payment-behavior, submissions, labour. Missing UI or unused API; not resolved here."
+  },
+  {
+   "id": "F-A01-6",
+   "source": "A01-d01-topology",
+   "severity": "medium",
+   "title": "projexa mixes shared org API key with its own role gates",
+   "evidence": "264 proxy routes authenticate to CT with a per-org Bearer key (resolveApiKey) and pass acting-user headers optionally. Authorization is enforced in projexa route files (requireRole), and CT sees the org key. Not verified end to end."
+  },
+  {
+   "id": "F-A07-1",
+   "source": "A07-cron-and-ci",
+   "severity": "medium",
+   "title": "AGENTS.md rule 9 names a Guardrail Presence Check CI job and script that do not exist",
+   "evidence": "scripts/check-guardrail-presence.mjs is absent on origin/main; no ci.yml job or required context of that name; the workflow list has no such workflow. The governance claim of a mechanical guardrail-removal check is unenforced."
+  },
+  {
+   "id": "F-A07-2",
+   "source": "A07-cron-and-ci",
+   "severity": "medium",
+   "title": "The 10 PG_CRON replacements are prepared but not applied, and applying them switches on behaviour that has been off since about 23 Aug",
+   "evidence": "0 compliance.cron_* functions live; app_runtime rolbypassrls=false vs postgres true; compliance.monitor_execution_log last run 2026-09-19 with '0 org(s)'. The dedup and owner-decision points in supabase/prepared/cost001 READMEs (month-end clamp, 3h vs 24h window, hourly report-schedules) block a blind apply."
+  },
+  {
+   "id": "F-A07-3",
+   "source": "A07-cron-and-ci",
+   "severity": "low",
+   "title": "exchange-rate-refresh is a clean E-04 candidate: HTTP fetch plus upsert, no LLM, no Node-only package, and pg_net now exists",
+   "evidence": "erp-accounting-service.ts imports only drizzle-orm; live compliance.erp_exchange_rates = 0 rows while 10 orgs have a non-INR base currency; DPDP pattern (cron.job, net.http_post, vault secret) is proven. Needs a Deno port of the 1/r toFixed(10) logic."
+  },
+  {
+   "id": "F-A07-4",
+   "source": "A07-cron-and-ci",
+   "severity": "medium",
+   "title": "E-04's cron.job check is not runnable on PROJEXA's own Supabase project",
+   "evidence": "On evpckeuxgvahguwsaeul the schema cron does not exist and pg_cron and pg_net are available but not installed. cron.job lives only on pcrjmlpuqsbocqfwoxod, which is also the shared verdian-ai database, so a projexa- job there falls under E-16's claim-before-create rule."
+  },
+  {
+   "id": "F-A07-5",
+   "source": "A07-cron-and-ci",
+   "severity": "low",
+   "title": "COST-001 runner cannot cover crr-catchup-worker or run at all yet",
+   "evidence": "[removed from the public copy: see the private KT folder]"
+  },
+  {
+   "id": "F-A07-6",
+   "source": "A07-cron-and-ci",
+   "severity": "low",
+   "title": "vercel-lockdown.test.ts does not guard the crons array, so D-07 and E-14 have no drift guard",
+   "evidence": "Test assertions cover git.deploymentEnabled and ignoreCommand exit code only (grep of src/lib/vercel-lockdown.test.ts)."
+  },
+  {
+   "id": "F-A09-1",
+   "source": "A09-edge-live-identity",
+   "severity": "critical",
+   "title": "Identity split: PROJEXA users have no identity that verdian-ai PostgREST or Edge Functions accept; browser-direct reads (Phase 4) cannot start until a bridge exists",
+   "evidence": "PROJEXA JWT issuer evpckeuxgvahguwsaeul ES256; 0/114 PROJEXA UUIDs in verdian-ai auth.users; construction RLS reads GUC app.current_org_id; authenticated has 0 grants on construction tables. See IDENTITY_AND_EDGE_FINDINGS.md s3."
+  },
+  {
+   "id": "F-A09-2",
+   "source": "A09-edge-live-identity",
+   "severity": "high",
+   "title": "22 of 114 PROJEXA auth users are not linked to compliance.users (auth_user_id)",
+   "evidence": "Cross-project UUID comparison: 92 linked across 8 orgs, 22 unlinked; these users get USER_NOT_LINKED on attributed writes and would be refused by any sub-based bridge."
+  },
+  {
+   "id": "F-A09-3",
+   "source": "A09-edge-live-identity",
+   "severity": "medium",
+   "title": "[removed from the public copy: see the private KT folder]",
+   "evidence": "[removed from the public copy: see the private KT folder]"
+  },
+  {
+   "id": "F-A09-4",
+   "source": "A09-edge-live-identity",
+   "severity": "medium",
+   "title": "dpdp-monday-digest cron has never executed; only dpdp-legal-clocks is proven",
+   "evidence": "cron.job_run_details has 3 rows, all jobid 2; jobid 1 first slot 2026-09-28 00:30 UTC. Cron 'succeeded' only proves enqueue; HTTP proof is net._http_response status 200 (id 7)."
+  },
+  {
+   "id": "F-A09-5",
+   "source": "A09-edge-live-identity",
+   "severity": "low",
+   "title": "check-register-consistency.mjs fails on every run with PGRST106 because platform is not an exposed schema",
+   "evidence": "edge_logs 406 PGRST106 on /rest/v1/sumeet_requirements (service_role): 123 on 09-21/22, 17 on 09-22/23, 61 on 09-23/24; script origin/main:scripts/check-register-consistency.mjs:356-364."
+  },
+  {
+   "id": "F-A09-6",
+   "source": "A09-edge-live-identity",
+   "severity": "low",
+   "title": "PROJEXA PostgREST served 36,952 memberships reads in one day (per-request membership lookup)",
+   "evidence": "evpckeuxgvahguwsaeul edge_logs 2026-09-21: /rest/v1/memberships authenticated ES256 = 36,952; notifications 8,754. Supabase load, not Vercel cost."
+  },
+  {
+   "id": "F-A12-1",
+   "source": "A12-dev-test-deploy",
+   "severity": "medium",
+   "title": "Scheduled workflows fail on every run and burn runner time",
+   "evidence": "[removed from the public copy: see the private KT folder]"
+  },
+  {
+   "id": "F-A12-2",
+   "source": "A12-dev-test-deploy",
+   "severity": "medium",
+   "title": "Deploy documentation is stale and contradicts R87",
+   "evidence": "VERCEL_DEPLOY_OWNER_GUIDE.md instructs setting OWNER_DEPLOY_APPROVAL, but CLAUDE.md item 11 (R87) says it is no longer read; R72_DEPLOY_RITUAL.md says 'This repo has no CI' and references git.deploymentEnabled.main=false, which R87 removed."
+  },
+  {
+   "id": "F-A12-3",
+   "source": "A12-dev-test-deploy",
+   "severity": "low",
+   "title": "git show truncates on this machine",
+   "evidence": "git show origin/main:R72_DEPLOY_RITUAL.md returned 2224 bytes; git cat-file blob returned the true 6262 bytes. Use cat-file and check byte sizes."
+  },
+  {
+   "id": "F-A12-4",
+   "source": "A12-dev-test-deploy",
+   "severity": "high",
+   "title": "Batch-release policy has no mechanism yet",
+   "evidence": "PR 1808 ignoreCommand builds every main push whose last-commit diff is not docs-only; Amendment 001 merges on green, so each code merge triggers one build per project. The Build CPU bound needs a release branch or a held ignoreCommand, which is an owner decision."
+  },
+  {
+   "id": "F-A12-5",
+   "source": "A12-dev-test-deploy",
+   "severity": "medium",
+   "title": "Only 2 of 5 deployed verdian-ai edge functions have source in the repo",
+   "evidence": "[removed from the public copy: see the private KT folder]"
+  },
+  {
+   "id": "F-A12-6",
+   "source": "A12-dev-test-deploy",
+   "severity": "low",
+   "title": "Worktrees hold full node_modules copies while disk is 23.7 GB free",
+   "evidence": "Get-Item .LinkType is empty (plain directory) for ct-actor-fix, ct-gap-ui07, ct-r50-dashboard-fix, ct-reports-fix, ct-sitediary-fix, ct-siteeng-verify, projexa-coldload-fix and others; only the two coldload-remaining worktrees use junctions."
+  },
+  {
+   "id": "F-A11-1",
+   "source": "A11-merge-map",
+   "severity": "high",
+   "title": "Financial-redaction leak also covers PROJEXA's own internal chat, via the API-key path and executor.ts:372",
+   "evidence": "executor.ts:359-375 makeDispatchExecutor calls dispatchTool without role, so 6 construction reads + review_budget ignore task.role for every caller. assistant/route.ts:56,:77 use ctx.dbUser?.role, which is null on API-key auth (auth-guard.ts:424,:445). PROJEXA src/app/api/assistant/route.ts:43,:83 proxies with the org API key. construction-tools.ts:95 treats a null role as allowed. Code-read only, not executed."
+  },
+  {
+   "id": "F-A11-2",
+   "source": "A11-merge-map",
+   "severity": "medium",
+   "title": "Extraction service already exists at the exact path PM Gap 2 proposes to create",
+   "evidence": "src/lib/services/document-extraction-service.ts on origin/main, 552 lines, 20 referencing files; runs in Vercel Node via resolveModelConfig, which matters for E-13 (Edge-only extraction)."
+  },
+  {
+   "id": "F-A11-3",
+   "source": "A11-merge-map",
+   "severity": "medium",
+   "title": "WO tests 3.1, 3.6 and 4.2 query columns that do not exist",
+   "evidence": "platform.sumeet_requirements columns include closure_test_path/closure_commit_sha but no verify_command or evidence_ref; compliance.audit_logs has no 'surface' column (information_schema, 2026-09-25)."
+  },
+  {
+   "id": "F-A11-4",
+   "source": "A11-merge-map",
+   "severity": "medium",
+   "title": "Compliance MCP door runs on the service-role client; wiring the 13 construction/GST tools there without a person and role would recreate the leak",
+   "evidence": "[removed from the public copy: see the private KT folder]"
+  },
+  {
+   "id": "F-A11-5",
+   "source": "A11-merge-map",
+   "severity": "low",
+   "title": "WO s11 OCID-056 removal and WO 1.6 secret-scan are already partly or fully done",
+   "evidence": "cfd14a40 'remove world-readable credential-exposure map' (#1833); .github/workflows/sentinel.yml:6-13 secret-scan job using gitleaks-action@v3, triggered only on pull_request/push to main."
+  },
+  {
+   "id": "F-A11-6",
+   "source": "A11-merge-map",
+   "severity": "low",
+   "title": "D-09 attribution gap is live but small",
+   "evidence": "select count(*) from compliance.audit_logs where api_key_id is not null and user_id is null: 3 in last 7 days, 267 all-time."
+  },
+  {
+   "id": "F-A10-1",
+   "source": "A10-edge-candidates",
+   "severity": "medium",
+   "title": "E-08 test wording fails on a correct codebase",
+   "evidence": "grep -r service_role src/ matches comments in compliance-tracker schema.ts and memory-service.ts; test must scan the built .next/static bundle instead"
+  },
+  {
+   "id": "F-A10-2",
+   "source": "A10-edge-candidates",
+   "severity": "high",
+   "title": "Cross-project identity gap for browser-first BOQ",
+   "evidence": "BOQ tables are in compliance-tracker project pcrjmlpuqsbocqfwoxod, projexa auth/session project is evpckeuxgvahguwsaeul; E-07 (org A user queries org B BOQ via PostgREST) needs a session valid for the BOQ-owning project, which nothing I read establishes"
+  },
+  {
+   "id": "F-A10-3",
+   "source": "A10-edge-candidates",
+   "severity": "low",
+   "title": "Duplicate digest triggers: vercel.json daily cron plus 15-minute GitHub workflow",
+   "evidence": "projexa vercel.json:6 and .github/workflows/email-digest-poll.yml both call /api/internal/email-digest-cadence/run; run is idempotent so E-05 removal is safe"
+  },
+  {
+   "id": "F-A10-4",
+   "source": "A10-edge-candidates",
+   "severity": "medium",
+   "title": "llm-client.ts has a Node-only supervision path blocking a straight Edge copy",
+   "evidence": "llm-client.ts:42-47,69,104 uses node:child_process execFile python3 and existsSync; fetch transport at 448-771 is portable"
+  },
+  {
+   "id": "F-A10-5",
+   "source": "A10-edge-candidates",
+   "severity": "low",
+   "title": "Deleted scratch clones; import-graph reachability is coarse",
+   "evidence": "barrel imports (auth-guard imports visitor-intelligence-service) make 296 routes appear to reach unrelated LLM files; CSV classifies by real call sites and importers, but route lists are samples"
+  },
+  {
+   "id": "F-R10-1",
+   "source": "R10-internal-audit",
+   "severity": "high",
+   "title": "PROJEXA already has its own, third AI-link mechanism (M4), a copy of the older DPDP WO-004 design",
+   "evidence": "FChecklist/projexa main e88b53e1: drizzle/0023_ai_link_and_email.sql, src/lib/services/ai-link-service.ts, src/app/api/ai/[token]/route.ts, src/app/api/ai/apply/route.ts, src/components/shell/AiLinkButton.tsx. Live evpckeuxgvahguwsaeul public.org_ai_link: 1 row, active, expires_at NULL, token length 43 (plaintext), 0 RLS policies."
+  },
+  {
+   "id": "F-R10-2",
+   "source": "R10-internal-audit",
+   "severity": "high",
+   "title": "M4 public snapshot returns the construction dashboard fetched with the org API key; no role-based financial redaction",
+   "evidence": "projexa src/app/api/ai/[token]/route.ts calls callVeridianResult('/assistant', {codeReference:'get_construction_project_dashboard'}) and JSON.stringifies the result into a public text/plain response; it also includes task rawInput free text. PLAUSIBLE from code, not exercised live."
+  },
+  {
+   "id": "F-R10-3",
+   "source": "R10-internal-audit",
+   "severity": "high",
+   "title": "compliance-tracker M1 stores AI-link tokens in plaintext with no expiry, scope, project, rate limit or per-call log",
+   "evidence": "platform.user_ai_links columns (id, org_id, user_id, token, status, created_at, last_used_at, revoked_at); length(token)=43 on both live rows; user-links.ts getOrCreateUserAiLink reads the existing plaintext token back; no rate limiter in src/proxy.ts or in the route."
+  },
+  {
+   "id": "F-R10-4",
+   "source": "R10-internal-audit",
+   "severity": "medium",
+   "title": "M1 MCP tools call runSubmission, which can route to the internal AI executor (conflicts with owner rule 2)",
+   "evidence": "src/app/api/mcp/[token]/route.ts submit_task/ask -> runSubmission; run-submission.ts:1040 executorFor('level1') returns 'ai'. projectId comes from AI arguments; the route does not check it against the user's projects. PLAUSIBLE, not traced end to end."
+  },
+  {
+   "id": "F-R10-5",
+   "source": "R10-internal-audit",
+   "severity": "medium",
+   "title": "DPDP M3 rate limit lets calls through when log_call errors, and never refuses unknown-token calls",
+   "evidence": "supabase/functions/dpdp-ai-link/index.ts: `if (!begun.error && isRateLimited(...))` - on error the call is served unlogged; dpdp_ai_link_log_call counts only rows of a resolved link (link_id NULL rows are never counted): 4 of 34 logged calls have link_id NULL."
+  },
+  {
+   "id": "F-R10-6",
+   "source": "R10-internal-audit",
+   "severity": "low",
+   "title": "Every GET on an M3 link writes to the database (call row + counter)",
+   "evidence": "dpdp_ai_link_log_call inserts into dpdp.ai_link_call and updates ai_link.call_count/last_used_at before serving any method; link unfurlers and prefetchers count as uses."
+  },
+  {
+   "id": "F-R10-7",
+   "source": "R10-internal-audit",
+   "severity": "low",
+   "title": "M5 compliance-tracker Vercel route /api/dpdp/ai/[token] is dead: it looks up a plaintext column that is NULL on every row",
+   "evidence": "dpdp-ai-link-service.ts resolveAiLinkSnapshot uses eq(dpdpAiLink.token, rawToken); live count of dpdp.ai_link rows with token NOT NULL = 0 of 108 (token_hash set on 108). getOrCreateAiLink/rotateAiLink on that path would still insert plaintext."
+  },
+  {
+   "id": "F-R10-8",
+   "source": "R10-internal-audit",
+   "severity": "low",
+   "title": "dpdp.ai_link policy app_runtime_preauth_lookup allows SELECT of all link rows when no org context is set",
+   "evidence": "pg_policies: dpdp.ai_link app_runtime_preauth_lookup SELECT USING (dpdp.current_org_id() IS NULL). Exposes hashes and metadata, not tokens. Review before generalising the pattern."
+  },
+  {
+   "id": "F-R10-9",
+   "source": "R10-internal-audit",
+   "severity": "low",
+   "title": "M2 /api/mcp advertises tools from worker_agents that its dispatch function does not implement",
+   "evidence": "src/app/api/mcp/route.ts getToolDefinitions reads platform.worker_agents tier=global (comment: 22 rows); the dispatch function implements 9 names and throws 'Unknown tool' for the rest. GET /api/mcp is public (no auth)."
+  },
+  {
+   "id": "F-R10-10",
+   "source": "R10-internal-audit",
+   "severity": "info",
+   "title": "Deployed dpdp-ai-link Edge Function matches origin/main exactly",
+   "evidence": "[removed from the public copy: see the private KT folder]"
+  },
+  {
+   "id": "F-S02-1",
+   "source": "S02-audit",
+   "severity": "high",
+   "title": "Reading functions over GET writes records, which breaks the spec's own rule that a GET never changes anything. Spec §2 and §9.8 also make these reads record an intent. The harness check H13 compares only the intent counter, so it would not catch this.",
+   "evidence": "run-submission.ts:670 inserts a submissions row, :743 creates a task row, :780 records pill use and :781 records chain history. All four run for reads too; only captureTaskResultMemory (:772) is limited to writes. The spec's executor host calls runDirectTask (§9.6). | fix: Remove GET /functions/{fn}. Make these reads POST-only and run them in a read-only executor mode that writes no submission, task, pill or intent rows. Add counters.submissions to /context and have H13 compare it."
+  },
+  {
+   "id": "F-S02-2",
+   "source": "S02-audit",
+   "severity": "high",
+   "title": "Money figures leak on the dashboard to users below manager rank. The dashboard is allowed at rank 1, but the executor's redaction misses the ledger budget and a second copy of the earned-value percentage.",
+   "evidence": "executor.ts:319-333 blanks budget, revenue, expenses, projectValue, earnedValue, percentByValue and contractValue. ProjectDashboard (construction-dashboard-service.ts:230-302) also has ledgerBudget (money) and progressByBoqValuePct, documented at :268 as 'the SAME number as percentByValue'. Neither is blanked. | fix: For rank below 3, copy only a fixed list of non-money fields instead of blanking named ones. Add test AWL-S11 (grep finds both new blanked fields in executor.ts)."
+  },
+  {
+   "id": "F-S02-3",
+   "source": "S02-audit",
+   "severity": "high",
+   "title": "A user demoted after creating a link keeps its write power. The level and function list are checked only when the link is created, and the write executors do no role check. The route check that normally stops a viewer (requireRoleOrScope member) is not on the link path.",
+   "evidence": "Spec §10.1 checks eligibility at creation only; §10.3 auto-refuses only for inactive user, user left the org, or project made private. The write executors in executor.ts:431-480 take orgId only. | fix: Resolve the link on every call to an effective level and function list: the stored functions limited to those the live role rank allows, and level 0 when the rank is below 2. Test: a level-1 link whose user was later made a viewer gets POST /actions → 403."
+  },
+  {
+   "id": "F-S02-4",
+   "source": "S02-audit",
+   "severity": "high",
+   "title": "When an admin or maker installs the link in a shared connector, one person's link becomes a credential for the whole workspace, and every member's writes are recorded as the link owner's. This covers a ChatGPT workspace app, a Claude organization connector, a Copilot Studio agent and a Microsoft 365 plugin key.",
+   "evidence": "R01 line 70: only admins or owners publish, and the app serves the workspace. R03 §1.3: the Owner adds the connector and members click Connect. R07 line 39: the key is kept in the Microsoft Enterprise token store. The spec's threat T11 covers only API-key misattribution. | fix: Add threat T20 and a manual rule that the link may only go in a connector its owner alone uses. In the matrix, mark admin_or_maker_setup cells with shared_identity_risk and not allowed for per-user links. Add owner test OT-18."
+  },
+  {
+   "id": "F-S02-5",
+   "source": "S02-audit",
+   "severity": "high",
+   "title": "Extending the existing link table in place breaks the live VERIDIAN chat link. Setting project_id and token_hash NOT NULL makes the /api/ai-link get-or-create insert fail, and VeriComposer calls that route every time it renders.",
+   "evidence": "VeriComposer.tsx:755 renders AiConnectorPicker, which calls /api/ai-link (AiConnectorPicker.tsx:37). The route calls getOrCreateUserAiLink(orgId, userId), which inserts a plaintext token with no project (user-links.ts:47, :55, :60). Spec §10.8 sets project_id NOT NULL on every row. | fix: Either add a check constraint (product='veridian' or project_id is not null) and switch the VERIDIAN picker to show the link once, or retire the picker as an explicit owner decision (OD-13)."
+  },
+  {
+   "id": "F-S02-6",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "The database side is copied from DPDP, not reused: token lookup, call log and its guard trigger, rate limit, draft confirmation and warning. D-14 claims reuse, but only the TypeScript helpers are shared. R10 names exactly this copy as the duplicate option.",
+   "evidence": "Spec §10.7 creates new platform.ai_work_link_* tables and functions beside dpdp.ai_link_call, dpdp_ai_link_log_call, dpdp__ai_link_for_token and dpdp.ai_draft. R10 §(c) item 2. | fix: Either make the platform.ai_work_link_* tables general (with a product column) and move DPDP onto them, or record an owner waiver (OD-13b) with the reason."
+  },
+  {
+   "id": "F-S02-7",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "The spec conflicts with Addendum A. Option A (writes on Vercel) is the automatic fallback, and under it Tier-2 reads also run on Vercel and the plaintext token lands in Vercel request logs. The Level-2 /ai-confirm page is rendered server-side on Vercel. The cost section leaves out Vercel build minutes.",
+   "evidence": "Spec §9.8: 'If any criterion is NO, choose A'. The Edge Function calls /api/mcp/<token>. Spec §9.5 puts /ai-confirm inside the PROJEXA app, which renders server-side (Addendum A1). Addendum A1: 'A Vercel function invocation on a normal user path is a defect'. | fix: Allow option A only by a quoted owner waiver of Addendum A1. Never route Tier-2 reads through Vercel. Serve /ai-confirm as a static page on the OD-3 host. Add build minutes to the §16 cost section."
+  },
+  {
+   "id": "F-S02-8",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "15 of the 45 register tests cannot run on this laptop because they need psql, which is not installed. These are AWL-D01 to D14 and AWL-H20.",
+   "evidence": "where.exe psql returned nothing. CLAUDE.md records that no native PostgreSQL is installed. The postgres package does exist in C:/ct/ct/node_modules. | fix: Add scripts/sqlq.mjs (postgres.js, prints one scalar) and rewrite each psql -tAc command as bun scripts/sqlq.mjs."
+  },
+  {
+   "id": "F-S02-9",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "The filters and sort order on record lists are unspecified, so a user who cannot see money can recover hidden values by repeated range filters (for example on amount or rate).",
+   "evidence": "Spec §4 row 10 says '?after&limit&…filters' with no allowed list. | fix: Allow filters and sorting per record kind from a fixed list. Refuse money columns with 400 for rank below 3."
+  },
+  {
+   "id": "F-S02-10",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "The default idempotency key silently drops genuine repeat entries (the same parameters on another day), and a failed intent blocks its key permanently.",
+   "evidence": "Spec §9.3: default key sha256(function, params) with UNIQUE (link_id, idempotency_key). | fix: Add the UTC date to the default key, and make the unique index partial so it covers only live or successful statuses."
+  },
+  {
+   "id": "F-S02-11",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "For rosterId and issueId, the check that the record belongs to this project runs only in the Edge /check step. Whether the executor path checks it is unverified.",
+   "evidence": "executeRecordAttendance passes rosterId straight to recordAttendance({orgId}) (executor.ts:431-447). By contrast, record_work_progress does scope the line item to the project's BOQ (:217-222). | fix: Require an executor-side same-project check for every id parameter, with a committed test."
+  },
+  {
+   "id": "F-S02-12",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "An AI agent driving the browser can press Confirm on the Level-1 inbox page, which needs no sign-in. So the W-C and W-D paths do not guarantee a human in the loop.",
+   "evidence": "The matrix cell for Claude in Chrome L6 reads 'Can type into the inbox page' (source S01). Spec §9.4: the token is in the page's URL fragment. | fix: State this in threats T7 and T17. Rate W-C/W-D writes with the same risk as direct writes. Reclassify the matrix cell."
+  },
+  {
+   "id": "F-S02-13",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "Email link scanners run the page in headless Chrome and some click buttons, so a confirm link that travels through email could execute a write.",
+   "evidence": "R08 lines 104-105: Safe Links scans links asynchronously ('detonates') in headless Chrome. | fix: Keep Confirm disabled until the person types a 4-character code shown on the page. Send no POST on page load."
+  },
+  {
+   "id": "F-S02-14",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "Text the external AI writes through the link reaches the internal AI and other users' links without the data fencing, which gives a stored prompt-injection path between users.",
+   "evidence": "Spec §5.4 fences text only in the link's own output. | fix: Fence text from via='ai_link' records inside internal-AI prompts, and cap free text on link writes at 2,000 characters."
+  },
+  {
+   "id": "F-S02-15",
+   "source": "S02-audit",
+   "severity": "medium",
+   "title": "Claude's web fetch may reject JSON, but the manifest's read URLs return JSON by default. Claude is the one family the spec calls documented, so its second fetch may fail.",
+   "evidence": "R03 §1.5: web fetch accepts text, HTML and PDF only; application/json is unverified (test T-LIVE-3). Spec manifest §5.2 and §6.1. | fix: Make every manifest read URL return Markdown when the request has no Accept header, or add format=md to each URL."
+  },
+  {
+   "id": "F-S02-16",
+   "source": "S02-audit",
+   "severity": "low",
+   "title": "The call log has no retention, and its guard trigger forbids deletes. The spec also does not say which header the unknown-token IP throttle reads.",
+   "evidence": "Spec §10.5 and §10.7. At the 120-per-minute cap, one leaked link writes 172,800 rows a day. | fix: Partition the log by month and add a pg_cron retention job (ai-work-link-call-retention) with a purge function the guard allows. Name the IP header."
+  },
+  {
+   "id": "F-S02-17",
+   "source": "S02-audit",
+   "severity": "low",
+   "title": "The 24-hour age check on W-C proposals cannot be enforced, because issued_at sits inside an unsigned proposal that anyone holding the token can edit.",
+   "evidence": "Spec §9.2 W-C p=<base64url(proposal)>; spec §9.3. | fix: Sign the proposal with an HMAC key held in Vault and check the signature on /actions, or delete the claim."
+  },
+  {
+   "id": "F-S02-18",
+   "source": "S02-audit",
+   "severity": "low",
+   "title": "Threat T7 and the warning sentence do not cover exfiltration: injected text asking an AI that builds its own URLs to open an attacker's address with data or the token in it.",
+   "evidence": "Spec §11 T7 and §10.1. | fix: Add this to T7 and to the §10.1 warning sentence."
+  },
+  {
+   "id": "F-S02-19",
+   "source": "S02-audit",
+   "severity": "low",
+   "title": "Fact F-12 is wrong: the executor field allows three values, not two.",
+   "evidence": "LIVE enum pipeline_task_executor = software, ai, person. schema.ts:13787 agrees. | fix: Correct F-12."
+  },
+  {
+   "id": "F-S02-20",
+   "source": "S02-audit",
+   "severity": "low",
+   "title": "Two token-leak residuals are missing: vendor fetch caches can keep serving a page after revocation, and the person's browser history keeps token URLs.",
+   "evidence": "R03 §1.5: web-fetch results are cached, and the cache lifetime is not stated. | fix: Add both to the T1/T2 residuals."
+  },
+  {
+   "id": "F-S02-21",
+   "source": "S02-audit",
+   "severity": "low",
+   "title": "Several register tests are flawed. D13 has an NNNN placeholder and expects a printed count instead of exit 0. D08 treats level1_outcome 'refused' as a failure. H15 passes by construction. The S04 regex misses paginate<T>(. H18 expects 401 although the spec says never 401. The CSV phase column does not match spec §16.",
+   "evidence": "AWL_BOOLEAN_REGISTER.csv; schema.ts:13842-13848; router.ts:124. | fix: Fix each as listed in audit §6 A-20, and add an awl_phase column."
+  },
+  {
+   "id": "F-S02-22",
+   "source": "S02-audit",
+   "severity": "low",
+   "title": "The MCP search and fetch tools have no stated redaction for their text, and no rule keeps the token out of their url field.",
+   "evidence": "Spec §7.2. | fix: Build text from the same redacted rows, and use a token-free app link for url."
+  },
+  {
+   "id": "F-S02-23",
+   "source": "S02-audit",
+   "severity": "low",
+   "title": "Facts marked FETCHED-S01 have no archived copy, and some R-file labels are dropped or overstated. Examples: the 8,000-byte paste-card limit is R04's own design choice, not a vendor limit; the 22-second Safe Links timing comes from a third-party GitHub issue; the local-runner 'no fetch' cells are inference; some surfaces are marked VERIFIED_FETCHED while containing unverified cells.",
+   "evidence": "R04 line 98; R08 line 105; R09 line 19; matrix confidence fields. | fix: Add AILINK_S01_fetches.md with quoted lines. Carry each R-file label into the spec and matrix. Set a surface's confidence to the lowest of its cells."
+  }
+ ],
+ "amendments": [
+  {
+   "id": "M-A06-1",
+   "source": "A06-gate-2-8",
+   "action": "EDIT",
+   "target": "2.8",
+   "reason": "The literal wording contradicts committed adapter.test.ts:28/:65 and the licence rationale, and passes only under openrouter (metered, owner-only). Replace it with a provider-parameterised matrix plus a route-level test that the external AI path makes zero server L1 calls.",
+   "evidence": "adapter.ts:120-141; provider-config.ts:87; adapter.test.ts:28,65,92",
+   "boolean_test": "bun test --isolate src/lib/ai/adapter.gate-2-8.test.ts \"src/app/api/mcp/[token]/route.gate.test.ts\" src/app/api/v1/projexa/tasks/route.gate.test.ts ; exit 0 with output tail '0 fail'. Assertions: 24-case env matrix (unset/claude-cli/claude-cli-remote/openrouter x RAJAT set/unset x owner/non-owner/api-key id); MCP submit_task for a non-owner on an L0 miss returns body.error===undefined and runLevel1 spy calls===0 under all 4 states; tasks verdict re-read shows level1_outcome==='refused' and level1_refusal_code==='provider_not_allowed'"
+  },
+  {
+   "id": "M-A06-2",
+   "source": "A06-gate-2-8",
+   "action": "ADD",
+   "target": "Phase 1",
+   "reason": "Promote per the work order's own instruction: 100% of non-owner L0 misses are refused under subscription providers, including the external AI path the target architecture relies on. Add an item to remove server-side L1 from mcp/[token]/route.ts (return the bound candidate set to the external model, then accept functionId/params through runDirectTask/confirmSubmission).",
+   "evidence": "mcp/[token]/route.ts:58,68; reuse-cache.ts:187; level1.ts:99",
+   "boolean_test": "The same MCP route.gate.test.ts must fail on 025eea08 (body.error.code===-32000) and pass after the fix; git grep -n \"runSubmission\" -- \"src/app/api/mcp/[token]/route.ts\" returns no matches (exit 1)"
+  },
+  {
+   "id": "M-A06-3",
+   "source": "A06-gate-2-8",
+   "action": "ADD",
+   "target": "Phase 2",
+   "reason": "The gate identity on the PROJEXA proxy is the org API key id, so the gate is per org, not per person. The per-person identity (D-09 user_id on api_keys, or actorUserId) must be threaded to assertAiProviderAllowed.",
+   "evidence": "auth-guard.ts:424,445 dbUser:null; tasks/route.ts:97 actorId; SQL shows 5/7 actors are api_keys ids",
+   "boolean_test": "Route test: an API-key call whose resolved person != RAJAT_USER_ID, with RAJAT_USER_ID set to that key's id and AI_PROVIDER_PIPELINE_L1=claude-cli, gets a refusal: submissions row level1_outcome==='refused' after re-read"
+  },
+  {
+   "id": "M-A06-4",
+   "source": "A06-gate-2-8",
+   "action": "ADD",
+   "target": "Phase 3",
+   "reason": "level1 telemetry must be written on every path, otherwise the software/AI split stays unmeasurable (51/58 rows NULL).",
+   "evidence": "run-submission.ts:1297-1312 only in submitForVerdict",
+   "boolean_test": "select count(*) from compliance.submissions where created_at > '<fix deploy ts>' and level1_outcome is null = 0 (psql -tA; compare with test \"$(...)\" = 0)"
+  },
+  {
+   "id": "M-A06-5",
+   "source": "A06-gate-2-8",
+   "action": "EDIT",
+   "target": "Q-owner (new D1)",
+   "reason": "The sanctioned multi-user L1 provider must be an explicit owner decision, because openrouter is metered spend and owner-only under Amendment 001.",
+   "evidence": "adapter.ts:122 openrouter unrestricted; level1.ts:105 one call per request with misses",
+   "boolean_test": "Owner answer recorded; AI_PROVIDER_PIPELINE_L1 value in Vercel Production matches that answer (owner reads it, since the value is Sensitive)"
+  },
+  {
+   "id": "M-A02-1",
+   "source": "A02-d02-requirements",
+   "action": "EDIT",
+   "target": "D-02",
+   "reason": "State the origin of the 43 precisely: 12 register rows (R-12..R-18, R-21, R-22, R-23, R-31, R-71) named only inside section-6 heading ranges, plus 31 exceptions items. Name the source of the 31 (KT Part B Section 2 + construction-exceptions-service.ts header).",
+   "evidence": "C4, C5 above; CSV column notes",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A02-2",
+   "source": "A02-d02-requirements",
+   "action": "EDIT",
+   "target": "D-02 TEST",
+   "reason": "The test as written needs IDs that the 31 do not have. Replace with a runnable check against a fixed ID list: assign EXC-ITEM-01..31 (as in REQUIREMENTS_111_REGISTER.csv) and test that all 111 ids appear. Non-interactive command: python check_ids.py REQUIREMENTS_111_REGISTER.csv PROJEXA_BUILD_SPEC_corrected.md; exit 0 if 0 missing ids, non-zero otherwise, expected stdout 'MISSING: 0 of 111'.",
+   "evidence": "REQUIREMENTS_111_REGISTER.csv has 111 unique req_id",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A02-3",
+   "source": "A02-d02-requirements",
+   "action": "EDIT",
+   "target": "D-05 contradiction #1",
+   "reason": "Resolve 68 vs 80 vs 111 with a single explanation: 68 = individually named R-ids, 80 = ids in section-6 heading ranges = DB rows, 111 = 80 + 31 exceptions per KT doc. The surviving statement for the full population is 111.",
+   "evidence": "C3, C4",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A02-4",
+   "source": "A02-d02-requirements",
+   "action": "ADD",
+   "target": "Phase 1 test (register data integrity)",
+   "reason": "Add a boolean test that the register has an explicit place for the 31 exceptions and for a verify command, since the DB has neither. Command: SELECT count(*) FROM platform.sumeet_requirements WHERE id LIKE 'EXC-ITEM-%'; expected 31, or the equivalent for the chosen ID scheme. Requires a decision on where the 31 live and on adding verify_command (D-03 depends on it).",
+   "evidence": "C6; no table or column for either today",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A02-5",
+   "source": "A02-d02-requirements",
+   "action": "ADD",
+   "target": "Owner question (new)",
+   "reason": "Ask whether the 3 META items (29-31) count toward the 111 or whether the testable population is 108. They are not individually testable per the KT doc, which affects the 'all 111 have a verify command' target in test 3.3.",
+   "evidence": "KT doc: items 29-31 marked META, not individually testable",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A02-6",
+   "source": "A02-d02-requirements",
+   "action": "REJECT",
+   "target": "Any reliance on TRUTH_REPORT_EXCEPTIONS_31.md as the source of the 31",
+   "reason": "It claims no verbatim list exists and labels items 29-31 as inferred, which the KT doc refutes. It is also AI-authored and unverified by this assignment. Use KT Part B Section 2 as the source instead.",
+   "evidence": "C7",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A05-1",
+   "source": "A05-live-facts",
+   "action": "EDIT",
+   "target": "D-09 test",
+   "reason": "The WO query returns 3 today and can reach 0 by nulling api_key_id instead of recording a user, so it must also count actor_role='api_key' rows.",
+   "evidence": "Live result 3; src/lib/audit.ts:114-116 at 025eea08; replacement SQL in LIVE_FACTS_D09_D10_D11_RLS.md section (a).",
+   "boolean_test": "select count(*) from compliance.audit_logs where created_at > now()-interval '7 days' and (api_key_id is not null or actor_role='api_key') and user_id is null; expected output 0. Non-vacuity guard: select count(*) from compliance.audit_logs where created_at > now()-interval '7 days' and api_key_id is not null and user_id is not null; expected output >= 1 after a fixture key write."
+  },
+  {
+   "id": "M-A05-2",
+   "source": "A05-live-facts",
+   "action": "EDIT",
+   "target": "D-10 / test 2.6",
+   "reason": "A rollback convention already exists, and a branch costs $0.01344/hour (owner-only spend), so use the existing drizzle/down convention plus an always-aborted transaction hash check on the same database.",
+   "evidence": "docs/ROLLBACK_RUNBOOK.md and drizzle/down/*.down.sql on origin/main 025eea08; get_cost(branch) = 0.01344/hour; schema-hash SQL and DO-block template in the LIVE_FACTS file (hash 7a41f2f80cba84a822bd62fa72b29b16 over 14,002 objects, identical on two runs).",
+   "boolean_test": "Every new drizzle/NNNN_*.sql containing SET NOT NULL, DROP COLUMN or ALTER TYPE has drizzle/down/NNNN_*.down.sql, and the DO-block dry run raises an exception whose message starts with PASS_ROLLED_BACK (h2 equals h0)."
+  },
+  {
+   "id": "M-A05-3",
+   "source": "A05-live-facts",
+   "action": "EDIT",
+   "target": "D-11 / test 4.4 / spec Gap 2",
+   "reason": "The 10,907 lines are 5,924 test BOQs (max 153 lines per BOQ); the real defects are unpaginated list and detail reads returning 7.56 MB or more, and the spec's large-BOQ premise needs a real fixture.",
+   "evidence": "Live per-project and per-BOQ counts; sum(length(row_to_json)) = 7,561,948; construction-boq-service.ts:753-847 and :1091; projexa src/app/api/scope/*.",
+   "boolean_test": "GET the paginated line-items route for project dd486dad-9119-4d9a-a9d9-cf0ee0cc9e04 with limit=50: HTTP 200, Content-Length < 1048576, time_total < 2.0 s, and the response has a next-cursor field; following cursors until exhausted returns exactly 10,907 distinct line ids."
+  },
+  {
+   "id": "M-A05-4",
+   "source": "A05-live-facts",
+   "action": "EDIT",
+   "target": "E-06",
+   "reason": "A policy naming authenticated is not enough: the role has no SELECT grant on the BOQ tables and the existing tenant predicate depends on a server-set setting rather than the JWT.",
+   "evidence": "has_table_privilege('authenticated','compliance.construction_boq_line_items','SELECT') = false; compliance.current_org_id() body; 0 functions using auth.uid() or request.jwt in compliance, platform, public and dpdp.",
+   "boolean_test": "For each table in the BOQ screen read set: has_table_privilege('authenticated', t, 'SELECT') is true AND select count(*) from pg_policies where schemaname||'.'||tablename = t and 'authenticated' = any(roles) >= 1 AND the qual text contains a reference to a JWT-based helper (contains 'auth.uid()' or the helper's name); expected result true for all tables."
+  },
+  {
+   "id": "M-A05-5",
+   "source": "A05-live-facts",
+   "action": "EDIT",
+   "target": "A2 / A6 table counts and 'returns nothing' consequence",
+   "reason": "Live counts differ, and the failure mode today is permission denied, not an empty result.",
+   "evidence": "Live: 739 tables, 695 RLS, compliance 523, platform 93, dpdp 62; has_table_privilege false on construction_boq_line_items for authenticated and anon.",
+   "boolean_test": "select count(*) from pg_tables where schemaname not in ('pg_catalog','information_schema') returns the number written into A2 on the day it is issued; the document must state the query and the date."
+  },
+  {
+   "id": "M-A05-6",
+   "source": "A05-live-facts",
+   "action": "ADD",
+   "target": "§3 Phase 1 (schema hash)",
+   "reason": "Tests 2.6, 2.7 and E-06 all need a repeatable schema fingerprint that includes grants, and none exists yet.",
+   "evidence": "Hash query in LIVE_FACTS_D09_D10_D11_RLS.md covers columns, constraints, indexes, policies, function bodies and RLS flags but not grants; hash was stable across two live runs.",
+   "boolean_test": "scripts/verify/schema-hash.sql exists, includes a grants section from information_schema.role_table_grants, and running it twice in a row on an idle database prints identical md5 values (exit 0 when equal)."
+  },
+  {
+   "id": "M-A03-1",
+   "source": "A03-d05-contradictions",
+   "action": "EDIT",
+   "target": "§4 exit 2.5 (Gap 5 fix)",
+   "reason": "The bug is code-confirmed and depends on no other gap, but the WO gates it behind every Phase 1 exit test. That contradicts both the WO's own Q2 recommendation and spec L123/L403.",
+   "evidence": "[token]/route.ts:58,:68 no role; construction-tools.ts:95 defaults financialsAllowed=true; 2 active user_ai_links rows",
+   "boolean_test": "Move to Phase 1 as 1.10: a committed test calls POST /api/mcp/{token} tools/call submit_task for a user whose role ranks below manager and asserts budget fields are null; `bun test --isolate <that file>` exits 0, and exits non-zero when the role is removed from the call"
+  },
+  {
+   "id": "M-A03-2",
+   "source": "A03-d05-contradictions",
+   "action": "EDIT",
+   "target": "D-10 and §4 exit 2.1/2.2",
+   "reason": "The spec proposes nullable project_id columns, not NOT NULL. Requiring NOT NULL settles open owner question Q6 as 'break existing tokens' before the owner answers.",
+   "evidence": "Spec L208 'a nullable column', L288 'add a nullable projectId'; WO Q6 unanswered",
+   "boolean_test": "2.1/2.2 read: column project_id exists; `select count(*) from platform.user_ai_links where project_id is null and created_at > '<migration timestamp>'` = 0; NOT NULL applied only if Q6 is answered 'break'"
+  },
+  {
+   "id": "M-A03-3",
+   "source": "A03-d05-contradictions",
+   "action": "EDIT",
+   "target": "§5 exit 3.2",
+   "reason": "Two 31-item sources exist; the WO must name the exceptions-directive source so builders do not load platform.sumeet_gap.",
+   "evidence": "SQL count(platform.sumeet_gap)=31; ACTIVE-CLAIMS.yaml origin/main L5073-5078; commit 6d531f53",
+   "boolean_test": "The 31 rows carry source='construction-exceptions-service.ts@6d531f53' and ids EXC-01..EXC-31; `select count(*) from <register> where source like 'construction-exceptions-service%'` = 31"
+  },
+  {
+   "id": "M-A03-4",
+   "source": "A03-d05-contradictions",
+   "action": "EDIT",
+   "target": "D-02",
+   "reason": "The spec states '68' three times, not twice.",
+   "evidence": "Spec L158, L168, L346",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A03-5",
+   "source": "A03-d05-contradictions",
+   "action": "EDIT",
+   "target": "§6 exit 4.5",
+   "reason": "The spec has no surface-1 counterpart; its Pattern 1 maps to WO surface 2 (ERP screens), so the phrase 'wrongly counts it as Pattern 1' misstates the spec.",
+   "evidence": "Spec L27 Pattern 1 = manual UI screens; WO D-08 surface list",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A03-6",
+   "source": "A03-d05-contradictions",
+   "action": "ADD",
+   "target": "D-05 (new C-10)",
+   "reason": "The spec contradicts itself on how many functions Pattern 3 can reach: '14-function ceiling' at L29 vs '27-function EXECUTORS' at L162/L218. Code shows 27.",
+   "evidence": "executor.ts:672-685 (8 named + 6 dispatch + 1 alias + 12 org-scoped = 27)",
+   "boolean_test": "Corrected spec contains 0 occurrences of '14-function' and states '27 (7 writes, 20 reads)'; `grep -c '14-function' spec.md` = 0"
+  },
+  {
+   "id": "M-A04-1",
+   "source": "A04-d08-surface-matrix",
+   "action": "EDIT",
+   "target": "§6 4.5",
+   "reason": "Surface 1 does have code today (a one-page view per project, and one for exceptions); what is missing is AI-prepared content with an approve action.",
+   "evidence": "projexa@e88b53e src/app/(app)/workspace/[id]/page.tsx (commit 926194dc); src/app/(app)/analysis/exceptions/page.tsx (b604d0dd); TRUTH_REPORT_EXCEPTIONS_31.md L89",
+   "boolean_test": "curl -s -o /dev/null -w '%{http_code}' -b \"$SESSION_COOKIE\" \"$BASE/workspace/$PROJECT_ID\" | grep -qx 200 && psql \"$DATABASE_URL\" -tAc \"select count(*) from compliance.audit_logs where entity_id='$BOQ_LINE_ID' and (case when pg_input_is_valid(details,'jsonb') then (details::jsonb)->>'surface' end)='s1_one_page_ai_prepared' and user_id is not null\" | grep -qvx 0"
+  },
+  {
+   "id": "M-A04-2",
+   "source": "A04-d08-surface-matrix",
+   "action": "EDIT",
+   "target": "§6 4.2",
+   "reason": "compliance.audit_logs has no surface column and details is TEXT, so the test SQL errors.",
+   "evidence": "information_schema.columns for compliance.audit_logs on pcrjmlpuqsbocqfwoxod (18 columns, no surface); details->>'surface' raises ERROR 42883",
+   "boolean_test": "psql \"$DATABASE_URL\" -tAc \"select count(distinct (details::jsonb)->>'surface') from compliance.audit_logs where entity_id='$RID' and pg_input_is_valid(details,'jsonb')\" | grep -qx 4"
+  },
+  {
+   "id": "M-A04-3",
+   "source": "A04-d08-surface-matrix",
+   "action": "EDIT",
+   "target": "D-08",
+   "reason": "The 7 record types are already fixed by an owner work order and should be named in the test, not left open.",
+   "evidence": "KT WORK_ORDER_PROJEXA-NEXT-001_2026-09-21.md L68 (Drive 1LF5Fi0UMndUd8cXLXgvGMYvdNeouzys5)",
+   "boolean_test": "jq -e '(.record_types==[\"daily_work_progress\",\"rfi\",\"punch_list\",\"change_order\",\"billing_claim\",\"boq_progress\",\"exception\"]) and (.cells|length==28)' surface_matrix.json"
+  },
+  {
+   "id": "M-A04-4",
+   "source": "A04-d08-surface-matrix",
+   "action": "ADD",
+   "target": "§4 (Phase 2), new 2.9",
+   "reason": "The AI link PROJEXA users mint cannot write any of the 7 record types; only compliance-tracker's user_ai_links MCP route reaches the write executors.",
+   "evidence": "projexa src/lib/services/ai-link-service.ts L16 (orgAiLink); src/app/api/ai/apply/route.ts L15-36 (pipeline_tasks only); compliance-tracker src/app/api/mcp/[token]/route.ts L17-18",
+   "boolean_test": "A link minted from PROJEXA's own UI, used with submit_task 'record 10% progress on <itemCode>', creates exactly 1 new row: psql -tAc \"select count(*) from compliance.construction_work_progress_entries where created_at > '$T0' and project_id='$PID'\" | grep -qx 1"
+  },
+  {
+   "id": "M-A04-5",
+   "source": "A04-d08-surface-matrix",
+   "action": "EDIT",
+   "target": "§6 ENTRY (record type)",
+   "reason": "'BOQ line items' in this work order is 'BOQ progress' in NEXT-001; name one table so record_id is unambiguous.",
+   "evidence": "WO §6 L231 vs NEXT-001 L68; compliance-tracker src/lib/pipeline/executor.ts L141 (progress written against boqLineItemId)",
+   "boolean_test": "jq -e '.record_type_tables.boq_progress==\"compliance.construction_boq_line_items\"' surface_matrix.json"
+  },
+  {
+   "id": "M-A04-6",
+   "source": "A04-d08-surface-matrix",
+   "action": "ADD",
+   "target": "§10 OWNER QUESTIONS, new Q7",
+   "reason": "Exceptions have no stored record, so the 'same record_id on all 4 surfaces' test cannot be satisfied for that type without an owner decision (acknowledgement table vs the underlying flagged record).",
+   "evidence": "pg_class query on compliance: no exception table; TRUTH_REPORT_EXCEPTIONS_31.md L109 (GET-only)",
+   "boolean_test": "jq -e '.record_type_tables.exception != null' surface_matrix.json"
+  },
+  {
+   "id": "M-A08-1",
+   "source": "A08-billing-1-9",
+   "action": "EDIT",
+   "target": "Test 1.9",
+   "reason": "Original pass condition based on a project toggle cannot detect a still-billing team license. Replace with a two-part boolean.",
+   "evidence": "Exit 0 only if (a) billing API for PT day 2026-09-27 (from 2026-09-27T07:00:00Z to 2026-09-28T07:00:00Z) has every Speed Insights Plus BilledCost == 0 (jq all(.==0)), AND (b) GET /v9/projects/{id} speedInsights.disabledAt is non-null for both projects. Exit non-zero otherwise.",
+   "boolean_test": "curl -s -H \"Authorization: Bearer $TOKEN\" \"https://api.vercel.com/v1/billing/charges?teamId=team_Iqx3zyb7sDdsdzcNskCFFsHD&from=2026-09-27T07:00:00.000Z&to=2026-09-28T07:00:00.000Z\" | jq -e -s '[.[]|select(.ServiceName==\"Speed Insights Plus\")|.BilledCost]|length>0 and all(.==0)' >/dev/null"
+  },
+  {
+   "id": "M-A08-2",
+   "source": "A08-billing-1-9",
+   "action": "EDIT",
+   "target": "Addendum A4 cost table",
+   "reason": "Replace estimates with measured figures: Pro 0.645161/day and Speed Insights Plus 0.645161/day, about 40.00/month at present run rate; Build CPU only 4.33 total across 4 days; Web Analytics 0.0013.",
+   "evidence": "vercel_charges_by_day.csv; daily totals 09-20..09-25 = 1.2903..1.2914",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A08-3",
+   "source": "A08-billing-1-9",
+   "action": "ADD",
+   "target": "Phase 1 / Test 1.9 prerequisite",
+   "reason": "Record that the Speed Insights Plus license may need cancelling in Team Billing (owner action), because the per-project toggle did not stop the charge on the evidence so far. Do not claim done until the 0.0000 day is observed.",
+   "evidence": "0 Projects consumed since 09-17 while billing continues; PM toggle on 09-24 did not change 09-24 or 09-25 charges.",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A08-4",
+   "source": "A08-billing-1-9",
+   "action": "ADD",
+   "target": "Test 1.9 method note",
+   "reason": "Billing days are Pacific (07:00Z boundaries) and the API needs single-day windows, so tests must use 07:00Z-aligned one-day calls and a full completed day after 2026-09-26.",
+   "evidence": "periodStart 2026-09-23T07:00:00.000Z returned for a 09-24T00:00Z request; 4194304-byte error on multi-day ranges.",
+   "boolean_test": ""
+  },
+  {
+   "id": "M-A01-1",
+   "source": "A01-d01-topology",
+   "action": "EDIT",
+   "target": "WO D-01",
+   "reason": "Replace the title and body: the sitemap documents the compliance-tracker backend surface, not a wrong repo, and it omits projexa's own 310-route API.",
+   "evidence": "Replacement sentence: 'The circulated route sitemap lists the 287 routes / 106 modules of compliance-tracker src/app/api/v1/projexa, which is the business backend that 264 of projexa's 310 route.ts files forward to, but it omits projexa's own API (FChecklist/projexa main e88b53e: 310 routes / 109 modules, 23 modules absent from it, 22 routes on projexa's own Supabase), so build planning must use PROJEXA_ROUTE_SITEMAP_projexa_main.md, which lists both surfaces as separate tables.'",
+   "boolean_test": "test \"$(git ls-tree -r --name-only main | grep -cE '^src/app/api/.*/route\\.ts$')\" = 310 && test \"$(head -1 PROJEXA_ROUTE_SITEMAP_projexa_main.md)\" = 'repo: FChecklist/projexa' && grep -q '^route_count: 310$' PROJEXA_ROUTE_SITEMAP_projexa_main.md; run in a checkout of FChecklist/projexa at main; exit 0 = pass"
+  },
+  {
+   "id": "M-A01-2",
+   "source": "A01-d01-topology",
+   "action": "EDIT",
+   "target": "WO D-01 count line ('20 modules do not exist in projexa')",
+   "reason": "State the correct claim: these 20 are CT-only modules. 4 of them are consumed by projexa under other names (users via org-users, veri-meetings via moms, screen-definitions, storage-status). 16 have no consumer.",
+   "evidence": "PROJEXA_ROUTE_SITEMAP_projexa_main.md, section 'CT-ONLY MODULES'; word search of projexa src at e88b53e.",
+   "boolean_test": "none required; the section is generated from a set difference and is checkable by re-running the module-name diff"
+  },
+  {
+   "id": "M-A01-3",
+   "source": "A01-d01-topology",
+   "action": "ADD",
+   "target": "New Phase 1 test 1.1b",
+   "reason": "Prevent build from targeting the three dead upstream paths.",
+   "evidence": "claims C6",
+   "boolean_test": "for p in construction/budget/lines construction/schedule documents; do git ls-tree -r --name-only origin/main -- src/app/api/v1 | grep -q \"^src/app/api/v1/$p\" || echo MISSING $p; done in compliance-tracker; expected output after the fix is empty (exit 0 with no MISSING lines)"
+  },
+  {
+   "id": "M-A01-4",
+   "source": "A01-d01-topology",
+   "action": "EDIT",
+   "target": "CC2-3 wording in the shared-infrastructure section",
+   "reason": "Add that projexa has its own Supabase project (evpckeuxgvahguwsaeul, 22 tables) alongside the shared verdian-ai DB.",
+   "evidence": "Live SELECT on information_schema.tables returned 22 of 22 table names from src/lib/db/schema.ts.",
+   "boolean_test": "none required"
+  },
+  {
+   "id": "M-A01-5",
+   "source": "A01-d01-topology",
+   "action": "ADD",
+   "target": "Addendum A edge tests",
+   "reason": "Edge classification should treat projexa OWN_DB and MIXED routes separately from PROXY_TO_CT routes, because only 264 of the 310 routes pass through to CT.",
+   "evidence": "Table 1 in PROJEXA_ROUTE_SITEMAP_projexa_main.md, column classification",
+   "boolean_test": "none required"
+  },
+  {
+   "id": "M-A07-1",
+   "source": "A07-cron-and-ci",
+   "action": "EDIT",
+   "target": "WO D-07 TEST / Addendum E-14",
+   "reason": "Current wording checks only vercel.json cron count. Make it runnable and add the missing guard.",
+   "evidence": "Proposed command: python -c \"import json,sys;a=json.load(open('vercel.json')).get('crons',[]);sys.exit(0 if len(a)<=2 and not any(c['schedule'].startswith('*/') for c in a) else 1)\" run in each repo; expected exit 0 and no output. Today ct has 29 crons so it exits 1.",
+   "boolean_test": "python -c \"import json,sys;a=json.load(open('vercel.json')).get('crons',[]);sys.exit(0 if len(a)<=2 and not any(c['schedule'].startswith('*/') for c in a) else 1)\""
+  },
+  {
+   "id": "M-A07-2",
+   "source": "A07-cron-and-ci",
+   "action": "EDIT",
+   "target": "WO tests 3.1 and 3.6 (and register format section 8)",
+   "reason": "verify_command and evidence_ref columns do not exist on platform.sumeet_requirements (80 rows); the SQL errors instead of returning 0. Either add the columns first or query existing columns.",
+   "evidence": "information_schema lists 23 columns without them. Boolean form: select count(*) from platform.sumeet_requirements where built='YES' and closure_test_path is null; expected 0. Today the value is not 0 (61 built YES, 74 rows with closure_test_path), so the exact expected output must be measured first.",
+   "boolean_test": "select count(*) from platform.sumeet_requirements where built='YES' and closure_test_path is null"
+  },
+  {
+   "id": "M-A07-3",
+   "source": "A07-cron-and-ci",
+   "action": "ADD",
+   "target": "Phase 0 task: create scripts/verify-all.mjs and a verify:all script in package.json before test 3.3",
+   "reason": "Test 3.3 calls npm run verify:all, which exists in neither repo. Also drop the 'npm' wording: the repos use bun and a bare bun test is unreliable.",
+   "evidence": "package.json of both repos; scripts/verify/ absent. Test: node scripts/verify-all.mjs exits 0 and its last stdout line is exactly 'VERIFY-ALL: <n> checks passed', n >= 111.",
+   "boolean_test": "node scripts/verify-all.mjs | tail -n 1 | grep -E '^VERIFY-ALL: ([1-9][0-9]{2,}) checks passed$'"
+  },
+  {
+   "id": "M-A07-4",
+   "source": "A07-cron-and-ci",
+   "action": "EDIT",
+   "target": "WO test 1.6 (secret-scan)",
+   "reason": "The job already exists in both repos. The real gap is that compliance-tracker does not require it, so the test should assert the required-check list.",
+   "evidence": "ct protection contexts (10) lack 'Secret Scanning'; px includes it. Test: gh api repos/FChecklist/compliance-tracker/branches/main/protection --jq '.required_status_checks.contexts | index(\"Secret Scanning\")' must print a number, not null. Today it prints null.",
+   "boolean_test": "gh api repos/FChecklist/compliance-tracker/branches/main/protection --jq '.required_status_checks.contexts | index(\"Secret Scanning\") | if . == null then error(\"missing\") else . end'"
+  },
+  {
+   "id": "M-A07-5",
+   "source": "A07-cron-and-ci",
+   "action": "EDIT",
+   "target": "WO test 3.5 (Playwright count >= R-B1)",
+   "reason": "R-B1 records only '2 passed', and projexa's own CI runs no Playwright, so the comparison is meaningless as written. Replace with a required-check assertion plus an explicit number.",
+   "evidence": "px ci.yml has no Playwright job (57 e2e specs, 19 env1); R-B1 evidence has '2 passed' x3. Test: a projexa workflow job named 'E2E' exists and appears in projexa branch-protection contexts.",
+   "boolean_test": "gh api repos/FChecklist/projexa/branches/main/protection --jq '.required_status_checks.contexts | index(\"E2E\") | if . == null then error(\"missing\") else . end'"
+  },
+  {
+   "id": "M-A07-6",
+   "source": "A07-cron-and-ci",
+   "action": "ADD",
+   "target": "Addendum E-01/E-16: require applying nothing until owner decisions on the prepared SQL are recorded",
+   "reason": "Moving the 10 crons to pg_cron re-enables writes that have not fired since about 23 Aug (notifications, purge, exchange rates), and 5 have open owner decisions. E-01 only classifies; E-04/E-05 must name which single job is ported first.",
+   "evidence": "supabase/prepared/cost001/README.md and README_b.md 'OWNER DECISION' items; 0 compliance.cron_* functions live; monitor_execution_log last run 2026-09-19 with 0 orgs. Suggested first job: exchange-rate-refresh (EDGE_FN_VIA_PG_CRON), pure HTTP plus upsert, DPDP pattern already live.",
+   "boolean_test": "select count(*) from cron.job where jobname like 'projexa-%'"
+  },
+  {
+   "id": "M-A09-1",
+   "source": "A09-edge-live-identity",
+   "action": "EDIT",
+   "target": "Addendum A0 + A1 row 'Anything needing a secret ... YES - 5 running'",
+   "reason": "[removed from the public copy: see the private KT folder]",
+   "evidence": "[removed from the public copy: see the private KT folder]",
+   "boolean_test": "[removed from the public copy: see the private KT folder]"
+  },
+  {
+   "id": "M-A09-2",
+   "source": "A09-edge-live-identity",
+   "action": "EDIT",
+   "target": "E-03",
+   "reason": "dpdp-monday-digest has 0 runs; dpdp-legal-clocks is the only proven end-to-end cron->pg_net->Edge path. Also 'succeeded' in cron.job_run_details only proves the request was enqueued.",
+   "evidence": "cron.job_run_details: 3 rows, all jobid 2; net._http_response id 7 status_code 200 at 2026-09-25 03:30 UTC.",
+   "boolean_test": "SQL on pcrjmlpuqsbocqfwoxod: select count(*) from cron.job_run_details d join cron.job j using(jobid) where j.jobname='dpdp-legal-clocks' and d.status='succeeded' and d.start_time > now()-interval '3 days' -> expected 3; and select count(*) from net._http_response where status_code=200 and created > now()-interval '6 hours' -> expected >=1 within 6h after 03:30 UTC."
+  },
+  {
+   "id": "M-A09-3",
+   "source": "A09-edge-live-identity",
+   "action": "ADD",
+   "target": "New E-05b (Phase 2/3 identity prerequisite, before E-06)",
+   "reason": "PROJEXA JWTs (evpckeuxgvahguwsaeul ES256) are not accepted by verdian-ai; identity reaches compliance-tracker only via server-held vk_ key + X-Acting-User header. Browser work needs a bridge first: Edge gateway verifying the PROJEXA JWT via JWKS and querying as app_runtime with app.current_org_id.",
+   "evidence": "projexa src/lib/veridian-client.ts:33,46,510-591; compliance-tracker auth-guard.ts:397,549; evpckeux edge_logs ES256; 0/114 UUID overlap.",
+   "boolean_test": "bun scripts/e2e/projexa-gateway-isolation.mjs (env TOKEN_A, BOQ_A, BOQ_B, GW) prints exactly '200 404 401 401' and exits 0."
+  },
+  {
+   "id": "M-A09-4",
+   "source": "A09-edge-live-identity",
+   "action": "ADD",
+   "target": "New E-05c (identity link coverage)",
+   "reason": "22 of 114 PROJEXA auth users have no compliance.users.auth_user_id link; any sub-based bridge refuses them.",
+   "evidence": "Cross-project comparison: 92 linked (8 orgs), 22 unlinked.",
+   "boolean_test": "node scripts/check-projexa-identity-links.mjs prints 'UNLINKED=0' and exits 0 (today prints 'UNLINKED=22', exit 1)."
+  },
+  {
+   "id": "M-A09-5",
+   "source": "A09-edge-live-identity",
+   "action": "EDIT",
+   "target": "E-06 / E-07",
+   "reason": "A policy naming authenticated is not enough: construction policies use the GUC app.current_org_id, authenticated holds 0 GRANTs on construction tables, and PROJEXA JWTs carry no verdian-ai-verifiable org claim. With the gateway (E-05b), E-06 becomes 'zero new anon/authenticated grants' and E-07 runs through the gateway.",
+   "evidence": "pg_policies roles app_runtime|service_role only; role_table_grants authenticated SELECT on construction% = 0; compliance.current_org_id() reads current_setting('app.current_org_id').",
+   "boolean_test": "SQL: select count(*) from information_schema.role_table_grants where table_schema='compliance' and table_name like 'construction%' and grantee in ('anon','authenticated') -> expected 0; plus E-05b test exit 0."
+  },
+  {
+   "id": "M-A09-6",
+   "source": "A09-edge-live-identity",
+   "action": "EDIT",
+   "target": "E-17",
+   "reason": "[removed from the public copy: see the private KT folder]",
+   "evidence": "[removed from the public copy: see the private KT folder]",
+   "boolean_test": "[removed from the public copy: see the private KT folder]"
+  },
+  {
+   "id": "M-A12-1",
+   "source": "A12-dev-test-deploy",
+   "action": "ADD",
+   "target": "WORK_ORDER Phase 0 / development plan",
+   "reason": "Every worktree for this programme must junction node_modules from C:/ct/ct (or C:/ct/projexa) instead of copying, and use only per-file bun test --isolate with placeholder localhost DB env; typecheck, build and E2E run in CI only.",
+   "evidence": "Junction precedent ct-coldload-remaining; disk 23.7 GB free; RAM 1.98 GB free; ci.yml lines 132-139",
+   "boolean_test": "powershell -Command \"if ((Get-Item C:\\ct\\<worktree>\\node_modules -Force).LinkType -eq 'Junction') {exit 0} else {exit 1}\" ; expected output: empty, exit 0"
+  },
+  {
+   "id": "M-A12-2",
+   "source": "A12-dev-test-deploy",
+   "action": "ADD",
+   "target": "Testing plan gate",
+   "reason": "Define green as the 10 required contexts (Lint, Type Check, Build, Unit Tests, Migration Number Collision Check, Migration Integrity Check (AR-12), Governance YAML Parse Check, Migration Schema Drift Check, Screen Definition Label Check, Graph Drift Check) and treat E2E Env-1 as informational until its projexa Env-1 spec step is fixed.",
+   "evidence": "gh api repos/FChecklist/compliance-tracker/branches/main/protection required_status_checks.contexts",
+   "boolean_test": "gh api repos/FChecklist/compliance-tracker/branches/main/protection --jq '.required_status_checks.contexts|length' ; expected output: 10"
+  },
+  {
+   "id": "M-A12-3",
+   "source": "A12-dev-test-deploy",
+   "action": "ADD",
+   "target": "Deployment plan: batch release",
+   "reason": "Add an owner-decision item: how releases are batched (ignoreCommand stays exit 0 with an owner-approved release step, or a release branch), because PR 1808's gate builds every non-docs main merge and Amendment 001 merges on green.",
+   "evidence": "PR 1808 ignoreCommand text; ACTIVE-CLAIMS COST-001 amendment 2026-09-24",
+   "boolean_test": "gh api repos/FChecklist/compliance-tracker/contents/vercel.json?ref=main -H 'Accept: application/vnd.github.raw' | grep -c \"exit 0'\" ; expected output: 1 until go-live"
+  },
+  {
+   "id": "M-A12-4",
+   "source": "A12-dev-test-deploy",
+   "action": "ADD",
+   "target": "Deployment plan: prebuilt experiment",
+   "reason": "Do not plan on vercel build --prebuilt cutting Vercel minutes until one owner-approved deploy is measured; the docs search did not state billing.",
+   "evidence": "search_vercel_documentation returned only CLI usage; no billing text",
+   "boolean_test": "UNVERIFIABLE until an owner-approved single deploy is followed by list_billing_charges for that UTC day; no runnable pass/fail exists today"
+  },
+  {
+   "id": "M-A12-5",
+   "source": "A12-dev-test-deploy",
+   "action": "ADD",
+   "target": "Edge function deploy step",
+   "reason": "[removed from the public copy: see the private KT folder]",
+   "evidence": "Supabase docs 'Docker not required'; supabase --version 2.107.0; git ls-tree origin/main supabase/functions lists only 2 function folders",
+   "boolean_test": "git ls-tree -d --name-only origin/main supabase/functions/ | wc -l ; expected output: 2 today, 5 after sources are added"
+  },
+  {
+   "id": "M-A12-6",
+   "source": "A12-dev-test-deploy",
+   "action": "EDIT",
+   "target": "WORK_ORDER claim/registration step",
+   "reason": "Register a BUILD-001 claim in ai-os/boss/ACTIVE-CLAIMS.yaml under active: as its own small PR before code, using keys session_label, claimed_at, claim; respect the live PROJEXA-COST-001 claim (PR 1808, supabase/prepared/cost001/, vercel.json) and treat claims over 4 hours old with no open PR as abandoned.",
+   "evidence": "ACTIVE-CLAIMS.yaml header lines 1-41 on origin/main",
+   "boolean_test": "git fetch origin main && git cat-file blob origin/main:ai-os/boss/ACTIVE-CLAIMS.yaml | grep -c 'BUILD-001' ; expected output: at least 1 after registration"
+  },
+  {
+   "id": "M-A11-1",
+   "source": "A11-merge-map",
+   "action": "EDIT",
+   "target": "WO 2.5 (Gap 5 / Q2)",
+   "reason": "Move to Phase 1 and widen the scope to all four fail-open points; the two [token] call sites alone leave the internal and API-key paths unredacted.",
+   "evidence": "[token]/route.ts:58,:68; executor.ts:372; assistant/route.ts:56,:77 + auth-guard.ts:424,:445; construction-tools.ts:95",
+   "boolean_test": "bun test --isolate src/lib/pipeline/financial-redaction.test.ts exits 0, asserting that a member-rank actor calling get_construction_budget_status via (a) /api/mcp/[token], (b) assistant rawInput, (c) assistant codeReference with an API key receives HTTP 4xx or budget:null; AND git grep -n \"role ? (ROLE_RANK\" origin/main -- src/lib/task-execution/construction-tools.ts exits 1"
+  },
+  {
+   "id": "M-A11-2",
+   "source": "A11-merge-map",
+   "action": "ADD",
+   "target": "WO s7 new 5.6 (PM traps 1 and 2)",
+   "reason": "Neither the WO nor the Addendum has a test for the drawings-supersede trap or the MoM wrong-service trap.",
+   "evidence": "executor.ts:17-18; document-service.ts:224; document-service.test.ts:230; veri-meeting-service.ts:279",
+   "boolean_test": "git grep -n -E \"create_drawing: |create_mom: \" origin/main -- src/lib/pipeline/executor.ts returns 2 lines (exit 0) AND bun test --isolate src/lib/pipeline/executor.test.ts exits 0 with a case asserting that create_drawing sets the prior revision isLatestVersion=false"
+  },
+  {
+   "id": "M-A11-3",
+   "source": "A11-merge-map",
+   "action": "EDIT",
+   "target": "WO 2.2 and 2.3",
+   "reason": "api_keys.project_id must be nullable, and attribution must come per request, because one PROJEXA org key serves many projects and people.",
+   "evidence": "projexa src/app/api/assistant/route.ts:12-16,:43; auth-guard.ts:424,:445 dbUser null; api_keys has 36 rows",
+   "boolean_test": "select count(*) from compliance.audit_logs where api_key_id is not null and user_id is null and created_at > now() - interval '7 days' returns 0 AND select is_nullable from information_schema.columns where table_schema='compliance' and table_name='api_keys' and column_name='project_id' returns YES"
+  },
+  {
+   "id": "M-A11-4",
+   "source": "A11-merge-map",
+   "action": "EDIT",
+   "target": "WO 3.1, 3.6, 4.2",
+   "reason": "The queried columns verify_command, evidence_ref and surface do not exist, so the tests error instead of returning a count.",
+   "evidence": "information_schema: sumeet_requirements has closure_test_path, closure_commit_sha; audit_logs has no surface column",
+   "boolean_test": "select count(*) from platform.sumeet_requirements where built='YES' and (closure_test_path is null or closure_commit_sha is null) returns 0; for 4.2, a migration adds audit_logs.surface and select count(distinct surface) from compliance.audit_logs where entity_id='<id>' returns 4"
+  },
+  {
+   "id": "M-A11-5",
+   "source": "A11-merge-map",
+   "action": "EDIT",
+   "target": "WO D-10 / 2.6",
+   "reason": "A Supabase branch is billed compute, and spend increases are owner-only; replay the rollback on PGlite first.",
+   "evidence": "Amendment 001 s3 (owner-only spend); Supabase MCP create_branch sits behind get_cost/confirm_cost; CLAUDE.md check:migration-replay uses PGlite",
+   "boolean_test": "node scripts/verify/rollback-replay.mjs <migration> exits 0 and prints SCHEMA_HASH_MATCH after apply+rollback on PGlite"
+  },
+  {
+   "id": "M-A11-6",
+   "source": "A11-merge-map",
+   "action": "EDIT",
+   "target": "PM Gap 2 / WO 5.2, 5.3, E-13",
+   "reason": "Extend the existing document-extraction-service.ts (add xlsx multi-sheet support and a BOQ/project schema) instead of creating a new file at the same path.",
+   "evidence": "origin/main src/lib/services/document-extraction-service.ts, 552 lines, 20 referencing files, extractComplianceFields at :237",
+   "boolean_test": "git ls-tree --name-only origin/main src/lib/services/ | grep -c extraction-service returns 1 (no second service) AND bun test --isolate src/lib/services/document-extraction-service.test.ts exits 0 with an xlsx 22-sheet BOQ fixture case"
+  },
+  {
+   "id": "M-A10-1",
+   "source": "A10-edge-candidates",
+   "action": "EDIT",
+   "target": "E-02",
+   "reason": "Classification set must include KILL; three projexa scheduler rows are redundant and get deleted, not moved. Add the boundary: projexa has no direct LLM calls, its LLM rows are proxies",
+   "evidence": "EDGE_CANDIDATES.csv: 11 MOVE_TO_EDGE, 21 STAY, 3 KILL; scripts/check-no-provider-api-keys.mjs:40-60",
+   "boolean_test": "python -c \"import csv,sys;r=list(csv.DictReader(open('EDGE_CANDIDATES.csv',encoding='utf-8')));bad=[x for x in r if x['classification'] not in ('MOVE_TO_EDGE','STAY','KILL') or not x['reason'].strip()];print(len(r),len(bad));sys.exit(1 if bad or len(r)<30 else 0)\" expected output: 35 0"
+  },
+  {
+   "id": "M-A10-2",
+   "source": "A10-edge-candidates",
+   "action": "EDIT",
+   "target": "E-08",
+   "reason": "grep of src/ matches comments, so the test fails on correct code; scan the built browser bundle instead",
+   "evidence": "schema.ts:677,824,1859 and memory-service.ts:26 contain the string service_role in comments",
+   "boolean_test": "[removed from the public copy: see the private KT folder]"
+  },
+  {
+   "id": "M-A10-3",
+   "source": "A10-edge-candidates",
+   "action": "ADD",
+   "target": "E-07 prerequisite",
+   "reason": "Add a test that the browser session's Supabase project equals the project owning the BOQ tables before E-07 is attempted",
+   "evidence": "BOQ tables in pcrjmlpuqsbocqfwoxod, projexa auth in evpckeuxgvahguwsaeul (CLAUDE.md Two-Supabase-projects section)",
+   "boolean_test": "select count(*) from information_schema.tables where table_schema='compliance' and table_name like '%boq%' run on the project the browser signs in to; expected >= 1, exit non-zero if 0"
+  },
+  {
+   "id": "M-A10-4",
+   "source": "A10-edge-candidates",
+   "action": "EDIT",
+   "target": "Phase 4 browser-first scope",
+   "reason": "State explicitly it does not use output: export (0 of 505 files exportable); it swaps BOQ client fetch targets to PostgREST",
+   "evidence": "ai-os/step4-static-export-inventory-projexa.csv; ScopeObjectClient.tsx:116-146",
+   "boolean_test": "git grep -c \"output: *['\\\"]export['\\\"]\" -- next.config.ts in FChecklist/projexa expected output: 0 and exit 1 (no match)"
+  },
+  {
+   "id": "M-A10-5",
+   "source": "A10-edge-candidates",
+   "action": "EDIT",
+   "target": "E-05",
+   "reason": "Removal must cover three places, not one",
+   "evidence": "projexa vercel.json:6, .github/workflows/email-digest-poll.yml:46, src/app/api/internal/email-digest-cadence/run/route.ts:14",
+   "boolean_test": "git grep -c email-digest-cadence -- vercel.json .github/workflows expected: no output and exit 1"
+  },
+  {
+   "id": "M-A10-6",
+   "source": "A10-edge-candidates",
+   "action": "DELETE",
+   "target": "count wording '193 pages'",
+   "reason": "Correct to 192 pages, 311 route files",
+   "evidence": "git ls-files count and inventory CSV",
+   "boolean_test": "git ls-files src/app | grep -c '/page.tsx$' expected output: 192"
+  }
+ ]
+}

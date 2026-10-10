@@ -14,6 +14,7 @@
 // machine.
 import { spawn } from "node:child_process";
 import { stripJsonFence } from "@/lib/llm-client";
+import { assertProjexaInternalAi } from "@/lib/projexa-internal-ai";
 import type { AiProvider, ClassificationResult, Artifact, ClassifyContext } from "../adapter";
 
 const CLAUDE_CLI_TIMEOUT_MS = 60_000;
@@ -21,7 +22,14 @@ const CLAUDE_CLI_TIMEOUT_MS = 60_000;
 // Runs `claude -p` in non-interactive print mode, feeding the full prompt on
 // stdin (never as a CLI argument -- these prompts can be several KB, well
 // past what's safe to pass as a single shell argument) and capturing stdout.
+// lf-b3-ai-off: every path to the CLI (claudeCliComplete, classify, analyse) runs through here, so the switch is checked once, before
+// anything is spawned (projexa-internal-ai.ts).
 function runClaudeCli(prompt: string): Promise<string> {
+  try {
+    assertProjexaInternalAi("claude-cli");
+  } catch (error) {
+    return Promise.reject(error);
+  }
   return new Promise((resolve, reject) => {
     // R63 (2026-08-29): real, reproduced Windows bug -- a global npm install
     // of the `claude` CLI resolves to `claude.cmd` on Windows (confirmed via
@@ -71,6 +79,15 @@ function runClaudeCli(prompt: string): Promise<string> {
   });
 }
 
+/**
+ * PROJEXA-BUILD-002 WP-11: the raw text of one `claude -p` run, for the internal AI's extraction call (internal-model-gateway.ts),
+ * which needs the reply text and builds its own prompt. Same binary, same identity gate before it (internal-ai-policy.ts runs
+ * assertAiProviderAllowed first), same timeout; nothing about how the CLI is launched changes.
+ */
+export async function claudeCliComplete(prompt: string): Promise<string> {
+  return runClaudeCli(prompt);
+}
+
 async function callClaudeCliJson<T>(systemPrompt: string, userMessage: string, expectedKeys: string[]): Promise<T> {
   const prompt = `${systemPrompt}\n\n---\n\nRespond with ONLY the JSON object described above, no other text, no markdown code fence.\n\n${userMessage}`;
   const raw = await runClaudeCli(prompt);
@@ -99,6 +116,7 @@ Rules, absolute:
 - You may NEVER return prose. Output ONLY the JSON shape described below.
 - If a segment names a valid function but is missing a required parameter, return that function_id with the params you found and list the rest in missingParams -- do not guess a missing value.
 - If a segment cannot be matched to any candidate function, set functionId to null, missingParams to [], confidence to 0, and unmappedIntent to a short honest description of what the user seems to want.
+- context.functionParams lists each candidate's parameter names. Put values in params under exactly those names, never a renamed or invented one. missingParams may only name that function's "required" names; an optional value the user did not give is left out, not missing. Write dates as YYYY-MM-DD.
 
 Output STRICT JSON: {"results": [{"functionId": string|null, "params": object, "missingParams": string[], "confidence": number (0-1), "unmappedIntent": string|null}, ...]} with exactly one entry per input segment, in the same order.`;
 

@@ -30,6 +30,7 @@ import { withDpdpContext, type TenantDb } from "@/lib/db/tenant-scoped"
 export const DPDP_EVENT_KINDS = [
   "identity_signed_in", "organisation_created", "membership_invited", "membership_named_in_role",
   "membership_joined", "membership_revoked", "can_sign_granted",
+  "membership_first_visit_acknowledged", "membership_said_not_me",
   "relationship_named", "relationship_agreement_sent", "relationship_agreement_signed", "relationship_ended",
   "data_location_asked", "data_location_confirmed",
   "obligation_assigned", "obligation_submitted", "obligation_sent_back", "obligation_stuck", "obligation_not_my_job", "obligation_accepted", "obligation_closed",

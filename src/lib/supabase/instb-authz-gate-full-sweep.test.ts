@@ -38,6 +38,7 @@ import { describe, test, expect, mock, beforeEach } from "bun:test"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
 import { NextRequest, NextResponse } from "next/server"
 import * as RealTenantScoped from "@/lib/db/tenant-scoped"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 import fs from "node:fs"
 import path from "node:path"
 
@@ -112,9 +113,18 @@ async function fakeResolveActingUser(ctx: { dbUser?: FixtureUser | null; apiKey?
 // same reasoning as fakeResolveActingUser above).
 async function fakeResolveWriteActorId(_request: { headers: Headers }, ctx: { dbUser?: FixtureUser | null; apiKey?: unknown }) {
   if (ctx?.dbUser) return { actorId: ctx.dbUser.id, error: null }
-  if (ctx?.apiKey) return { actorId: (ctx.apiKey as { id: string }).id, error: null }
+  // U-20b: the real helper no longer falls back to the key id (unreachable
+  // here anyway -- every fixture in this sweep is a session caller).
+  if (ctx?.apiKey) return { actorId: null, error: NextResponse.json({ error: "acting user required", code: "ACTING_USER_REQUIRED" }, { status: 400 }) }
   return { actorId: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
 }
+
+// PROJEXA-BUILD-001 U-20b: ~130 v1 write routes now import
+// requireActingPerson (and three reads resolveOptionalActingPerson) -- the
+// same D-05 "an unmocked export breaks the whole route import" gotcha as the
+// fakes above. The shared double mirrors the real contract; with this sweep's
+// session-only fixtures it returns ctx.dbUser, exactly as the real helper does.
+const actingPerson = actingPersonDouble()
 
 beforeEach(() => {
   currentUser = null
@@ -130,6 +140,8 @@ beforeEach(() => {
     readActingUserEmail: () => null,
     resolveActingUser: fakeResolveActingUser,
     resolveWriteActorId: fakeResolveWriteActorId,
+    requireActingPerson: actingPerson.requireActingPerson,
+    resolveOptionalActingPerson: actingPerson.resolveOptionalActingPerson,
   }))
 })
 

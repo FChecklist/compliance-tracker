@@ -26,7 +26,7 @@
 // (which documents qualify, how "expiring" is computed) stays entirely
 // inside listExpiringDocuments/listDocuments.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listExpiringDocuments, listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
 import { signDocumentUrl } from "@/lib/storage/signed-document-url"
 // R67 F-27 (R-243): a new permit moves the "Permits Expiring" tile on the
@@ -134,8 +134,11 @@ async function POST_impl(request: NextRequest) {
   if (roleErr) return roleErr
   // R39/R-C14: ctx.apiKey?.id is not a real compliance.users row -- see
   // documents.uploadedById's schema.ts comment for the real production FK
-  // violation this fallback caused.
-  const actorId = ctx.dbUser?.id ?? null
+  // violation that fallback caused. U-20b: the uploader is now the person the
+  // API-key caller names (X-Acting-User / X-Acting-User-Email), never null.
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {

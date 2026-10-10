@@ -1,0 +1,45 @@
+{
+  "name": "dpdp-app",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && node scripts/generate-public-facts.mjs --check && vite build && node scripts/pwa/build-pwa.mjs && node scripts/build-sitemap.mjs && node scripts/check-public-surface.mjs && node scripts/check-claims.mjs && node scripts/check-two-doors.mjs",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "scan-bundle": "node scripts/scan-bundle.mjs",
+    "build:sitemap": "node scripts/build-sitemap.mjs",
+    "check:public-surface": "node scripts/check-public-surface.mjs",
+    "generate:facts": "node scripts/generate-public-facts.mjs",
+    "check:facts": "node scripts/generate-public-facts.mjs --check",
+    "check:claims": "node scripts/check-claims.mjs",
+    "check:two-doors": "node scripts/check-two-doors.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.48.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "bun-types": "^1.4.2",
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.12.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6",
+    "typescript-eslint": "^8.70.1",
+    "vite": "^8.3.0",
+    "yaml": "2.9.0"
+  }
+}

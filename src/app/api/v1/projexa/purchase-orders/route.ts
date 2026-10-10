@@ -9,7 +9,7 @@
 // toVendorShape() convention (supplierId -> vendorId in the response), the
 // underlying erp_purchase_orders table is unchanged.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listPurchaseOrders, createPurchaseOrder, ServiceError, type PurchaseOrderItemInput } from "@/lib/services/erp-buying-service"
 
 function toPurchaseOrderShape(po: Awaited<ReturnType<typeof listPurchaseOrders>>[number]) {
@@ -50,16 +50,16 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()
     const items: PurchaseOrderItemInput[] = (body.items ?? []).map((i: PurchaseOrderItemInput) => ({
       itemId: i.itemId, description: i.description, quantity: i.quantity, rate: i.rate,
     }))
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const po = await createPurchaseOrder(actorCtx, {
       supplierId: body.vendorId, orderDate: body.orderDate, expectedDeliveryDate: body.expectedDeliveryDate, companyId: body.companyId,
       currencyId: body.currencyId, exchangeRate: body.exchangeRate, items,

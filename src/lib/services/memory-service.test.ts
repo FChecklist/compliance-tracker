@@ -212,6 +212,32 @@ describe("createMemoryRecord", () => {
     expect(calls.length).toBe(2) // INSERT memory_records + UPDATE embedding mirror, no source given
   })
 
+  // BUILD-002 WP-09b (spec 9.11, write-path gap G9): text an AI work link wrote is stored WITHOUT an embedding -- no embedding-provider call and no
+  // read-back through the second (bypass-RLS) connection. Falsifiable: drop the `skipEmbedding` test in createMemoryRecord and this fails.
+  test("skipEmbedding stores the row and makes NO embedding-provider call and no second-connection read", async () => {
+    const storeEmbedding = mock(async () => {})
+    const dbExecute = mock(async () => [{ embedding: "[0.1,0.2,0.3]" }])
+    mockEmbeddingsModule({ storeEmbedding })
+    mockDbModule(dbExecute)
+    const { createMemoryRecord } = await import("./memory-service")
+
+    const { tx, calls } = makeQueueTx([[rawRow()], []])
+
+    const result = await createMemoryRecord(tx, "org-1", {
+      actor: ACTOR,
+      scopeType: "ORGANIZATION",
+      memoryType: "FACT",
+      content: "the sky is blue",
+      provenanceType: "USER_CONFIRMED",
+      skipEmbedding: true,
+    })
+
+    expect(result.id).toBe("mem-1")
+    expect(storeEmbedding).not.toHaveBeenCalled()
+    expect(dbExecute).not.toHaveBeenCalled()
+    expect(calls.length).toBe(1) // the INSERT only: no UPDATE that mirrors an embedding
+  })
+
   test("also writes a memory_sources row when `source` is supplied", async () => {
     mockEmbeddingsModule({})
     mockDbModule()

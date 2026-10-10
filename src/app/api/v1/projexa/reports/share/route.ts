@@ -2,7 +2,7 @@
 // read-only share link. Resolving the token itself happens on a SEPARATE,
 // intentionally-public route -- see /api/reports/share/[token]/route.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { createReportShareLink, ServiceError } from "@/lib/services/report-share-service"
 
 export async function POST(request: NextRequest) {
@@ -20,8 +20,12 @@ export async function POST(request: NextRequest) {
     // (the real production shape for PROJEXA's server-to-server calls) 500'd
     // on this exact insert. null is now a valid, real "created by an API
     // key, not a person" value (see schema.ts's createdById comment).
+    // U-20b: an API-key caller now names the person it acts for, so the link's
+    // creator is that person rather than null.
+    const { acting, error: actingError } = await requireActingPerson(request, ctx, body)
+    if (actingError) return actingError
     const link = await createReportShareLink(
-      { orgId: ctx.orgId, userId: ctx.dbUser?.id ?? null },
+      { orgId: ctx.orgId, userId: acting.person.id },
       { reportType: body.reportType, reportRef: body.reportRef, expiresInHours: body.expiresInHours }
     )
     return NextResponse.json({ token: link.token, expiresAt: link.expiresAt }, { status: 201 })

@@ -6,7 +6,7 @@
 // erp-inventory-service.ts's own header comment), never a bespoke PROJEXA-
 // side ledger.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listStockLedger, recordStockReceipt, recordStockIssue, ServiceError } from "@/lib/services/erp-inventory-service"
 
 export async function GET(request: NextRequest) {
@@ -34,7 +34,9 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()
@@ -44,9 +46,7 @@ export async function POST(request: NextRequest) {
     if (!body.itemId || !body.warehouseId || !body.quantity || !body.postingDate) {
       return NextResponse.json({ error: "itemId, warehouseId, quantity, and postingDate are required" }, { status: 400 })
     }
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
 
     const entry = body.type === "receipt"
       ? await recordStockReceipt(actorCtx, {

@@ -1,0 +1,164 @@
+# dpdp-app -- Cloudflare Pages: ready, not live (WO-DPDP-011 Step 7)
+
+The DPDP app is static files. It is served by **Cloudflare Pages only**. Vercel is
+never in the path (`vercel.json`'s `ignoreCommand` skips every Vercel build), and
+nothing in this directory can deploy anywhere until the owner performs the
+actions marked **OWNER** below.
+
+## 1. What is deployed
+
+| Path | What | Indexed? |
+|---|---|---|
+| `/` | home (redesigned 2026-10-02, three colour themes): exactly two ways in (CA/CS/legal/audit firm doing it for clients -> `/dpdp-firm/`; company/institution/school/NGO doing it for itself -> `/dpdp-institution/`) | yes |
+| `/dpdp-firm/`, `/dpdp-institution/` | edition landing pages | yes |
+| `/about/` | the full facts for people (WO-DPDP-013 v2 §2.1), generated from `data/veridian-facts.yaml` | yes |
+| `/proof/` | evidence page from `data/proof.yaml`; **built and hidden** until the owner sets `proof.enabled: true` in the facts file | **no** while hidden -- `noindex` meta + `X-Robots-Tag` via the generated block in `public/_headers`; not in the sitemap or llms*.txt; linked from nowhere |
+| `/app/` | the signed-in one-page app (magic-link session in the `#fragment`) | **no** -- `noindex` meta + `X-Robots-Tag` via `public/_headers` |
+| `/terms/`, `/privacy/`, `/disclaimer/`, `/pricing/`, `/refund/`, `/shipping/`, `/contact/` | the hand-kept legal pages (`public/<name>/index.html`); in the sitemap | yes |
+| `/rum.js`, `/api/telemetry` | first-party monitoring: the script on every public page, and its Pages Function (`functions/api/`) writing to the free D1 database `dpdp-telemetry`. `/api/` is a private prefix: `noindex`, `no-store`, `Disallow` in robots. See `OPERATIONS.md` "Search, speed and monitoring" | the script is a file; the endpoint is **not** indexed |
+| `/<32 hex>.txt` | the IndexNow key file (Bing/Yandex ping after each deploy) | not linked, not in the sitemap |
+| `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt` | crawler files (WO-DPDP-012 §3); llms*.txt are generated | -- |
+| `/dpdp-institutions` → `/dpdp-institution/`, `/home` → `/` | 301s in `public/_redirects` (WO-DPDP-013 v2 §2.4) | -- |
+| `/for-ai`, `/for-ai/`, `/for-ai.md`, `/facts.json` | **withdrawn 2026-10-01** (owner: they published internal detail); 301 to `/about/`. Nothing builds or links them; `check-public-surface.mjs` and `check-two-doors.mjs` fail if they come back | -- |
+
+Build: `bun run build` → `dist/`. The only build-time inputs are the **public**
+Supabase URL and anon key. `scripts/scan-bundle.mjs` proves per build that
+`service_role` never appears in `dist/`.
+
+The build chain, in order: `tsc` → `generate-public-facts.mjs --check` (the
+committed surfaces must match `data/veridian-facts.yaml`; if the facts changed,
+run `bun run generate:facts` and commit) → `vite build` → `build-sitemap.mjs` →
+`check-public-surface.mjs` → `check-claims.mjs` (no banned word outside an
+approved claim in `data/claims-register.yaml`) → `check-two-doors.mjs` (the
+wall: no AI-link path, file, parameter or token pattern on any public surface;
+`/ai/*` fenced off; no hidden text; no instruction to an AI; the brand line
+spelled exactly, everywhere). Any of the three checks failing fails the build.
+
+The brand line (WO-DPDP-014) at the top of every page, the tab titles, the
+fact block on every public page, the meta description, Open Graph and the
+Organization + SoftwareApplication JSON-LD all come from the facts file too.
+To change a fact: edit `data/veridian-facts.yaml`, run `bun run generate:facts`,
+run `bun test`, commit the regenerated files with it.
+
+### Bindings and secrets the site needs (since 2026-10-02)
+
+`wrangler.toml` binds the D1 database `dpdp-telemetry` as `DB` (the id in the file is not a secret). The Pages secret `REPORT_KEY` (set once with `wrangler pages secret put REPORT_KEY --project-name veridian-dpdp-app`; it applies from the next deployment) unlocks the monitoring report. The deploy in 2B runs `wrangler pages deploy dist` from this directory, which reads `wrangler.toml` and picks up `functions/` (`ai/` and `api/`) beside it; the project is a direct-upload project, so the binding comes from `wrangler.toml` on every deploy. Without the binding the endpoint still answers 204 and stores nothing; without `REPORT_KEY` the report is a 404. Creating the database was `wrangler d1 create dpdp-telemetry`, then `wrangler d1 execute dpdp-telemetry --remote --file=data/telemetry.sql` (the Function also creates the tables on first use). The API token in the repository secret `CLOUDFLARE_API_TOKEN` must be allowed to deploy Pages; it needs no D1 permission for the deploy itself.
+
+## 2. Two ways to connect -- pick one (OWNER)
+
+### A. Pages Git integration (recommended: zero secrets in GitHub)
+Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to Git →
+`FChecklist/compliance-tracker`:
+
+| Setting | Value |
+|---|---|
+| Project name | `veridian-dpdp-app` |
+| Production branch | `main` |
+| Root directory | `dpdp-app` |
+| Build command | `bun run build` |
+| Build output directory | `dist` |
+| Environment variables (Production + Preview) | `VITE_SUPABASE_URL=https://pcrjmlpuqsbocqfwoxod.supabase.co`, `VITE_SUPABASE_ANON_KEY=<anon key from Supabase → Project Settings → API>` |
+| Preview deployments | on (every PR gets `<hash>.veridian-dpdp-app.pages.dev`) |
+
+Pages detects `bun.lock` and installs with bun. `wrangler.toml` in this directory
+pins the output directory.
+
+### B. GitHub Actions deploy (`.github/workflows/dpdp-app-deploy.yml`)
+Runs on every merge to `main` that touches `dpdp-app/**`. It is a **no-op until**
+these exist in the repository settings:
+
+| Kind | Name | Where from |
+|---|---|---|
+| Secret | `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → template "Edit Cloudflare Workers" or custom with **Account → Cloudflare Pages → Edit** |
+| Secret | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → Workers & Pages overview (right-hand column) |
+| Variable | `VITE_SUPABASE_URL` | `https://pcrjmlpuqsbocqfwoxod.supabase.co` |
+| Variable | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → anon public |
+
+The Pages project `veridian-dpdp-app` must exist first (dashboard → Create →
+Pages → "Upload assets" once, or `wrangler pages project create veridian-dpdp-app`).
+
+## 3. Domain and DNS (OWNER)
+
+1. Cloudflare → the Pages project → Custom domains → add `dpdp.veridian-aios.com`
+   (the signed-in app host since 2026-10-01). The previous host
+   `app.veridian-aios.com` stays attached and keeps serving the same files:
+   links in emails already sent, AI work links and copy pages point at it.
+2. DNS (zone `veridian-aios.com`): `CNAME dpdp → veridian-dpdp-app.pages.dev`
+   (and the existing `CNAME app → veridian-dpdp-app.pages.dev`), proxied (orange cloud). Cloudflare issues the certificate automatically.
+3. Until DNS exists, test on `https://veridian-dpdp-app.pages.dev` (the WO allows
+   `*.pages.dev` for all testing).
+4. Email domains (`send.` / `reply.veridian-aios.com`) are Resend's records, not
+   Pages -- see the Step 4 README under `supabase/functions/dpdp-monday-email/`.
+
+## 4. Supabase settings that must match (OWNER)
+
+Authentication → URL Configuration:
+- **Site URL**: `https://dpdp.veridian-aios.com`
+- **Redirect URLs**: `https://dpdp.veridian-aios.com/app/**`,
+  `https://app.veridian-aios.com/app/**` (legacy host: magic links already
+  emailed still redirect there, so keep this entry),
+  `https://veridian-dpdp-app.pages.dev/app/**`,
+  `https://*.veridian-dpdp-app.pages.dev/app/**` (previews),
+  `http://localhost:4173/**` (local `vite preview`).
+
+A redirect not on this list is silently replaced by the Site URL (found live in
+the Step 2 spike), so a missing entry looks like "the link opens the wrong site".
+
+## 5. Go-live checklist -- every line is a yes/no with evidence
+
+| # | Check | Evidence |
+|---|---|---|
+| 1 | `dpdp-app` CI job green on the merge commit | Actions → dpdp-app |
+| 2 | Bundle key scan: `service_role` = 0 | CI step log |
+| 3 | `/app/` returns `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer` | `curl -I https://…/app/` |
+| 4 | `/`, `/dpdp-firm/`, `/dpdp-institution/`, `/about/` readable with JS off (h1 + body in raw HTML) | `curl` output |
+| 5 | `robots.txt`, `sitemap.xml`, `llms.txt` served; sitemap lists only public pages; `/proof/` returns `X-Robots-Tag: noindex, nofollow` while hidden | `curl` |
+| 5a | `/dpdp-institutions` and `/home` answer 301 to `/dpdp-institution/` and `/` | `curl -I` |
+| 6 | Magic link round-trip on the real host: email → link → `/app/#access_token…` → jobs load → fragment cleared | screen recording / test run |
+| 7 | Mark Yes persists across reload; `dpdp.event` gains one `obligation_accepted` row with an intact chain | SQL re-read |
+| 8 | Cross-tenant RPC tests green at a recorded SHA (`src/lib/services/dpdp-cross-tenant-rpc.test.ts`) | test run timestamp |
+| 9 | 70 acceptance checks green against the static app, Next.js server off | Playwright report |
+| 10 | Monday digest job ran once in dry-run and the log shows the expected recipients | `dpdp.email_send` rows |
+| 11 | Resend domain verified and one real delivery observed | Resend dashboard |
+| 12 | Each named crawler user agent gets HTTP 200 on public pages, 4xx on `/app/` | `curl -A` table |
+| 13 | Owner sign-off recorded | KT folder |
+
+## 6. One public host for search engines (SEO, 2026-10-01)
+
+The same Pages project answers on `veridian-aios.com`, `www.veridian-aios.com`
+(301 to the apex, set at the zone) and `dpdp.veridian-aios.com` (the signed-in app), plus the legacy
+`app.veridian-aios.com`, with identical files. Search engines are told **one** host:
+
+- every public page's `<link rel="canonical">`, `og:url`, JSON-LD `@id`/`url`,
+  the sitemap, `robots.txt`'s `Sitemap:` line and `llms*.txt` say `https://veridian-aios.com/...` (`PUBLIC_ORIGIN` in
+  `src/lib/site-origin.mjs`);
+- the signed-in app, the Monday email's links and the AI work link stay on
+  `dpdp.veridian-aios.com` (`SITE_ORIGIN`, same file) and are `noindex`/`no-store`.
+  `app.veridian-aios.com` (`LEGACY_APP_ORIGIN`) keeps answering with the same
+  files and the same headers so old links work; nothing new is built from it.
+
+There is **no** `dpdp.`/`app.` to apex redirect, on purpose: a Pages `_redirects` rule
+matches a path, never a host, so it would also bounce the apex and swallow
+`/app/`, `/act/`, `/copy/`, `/p/`, `/unsubscribe/` and `/ai/`. If the owner ever
+wants one, it must be a zone-level Cloudflare Redirect Rule with the host
+condition `http.host eq "dpdp.veridian-aios.com"` (or the legacy `app.`) AND a path exclusion for those
+six prefixes -- never a file rule. `scripts/check-two-doors.mjs` (g) fails the
+build if any public surface names either app host.
+
+Brand images (`public/og-image.png` 1200x630, `logo.png`, `favicon-48.png`) are
+rendered from `brand/social-images.html` (the recipe is in its header comment).
+Cache: `/assets/*` and `/fonts/*` one year `immutable` (fonts are not
+hashed: never replace one in place, ship a new file name); public HTML stays on
+the Pages default (revalidate) on purpose.
+
+After the first deploy that carries this: `curl -s https://veridian-aios.com/ | grep -E 'canonical|og:url|og:image'`,
+`curl -s https://veridian-aios.com/sitemap.xml`, grep the live pages for
+`[email protected]` (must be absent), then in Google Search Console add the
+`veridian-aios.com` domain property, submit `https://veridian-aios.com/sitemap.xml`
+and request indexing of `/`, `/dpdp-firm/`, `/dpdp-institution/`, `/about/`; do the
+same in Bing Webmaster Tools.
+
+## 7. Rollback
+
+Cloudflare → Pages → Deployments → "Rollback to this deployment" on the previous
+production build (instant, no rebuild). Nothing on Vercel changes either way.

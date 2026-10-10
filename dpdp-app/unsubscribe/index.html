@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      The unsubscribe page from the Monday email (WO-DPDP-011 §2.5), served
+      at /unsubscribe/#<token>. The token rides in the URL FRAGMENT, never
+      in the path or query. Nothing happens until the button is pressed
+      (dpdp_unsubscribe); statutory notices continue either way. PRIVATE
+      (WO-DPDP-012 §2): never indexed, never crawled, no referrer --
+      public/_headers and public/robots.txt say the same over HTTP. No
+      third-party <link>/<script> of any kind belongs on this page.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>VERIDIAN DPDP</title>
+    <link rel="preload" href="/fonts/sora-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/unsubscribe.tsx"></script>
+  </body>
+</html>

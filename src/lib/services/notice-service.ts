@@ -3,7 +3,7 @@
 import { notices, departments, auditLogs, comments } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, or, like, asc, inArray, lte, sql, type SQL } from "drizzle-orm"
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
@@ -82,7 +82,7 @@ export async function createNotice(ctx: ServiceContext, input: CreateNoticeInput
     await logActivity({
       tx: db, action: "create", entityType: "Notice", entityId: notice.id,
       details: `Created notice: ${notice.noticeNumber ?? notice.id} from ${notice.authority ?? "unknown authority"}`,
-      orgId, clientId: notice.clientId, request, ...(actor.dbUser ? { dbUser: actor.dbUser } : { apiKey: actor.apiKey! }),
+      orgId, clientId: notice.clientId, request, ...auditActorOf(actor),
     })
     return { ok: true as const, notice }
   })
@@ -166,7 +166,7 @@ export async function updateNotice(ctx: ServiceContext, id: string, input: Updat
 
     await db.update(notices).set(updateData).where(eq(notices.id, id))
 
-    const actorParam = actor.dbUser ? { dbUser: actor.dbUser } : { apiKey: actor.apiKey! }
+    const actorParam = auditActorOf(actor)
     const logChange = (action: string, details: string) => logActivity({ tx: db, action, entityType: "Notice", entityId: id, details, orgId, clientId: existingItem.clientId, request, ...actorParam })
     if (status !== undefined && status !== existingItem.status) await logChange("status_change", `Status changed from ${existingItem.status} to ${status}`)
     if (assignedToId !== undefined && assignedToId !== existingItem.assignedToId) {
@@ -211,7 +211,7 @@ export async function deleteNotice(ctx: ServiceContext, id: string) {
     await db.delete(notices).where(eq(notices.id, id))
     await logActivity({
       tx: db, action: "delete", entityType: "Notice", entityId: id, details: `Deleted notice: ${existingItem.noticeNumber ?? id}`,
-      orgId, clientId: existingItem.clientId, request, ...(actor.dbUser ? { dbUser: actor.dbUser } : { apiKey: actor.apiKey! }),
+      orgId, clientId: existingItem.clientId, request, ...auditActorOf(actor),
     })
     return true
   })

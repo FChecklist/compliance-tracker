@@ -10,6 +10,7 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "noImplicitAny": false,
     "esModuleInterop": true,
     "module": "esnext",
@@ -39,10 +40,13 @@
   "exclude": [
     "node_modules",
     "supabase/functions",
+    "scripts/verify/projexa-sync-live-*.ts",
     "examples",
     "**/*.test.ts",
     "**/*.test.tsx",
     "playwright.config.ts",
-    "projexa-checkout"
+    "projexa-checkout",
+    "dpdp-app",
+    "workers"
   ]
 }

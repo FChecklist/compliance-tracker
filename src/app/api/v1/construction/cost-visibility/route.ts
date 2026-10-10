@@ -14,7 +14,7 @@
 // (viewing which roles are currently granted does not itself expose any
 // cost figure, only role names and booleans).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import {
   listCostVisibilityConfig,
   setCostVisibilityForRole,
@@ -62,7 +62,9 @@ export async function PATCH(request: NextRequest) {
     // surfaced below exactly like every other ServiceError this route
     // family raises. Not re-checked here so there is exactly ONE place this
     // refusal is implemented, per this phase's own "one gate" rule.
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const updated = await setCostVisibilityForRole({ orgId: ctx.orgId, userId: actorId }, role, canSeeCost)
     return NextResponse.json(updated)
   } catch (error) {

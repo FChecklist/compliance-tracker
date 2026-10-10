@@ -11,7 +11,7 @@
 // table's linkedEntityType/linkedEntityId, or simply by the caller's own
 // customerId choice; this route does not invent a new column.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listSalesInvoicesPaged, createSalesInvoice, ServiceError, type SalesInvoiceItemInput } from "@/lib/services/erp-invoicing-service"
 
 function toInvoiceShape(inv: { id: string; invoiceNumber: number; customerId: string; customer?: { customerName: string } | null; salesOrderId: string | null; projectId: string | null; postingDate: string; dueDate: string | null; grandTotal: string; outstandingAmount: string; status: string; items?: { id: string; description: string; quantity: string; rate: string; amount: string }[] }) {
@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const body = await request.json()
     const items: SalesInvoiceItemInput[] = (body.items ?? []).map((i: SalesInvoiceItemInput) => ({
       itemId: i.itemId, description: i.description, quantity: i.quantity, rate: i.rate, taxTemplateId: i.taxTemplateId,
@@ -80,10 +82,10 @@ export async function POST(request: NextRequest) {
     // or an apiKey (PROJEXA's callVeridian() Bearer-token path -- always
     // this branch, since it never carries a session cookie) -- see that
     // function's own Priority 13 comment for why this was a real fix, not
-    // just a route-level workaround.
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
+    // just a route-level workaround. U-20b: on that API-key path the actor is
+    // now the named person AND the key (requireActingPerson's `actor`), so the
+    // invoice's creator and its audit row both name a real user.
+    const actorCtx = { orgId: ctx.orgId, userId: acting.person.id, ...acting.actor }
     const invoice = await createSalesInvoice(actorCtx, {
       customerId: body.customerId, salesOrderId: body.salesOrderId, projectId: body.projectId, postingDate: body.postingDate, dueDate: body.dueDate,
       currencyId: body.currencyId, exchangeRate: body.exchangeRate, companyId: body.companyId,

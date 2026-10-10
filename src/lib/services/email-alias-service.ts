@@ -60,7 +60,15 @@ import { ServiceError } from "./compliance-service"
 // pattern inside the projexa repo, querying its own database -- not a
 // one-line addition here.
 export const DEFAULT_ALIAS_DOMAIN = "mail.veridian-aios.com"
-export const ALLOWED_ALIAS_DOMAINS = [DEFAULT_ALIAS_DOMAIN] as const
+//
+// BUILD-002 WP-12 (AW-604): the two receiving hostnames that ai-os/projexa-build-001/DNS_RESEND_INBOUND_RECORDS.md lists for the owner to
+// add in Resend and at the DNS host (`inbound` on each root domain, never the root itself). Before this the code accepted only
+// mail.veridian-aios.com, so an address on an inbound.* host could never be given an alias and a delivery to one read "No active alias
+// found" even after the owner had added the MX records. The list in that document and this array now name the same hosts; which of
+// them the owner actually switches on is the owner's decision (D-6). inbound.projexa-ai.com resolves against this application's own
+// users table, which is where a PROJEXA organisation's people are recorded for every write PROJEXA makes through this API.
+export const INBOUND_ALIAS_DOMAINS = ["inbound.veridian-aios.com", "inbound.projexa-ai.com"] as const
+export const ALLOWED_ALIAS_DOMAINS = [DEFAULT_ALIAS_DOMAIN, ...INBOUND_ALIAS_DOMAINS] as const
 export type AllowedAliasDomain = (typeof ALLOWED_ALIAS_DOMAINS)[number]
 
 const LOCAL_PART_DOMAIN_UNIQUE_CONSTRAINT = "user_email_addresses_local_part_domain_unique"

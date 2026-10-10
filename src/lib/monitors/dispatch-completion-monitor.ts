@@ -61,6 +61,8 @@ import { resolvePlatformModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { listStuckActivities } from "@/lib/activity-log-service"
+// lf-b3-ai-off: PROJEXA's internal-AI switch (projexa-internal-ai.ts). This job's work is a model call, so off it returns quietly.
+import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai"
 
 export const DISPATCH_COMPLETION_MONITOR_NAME = "dispatch_completion_monitor"
 
@@ -264,6 +266,8 @@ export type DispatchCompletionSweepResult = {
   escalated: number
   invalidReports: number
   results: DispatchCompletionMonitorResult[]
+  /** lf-b3-ai-off: present only when the sweep did nothing because PROJEXA's internal AI is switched off. */
+  skipped?: "internal_ai_off"
 }
 
 /**
@@ -281,6 +285,9 @@ export async function runDispatchCompletionSweep(
   staleAfterMs: number,
   request?: Request
 ): Promise<DispatchCompletionSweepResult> {
+  // lf-b3-ai-off: the monitor's judgment is a model call, and its fail-closed answer to a failed call is to ESCALATE every stuck
+  // activity -- so with the internal AI off, running it would page a human for every row, every night. Off, it does not run.
+  if (!projexaInternalAiEnabled()) return { checked: 0, ok: 0, escalated: 0, invalidReports: 0, results: [], skipped: "internal_ai_off" }
   const stuck = await listStuckActivities(orgId, staleAfterMs)
   if (stuck.length === 0) {
     return { checked: 0, ok: 0, escalated: 0, invalidReports: 0, results: [] }

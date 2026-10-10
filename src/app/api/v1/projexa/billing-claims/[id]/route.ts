@@ -5,7 +5,7 @@
 // never a raw status write, so an invalid transition is refused by the
 // service layer's own CLAIM_TRANSITIONS table, not re-implemented here.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveWriteActorId } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import {
   draftClaim, submitClaim, approveClaim, rejectClaim, invoiceApprovedClaim, getClaimTimeline, ServiceError,
 } from "@/lib/services/construction-billing-workflow-service"
@@ -43,10 +43,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     // PROJEXA-E2E-001 surface-4 fix: see rfis/[id]/route.ts's identical
-    // comment and resolveWriteActorId's own header in auth-guard.ts.
-    const acting = await resolveWriteActorId(request, ctx)
-    if (acting.error) return acting.error
-    const actorId = acting.actorId
+    // comment. U-20b made it strict and person-shaped: requireActingPerson
+    // (auth-guard.ts) refuses an API-key call that names no person, and its
+    // `actor` carries the person AND the key into the invoice's audit row.
+    const { acting, error: actingError } = await requireActingPerson(request, ctx, body)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const claimCtx = { orgId: ctx.orgId, userId: actorId }
     let result: unknown
     switch (body.action as (typeof ACTIONS)[number]) {
@@ -66,7 +68,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         if (!body.billDate) return NextResponse.json({ error: "billDate is required" }, { status: 400 })
         if (!body.taxTemplateId) return NextResponse.json({ error: "taxTemplateId is required" }, { status: 400 })
         result = await invoiceApprovedClaim(
-          { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser, apiKey: ctx.apiKey ?? undefined },
+          { orgId: ctx.orgId, userId: actorId, ...acting.actor },
           id,
           { billDate: body.billDate, taxTemplateId: body.taxTemplateId }
         )

@@ -31,6 +31,7 @@
 // assertAiProviderAllowedForSystemBatch, adapter.ts).
 import type { AiProvider, ClassificationResult, Artifact, ClassifyContext } from "../adapter";
 import { CLASSIFY_SYSTEM_PROMPT, ANALYSE_SYSTEM_PROMPT } from "./claude-cli";
+import { assertProjexaInternalAi } from "@/lib/projexa-internal-ai";
 
 const REMOTE_TIMEOUT_MS = 65_000; // slightly above the bridge's own 60s claude-cli timeout, so the bridge's own error reaches us instead of a generic abort
 
@@ -55,6 +56,8 @@ function remoteSecret(): string {
 }
 
 async function callBridgeJson<T>(systemPrompt: string, userMessage: string, expectedKeys: string[]): Promise<T> {
+  // lf-b3-ai-off: every path to the bridge runs through here; the switch is checked before the tunnel is reached.
+  assertProjexaInternalAi("claude-cli-remote");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REMOTE_TIMEOUT_MS);
   let res: Response;
@@ -87,6 +90,15 @@ async function callBridgeJson<T>(systemPrompt: string, userMessage: string, expe
     throw new Error(`claude CLI (remote) response is missing expected key(s): ${missing.join(", ")}`);
   }
   return data as T;
+}
+
+/**
+ * PROJEXA-BUILD-002 WP-11: the bridge's JSON answer as text, for the internal AI's extraction call (internal-model-gateway.ts). The
+ * bridge parses the CLI's reply itself, so the object it returns is written back out as JSON for the caller to validate like any other
+ * model reply. Same tunnel, same secret, same identity gate before it (internal-ai-policy.ts).
+ */
+export async function claudeCliRemoteComplete(systemPrompt: string, userMessage: string): Promise<string> {
+  return JSON.stringify(await callBridgeJson<unknown>(systemPrompt, userMessage, []));
 }
 
 export const claudeCliRemoteProvider: AiProvider = {

@@ -12,7 +12,7 @@
 // Multipart, not JSON: this carries file bytes. Same shape as the drawings and
 // permits upload routes.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { createDocumentVersion, ServiceError } from "@/lib/services/document-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -30,9 +30,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const file = formData.get("file")
     if (!(file instanceof File)) return NextResponse.json({ error: "A file is required" }, { status: 400 })
 
-    // R39/R-C14: ctx.apiKey?.id is not a real compliance.users row, so null is
-    // the honest value for "who uploaded this" on an API-key call.
-    const doc = await createDocumentVersion({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? null }, id, { file })
+    // R39/R-C14: ctx.apiKey?.id is not a real compliance.users row, so this
+    // used to record null for "who uploaded this" on an API-key call. U-20b:
+    // the uploader is now the person the API-key caller names.
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const doc = await createDocumentVersion({ orgId: ctx.orgId, userId: acting.person.id }, id, { file })
     return NextResponse.json(doc, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

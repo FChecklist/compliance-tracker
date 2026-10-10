@@ -21,7 +21,7 @@
 // would make the setting unreachable for exactly the tenants that most need
 // it (a fresh UAE org with no base row, which is the R-63 condition).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { getBaseCurrency, setBaseCurrency, ServiceError } from "@/lib/services/erp-accounting-service"
 
 export async function GET(request: NextRequest) {
@@ -56,6 +56,10 @@ export async function PUT(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "admin", "write")
   if (roleErr) return roleErr
 
+  // U-20b: the currency change is attributed to a named person, never the key.
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+
   let body: Record<string, unknown>
   try {
     body = await request.json()
@@ -68,7 +72,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const result = await setBaseCurrency(
-      { orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id },
+      { orgId: ctx.orgId, userId: acting.person.id },
       code,
       typeof body.name === "string" ? body.name : undefined,
       typeof body.symbol === "string" ? body.symbol : undefined

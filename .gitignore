@@ -85,3 +85,6 @@ server.log
 
 .vercel
 .env*
+
+# ai-work-link-exec: generated at deploy time by scripts/build-ai-work-link-exec.ts (BUILD-002 WP-09b), never committed
+/supabase/functions/ai-work-link-exec/app.bundle.mjs

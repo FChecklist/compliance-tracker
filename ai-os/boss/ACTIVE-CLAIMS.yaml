@@ -1,4 +1,4 @@
-﻿# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working
 # across this codebase at once, with no existing mechanism for one session
@@ -40,6 +40,410 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (scheduled cloud routine, task P5: AI work link function coverage vs Sumeet's 111; branch claude/gap-p5-function-map)"
+    claimed_at: "2026-10-08 (this session)"
+    claim: |
+      Scope: ai-os/audit37/AI_FUNCTION_COVERAGE_2026-10-08.md, one new link function update_drawing (src/lib/pipeline/function-registry.ts,
+      executors/crud-drawings.ts, scripts/gen-ai-link-registry.data.ts, the generated JSON, drizzle/0740_awl_update_drawing.sql + down + journal idx 547),
+      tests coverage-crud-drawing.test.ts and ai-work-link-coverage-table.pglite.test.ts. No live DB, no deploy, 0740 not applied.
+  - session_label: "claude-code (AUDIT-TRAIL slice 1: stamp columns on compliance.audit_logs; worktree C:/ct/ct-audittrail, branch feat/audit-trail-stamp-slice1)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0730_audit_trail_stamp_columns.sql (+down, +journal), src/lib/audit-stamp.ts, optional stamp param in src/lib/audit.ts (logActivity),
+      schema.ts audit_logs stamp columns, two new tests, ai-os/AUDIT_100_CHECKLIST.md. Applies 0730 live via Supabase MCP (additive). No Vercel, no DNS, no spend.
+      Not touching AI link, projexa-sync or access_events (slice 2).
+  - session_label: "claude-code (DPDP Test/Live mode + offer end date nulled + firm/institution self-declared profile capture; worktree agent-a448bcdeda69bedec, branch feat/dpdp-test-live-mode)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0735 (dpdp.platform_mode, test registry, mail allowlist/gate, purge, offer_ends_on nulled, account_profile, self-declared firm rule),
+      supabase/functions/_shared/mail-gate.ts + the Resend send sites of every dpdp-* function, dpdp-app (mode banner, /api/mode, profile card, owner screens),
+      src/lib/services/dpdp-test-live-mode.pglite.test.ts and updates to dpdp-account-billing.pglite.test.ts. Not touching: audit trail (0731), visitor tracker JS.
+  - session_label: "claude-code (DPDP first-party visitor journey tracking + SEO checks; worktree .claude/worktrees/agent-a4b0a446eb7227e69, branch feat/dpdp-visitor-journey)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0733 (dpdp.visit_* + RPCs + retention cron), supabase/functions/dpdp-track + _shared/visit, dpdp-app/public/visit.js + functions/api/visit*,
+      public-surface script lists/checks/tests, privacy line, SPA sign-in link call, SEO audit test. Does NOT touch the dpdp-audit chain tables. No Vercel, no live DDL.
+  - session_label: "claude-code (DPDP account opening: account types, plans config, firm verification, billing state machine; branch feat/dpdp-account-opening)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0734_dpdp_account_opening_plans_billing.sql (new tables dpdp.plan/billing_setting/account/partner_offer_code, billing state functions,
+      open-account + owner verify + mark-paid RPCs, lock gate in dpdp__caller_membership / dpdp__ai_link_for_token), dpdp-app/src/lib/billing-state.ts +
+      OpenOrganisation/PaymentDue screens, dpdp-app/dpdp-firm earnings calculator, src/lib/services/dpdp-account-*.test.ts, dpdp-access-never-locks.test.ts
+      (owner reversed the never-lock rule in chat 2026-10-06). No Vercel, no live migration apply, no spend.
+  - session_label: "claude-code (PROJEXA upload sign route: projexa-api POST /uploads/sign + public bucket projexa-files; worktree C:/ct/wt-upload, branch feat/projexa-upload-sign)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: supabase/functions/projexa-api/upload-sign.ts (new) + index.ts wiring + README, drizzle/0732 (bucket + sign log), src test projexa-upload-sign.test.ts,
+      ai-os/audit37/UPLOAD_CONTRACT_2026-10-06.md. Does NOT touch handler.ts / policy.generated.ts. No Vercel, no DNS, no spend. One projexa-api deploy after merge.
+  - session_label: "claude-code (G-12 scope list perf + release distribution without Vercel/Cloudflare; worktrees C:/ct/ct-scopeperf, C:/ct/px-release) -- 2026-10-06"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: ct src/app/api/v1/construction/boq/route.ts (include=headers), construction-boq-service.ts parseBoqInclude/loadRevisionSummaries,
+      route.headers.test.ts, projexa-api policy.generated.ts + parity.golden.json (regenerated, not hand-edited); projexa scope proxy +
+      ScopeClient + module-list-source + routes.json include_allow; ai-os/audit37/RELEASE_DISTRIBUTION_2026-10-06.md and
+      projexa src/lib/local-first/release/* (new manifest-source module only). Does not touch projexa-sync, the offline gate or the 111-row table.
+      No Vercel, no DNS, no spend, no real release published.
+  - session_label: "claude-code (AUDIT-100 A2 batch 7: group (b) cache / write-invalidation routes + group (c) fan-out routes off Vercel; worktrees C:/ct/ct-b7 + C:/ct/px-a2b7, branches px-edge-batch7 / a2-edge-batch7)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md}, src/lib/services/projexa-api-edge-parity.test.ts
+      (new spec keys: per-instance TTL cache, multipart upload passthrough, response redaction, BOQ create verification), and the projexa side
+      (projexa-api-routes.json batch 7, parity cases, px-api.ts, vercel inventory, one small Vercel cache-revalidate route). One deploy of projexa-api only
+      (after the compliance PR merges). Migration numbers: none planned. No Vercel dashboard/deploy, no DNS, no spend. Not touching projexa-sync / offline gate.
+  - session_label: "claude-code (DPDP audit trail: append-only hash-chained audit_event + masked user download + lifecycle; worktree .claude/worktrees/agent-a1164b8f7cc0d1b84, branch feat/dpdp-audit-trail)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: drizzle/0731_dpdp_audit_trail.sql (+ down), supabase/functions/_shared/audit/*, supabase/functions/dpdp-audit + dpdp-audit-lifecycle (new),
+      supabase/functions/dpdp-ai-link/index.ts (logging hook, nosnippet removal), dpdp-monday-email/ai-link-email.ts (read-only default),
+      dpdp-app/src/lib/ai-chat-options.ts (no secret link in other companies' URLs), dpdp-app privacy page text. Migration number planned: 0730 (NOT applied live; lead applies).
+      No Vercel, no DNS, no spend.
+  - session_label: "claude-code (AUDIT-100 A2 batch 7: group (b) cache / write-invalidation routes + group (c) fan-out routes off Vercel; worktrees C:/ct/ct-b7 + C:/ct/px-a2b7, branches px-edge-batch7 / a2-edge-batch7)"
+    claimed_at: "2026-10-06 (this session)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md}, src/lib/services/projexa-api-edge-parity.test.ts
+      (new spec keys: per-instance TTL cache, multipart upload passthrough, response redaction, BOQ create verification), and the projexa side
+      (projexa-api-routes.json batch 7, parity cases, px-api.ts, vercel inventory, one small Vercel cache-revalidate route). One deploy of projexa-api only
+      (after the compliance PR merges). Migration numbers: none planned. No Vercel dashboard/deploy, no DNS, no spend. Not touching projexa-sync / offline gate.
+  - session_label: "claude-code (AUDIT-100 G-09: PROJEXA new-organisation provisioning inside projexa-api; worktrees C:/ct/ct-g09 + C:/ct/px-g09, branches feat/g09-org-provision-edge + feat/g09-org-provision-client)"
+  - session_label: "claude-code handover/PM session (AUDIT-100 programme: 100-point audit) -- 2026-10-06"
+    claimed_at: "2026-10-06T09:30+05:30"
+    claim: |
+      OWNS (do not edit without messaging this session): supabase/functions/projexa-api (generic edge proxy, deployed v6+) and its generated
+      policy; supabase/functions/ai-work-link (guide, card, /workspace, confirm page, robots header); supabase/functions/projexa-api POST /link-member;
+      projexa src/lib/px-api.ts + vercel-route-inventory + e2e/lf-lifecycle-vercel-budget.spec.ts; vercel.json deploymentEnabled (both repos);
+      migrations 0727 and 0728 (and 0729+ until released here); AUDIT_100_CHECKLIST.md; ai-os/audit37/*.
+      THE OFFLINE UI/UX SESSION (4 aims, 111 Sumeet rows) OWNS: supabase/functions/projexa-sync (CORS fix fix/sync-cors-any-local-origin, deployed v8:
+      MUST be merged to main before anyone redeploys projexa-sync), projexa src/lib/local-first/shell offline gate (fix/offline-gate-no-lockout),
+      the local servers :3000 / :3110 and the demo-org orphan G-04.
+      PROTOCOLS: (1) DEPLOY LOCK: before `supabase functions deploy <fn>` take mkdir C:/ct/deploy-<fn>.lock (rmdir right after the verify step); never deploy
+      a function whose repo copy is behind the live version without merging first; deploy only from a clean checkout of origin/main. (2) BUILD LOCK:
+      C:/ct/heavy.lock (mkdir; free RAM >= 1.2 GB before any build/browser). (3) PORTS: 3100/3101/3110 = the offline session; 3117+54399 = shared test
+      rig; agents use 3137-3197. (4) MIGRATION NUMBERS: take the next free number by checking origin/main AND open PRs (gh pr list --search 'drizzle/07'),
+      write the claim here first. (5) Never --admin merge; GitHub runner outage = rerun failed jobs.
+  - session_label: "claude-code (DPDP AI work link SHORT paste + GET fallback + role parity; worktree C:/ct/ct-shortlink, branch feat/ai-short-link-manual)"
+    claimed_at: "2026-10-04T (this session)"
+    claim: |
+      Scope: supabase/functions/dpdp-ai-link/* (api-definition, manual, brief, router: GET-only ?_method=POST&_body= fallback, parity additions),
+      supabase/functions/_shared/ai-link/prompt.ts + dpdp-monday-email paste wording, dpdp-app copy text, one new drizzle migration for
+      any new AI-reachable RPCs, ai-os/DPDP_AI_LINK_PARITY.md, tests. No Vercel, no payments, no DNS.
+  - session_label: "claude-code (interactive, C:/ct/ct + C:/ct/projexa) -- AUDIT-37: owner's 37-point PROJEXA audit/test/gap-fill (offline-first browser install, peer+Supabase sync, internal AI, external AI work link, 6-digit passcode, error capture)"
+    claimed_at: "2026-10-04T (this session)"
+    claim: |
+      Scope: audit all 37 owner points vs code, run local replica + Playwright/Chrome tests,
+      fix gaps via small PRs in compliance-tracker (projexa-sync, ai-links, edge fns) and
+      FChecklist/projexa (local-first shell, auth PIN). Vercel deploy LAST, only after local green.
+      Gap register: ai-os/AUDIT_37_GAP_REGISTER.md (to be created by this session).
+  - session_label: "claude-code (PROJEXA sync more kinds; worktree C:/ct/_fix_workers, branch feat/projexa-sync-more-kinds)"
+    claimed_at: "2026-10-03T (this session)"
+    claim: |
+      Scope: ONE additive migration drizzle/0691_projexa_sync_erp_hr_kinds.sql (+down, journal entry) adding organisation-scoped
+      ERP/HR/interior/KB kinds to the projexa-sync org kinds (public.projexa_sync__org_kinds/org_src/org_hidden_cols), the matching
+      ORG_KINDS list in supabase/functions/projexa-sync/handler.ts + README, a new pglite test, and minimal edits to
+      projexa-sync-org-routes.pglite.test.ts. Does not touch the PROJEXA repo, Vercel, or paid settings.
+  - session_label: "claude-code (DPDP PWA + 3-step page; worktree C:/ct/wt-dpdp-mail, branch feat/dpdp-pwa-onepage-steps)"
+    claimed_at: "2026-10-03T (this session)"
+    claim: |
+      Scope: dpdp-app/ only. NEW: src/lib/device-copy/*, src/components/AiFirstSteps.tsx, DeviceCopy.tsx, scripts/pwa/*,
+      public/app/manifest+icons, e2e/device-copy.spec.ts. EDITS (small): src/App.tsx (load/markYes/signOut wiring), main.tsx,
+      app/index.html, package.json build chain, OPERATIONS.md. Owner request 2026-10-03: the person's own device keeps the whole
+      app + their data (offline PWA), and /app/ opens with numbered steps, Option 1 = copy the AI work link. No DB, no function
+      deploy, no DNS, no paid setting.
+  - session_label: "claude-code (sub-agent, isolated worktree C:/ct/wt-dpdp-seo branch feat/dpdp-site-seo-monitoring) -- free SEO + first-party monitoring for veridian-aios.com"
+    claimed_at: "2026-10-02T (this session)"
+    claim: |
+      Scope: dpdp-app/ only (public/rum.js, functions/api/telemetry.ts, wrangler.toml D1 binding,
+      public/_headers, src/lib/public-surface.mjs pins, privacy page + claims register wording,
+      per-page SEO meta/JSON-LD, IndexNow key file, OPERATIONS.md/DEPLOY.md) plus the
+      dpdp-app deploy workflow's post-deploy IndexNow ping. Owner request: every free
+      SEO/analytics/crash/response/timeout measure for veridian-aios.com. Does not touch
+      DNS, domains, Vercel or any paid setting.
+  - session_label: "claude-code (DPDP sales partner lifecycle; worktree agent-a70b403b3a440f5ce, branch feat/dpdp-partner-lifecycle)"
+    claimed_at: "2026-10-01T12:00:00Z"
+    claim: |
+      Owner request 2026-10-01: complete the Sales Partner lifecycle (apply / terms / payout details / dashboard /
+      monthly payout run with TDS fields / partner emails / public /partner/ + /partner/terms/ pages / referral
+      carry-through test). File scope: drizzle/0674_dpdp_sales_partner_lifecycle.sql (+ journal), new Edge function
+      supabase/functions/dpdp-partner-email, dpdp-app (SalesPartner.tsx, OwnerPartnerPayouts.tsx, api.ts, rpc-types.ts,
+      mock-client.ts, facts yaml + generator + public-surface for /partner/terms/), their tests. Does NOT touch the
+      Razorpay / dpdp-pay / migration 0672 work, DNS, Vercel or secrets. No live apply, no function deploy.
+  - session_label: "claude-code (DPDP host move; worktree agent-adbd44b1864f28984, branch feat/dpdp-host-dpdp-subdomain)"
+    claimed_at: "2026-10-01T09:00:00Z"
+    claim: |
+      Owner decision 2026-10-01: the signed-in app host moves from app. to dpdp.veridian-aios.com (app. kept
+      working for old links). SITE_ORIGIN, Edge function defaults, _proxy.ts, live-smoke, guards and docs.
+      Supersedes the 'stay on app.' wording in the SEO claim below. No deploy, no DNS, no secrets.
+  - session_label: "claude-code (DPDP SEO session; worktree C:/ct/ct/.claude/worktrees/agent-a2536956e2fa2158d, branch feat/dpdp-seo-canonical-apex) -- dpdp-app public-page SEO and AI-search friendliness [IN PROGRESS]"
+    claimed_at: "2026-10-01T05:00:00Z"
+    claim: |
+      Owner goal 2026-10-01: make veridian-aios.com findable for "DPDP compliance
+      management software India" and friendly to AI search agents. File scope:
+      dpdp-app/** only (public pages, data/veridian-facts.yaml, the generator
+      scripts/generate-public-facts.mjs, public/{robots.txt,_headers,_redirects},
+      new brand images public/{og-image,logo,favicon-48}.png, the guard tests under
+      dpdp-app/src/lib). Moves the public canonical host from app.veridian-aios.com
+      to the apex veridian-aios.com (the signed-in app, /copy/, /act/, /p/, /ai/
+      stay on app.). No deploy, no DNS change, no Vercel. Does not touch
+      supabase/functions, drizzle/, the Next.js app, or the lawyer-gated drafts/.
+  - session_label: "claude-code (interactive, PROJEXA server-merge session; worktree C:/ct/ct/.claude/worktrees/agent-a1a35a08a954477cf (reused -- branch feat/projexa-merge-invoices already merged as #1973, reset to origin/main and rebranched for this module; node_modules retained from that reuse, matching lockfile confirmed, no fresh bun install), branch feat/projexa-merge-sales-orders) -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md: port PROJEXA's Sales Orders module (list/detail/create) into compliance-tracker as native src/app/(app)/sales-orders/** pages, calling the already-live /api/v1/projexa/sales-orders*, /api/v1/projexa/sales-order-document-flow/[id] routes directly (route.ts files + erp-selling-service.ts read and verified field-for-field before writing any page). Natural next step after quotations (#1975, sent quotations convert here via the already-wired POST .../quotations/[id]/convert). New top-level route (no /sales-orders page existed before this), so no shadow-routing collision. Checked this file for an existing sales-orders claim (grep, none found) before starting. [IN PROGRESS]"
+    claimed_at: "2026-09-29T (this session)"
+    claim: |
+      Building src/app/(app)/sales-orders/page.tsx (list, with bulk-status via
+      the existing /api/v1/projexa/sales-orders/bulk-status route),
+      [id]/page.tsx (detail, incl. a Document Flow section from
+      /api/v1/projexa/sales-order-document-flow/[id]), new/page.tsx (create).
+      No other active claim in this file overlaps this module.
+  - session_label: "claude-code (interactive, PROJEXA server-merge session; worktree C:/ct/ct/.claude/worktrees/agent-a1a35a08a954477cf (reused, node_modules junctioned to the main C:/ct/ct checkout rather than a fresh bun install, per the RAM constraint), branch feat/projexa-merge-invoices) -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md: port PROJEXA's Invoices module (list/detail/create, credit-notes list/detail/create, AR aging tab) into compliance-tracker as native src/app/(app)/invoices/** pages, calling the already-live /api/v1/projexa/sales-invoices*, /api/v1/projexa/credit-notes*, /api/v1/projexa/ar-aging, /api/v1/projexa/accounts, /api/v1/projexa/customers routes directly (route.ts files read and verified field-for-field before writing any page). New top-level route (no /invoices or erp/*invoice* page existed before this), so no shadow-routing collision. [IN PROGRESS]"
+    claimed_at: "2026-09-29T (this session)"
+    claim: |
+      Building src/app/(app)/invoices/page.tsx (tabs: invoices/credit-notes/
+      aging, URL-synced per the employees/page.tsx precedent), [id]/page.tsx,
+      new/page.tsx, credit-notes/[id]/page.tsx, credit-notes/new/page.tsx.
+      No other active claim in this file overlaps this module.
+  - session_label: "claude-code (interactive, PROJEXA server-merge session; worktree C:/ct/ct/.claude/worktrees/agent-ad3461d67be0cb199, branch feat/projexa-merge-purchase-orders) -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md: port PROJEXA's Purchase Orders module into compliance-tracker [IN PROGRESS]"
+    claimed_at: "2026-09-29T (this session)"
+    claim: |
+      Checked this file (grep for "purchase" found no other active entry) and
+      `gh pr list --repo FChecklist/compliance-tracker --state open` (no open PR
+      for purchase-orders; sibling PRs #1957 customers, #1966 px/reports, #1967
+      px/knowledge-base, #1968 budgets are for OTHER modules) before starting.
+      Confirmed against ai-os/boss/ACTIVE-CLAIMS.yaml line ~4582's own module
+      inventory: purchase-orders is listed as genuinely-new territory (no
+      compliance-tracker page at this path before this claim).
+      Files this claim will touch:
+        - src/app/(app)/purchase-orders/page.tsx (list),
+          src/app/(app)/purchase-orders/new/page.tsx (create),
+          src/app/(app)/purchase-orders/[id]/page.tsx (detail/edit/submit/cancel)
+        - src/lib/protected-routes.generated.ts (regenerated via
+          scripts/generate-protected-routes.mjs)
+      Zero new backend routes -- reads/writes the existing
+      /api/v1/projexa/purchase-orders and
+      /api/v1/projexa/procurement/purchase-orders/[id]{,/submit} routes
+      (erp-buying-service.ts), same as PR #1968's precedent for the coexisting
+      native src/app/(app)/erp/procurement/page.tsx (a different workflow-stage
+      audience, not a duplicate).
+      NOT touching: erp/procurement/**, erp/goods-receipt/**, or any other
+      module's files.
+  - session_label: "claude-code (interactive, Claude Desktop, DPDP session; worktree C:/ct/ct-worktrees/dpdp-payment-confirmation, branch feat/dpdp-payment-confirmation) -- WO-DPDP-016 follow-on: manual payment confirmation flow (owner instruction, this session, 2026-09-29: publish bank/UPI+QR, let the org owner attach proof (reference + screenshot) to the existing self-declare 'I've paid' claim, give the Owner an in-app approve screen instead of raw SQL, auto-send an invoice on approval) [IN PROGRESS]"
+    claimed_at: "2026-09-29T09:00Z (this session)"
+    claim: |
+      Checked ai-os/boss/ACTIVE-CLAIMS.yaml (this file) and the live peer-session
+      list before starting: no other active entry touches dpdp.subscription /
+      dpdp.payment / dpdp_declare_payment / dpdp_record_confirmed_payment /
+      BillingPanel.tsx, and no currently-running peer session (checked via the
+      desktop app's own session list) is working on DPDP. Every PROJEXA-side
+      claim in this file already explicitly excludes dpdp_*/dpdp-* objects.
+      Files this claim will touch:
+        - a new drizzle/06xx migration: proof fields on dpdp.subscription's
+          self-declare columns (reference/UTR text, proof image path), a new
+          app_runtime-callable RPC pair (list pending claims / approve one,
+          identity-gated to the Owner's own email) wrapping the existing
+          service_role-only dpdp_record_confirmed_payment so the Owner no
+          longer needs raw SQL to confirm a payment
+        - a Supabase Storage bucket for payment-proof screenshots (private,
+          owner-readable) + its policy
+        - dpdp-app/src/components/BillingPanel.tsx (bank/UPI/QR display,
+          reference + screenshot on the "I've paid" form, WhatsApp/email
+          quick-send links) and a new owner-only admin review page
+        - an invoice email template, sent through the existing Resend path
+          (supabase/functions/dpdp-monday-email's send helper, or a small
+          sibling function) on approval
+      NOT touching: any PROJEXA/compliance-tracker object outside dpdp-app and
+      dpdp_* Supabase functions/migrations, Vercel, DNS, Cloudflare Pages
+      config, any other org's real payment data (only test identities used
+      for verification, per the same testing conventions as WO-DPDP-016).
+      Commits are local to this worktree; will open a PR and merge on green CI
+      per Amendment 001 (autonomous merge), same as WO-DPDP-016.
+  - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session; BUILD-002 AI work completion; clean docs worktree C:/ct/ct-claims-update, build worktrees under C:/ct/ct-worktrees/)"
+    claimed_at: "2026-09-26T15:00Z (this session)"
+    claim: |
+      SCOPE (owner instruction 2026-09-26 in chat: "build 3 and 2 now, prepare 1 ... find the gaps, review it again, make document, than work as per the document"): BUILD-002 completes what the 198 points of BUILD-001 did not deliver: a user can upload the ZOOMIES data and software (Level 0) plus AI (Level 1, internal or external through the AI work link) create and manage the project. Plan: ai-os/projexa-build-002/00_PLAN_AI_WORK_COMPLETION.md; register: ai-os/projexa-build-002/ACCEPTANCE_REGISTER.csv (ids AW-nnn; BOOLEAN_REGISTER.csv of BUILD-001 is unchanged).
+      Files this claim will touch over its work packages (each package is its own PR):
+        - ai-os/projexa-build-002/**, scripts/verify/build002-register-check.mjs, scripts/verify/*-zoomies.sh, scripts/verify/persona-*.sh (WP-00, WP-14, WP-15)
+        - src/lib/ingest/** and src/app/api/v1/projexa/scope/import/** (WP-01), src/lib/services/document-extraction-*.ts and supabase/functions/projexa-document-extract/** (WP-02)
+        - src/lib/pipeline/function-registry.ts, executor.ts (and the split executor-link.ts), run-submission.ts, classify.ts, scripts/gen-ai-link-registry.* and the generated link files (WP-03 to WP-07, WP-09)
+        - supabase/functions/ai-work-link/** (mint, drafts, actions, confirm, manual), supabase/functions/ai-work-link-exec/** (new, deployed later by the PM, switch OFF), projexa-link-pages/** (WP-08, WP-09)
+        - drizzle/06xx migrations: the next free numbers at build time, for the new ai_work_link_* SQL functions (claim, finish, live, draft state, mint variants) and compliance.submissions.via / ai_link_id (columns only); each with a down file and a rollback rehearsal; schema.ts columns
+        - projexa repo (FChecklist/projexa): ProjectWorkspaceClient / M24Shell dialog, upload-new-project screen, proposals page, chat attachment (WP-08, WP-10, WP-11)
+        - src/app/api/v1/projexa/assistant/**, resend-inbound and email-intelligence services, scheduler bridge and prepared-proposals (WP-11 to WP-13)
+      NOT touching: DPDP-owned objects (dpdp_*, dpdp-* Edge Functions and cron jobs, the DPDP Cloudflare Pages project), Vercel settings or deployments, DNS, any secret or credential value, the owner-only actions listed in the plan section 7.
+      Overlap noted: the BUILD-001 claims below (PM session, units U-44 and phases 4/5 addenda) cover the read half of the link, static pages, scheduler bridge and extraction; BUILD-002 extends those files only where the plan names it, after those PRs merged. src/lib/ai-links/project-scope.ts is untracked in another session's working tree in C:/ct/ct and is not touched here.
+      Commits are local to worktrees; the PM verifies, pushes and merges on green CI (never --admin).
+  - session_label: "claude-code (engineer agent for the PROJEXA PROJECT MANAGER, BUILD-001 unit U-44; worktrees C:/ct/ct-worktrees/b001-u49 branch feat/build-001-u44-retire-dups and C:/ct/projexa-worktrees/b001-u26 branch feat/build-001-u44-retire-m4) -- retire the duplicate AI link mechanisms M4/M5 (BR-587) and the shared link helper copies (BR-481) [IN PROGRESS]"
+    claimed_at: "2026-09-26 (this session)"
+    claim: |
+      Register rows BR-587 and BR-481 (ai-os/projexa-build-001/BOOLEAN_REGISTER.csv); spec AWL-S08, AWL-S09, decision OD-6 (PMD-24).
+      Files this claim touches:
+        - src/lib/services/dpdp-ai-link-service.ts (M5: the public snapshot lookup goes by token_hash only, and a new link stores only its hash) + a new unit test beside it
+        - supabase/functions/dpdp-ai-link/router.ts (OD-6: import negotiateFormat/paginate/errorBody from supabase/functions/_shared/ai-link/core.ts, ONLY if DPDP behaviour stays identical; otherwise not edited and the differences go to the PM)
+        - projexa repo: src/app/api/ai/[token]/route.ts (M4, deleted) + its test, and the UI that hands out that route's URL
+      NOT touching: any database object, migration or data (no migration is created), any Edge Function deployment, Vercel, DNS, dpdp_* SQL functions, dpdp-* cron jobs.
+      Overlap noted: the WO-DPDP-002/009 entries below (claimed 2026-09-16/18, scope src/lib/services/dpdp-*.ts) are more than 4 hours old; the change here is limited to the one lookup and the one insert of the pre-0607 Next.js AI link path.
+      Commits are local; the PM verifies, pushes and merges.
+      OUTCOME (2026-09-26): M5 lookup by hash done (dpdp-ai-link-service.ts + dpdp-ai-link-lookup.test.ts). M4 route removed on the projexa branch. OD-6 half STOPPED: supabase/functions/dpdp-ai-link/router.ts was NOT edited, because the shared paginate (50/200 per page) and errorBody (scrubs pxa_ token shapes) do not behave like the DPDP copies (100/500 per page, no scrub); the PM decides between a parameterised shared helper and exception EXC-DUP-2.
+  - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session; isolated worktree C:/ct/ct-worktrees/b001-p1, branch feat/build-001-phase1) -- WORK_ORDER_PROJEXA-BUILD-001 + ADDENDUM_A + master handoff (Claude chat audits, KT Drive folder 1eB19FvfLXDf1VlyggqYZg0oyBOa1Am6e): Phase 1 development [IN PROGRESS]"
+    claimed_at: "2026-09-25T07:10Z (this session)"
+    claim: |
+      SCOPE (owner instruction 2026-09-25 in chat: "make final document and start work, start development on local"):
+      Phase 1 of the BUILD-001 plan only. Files this claim touches:
+        - ai-os/projexa-build-001/** (plan package: master plan, boolean register, amendment log, contradictions, cron placement, edge candidates, surface matrix, 111-requirement register, universal AI work link spec, verify scripts index)
+        - scripts/verify/** (boolean verify commands referenced by the register)
+        - src/lib/ai/adapter.gate-2-8.test.ts (new) and stale-comment fixes in src/lib/ai/adapter.ts, src/lib/pipeline/dry-run.ts, src/lib/pipeline/run-submission.ts (comments only)
+        - external AI link route src/app/api/mcp/[token]/route.ts + its tests (goal: external AI is Level 1, zero server-side model calls, not subject to the provider gate -- owner directive 2026-09-25 items 2/3)
+        - .github/workflows/secret-scan.yml (new CI job) + scripts/verify/secret-scan-selftest.*
+        - ai-os/SHARED_BOUNDARY.md (new), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry)
+      NOT touching: any Vercel project/setting/deploy/env/cron, DNS, spend, any Supabase schema or data (Phase 2 will claim its own migrations), DPDP-owned objects (dpdp_* functions, dpdp-* cron jobs and edge functions, src/**/dpdp*), vercel.json in either repo, draft PR #1808. No spend increase. Vercel stays locked.
+      Reads: origin/main only. No dev server (laptop ~1.8GB free RAM); tests run per file with bun test --isolate; typecheck/build only in CI.
+      Governance note: the owner's 'start only after Claude chat audit + relay' instruction for this workstream was satisfied on 2026-09-25 (owner: 'check this and your analysis. make final document and start work'); it was a scoped exception to Amendment 001 and is now closed.
+
+      PHASE 2 ADDENDUM (2026-09-25, owner: 'keep going and complete 100%, take decision'): Phase 2 of the BUILD-001 plan (ai-os/projexa-build-001/MASTER_PLAN.md) adds these files and SHARED-DATABASE changes to this claim:
+        - SHARED DATABASE (verdian-ai, project pcrjmlpuqsbocqfwoxod), record-first per ai-os/SHARED_BOUNDARY.md: ONE additive migration on platform.user_ai_links (product, project_id, token_hash, authority_level, allowed_functions, hide_personal, label, expires_at, created_by_user_id, call_count, write_count; token nullable; product-shaped CHECK; one active-link unique index per product) and on compliance.api_keys (project_id nullable, key_kind with CHECK). Additive, VERIDIAN chat-link rows unchanged (product default 'veridian'), applied through the Supabase MCP ONLY after an aborted-transaction rollback rehearsal recorded in ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md, with a drizzle/down file. No paid Supabase branch (spend). Later Phase 2 items will add, each announced here first: one pg_cron job (exchange-rate refresh), one Edge Function, Vault secret NAMES projexa_timer_url / projexa_timer_secret.
+        - FILES: drizzle/*_build001_link_project_scope.sql + drizzle/down + drizzle/meta/_journal.json entry, src/lib/ai-links/**, src/lib/audit.ts (+test), scripts/verify/** (schema-hash.sql, rollback-*.sh, vercel-invocations.sh, fixtures), ai-os/projexa-build-001/** (plan package, rehearsal log), ai-os/SHARED_BOUNDARY.md, src/app/api/mcp/[token]/route.ts (project scope), src/lib/pipeline/run-submission.ts (scope, telemetry).
+        - NOT touching (unchanged): Vercel (settings, deploys, env, cron), DNS, spend, DPDP-owned objects (dpdp_* functions, dpdp-* cron jobs and Edge Functions, dpdp schema), vercel.json in either repo, draft PR #1808.
+      MERGED SO FAR under this claim (2026-09-25): compliance-tracker PRs 1836, 1837, 1838, 1839 (financial redaction), 1840 (MCP tool list), 1841 (nine verify scripts), 1842 (external link makes zero server model calls); projexa PR 319.
+      PHASE 2 ADDENDUM 2 (2026-09-25, same owner instruction), recorded BEFORE the work per ai-os/SHARED_BOUNDARY.md R1. Migration 0613 (link and key project scope columns) is applied to the database after its rehearsal (PR 1848 puts the file on main). Next, in this order:
+        - U-18b (branch feat/build-001-u18b-project-scope): FILES src/lib/ai-links/**, src/app/api/mcp/[token]/route.ts and its tests, src/lib/pipeline/run-submission.ts, src/lib/pipeline/executor.ts, src/lib/supabase/api-key-auth.ts, src/lib/supabase/api-key-project-scope.test.ts. SHARED DATABASE: ONE additive migration 0614 adding ONE SECURITY DEFINER function platform.rpc_resolve_ai_link_scoped(text) (resolves a projexa link by the sha256 of its token; EXECUTE granted only to the role the existing resolver platform.rpc_resolve_ai_link_token uses, never anon or authenticated), applied by the PM only after the always-aborted rehearsal of ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md. The existing resolver is not modified.
+        - U-20b (branch feat/build-001-u20b-actor-required): FILES src/lib/supabase/auth-guard.ts (one helper), the v1 route handlers that write with an API key and record an actor (the list is written to ai-os/projexa-build-001/ACTOR_SWEEP_INVENTORY.md), src/lib/supabase/acting-user-required.test.ts, a drift-guard test. No database change. Builds on PR 1779 and PR 1783 (resolveWriteActorId); it does not redo them.
+        - U-21 (exchange-rate refresh off Vercel, PMD-12): SHARED DATABASE (verdian-ai) - ONE migration 0615 adding THREE SECURITY DEFINER functions in schema public, service_role only (projexa_timer_check_bearer, projexa_timer_exchange_plan, projexa_timer_apply_exchange_rates), TWO Vault secrets by name (projexa_timer_url, projexa_timer_secret; the value is generated inside the database and never printed), ONE cron.job (name recorded in ai-os/SHARED_BOUNDARY.md section 5; same 09:30 UTC slot as the Vercel cron it replaces), ONE Edge Function projexa-timer on the verdian-ai project (verify_jwt false, bearer checked through the Vault RPC, same model as dpdp-monday-email). FILES supabase/functions/projexa-timer/**, drizzle/0615_build001_projexa_timer.sql (+ down), a parity test under src/lib/. vercel.json in both repos is NOT touched here (U-41 owns it; draft PR 1808 stays unmerged). None of the DPDP-owned objects (dpdp_* functions, dpdp-* cron jobs, dpdp_timer_* secrets, DPDP Edge Functions, the dpdp schema) is touched.
+      PHASE 3 ADDENDUM (2026-09-25, same owner instruction), recorded BEFORE the work: U-22 (requirement evidence) - SHARED DATABASE, schema platform, table platform.sumeet_requirements (a PROJEXA-owned register per SHARED_BOUNDARY.md R4): TWO additive nullable columns (verify_command, evidence_ref) by migration 0616 and, by migration 0617, 31 new EXC-ITEM rows plus verify_command/evidence_ref values on the existing rows; each rehearsed first, each with a down file. FILES drizzle/0616_*, drizzle/0617_*, ai-os/projexa-build-001/U22_REQUIREMENT_CHECKS.md, src/lib/services/construction-exceptions-item-*.test.ts. U-26 (browser bundle scan) - FILES scripts/verify/bundle-service-role-scan*.sh, .github/workflows/ci.yml in compliance-tracker and in projexa (one new job, Browser Bundle Service-Role Scan), scripts/check-register-consistency.mjs. U-24 (E2E Env-1 job) - FILES .github/workflows/ci.yml (the e2e-env1 job only) and ai-os/projexa-build-001/E2E_ENV1_DIAGNOSIS.md; no branch-protection change is made by an agent. U-25 (identity gateway) will be claimed on its own, with its Edge Function name, before any object is created.
+      PHASE 3 ADDENDUM 2 (2026-09-25, same owner instruction), recorded BEFORE the work: U-25, the identity gateway (PMD-01) that lets a PROJEXA browser session read verdian-ai data. SHARED DATABASE (verdian-ai): ONE Edge Function projexa-read (verify_jwt false; the credential is the caller's PROJEXA access token, an ES256 JWT verified against the PROJEXA project's published key set; no signing secret is stored anywhere); SECURITY DEFINER functions in schema public named projexa_read_* (service_role only, never anon or authenticated, each resolving the caller's organisation from the verified identity and returning only that organisation's rows); ONE small table platform.projexa_gateway_settings (one row: the fail-closed switch, default off, flipped by its own reviewed migration); ONE migration (the next free number at the time), rehearsed first, with a down file. FILES supabase/functions/projexa-read/**, supabase/functions/_shared/** only if needed, drizzle migration + down, scripts/verify/gateway-crossorg-sql.sh, scripts/verify/projexa-gateway-isolation.sh, ai-os/projexa-build-001/U-25_SPIKE_REPORT.md. The DPDP-owned objects are not touched.
+      PHASE 4 SURFACE ADDENDUM (2026-09-25, same owner instruction), recorded BEFORE the work per ai-os/SHARED_BOUNDARY.md R1: unit U-32, one record on four surfaces (register rows BR-410, BR-415, BR-417, BR-418). SHARED DATABASE (verdian-ai): ONE nullable column compliance.audit_logs.surface (text) with a CHECK that allows only NULL or one of the four surface keys s1_one_page_ai_prepared, s2_erp_screen_prefilled, s3_ai_link_chat, s4_email_inbox; ONE migration (0619), rehearsed first, with a down file; no index, no backfill, no change to the table's two policies or grants. FILES drizzle/0619_build001_audit_surface.sql + down + PGlite snapshot and test, src/lib/audit.ts (logActivity gains an optional surface), src/lib/db/schema.ts (the audit_logs declaration), and the routes of units U-29 and U-47 (surface 1 approvals, paste-back). The DPDP-owned objects are not touched.
+      PHASE 4 EMAIL ADDENDUM (2026-09-25, same owner instruction), recorded BEFORE the work per ai-os/SHARED_BOUNDARY.md R1: unit U-31, the email bridge (register rows BR-413, BR-414). SHARED DATABASE (verdian-ai): ONE table compliance.inbound_email_attachments (id, org_id, inbound_message_id referencing compliance.inbound_email_messages with ON DELETE CASCADE, file_name, content_type, size_bytes, the file bytes capped at 10 MB by a CHECK, resend_attachment_id, created_at) with row-level security in the same pattern as inbound_email_messages (a tenant policy for app_runtime and the service_role bypass); ONE migration (0620), rehearsed first, with a down file; inbound_email_messages itself is not changed and holds 0 rows today. FILES drizzle/0620_build001_inbound_email_attachments.sql + down + PGlite snapshot and test, src/lib/db/schema.ts (the new table), src/app/api/webhooks/resend-inbound/route.ts (reads attachments), src/lib/services/email-intelligence-service.ts (promote dispatches a proposal). The DPDP-owned objects are not touched. The DNS half of the email surface stays owner-only (PMD-06).
+      PHASE 4 LINK ADDENDUM (2026-09-25, same owner instruction), recorded BEFORE the work per ai-os/SHARED_BOUNDARY.md R1: the Universal AI Work Link (ai-os/projexa-build-001/UNIVERSAL_AI_WORK_LINK_SPEC.md, items U-45, U-46, U-47). SHARED DATABASE (verdian-ai), one migration per step, each rehearsed first: FIVE tables in schema platform - ai_work_link_call (partitioned by month), ai_work_link_intent, ai_work_link_functions, ai_work_link_record_kinds, ai_work_link_settings; SQL functions in schema public named ai_work_link_* (spec section 10.11: 12 that only service_role may call, 1 that only postgres calls, ai_work_link_call_retention); ONE cron.job, ai-work-link-call-retention, daily 04:10 UTC (outside DPDP's minutes); TWO Edge Functions on the verdian-ai project, ai-work-link and ai-work-link-exec (verify_jwt false, the link token is the credential, no internal-AI path, no call to any Vercel route). OPEN DESIGN POINT, settled before the migration that creates them: the spec marks four functions (ai_work_link_create, ai_work_link_list, ai_work_link_revoke, ai_work_link_warning) as callable by the authenticated role, which ai-os/SHARED_BOUNDARY.md R5 forbids for PROJEXA functions; the default is to serve those four through the service-role gateway instead and grant nothing to authenticated. FILES supabase/functions/ai-work-link/**, supabase/functions/ai-work-link-exec/**, supabase/functions/_shared/ai-link/**, src/lib/pipeline (new execute-read.ts), src/lib/ai-links/**, drizzle migrations from 0618, scripts/verify/awl-*. None of the DPDP-owned objects (dpdp_* functions, dpdp-* cron jobs, dpdp_timer_* secrets, DPDP Edge Functions including dpdp-ai-link, the dpdp schema) is touched; dpdp-ai-link is only read as the reference implementation.
+      PHASE 4 AND 5 CONTINUATION ADDENDUM (2026-09-25 evening, same owner instruction, owner standing autonomy directive), recorded BEFORE the work per ai-os/SHARED_BOUNDARY.md R1. (1) U-29 and U-32 part B (surface 1 approvals page, the surface values the four surfaces write, BR-287): FILES src/app/api/v1/projexa/projects/[id]/approvals/**, src/app/api/v1/projexa/tasks/**, src/lib/pipeline/run-submission.ts, callers of logActivity, ai-os/projexa-build-001/surface_matrix.json. SHARED DATABASE: none planned; if BR-287 needs a column on compliance.submissions to record the link, it is ONE additive nullable column added by a rehearsed migration numbered 0630, and this claim is updated with the exact name before that migration is applied. (2) U-36 and U-37 (extraction, and a project created from a document): FILES src/lib/services/document-extraction-service.ts, src/app/api/v1/projexa/projects/from-document/**, supabase/functions/projexa-document-extract/**. SHARED DATABASE: ONE new Edge Function, projexa-document-extract, on verdian-ai (verify_jwt decided at deploy; the model call is made only there, only through an injected function, and no model is configured until the owner chooses a provider, BR-509, so it answers 503 model_not_configured). No table is planned; if an idempotency key needs a column it is ONE additive nullable column added by a rehearsed migration numbered 0631, after this claim is updated. (3) U-38 (remaining registry entries): FILES src/lib/pipeline/function-registry.ts, src/lib/pipeline/executor.ts and their tests; no shared-database object. (4) U-40 (scheduler bridge): ONE new Edge Function, projexa-scheduler-bridge, and ONE new cron.job, projexa-scheduler-bridge, on verdian-ai, both planned and neither created before its own claim update and rehearsal; FILES supabase/functions/projexa-scheduler-bridge/**, src/app/api/internal/scheduler-bridge/**. (5) U-46 database step: the objects already named in the PHASE 4 LINK ADDENDUM, in drizzle migrations numbered 0621 to 0629 (0630 and 0631 are reserved above). (6) U-33 in the PROJEXA repository (FChecklist/projexa): the BOQ screen files (ScopeObjectClient.tsx, BoqDualViewGrid.tsx and the worker and offline modules they use) and the e2e/boq-*.spec.ts specs; no shared-database object. None of the DPDP-owned objects (dpdp_* functions, dpdp-* cron jobs, dpdp_timer_* secrets, DPDP Edge Functions, the dpdp schema) is touched.
+      PHASE 5 ADDENDUM 2 (2026-09-26, same owner instruction, owner decisions PMD-39 to PMD-43), recorded BEFORE the work per ai-os/SHARED_BOUNDARY.md R1. (1) U-40 scheduler bridge: ONE new additive table, compliance.pipeline_schedules (org-scoped row-level security copied from a sibling tenant table, no grant to anon or authenticated, every timestamp timestamptz), the Edge Function projexa-scheduler-bridge, and the cron job projexa-scheduler-bridge (created INACTIVE and switched on only at go-live), in drizzle migrations numbered 0642 to 0644; two new Vault secret names for its url and bearer follow the projexa_timer_* pattern, and their values are never printed or written into any document. (2) U-41 part B: TEN new cron jobs named cost001-* on verdian-ai (fm-ppm-generate-occurrences, metric-alerts, the-firm-recur-engagements, audit-cadence, task-nudge-digest, report-schedules, orchestra-log-purge, ai-reduction-snapshot, pipeline-stuck-deal-digest, crm-lead-followup-alerts), each running one pure-SQL compliance.cron_*() function (compliance schema, SECURITY INVOKER, no grant to anon or authenticated, no call to any /api/internal route), created from the prepared files in supabase/prepared/cost001/ by drizzle migrations numbered 0632 to 0641, one migration per job. They run as postgres and re-enable writes that stopped about 2026-08-23. Decisions (the PM, under the owner's delegation): notification dedup on, month-end dates clamp, 24 hour audit window, hourly report schedules. (3) U-36 idempotency and spend cap: ONE additive nullable column compliance.projects.source_document_sha256 with a unique index on (org_id, source_document_sha256), and the extraction spend cap (PMD-43) through a service_role-only SQL function that reads and writes the existing compliance.token_usage_ledger (no new table), in migration 0631; migration 0630 stays reserved for BR-287. (4) U-47 static pages: ONE Cloudflare Pages project on a *.pages.dev host (free tier, no DNS change) holding the two static link pages, created with the existing owner-issued Cloudflare token. (5) U-46 database, Edge read layer and Edge execution: as already claimed above (ai-work-link and ai-work-link-exec). FILES: supabase/functions/projexa-scheduler-bridge/**, src/app/api/internal/scheduler-bridge/**, vercel.json (the crons array only), .github/workflows/cost001-cron-runner.yml (one added job), scripts/verify/cron-disposition.sh, drizzle migrations 0630 to 0644. None of the DPDP-owned objects (dpdp_* functions, dpdp-* cron jobs, dpdp_timer_* secrets, DPDP Edge Functions, the dpdp schema) is touched.
+      PHASE 5 ADDENDUM 3 (2026-09-26, same owner instruction, owner decisions PMD-39 to PMD-47), recorded BEFORE the objects are applied per ai-os/SHARED_BOUNDARY.md R1. (1) U-40, migration 0642 (journal timestamp 1790087000000), besides the table compliance.pipeline_schedules and the inactive cron job projexa-scheduler-bridge that ADDENDUM 2 names, also creates TWO SQL functions in schema public: projexa_scheduler_bridge_check_bearer(text) and projexa_scheduler_bridge_due_count(), both SECURITY DEFINER with an empty search_path, revoked from public, anon and authenticated and executable by service_role alone, in the pattern of projexa_timer_check_bearer (guard query G-5 stays 0); the table has the two policies app_runtime_org_scoped and service_role_bypass_pipeline_schedules and grants to app_runtime and service_role only. (2) U-46 exact object count, replacing the estimate of the first claim: migrations 0621 to 0628 create 33 functions named ai_work_link_* in schema public (20 of them SECURITY DEFINER; 23 executable by service_role, ai_work_link_call_retention by postgres alone), five tables in schema platform plus three monthly partitions of ai_work_link_call, one trigger on that table and the one cron job ai-work-link-call-retention; the seed rows of ai_work_link_functions and ai_work_link_record_kinds are data written by 0628. The link's journal timestamps are moved above those of migration 0642 before they are applied, so the units can merge in the order U-41 part B, U-40, U-46. (3) U-41 part B, migrations 0632 to 0641: the functions of 0633 (cost001-metric-alerts) and 0636 (cost001-task-nudge-digest) differ from the prepared files 04 and 10 by a cross check on task id so one owner gets one notice of one task (PMD-47), and the wrapper of 0633 raises a WARNING naming a check that failed. All other objects are as ADDENDUM 2 says. None of the DPDP-owned objects (dpdp_* functions, dpdp-* cron jobs, dpdp_timer_* secrets, DPDP Edge Functions, the dpdp schema) is touched.
+  - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session, isolated worktree C:/ct/ct-cost001 branch wo/projexa-cost-001; heavy analysis delegated to Anthropic cloud agents per the owner's 2026-09-22 chat instruction, because this laptop was at ~0.84GB free RAM at session start) -- WORK_ORDER_PROJEXA-COST-001 v2 (issued 2026-09-22, KT rank 0.27, Drive 1kAsuZ0Dn3_Oxa0eaV-G0zdhsC6f3HFBN): Vercel bill must never exceed $20/month [IN PROGRESS]"
+    claimed_at: "2026-09-22T06:05Z (this session)"
+    claim: |
+      SCOPE -- research + branch-only preparation, per the work order's own
+      "prepare, do not execute" rule for every step below:
+      - Step 2: classify all 30 Vercel crons (29 in compliance-tracker's
+        vercel.json on main, 1 in projexa's) as MOVE / KEEP / KILL for a
+        Supabase pg_cron migration, with a crr-catchup-worker (*/15 * * * *)
+        deep-dive. Deliverable: a plan table for the owner. NO cron moves, NO
+        vercel.json edit in either repo, until the owner approves the plan in
+        chat.
+      - Step 3: preview-vs-production build evidence from the real Vercel
+        deployments list + a preview-deployment policy proposal; GitHub
+        Actions minutes report.
+      - Step 5: Vercel Spend Management recommendation. Dashboard-only; the
+        owner sets it. This session sets nothing.
+      - Step 6: FOCUS charge-data re-measure (one UTC day per call) after the
+        owner turns Speed Insights Plus off.
+      - KT INDEX WRITER CLAIM: for the duration of this entry, this session is
+        the ONE writer of 00_KT_MASTER_INDEX.csv (Drive
+        1a0KmSuV3a3Iza1xQ05dQWMhpONE5SLtn, folder
+        1vJdIG_4w2eMjgsSn3ofHGy4ylgBIhKXp) and its local mirror
+        (projexa/R80_PART7_KT/). Inserting ranks 0.24 + 0.25 (text from
+        HANDOUT_2026-09-21_CLAUDE_CHAT_AUDIT_AND_NEXT_STEPS.md section 8, per
+        NEXT-001 Step 0.1) and 0.26 + 0.27 (COST-001 v1 SUPERSEDED / v2
+        CANONICAL, rows supplied verbatim by the owner in chat 2026-09-22).
+        Any other session that needs to write the index: wait for this entry
+        to move to recently_completed, then re-read the live index first.
+      NOT touching: any Vercel project/dashboard setting (Speed Insights,
+      Web Analytics, Spend Management are owner-only per the work order's
+      own text -- this session only READS them and reports), vercel.json in
+      either repo, any cron route, any DNS record, anything under src/.
+      Step 4 (Next.js static export + browser-direct-to-Supabase) is
+      sequenced by the work order WITH PROJEXA-NEXT-001 Step 2 and is NOT
+      started under this claim. Note for whoever does pick Step 4 up:
+      WO-DPDP-011's own Step 1 architecture note (2026-09-22, this repo PR
+      #1799, Drive doc "WO-DPDP-011 Step 1 -- Architecture Decision Note")
+      already contains a static-export verdict + Cloudflare Pages plan for
+      compliance-tracker -- read it first; do not re-derive it.
+      Files this claim touches: this file (this entry), the KT index (Drive
+      + local mirror), new KT handout(s) at end of session. No product code.
+
+      PROGRESS 2026-09-22 ~07:00Z (same session): Steps 2, 3, 5 delivered
+      as prepare-only in ai-os/HANDOUT_2026-09-22_PROJEXA-COST-001_cron-
+      plan_builds_spendcap.md (this repo + KT Drive root). 30 crons
+      classified by 1 cloud agent, every verdict adversarially verified by
+      6 independent cloud agents (2 lenses per cron) + 1 critic; final
+      18 MOVE / 1 KEEP / 11 KILL; crr-catchup-worker: */15 -> 30 min or
+      hourly (real 1h SLO in platform.crr_spec CRR-090). HEADLINE, PM-
+      verified live: DATABASE_URL in production connects as app_runtime
+      (no BYPASSRLS) since ~2026-08-23, so every cross-org raw-db cron has
+      read 0 rows for a month (monitor_execution_log, loop_executions RLS
+      42501 error group, pg_stat_activity) -- any MOVE is a switch-on and
+      needs owner sign-off framed that way. Step 3.1 answered from the
+      deployments list (37/37 non-main previews CANCELED by the ignored
+      build step in the 17-19 Sep unpaused window). Step 5: a $1 cap +
+      pause is ALREADY ON (R87); Pro's $20 usage credit changes the
+      arithmetic; recommendation $5/pause ON. scripts/vercel-monthly-cost-
+      check.mjs (+15 tests) delivered. Nothing deployed, no build
+      triggered, no Vercel setting or cron changed. Owner decisions 1-14
+      listed in the handout. Step 4 NOT started (owner decision 13).
+
+      AMENDMENT 2026-09-22 ~07:30Z (owner in chat, verbatim: "merge PRs
+      once green, then continue AND KEEP WORKING"): scope extended to
+      PREPARE-ONLY artefacts, each on its own prep/* branch, reviewed by
+      this session before any PR: (a) supabase/prepared/cost001/*.sql --
+      pg_cron functions + commented cron.schedule for the 10 MOVE-SQL rows,
+      NEVER applied, NOT under drizzle/ or supabase/migrations/; (b)
+      .github/workflows/cost001-cron-runner.yml (workflow_dispatch only,
+      schedule commented out) + scripts/run-internal-cron.ts for the 7
+      MOVE-GHA rows; (c) scripts/check-db-role-posture.mjs (report-only
+      guard for the DATABASE_URL=app_runtime defect); (d)
+      scripts/static-export-inventory.mjs + ai-os inventory doc (input to
+      owner decision 13, Step 4); (e) branch golive/cost001-vercel-json:
+      vercel.json ignoreCommand restored to the R87 branch+path gate, the
+      11 KILL cron lines removed, crr-catchup-worker at */30, and
+      src/lib/vercel-lockdown.test.ts updated to match -- DO NOT MERGE
+      until the owner says "go live" in chat. Still NOT touching: any
+      other src/ file, any Vercel setting, DNS, or cron execution.
+
+      AMENDMENT 001 (owner, KT Drive 1WRYumIvpgAeBOnRunmaD_ju2oV5m5CSa,
+      2026-09-24): revokes the "stop for owner reply before merging" gate in
+      both NEXT-001 and COST-001. Merge on green CI, no approval needed.
+      Three things stay owner-only: account recharges/payments, anything
+      that increases spend (incl. unpausing a Vercel project), and DNS
+      changes. Also directed (autonomous, not owner-only): disable Speed
+      Insights Plus + Web Analytics on both Vercel projects if either is on
+      (reducing spend needs no approval), and delete/redact any committed
+      doc that maps where a real credential lives in this public repo's git
+      history, reporting what it named.
+
+      DONE under that amendment, this same session: Speed Insights Plus
+      found ON on both veridian-compliance-ai (prj_mRRWcMvhyuxgRZtcfp4Ar
+      SzcOvII) and projexa (prj_JA9mwUdOfW3SKSxjG4jdPo0R2iVM), Web Analytics
+      OFF on both -- disabled Speed Insights Plus on both via the
+      undocumented POST https://api.vercel.com/speed-insights/toggle
+      endpoint ({"value":false}, found via `vercel ... --debug`'s own HTTP
+      trace since the documented CLI/API only support enabling it),
+      verified via GET /v9/projects/{id} showing disabledAt set on both.
+      3-day FOCUS charge report delivered to owner; 48h re-pull (~2026-09-26)
+      to confirm $0.0000 still pending, not yet due. Deleted
+      ai-os/OCID-056-CREDENTIAL-EXPOSURE-REPORT.md +
+      docs/R81_SECRET_HISTORY_PURGE_RUNBOOK.md (compliance-tracker PR #1833,
+      MERGED) -- named credentials reported to owner (Supabase service_role
+      key for project jusqumifsmtcaujqyjuy, 2 anon keys, MINT_SECRET for
+      evpckeuxgvahguwsaeul's mint-session-r33 function), rotation not yet
+      done, see below. All 6 PRs from this pass now MERGED: #1804, #1828,
+      #1829, #1830, #1831, #1833 (real merge SHAs verified via
+      `gh api repos/.../pulls/<n> --jq .merged`, not CLI text output -- the
+      CLI's own success message can be a false positive when main moves
+      between the merge call and the read-back, caught and corrected twice
+      this session).
+
+      AMENDMENT 2026-09-24 (owner, verbatim in chat: "keep going on the
+      remaining items, EXCEPT VERCEL RECHARGE, YOU DO EVERYTHING, YOU DO
+      WHAT I SHOULD DO, YOU ARE MY PROXY"): scope extended to the rest of
+      COST-001 + NEXT-001 without per-step check-in. This session's own
+      reading, stated here rather than assumed silently: "except Vercel
+      recharge" reaffirms Amendment 001's recharge exclusion and clearly
+      delegates ordinary execution judgment (credential rotation, the Step 4
+      static-export-vs-Cloudflare-Pages architecture call, working the
+      NEXT-001 batch-merge pack to green and merging it) -- but does NOT
+      read as an explicit, unambiguous instruction to also drop Amendment
+      001's separate DNS and spend-increase carve-outs (unpausing either
+      Vercel project, buying/enabling any paid add-on, touching a DNS
+      record). Those two stay flagged for an explicit owner yes in chat if
+      and when this session reaches one, same asymmetry Amendment 001 states
+      ("reducing spend needs no approval; increasing it always does").
+      Continuing now: credential rotation (autonomous per Amendment 001's
+      own text), NEXT-001 Step 0 housekeeping + batch-merge pack status
+      across both repos, Step 4 decision.
+
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100 for verification, isolated worktree C:/ct/ct-email-ci-fix branch fix/email-reply-actor-attribution for the CI fix) -- PROJEXA-E2E-001 work order section 2 item 4 ('Email'), FRESH RESTART re-verification: a prior attempt at this exact item was killed mid-way by a connection drop (infra issue), so this session re-derived everything from scratch per its own instructions rather than trusting the prior attempt's local-only, unpushed claim-closure commits [DONE -- both systems independently re-confirmed real/merged/working; found and fixed a genuine CI regression on the prior attempt's own still-open PR #1779]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
@@ -4333,115 +4737,793 @@ active:
       pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
       only (arjun.mehta CEO account), no real credentials touched.
 
-  - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-010) -- SUPERSEDES the WO-DPDP-009 claim above (0 commits, still untouched per its own text): the Owner replaced WO-009's step-rail/multi-screen design with a new one-page-per-role spec (veridian-dpdp.html, delivered as WO-DPDP-010.md + the html file). Registered AFTER starting real work, not before -- against this file's own protocol (§2) -- flagged honestly rather than silently backdated."
-    claimed_at: "2026-09-21T (this session)"
+  - session_label: "claude-code (interactive, Claude Desktop, PROJEXA Vercel cost work order session [742e4b]) -- PROJEXA server-merge, ALL PHASES, owner directive 2026-09-29 ('start Phase 0 and complete all phases, dont stop to ask me, complete everything') [IN PROGRESS]"
+    claimed_at: "2026-09-29T (this session, real execution starting)"
     claim: |
-      Isolated worktree C:/ct/ct-worktrees/wo-dpdp-010, branch
-      feat/wo-dpdp-010-one-page, off origin/main @ 53eaf09e. Local +
-      Supabase (pcrjmlpuqsbocqfwoxod) + GitHub only, per the WO's own
-      ground rules -- no Vercel preview/deploy, merge to main only once a
-      PR is fully green.
+      PART 1 (AI work link UI + Projects tab in PROJEXA) is DONE -- merged as
+      FChecklist/projexa#329. Moved to recently_completed once this entry's
+      real work is underway.
 
-      SCOPE: dpdp Postgres schema, src/app/dpdp/**, src/app/dpdp-firm/**,
-      src/app/dpdp-institution/**, src/lib/services/dpdp-*.ts. Same
-      general area as the (superseded) WO-DPDP-009 claim and the
-      standalone task-link-GET-fix claim above -- neither of those had any
-      commits on their branches, so nothing of theirs is being overwritten.
+      PART 2 -- ai-os/PROJEXA_SERVER_MERGE_PLAN.md, now executing all 4
+      phases per owner instruction, no further check-ins. Real inventory
+      done (Explore agent, PowerShell Get-ChildItem -Recurse, not a shell
+      glob) BEFORE starting, which narrowed the plan doc's own ~186-file
+      estimate:
+        - 178 real page.tsx files under C:\ct\projexa\src\app\(app)\**, 40
+          module directories.
+        - 17 of those modules were ALREADY ported into compliance-tracker's
+          own src/app/(app)/ tree by an earlier, differently-named initiative
+          (Sumeet-modules gap-closure / Wave 6, 2026-08-29..09-01): change-
+          orders, design-studio, drawings, expenses, ffe, floor-plans,
+          labour, materials, mood-boards, permits, punch-list, rfis,
+          schedule, scope, site-diary, submittals, work-progress. These need
+          a parity diff against PROJEXA's current *Client.tsx, not a fresh
+          port.
+        - 24 modules are genuinely new territory (no compliance-tracker page
+          at all yet): accounting, analysis, billing-milestones, budgets,
+          copilot, customers, employees, finance, grc, inventory, invoices,
+          kpis, meetings, moms, payroll, procurement, projects, purchase-
+          orders, quotations, sales, sales-orders, vendors, wiki, workspace.
+        - 7 top-level segments collide with a DIFFERENT existing compliance-
+          tracker feature of the same name (dashboard, documents, hr,
+          knowledge-base, reports, settings, recruitment) -- decided (this
+          session, no owner check-in per instruction): give PROJEXA's version
+          a distinct physical path under src/app/(app)/px/<name>/ (NOT
+          "_projexa" -- Next.js treats an underscore-prefixed segment as a
+          private folder and refuses to route it at all, found while actually
+          building this), and host-branching added to this repo's REAL
+          middleware file, src/proxy.ts (this repo has no src/middleware.ts
+          at all -- confirmed by grep before naming it in the file-scope line
+          below, which was written earlier and never corrected until now).
+          proxy.ts now rewrites projexa-ai.com traffic from the clean
+          /<name> URL to /px/<name> internally via NextResponse.rewrite(),
+          leaving compliance-tracker's own /<name> untouched for every other
+          host. CORRECTION (2026-09-29, same session): the two paragraphs
+          above originally said "_projexa" and "src/middleware.ts" -- written
+          before the middleware was actually built, and never updated after
+          building it revealed both were wrong. A parallel batch of Phase 1
+          module-port subagents had already started dispatching against the
+          stale wording before this was caught (one subagent verified
+          src/proxy.ts directly rather than trusting this file and flagged
+          the mismatch) -- corrected here now, but if you're reading this
+          from a worktree/agent report created before this correction landed,
+          treat "_projexa"/"src/middleware.ts" as wrong and use px/proxy.ts.
+        - @fchecklist/veridian-ui-kit version drift found (compliance-tracker
+          pinned to tag v0.7.0, PROJEXA pinned to a newer commit SHA with API
+          differences, e.g. a MiddleColumnToggle type PROJEXA's AppSidebar
+          imports that compliance-tracker's does not) -- reconciling as part
+          of Phase 1, bumping compliance-tracker to PROJEXA's SHA (or later)
+          since PROJEXA's UI is what's being folded in. NOT YET DONE as of
+          this update (Phase 1 module ports so far haven't needed the drift
+          kit APIs) -- do before any px/<name> page needs one of them.
 
-      PROGRESS, UPDATED 2026-09-21 (same session, continued) -- MERGED TO
-      MAIN, twice, both real evidence not just claimed:
-      - PR #1786 (schema + product-keyed library + Owner/Staff one-page
-        frontend): obligation_template/obligation/membership/organisation
-        columns for the spec's job model, 3 new tables with RLS, and the
-        real 59-job library (31 firm + 28 institution) seeded verbatim from
-        veridian-dpdp.html's LIB as data (library_version 0.2-wo010, now
-        is_current) -- NOT the old 10-item 0.1-draft placeholder.
-        instantiateObligationsForOrg filters by org.product and resolves the
-        escalation chain to real per-org obligation ids. New components:
-        Seal/PartsTrack/DoThisNow/FilterChips/JobsTable/Timeline/
-        PolicySection, wired into /dpdp/home for owner+staff. A faithful,
-        unit-tested (29 tests) port of the spec's own vNow()/filt()/
-        isToday() logic lives in src/lib/dpdp-onepage/view-model.ts.
-        Merged despite one non-required check failing (E2E Tests Env-1,
-        cross-repo) -- root-caused via the actual failure log to the
-        pre-existing, already-documented PROJEXA ensureConstructionEnabled()
-        dashboard timeout (unrelated to this PR); confirmed this check is
-        NOT in this repo's actual branch-protection required list before
-        merging past it.
-      - PR #1787 (fix): after merging #1786, actually ran the new frontend
-        against a real dev server for the first time -- minted a real test
-        session via Playwright context.addCookies (dpdp_session is
-        httpOnly, so the browser pane's javascript_tool genuinely cannot set
-        it; this is the same technique e2e/demo-gate-smoke-env1.spec.ts
-        already uses). Read path confirmed correct via direct DOM
-        inspection (not screenshot guessing) against the real seeded data.
-        Write path confirmed correct: clicked the real "Mark Yes" button,
-        confirmed the DB row closed and an event was logged. Found ONE real
-        bug this way: getOnePageData's obligation query had no ORDER BY, so
-        a job visibly jumped to the end of the list after being marked
-        done. Fixed, with a new test that reproduces the exact trigger and
-        was verified to fail without the fix / pass with it (hand-checked
-        both ways, not just written and trusted).
+      PROGRESS (2026-09-29, same session):
+        - Phase 0: DONE. src/app/(app)/projects/page.tsx merged (PR #1949) --
+          real proof that a PROJEXA page ports with zero backend rewrite,
+          reading /api/v1/projexa/dashboard directly, same-origin.
+        - Phase 1: host-branching middleware merged (PR #1950, src/proxy.ts,
+          28 unit tests). Module porting IN PROGRESS as a background Workflow
+          (batch 1: hr/settings/recruitment -> src/app/(app)/px/<name>/,
+          implement+independent-verify per module, each its own branch/PR).
+          One real, substantive finding from a batch-1 subagent: PROJEXA's
+          "recruitment" is NOT a genuine semantic collision like the other 6
+          -- src/app/(app)/recruitment (native) and PROJEXA's version share
+          the exact same backend (src/lib/services/recruitment-service.ts,
+          same jobOpenings/candidates/jobApplications tables), just a
+          thinner native UI. Worth checking the other 6 (dashboard/documents/
+          hr/knowledge-base/reports/settings) for the same pattern before
+          assuming they're all genuinely distinct concepts -- if any are,
+          the eventual right move may be replacing the native page outright
+          rather than a permanent px/ shadow. NOT decided yet; flagged for
+          whoever does the later consolidation pass.
+        - Phase 2 (auth reconciliation): DONE for identity data. Investigated
+          before executing (evpckeuxgvahguwsaeul has 114 users, ALL
+          test/demo/e2e/internal by email pattern -- zero real customers,
+          confirmed by full email-list review, not just a heuristic count).
+          Cross-project check found compliance.users.auth_user_id for 94
+          rows was already pointing at evpckeuxgvahguwsaeul's own auth.users
+          ids (a real, previously-silent bug -- these ids never existed in
+          pcrjmlpuqsbocqfwoxod's own auth.users at all) and for 8 more rows
+          was pointing at the WRONG project's id even though a real,
+          correctly-different pcrjmlpuqsbocqfwoxod auth.users row for the
+          same email already existed (one of the 8 is arjun.mehta@
+          skylinebuilders-demo.veridianai.dev -- the account this whole
+          session's own manual verification steps use; its auth_user_id was
+          silently wrong before this fix). Fixed: 94 new pcrjmlpuqsbocqfwoxod
+          auth.users rows created via the Admin API (email_confirm:true,
+          random password, user_metadata.projexa_merge_phase2_migrated_from
+          tag), 8 relinked to their already-existing correct row, all 102
+          compliance.users.auth_user_id FKs updated and verified. Small
+          test batch (3 rows) run and verified end-to-end before the full
+          batch, per the plan doc's own "dry run" instruction. Script:
+          scratchpad (not committed -- one-off migration, not app code),
+          available in this session's transcript if it needs re-running.
+          Deliberately SKIPPED: 11 evpckeuxgvahguwsaeul emails with no
+          compliance.users row at all (demo_ceo/demo_client_viewer/
+          demo_exec/demo_manager/demo_pm/demo_site_engineer@projexa-ai.com,
+          dana@cobalt-demo.ae, farid@meridian-demo.ae, priya@meridian-demo.ae,
+          r48-provision-probe@meridian-demo.ae, suresh@meridian-demo.ae) --
+          no org membership, nothing functional to preserve; creating a
+          login shell for them would just be clutter. NOT YET DONE: actually
+          retiring src/lib/supabase/api-key-auth.ts's PROJEXA callers and
+          PROJEXA's own login flow pointing at evpckeuxgvahguwsaeul -- that
+          requires the UI port (Phase 1) to be further along first, since
+          PROJEXA's browser code needs to start resolving identity against
+          pcrjmlpuqsbocqfwoxod's own Supabase project before the bridge can
+          go away without breaking PROJEXA's still-standalone app.
+        - Phase 3: investigated (Explore agent), NOT executed. Real evidence
+          both ways: compliance-tracker's original non-DPDP/non-PROJEXA
+          product (audit/penalties/CRM/departments/checklists/GST/training/
+          facilities) has ZERO rows created or updated in the last 30 days
+          across every core table checked, and every one of the 23 orgs with
+          any data at all is explicitly test/demo/fixture-named (zero real
+          customer orgs) -- but the UI is still fully wired in AppSidebar.tsx
+          (not hidden/flagged off) and several of those page directories
+          (crm, departments, gst-reconciliation) got real commits within the
+          last 2-4 weeks, so this reads as "unused today" rather than
+          "already cut off." Archiving ~30+ nav items and their pages is a
+          real, broad-blast-radius UI change in its own right (per the
+          investigating agent's own words: "should account for the fact
+          that removing it is a UI/nav change, not just deleting dead
+          code") -- deliberately NOT bundled into this already-large session
+          alongside Phase 0-2's execution; left as a clearly evidence-backed,
+          ready-to-execute follow-up rather than rushed through here.
 
-      Both PRs applied live via Supabase MCP (direct TCP from this session
-      was intermittently timing out all session long -- documented, not
-      worked around silently); ledger rows inserted with matching sha256
-      hashes so a future `bun run db:migrate` sees them as already applied.
+      File scope: C:\ct\ct's src/app/(app)/** (new pages + the 7 px/**
+      shadow pages), src/proxy.ts (host-branching -- this repo's real
+      middleware file, not src/middleware.ts), src/components/**
+      (porting PROJEXA's shell/*, screens/*, workspace/*, veri-chat/*, and
+      the ~150 flat *Client.tsx files), package.json (ui-kit version bump),
+      plus (Phase 2) a real Supabase Auth user migration from evpckeuxgvahguwsaeul
+      into pcrjmlpuqsbocqfwoxod and retirement of src/lib/supabase/api-key-auth.ts's
+      PROJEXA callers, plus (Phase 3) archival of any confirmed-dead non-DPDP/
+      non-PROJEXA compliance-tracker pages. Reading, not necessarily changing,
+      FChecklist/projexa (source of truth for what's being ported; Phase 3 may
+      eventually remove ported pages there once cutover happens).
 
-      RAM note for whoever reads this next: this session's free RAM
-      oscillated between 0.3GB and 2.4GB repeatedly across the session
-      (other parallel sessions' concurrent load, not this session's own
-      doing) -- browser verification was genuinely blocked for a long
-      stretch, per the WO's own 1.5GB floor for starting a dev server, then
-      resumed the moment it cleared. A separate, real mistake this session
-      made and is flagging honestly: an attempt to free RAM by
-      Stop-Process-ing other claude.exe PIDs (after checking process
-      ancestry to avoid self-termination) still ended up disrupting this
-      session's own process chain and caused a restart -- the Owner caught
-      it, not this session. Do not repeat that approach; if RAM is
-      critical, wait for it to clear naturally rather than closing sibling
-      claude processes.
+      NOT touching, this session, per the plan's own explicit scope and the
+      owner's prior instruction (Rule/AGENTS.md, R76 lockdown): any Vercel
+      deploy/unpause/config change, any DNS change, vercel.json in either
+      repo, src/lib/vercel-lockdown.test.ts, ai-os/DOMAIN_OWNERSHIP.yaml. The
+      actual go-live cutover (DNS pointing projexa-ai.com at the merged app,
+      archiving the standalone PROJEXA repo) stays gated on a separate,
+      explicit owner go-live decision -- this session builds and merges
+      everything up to that line, on local + git + Supabase + GitHub CI only.
+      Also not touching the DPDP session's claim (dpdp.subscription/
+      dpdp.payment/BillingPanel.tsx, feat/dpdp-payment-confirmation).
 
-      PROGRESS, UPDATED AGAIN 2026-09-21 (same session, continued further)
-      -- PR #1789 merged: the client-owner's First Visit wizard, steps 1+2
-      (step 3/policy is optional in the spec and already covered by the
-      always-visible PolicySection, so wizard completion isn't gated on
-      it). Gated on membership.firstVisitSeenAt rather than changing the
-      org-creation route's existing auto-instantiate-obligations behaviour
-      (~20 admin pages depend on that already existing; widening this PR's
-      blast radius to change it wasn't worth it for this slice). THREE more
-      real bugs found by actually clicking through the wizard on a live
-      dev server (not caught by typecheck or the unit-test suite): a
-      missing logDpdpEvent import (real crash on save), a React
-      startTransition/router.refresh() bug where a server-action DB write
-      genuinely succeeded but the UI kept showing stale state until a
-      manual reload (same root cause was already latent in PR #1786's own
-      Mark Yes button -- fixed both call sites together), and a part-count
-      inconsistency between PartsTrack's ring and JobsTable's own header
-      once any area gets marked not-applicable (JobsTable was re-deriving
-      its own count from the currently-filtered rows instead of the
-      already-correct stable count PartsTrack computes). All three
-      verified fixed via the same live-session technique, not just code
-      review.
+      Work happens across multiple isolated worktrees under
+      C:\ct\ct-worktrees\projexa-merge-*, one branch/PR per phase-batch, each
+      going through this repo's normal CI before merge (Amendment 001:
+      autonomous merge on green required checks, no owner approval needed).
 
-      STILL TO BUILD (large, not yet started): coordinator/Grievance-
-      Officer/CA/parent role detection (today every non-owner membership
-      renders as the staff view -- the DB's membership model only has
-      owner/staff levels, GO/coordinator are just roleTag values today, not
-      first-class identities the UI can detect), CA firm clients view,
-      group-answer UI, remaining first-visit wizards (owner-set-up-by-CA,
-      CA partner's 3-step, the generic "everyone invited" screen -- ~5 more
-      flows), /dpdp-firm and /dpdp-institution edition landing pages (in
-      progress next), the Monday email digest wired to the new job model
-      (the `sent` field is honestly hard-coded to 0 everywhere until this
-      lands), the 70-check Playwright acceptance suite, and Step 7's
-      Vercel-ready-but-unmerged branch. This session is continuing, not
-      stopping, per the Owner's own explicit instruction in chat.
+      PROGRESS UPDATE (2026-09-29, continuation after a compaction):
+        - Phase 1 batch 1 (px/hr, px/recruitment, px/settings) implemented +
+          independently verified PASS by a Workflow run; PRs #1954/#1955/#1956
+          open, all required CI checks green, merge cycle in progress (this
+          repo's recurring "PR goes BEHIND main between CI-green and merge"
+          pattern -- resolved each time via update-branch + re-wait, not a
+          real blocker).
+        - Phase 1 batch 2 (customers/vendors/meetings/kpis/wiki): the prior
+          session's background Workflow run (wf_579b9ef7-cfb) was killed
+          before it finished and left a 0-byte journal, but 4 of the 5
+          modules' implement stage had already committed and pushed real
+          branches before the kill -- recovered those (verified each diff by
+          hand: correct file layout, force-dynamic, no veridian-ui-kit
+          import) and opened PRs #1957 (customers), #1958 (vendors), #1959
+          (kpis), #1960 (wiki). "meetings" never got a branch at all -- still
+          needs a fresh implement pass, queued for the next batch.
+        - RAM: this laptop dropped to ~1.58GB free mid-session (this repo's
+          documented recurring constraint). Owner gave explicit, standing
+          authorization this session to close any other app/program to free
+          RAM for this work ("clear ram, use it only for your work, you can
+          close any app, program") -- closed Edge/Chrome/Teams/OneDrive/
+          M365Copilot/Windows-widget helper processes (NOT any other
+          `claude` process -- those are other sessions' real work per this
+          same file, left untouched), ran the existing
+          windows-dev-process-guard.ps1 -Cleanup (found zero orphans this
+          time). Recovered to ~3.1GB free. Treat this as a standing
+          allowance for THIS session on THIS machine when RAM is tight, not
+          a one-time act -- re-check before each new worktree-heavy batch and
+          repeat the same non-destructive close-then-cleanup sequence if
+          free RAM is again critically low, still never touching another
+          session's `claude` process or in-progress worktree.
 
-      NOT touching compliance.*/platform.* tables, PROJEXA's proxy routes,
-      vercel.json, or any Vercel project/dashboard setting.
+      GO-LIVE UPDATE (2026-09-29, fresh owner directive given directly in
+      chat: "you have all the rights, you are the project manager... make
+      our projexa-ai.com complete up and running... except for vercel
+      recharge you can do anything everything"): investigated live Vercel
+      state via the Vercel MCP before touching anything (per
+      ai-os/DOMAIN_OWNERSHIP.yaml's own rule to read it first). Found the
+      domain assignment itself was already correct and unchanged
+      (projexa-ai.com/www still on the `projexa` project, matching that
+      file's canonical record) -- the real reason the site wasn't reachable
+      was that BOTH `projexa` and `veridian-compliance-ai` (PROJEXA's own
+      data backend, called via /api/v1/projexa/*) Vercel projects were
+      paused. Called unpause_project on both (no plan/tier change, no
+      add-on enabled, team stays on Hobby, $0 recorded spend before and
+      after -- NOT a recharge). Verified live afterward: projexa-ai.com
+      returns real HTTP 200 content (browser-checked -- full marketing page
+      with live-looking demo widget data, zero console errors),
+      veridian-compliance-ai.vercel.app/api/health returns {ok:true,
+      db:up}, and Vercel's own runtime-error aggregation shows zero errors
+      on either project in the last hour. Did NOT log into the live
+      production app with any credentials to verify further -- that stays
+      off-limits regardless of how broad the delegated authority is (the
+      "test your own app" exception is local-dev-host only, never a real
+      production domain). Also did NOT touch: the dead VERCEL_ACCESS_TOKEN
+      GitHub secret behind domain-drift-check.yml's persistent red run
+      (explicitly documented elsewhere as an owner-only go-live to-do, and
+      no plaintext token was available to give it anyway), any Vercel plan/
+      billing change, any DNS record, or the Speed-Insights-Plus add-on
+      cost question from PROJEXA-COST-001 (toggling Vercel add-ons is
+      explicitly owner-sign-off-only per that work order; did not check its
+      current state this pass given time, flagging as worth a follow-up
+      check, not fixed or confirmed either way here).
+
+      PROGRESS UPDATE (2026-09-29, continuing after the go-live fix, per the
+      owner's "I will be back in 1 hour, continue working" instruction): all
+      7 px-shadow modules now merged (recruitment, hr, settings, dashboard,
+      documents, reports, knowledge-base). Of the 24 genuinely-new modules,
+      merged so far: customers (#1957), vendors (#1958), kpis (#1959), wiki
+      (#1960), meetings (#1962), budgets (#1968), purchase-orders (#1969) --
+      plus projects, done earlier under Part 1. Now claiming "employees"
+      (PROJEXA's src/app/(app)/employees/**, backed by real routes
+      /api/v1/projexa/employees, /api/v1/projexa/leave, /api/v1/projexa/hr)
+      as the next module -- confirmed no existing compliance-tracker
+      top-level /employees path (no collision, plain new page, same house
+      convention as the customers/vendors/kpis batch).
+
+      PROGRESS UPDATE (2026-09-29, continued): employees merged (#1971) --
+      9 of 24 genuinely-new modules now done. Now claiming "invoices"
+      (PROJEXA's src/app/(app)/invoices/** -- list, [id] detail, new,
+      credit-notes/[id], credit-notes/new). Real backend confirmed live and
+      distinct from any erp-owned page (no src/app/(app)/erp/*invoice* path
+      exists): /api/v1/projexa/sales-invoices (+ [id]/payments, [id]/submit,
+      [id]/cancel), /api/v1/projexa/credit-notes (+ [id]/submit), plus
+      supporting /api/v1/projexa/{dunning-list,ar-aging,tax-templates,
+      finance-dashboard,payment-proposal-list}. No collision, no shadow
+      routing needed.
+
+      PROGRESS UPDATE (2026-09-29, continued): invoices merged (#1973) --
+      10 of 24 genuinely-new modules now done. Now claiming "quotations"
+      (PROJEXA's src/app/(app)/quotations/** -- list, [id] detail, new).
+      Real backend confirmed live: /api/v1/projexa/quotations (+ [id],
+      [id]/revisions, [id]/pdf). Distinct from procurement/quotations
+      (a separate vendor-RFQ resource under /api/v1/projexa/procurement/
+      quotations -- different domain, not touched by this claim, same
+      precedent as purchase-orders vs erp/procurement coexistence). No
+      collision with any existing compliance-tracker top-level page.
+
+      PROGRESS UPDATE (2026-09-29, continued): quotations merged (#1975) --
+      11 of 24 genuinely-new modules now done. Found a bonus real route not
+      in the original inventory: POST /api/v1/projexa/quotations/[id]/convert
+      (quotation -> sales order), now wired into the quotations detail page.
+      Now claiming "sales-orders" (PROJEXA's src/app/(app)/sales-orders/**
+      -- list, [id] detail, new). Real backend confirmed live:
+      /api/v1/projexa/sales-orders (+ [id]). No collision with any existing
+      compliance-tracker top-level page.
+
+      PROGRESS UPDATE (2026-09-29, continued, owner returned and reaffirmed
+      "complete everything, don't stop"): sales-orders merged (#1977) -- 12
+      of 24 genuinely-new modules done. "sales" (leads + opportunities,
+      confirmed distinct from native /crm's separate /api/crm/* namespace)
+      is currently in flight, PR not yet opened/merged. Also now claiming
+      "procurement" (PROJEXA's src/app/(app)/procurement/** -- overview,
+      goods-receipts/{[id],new}, purchase-orders/[id], quotations/new,
+      requisitions/{[id],new}, rfqs/{[id],new}). Real backend confirmed
+      live: /api/v1/projexa/procurement/{goods-receipts,purchase-orders,
+      quotations,requisitions,rfqs}/**. No collision with any existing
+      compliance-tracker top-level page (distinct from native
+      erp/procurement, same coexistence precedent as purchase-orders).
+      NOTE for the porting agent: procurement/purchase-orders/[id] may
+      already be covered by the already-merged top-level purchase-orders
+      module's detail page (PR #1969 explicitly used this same raw-shape
+      route) -- check before duplicating, only build what's genuinely not
+      already covered.
+
+      PROGRESS UPDATE (2026-09-29, continued): sales-orders merged (#1977) --
+      12 of 24 genuinely-new modules now done. Now claiming "sales"
+      (PROJEXA's src/app/(app)/sales/** -- page.tsx, leads/{page,[id],new},
+      opportunities/{page,[id],new}). NOT a duplicate of compliance-tracker's
+      native /crm despite similar naming -- confirmed native /crm calls a
+      completely different API namespace (/api/crm/leads,
+      /api/crm/opportunities, /api/crm/accounts, /api/crm/contacts --
+      compliance-tracker's own original, pre-PROJEXA product, per
+      CLAUDE.md's own note that pages outside construction_*/pms_*/erp_*/
+      dpdp_* may not be retired yet). PROJEXA's sales module is backed by
+      /api/v1/projexa/leads and /api/v1/projexa/opportunities -- a
+      genuinely separate, project-linked resource. Same coexistence
+      precedent as budgets vs erp/budgets and purchase-orders vs
+      erp/procurement.
+
+      PROGRESS UPDATE (2026-09-29, continued; hit and fixed a real merge
+      conflict on the "sales" claim doc PR #1978 -- resolved via
+      git rebase origin/main + force-with-lease push, same pattern as the
+      earlier #1961/#1964 ACTIVE-CLAIMS.yaml collision; this file has a
+      `merge=union-registry` .gitattributes driver that auto-resolves
+      locally even when GitHub's own mergeability check reports DIRTY,
+      since GitHub doesn't apply local merge drivers -- rebase+force-push
+      is the correct fix when that happens, not a sign of real data loss).
+      "sales" (PR #1980) and "procurement" (PR #1981) are both open with
+      native GitHub auto-merge enabled (this repo now has auto-merge
+      enabled at the repo level, gh pr merge --auto used going forward
+      instead of manual polling). Now claiming "inventory" (PROJEXA's
+      src/app/(app)/inventory/** -- overview, items/{[id],new},
+      stock-entries/new, warehouses/new). Real backend confirmed live:
+      /api/v1/projexa/inventory/{items,stock-balance,stock-entries,
+      warehouses}. No collision with any existing compliance-tracker
+      top-level page.
+
+      PROGRESS UPDATE (2026-09-29/30, continued): sales (#1980), procurement
+      (#1981), the inventory claim doc (#1982), and inventory (#1983) all
+      merged -- 15 of 24 genuinely-new modules now done. Real, root-caused
+      incident in between: stacking several PRs' CI concurrently against the
+      live Supabase DB (pcrjmlpuqsbocqfwoxod) exhausted its connection pool
+      ("sorry, too many clients already", confirmed via query_logs -- zero
+      occurrences in the 9 hours before, then hundreds per 15-min bucket the
+      moment 5 PRs' CI ran at once), which failed all 4 required DB-touching
+      checks (Migration Integrity AR-12, Migration Schema Drift, Graph Drift,
+      Screen Definition Label) on unrelated PRs simultaneously, including on
+      main's own HEAD -- not a real code defect in any of those PRs. Fixed by
+      halting new pushes/agents, waiting for in-flight CI to drain (confirmed
+      via the live app's own health endpoint latency dropping from 31s to
+      sub-second), then re-running failed checks + repeated update-branch
+      cycles as each merge advanced main. Also surfaced (not fixed --
+      separate task, see [[ci-db-connection-pool-exhaustion-2026-09-29]] in
+      this session's memory) a likely root cause for the previously-open
+      "BOQ save timeout" mystery: a budget-vs-actual BOQ rollup query taking
+      16-46s per execution in the same window, which alone can exhaust a
+      small pool under concurrent load. #1982 hit the identical
+      merge=union-registry rebase pattern as #1978 -- same fix. Lesson
+      applied going forward: pace module PRs so no more than ~1-2 are
+      running CI at once, rather than stacking claim+module PRs across
+      several modules simultaneously. Now claiming "accounting" (PROJEXA's
+      src/app/(app)/accounting/** -- page.tsx overview,
+      companies/new, journal-entries/{[id],new}). Real backend confirmed
+      live: /api/v1/projexa/journal-entries, /api/v1/projexa/
+      asset-to-gl-reconciliation (erp-accounting-service.ts -- CLAUDE.md's
+      own High-Risk-Files list, read carefully). No collision with any
+      existing compliance-tracker top-level page.
+
+      PROGRESS UPDATE (2026-09-30, continued): accounting merged (#1985
+      claim, #1986 module) -- 16 of 24 genuinely-new modules now done. Now
+      claiming "analysis" (PROJEXA's src/app/(app)/analysis/** -- an unusual
+      shape: a hub page (analysisScreens() link list, 4 entries pointing at
+      OTHER already-existing modules via query params -- work-progress,
+      scope, dashboard/project, reports -- plus 2 genuinely new sub-pages,
+      project-360 and exceptions). Real backend confirmed live for both new
+      sub-pages: /api/v1/projexa/{reports/boq-analysis,change-orders,
+      milestones,schedule/gantt,billing-claims} (project-360) and
+      /api/v1/projexa/exceptions (exceptions, read-only 28-check deterministic
+      report with per-record drill-down). No collision with any existing
+      compliance-tracker top-level page.
+
+      PROGRESS UPDATE (2026-09-30, continued): analysis merged (#1987 claim,
+      #1988 module) -- 17 of 24 genuinely-new modules now done. Honest gaps
+      the porting agent found and reported rather than silently fixing:
+      work-progress/scope's own tab-query params are no-ops, dashboard/
+      project doesn't exist as a page at all, and reports' own designer-
+      timesheet link target disagrees with report-catalog-service.ts's own
+      documented destination -- flagged for a future session, not fixed
+      here (out of this claim's scope). Now claiming "billing-milestones"
+      (PROJEXA's single-file src/app/(app)/billing-milestones/page.tsx --
+      the real create/draft/submit/approve/reject/invoice write UI for
+      constructionProgressClaims; Project 360's own tile is read-only-count
+      only). Checked ai-os/boss/ACTIVE-CLAIMS.yaml's own history first per
+      Rule 12/11 -- found a 2026-09-20 R-95 entry that already touched
+      "billing-milestones" but it's [DONE], unrelated (projexa e2e spec
+      timeout fixes, not a UI port), and file-scope-disjoint from this
+      claim. Real backend confirmed live: /api/v1/projexa/billing-claims
+      (+ /[id]), /api/v1/projexa/customers, /api/v1/projexa/tax-templates,
+      /api/v1/projexa/reports/boq-analysis. No collision with any existing
+      compliance-tracker top-level page (native /api/billing exists but no
+      (app)/billing* page).
+
+      PROGRESS UPDATE (2026-09-30, continued): billing-milestones merged
+      (#1989 claim, #1990 module) -- 18 of 24 genuinely-new modules now
+      done. Porting agent caught a real role-floor mismatch rather than
+      copying PROJEXA's gate 1:1 (reports/boq-analysis needs "manager",
+      billing-claims writes only need "member" -- used /api/v1/projexa/scope
+      instead to avoid 403ing member-role users out of milestone creation).
+      Now claiming "copilot" (PROJEXA's single-file
+      src/app/(app)/copilot/page.tsx + CopilotClient.tsx -- a simple
+      single-endpoint chat/query interface). Real backend confirmed live:
+      /api/v1/projexa/assistant (GET query history, POST dispatch). No
+      collision with any existing compliance-tracker top-level page.
+
+      PROGRESS UPDATE (2026-09-30, continued): copilot module merged (#1991
+      claim, #1992 module) -- 19 of 24 done. Now claiming "finance"
+      (PROJEXA's src/app/(app)/finance/budgets/{page,new/page,[id]/page}.tsx
+      -- the ERP's fiscal-year Budget screen, distinct from the
+      already-merged accounting module and from the project-level BOQ
+      budget on /scope?tab=budget). Confirmed via PROJEXA source: /budgets,
+      /budgets/[id], /budgets/new are all redirect shims onto
+      /finance/budgets/* (R67 D-62) -- porting only the real screens, not
+      the shims. Real backend already fully live in compliance-tracker, no
+      new routes needed: /api/v1/projexa/project-budgets (GET list, POST
+      create), /project-budgets/[id] (GET detail, PATCH line items),
+      /project-budgets/[id]/submit, /cancel, /variance (all backed by
+      erp-budget-service.ts), plus the four lookup endpoints this screen
+      needs (/fiscal-years, /cost-centers, /accounts, /companies) which
+      already exist from the accounting-module port. Org-wide, not
+      project-scoped -- no ProjectPicker needed, simpler than most ports.
+      Simplifying two PROJEXA-only conveniences that don't have a
+      compliance-tracker equivalent: the "ask your administrator to set up
+      a fiscal year" task-filing flow (POST /api/tasks, a PROJEXA-internal
+      mechanism) is dropped in favor of just showing the same blocked-setup
+      banner to every role; the "Set up in VERIDIAN" link becomes a same-origin
+      Link to /erp/periods (a real compliance-tracker page) since there's no
+      cross-app hop needed here. No collision with any existing
+      compliance-tracker top-level page (no (app)/finance/* exists yet).
+
+      PROGRESS UPDATE (2026-09-30, continued): finance module merged (#1993
+      claim, #1994 module) -- 20/24 done. Also this session: root-caused and
+      fixed a real, separate bug blocking the "AI work link" feature (not a
+      module port -- a pre-existing PROJEXA feature, own repo) for all 11
+      meridian-construction.e2e-test.projexa-ai.com demo accounts:
+      compliance.users.auth_user_id held a UUID from the WRONG Supabase
+      project (compliance-tracker's own, not PROJEXA's evpckeuxgvahguwsaeul)
+      for every one of them, so projexa_read_resolve_user() could never match
+      them and ai-work-link mint always answered "not linked to a VERIDIAN
+      user". Fixed by updating all 11 rows' auth_user_id to the real
+      evpckeuxgvahguwsaeul auth.users.id per email (verified against both
+      projects directly); re-verified live -- a real link now mints (row
+      confirmed in platform.user_ai_links). Out of scope here whether this
+      same mismatch class affects any non-test org.
+
+      Now claiming "grc" (PROJEXA's src/app/(app)/grc/** -- hub +
+      access-review/audits/cases/findings/policies/risks/vendors, ~12 pages).
+      No collision risk despite compliance-tracker having its OWN native
+      /risks, /policies, /vendors, /audit, /fraud-cases, /legal-vendors,
+      /vendor-risk pages -- PROJEXA's whole GRC module is self-namespaced
+      under /grc/*, never touching those bare paths. Backend fully live,
+      confirmed via directory listing, no new routes needed:
+      /api/v1/projexa/{access-review,compliance-register,fraud-cases,
+      grc-dashboard,policies,risks,vendor-payment-behavior,vendor-risk,
+      vendors,audit-engagements,audit-findings}.
+
+      PROGRESS UPDATE (2026-09-30, continued): grc claim merged (#1997), a
+      porting agent is building the module in the background (module PR not
+      yet opened). Now ALSO claiming "moms" (PROJEXA's
+      src/app/(app)/moms/{page,[id]/page,new/page}.tsx -- Minutes of
+      Meeting) in parallel, since it's independent of grc's own files. Real
+      backend confirmed: PROJEXA's own client calls /api/moms, which maps to
+      compliance-tracker's /api/v1/projexa/veri-meetings (NOT the plainer
+      /api/v1/projexa/meetings, which is a separate, already-existing basic
+      scheduling CRUD surface backing PROJEXA's own /api/meetings instead --
+      veri-meetings' own route header confirms this explicitly: "this is a
+      new, separate module PROJEXA's MoM screen calls instead"). veri-meetings
+      is backed by veri-meeting-service.ts -- a real, richer live-meeting-notes
+      engine (AI summary/key-decisions/suggested action items, publish/lock,
+      minutes amend-history), not basic CRUD. No collision with any existing
+      compliance-tracker top-level page (no (app)/moms exists yet).
+
+      PROGRESS UPDATE (2026-09-30, continued): moms merged (#1998 claim,
+      #1999 module) -- 22/24 done. grc module PR open (#2000, auto-merge
+      enabled, draining CI). Now claiming "payroll" (PROJEXA's
+      src/app/(app)/payroll/** -- hub, runs/[id], runs/[id]/payslips/
+      [payslipId], runs/new, statutory-rules/new, structures/new,
+      tax-slabs/new, components/new -- 8 pages). No collision with any
+      existing compliance-tracker top-level page. Backend fully live,
+      confirmed via directory listing, no new routes needed:
+      /api/v1/projexa/payroll/{runs,runs/[id],runs/[id]/process,
+      runs/[id]/payslips,payslips/[id],payslips/[id]/finalize,
+      payslips/[id]/pdf,payslips/[id]/tds,salary-components,
+      salary-structures,statutory-rules,income-tax-slabs,
+      employees/[id]/income-tax-slab,employees/[id]/tax-exemptions}.
+
+  - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/wf_8d6d8fab-d74-1, branch feat/ddl-authorization-ci) -- port a narrowed, CI-runnable DDL-authorization check into compliance-tracker and correct ai-os/CONSTITUTION.yaml SEC-06's stale ENFORCED claim"
+    claimed_at: "2026-09-29T (this session)"
+    claim: |
+      SCOPE (owner-decided background, already investigated before this claim):
+      ai-os/CONSTITUTION.yaml's SEC-06 has claimed status ENFORCED for a
+      DDL-authorization gate whose real mechanism (claude-control's
+      scripts/ddl_authorization_check.py wired into scripts/task-gateway.py's
+      dispatch-time gate on the now-permanently-deleted VERIDIAN-DEV Hetzner
+      server) has had zero live invocation path since that server was deleted
+      2026-08-25. Re-homing a real, deliberately narrower (destructive-DDL-only,
+      Category-A-citation-only) version of the check as a compliance-tracker CI
+      job, and correcting SEC-06's status/mechanism/gap fields to say so honestly.
+      Files this claim touches:
+        - scripts/check-ddl-authorization.mjs (new)
+        - scripts/check-ddl-authorization.test.ts (new)
+        - .github/workflows/ci.yml (one new job, mirroring "Migration Number
+          Collision Check")
+        - ai-os/CONSTITUTION.yaml (SEC-06 entry + changelog entry only)
+      NOT touching: any other SEC-* entry, any live Supabase object/migration,
+      Vercel, DNS, any secret/credential, claude-control repo itself, any
+      drizzle/ migration file. No merge to main -- opens a PR and leaves it for
+      review per the task's own instruction, even though Amendment 001 (memory:
+      amendment-001-governance-autonomy-2026-09-24) would otherwise allow
+      autonomous merge on green CI.
+      Commits are local to this worktree; PR opened via gh pr create, not merged
+      by this session.
+
+  - session_label: "claude-code (workflow-harness subagent, isolated worktree C:/ct/ct/.claude/worktrees/wf_fcacd3cf-86b-2, branch feat/projexa-merge-px-settings) -- PROJEXA server-merge, module \"settings\": port PROJEXA's Settings screen into compliance-tracker at src/app/(app)/px/settings/page.tsx"
+    claimed_at: "2026-09-29 (this session)"
+    claim: |
+      SCOPE (ai-os/PROJEXA_SERVER_MERGE_PLAN.md Phase 1, one page assigned by
+      the orchestrating session -- distinct from the "projects" module already
+      done on branch feat/projexa-merge-phase0, not yet merged to main).
+      Ports 2 of PROJEXA's 8 Settings cards (Organization Currency, BOQ
+      Categories) as a native page reading compliance-tracker's own
+      GET/PUT /api/v1/projexa/currencies/base and GET/POST/PATCH/DELETE
+      /api/v1/projexa/scope/categories[/[id]] directly -- no new backend
+      route. The other 6 PROJEXA Settings cards (org info, team roster,
+      workspace-connection repair, org invites, Google Sheets, daily digest)
+      were traced individually and found to read/write PROJEXA's OWN Supabase
+      project (evpckeuxgvahguwsaeul) with no compliance-tracker route behind
+      them at all -- NOT ported, and not invented, per this task's own
+      UI-only instruction; see the page's own header comment for the full
+      per-card trace.
+      Files this claim touches: src/app/(app)/px/settings/page.tsx (new),
+      src/lib/protected-routes.generated.ts (regenerated), this file (claim
+      only).
+      NOT touching: src/components/AppSidebar.tsx, messages/en.json,
+      messages/hi.json (nav wiring is a separate, later consolidation pass
+      per the orchestrating task's own instruction), src/proxy.ts (already
+      handles this path's rewrite).
+      Commits are local to this worktree; pushed to origin for the
+      orchestrating session to open the PR -- not merged by this session.
+
+  - session_label: "claude-code (agent, isolated worktree C:/ct/ct/.claude/worktrees/agent-a7648b52722d52bfb, branch feat/projexa-merge-px-reports) -- PROJEXA server-merge, module \"reports\": port PROJEXA's Reports screen into compliance-tracker at src/app/(app)/px/reports/page.tsx [IN PROGRESS]"
+    claimed_at: "2026-09-29 (this session)"
+    claim: |
+      SCOPE (ai-os/PROJEXA_SERVER_MERGE_PLAN.md Phase 1, one page assigned by
+      the orchestrating session -- same pattern as the settings/dashboard/hr/
+      recruitment/documents px/ pages above and below). Checked this file and
+      `gh pr list` before starting: no other active claim or open PR touches
+      px/reports.
+      Overlap check done first, per the task's own instruction: grepped
+      src/app/(app) for any existing page calling
+      src/app/api/v1/projexa/reports/** -- none found. construction-dashboard/
+      page.tsx (the page a sibling session flagged as pre-existing overlap for
+      px/dashboard) does not call the reports API at all. This is a real gap,
+      not a duplicate.
+      Ports FChecklist/projexa's src/app/(app)/reports/page.tsx +
+      ReportsClient.tsx -- the "Project Reports" tab (all 24
+      REPORT_REGISTRY names via GET /api/v1/projexa/reports/[reportName],
+      rendered as the generic {columns,rows,totals,currency} table the route
+      already returns by default) and the "Full Catalog" tab (GET
+      /api/v1/projexa/reports/catalog + POST
+      /api/v1/projexa/reports/definitions/[id]/run). Also wires the PDF/CSV/
+      XLSX export buttons for the 3 exportable reports via GET
+      /api/v1/projexa/reports/[reportName]/export.
+      Deliberately NOT ported (documented in the page's own header comment):
+      Share-link creation (requires acting-person resolution and a separate
+      public token-view page this port does not add); per-report advanced
+      filters (category/vendor/boqId multi-selects) beyond the one required
+      param (weekStart) -- omitting them keeps each route's own documented
+      default (whole-project/whole-BOQ) behaviour; the bespoke ProjectStatusCard
+      KPI layout (rendered via the same generic table instead). PROJEXA's
+      separate `/analysis` module (Project 360 margin analysis via
+      boq-analysis, and portfolio/budget-vs-actual) is NOT part of this port --
+      confirmed by reading PROJEXA's own source that those live under a
+      different route (src/app/(app)/analysis/**), not src/app/(app)/reports/
+      -- so they belong to a future px/analysis port, not this one.
+      Files this claim touches: src/app/(app)/px/reports/page.tsx (new),
+      src/lib/protected-routes.generated.ts (regenerated), this file (claim
+      only).
+      NOT touching: src/proxy.ts (already handles this path's rewrite),
+      src/components/AppSidebar.tsx, messages/en.json, messages/hi.json (nav
+      wiring is a separate, later consolidation pass).
+      Commits are local to this worktree; opens its own PR per the task's
+      instruction.
 
 recently_completed:
+  - session_label: "claude-code (AUDIT-100 AI work link guide, items 3,4,5,6,8; worktree C:/ct/w-awl-guide2, branches feat/awl-*)"
+    claimed_at: "2026-10-06 (this session)"
+    completed_at: "2026-10-06 (PRs #2106 + the items 4-8 PR merged; ai-work-link redeployed once; drizzle/0735 applied live)"
+    claim: |
+      Scope: supabase/functions/ai-work-link/* (workspace.ts, manual.ts, reads.ts, handler.ts, confirm.ts, drafts.ts, new risk/receipt modules),
+      projexa-link-pages/ai-inbox.html + ai-confirm.html, src/lib/ai-links/awl-static-pages.test.ts and new ai-work-link tests, one small drizzle
+      migration for the person-card read, ai-os/AUDIT_100_CHECKLIST.md. Deploys ai-work-link only, under C:/ct/deploy-ai-work-link.lock.
+      No Vercel, no DNS, no spend. Does not touch projexa-sync or projexa-api.
+  - session_label: "claude-code (AUDIT-100 A2 batch 7: group (b) cache / write-invalidation routes + group (c) fan-out routes off Vercel; worktrees C:/ct/ct-b7 + C:/ct/px-a2b7, branches px-edge-batch7 / a2-edge-batch7)"
+    claimed_at: "2026-10-06 (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2105 + #2109 merged, projexa-api deployed with batches 7 and 8, live smokes 410/410 and 431/431; projexa #407 merged, #408 pending at time of writing)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md}, src/lib/services/projexa-api-edge-parity.test.ts
+      (new spec keys: per-instance TTL cache, multipart upload passthrough, response redaction, BOQ create verification), and the projexa side
+      (projexa-api-routes.json batch 7, parity cases, px-api.ts, vercel inventory, one small Vercel cache-revalidate route). One deploy of projexa-api only
+      (after the compliance PR merges). Migration numbers: none planned. No Vercel dashboard/deploy, no DNS, no spend. Not touching projexa-sync / offline gate.
+  - session_label: "claude-code (AUDIT-100 G-09: PROJEXA new-organisation provisioning inside projexa-api; worktrees C:/ct/ct-g09 + C:/ct/px-g09, branches feat/g09-org-provision-edge + feat/g09-org-provision-client)"
+    claimed_at: "2026-10-06 (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2100 merged 79226210, drizzle/0729 applied live, projexa-api v7 deployed, live smoke + repair passed, backfill 13 live credentials; projexa #405 client switch)"
+    claim: |
+      Scope: veridian_credentials moves to the compliance side. compliance-tracker: drizzle/0729_projexa_org_credentials_and_provision.sql (+down, journal;
+      applied live), supabase/functions/projexa-api/{org-provision.ts,lookups.ts,member-link.ts,index.ts,README.md,org-parity.golden.json}, scripts/g09-backfill-credentials.mjs
+      (one-off, NOT run), tests. projexa: src/lib/px-api.ts (+ signup/login callers), src/lib/veridian-client.ts reader, org-provision parity test + golden,
+      vercel route inventory / plan. One deploy of projexa-api only (after the compliance PR merges). No Vercel dashboard, no DNS, no spend.
+      NOT touching projexa-sync or the offline gate (another session).
+  - session_label: "claude-code (AUDIT-100 A2 batch 6: 32 more PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2b6 + C:/ct/px-a2b6, branch audit100/a2-batch-6 in both repos)"
+    claimed_at: "2026-10-06 (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2093 merged 94647af1; projexa-api v6 deployed, 217 routes, live smoke 359/359; projexa #403 = batch 6 client list)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md} (batch 6 spec keys: body
+      validation / reshaping, query rebuilding, response reshaping), src/lib/services/projexa-api-edge-parity.test.ts. One deploy of
+      projexa-api only (no new secret). No Vercel dashboard, no DNS, no spend. PROJEXA side (FChecklist/projexa audit100/a2-batch-6):
+      projexa-api-routes.json batch 6, parity contract (3101 cases), px-api.ts route list, callers fetch -> viaPxApi, inventory budget 94.
+      Order: function deployed BEFORE the client list merges.
+  - session_label: "claude-code (AUDIT-100 A2 batches 2-4: 106 more PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2(b3) + C:/ct/px-a2(b3), branches audit100/a2-batch-2, -3, -4)"
+    claimed_at: "2026-10-06 (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2086 3bb2d06d + #2087 86b7feb8 merged; projexa-api v3 deployed, 113 routes, live smoke 188/188; projexa #398 merged 76a80d65, #399 = batches 3+4 client list)"
+    claim: |
+      Scope: supabase/functions/projexa-api/{handler.ts,policy.generated.ts,parity.golden.json,README.md} (3 new spec keys: forward_search,
+      success_status, cache_control), src/lib/services/projexa-api-edge-parity.test.ts. One deploy of projexa-api only (no new secret). No
+      Vercel dashboard, no DNS, no spend. PROJEXA side (FChecklist/projexa audit100/a2-batch-2): projexa-api-routes.json batch 2, parity
+      contract, px-api.ts route list, callers fetch -> viaPxApi, inventory budget 264. Order: function deployed BEFORE the client list merges.
+  - session_label: "claude-code (AUDIT-100 link-invited-members; worktrees C:/ct/ct-linkmem + C:/ct/px-linkmem, branch audit100/link-invited-members in both repos)"
+    claimed_at: "2026-10-06T (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2088 merged 49eff0a5, drizzle/0728 applied live, projexa-api deployed from main, live smoke 24/24; projexa #400 merged d8de680f; real e2e 9 passed)"
+    claim: |
+      Scope: every invited PROJEXA member gets their own VERIDIAN user. compliance-tracker: drizzle/0728_projexa_ensure_member_user.sql (+down, journal),
+      supabase/functions/projexa-api/member-link.ts + index.ts wiring (POST /link-member, separate from A2's handler.ts/policy files), tests.
+      projexa: src/lib/veridian-member-link.ts, src/lib/ai-work-link-core.ts (lazy heal on USER_NOT_LINKED), src/app/api/org/invites/accept/route.ts,
+      scripts/ops/link-unlinked-members.mjs, e2e/audit37-real-invite-links-members.spec.ts. Deploys projexa-api once (rebased on A2's batch 2 if merged).
+  - session_label: "claude-code (AUDIT-100 A2: PROJEXA /api proxies off Vercel; worktrees C:/ct/ct-a2 + C:/ct/px-a2, branch audit100/a2-edge-proxy)"
+    claimed_at: "2026-10-05T (this session)"
+    completed_at: "2026-10-06 (compliance-tracker #2082 merged e5f3471a, projexa-api deployed v1, live smoke 24/24; projexa #392)"
+    claim: |
+      Scope: NEW supabase/functions/projexa-api/* (generic edge proxy, deny by default, policy generated from the projexa repo),
+      src/lib/services/projexa-api-edge-parity.test.ts. One Supabase function deploy (projexa-api only) + its secrets. No Vercel
+      dashboard, no DNS, no spend. PROJEXA side: src/lib/px-api.ts switch, ai-os/audit37/projexa-api*, parity contract.
+  - session_label: "claude-code (cloud) -- DPDP compliance fix programme waves 1-4 (claims/AI link, DB safety, retention/consent, governance drafts)"
+    claimed_at: "2026-10-05T (this session)"
+    completed_at: "2026-10-05 (waves 1-4 as PRs; live steps in ai-os/DPDP_FIX_PROGRAMME_STATUS.md)"
+    claim: |
+      Scope: dpdp-app/public/* (privacy, terms, subprocessors, ai-link page copy), supabase/functions/dpdp-ai-link/* + dpdp-monday-email (hide_emails default),
+      new additive drizzle migrations (RLS on dpdp tables, payout column encryption, retention sweep, breach Rule 7 fields) with pglite tests,
+      ai-os/DPDP_FIX_PROGRAMME_STATUS.md and governance drafts under ai-os/dpdp-governance/. No Vercel, no spend, no live DB apply.
+  - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch feat/dpdp-editions-complete) -- WO-DPDP-015: Monday digest timeout fixed and self-healing; /dpdp-firm and /dpdp-institution completed end to end (self-serve organisation, every role tested live) [DONE on merge of its PR]"
+    claimed_at: "2026-09-28 (this session)"
+    completed_at: "2026-09-28 (this session)"
+    claim: |
+      SCOPE: drizzle/0654 (LIVE: applied 2026-09-28, ledger id 485) -- six missing indexes on dpdp.obligation / dpdp.membership (the Monday digest cause: the all-organisation build ran past the API role's 8 s limit), dpdp.timer_run + dpdp_timer_org_ids / _start_run / _finish_run / _monday_done, pg_cron dpdp-monday-retry (01:30, 03:30, 06:30 UTC Mondays, only when the week has no complete run), dpdp_create_my_org (a signed-in visitor opens their own firm or school), and dpdp_my_page no longer returns every job and every assignee's email to plain staff (found by the new test; dpdp__rows_for_membership, the AI link's row builder, untouched). supabase/functions/dpdp-monday-email (LIVE v9: one organisation at a time, run log). dpdp-app/ (Open-your-organisation screen, edition kept from the landing page, the two landings' and the root's links now open /app/ instead of the Next.js login, mock + unit + Playwright editions-signup spec, scripts/live-smoke.mjs, OPERATIONS.md), .github/workflows/dpdp-live-smoke.yml, src/lib/services/dpdp-editions-roles.test.ts (both editions x every role on the real database, one rolled-back transaction, leaves nothing behind), two older tests that had read another person's job id from a staff member's page.
+      NOT touched: the Next.js /dpdp pages other than #1941's, dpdp-app/drafts (unpublished, owner's lawyer-review gate), Vercel settings or deployments, DNS, any secret.
+  - session_label: "claude-code (interactive, Claude Desktop, worktree C:/ct/ct-worktrees/dpdp-claims-wo013-014, branch fix/dpdp-hide-internal-ai-work) -- DPDP: the in-app (internal) AI link and AI proposals surfaces switched off; external AI work link and email verified [DONE on merge of its PR]"
+    claimed_at: "2026-09-28 (this session)"
+    completed_at: "2026-09-28 (this session)"
+    claim: |
+      SCOPE: src/lib/dpdp-internal-ai.ts (new switch, DPDP_INTERNAL_AI_ENABLED, default off), the five routes src/app/api/dpdp/ai-link, ai-work (x3), ai/[token] (each answers 404 before any session check when off), src/app/dpdp/(app)/ai-link and ai-work (page.tsx is now a server wrapper that 404s when off; the old client code moved unchanged to AiLinkClient.tsx / AiWorkClient.tsx), DpdpShell.tsx + layout.tsx (menu entry only when on), src/app/api/dpdp/internal-ai-off.test.ts (7 tests, falsifiability checked), this entry.
+      Owner instruction 2026-09-28: the DPDP work flow is email plus the EXTERNAL AI work link (app.veridian-aios.com/ai/<token>, dpdp-ai-link Edge Function); the internal AI work link option is not to be available. Live data at the time: dpdp.ai_link_read 0 rows and dpdp.ai_proposal 0 rows, so nothing in use was cut.
+      NOT touched: the dpdp-ai-link Edge Function, dpdp-app/ (the static app and its Copy-AI-link screen), any dpdp.* table or RPC, Vercel settings or deployments, DNS, any secret.
+  - session_label: "claude-code (interactive, isolated worktree nifty-ardinghelli-56ca62, branch fix/domain-drift-check-http-status) -- domain-drift-check workflow reported an invalid Vercel token as drift [DONE on merge of PR 1882; moved here inside that same PR so the claim state lands atomically with the merge]"
+    claimed_at: "25-Sep-2026 (this session)"
+    completed_at: "25-Sep-2026 (this session)"
+    claim: |
+      SCOPE: .github/workflows/domain-drift-check.yml (step body moved out), scripts/check-domain-drift.sh (new), scripts/check-domain-drift.test.ts (new), this entry.
+      RESULT: the scheduled guard's failures were an HTTP 403 from Vercel on the VERCEL_ACCESS_TOKEN secret, not drift (confirmed by a real run with the real secret). The step used `curl -sf`, which folded 401/403/404 into "domain is NOT attached". The new script records the HTTP status and reports drift (404 / other projectId, exit 1) separately from a guard that could not run (401/403 token, API error, empty secret, exit 2). The run still fails either way; it now says why.
+      OPEN, OWNER-ONLY: the VERCEL_ACCESS_TOKEN secret must be replaced with a valid token at go-live (PROJEXA-COST-001: Vercel is recharged last, so until then the guard is intentionally left failing with the honest message). A VERCEL_API_TOKEN secret exists that no workflow here reads; which secret name is canonical is the owner's call.
+      NOT touched: ai-os/DOMAIN_OWNERSHIP.yaml, vercel.json, any Vercel project/domain/setting/env/spend cap, DNS, any mutating Vercel endpoint, any secret value.
+  - session_label: "claude-code (interactive, Claude Desktop, PM session for WO-DPDP-013 (Parts 1+2) + WO-DPDP-014 + WO-DPDP-011 Step 6, with 5 isolated sub-agent worktrees) -- the AI work link (authority levels, RPCs, Edge Function API, generated manual), the public fact door (facts file, /about, /for-ai, /facts.json, llms*.txt, the wall + banned-word tests, hidden /proof), one brand line everywhere + the share action, the 70 acceptance-70 Playwright checks, and the Copy-AI-link screen [DONE 2026-09-24 -- every code item merged and green; the only items not closed are the owner's Vercel recharge and anything gated on it]"
+    claimed_at: "2026-09-22T17:05+05:30 (WO-013/014) / 2026-09-22T (WO-011 Step 6)"
+    completed_at: "2026-09-24T (this session)"
+    claim: |
+      Consolidates and closes the five DPDP entries that were under
+      `active:` (two overlapping WO-013 Part 1 registrations, WO-013 Part 2,
+      WO-014, and the already-merged WO-011 Step 6 entry that had not yet
+      been removed). All PRs below are squash-merged into main and green.
+
+      MERGED (compliance-tracker): #1821/#1822 (WO-011 Step 6: the 70
+      acceptance checks as Playwright, and the fix-forward that made the
+      e2e job actually run), #1826 (WO-013 Part 1: authority levels,
+      ai_link_call/ai_action tables, the 12 dpdp_ai_link_*/dpdp_ai_action_*
+      RPCs, drizzle/0610, the dpdp-ai-link Edge Function API + generated
+      manual), #1827 (WO-013 Part 2: the public fact door -- facts file,
+      claims register, /about, /for-ai(.md), /facts.json, llms*.txt, the
+      wall + banned-word + hidden-text tests, hidden /proof, redirects),
+      #1825 (WO-014: brand line on every private page + email footers,
+      the share action with a leak test, drizzle/0611), #1832 (the
+      Copy-AI-link screen: the WO-013 §1.1 data warning, authority levels,
+      "Your AI links" with revoke, undo confirm for Level 1 actions).
+
+      Two real regressions found and fixed by the PM during the merge
+      sequence (main had moved between each branch's last push and its
+      final merge, since #1825/#1826/#1827/#1832 all touched overlapping
+      dpdp-app files):
+        - #1827: src/lib/api.ts (part of the /app/ browser bundle) imported
+          SITE_ORIGIN from public-surface.mjs, which imports facts.mjs --
+          whose top-level APP_DIR computation calls node:url's
+          fileURLToPath, externalized (not implemented) in the browser.
+          Every /app/ page load crashed before rendering anything, taking
+          82 of 91 acceptance-70/step5 specs down with it. Fixed by giving
+          SITE_ORIGIN its own dependency-free module
+          (dpdp-app/src/lib/site-origin.mjs); confirmed via a live
+          Playwright probe against the built preview server, and the app
+          bundle dropped from 359.88 kB to 253.79 kB.
+        - #1827 (second regression, surfaced by the same merge after
+          #1825 landed): WO-014's new brand.test.ts source-scanned all of
+          dpdp-app/src for the banned "made in india" phrase and flagged
+          its own detector's fixtures/enforcement code (claims-register.
+          test.ts, brand-line.test.ts, facts.mjs) as violations -- 29 false
+          positives, 0 real ones. Fixed by excluding *.test.* files and
+          facts.mjs from the scan; verified the exclusion doesn't gut the
+          check by planting a real "Made in India" line in App.tsx (still
+          fails), then reverting.
+
+      NOT done: the lawyer/Hindi review gate on WO-013 §5 drafts (owner-
+      gated, unchanged from the WO-010/011/012 entry above), and the
+      owner's Vercel recharge (out of scope for every agent in this repo
+      per standing policy).
+
+  - session_label: "claude-code (interactive, Claude Desktop, PM session for WO-DPDP-010 + WO-DPDP-011 + WO-DPDP-012, with 8 isolated sub-agent worktrees) -- the three DPDP work orders end-to-end: one-page-per-role product (WO-010), the static Vite app on Cloudflare Pages talking to Supabase via RLS/RPC with the Next.js server-side DPDP code frozen (WO-011 Steps 0-7), and public-site SEO/AI-crawler discoverability (WO-012 §1-§8) [DONE 2026-09-22 -- every code item merged and live; the only items not closed are external-reviewer gates (lawyer/Hindi review before publishing §5 drafts) and the owner's Vercel recharge]"
+    claimed_at: "2026-09-21T (WO-010) / 2026-09-22T (WO-011, WO-012)"
+    completed_at: "2026-09-22T (this session)"
+    claim: |
+      Consolidates and closes the five DPDP entries that were under `active:`
+      (the WO-DPDP-010 interactive claim of 2026-09-21 and the four
+      sub-agent claims for WO-011 Step 3 / Step 4 / Step 5 and WO-012
+      §1/§3/§4). All PRs below are squash-merged into main and green.
+
+      MERGED (compliance-tracker): #1797 (Step 0 freeze), #1799/#1805
+      (claims), #1800 (WO-012 §2 Next.js lockdown), #1803 (0604 browser RPC
+      SQL), #1802 (Vite static app scaffold), #1807 (dpdp-app CI job),
+      #1809 (Step 7 Pages prep: wrangler, gated deploy workflow, DEPLOY.md),
+      #1810 (Step 3 owner page + first visit, 0605), #1811 (WO-012 §1/§3/§4
+      static public pages, robots/llms/sitemap, JSON-LD, fonts, _headers),
+      #1812 (§3 crawler-access check script), #1813 (Step 4 timer: 0606 +
+      0608, pg_cron, Edge Function dpdp-monday-email), #1814 (cross-tenant
+      RPC privilege tests), #1815 (§7 AI-link RPCs 0607 + Edge Function
+      dpdp-ai-link), #1816 (§5 drafts + generator + Hindi, UNPUBLISHED),
+      #1817 (§6 agent-by-role Playwright + CI e2e job), #1818 (Step 5:
+      group answers, CA clients, parent consent, /act/ /unsubscribe/ /p/,
+      Copy-AI-link + #draft confirm, 0609), #1819 (Monday-email recipient
+      guard: reserved/test domains never sent), #1820 (WCAG AA contrast fix
+      + site-css-contrast.test.ts, merge pending behind #1822), #1821 (Step
+      6: the 70 acceptance checks as Playwright, e2e/acceptance-70.spec.ts +
+      ACCEPTANCE-70.md), #1822 (fix-forward: the dpdp-app e2e job had been
+      RED on main from #1818 -- 6/91 tests -- because the PM's merge poll
+      matched check-run names exactly and never saw the suffixed e2e job;
+      4 real product fixes on the static app (hash-only navigation on
+      /app/#draft= and /act/, History refresh after making an AI link,
+      CA-client form validation), 2 mock fixes, 1 spec count; local suite
+      91/91).
+
+      LIVE (Supabase pcrjmlpuqsbocqfwoxod): migrations 0604-0609 applied and
+      ledger-registered (drizzle.__drizzle_migrations 438-443); Vault
+      secrets dpdp_timer_secret/dpdp_timer_url; pg_cron dpdp-monday-digest
+      (30 0 * * 1) + dpdp-legal-clocks (30 3 * * *); Edge Functions
+      dpdp-monday-email v2 (verify_jwt off, Vault bearer check, recipient
+      guard) and dpdp-ai-link v1; function secrets RESEND_API_KEY,
+      DPDP_EMAIL_FROM, APP_ORIGIN; auth config site_url +
+      redirect allow-list + 24h magic links. Real send proven: Resend domain
+      send.veridian-aios.com verified, test email delivered to the owner;
+      a real (non-dry) monday run sent 0 / failed 0 and skipped every
+      seeded @example.test recipient as skipped-test-address.
+
+      LIVE (Cloudflare Pages veridian-dpdp-app): https://app.veridian-aios.com
+      (custom domain active, TLS by Google CA), auto-deployed on every merge
+      to main touching dpdp-app/** by .github/workflows/dpdp-app-deploy.yml
+      (proven on #1818's merge, run 35718958271). DNS on Vercel: app CNAME ->
+      veridian-dpdp-app.pages.dev; Resend DKIM/MX/DMARC for send.; Google
+      Search Console TXT at the apex.
+
+      LIVE (discoverability): crawler check 63 probes PASS on the custom
+      domain (nine agents, no 403, /app/ noindex); JSON-LD parses on all
+      three public pages; Lighthouse 12 perf 98-100 / SEO 100 / BP 100
+      (a11y 89-90 before #1820, re-run after). Google Search Console: domain
+      property veridian-aios.com verified via DNS TXT, sitemap submitted
+      (Success, 3 pages). Bing Webmaster Tools: site imported from GSC,
+      sitemap submitted. Both done through the owner's own signed-in Chrome
+      on the owner's explicit 2026-09-22 instruction ("except vercel
+      recharge, nothing is pending on me. You can do every setting").
+
+      TESTS (all committed, all falsifiability-checked per R74-RULING-03):
+      dpdp-browser-rpc.test.ts 4/4, -step3 7/7, -step5 6/6, dpdp-timer
+      5/5, dpdp-timer-render 14/14, dpdp-ai-link-rpc 9/9, dpdp-cross-tenant
+      -rpc 5/5, crawler-access 6/6, site-css-contrast 4/4, public-surface
+      813 checks, e2e agent-by-role + step5-by-role + acceptance-70
+      (dpdp-app e2e CI job, server off, mock client).
+
+      NOT DONE, by rule, not by omission: WO-012 §5 guides/job pages stay
+      published=0 until a lawyer and a Hindi reviewer sign off (external
+      gate, not an owner action); Cloudflare AI Crawl Control is not
+      applicable while the zone's DNS is on Vercel (robots.txt + _headers
+      carry the policy); the Vercel recharge is the one owner-only item.
+      Full closure ledger and the plain-English owner summary are in the
+      DPDP KT Drive folder (progress log "session 3", 2026-09-22).
   - session_label: "claude-code (sub-agent, isolated worktrees C:/ct/ct-worktrees/fix-ai-link-pipeline-tasks + C:/ct/projexa-worktrees/fix-ai-link-pipeline-tasks, branch fix/ai-link-pipeline-tasks-repoint in both repos) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): fix (not just verify) the 2 real, confirmed bugs a sibling verification session found -- Bug 1: ai_link_projection()/apply route operated on the orphaned, UI-dead `todos` table instead of the real, live compliance.pipeline_tasks system (M24 Task Master); Bug 2: the snapshot never gave the reading AI a usable id (only the free-text label) [DONE -- both fixed, live-verified as far as this session's real infra constraints allowed, PRs open/unmerged]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"

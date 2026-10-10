@@ -9,6 +9,7 @@
 // an in-memory store, so this test drives the route's own POST -> GET wiring
 // rather than asserting against a canned row.
 import { describe, test, expect, mock, setDefaultTimeout } from "bun:test"
+import { actingPersonDouble, ACTING_HEADERS } from "@/lib/supabase/__test-helpers__/acting-person-double"
 import { NextRequest } from "next/server"
 
 // Same rationale as ../permits/route.test.ts: the first dynamic import() of
@@ -38,6 +39,7 @@ async function mockCreateThenList(store: StoredDoc[]) {
   const authActual = await import("@/lib/supabase/auth-guard")
   mock.module("@/lib/supabase/auth-guard", () => ({
     ...authActual,
+    ...actingPersonDouble(),
     requireAuthOrApiKey: mock(async () => ({
       orgId: "org-1",
       dbUser: null,
@@ -79,7 +81,8 @@ async function mockCreateThenList(store: StoredDoc[]) {
 function postRequest(formData: FormData) {
   return new NextRequest("http://localhost/api/v1/projexa/drawings", {
     method: "POST",
-    headers: { authorization: "Bearer vk_test" },
+    // U-20b: an API-key write names its person, as PROJEXA's proxy now must.
+    headers: { authorization: "Bearer vk_test", ...ACTING_HEADERS },
     body: formData,
   })
 }

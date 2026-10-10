@@ -8,7 +8,7 @@
 // data through as the new PO's input, same shape convertQuotationToSalesOrder
 // uses on the sales side.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listPurchaseOrders, createPurchaseOrder, ServiceError } from "@/lib/services/erp-buying-service"
 
 export async function GET(request: NextRequest) {
@@ -32,16 +32,16 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()
     if (!body.supplierId) return NextResponse.json({ error: "supplierId is required" }, { status: 400 })
     if (!body.items?.length) return NextResponse.json({ error: "At least one line item is required" }, { status: 400 })
     if (!body.orderDate) return NextResponse.json({ error: "orderDate is required" }, { status: 400 })
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const po = await createPurchaseOrder(actorCtx, {
       supplierId: body.supplierId, orderDate: body.orderDate, expectedDeliveryDate: body.expectedDeliveryDate, items: body.items,
     })

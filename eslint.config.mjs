@@ -116,7 +116,9 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     complexity: ["warn", 20],
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "public/litert-spike/wasm/**", "public/litert-spike-embeddings/wasm/**"]
+  // dpdp-app/ is its own Vite app with its own toolchain (WO-DPDP-011);
+  // lint it there, not with the Next.js app's rules.
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "public/litert-spike/wasm/**", "public/litert-spike-embeddings/wasm/**", "dpdp-app/**"]
 }];
 
 export default eslintConfig;

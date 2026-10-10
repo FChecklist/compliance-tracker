@@ -1,0 +1,71 @@
+(fail) ?async=1: the answer does not wait for the extraction > 202 received with a job id at once; the job reads received; after the queued run it reads created
+(fail) ?async=1: the answer does not wait for the extraction > an async job with questions ends in needs_answers, and one that is refused ends in rejected with its code
+(fail) ?async=1: the answer does not wait for the extraction > async on a parked job answers with its state at once (a resume is queued to finish it)
+(fail) AW-111: the caller names who a request is for, so a wired model's spend is metered > createEdgeExtractCaller sends the organisation, the person and the request id as headers, and none without an attribution
+(fail) AW-604: the list of proposals that wait for a person shows the emailed job > *** GET ?open=1: the emailed job with its questions, its origin, where its file is and the approve action ***
+(fail) AW-604: the list of proposals that wait for a person shows the emailed job > another organisation sees an empty list
+(fail) AW-604: the person approves the emailed proposal by its job id; only then is a project created > *** with acknowledgeQuestions: 201 created, a project and 53 lines that add up to the file's total, the file read from the stored attachment, one model call in all ***
+(fail) AW-604: the person approves the emailed proposal by its job id; only then is a project created > an unknown job id and another organisation's job id are 404 job_not_found and create nothing
+(fail) AW-604: the person approves the emailed proposal by its job id; only then is a project created > without acknowledgeQuestions the job still waits: 200 needs_answers, nothing created, no second model call
+(fail) AW-606: four ways in one database, one project > the four ways left the same 53 lines: item code, unit, quantity and rate all equal
+(fail) AW-606: four ways in one database, one project > way 1, upload: the file is read, the questions are acknowledged, and the tables hold 53 lines adding up to AED 1,596,280, attributed to the person
+(fail) AW-606: four ways in one database, one project > way 2, internal chat: propose creates nothing, confirm creates the project, and the tables hold the same figures, attributed to the person
+(fail) AW-606: four ways in one database, one project > way 4, email: the emailed job is approved by its id and the tables hold the same figures, attributed to the person
+(fail) AW-606: four ways in one database, one project > way 5, scheduled folder scan: the scan parks a proposal and makes nothing; the owner's approval fetches the file again and the tables hold the same figures, attributed to the person
+(fail) BR-507 through the route: a planted document > a model that obeys the plant is refused: 422 extraction_schema_invalid, and the tables hold 0 projects, 0 BOQs, 0 lines and no claim
+(fail) BR-507 through the route: a planted document > after the refusal the same file is not blocked: a model that ignores the plant creates the project
+(fail) BR-507 through the route: a planted document > an answer that cites a row the file does not have is refused: 422 extraction_not_grounded, 0 rows
+(fail) BR-508: the same file twice > a different file is a new project
+(fail) BR-508: the same file twice > a second submit of the same file, under another name, returns the FIRST project id: 1 insert, no second model call
+(fail) BR-508: the same file twice > a third and fourth submit still return the same first project
+(fail) BR-508: the same file twice > the first submit creates a project, its BOQ and every line, and the tables hold them
+(fail) BR-508: the same file twice > the name the caller gives replaces the one found in the workbook
+(fail) BR-508: the same file twice > the same file for another organisation is that organisation's own project
+(fail) BR-508: the same file twice > two submits of the same new file at the same moment create one project: one 201, one 409 duplicate_in_progress, and the retry returns the project
+(fail) POST /api/v1/projexa/assistant with an attachment > a deployment with no metered provider key: a refused answer, nothing read, no model
+(fail) POST /api/v1/projexa/assistant with an attachment > confirm: 201 and one project with its one BOQ of 53 lines; the parked job finished with no second model call
+(fail) POST /api/v1/projexa/assistant with an attachment > propose: 200, the questions in words, a proposal to confirm; nothing created; one metered model call; never a nested transaction
+(fail) POST /api/v1/projexa/assistant with an attachment > the owner's subscription is used only with the owner switch: switch off, the metered route serves the owner
+(fail) a fooled model creates nothing > "adds_a_line": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "adds_a_line_and_matches_totals": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "bank_details_in_terms": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "control_total_differs_from_file": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "control_total_not_printed": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "drops_a_line": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "drops_a_line_and_matches_totals": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "escapes_schema": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "obeys_plant_with_action": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "prices_an_unpriced_row": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) a fooled model creates nothing > "renames_the_project": refused at propose and at confirm, in words that carry none of its text; 0 projects, 0 BOQs; the spent call is on the ledger
+(fail) confirm: the same file, no second model call > a ready job is confirmed with no acknowledgement and no second model call
+(fail) confirm: the same file, no second model call > confirm without acknowledging the open questions asks them again and creates nothing
+(fail) confirm: the same file, no second model call > propose, then confirm with the questions acknowledged: ONE project, ONE BOQ of 53 lines, still one model call and one row
+(fail) createEdgeExtractCaller -- the fetch to the Edge Function, wired from the environment > a network failure is a 502 edge_unreachable and a non-JSON answer has a null body
+(fail) createEdgeExtractCaller -- the fetch to the Edge Function, wired from the environment > it posts the body to the function path with the bearer secret, whatever trailing slash the base URL has
+(fail) createEdgeExtractCaller -- the fetch to the Edge Function, wired from the environment > without a base URL or a secret it answers not-configured and does not call fetch
+(fail) money > a member gets the reconciliation's status only; a manager gets its figures
+(fail) no model is configured (BR-509 is the owner's decision) > index.ts wires no credential of its own: the caller secret, the Groq key and the service key are read from the environment, and no address or key is written in it
+(fail) price and wiring parity > index.ts wires the model only when OPENROUTER_API_KEY or GROQ_API_KEY is set, and always through a ledger-backed budget that is null when there is no service client (BUILD-002 AW-902)
+(fail) propose: level 2, nothing is created > ZOOMIES with the careful stand-in: the questions come back in the chat, one model call, one ledger row, 0 projects, 0 BOQs
+(fail) propose: level 2, nothing is created > a file with no questions is ready: the reply says nothing is created and asks for the confirmation
+(fail) propose: level 2, nothing is created > a project name the person sent is a proposal parameter; a name that is not sent is not invented
+(fail) propose: level 2, nothing is created > acknowledging questions in the propose request does nothing: only confirming can go past them
+(fail) recording the project against the upload fails > 500 project_link_failed names the project, no BOQ is created, the claim is kept (a resubmit is 409 in progress), and the fault is logged
+(fail) the gates > GET wants a job reference, finds only this organisation's jobs, and refuses a project key
+(fail) the gates run before the file is read and before any model call > a role below member is refused; member, manager and admin are let through
+(fail) the gates run before the file is read and before any model call > the sha256 the sender saw must be the stored file's: a swapped document reads nothing and starts no job
+(fail) the job states through the route > a second POST with acknowledgeQuestions=true creates the project and the BOQ with no second model call: 201 created
+(fail) the job states through the route > a shortfall is 422 extraction_total_mismatch and creates nothing; acknowledgeShortfall=true creates it
+(fail) the job states through the route > mode=prepare stops at ready: 200 and nothing created; the next POST creates it
+(fail) the job states through the route > open questions: 200 needs_answers and nothing created; GET reads the job by id and by the file's hash
+(fail) the one case where something exists after a failure > the project is created and linked, the BOQ insert fails: 500 boq_create_failed names the project, and a second submit returns that project
+(fail) the organisation's hourly limit > a file that already has a project is still answered over the limit, and only a new file is refused
+(fail) the organisation's hourly limit > an attempt that reached the model and failed still counts: with maxClaims - 1 attempts already made, one invalid answer uses the last slot and the next upload is 429
+(fail) the organisation's hourly limit > another organisation is not held back by this one's attempts
+(fail) the organisation's hourly limit > with no model configured, more than maxClaims uploads in a row are each answered 503 model_not_configured, never 429
+(fail) the words do not choose > the sentence reaches neither the executor, nor the model, nor the reply
+(fail) what the route refuses before or instead of creating anything > a product that is not the organisation's is 404, nothing is created, and the claim is freed
+(fail) what the route refuses before or instead of creating anything > the function is called with the shared secret as its bearer
+(fail) what the route refuses before or instead of creating anything > the function not set up in this environment (no secret): 503 extraction_not_configured and no fetch is made
+(fail) who may call it > an org API key that names a person creates the project as that person
+(fail) who may call it > the floor the route asks the guard for is the member role and the write scope, the same as the sibling project-create route

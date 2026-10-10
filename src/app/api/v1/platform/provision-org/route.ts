@@ -19,6 +19,7 @@ import { validatePlatformApplicationKey } from "@/lib/supabase/platform-applicat
 import { provisionOrganisation } from "@/lib/services/org-provisioning-service"
 import { hashSHA256, generateApiKey } from "@/lib/api-keys"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { ensureFirstPlatformUser } from "@/lib/services/platform-first-user-service"
 
 // Which product_branches (beyond the 2 free/on-by-default ones
 // provisionOrganisation() already enables for every org: veri_reward,
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let body: { customerOrgName?: unknown; country?: unknown; primaryCurrency?: unknown }
+  let body: { customerOrgName?: unknown; country?: unknown; primaryCurrency?: unknown; ownerEmail?: unknown; ownerName?: unknown; ownerAuthUserId?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -178,6 +179,25 @@ export async function POST(request: NextRequest) {
         issuedForApplicationId: platformApp.id,
       })
     )
+
+    // Optional owner (fix/signup-first-user-link): when the caller names the person who signed up, make them
+    // the org's first user right away (role admin). Absent -> unchanged behaviour; the same link is made lazily
+    // on that person's first acting-user request (platform-first-user-service.ts), so this is the eager half.
+    // Non-fatal, same posture as the branch enablement above.
+    const ownerEmail = typeof body.ownerEmail === "string" ? body.ownerEmail.trim() : ""
+    if (ownerEmail) {
+      try {
+        await ensureFirstPlatformUser({
+          orgId: organisationId,
+          issuedForApplicationId: platformApp.id,
+          actorEmail: ownerEmail,
+          actorId: typeof body.ownerAuthUserId === "string" ? body.ownerAuthUserId : null,
+          actorName: typeof body.ownerName === "string" ? body.ownerName : null,
+        })
+      } catch (err) {
+        console.warn("Owner user creation failed (non-fatal):", err)
+      }
+    }
 
     // Return the FULL key ONLY on creation -- never retrievable again after
     // this response, identical contract to the existing human-facing

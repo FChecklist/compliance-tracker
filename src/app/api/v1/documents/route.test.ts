@@ -13,6 +13,7 @@
 // ../projexa/permits/route.test.ts), so it proves what GET reports is what
 // POST actually wrote, not a canned answer.
 import { describe, test, expect, mock, setDefaultTimeout } from "bun:test"
+import { actingPersonDouble, ACTING_HEADERS } from "@/lib/supabase/__test-helpers__/acting-person-double"
 import { NextRequest } from "next/server"
 
 // Same rationale as ../projexa/permits/route.test.ts: the first dynamic
@@ -35,6 +36,7 @@ async function mockCreateThenList(store: StoredDoc[]) {
   const authActual = await import("@/lib/supabase/auth-guard")
   mock.module("@/lib/supabase/auth-guard", () => ({
     ...authActual,
+    ...actingPersonDouble(),
     requireAuthOrApiKey: mock(async () => ({
       orgId: "org-1",
       dbUser: null,
@@ -68,7 +70,8 @@ async function mockCreateThenList(store: StoredDoc[]) {
 function postRequest(formData: FormData) {
   return new NextRequest("http://localhost/api/v1/documents", {
     method: "POST",
-    headers: { authorization: "Bearer vk_test" },
+    // U-20b: an API-key write names its person, as PROJEXA's proxy now must.
+    headers: { authorization: "Bearer vk_test", ...ACTING_HEADERS },
     body: formData,
   })
 }

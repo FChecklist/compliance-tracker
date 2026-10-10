@@ -411,7 +411,9 @@ async function respondToResolvedCapability(
       const codeReference = agent?.tier === "global" ? agent.codeReference : null
       if (codeReference && isToolAllowedForDomain(agent?.domain, codeReference)) {
         await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-          const output = await dispatchTool(db, ctx.orgId, ctx.userId, codeReference)
+          // PROJEXA-BUILD-001 U-01b: the requester's own role, so a construction
+          // read shows money only to manager rank (it was omitted: redacted for all).
+          const output = await dispatchTool(db, ctx.orgId, ctx.userId, codeReference, undefined, ctx.dbUser.role)
           responseText += ` Result: ${JSON.stringify(output)}`
         })
       }

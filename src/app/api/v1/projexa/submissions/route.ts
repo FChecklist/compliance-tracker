@@ -19,6 +19,8 @@
 // this route checks permission again, from scratch, before anything runs.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { resolvePipelineActor } from "@/lib/supabase/acting-role"
+import { assertKeyProjectScope, keyProjectScope } from "@/lib/supabase/api-key-auth"
 import { runSubmission } from "@/lib/pipeline/run-submission"
 
 export async function POST(request: NextRequest) {
@@ -47,17 +49,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "rawInput is required and must be a non-empty string" }, { status: 400 })
   }
 
+  // PROJEXA-BUILD-001 U-19 (BR-213): a project_ai key acts on its own project
+  // only -- another one is a 403 before anything is written, and none named
+  // runs on the key's project (projectScope). An org_service key or a session
+  // is unchanged.
+  const projectId = typeof body.projectId === "string" ? body.projectId : null
+  const keyScope = assertKeyProjectScope(ctx.apiKey, projectId)
+  if (!keyScope.ok) return NextResponse.json({ error: keyScope.message }, { status: keyScope.status })
+
   try {
+    // PROJEXA-BUILD-001 U-01b: was `ctx.dbUser?.role ?? null`, null for every
+    // API-key caller. Same rules as the assistant route -- see acting-role.ts.
+    // U-01d: a role or null, never an error -- an unlinked person is redacted.
+    // U-49 (BR-219): the same lookup names the person the Level 1 provider
+    // gate compares -- never `actorId`, the org key's id for PROJEXA.
+    const { role: financialRole, personId: level1PersonId } = await resolvePipelineActor(ctx, request, body)
     const result = await runSubmission({
       orgId: ctx.orgId,
       userId: actorId,
       mode: typeof body.mode === "string" ? body.mode : "Projects",
-      projectId: typeof body.projectId === "string" ? body.projectId : null,
+      projectId,
       selectedChain: body.selectedChain,
       rawInput,
-      role: ctx.dbUser?.role ?? null,
+      role: financialRole,
+      level1PersonId,
+      projectScope: keyProjectScope(ctx.apiKey),
     })
-    return NextResponse.json(result, { status: 201 })
+    // U-49 (BR-221): a gate refusal is an answer -- what the free tiers
+    // resolved and ran, plus the no-commentary sentence -- so 200, not the 400
+    // a thrown refusal used to become. Nothing else changes status.
+    return NextResponse.json(result, { status: result.level1Outcome === "refused" ? 200 : 201 })
   } catch (error) {
     console.error("v1 projexa submissions error:", error)
     // The backend's own words. An empty list with a 200 would be the

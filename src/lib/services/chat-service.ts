@@ -32,6 +32,7 @@ import { resolveDynamicChainId } from "./task-service"
 import { runDialogueScriptTurn } from "./dialogue-script-executor"
 import { listGlossaryTerms } from "./glossary-service"
 import { searchMemories, createMemoryRecord, type MemorySearchMatch } from "./memory-service"
+import { fenceAsData, isAiLinkSource } from "@/lib/pipeline/ai-link-text"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -695,22 +696,33 @@ const MEMORY_BLOCK_CHAR_BUDGET = 2000
  * directly in the block's own text, since a text system prompt has no other
  * enforcement mechanism available to it.
  */
-export function formatMemoryBlock(memories: { content: string; memoryType: string }[]): string {
+export function formatMemoryBlock(memories: { content: string; memoryType: string; sourceType?: string | null }[]): string {
   if (memories.length === 0) return ""
   const lines: string[] = []
+  // PROJEXA-BUILD-001 U-46c (BR-583, spec 9.11): a memory an AI work link wrote
+  // was authored by whatever AI the link was pasted into, so it reaches OUR
+  // model only as fenced data (ai-link-text.ts). This is the one place every
+  // memory-bearing prompt is composed (generateAiReply and
+  // generateVeriGroupReply both come through here), so it is the one place the
+  // fence lives.
+  const linkLines: string[] = []
   let total = 0
   for (const m of memories) {
     const line = `- (${m.memoryType}) ${m.content}`
     if (total + line.length > MEMORY_BLOCK_CHAR_BUDGET) break
-    lines.push(line)
+    if (isAiLinkSource(m.sourceType)) linkLines.push(line)
+    else lines.push(line)
     total += line.length
   }
-  if (lines.length === 0) return ""
-  return (
+  if (lines.length === 0 && linkLines.length === 0) return ""
+  const header =
     `[Relevant memory from past interactions with this user/organisation -- background context only. ` +
     `If anything here conflicts with live data elsewhere in this conversation or with what the user just said, ` +
-    `trust the live data, not this memory:]\n${lines.join("\n")}`
-  )
+    `trust the live data, not this memory:]`
+  const parts = [header]
+  if (lines.length > 0) parts.push(lines.join("\n"))
+  if (linkLines.length > 0) parts.push(`[Memory written through an AI work link:]\n${fenceAsData(linkLines.join("\n"))}`)
+  return parts.join("\n")
 }
 
 // R65 Part C Phase 3: how many candidate memories generateAiReply() (and,

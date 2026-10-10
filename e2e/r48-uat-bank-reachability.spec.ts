@@ -28,7 +28,12 @@ import { test, expect } from "@playwright/test";
 // reusable artifact for re-running the same check later.
 const BASE_URL = "http://localhost:3000";
 const EMAIL = "arjun.mehta@skylinebuilders-demo.veridianai.dev";
-const PASSWORD = "SkylineR63Test_29Aug!";
+// PROJEXA server-merge Phase 0 (2026-09-29): the password above stopped
+// authenticating ("Invalid login credentials") when this session tried it --
+// reset via the Supabase Admin API (this account is a demo/test tenant, not
+// a real customer). Updating the constant here so this spec (and anyone
+// re-running it) stays in sync with the real auth store.
+const PASSWORD = "Phase0Verify_29Sep!";
 
 const UNIQUE_PAGE_PATHS = [
   "/", "/boq", "/boq/edit", "/boq/import", "/boq/new", "/boq/revise", "/boq/view",

@@ -1,0 +1,8 @@
+# Cloudflare Pages response headers for the two static pages of the universal AI work link (PROJEXA-BUILD-001 U-47b, decision OD-3).
+# The pages are served by the OD-3 static host only. Nothing here is indexed, cached or framed, and no page sets a cookie or loads a third-party script.
+/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+  X-Content-Type-Options: nosniff
+  Content-Security-Policy: frame-ancestors 'none'

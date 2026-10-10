@@ -4,7 +4,7 @@
 // requireRoleOrScope so an API-key caller is gated on a real write scope
 // instead (matching every other v1 write route's own convention).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { approveBoq, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -22,9 +22,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // approval resolve to the SAME actor as every create, so approveBoq's
     // own self-approval guard ("You cannot approve a BOQ you created
     // yourself") fired for every PROJEXA approval regardless of which two
-    // real, different users actually clicked Create and Approve.
-    const { user: actingUser } = await resolveActingUser(ctx, readActingUserEmail(request), readActingUserId(request))
-    const actorId = actingUser?.id ?? ctx.dbUser?.id ?? ctx.apiKey!.id
+    // real, different users actually clicked Create and Approve. U-20b: no
+    // acting-user header is now 400 ACTING_USER_REQUIRED, never the key id.
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const boq = await approveBoq({ orgId: ctx.orgId, userId: actorId }, id)
     return NextResponse.json(boq)
   } catch (error) {

@@ -124,7 +124,15 @@ describe("POST /api/v1/projexa/assistant -- R-80: one full pill path, no nested 
     expect(res.status).toBe(200)
     expect(body.codeReference).toBe("list_delayed_activities")
     // The actual requirement: the pill path really filters and returns real data.
-    expect(body.result).toEqual([{ id: "p2", name: "Behind Schedule", delayedTaskCount: 3 }])
+    // PROJEXA-BUILD-001 U-01d (D2): mockAuth's caller is a member, so each row's
+    // money fields come back null and flagged; name and delay count are kept.
+    expect(body.result).toEqual([{
+      id: "p2", name: "Behind Schedule", delayedTaskCount: 3,
+      revenue: null, expenses: null, spent: null, budget: null, ledgerBudget: null,
+      value: null, contractValue: null, projectValue: null,
+      earnedValue: null, earnedValuePrevWeek: null, percentByValue: null, spendOverValue: null,
+      financialsRedacted: true,
+    }])
     // The regression this whole test exists to catch: never more than one
     // transaction open at once for this entire request.
     expect(getMaxDepth()).toBe(1)

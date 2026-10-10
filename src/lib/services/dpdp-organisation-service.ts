@@ -4,9 +4,9 @@
 // never inserts into org_capability for that reason directly, only for an
 // org deliberately ADDING a second capability (e.g. a CA firm is also a
 // Processor for one client).
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
-import { db, dpdpOrganisation, dpdpOrgCapability, dpdpMembership, dpdpIdentity, dpdpIdentityEmail } from "@/lib/db"
+import { db, dpdpOrganisation, dpdpOrgCapability, dpdpMembership, dpdpIdentity, dpdpIdentityEmail, dpdpObligation, dpdpObligationTemplate } from "@/lib/db"
 import { withDpdpContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { logDpdpEvent } from "./dpdp-event-service"
 import { ServiceError } from "./compliance-service"
@@ -86,6 +86,59 @@ export async function listOrganisationsForIdentity(identityId: string) {
     return { org, level: m.level, canSign: m.canSign, capabilities: caps.map((c) => c.capability) }
   }))
   return orgs.filter((o) => o.org)
+}
+
+export type CaClientOrg = { org: typeof dpdpOrganisation.$inferSelect; caSub: "partner" | "manager"; done: number; total: number }
+
+/**
+ * WO-DPDP-010 §3 "CA firm view": every org where THIS identity is named
+ * "CA manager"/"CA partner" on at least one live obligation. Finding
+ * "every org I belong to" reuses listOrganisationsForIdentity's own plain
+ * (non-tenant-scoped) db.membership query -- but dpdp.obligation's own RLS
+ * requires current_org_id() to be actually set, unlike dpdp.membership's
+ * more permissive per-identity policy, so a plain-client read of it always
+ * silently returns zero rows regardless of real data (found live: direct
+ * SQL via the Supabase MCP confirmed the obligation row was really there
+ * with assigned_person_id set correctly, while this function's own
+ * pre-fix plain-db query for the exact same row returned []). Each org's
+ * obligations are therefore read inside that ONE org's own
+ * withDpdpContext, entered one at a time -- safe, since the org id being
+ * entered came from this identity's own real membership row, not user
+ * input.
+ */
+export async function listCaClientOrgs(identityId: string): Promise<CaClientOrg[]> {
+  // orderBy matters here for the same reason getOnePageData's own obligation
+  // query needed one (see that function's header comment) -- without it,
+  // Postgres's unordered result order can silently reshuffle which client
+  // appears first between page loads. createdAt (when this CA was named
+  // into the client, i.e. membership creation) is a stable, meaningful
+  // order: oldest client relationship first.
+  const memberships = await db.query.dpdpMembership.findMany({
+    where: and(eq(dpdpMembership.identityId, identityId), eq(dpdpMembership.state, "active")),
+    orderBy: (t, { asc }) => [asc(t.createdAt)],
+  })
+  const out: CaClientOrg[] = []
+  for (const m of memberships) {
+    const { org, caSub, done, total } = await withDpdpContext({ orgId: m.orgId }, async (tx) => {
+      const obligations = await tx.query.dpdpObligation.findMany({ where: eq(dpdpObligation.orgId, m.orgId) })
+      const mine = obligations.filter((o) => o.assignedPersonId === identityId)
+      if (!mine.length) return {}
+      const templateIds = [...new Set(mine.map((o) => o.templateId))]
+      const templates = await tx.query.dpdpObligationTemplate.findMany({ where: inArray(dpdpObligationTemplate.id, templateIds) })
+      const roleTagByTemplateId = new Map(templates.map((t) => [t.id, t.roleTag]))
+      const isPartner = mine.some((o) => roleTagByTemplateId.get(o.templateId) === "CAPARTNER" && o.state !== "not_applicable")
+      const isManager = mine.some((o) => roleTagByTemplateId.get(o.templateId) === "CAMGR" && o.state !== "not_applicable")
+      if (!isPartner && !isManager) return {}
+
+      const orgRow = await tx.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.id, m.orgId) })
+      if (!orgRow) return {}
+      const live = obligations.filter((o) => o.state !== "not_applicable")
+      const doneCount = live.filter((o) => o.state === "closed" || o.state === "submitted").length
+      return { org: orgRow, caSub: (isPartner ? "partner" : "manager") as "partner" | "manager", done: doneCount, total: live.length }
+    })
+    if (org && caSub != null && done != null && total != null) out.push({ org, caSub, done, total })
+  }
+  return out
 }
 
 export type InviteMemberInput = { orgId: string; actorIdentityId: string; email: string; level: "owner" | "staff" }

@@ -9,7 +9,9 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
 import { recordAuditTrigger } from "@/lib/audit-event-triggers"
+import { auditActorOf } from "@/lib/audit"
 import { storeEmbedding, findSimilar } from "@/lib/embeddings"
+import type { ActorCtx } from "./actor-context"
 
 // AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
 // "Explain Software Functionality" -- the help chatbot (help/ask/route.ts)
@@ -140,7 +142,7 @@ export async function createKbPage(
 // own comment claiming BOTH create and edit require a real session was
 // only half right -- create already worked; only edit was actually blocked.
 export async function updateKbPage(
-  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  ctx: ActorCtx,
   pageId: string,
   patch: Partial<{ title: string; content: string | null; isArchived: boolean; isPublished: boolean }>
 ) {
@@ -164,9 +166,7 @@ export async function updateKbPage(
     // once per genuine update, not per no-op save. Best-effort: never lets a
     // logging failure break the page edit that already committed above.
     await recordAuditTrigger(
-      ctx.dbUser
-        ? { tx: db, event: "knowledge_updated", entityType: "knowledge_base_page", entityId: page.id, orgId: ctx.orgId, dbUser: ctx.dbUser, details: `Knowledge base page "${page.title}" updated to version ${page.version}.` }
-        : { tx: db, event: "knowledge_updated", entityType: "knowledge_base_page", entityId: page.id, orgId: ctx.orgId, apiKey: ctx.apiKey, details: `Knowledge base page "${page.title}" updated to version ${page.version}.` }
+      { tx: db, event: "knowledge_updated", entityType: "knowledge_base_page", entityId: page.id, orgId: ctx.orgId, ...auditActorOf(ctx), details: `Knowledge base page "${page.title}" updated to version ${page.version}.` }
     ).catch((err) => console.error(`[audit-trigger] failed to record knowledge_updated for page ${page.id}:`, err))
 
     return page

@@ -16,7 +16,7 @@
 // Role floor: "member"/"write", same as the diff route and the sibling
 // line-items/[id]/route.ts PATCH.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { parseUploadedBoq, applyUpload, ServiceError } from "@/lib/services/boq-excel-roundtrip-service"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB, same ceiling as the sibling roster/scope importers and this feature's own diff route
@@ -50,10 +50,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Malformed file -- nothing was applied.", fileErrors: parsed.fileErrors }, { status: 400 })
     }
 
-    // External API-key callers have no real user id -- same fallback
-    // v1/construction/boq/route.ts's own POST already uses for createBoq's
-    // createdById, reused here for createBoqRevision's identical need.
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    // U-20b: an API-key caller names the person (X-Acting-User /
+    // X-Acting-User-Email); the revision's createdById is that person, never
+    // the key's own id (the old fallback this line used to share with
+    // v1/construction/boq/route.ts's POST).
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const result = await applyUpload(
       { orgId: ctx.orgId, userId: actorId },
       id,

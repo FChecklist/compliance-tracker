@@ -25,14 +25,21 @@ import { type ResolutionSource, classifySegment, classifySubmission, normaliseFo
 import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
+import { runLevel1, refusalAsUnresolved, level1RefusalCode, level1OffRunner, type Level1Context, type Level1LaneOutcome, type Level1Outcome } from "./level1";
+import { AI_LINK_SOURCE, AI_LINK_TEXT_MAX, applyLinkTextRules, boundedLinkText, cleanLinkText } from "./ai-link-text";
+import { functionSpec } from "./function-registry";
 import { makePhraseFuzzyRepo, type PhraseFuzzyRepo } from "./phrase-fuzzy";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
-import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult, type DryRunTelemetry } from "./dry-run";
+import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult } from "./dry-run";
 import { toVerdictResult, type SubmissionVerdictResult } from "./verdict";
 import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
-import { assertAiProviderAllowed } from "@/lib/ai/adapter";
+import { assertAiProviderAllowed, type AiProviderRefusalKind } from "@/lib/ai/adapter";
+import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
+import { projexaInternalAiEnabled, USE_YOUR_OWN_AI } from "@/lib/projexa-internal-ai";
 import { createMemoryRecord } from "@/lib/services/memory-service";
+import { ServiceError } from "@/lib/services/compliance-service";
+import { assertProjectInScope } from "@/lib/ai-links/project-scope";
 
 // M26: "Pass the module's 5-15 functions ... NEVER 400 unbound functions --
 // that is where it hallucinates." The candidate set is exactly what
@@ -111,10 +118,18 @@ export function buildValidationContext(args: {
    * comes back as ServiceError 404 -> RECORD_NOT_FOUND).
    */
   params?: Record<string, unknown>;
+  /**
+   * PROJEXA-BUILD-001 U-18 (BR-288): for a project-scoped caller (see
+   * RunSubmissionInput.projectScope) the scope is the ONLY reachable project.
+   * The request's params are not seeded, so a project the classifier or the
+   * caller's params name is refused as PROJECT_NOT_REACHABLE before a task is
+   * minted. Here the set IS a boundary, not only a hallucination guard.
+   */
+  projectScope?: string | null;
 }): ValidationContext {
-  const requestedProjectIds = [args.projectId, args.params?.projectId].filter(
-    (id): id is string => typeof id === "string" && id.trim().length > 0
-  );
+  const requestedProjectIds = args.projectScope
+    ? [args.projectScope]
+    : [args.projectId, args.params?.projectId].filter((id): id is string => typeof id === "string" && id.trim().length > 0);
   return {
     candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
     boqLineItemIds: args.boq?.lineItemIds ?? new Set<string>(),
@@ -158,7 +173,7 @@ export type RunSubmissionInput = {
   projectId?: string | null;
   selectedChain?: unknown;
   rawInput: string;
-  /** R48 gap-closure (2026-08-30, F089) -- see executor.ts's ExecutableTask.role comment. Optional: callers with no role available (e.g. the MCP AI-link route) simply don't get the redaction. */
+  /** R48 gap-closure (2026-08-30, F089) -- see executor.ts's ExecutableTask.role comment. Optional, but U-01 (2026-09-25): a caller that passes no role gets the construction figures REDACTED, not shown. */
   role?: string | null;
   /**
    * R67 C-03 (decision D-05, the identity bridge) -- see executor.ts's
@@ -166,7 +181,170 @@ export type RunSubmissionInput = {
    * always a real compliance.users.id or nothing at all.
    */
   actorUserId?: string | null;
+  /**
+   * PROJEXA-BUILD-001 U-49 (BR-219): the compliance.users id of the ACTING
+   * PERSON, the one identity the Level 1 provider gate compares. `userId`
+   * above is the org API key's id on the PROJEXA proxy, which is why it is
+   * never used for that. The routes resolve it the way the construction money
+   * redaction resolves its role (acting-role.ts resolvePipelineActor): the
+   * session user, or the person an API key names. Omitted or null means no
+   * person resolved, and a subscription provider refuses (fail closed).
+   *
+   * Separate from actorUserId on purpose: that one attributes WRITES and is
+   * resolved per route for that job; this one only decides whether the model
+   * may be asked, and changes nothing about who a row is recorded under.
+   */
+  level1PersonId?: string | null;
+  /**
+   * PROJEXA-BUILD-001 U-43 (2026-09-25, owner directive: "we will not use our
+   * AI if the user has pasted the AI Work link"). "off" keeps Level 0, the
+   * reuse cache and the phrase-fuzzy tier -- all free, no model -- and stops
+   * there: a segment they leave unresolved stays a gap, and runLevel1 (with
+   * the assertAiProviderAllowed gate inside it) is never called. The external
+   * AI link route passes "off" because the caller's own AI is Level 1 there.
+   * Omitted or "internal" is the behaviour every other caller had before.
+   */
+  level1?: "internal" | "off";
+  /**
+   * PROJEXA-BUILD-001 U-43 / U-46c (BR-287, spec 9.7 C-1 and C-2): the AI work
+   * link this submission came through. Setting it means the caller's own AI is
+   * Level 1, so the internal model is NEVER asked (effectiveLevel1 below turns
+   * it into level1 "off" whatever `level1` says), the free text is held to the
+   * link text rules (2,000 characters, control characters removed), and the
+   * memory a completed write leaves is marked source_type 'ai_link' so it is
+   * fenced as data when our own AI reads it later. Omitted or null is every
+   * session and app caller's behaviour, unchanged.
+   */
+  aiLinkId?: string | null;
+  /**
+   * The channel the submission came through, for provenance. 'ai_link' is
+   * implied by `aiLinkId`; it can also be set alone by a caller that has no link
+   * row to name. Anything else (omitted) is the session/app path.
+   */
+  via?: SubmissionVia | null;
+  /**
+   * PROJEXA-BUILD-001 U-18 / U-19 (BR-210, BR-213, BR-288): the one project a
+   * project-scoped credential -- a PROJEXA work link, a project_ai API key --
+   * may act on. When set, the submission runs on that project: a `projectId`
+   * naming another one is refused with ServiceError 403 before anything is
+   * written, a missing one becomes the scope, and a project the classifier or
+   * the params name is refused by validate() (PROJECT_NOT_REACHABLE). Omitted
+   * or null is every org-wide caller's behaviour, unchanged.
+   */
+  projectScope?: string | null;
 };
+
+/**
+ * U-18: pins a scoped input to its project, or refuses it with ServiceError
+ * 403 (assertProjectInScope, the rule every scoped surface shares). Every entry
+ * point below calls it before its first write.
+ */
+function pinToProjectScope<T extends { projectId?: string | null; projectScope?: string | null }>(input: T): T {
+  const scope = input.projectScope ?? null;
+  if (!scope) return input;
+  const check = assertProjectInScope({ projectId: scope }, input.projectId);
+  if (!check.ok) throw new ServiceError(check.message, check.status);
+  return { ...input, projectId: scope };
+}
+
+/** The channels a submission can be marked with. Only the AI work link is one today; the session/app path carries none. */
+export type SubmissionVia = "ai_link";
+
+/**
+ * PROJEXA-BUILD-001 U-46c (BR-287, BR-583): did this call come through an AI
+ * work link? The single test every link rule below branches on -- the Level 1
+ * switch, the text rules and the memory mark -- so they cannot disagree about it.
+ */
+export function isFromAiLink(input: { via?: SubmissionVia | null; aiLinkId?: string | null }): boolean {
+  return input.via === 'ai_link' || Boolean(input.aiLinkId);
+}
+
+/**
+ * PROJEXA-BUILD-001 U-43 (BR-287): the Level 1 mode a call really runs in. A
+ * link call is always "off" -- the owner's directive is that the internal AI is
+ * not used when the user has pasted the AI Work link -- whatever `level1` was
+ * passed; every other caller keeps the mode it asked for (default "internal").
+ *
+ * lf-b3-ai-off (owner directive 2026-10-02, "the user's own AI, never ours"):
+ * and EVERY call is "off" while PROJEXA_INTERNAL_AI_ENABLED is not exactly "1"
+ * (projexa-internal-ai.ts). The check lives here, not on the inputs, because
+ * this is the one function every entry point consults (runSubmission,
+ * submitForVerdict's dry run, and confirmSubmission, whose input has no
+ * `level1` field at all) -- a flag on the input could be forgotten by one of them.
+ */
+export function effectiveLevel1(input: { level1?: "internal" | "off"; via?: SubmissionVia | null; aiLinkId?: string | null }): "internal" | "off" {
+  if (!projexaInternalAiEnabled()) return "off";
+  return isFromAiLink(input) ? "off" : (input.level1 ?? "internal");
+}
+
+/**
+ * lf-b3-ai-off: should a gap be answered with USE_YOUR_OWN_AI? Only when Level 1
+ * is off BECAUSE the internal AI is switched off, and the caller is a person in
+ * the app. A link call's own AI is already the one doing the work, so telling
+ * it to "paste your PROJEXA AI link" would be wrong: it keeps the old wording.
+ */
+export function gapSaysUseYourOwnAi(input: { via?: SubmissionVia | null; aiLinkId?: string | null }): boolean {
+  return !projexaInternalAiEnabled() && !isFromAiLink(input);
+}
+
+/** Spec 9.11: a free-text value over the cap is refused with 422 TEXT_TOO_LONG before anything is written, never cut short. */
+function refuseTextTooLong(field: string): never {
+  throw new ServiceError(`TEXT_TOO_LONG: ${field} is longer than ${AI_LINK_TEXT_MAX} characters`, 422, { code: "TEXT_TOO_LONG" });
+}
+
+/** A link's raw sentence is cleaned and capped; any other caller's is returned as it was. */
+function withLinkRawInput<T extends { rawInput: string; via?: SubmissionVia | null; aiLinkId?: string | null }>(input: T): T {
+  if (!isFromAiLink(input)) return input;
+  const cleaned = cleanLinkText(input.rawInput);
+  if (!cleaned.ok) refuseTextTooLong("rawInput");
+  return { ...input, rawInput: cleaned.text };
+}
+
+/**
+ * A link's write parameters and note, cleaned; the first free-text value over
+ * the cap refuses the whole call (422 TEXT_TOO_LONG). "Free text" is the
+ * parameter names spec 9.11 lists plus the `text` fields of the function's own
+ * card in function-registry.ts. Any other caller's input is returned untouched.
+ */
+function withLinkText<T extends { functionId: string; params?: Record<string, unknown>; note?: string; via?: SubmissionVia | null; aiLinkId?: string | null }>(input: T): T {
+  if (!isFromAiLink(input)) return input;
+  const cardTextFields = (functionSpec(input.functionId)?.card?.fields ?? []).filter((f) => f.type === "text").map((f) => f.key);
+  const rules = applyLinkTextRules(input.params ?? {}, cardTextFields);
+  if (!rules.ok) refuseTextTooLong(rules.field);
+  let note = input.note;
+  if (note !== undefined) {
+    const cleanedNote = cleanLinkText(note);
+    if (!cleanedNote.ok) refuseTextTooLong("note");
+    note = cleanedNote.text;
+  }
+  return { ...input, params: rules.params, ...(note !== undefined ? { note } : {}) };
+}
+
+/**
+ * BUILD-002 WP-09a (spec 9.7 C-1, migration 0630): the two provenance columns of compliance.submissions. A link submission carries
+ * via 'ai_link' and its link id; every other caller writes neither (both columns stay NULL). The CHECK of 0630 admits only NULL or
+ * 'ai_link', so a caller that names a link by id alone is still written as 'ai_link'.
+ */
+function linkProvenanceColumns(input: { via?: SubmissionVia | null; aiLinkId?: string | null }): { via?: SubmissionVia; aiLinkId?: string } {
+  if (!isFromAiLink(input)) return {};
+  return { via: AI_LINK_SOURCE, ...(input.aiLinkId ? { aiLinkId: input.aiLinkId } : {}) };
+}
+
+/**
+ * BUILD-002 WP-09a (spec 9.7 C-1 and 9.6 step 5, gap G8): the telemetry a link write persists. runDirectTask has always RETURNED
+ * modelCalls 0 and level1Outcome 'not_needed' but never wrote them, so BR-586's model_calls = 0 read NULL and proved nothing. Built
+ * with level1Columns() like every other writer, so the same situation is recorded one way. Only for a link: the columns of a
+ * session/app pill are not changed by this work.
+ */
+function linkTelemetryColumns(input: { via?: SubmissionVia | null; aiLinkId?: string | null }) {
+  if (!isFromAiLink(input)) return {};
+  return level1Columns({ outcome: "not_needed", refusalKind: null, reason: null, modelCalls: 0, cacheHits: 0, l0HitRate: 1 });
+}
+
+/** The provenance the one-line submission log carries, so a link submission is recognisable in the logs. Empty for every other caller. */
+function linkLogSuffix(input: { via?: SubmissionVia | null; aiLinkId?: string | null }): string {
+  return isFromAiLink(input) ? ` via=${AI_LINK_SOURCE} ai_link_id=${input.aiLinkId ?? "-"}` : "";
+}
 
 export type TaskOutcome = {
   taskId: string;
@@ -213,6 +391,15 @@ export type RunSubmissionResult = {
   l0HitRate: number;
   /** how many model calls this submission actually made. 0 for a pure Level 0 hit. */
   modelCalls: number;
+  /**
+   * PROJEXA-BUILD-001 U-49 (BR-221): what the Level 1 lane did, the value
+   * persisted on submissions.level1_outcome. `refused` means the provider
+   * gate switched the model off for this caller: the result still carries
+   * everything the free tiers resolved and ran, and chatMessages ends with
+   * NO_COMMENTARY_SENTENCE -- the routes answer that with HTTP 200, not the
+   * 400 a thrown refusal used to become.
+   */
+  level1Outcome: Level1LaneOutcome;
 };
 
 function normalisePhrase(text: string): string {
@@ -289,6 +476,13 @@ async function captureTaskResultMemory(
   segmentText: string,
   params: Record<string, unknown>
 ): Promise<void> {
+  // PROJEXA-BUILD-001 U-46c (BR-583, spec 9.11 / audit A-16): a write made
+  // through an AI work link leaves a memory MARKED as link-written
+  // (source_type 'ai_link', the link id as source_id), with its content cleaned
+  // and capped, because the text in it was authored by the caller's AI. The
+  // read side fences every row with this mark as data (chat-service.ts
+  // formatMemoryBlock); an unmarked row would reach our model as instructions.
+  const fromLink = isFromAiLink(input);
   try {
     await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
       createMemoryRecord(db, input.orgId, {
@@ -309,10 +503,15 @@ async function captureTaskResultMemory(
         projectId: input.projectId ?? null,
         userId: input.userId,
         memoryType: "TASK_RESULT",
-        content: buildTaskResultMemoryContent(functionId, segmentText, params),
+        content: fromLink
+          ? boundedLinkText(buildTaskResultMemoryContent(functionId, segmentText, params))
+          : buildTaskResultMemoryContent(functionId, segmentText, params),
         provenanceType: "DATABASE_CONFIRMED",
         lifecycleState: "ACTIVE",
-        sourceType: "task",
+        sourceType: fromLink ? AI_LINK_SOURCE : "task",
+        // BUILD-002 WP-09b (spec 9.11): no embedding-provider call on link traffic. The row is stored, fenced and
+        // marked, and stays out of semantic search until a repair pass embeds it.
+        ...(fromLink ? { sourceId: input.aiLinkId ?? null, metadata: { via: AI_LINK_SOURCE, aiLinkId: input.aiLinkId ?? null }, skipEmbedding: true } : {}),
       })
     );
   } catch (err) {
@@ -331,6 +530,24 @@ async function captureTaskResultMemory(
  */
 let modelCallCount = 0;
 
+/**
+ * PROJEXA-BUILD-001 U-49 (BR-220) -- WHAT THE LEVEL 1 LANE DID, PER CALL.
+ *
+ * submitForVerdict() was the only writer of compliance.submissions' seven
+ * telemetry columns (drizzle/0571), so every row this function inserted -- the
+ * assistant, submissions, tasks {execute:true} and AI-link paths -- kept them
+ * NULL: 51 of 58 rows unmeasured on 2026-09-25 (GATE_2_8_FINDINGS). This is
+ * the same four-way outcome dry-run.ts counts, kept per call and threaded
+ * through resolveAll() rather than in module state like modelCallCount above,
+ * so it cannot leak from one submission into the next.
+ */
+type Level1Tally = {
+  outcome: Level1LaneOutcome;
+  refusalKind: AiProviderRefusalKind | null;
+  reason: string | null;
+  cacheHits: number;
+};
+
 /** One segment, all the way through resolution but NOT yet executed. */
 type ResolvedSegment = {
   text: string;
@@ -345,7 +562,10 @@ function l0ToResolution(r: L0Result): ResolvedFunction | null {
   return { functionId: r.functionId, params: r.params, source: r.source, level: 0 };
 }
 
-export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmissionResult> {
+export async function runSubmission(submitted: RunSubmissionInput): Promise<RunSubmissionResult> {
+  // U-18: before anything is written, including the submissions row.
+  // U-46c: and a link's raw sentence is cleaned (or refused) at the same point.
+  const input = withLinkRawInput(pinToProjectScope(submitted));
   modelCallCount = 0;
   const { segments: segs, flagged } = segment(input.rawInput);
   if (segs.length === 0) {
@@ -353,7 +573,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     // to persist classification onto -- returned for shape-consistency only.
     // Zero segments means zero task-verdicts, i.e. CHAT_ONLY by the same
     // rule classifySubmission() applies everywhere else.
-    return { submissionId: null, status: "chat", classification: "CHAT_ONLY", chatMessages: [], tasks: [], failures: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0 };
+    return { submissionId: null, status: "chat", classification: "CHAT_ONLY", chatMessages: [], tasks: [], failures: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0, level1Outcome: "not_needed" };
   }
 
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
@@ -366,6 +586,8 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
         selectedChain: (input.selectedChain as object | undefined) ?? null,
         rawInput: input.rawInput,
         userId: input.userId,
+        // BUILD-002 WP-09a (migration 0630): the AI work link this submission came through, if any.
+        ...linkProvenanceColumns(input),
       })
       .returning({ id: submissions.id });
     return row.id;
@@ -381,7 +603,14 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   let resolvedCount = 0;
 
   // ---- RESOLUTION PASS -------------------------------------------------
-  const resolved = await resolveAll(segs, input, repo, reuseRepo, fuzzyRepo);
+  const tally: Level1Tally = { outcome: "not_needed", refusalKind: null, reason: null, cacheHits: 0 };
+  let resolved: ResolvedSegment[];
+  try {
+    resolved = await resolveAll(segs, input, repo, reuseRepo, fuzzyRepo, tally);
+  } catch (error) {
+    await recordLevel1Fault(input, submissionId, tally);
+    throw error;
+  }
   for (const r of resolved) {
     if (r.classification.verdict !== "gap") {
       resolvedCount++;
@@ -392,6 +621,8 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   // ---- EXECUTION PASS --------------------------------------------------
   const chatMessages: string[] = [];
   const gaps: { text: string; reason: string }[] = [];
+  // lf-b3-ai-off: the gaps that are "nothing understood this" (not a validation failure of something that was understood).
+  let unresolvedGapCount = 0;
   const tasks: TaskOutcome[] = [];
   const failures: ({ segmentText: string } & PipelineFailure)[] = [];
 
@@ -416,6 +647,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     if (c.verdict === "gap") {
       await logGap(input, submissionId, seg.text, normalisePhrase(seg.text), c.gapReason ?? "unresolved");
       gaps.push({ text: seg.text, reason: c.gapReason ?? "unresolved" });
+      unresolvedGapCount++;
       if (c.message) chatMessages.push(c.message);
       continue;
     }
@@ -452,6 +684,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       projectLabel: rootLabel,
       boq: await boqFacts(c.params),
       params: c.params,
+      projectScope: input.projectScope ?? null,
     });
 
     const v = validate({ functionId: c.functionId, params: c.params }, validationCtx);
@@ -588,17 +821,33 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   // not, the derived chain of the first task fills it, so the column stops
   // being universally null and Task Master has something to render.
   const selectedChain = (input.selectedChain as object | undefined) ?? (firstDerivedChain as object | null);
-  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.update(submissions).set({ status, classification, selectedChain }).where(eq(submissions.id, submissionId))
-  );
-
   const l0HitRate = resolvedCount === 0 ? 0 : l0Hits / resolvedCount;
+
+  // U-49 (BR-221): a refusal is said ONCE, after everything the free tiers
+  // resolved and ran. The sentence promises "here is what the records say",
+  // and on this path the records are the rest of this result -- tasks with
+  // their results, failures, gaps -- not a 400 with nothing attached.
+  if (tally.outcome === "refused") chatMessages.push(NO_COMMENTARY_SENTENCE);
+  // lf-b3-ai-off: a segment Level 0 could not resolve stays a gap (logged as
+  // ever), and the person is told once, in plain words, where the AI is.
+  if (unresolvedGapCount > 0 && gapSaysUseYourOwnAi(input)) chatMessages.push(USE_YOUR_OWN_AI);
+
+  // U-49 (BR-220): the telemetry lands in the same write as the status, so a
+  // row this function inserted is never left unmeasured.
+  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+    db
+      .update(submissions)
+      .set({ status, classification, selectedChain, ...level1Columns({ ...tally, modelCalls: modelCallCount, l0HitRate }) })
+      .where(eq(submissions.id, submissionId))
+  );
 
   // THE PROOF, IN THE LOGS. One structured line per submission. A Level 0
   // hit reads model_calls=0; anything that reached the model cannot hide it.
   console.info(
     `[pipeline] submission=${submissionId} segments=${segs.length} resolved=${resolvedCount} l0_hits=${l0Hits} ` +
-      `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${modelCallCount} tasks=${tasks.length} gaps=${gaps.length} status=${status} classification=${classification}`
+      `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${modelCallCount} tasks=${tasks.length} gaps=${gaps.length} status=${status} classification=${classification} ` +
+      `level1=${tally.outcome}` +
+      linkLogSuffix(input)
   );
 
   return {
@@ -612,6 +861,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     flagged,
     l0HitRate,
     modelCalls: modelCallCount,
+    level1Outcome: tally.outcome,
   };
 }
 
@@ -649,9 +899,18 @@ export type RunDirectTaskInput = {
   existingSubmissionId?: string;
   /** R67 C-03 (D-05) -- see RunSubmissionInput.actorUserId. */
   actorUserId?: string | null;
+  /** U-18 / U-19 -- see RunSubmissionInput.projectScope. A pill's params.projectId is held to it by validate(). */
+  projectScope?: string | null;
+  /** U-46c (BR-287, BR-583) -- see RunSubmissionInput.aiLinkId: the link this write came through. Its free text is cleaned and capped, and the memory it leaves is marked 'ai_link'. */
+  aiLinkId?: string | null;
+  /** U-46c -- see RunSubmissionInput.via. */
+  via?: SubmissionVia | null;
 };
 
-export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmissionResult> {
+export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunSubmissionResult> {
+  // U-18: before anything is written, including the submissions row.
+  // U-46c (BR-583): and, for a link call, before the free text is written.
+  const input = withLinkText(pinToProjectScope(submitted));
   const params = input.params ?? {};
   const base: RunSubmissionInput = {
     orgId: input.orgId,
@@ -661,6 +920,9 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     rawInput: input.note ?? `[pill] ${input.functionId}`,
     role: input.role,
     actorUserId: input.actorUserId ?? null,
+    projectScope: input.projectScope ?? null,
+    aiLinkId: input.aiLinkId ?? null,
+    via: input.via ?? null,
   };
 
   const submissionId =
@@ -674,6 +936,9 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
           mode: input.mode,
           rawInput: base.rawInput,
           userId: input.userId,
+          // BUILD-002 WP-09a (spec 9.7 C-1, migration 0630): where the submission came from, so
+          // a link write can be listed and counted. Null on every session/app submission.
+          ...linkProvenanceColumns(input),
         })
         .returning({ id: submissions.id });
       return row.id;
@@ -707,13 +972,14 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     projectLabel: rootLabel,
     boq: await makeBoqFactsResolver(input.orgId, input.userId, input.projectId ?? null)(params),
     params,
+    projectScope: input.projectScope ?? null,
   });
   const v = validate({ functionId: input.functionId, params }, validationCtx);
   if (!v.valid) {
     const line = failureLogLine(v);
     await logGap(base, submissionId, base.rawInput, input.functionId, line);
     await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-      db.update(submissions).set({ status: "failed", classification }).where(eq(submissions.id, submissionId))
+      db.update(submissions).set({ status: "failed", classification, ...linkTelemetryColumns(input) }).where(eq(submissions.id, submissionId))
     );
     return {
       submissionId,
@@ -726,6 +992,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
       flagged: false,
       l0HitRate: 1,
       modelCalls: 0,
+      level1Outcome: "not_needed",
     };
   }
   const resolvedParams = v.params;
@@ -740,7 +1007,13 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
   // "phrase_map": runDirectTask is the pill path -- the USER named the
   // function, so no model was involved and its own telemetry above says so
   // (l0HitRate 1, modelCalls 0).
-  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "phrase_map");
+  //
+  // BUILD-002 WP-09a (spec 9.7 C-1): when the call came through an AI work link the
+  // function was chosen by the caller's own AI, so the task is "external_ai" and
+  // pipeline_tasks.executor records "ai". Still no model call in this pipeline.
+  const taskId = isFromAiLink(input)
+    ? await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "external_ai")
+    : await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "phrase_map");
 
   let outcome: { success: true; result: unknown } | { success: false; failure: PipelineFailure; debug?: string };
   if (!hasExecutor(input.functionId)) {
@@ -765,8 +1038,25 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     });
   }
 
+  // BUILD-001 U-29 fix round 1: once executeTask() has succeeded the record exists, so an error in the bookkeeping that
+  // follows (the task row, the pill and chain history, the submission's own status) is logged and does not abort the
+  // call. Thrown here it reaches the caller after the write, and a caller that retries on an error then writes twice.
+  // A run that failed keeps the old behaviour: nothing was written, and the error surfaces.
+  const afterRun = async (what: string, run: () => Promise<unknown>): Promise<void> => {
+    if (!outcome.success) {
+      await run();
+      return;
+    }
+    try {
+      await run();
+    } catch (error) {
+      console.error(`[pipeline] submission=${submissionId} task=${taskId} ${what} failed after the write (not aborting):`, error);
+    }
+  };
+
   if (outcome.success) {
-    await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
+    const executed = outcome.result;
+    await afterRun("task update", () => updateTask(input.orgId, taskId, "done", executed, undefined));
     // R65 Part C Phase 3: task memory, same as runSubmission()'s own
     // execution loop above -- WRITE tasks only.
     if (functionWrites(input.functionId)) {
@@ -777,16 +1067,22 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     await updateTask(input.orgId, taskId, statusForFailure(outcome.failure), undefined, outcome.failure);
   }
 
-  await recordPillUse(base, input.functionId, derived);
-  await recordChainHistory(base, input.functionId, derived, outcome.success ? "ok" : "failed");
+  await afterRun("pill use", () => recordPillUse(base, input.functionId, derived));
+  await afterRun("chain history", () => recordChainHistory(base, input.functionId, derived, outcome.success ? "ok" : "failed"));
 
   const status = outcome.success ? "done" : "failed";
-  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.update(submissions).set({ status, classification, selectedChain: derived as unknown as object }).where(eq(submissions.id, submissionId))
+  await afterRun("submission status", () =>
+    withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+      db
+        .update(submissions)
+        .set({ status, classification, selectedChain: derived as unknown as object, ...linkTelemetryColumns(input) })
+        .where(eq(submissions.id, submissionId))
+    )
   );
 
   console.info(
-    `[pipeline] submission=${submissionId} source=pill function=${input.functionId} model_calls=0 status=${status} classification=${classification}`
+    `[pipeline] submission=${submissionId} source=pill function=${input.functionId} model_calls=0 status=${status} classification=${classification}` +
+      linkLogSuffix(input)
   );
 
   return {
@@ -810,6 +1106,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     flagged: false,
     l0HitRate: 1, // a pill is Level 0 by definition -- the user supplied the function
     modelCalls: 0,
+    level1Outcome: "not_needed", // ...so the Level 1 lane is never entered
   };
 }
 
@@ -882,8 +1179,24 @@ async function recordChainHistory(
  * each, then R53's re-join-once retry for whatever still resolved to
  * nothing.
  */
-async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo, reuseRepo: ReuseCacheRepo, fuzzyRepo?: PhraseFuzzyRepo): Promise<ResolvedSegment[]> {
+async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo, reuseRepo: ReuseCacheRepo, fuzzyRepo: PhraseFuzzyRepo | undefined, tally: Level1Tally): Promise<ResolvedSegment[]> {
   const l0 = await Promise.all(segs.map((s) => classifyL0(s.text, { orgId: input.orgId, userId: input.userId }, repo)));
+
+  // U-49 (BR-220): one Level 1 lane call, counted into the tally. A refusal
+  // comes back as "nothing resolved" (level1RunnerFor); a genuine fault is
+  // marked `error` and still thrown. No texts means the lane was not entered.
+  const lane = async (texts: string[]) => {
+    try {
+      const out = await resolveMissesWithReuseCache(texts, level1Context(input), reuseRepo, level1RunnerFor(input, tally), undefined, fuzzyRepo);
+      if (texts.length > 0 && tally.outcome === "not_needed") tally.outcome = "resolved";
+      tally.cacheHits += out.cacheHits;
+      return out;
+    } catch (error) {
+      tally.outcome = "error";
+      tally.reason = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  };
 
   // R65 Part D: reuse_cache is checked BEFORE Level 1 for every miss -- see
   // reuse-cache.ts's own header. A hit is served with zero model calls
@@ -893,7 +1206,7 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
   // signal at this same L0-miss -> Level-1 boundary -- see phrase-fuzzy.ts.
   // Injected (same testability seam as repo/reuseRepo) -- undefined for any
   // caller that doesn't pass one.
-  const level1 = await resolveMissesWithReuseCache(missIndices.map((i) => segs[i].text), level1Context(input), reuseRepo, undefined, undefined, fuzzyRepo);
+  const level1 = await lane(missIndices.map((i) => segs[i].text));
   modelCallCount += level1.modelCalls;
   const aiByIndex = level1.resolutions;
 
@@ -954,7 +1267,7 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
     retryTexts.map((r) => classifyL0(r.text, { orgId: input.orgId, userId: input.userId }, repo))
   );
   const retryMissIdx = retryL0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const retryLevel1 = await resolveMissesWithReuseCache(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input), reuseRepo, undefined, undefined, fuzzyRepo);
+  const retryLevel1 = await lane(retryMissIdx.map((i) => retryTexts[i].text));
   modelCallCount += retryLevel1.modelCalls;
   const retryAi = retryLevel1.resolutions;
 
@@ -987,13 +1300,80 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
  * candidate functions and the valid line-item ids -- NEVER the full
  * catalogue." level1.ts loads the ids itself from this project's latest BOQ.
  */
-function level1Context(input: RunSubmissionInput) {
+function level1Context(input: RunSubmissionInput): Level1Context {
   return {
     orgId: input.orgId,
     userId: input.userId,
+    // U-49: the person the provider gate compares -- never userId.
+    personId: input.level1PersonId ?? null,
     projectId: input.projectId ?? null,
     candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
   };
+}
+
+/**
+ * U-43: the Level 1 step for this submission. With level1 "off" the step
+ * makes no model call and consults no provider: every text that reached it
+ * comes back unresolved, so classifySegment() turns it into the same gap a
+ * Level 1 "no function" answer produces today -- recorded as `resolved` with
+ * zero model calls, since the lane ran and returned (the caller's own AI is
+ * Level 1 on that route).
+ *
+ * U-49: otherwise the real runLevel1, with the provider gate's refusal turned
+ * into "nothing resolved" (level1.ts refusalAsUnresolved) and recorded on the
+ * tally, instead of a throw that took the whole submission down with it.
+ */
+function level1RunnerFor(input: RunSubmissionInput, tally: Level1Tally): (texts: string[], ctx: Level1Context) => Promise<Level1Outcome> {
+  if (effectiveLevel1(input) === "off") return level1OffRunner();
+  return refusalAsUnresolved(runLevel1, (error) => {
+    tally.outcome = "refused";
+    tally.refusalKind = error.kind;
+    tally.reason = error.message;
+  });
+}
+
+/**
+ * U-49 (BR-220): drizzle/0571's seven telemetry columns, built one way for
+ * both writers -- submitForVerdict() and runSubmission() -- so the same
+ * situation can never be recorded two different ways.
+ *
+ * level1_refusal_code is a CODE, never the message (level1.ts
+ * level1RefusalCode): 0571's CHECK admits a closed vocabulary, and an
+ * err.message reaching a shared-DB column is how a connection string or a
+ * token gets durably stored. One Supabase project serves both environments,
+ * so anything written here is production the instant it lands. The reason
+ * text stays in the log. l0_hit_rate is the numeric(5,4) the column declares.
+ */
+function level1Columns(t: {
+  outcome: Level1LaneOutcome;
+  refusalKind: AiProviderRefusalKind | null | undefined;
+  reason: string | null;
+  modelCalls: number;
+  cacheHits: number;
+  l0HitRate: number;
+}) {
+  return {
+    level: t.modelCalls > 0 ? 1 : 0,
+    source: t.outcome,
+    l0HitRate: t.l0HitRate.toFixed(4),
+    modelCalls: t.modelCalls,
+    cacheHits: t.cacheHits,
+    level1Outcome: t.outcome,
+    level1RefusalCode: level1RefusalCode(t.outcome, t.refusalKind, t.reason),
+  };
+}
+
+/**
+ * U-49 (BR-220): a fault inside the Level 1 lane is still a measurement -- the
+ * row runSubmission() just inserted says `error`, not NULL. Only for a lane
+ * fault (a Level 0 read failing says nothing about Level 1), and best effort:
+ * the fault is what the caller must see, so a failed write never replaces it.
+ */
+async function recordLevel1Fault(input: RunSubmissionInput, submissionId: string, tally: Level1Tally): Promise<void> {
+  if (tally.outcome !== "error") return;
+  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+    db.update(submissions).set(level1Columns({ ...tally, modelCalls: modelCallCount, l0HitRate: 0 })).where(eq(submissions.id, submissionId))
+  ).catch((writeError) => console.error("[pipeline] level1 telemetry write failed (non-blocking):", writeError));
 }
 
 function deriveSubmissionStatus(tasks: TaskOutcome[], gapCount: number): RunSubmissionResult["status"] {
@@ -1038,7 +1418,9 @@ function deriveSubmissionStatus(tasks: TaskOutcome[], gapCount: number): RunSubm
  * decision" to change it to.
  */
 export function executorFor(source: ResolutionSource | "none"): "software" | "ai" {
-  return source === "level1" ? "ai" : "software";
+  // "external_ai" (BUILD-002 WP-09a, spec 9.7 C-1): the caller's own AI chose this write and it came in through an AI work link.
+  // No internal model ran, but a model did decide it, which is what the column records.
+  return source === "level1" || source === "external_ai" ? "ai" : "software";
 }
 
 async function mintTask(
@@ -1177,14 +1559,22 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
           lineItemId: l.id,
         }));
     },
-    runRead: (task) => executeTask(task),
+    // U-18: a dry run's only data access. For a scoped caller a read on a
+    // project the classifier named, other than the scope, is refused here.
+    runRead: async (task) => {
+      if (!assertProjectInScope({ projectId: input.projectScope ?? null }, task.projectId).ok) {
+        return { success: false, failure: pipelineFailure("PROJECT_NOT_REACHABLE", ["projectId"]) };
+      }
+      return executeTask(task);
+    },
     providerAvailable: () => {
       try {
         // Explicit level, matching level1.ts/analyse.ts (P1.1): this checks
         // whether L1 -- the level this dry-run's own Level 1 call will use
         // -- is available, so it must resolve the SAME provider config that
         // call resolves, not rely on the default parameter agreeing by luck.
-        assertAiProviderAllowed(input.userId, "pipeline_l1");
+        // U-49: and the SAME identity that call compares -- the acting person.
+        assertAiProviderAllowed(input.level1PersonId ?? null, "pipeline_l1");
         return true;
       } catch {
         return false;
@@ -1194,9 +1584,12 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
 }
 
 /** The one call a route makes: build the real deps, then propose. */
-export async function proposeSubmission(input: RunSubmissionInput): Promise<DryRunResult> {
+export async function proposeSubmission(submitted: RunSubmissionInput): Promise<DryRunResult> {
+  const input = pinToProjectScope(submitted);
   const deps = await makeDryRunDeps(input);
-  return dryRun({ ...input, candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
+  // U-46c: the dry run honours the same switch, so a link's proposal (and the
+  // verdict and confirm that follow it) never asks the internal model either.
+  return dryRun({ ...input, level1: effectiveLevel1(input), gapUseYourOwnAi: gapSaysUseYourOwnAi(input), candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
 }
 
 // ─── R67 B-07: THE VERDICT, AND THE CONFIRM THAT FOLLOWS IT ───────────────
@@ -1224,33 +1617,8 @@ function submissionStatusForVerdict(v: SubmissionVerdictResult): "chat" | "in_pr
   return v.verdicts.some((x) => x.status === "ready" || x.status === "needs_input") ? "in_progress" : "chat";
 }
 
-/**
- * Maps step 1a's free-text refusal reason onto migration 0571's CLOSED
- * vocabulary for compliance.submissions.level1_refusal_code.
- *
- * WHY A CODE AND NEVER THE MESSAGE: the column carries a NOT VALID CHECK that
- * only admits these values, and -- the real reason -- a raw err.message
- * routinely contains connection strings, tokens and request payloads. One
- * Supabase project serves both environments, so anything written here is
- * production the instant it lands. A code cannot leak a credential; a message
- * can, and the leak would only be found by grepping the column later.
- *
- * Returns null when nothing was refused, so a resolved or not-needed submission
- * stores NULL rather than a misleading "unknown".
- */
-function refusalCodeFor(t: DryRunTelemetry): string | null {
-  if (t.level1Outcome !== "refused" && t.level1Outcome !== "error") return null;
-  const reason = (t.level1RefusalReason ?? "").toLowerCase();
-  // AiProviderRefusalError is what assertAiProviderAllowed throws, for BOTH the
-  // "RAJAT_USER_ID unset" and "wrong user" branches -- see ai/adapter.ts:63-92.
-  if (t.level1Outcome === "refused") return "provider_not_allowed";
-  if (reason.includes("fetch") || reason.includes("timeout") || reason.includes("econnrefused")) {
-    return "provider_unreachable";
-  }
-  return "unknown";
-}
-
-export async function submitForVerdict(input: RunSubmissionInput): Promise<SubmitVerdictResult> {
+export async function submitForVerdict(submitted: RunSubmissionInput): Promise<SubmitVerdictResult> {
+  const input = withLinkRawInput(pinToProjectScope(submitted));
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
     const [row] = await db
       .insert(submissions)
@@ -1261,6 +1629,8 @@ export async function submitForVerdict(input: RunSubmissionInput): Promise<Submi
         selectedChain: (input.selectedChain as object | undefined) ?? null,
         rawInput: input.rawInput,
         userId: input.userId,
+        // BUILD-002 WP-09a (migration 0630): the AI work link this submission came through, if any.
+        ...linkProvenanceColumns(input),
       })
       .returning({ id: submissions.id });
     return row.id;
@@ -1288,10 +1658,8 @@ export async function submitForVerdict(input: RunSubmissionInput): Promise<Submi
   // l0_hit_rate is stored as the numeric(5,4) the column declares, computed the
   // same way as the log line below so the two can never disagree.
   //
-  // level1_refusal_code, NOT the raw reason: 0571's CHECK constrains it to a
-  // closed vocabulary, and an err.message reaching a shared-DB column is how a
-  // connection string or a token gets durably stored. The reason text stays in
-  // the log, which is the right place for detail.
+  // level1_refusal_code, NOT the raw reason -- see level1Columns(), which
+  // runSubmission() now shares (U-49), so the two writers cannot drift.
   const l0HitRateForRow = telemetry.resolved === 0 ? 0 : telemetry.l0Hits / telemetry.resolved;
 
   await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
@@ -1300,13 +1668,14 @@ export async function submitForVerdict(input: RunSubmissionInput): Promise<Submi
       .set({
         status: submissionStatusForVerdict(verdict),
         classification,
-        level: telemetry.modelCalls > 0 ? 1 : 0,
-        source: telemetry.level1Outcome,
-        l0HitRate: l0HitRateForRow.toFixed(4),
-        modelCalls: telemetry.modelCalls,
-        cacheHits: telemetry.cacheHits,
-        level1Outcome: telemetry.level1Outcome,
-        level1RefusalCode: refusalCodeFor(telemetry),
+        ...level1Columns({
+          outcome: telemetry.level1Outcome,
+          refusalKind: telemetry.level1RefusalKind,
+          reason: telemetry.level1RefusalReason,
+          modelCalls: telemetry.modelCalls,
+          cacheHits: telemetry.cacheHits,
+          l0HitRate: l0HitRateForRow,
+        }),
       })
       .where(eq(submissions.id, submissionId))
   );
@@ -1342,6 +1711,14 @@ export type ConfirmSubmissionInput = {
   role?: string | null;
   /** R67 C-03 (D-05) -- see RunSubmissionInput.actorUserId. */
   actorUserId?: string | null;
+  /** U-49 -- see RunSubmissionInput.level1PersonId. The re-derived proposal is gated on this person. */
+  level1PersonId?: string | null;
+  /** U-18 / U-19 -- see RunSubmissionInput.projectScope. A stored submission of another project is refused (403). */
+  projectScope?: string | null;
+  /** U-46c (BR-287) -- see RunSubmissionInput.aiLinkId. The re-derived proposal makes no model call, and the write is marked as a link's. */
+  aiLinkId?: string | null;
+  /** U-46c -- see RunSubmissionInput.via. */
+  via?: SubmissionVia | null;
 };
 
 export type ConfirmSubmissionOutcome =
@@ -1385,14 +1762,20 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
   });
   if (!row) return { ok: false, reason: "not_found" };
 
-  const base: RunSubmissionInput = {
+  // U-18: a scoped caller may confirm only a submission of its own project
+  // (or one that named none, which then runs on the scope).
+  const base: RunSubmissionInput = pinToProjectScope({
     orgId: input.orgId,
     userId: input.userId,
     mode: row.mode,
     projectId: row.projectId,
     rawInput: row.rawInput,
     role: input.role,
-  };
+    level1PersonId: input.level1PersonId ?? null,
+    projectScope: input.projectScope ?? null,
+    aiLinkId: input.aiLinkId ?? null,
+    via: input.via ?? null,
+  });
 
   const proposal = await proposeSubmission(base);
   const first = proposal.proposals.find((p) => p.functionId) ?? null;
@@ -1406,7 +1789,7 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
   }
 
   const params: Record<string, unknown> = { ...first.params, ...(input.params ?? {}) };
-  const stillMissing = missingParamsFor(first.functionId, params, row.projectId);
+  const stillMissing = missingParamsFor(first.functionId, params, base.projectId ?? null);
   if (stillMissing.length > 0) {
     return {
       ok: false,
@@ -1419,13 +1802,16 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
     orgId: input.orgId,
     userId: input.userId,
     mode: row.mode,
-    projectId: (typeof params.projectId === "string" ? params.projectId : null) ?? row.projectId,
+    projectId: (typeof params.projectId === "string" ? params.projectId : null) ?? base.projectId ?? null,
     functionId: first.functionId,
     params,
     note: row.rawInput,
     role: input.role,
     actorUserId: input.actorUserId ?? null,
     existingSubmissionId: row.id,
+    projectScope: input.projectScope ?? null,
+    aiLinkId: input.aiLinkId ?? null,
+    via: input.via ?? null,
   });
   return { ok: true, result };
 }

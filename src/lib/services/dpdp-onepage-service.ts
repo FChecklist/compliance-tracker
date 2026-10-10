@@ -4,12 +4,45 @@
 // `o.assignedPersonId === identityId` comparison), not an email -- this is
 // the join that turns it into the spec's flat "by: email" shape.
 import { and, desc, eq, inArray } from "drizzle-orm"
-import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpOrganisation, dpdpEvent, dpdpMembership } from "@/lib/db"
+import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpStaffGroupMember, dpdpObligationGroupAnswer, dpdpOrganisation, dpdpEvent, dpdpMembership } from "@/lib/db"
 import { withDpdpContext } from "@/lib/db/tenant-scoped"
-import type { ObligationRow } from "@/lib/dpdp-onepage/view-model"
+import type { GroupAnswerKind, ObligationRow, RoleKind } from "@/lib/dpdp-onepage/view-model"
+import { GRIEVANCE_OFFICER_ROLE_TAG } from "@/lib/dpdp-onepage/view-model"
 import { ServiceError } from "./compliance-service"
 import { logDpdpEvent } from "./dpdp-event-service"
 export { ServiceError }
+
+// WO-DPDP-010 §3/§4: coordinator/Grievance-Officer/CA-partner/CA-manager
+// detection -- the DB's membership.level only ever says owner/staff (see
+// dpdp-session.ts's own DpdpAuthContext type); these are all roleTag
+// values on obligations, not first-class identities, so "is this viewer
+// the GO/coordinator/CA" is answered by asking whether any of THIS org's
+// obligations with that roleTag are actually assigned to them -- not
+// guessed from level. Owner is resolved by the caller (home/page.tsx
+// already knows ctx.level) and always wins over this; a person could
+// technically be more than one of these (e.g. the owner named themselves
+// GO), but that's the caller's call, not this function's -- ties here
+// just pick a fixed precedence order. A standalone function (not nested
+// inside getOnePageData) purely to keep that function's own cyclomatic
+// complexity under the repo's ESLint ceiling.
+function detectRoleFromObligations(
+  templates: Array<{ id: string; roleTag: string | null }>,
+  obligations: Array<{ templateId: string; state: string; assignedPersonId: string | null }>,
+  emailByIdentityId: Map<string, string>,
+  viewerEmail: string
+): { detectedRoleKind: RoleKind | null; detectedCaSub: "partner" | "manager" | null } {
+  function isAssignedRoleTag(roleTag: string): boolean {
+    const templateIds = new Set(templates.filter((t) => t.roleTag === roleTag).map((t) => t.id))
+    return obligations.some((o) => templateIds.has(o.templateId) && o.state !== "not_applicable" && emailByIdentityId.get(o.assignedPersonId ?? "") === viewerEmail)
+  }
+  const isGO = isAssignedRoleTag(GRIEVANCE_OFFICER_ROLE_TAG)
+  const isCoordinator = isAssignedRoleTag("DPDP coordinator")
+  const isCaPartner = isAssignedRoleTag("CAPARTNER")
+  const isCaManager = isAssignedRoleTag("CAMGR")
+  const detectedCaSub: "partner" | "manager" | null = isCaPartner ? "partner" : isCaManager ? "manager" : null
+  const detectedRoleKind: RoleKind | null = isGO ? "go" : isCoordinator ? "coord" : detectedCaSub ? "ca" : null
+  return { detectedRoleKind, detectedCaSub }
+}
 
 export async function getOnePageData(orgId: string, viewerIdentityId: string) {
   return withDpdpContext({ orgId }, async (tx) => {
@@ -37,6 +70,23 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
       : []
     const groupById = new Map(groups.map((g) => [g.id, g]))
 
+    // WO-DPDP-010 §3 group jobs: a group job is only visible/answerable to
+    // someone actually IN that group -- without this, home/page.tsx's
+    // staffView row filter (`r.isGroup` with no membership check) shows
+    // every group job to every staff member regardless of whether they're
+    // a member. viewerGroupIds is keyed off the viewer's OWN membership
+    // row, not their identity, since staff_group_member joins on
+    // membership_id (one membership per org, per dpdp.membership's own
+    // uniqueness).
+    const viewerGroupIds = membership && groupIds.length
+      ? new Set((await tx.query.dpdpStaffGroupMember.findMany({ where: and(inArray(dpdpStaffGroupMember.groupId, groupIds), eq(dpdpStaffGroupMember.membershipId, membership.id)) })).map((m) => m.groupId))
+      : new Set<string>()
+    const groupObligationIds = obligations.filter((o) => o.assignedStaffGroupId).map((o) => o.id)
+    const myGroupAnswers = membership && groupObligationIds.length
+      ? await tx.query.dpdpObligationGroupAnswer.findMany({ where: and(inArray(dpdpObligationGroupAnswer.obligationId, groupObligationIds), eq(dpdpObligationGroupAnswer.membershipId, membership.id)) })
+      : []
+    const myAnswerByObligationId = new Map(myGroupAnswers.map((a) => [a.obligationId, a.answer as GroupAnswerKind]))
+
     const obligationById = new Map(obligations.map((o) => [o.id, o]))
 
     // WO-DPDP-010: stable order matching the library's own intended
@@ -51,6 +101,14 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
       const kb = templateById.get(b.templateId)?.key ?? ""
       return ka.localeCompare(kb)
     })
+
+    // Split out of the row-mapping callback below purely to keep its own
+    // cyclomatic complexity under the repo's ESLint ceiling -- these two
+    // fields only matter for group rows, everything else stays undefined.
+    function resolveGroupViewerFields(isGroup: boolean, groupId: string | null, obligationId: string) {
+      if (!isGroup) return { viewerIsGroupMember: undefined, myGroupAnswer: undefined }
+      return { viewerIsGroupMember: viewerGroupIds.has(groupId!), myGroupAnswer: myAnswerByObligationId.get(obligationId) ?? null }
+    }
 
     const rows: ObligationRow[] = sortedObligations.map((o) => {
       const t = templateById.get(o.templateId)
@@ -69,6 +127,7 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
         isGroup,
         groupDone: isGroup ? o.progressDone : undefined,
         groupTotal: isGroup ? o.progressTotal : undefined,
+        ...resolveGroupViewerFields(isGroup, o.assignedStaffGroupId, o.id),
         due: new Date(o.dueOn),
         yes: o.state === "closed" || o.state === "submitted",
         na: o.state === "not_applicable",
@@ -79,7 +138,16 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
       }
     })
 
-    return { org, rows, viewerEmail, obligationById, firstVisitSeenAt: membership?.firstVisitSeenAt ?? null, membershipId: membership?.id ?? null }
+    const { detectedRoleKind, detectedCaSub } = detectRoleFromObligations(templates, sortedObligations, emailByIdentityId, viewerEmail)
+
+    return {
+      org, rows, viewerEmail, obligationById,
+      firstVisitSeenAt: membership?.firstVisitSeenAt ?? null,
+      saidNotMeAt: membership?.saidNotMeAt ?? null,
+      membershipId: membership?.id ?? null,
+      detectedRoleKind,
+      detectedCaSub,
+    }
   })
 }
 
@@ -147,6 +215,22 @@ export async function completeOwnerFirstVisit(
       return identity.id
     }
 
+    // Every real person this function names needs a dpdp.membership row in
+    // THIS org, not just an obligation.assigned_person_id pointing at their
+    // identity -- getDpdpAuthContext() (the only way anyone signs into
+    // /dpdp/home) requires a membership row to exist and returns null
+    // without one. Found live: a person named individually as Grievance
+    // Officer (the non-group branch below) got assigned_person_id set
+    // correctly but NO membership row, so they could never actually sign
+    // in to see the page they'd just been given jobs on -- the group
+    // branch already created one correctly; this was only missing here.
+    async function findOrCreateMembership(identityId: string) {
+      const existing = await tx.query.dpdpMembership.findFirst({ where: and(eq(dpdpMembership.identityId, identityId), eq(dpdpMembership.orgId, orgId)) })
+      if (existing) return existing
+      const [created] = await tx.insert(dpdpMembership).values({ identityId, orgId, level: "staff", joinedVia: "named_in_role" }).returning()
+      return created
+    }
+
     for (const a of assignments) {
       const matchingObligations = obligations.filter((o) => templateById.get(o.templateId)?.roleTag === a.area)
       if (!matchingObligations.length) continue
@@ -168,8 +252,7 @@ export async function completeOwnerFirstVisit(
         for (const rawEmail of a.emails) {
           if (!rawEmail.trim()) continue
           const memberIdentityId = await findOrCreateIdentityByEmail(rawEmail)
-          let membership = await tx.query.dpdpMembership.findFirst({ where: and(eq(dpdpMembership.identityId, memberIdentityId), eq(dpdpMembership.orgId, orgId)) })
-          if (!membership) { [membership] = await tx.insert(dpdpMembership).values({ identityId: memberIdentityId, orgId, level: "staff", joinedVia: "named_in_role" }).returning() }
+          const membership = await findOrCreateMembership(memberIdentityId)
           const existingGroupMember = await tx.query.dpdpStaffGroupMember.findFirst({ where: and(eq(dpdpStaffGroupMember.groupId, group!.id), eq(dpdpStaffGroupMember.membershipId, membership!.id)) })
           if (!existingGroupMember) await tx.insert(dpdpStaffGroupMember).values({ groupId: group!.id, membershipId: membership!.id })
           memberCount++
@@ -181,6 +264,7 @@ export async function completeOwnerFirstVisit(
 
       const email = a.emails[0].trim().toLowerCase()
       const identityId = await findOrCreateIdentityByEmail(email)
+      await findOrCreateMembership(identityId)
       for (const o of matchingObligations) await tx.update(dpdpObligation).set({ assignedPersonId: identityId }).where(eq(dpdpObligation.id, o.id))
       // fromArea jobs ("Name the Grievance Officer" / "Name a DPDP
       // coordinator") are auto-done the moment the owner names someone,
@@ -191,6 +275,40 @@ export async function completeOwnerFirstVisit(
     }
 
     await tx.update(dpdpMembership).set({ firstVisitSeenAt: new Date() }).where(eq(dpdpMembership.id, membershipId))
+  })
+}
+
+/**
+ * WO-DPDP-010 §4 "First visit, for every role" -- the generic welcome screen
+ * for anyone who was NAMED into a role (Grievance Officer, DPDP coordinator,
+ * or any other assigned area) but isn't the client owner: confirms they've
+ * seen it, same firstVisitSeenAt gate home/page.tsx already uses for the
+ * owner's own wizard.
+ */
+export async function acknowledgeRoleWelcome(orgId: string, actorIdentityId: string, actorLabel: string, membershipId: string) {
+  return withDpdpContext({ orgId }, async (tx) => {
+    await tx.update(dpdpMembership).set({ firstVisitSeenAt: new Date() }).where(eq(dpdpMembership.id, membershipId))
+    await logDpdpEvent({ orgId, actorIdentityId, actorLabel, kind: "membership_first_visit_acknowledged", summary: `${actorLabel} saw their DPDP jobs for the first time` }, tx)
+  })
+}
+
+/**
+ * The welcome screen's "This isn't me" escape hatch: the org named the wrong
+ * email for a role. Sets BOTH firstVisitSeenAt (so the welcome screen itself
+ * doesn't loop) and saidNotMeAt, and logs it so it's visible in the owner's
+ * History -- this is the only signal the owner gets that a reassignment is
+ * needed, since there's no separate notification/inbox for it yet.
+ * home/page.tsx re-checks saidNotMeAt against the viewer's CURRENT live
+ * assignment count on every load, not a one-time flag: once the owner
+ * reassigns the jobs away from this person, myAssignedCount naturally drops
+ * to 0 and the "waiting on the owner" screen stops showing itself, with no
+ * separate code path needed to clear saidNotMeAt.
+ */
+export async function flagNotMe(orgId: string, actorIdentityId: string, actorLabel: string, membershipId: string) {
+  return withDpdpContext({ orgId }, async (tx) => {
+    const now = new Date()
+    await tx.update(dpdpMembership).set({ firstVisitSeenAt: now, saidNotMeAt: now }).where(eq(dpdpMembership.id, membershipId))
+    await logDpdpEvent({ orgId, actorIdentityId, actorLabel, kind: "membership_said_not_me", summary: `${actorLabel} said this isn't them -- needs reassigning` }, tx)
   })
 }
 

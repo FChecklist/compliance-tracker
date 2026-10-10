@@ -6,7 +6,7 @@
 // worklist, read-only). POST creates a new claim; the per-claim status
 // transitions live in [id]/route.ts's PATCH.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listBillingDueQueue, listClaims, createProgressClaim, ServiceError } from "@/lib/services/construction-billing-workflow-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
@@ -51,8 +51,10 @@ async function POST_impl(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const body = await request.json()
-    const claim = await createProgressClaim({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id }, {
+    const claim = await createProgressClaim({ orgId: ctx.orgId, userId: acting.person.id }, {
       projectId: body.projectId, boqId: body.boqId, customerId: body.customerId,
       milestoneDescription: body.milestoneDescription, scheduledDate: body.scheduledDate,
       retentionPercent: body.retentionPercent === undefined ? undefined : Number(body.retentionPercent),

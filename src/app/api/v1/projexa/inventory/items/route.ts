@@ -4,7 +4,7 @@
 // PROJEXA's pre-existing "Materials" page (a different, construction-
 // specific materials table with no warehouse/stock-ledger concept).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listItems, createItem, ServiceError } from "@/lib/services/erp-stock-service"
 
 export async function GET(request: NextRequest) {
@@ -28,16 +28,16 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()
     if (!body.itemCode?.trim() || !body.itemName?.trim()) {
       return NextResponse.json({ error: "itemCode and itemName are required" }, { status: 400 })
     }
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const item = await createItem(actorCtx, {
       itemCode: body.itemCode, itemName: body.itemName, uom: body.uom,
       standardBuyingRate: body.standardBuyingRate, standardSellingRate: body.standardSellingRate,

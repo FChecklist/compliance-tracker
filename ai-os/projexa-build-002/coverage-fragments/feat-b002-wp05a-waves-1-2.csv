@@ -1,0 +1,42 @@
+requirement_id,function_ids,way,note
+R-01,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-02,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-03,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-04,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-11,get_boq_line_items;create_boq,link-draft;link-read,"get_boq_line_items: rank 3; a member link reads the lines through the boq_lines record kind, money hidden; create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq"
+R-12,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-13,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-14,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-15,get_boq_line_items;create_boq,link-draft;link-read,"get_boq_line_items: rank 3; a member link reads the lines through the boq_lines record kind, money hidden; create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq"
+R-16,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-17,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-18,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-19,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-30,get_boq_line_items,link-read,"get_boq_line_items: rank 3; a member link reads the lines through the boq_lines record kind, money hidden"
+R-31,get_boq_line_items,link-read,"get_boq_line_items: rank 3; a member link reads the lines through the boq_lines record kind, money hidden"
+R-33,run_named_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports
+R-41,run_named_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports
+R-42,run_named_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports
+R-43,run_named_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports
+R-44,run_named_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports
+R-45,run_named_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports
+R-51,run_named_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports
+R-70,apply_boq_import;preview_boq_import,link-draft;link-read,apply_boq_import: level 2 rank 2; needs a sheet already stored as a project document; the answer carries no money below manager; preview_boq_import: rank 3; needs a sheet already stored as a project document
+R-71,apply_boq_import;preview_boq_import,link-draft;link-read,apply_boq_import: level 2 rank 2; needs a sheet already stored as a project document; the answer carries no money below manager; preview_boq_import: rank 3; needs a sheet already stored as a project document
+R-72,apply_boq_import;preview_boq_import,link-draft;link-read,apply_boq_import: level 2 rank 2; needs a sheet already stored as a project document; the answer carries no money below manager; preview_boq_import: rank 3; needs a sheet already stored as a project document
+R-93,get_boq_line_items,link-read,"get_boq_line_items: rank 3; a member link reads the lines through the boq_lines record kind, money hidden"
+R-94,get_project_schedule;list_milestones;create_milestone;update_milestone;create_schedule_task,link-direct;link-read,"get_project_schedule: rank 2; filters statusId and assigneeId; list_milestones: rank 2; create_milestone: rank 2; a direct write; update_milestone: rank 2; the milestone must be on the link project; create_schedule_task: rank 2; a direct write; BOQ line, predecessor, issue type and assignees held to the project or organisation"
+R-95,list_billing_claims;get_billing_due_queue,link-read,"list_billing_claims: rank 3; the read half of R-95 only, no billing write exists on any surface (owner decision R-95); get_billing_due_queue: rank 3; the read half of R-95 only, no billing write exists on any surface (owner decision R-95)"
+R-96,create_boq,link-draft,create_boq: level 2 rank 2; on links since WP-04 (AW-202); the lines go through add_boq_lines and seal_boq
+R-97,create_change_order;list_change_orders;get_change_order,link-draft;link-read,"create_change_order: level 2 rank 2; the cost impact is null in the answer below manager; capture path only, detection is a later wave; list_change_orders: rank 2; cost impact null below manager; get_change_order: rank 2; a change order of another project reads as absent"
+R-98,create_change_order,link-draft,"create_change_order: level 2 rank 2; the cost impact is null in the answer below manager; capture path only, detection is a later wave"
+R-99,run_named_report;get_project_analysis,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports; get_project_analysis: rank 3; the route is manager only
+R-100,get_project_analysis,link-read,get_project_analysis: rank 3; the route is manager only
+R-C07,run_named_report;get_manpower_cost_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports; get_manpower_cost_report: rank 2; cost is null below manager
+R-C09,update_line_item_budget,link-draft,update_line_item_budget: level 2 rank 3; the vendor must be a supplier of the organisation
+R-C10,get_project_schedule;create_schedule_task,link-direct;link-read,"get_project_schedule: rank 2; filters statusId and assigneeId; create_schedule_task: rank 2; a direct write; BOQ line, predecessor, issue type and assignees held to the project or organisation"
+R-C11,run_named_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports
+R-C12,run_named_report;get_designer_timesheet_report,link-read,run_named_report: rank 2; currency columns and the note are withheld below manager; budget-vs-actual and budget-variance are manager reports; get_designer_timesheet_report: rank 2; the project part only; money null below manager
+R-C14,create_site_instruction,link-draft,create_site_instruction: level 2 rank 2; the BOQ it varies must be a BOQ of the link project
+EXC-ITEM-02,create_change_order,link-draft,"create_change_order: level 2 rank 2; the cost impact is null in the answer below manager; capture path only, detection is a later wave"
+EXC-ITEM-06,create_change_order,link-draft,"create_change_order: level 2 rank 2; the cost impact is null in the answer below manager; capture path only, detection is a later wave"

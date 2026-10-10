@@ -14,7 +14,7 @@
 // endpoints cannot drift into three answers. This route keeps what only a route
 // should hold: the service-role storage client that signs a file URL.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listDocuments, createDrawingRecord, ServiceError } from "@/lib/services/document-service"
 import {
   DRAWING_CATEGORIES,
@@ -139,8 +139,11 @@ async function POST_impl(request: NextRequest) {
   if (roleErr) return roleErr
   // R39/R-C14: ctx.apiKey?.id is not a real compliance.users row -- see
   // documents.uploadedById's schema.ts comment for the real production FK
-  // violation this fallback caused.
-  const actorId = ctx.dbUser?.id ?? null
+  // violation that fallback caused. U-20b: the uploader is now the person the
+  // API-key caller names (X-Acting-User / X-Acting-User-Email), never null.
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {

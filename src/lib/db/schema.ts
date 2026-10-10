@@ -1,4 +1,4 @@
-import { pgSchema, pgEnum, text, boolean, integer, smallint, timestamp, numeric, jsonb, date, unique } from 'drizzle-orm/pg-core'
+import { pgSchema, pgEnum, text, boolean, integer, smallint, timestamp, numeric, jsonb, date, unique, customType } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
 
@@ -691,7 +691,8 @@ export const notifications = complianceSchemaDB.table('notifications', {
 // `client_entities.id` -- client_entities is a detail/enrichment layer
 // under a client, not the primary scoping key. Matching precedent, not
 // introducing a second one.
-export const auditLogs = complianceSchemaDB.table('audit_logs', {
+function auditLogBaseColumns() {
+  return {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   action: text('action').notNull(),
   entityType: text('entity_type').notNull(),
@@ -756,7 +757,43 @@ export const auditLogs = complianceSchemaDB.table('audit_logs', {
   // Callers that DO know the office/branch context of the write (e.g. a
   // route that already loaded the client's branchId) can pass it directly.
   officeId: text('office_id'),
+  // PROJEXA-BUILD-001 U-32 (BR-415): which of the four surfaces the write came
+  // from, one of audit.ts's AUDIT_SURFACES or NULL (CHECK
+  // audit_logs_surface_check); set only through logActivity()'s optional
+  // `surface`. drizzle/0619_build001_audit_surface.sql must be applied live
+  // before a build carrying this line serves traffic, because with it declared
+  // every Drizzle insert into audit_logs names the column (DEFAULT when no
+  // value is given) and every whole-row select reads it.
+  surface: text('surface'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  }
+}
+
+export const auditLogs = complianceSchemaDB.table('audit_logs', auditLogBaseColumns())
+
+// AUDIT TRAIL slice 1 (drizzle/0730_audit_trail_stamp_columns.sql, ai-os/audit37/AUDIT_TRAIL_DESIGN_2026-10-06.md): the 17 internal-only stamp
+// columns. They are declared ONLY on this insert-side table object, never on `auditLogs` above: 0730 revokes table-level SELECT from app_runtime
+// and re-grants only the 19 pre-existing columns, so a whole-row select through a table object that names a stamp column would fail with
+// permission denied. Same physical table, two Drizzle views of it. Read the stamp columns only as service_role / staff, with raw SQL.
+export const auditLogsStamped = complianceSchemaDB.table('audit_logs', {
+  ...auditLogBaseColumns(),
+  product: text('product'),
+  channel: text('channel'),
+  source: text('source'),
+  actionClass: text('action_class'),
+  deviceId: text('device_id'),
+  aiName: text('ai_name'),
+  aiLinkId: text('ai_link_id'),
+  aiCallId: text('ai_call_id'),
+  clientAt: timestamp('client_at', { withTimezone: true, mode: 'date' }),
+  serverAt: timestamp('server_at', { withTimezone: true, mode: 'date' }),
+  clockSkewMs: integer('clock_skew_ms'),
+  ipPrefix: text('ip_prefix'),
+  uaFamily: text('ua_family'),
+  internetId: text('internet_id'),
+  correlationId: text('correlation_id'),
+  relayDeviceId: text('relay_device_id'),
+  diff: jsonb('diff'),
 })
 
 // ─── API Keys (M-03: Open API) ──────────────────────────────────────────
@@ -791,6 +828,12 @@ export const apiKeys = complianceSchemaDB.table('api_keys', {
   issuedForApplicationId: text('issued_for_application_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // PROJEXA-BUILD-001 U-19 (drizzle/0613, PMD-07/PMD-08): null = org-wide,
+  // every pre-0613 key's exact behaviour (the PROJEXA proxy key is org-wide
+  // by design). A 'project_ai' key must carry a project_id (CHECK
+  // api_keys_project_ai_requires_project).
+  projectId: text('project_id'),
+  keyKind: text('key_kind').notNull().default('org_service'), // 'org_service' | 'project_ai' (CHECK api_keys_key_kind_check)
 })
 
 // Wave 96: real per-request log backing both rate-limit enforcement (count
@@ -4777,6 +4820,9 @@ export const pmsMeetings = complianceSchemaDB.table('pms_meetings', {
   durationMinutes: integer('duration_minutes'),
   recurrenceRule: text('recurrence_rule'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // lf-b5-ai-crud (drizzle/0687): the soft delete of a project meeting. Null = live; a time = deleted then. Every reader in
+  // pms-meeting-service.ts hides a row that has it; the row and its agenda/outcomes stay, and the sync records a tombstone.
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 })
 
 export const pmsMeetingAgendaItems = complianceSchemaDB.table('pms_meeting_agenda_items', {
@@ -11602,6 +11648,26 @@ export const constructionMaterialIssues = complianceSchemaDB.table('construction
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// create_material_order (M-ORDER, drizzle/0742): the purchase-order side of the ledger. An order is what was asked for and when it is due;
+// receipts are what arrived. Kept apart from receipts on purpose, so on-hand (receipts minus issues) is never changed by an order that has not
+// arrived. boq_line_item_id is nullable and un-referenced like it is on issues: an order with no BOQ line is the "ordered without scope" exception
+// (EXC-ITEM-18), which has to be recordable to be reportable.
+export const constructionMaterialOrders = complianceSchemaDB.table('construction_material_orders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
+  quantity: numeric('quantity').notNull(),
+  orderedDate: date('ordered_date', { mode: 'string' }).notNull(),
+  expectedDate: date('expected_date', { mode: 'string' }).notNull(),
+  status: text('status').notNull().default('ordered'),
+  boqLineItemId: text('boq_line_item_id'),
+  reference: text('reference'),
+  notes: text('notes'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const constructionMaterialsRelations = relations(constructionMaterials, ({ many }) => ({
   receipts: many(constructionMaterialReceipts),
   issues: many(constructionMaterialIssues),
@@ -11877,7 +11943,7 @@ export const constructionCustomerComplaints = complianceSchemaDB.table('construc
   resolvedAt: timestamp('resolved_at'),
 })
 
-export const constructionChangeOrderStatusEnum = complianceSchemaDB.enum('construction_change_order_status', ['draft', 'pending_approval', 'approved', 'rejected'])
+export const constructionChangeOrderStatusEnum = complianceSchemaDB.enum('construction_change_order_status', ['draft', 'pending_approval', 'approved', 'rejected', 'cancelled']) // 'cancelled': lf-b5-ai-crud, drizzle/0687 (withdrawn by its own side before a decision)
 
 export const constructionChangeOrders = complianceSchemaDB.table('construction_change_orders', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -12389,6 +12455,50 @@ export const inboundEmailMessages = complianceSchemaDB.table('inbound_email_mess
 export const inboundEmailMessagesRelations = relations(inboundEmailMessages, ({ one }) => ({
   user: one(users, { fields: [inboundEmailMessages.userId], references: [users.id] }),
 }))
+
+// PROJEXA-BUILD-001 U-31 (BR-413): the attachments of one inboundEmailMessages
+// row, stored by the resend-inbound webhook (src/lib/webhooks/
+// resend-inbound-attachments.ts) only for a message whose recipient resolved,
+// so orgId is never null. drizzle/0620_build001_inbound_email_attachments.sql
+// creates the table with ON DELETE CASCADE from the message, a CHECK that
+// sizeBytes equals the stored byte length and both are at most 10 MB, an index
+// on inboundMessageId, and RLS (app_runtime reads its own org, service_role
+// bypass). The file bytes are stored as given, never parsed here.
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({ dataType: () => 'bytea' })
+
+export const inboundEmailAttachments = complianceSchemaDB.table('inbound_email_attachments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  inboundMessageId: text('inbound_message_id').notNull().references(() => inboundEmailMessages.id, { onDelete: 'cascade' }),
+  fileName: text('file_name').notNull(), // the base name only, no directory part
+  contentType: text('content_type'),
+  sizeBytes: integer('size_bytes').notNull(),
+  content: bytea('content').notNull(),
+  resendAttachmentId: text('resend_attachment_id'), // Resend's id; the webhook skips one already stored for this message
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// PROJEXA-BUILD-001 U-40 (BR-515): one AI-run schedule -- a registry function run as its owner on a cron cadence by the scheduler
+// bridge (src/lib/pipeline/scheduler-bridge.ts, woken by the pg_cron job projexa-scheduler-bridge through the Edge Function of
+// the same name). drizzle/0642_build001_pipeline_schedules.sql creates the table with RLS in the pattern of reportSchedules
+// (app_runtime by organisation, service_role bypass). ownerUserId is the person the schedule acts as (never an API key);
+// nextRunAt is moved on by the bridge when it claims the schedule; lastResult is a summary and a code, never the function's
+// result body. Every timestamp is timestamptz. Nothing writes this table yet except the bridge: the routes that create and edit
+// schedules belong to a later unit.
+export const pipelineSchedules = complianceSchemaDB.table('pipeline_schedules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ownerUserId: text('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  functionId: text('function_id').notNull(), // a registry function id (pipeline/function-registry.ts)
+  params: jsonb('params').notNull().default({}), // a JSON object (CHECK pipeline_schedules_params_check)
+  cadence: text('cadence').notNull(), // five-field cron expression, UTC (pipeline/cron-next.ts)
+  nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull(),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  lastResult: jsonb('last_result'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 // GAP-06 (tree4-unified/30-gap-backlog.yaml): "Build a genuine draft-then-
 // approve Communication Governance flow." Composes 3 existing mechanisms
@@ -13327,15 +13437,34 @@ export const pipelineLevelModels = platformSchemaDB.table('pipeline_level_models
 // behalf. See drizzle/0330_r63_user_ai_links.sql and
 // src/lib/ai-links/user-links.ts (token generation/resolution) and
 // src/app/api/mcp/[token]/route.ts (the actual MCP server).
+//
+// PROJEXA-BUILD-001 U-18 (drizzle/0613_build001_link_project_scope.sql): one
+// table, two products. 'veridian' rows (every row before 0613, and the chat
+// picker's links) are org-wide and keep a plaintext token. 'projexa' rows are
+// project-scoped work links: CHECK user_ai_links_projexa_shape requires
+// project_id, token_hash and expires_at and a NULL token. One active link per
+// (org_id, user_id) for veridian rows and per (user_id, project_id) for
+// projexa rows (two partial unique indexes, not declared here).
 export const userAiLinks = platformSchemaDB.table('user_ai_links', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   userId: text('user_id').notNull(),
-  token: text('token').notNull().unique(),
+  token: text('token').unique(), // NULL only on a 'projexa' row (0613)
   status: text('status').notNull().default('active'), // 'active' | 'revoked'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   lastUsedAt: timestamp('last_used_at'),
   revokedAt: timestamp('revoked_at'),
+  product: text('product').notNull().default('veridian'), // 'veridian' | 'projexa'
+  projectId: text('project_id'),
+  tokenHash: text('token_hash').unique(), // sha256 hex of a projexa token
+  authorityLevel: smallint('authority_level').notNull().default(0), // 0 | 1
+  allowedFunctions: text('allowed_functions').array().notNull().default([]),
+  hidePersonal: boolean('hide_personal').notNull().default(true),
+  label: text('label'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdByUserId: text('created_by_user_id'),
+  callCount: integer('call_count').notNull().default(0),
+  writeCount: integer('write_count').notNull().default(0),
 })
 
 // R63 (owner directive, 2026-08-29): data-driven AI-connector provider
@@ -13852,10 +13981,17 @@ export const submissions = complianceSchemaDB.table('submissions', {
   // ruling. A code cannot leak a credential; a message can, and the leak would
   // only be found by grepping the column later. Detail belongs in logs.
   level1RefusalCode: text('level1_refusal_code'),
+  // BUILD-002 WP-09a (drizzle/0630, spec 9.7 C-1) -- provenance of a submission
+  // that came through an AI work link. `via` is NULL for every session/app
+  // submission and 'ai_link' for a link's (CHECK in 0630 admits nothing else);
+  // `ai_link_id` names the link (platform.user_ai_links.id, a text id in another
+  // schema, so no foreign key). Both nullable, never backfilled.
+  via: text('via'),
+  aiLinkId: text('ai_link_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const pipelineTasks = complianceSchemaDB.table('pipeline_tasks', {
+export const pipelineTasks =complianceSchemaDB.table('pipeline_tasks', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
   sequence: integer('sequence').notNull(), // 0-based position within the submission, execution order for depends_on chaining
@@ -14174,6 +14310,11 @@ export const sourceObject = complianceSchemaDB.table('source_object', {
   supersedesDocUid: text('supersedes_doc_uid'),
   supersededByDocUid: text('superseded_by_doc_uid'),
   isCurrent: boolean('is_current').notNull().default(true),
+  // PROJEXA-BUILD-002 WP-02 (migration 0646): the from-document ledger row is also the extraction job record. job_state is one of
+  // received, reading, needs_answers, ready, created, rejected (CHECK); job_result is what a parked or refused job keeps. Both are
+  // NULL on every other kind of source_object.
+  jobState: text('job_state'),
+  jobResult: jsonb('job_result'),
 })
 
 // One row per chunk of a source_object's extracted content.
@@ -14904,6 +15045,8 @@ export const dpdpConsentCampaign = dpdpSchemaDB.table('consent_campaign', {
   noticeVersionId: text('notice_version_id').notNull(),
   sentAt: timestamp('sent_at'),
   channel: text('channel').notNull().default('email'),
+  purposes: jsonb('purposes'), // drizzle/0725: [{key,label}]; null = the one legacy purpose 'consent'
+  principalIsChild: boolean('principal_is_child').notNull().default(false), // drizzle/0725
 })
 
 // contact_hash + the org's own reference is deliberate: never store a
@@ -14917,6 +15060,9 @@ export const dpdpConsentToken = dpdpSchemaDB.table('consent_token', {
   openedAt: timestamp('opened_at'),
   actedAt: timestamp('acted_at'),
   expiresAt: timestamp('expires_at').notNull(),
+  guardianName: text('guardian_name'), // drizzle/0725: the parent or legal guardian answering for a child
+  guardianRelation: text('guardian_relation'),
+  guardianRecordedAt: timestamp('guardian_recorded_at'),
 })
 
 // Withdrawal must be one tap on the same page as granting (S.6) -- a new
@@ -15043,6 +15189,7 @@ export const dpdpNoticeVersion = dpdpSchemaDB.table('notice_version', {
   languages: text('languages').array(),
   approvedBy: text('approved_by'),
   state: text('state').notNull().default('draft'), // 'draft'|'live'|'superseded'
+  bodyText: text('body_text'), // drizzle/0725: the notice's own text, when the organisation has stored it
 }, (t) => ({
   orgDocVersionUnique: unique('dpdp_notice_version_org_kind_version_key').on(t.orgId, t.docKind, t.version),
 }))
@@ -15056,6 +15203,29 @@ export const dpdpBreach = dpdpSchemaDB.table('breach', {
   boardNotifiedAt: timestamp('board_notified_at'),
   individualsNotifiedAt: timestamp('individuals_notified_at'),
   state: text('state').notNull().default('open'),
+  // drizzle/0726: DPDP Rules 2025 rule 7 facts and the CERT-In (6 h) / customer (24 h) clocks
+  description: text('description'),
+  nature: text('nature'),
+  extent: text('extent'),
+  occurredAt: timestamp('occurred_at'),
+  location: text('location'),
+  likelyImpact: text('likely_impact'),
+  boardDetailedAt: timestamp('board_detailed_at'),
+  boardBroadFacts: text('board_broad_facts'),
+  boardCircumstances: text('board_circumstances'),
+  boardMitigation: text('board_mitigation'),
+  boardCauseFindings: text('board_cause_findings'),
+  boardRemedialSteps: text('board_remedial_steps'),
+  boardReportOnNotices: text('board_report_on_notices'),
+  individualConsequences: text('individual_consequences'),
+  individualMitigation: text('individual_mitigation'),
+  individualSafetyMeasures: text('individual_safety_measures'),
+  individualContact: text('individual_contact'),
+  certInDueAt: timestamp('cert_in_due_at'),
+  certInReportedAt: timestamp('cert_in_reported_at'),
+  certInReference: text('cert_in_reference'),
+  customerNoticeDueAt: timestamp('customer_notice_due_at'),
+  processorNotifiedCustomerAt: timestamp('processor_notified_customer_at'),
 })
 
 // ─── DPDP 4.7: the record ───────────────────────────────────────────────
@@ -15410,14 +15580,84 @@ export const dpdpPanelRequest = dpdpSchemaDB.table('panel_request', {
 // is someone else being able to read the same non-personal projection --
 // explicitly not something this schema tries to harden beyond what the
 // spec asks for.
+//
+// WO-DPDP-012 §7 (drizzle/0607, 2026-09-22): the Supabase-path link (made by
+// public.dpdp_create_ai_link, read by public.dpdp_ai_link_read via the
+// dpdp-ai-link Edge Function) stores ONLY sha256(token) in tokenHash and
+// leaves `token` NULL -- hence `token` is nullable from 0607 on, with a
+// CHECK (token or token_hash) in the migration so no row has neither. Rows
+// from the pre-0607 Next.js path above keep their plaintext `token` and a
+// NULL tokenHash; the two paths never read each other's rows. membershipId
+// (not just identityId) because the approved design scopes the link to one
+// person IN one org; readCount/lastReadAt replace ai_link_read for this path.
 export const dpdpAiLink = dpdpSchemaDB.table('ai_link', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   identityId: text('identity_id').notNull(),
-  token: text('token').notNull().unique(),
+  membershipId: text('membership_id'),
+  token: text('token').unique(),
+  tokenHash: text('token_hash').unique(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),
+  lastReadAt: timestamp('last_read_at'),
+  readCount: integer('read_count').notNull().default(0),
+  // WO-DPDP-013 Part 1 (drizzle/0610): the AI WORK link. authorityLevel 0
+  // (read/analyse/report, always on) or 1 (NOTE/SET_DUE/ASSIGN/MARK_NA
+  // applied directly, off by default, chosen per link); Level 2 is never a
+  // link property -- it is always a draft. hideEmails shows other people's
+  // roles instead of their emails on every endpoint. lastUsedAt/callCount
+  // are maintained by public.dpdp_ai_link_log_call on EVERY API call.
+  authorityLevel: smallint('authority_level').notNull().default(0),
+  hideEmails: boolean('hide_emails').notNull().default(true),
+  createdByMembershipId: text('created_by_membership_id'),
+  label: text('label'),
+  lastUsedAt: timestamp('last_used_at'),
+  callCount: integer('call_count').notNull().default(0),
+})
+
+// WO-DPDP-013 Part 1 (drizzle/0610): EVERY API call on an AI work link,
+// whatever it returned. Append-only (a trigger refuses DELETE and any
+// UPDATE other than completing a pending row's status/bytes/finishedAt
+// once). linkId is null only when the token matched no link at all. No TS
+// write path -- written by public.dpdp_ai_link_log_call /
+// dpdp_ai_link_log_call_result only; declared so the DB-gated test can
+// count rows under a tenant context.
+export const dpdpAiLinkCall = dpdpSchemaDB.table('ai_link_call', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  linkId: text('link_id'),
+  orgId: text('org_id'),
+  method: text('method').notNull(),
+  path: text('path').notNull(),
+  status: integer('status'),
+  bytes: integer('bytes'),
+  calledAt: timestamp('called_at').notNull().defaultNow(),
+  finishedAt: timestamp('finished_at'),
+})
+
+// WO-DPDP-013 Part 1 (drizzle/0610): one row per Level 1 action an AI
+// applied through a work link (public.dpdp_ai_link_action), under the
+// link's own person's authority. `previous` is what the job looked like
+// before, so public.dpdp_ai_action_undo (the signed-in person, within
+// undoableUntil = appliedAt + 24h, holding the token whose sha256 is
+// undoTokenHash) can put it back. digestPending is the flag the Monday
+// digest reads (public.dpdp_timer_ai_actions_for_digest). verb is
+// CHECK-constrained to NOTE / SET_DUE / ASSIGN / MARK_NA in the migration.
+export const dpdpAiAction = dpdpSchemaDB.table('ai_action', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  linkId: text('link_id').notNull(),
+  membershipId: text('membership_id').notNull(),
+  orgId: text('org_id').notNull(),
+  verb: text('verb').notNull(),
+  obligationId: text('obligation_id').notNull(),
+  value: jsonb('value').notNull().default({}),
+  previous: jsonb('previous'),
+  appliedAt: timestamp('applied_at').notNull().defaultNow(),
+  undoableUntil: timestamp('undoable_until').notNull(),
+  undoTokenHash: text('undo_token_hash').unique(),
+  undoneAt: timestamp('undone_at'),
+  digestPending: boolean('digest_pending').notNull().default(true),
+  digestedAt: timestamp('digested_at'),
 })
 
 // "Reads are logged with user-agent family and IP prefix only" -- never
@@ -15465,6 +15705,31 @@ export const dpdpAiProposalLine = dpdpSchemaDB.table('ai_proposal_line', {
   refusalReason: text('refusal_reason'),
   approved: boolean('approved').notNull().default(false),
   appliedAt: timestamp('applied_at'),
+})
+
+// WO-DPDP-012 §7 (drizzle/0607): one row per action an AI DRAFTED through
+// the Supabase-path AI link. A draft changes nothing by itself -- only
+// public.dpdp_confirm_ai_draft (the person's own signed-in browser session,
+// which must be the draft's own membership, holding the confirm token whose
+// sha256 is confirmTokenHash) applies it. verb is CHECK-constrained in the
+// migration to the five approved verbs (ASSIGN, SET_DUE, NOTE, MARK_NA,
+// DRAFT); no other verb has a code path. Drafts expire 48h after creation.
+// No TS write path exists or should exist for this table -- it is written
+// and read by the 0607 RPCs only; declared here so the DB-gated test can
+// inspect rows under a tenant context.
+export const dpdpAiDraft = dpdpSchemaDB.table('ai_draft', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  aiLinkId: text('ai_link_id').notNull(),
+  membershipId: text('membership_id').notNull(),
+  orgId: text('org_id').notNull(),
+  verb: text('verb').notNull(),
+  obligationId: text('obligation_id'),
+  payload: jsonb('payload'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+  confirmedAt: timestamp('confirmed_at'),
+  confirmedBy: text('confirmed_by'),
+  confirmTokenHash: text('confirm_token_hash').notNull().unique(),
 })
 
 // ─── WO-DPDP-010: one-page-per-role product -- group jobs ──────────────

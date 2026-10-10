@@ -16,37 +16,96 @@
 // database as part of PM-T34's dry-run evidence -- a stronger check for
 // that specific surface than a unit-level mock could give, not a coverage
 // gap.
+//
+// PROJEXA-BUILD-001 U-18 (drizzle/0613, spec C-11, register BR-289): the
+// table now holds two products. The fake transaction below no longer trusts a
+// filter chosen by each test: it compiles the REAL drizzle `where` expression
+// that user-links.ts builds (PgDialect.sqlToQuery, the same compiler the
+// driver uses) and evaluates it against the fake rows. Only the database is
+// faked. So if user-links.ts stops filtering on product = 'veridian', the
+// projexa rows below become visible to it and the "never touches a projexa
+// row" tests fail.
 import { describe, expect, test, mock, beforeEach } from 'bun:test'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import { userAiLinks as userAiLinksTable } from '@/lib/db/schema'
 
-type Row = { id: string; orgId: string; userId: string; token: string; status: string; lastUsedAt: Date | null }
+type Row = {
+  id: string
+  orgId: string
+  userId: string
+  token: string | null
+  status: string
+  product: string
+  projectId: string | null
+  tokenHash: string | null
+  lastUsedAt: Date | null
+  revokedAt: Date | null
+}
 let rows: Row[] = []
 let nextId = 0
+let insertCalls = 0
 
-// The mocked `where` predicate the next tx call should use -- set by each
-// test right before calling the real function, since the mock can't parse
-// drizzle's `and(eq(...))` expression tree (same limitation and same
-// workaround the previous version of this file already used).
-let currentFilter: ((r: Row) => boolean) | null = null
+const dialect = new PgDialect()
+const COLUMN_TO_KEY: Record<string, keyof Row> = {
+  id: 'id',
+  org_id: 'orgId',
+  user_id: 'userId',
+  token: 'token',
+  status: 'status',
+  product: 'product',
+  project_id: 'projectId',
+}
+
+// Compiles the real drizzle expression and evaluates it. Only a conjunction
+// of `column = $n` terms on platform.user_ai_links is understood; anything
+// else throws, so the fake can never silently match everything.
+function predicateFrom(where: SQL | undefined): (r: Row) => boolean {
+  if (!where) throw new Error('fake db: query without a where clause')
+  const { sql, params } = dialect.sqlToQuery(where)
+  const body = sql.startsWith('(') && sql.endsWith(')') ? sql.slice(1, -1) : sql
+  const checks = body.split(' and ').map((term) => {
+    const m = /^"platform"\."user_ai_links"\."(\w+)" = \$(\d+)$/.exec(term)
+    if (!m) throw new Error(`fake db cannot evaluate: ${sql}`)
+    const key = COLUMN_TO_KEY[m[1]]
+    if (!key) throw new Error(`fake db: unknown column ${m[1]}`)
+    const value = params[Number(m[2]) - 1]
+    return (r: Row) => r[key] === value
+  })
+  return (r) => checks.every((c) => c(r))
+}
 
 function fakeTx() {
   return {
     query: {
       userAiLinks: {
-        findFirst: mock(async () => (currentFilter ? rows.find(currentFilter) : undefined)),
+        findFirst: mock(async (cfg: { where?: SQL }) => rows.find(predicateFrom(cfg.where))),
       },
     },
     insert: mock(() => ({
       values: mock(async (v: Partial<Row>) => {
-        const row: Row = { id: `row_${nextId++}`, status: 'active', lastUsedAt: null, ...v } as Row
+        insertCalls++
+        // Column defaults as in the database after 0613.
+        const row: Row = {
+          id: `row_${nextId++}`,
+          token: null,
+          status: 'active',
+          product: 'veridian',
+          projectId: null,
+          tokenHash: null,
+          lastUsedAt: null,
+          revokedAt: null,
+          ...v,
+        } as Row
         rows.push(row)
       }),
     })),
     update: mock(() => ({
       set: mock((v: Partial<Row>) => ({
-        where: mock(() => {
-          const target = rows.find(currentFilter!)
-          if (target) Object.assign(target, v)
-          return { returning: async () => (target ? [{ id: target.id }] : []) }
+        where: mock((where: SQL) => {
+          const matches = rows.filter(predicateFrom(where))
+          for (const target of matches) Object.assign(target, v)
+          return { returning: async () => matches.map((t) => ({ id: t.id })) }
         }),
       })),
     })),
@@ -58,31 +117,48 @@ mock.module('@/lib/db/tenant-scoped', () => ({ withTenantContext }))
 
 // resolveAiLinkToken's own mock: set per-test to the snake_case row(s)
 // platform.rpc_resolve_ai_link_token()'s RETURNING clause would produce.
-let executeResult: { org_id: string; user_id: string }[] = []
+let executeResult: Record<string, unknown>[] = []
+const execute = mock(async (_query: SQL) => executeResult)
 mock.module('@/lib/db', () => ({
-  db: { execute: mock(async () => executeResult) },
-  userAiLinks: {},
+  db: { execute },
+  userAiLinks: userAiLinksTable,
 }))
 
 const { getOrCreateUserAiLink, resolveAiLinkToken, revokeUserAiLink, tokensEqual } = await import('./user-links')
+
+function projexaRow(overrides: Partial<Row> = {}): Row {
+  return {
+    id: `projexa_${nextId++}`,
+    orgId: 'org1',
+    userId: 'user1',
+    token: null,
+    status: 'active',
+    product: 'projexa',
+    projectId: 'project_a',
+    tokenHash: 'f'.repeat(64),
+    lastUsedAt: null,
+    revokedAt: null,
+    ...overrides,
+  }
+}
 
 describe('user-links', () => {
   beforeEach(() => {
     rows = []
     nextId = 0
+    insertCalls = 0
     executeResult = []
   })
 
   test('getOrCreateUserAiLink mints a new token when none exists', async () => {
-    currentFilter = (r) => r.orgId === 'org1' && r.userId === 'user1' && r.status === 'active'
     const result = await getOrCreateUserAiLink('org1', 'user1')
     expect(result.createdNow).toBe(true)
     expect(result.token.length).toBeGreaterThan(32)
     expect(rows.length).toBe(1)
+    expect(rows[0].product).toBe('veridian')
   })
 
   test('getOrCreateUserAiLink is idempotent -- a second call returns the SAME token, never mints a second one', async () => {
-    currentFilter = (r) => r.orgId === 'org1' && r.userId === 'user1' && r.status === 'active'
     const first = await getOrCreateUserAiLink('org1', 'user1')
     const second = await getOrCreateUserAiLink('org1', 'user1')
     expect(second.createdNow).toBe(false)
@@ -109,10 +185,8 @@ describe('user-links', () => {
   })
 
   test('revokeUserAiLink marks the row revoked; the token never resolves again', async () => {
-    currentFilter = () => true
     await getOrCreateUserAiLink('org1', 'user1')
 
-    currentFilter = (r) => r.orgId === 'org1' && r.userId === 'user1' && r.status === 'active'
     const revoked = await revokeUserAiLink('org1', 'user1')
     expect(revoked).toBe(true)
     expect(rows[0].status).toBe('revoked')
@@ -131,5 +205,137 @@ describe('user-links', () => {
     expect(tokensEqual('abc123', 'abc123')).toBe(true)
     expect(tokensEqual('abc123', 'abc124')).toBe(false)
     expect(tokensEqual('short', 'muchlonger')).toBe(false)
+  })
+})
+
+describe('user-links: VERIDIAN functions never touch a PROJEXA link (U-18, BR-289)', () => {
+  beforeEach(() => {
+    rows = []
+    nextId = 0
+    insertCalls = 0
+    executeResult = []
+  })
+
+  test('getOrCreateUserAiLink ignores an active projexa link of the same person and mints a veridian one', async () => {
+    const projexa = projexaRow()
+    rows.push(projexa)
+    const before = { ...projexa }
+
+    const result = await getOrCreateUserAiLink('org1', 'user1')
+
+    expect(result.createdNow).toBe(true)
+    expect(result.token.length).toBeGreaterThan(32)
+    expect(insertCalls).toBe(1)
+    expect(rows.length).toBe(2)
+    expect(rows[1].product).toBe('veridian')
+    expect(rows[1].token).toBe(result.token)
+    expect(rows[0]).toEqual(before)
+  })
+
+  test('getOrCreateUserAiLink returns the veridian link, not the projexa link listed before it', async () => {
+    rows.push(projexaRow())
+    rows.push({ ...projexaRow(), id: 'veridian_1', product: 'veridian', projectId: null, tokenHash: null, token: 'v'.repeat(43) })
+
+    const result = await getOrCreateUserAiLink('org1', 'user1')
+
+    expect(result).toEqual({ token: 'v'.repeat(43), createdNow: false })
+    expect(insertCalls).toBe(0)
+  })
+
+  test('revokeUserAiLink revokes the veridian link only; the projexa link stays active', async () => {
+    const projexa = projexaRow()
+    rows.push(projexa)
+    const before = { ...projexa }
+    rows.push({ ...projexaRow(), id: 'veridian_1', product: 'veridian', projectId: null, tokenHash: null, token: 'v'.repeat(43) })
+
+    const revoked = await revokeUserAiLink('org1', 'user1')
+
+    expect(revoked).toBe(true)
+    expect(rows[1].status).toBe('revoked')
+    expect(rows[1].revokedAt).toBeInstanceOf(Date)
+    expect(rows[0]).toEqual(before)
+  })
+
+  test('revokeUserAiLink with only projexa links revokes nothing and reports false', async () => {
+    rows.push(projexaRow({ projectId: 'project_a' }))
+    rows.push(projexaRow({ projectId: 'project_b', tokenHash: 'e'.repeat(64) }))
+    const before = rows.map((r) => ({ ...r }))
+
+    const revoked = await revokeUserAiLink('org1', 'user1')
+
+    expect(revoked).toBe(false)
+    expect(rows).toEqual(before)
+  })
+})
+
+// PROJEXA-BUILD-001 U-18 stage B (drizzle/0614): resolveAiLinkToken reads the
+// scope-carrying function and returns the link's scope with its identity. The
+// SQL itself (hash match, expiry, revocation, product binding) is proven on
+// PGlite by user-ai-links-resolve-by-hash.pglite.test.ts; this proves the
+// TypeScript side calls that function and maps its row.
+describe('resolveAiLinkToken: the identity carries the link scope (U-18, drizzle/0614)', () => {
+  beforeEach(() => {
+    executeResult = []
+    execute.mockClear()
+  })
+
+  const scopedRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 'link_1',
+    org_id: 'org1',
+    user_id: 'user1',
+    product: 'projexa',
+    project_id: 'project_a',
+    authority_level: 1,
+    allowed_functions: ['record_work_progress'],
+    hide_personal: false,
+    expires_at: '2026-10-02 10:00:00+00',
+    ...overrides,
+  })
+
+  test('it calls platform.rpc_resolve_ai_link_scoped with the token as its only parameter', async () => {
+    await resolveAiLinkToken(`pxa_${'a'.repeat(64)}`)
+
+    expect(execute.mock.calls.length).toBe(1)
+    const { sql: text, params } = new PgDialect().sqlToQuery(execute.mock.calls[0][0])
+    expect(text).toBe('SELECT * FROM platform.rpc_resolve_ai_link_scoped($1::text)')
+    expect(params).toEqual([`pxa_${'a'.repeat(64)}`])
+  })
+
+  test('a projexa link resolves to its org, user, project, level, functions and hide_personal', async () => {
+    executeResult = [scopedRow()]
+
+    const identity = await resolveAiLinkToken(`pxa_${'a'.repeat(64)}`)
+
+    expect(identity).toStrictEqual({
+      orgId: 'org1',
+      userId: 'user1',
+      product: 'projexa',
+      projectId: 'project_a',
+      authorityLevel: 1,
+      allowedFunctions: ['record_work_progress'],
+      hidePersonal: false,
+    })
+  })
+
+  test('a veridian link resolves org-wide: projectId null, as before 0613', async () => {
+    executeResult = [scopedRow({ product: 'veridian', project_id: null, authority_level: 0, allowed_functions: [], hide_personal: true, expires_at: null })]
+
+    const identity = await resolveAiLinkToken('v'.repeat(43))
+
+    expect(identity).toStrictEqual({
+      orgId: 'org1',
+      userId: 'user1',
+      product: 'veridian',
+      projectId: null,
+      authorityLevel: 0,
+      allowedFunctions: [],
+      hidePersonal: true,
+    })
+  })
+
+  test('two rows for one token are refused like none -- a token names one link or nothing', async () => {
+    executeResult = [scopedRow(), scopedRow({ id: 'link_2', user_id: 'user2' })]
+
+    expect(await resolveAiLinkToken(`pxa_${'a'.repeat(64)}`)).toBeNull()
   })
 })

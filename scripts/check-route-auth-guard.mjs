@@ -84,6 +84,13 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // structurally inapplicable here, not merely omitted.
   "src/app/api/internal/dispatch-completion-monitor/run/route.ts",
   //
+  // PROJEXA-BUILD-001 U-40 (2026-09-26): the last hop of the scheduler bridge (pg_cron -> Edge Function -> this route). A job that
+  // pg_cron starts has no Supabase session, so isAuthorized() in the file gates on `Authorization: Bearer
+  // ${SCHEDULER_BRIDGE_INTERNAL_SECRET}` (constant-time compare, fail closed when the secret is unset or short), checked directly in
+  // the route, the same class as the dispatch-completion-monitor entry above. It runs each due schedule as the schedule's owner and
+  // turns every write into a proposal. requireAuth() would be structurally inapplicable here.
+  "src/app/api/internal/scheduler-bridge/run/route.ts",
+  //
   // Deliberately token-based, not session-based -- validateSupportSessionToken()
   // gates on `Authorization: Bearer ss_...`, the same convention as
   // api-key-auth.ts's `Bearer vk_...` pattern, verified by reading the
@@ -375,6 +382,22 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   "src/app/api/v1/projexa/quotations/[id]/revisions/route.ts",
   "src/app/api/v1/projexa/scope/import/route.ts",
   "src/app/api/v1/projexa/submittals/route.ts",
+  //
+  // PROJEXA-BUILD-001 U-01 (2026-09-25): these four already-authenticated
+  // routes entered a diff because the financial-redaction fix threads the
+  // acting person's role through them. Each authenticates, verified by reading
+  // the handler, just not through the literal requireAuth() this checker looks
+  // for. assistant, submissions and tasks call requireAuthOrApiKey(request)
+  // (session or vk_ API key) and then requireRoleOrScope(ctx, "member", ...);
+  // requireAuth() alone would refuse the API-key callers PROJEXA's proxy uses.
+  // api/mcp/[token] authenticates by the personal AI link token: it resolves
+  // resolveAiLinkToken(token) and answers JSON-RPC -32600 when it does not
+  // resolve; there is no session on a pasted link. Same reasoning and the same
+  // shared-guardrail scope note as the four entries directly above.
+  "src/app/api/mcp/[token]/route.ts",
+  "src/app/api/v1/projexa/assistant/route.ts",
+  "src/app/api/v1/projexa/submissions/route.ts",
+  "src/app/api/v1/projexa/tasks/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
@@ -418,6 +441,12 @@ const SERVICE_ERROR_EXEMPTIONS = new Set([
   // (adding one data entry) -- not claiming this phase fixed or introduced
   // anything about its error-handling posture.
   "src/lib/services/report-catalog-service.ts",
+  //
+  // PROJEXA-BUILD-002 WP-09b (2026-09-27): a real, PRE-EXISTING posture, not introduced by this diff. memory-service.ts predates the convention and reports
+  // every failure with plain Error (its guards, the write-authorization gate and the attribution check throw Error by design; its own header and
+  // src/lib/services/memory-service.test.ts assert those messages). This diff adds ONE optional input field, `skipEmbedding`, and one condition that
+  // skips the embedding call; it adds no failure path of its own. Exempted only because the diff touches the file at all.
+  "src/lib/services/memory-service.ts",
   //
   // WO-DPDP-001 (2026-09-15): both genuinely have no validation-failure
   // branch today, the same "cannot fail" class as boq-dual-view-service.ts
@@ -465,10 +494,29 @@ const SERVICE_ERROR_EXEMPTIONS = new Set([
   // background/async ingest-pipeline stages, doing the same job
   // ServiceError does for a synchronous request handler.
   "src/lib/services/document-extraction-service.ts",
+  //
+  // Pre-existing gap, surfaced 2026-10-02 when lf-b3-ai-off touched this file (a 6-line projexaInternalAiEnabled() early return) for the first
+  // time since this check existed -- not introduced by that change. The file DOES touch the DB, but it is a scheduled background job whose
+  // documented convention (see its own catch around each eval case, and the `{ skipped: true, reason }` result) is that a failing eval call is
+  // CAUGHT and recorded in the run row (errorNote) or returned as a skipped result, never thrown to a caller: there is no request handler
+  // above it to turn a ServiceError into an HTTP answer.
+  "src/lib/services/role-quality-regression-service.ts",
 ])
 
 const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/
-const REQUIRE_AUTH_RE = /\brequireAuth\s*\(/
+// PROJEXA-BUILD-001 U-20b (2026-09-25): now also accepts requireAuthOrApiKey(),
+// the fix the requireAuthOrApiKey-family entries in ROUTE_AUTH_EXEMPTIONS above
+// kept asking "a future session" for. requireAuthOrApiKey() calls requireAuth()
+// itself for a session caller and only otherwise accepts a valid Bearer API
+// key, returning 401 for neither (auth-guard.ts) -- it is an auth call, not a
+// way around one, and CLAUDE.md's rule is met by it. U-20b had to touch ~130
+// such v1 routes (every API-key write now names its person), and growing the
+// exemption list by ~130 entries would have buried the genuinely unusual
+// exemptions (webhooks, token-scoped links) that this list exists to explain.
+// A route that calls NEITHER function still fails exactly as before. The
+// existing requireAuthOrApiKey-family exemptions are now redundant but left in
+// place (harmless; removing them is separate churn).
+const REQUIRE_AUTH_RE = /\brequireAuth(OrApiKey)?\s*\(/
 const SERVICE_ERROR_RE = /\bServiceError\b/
 
 function run(cmd) {

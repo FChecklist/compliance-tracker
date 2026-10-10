@@ -83,6 +83,48 @@ jobs:
           # ubuntu-latest has 16GB total; 8GB old-space leaves headroom for
           # the rest of the toolchain (bun, next's own worker processes).
           NODE_OPTIONS: --max-old-space-size=8192
+  browser-bundle-scan:
+    # PROJEXA-BUILD-001 item U-26 / E-08 (register rows BR-325, BR-326): no
+    # service_role secret may reach a built browser bundle, and that is checked
+    # here on every push and pull request, not once by hand. It builds the app
+    # exactly as the Build job does, then scans .next/static -- the directory
+    # `next build` serves to every visitor -- with
+    # scripts/verify/bundle-service-role-scan.sh (service_role text, the
+    # SUPABASE_SERVICE_ROLE_KEY / SERVICE_ROLE env-var names, JWTs whose
+    # decoded payload says role service_role, sb_secret_ keys) and then runs the
+    # scanner's own self-test, which plants each leak and proves the scan can
+    # fail.
+    #
+    # Deliberately no `needs`: this job's result is its own, independent of
+    # lint/typecheck/build, so it can be made a required status check by its
+    # exact name, "Browser Bundle Service-Role Scan". Do not rename the job or
+    # its name. It builds a second time rather than reusing the Build job's
+    # output because GitHub Actions jobs do not share a filesystem, and it
+    # uploads nothing (a bundle that may hold a secret must not become an
+    # artifact). Build steps and env are copied from the Build job above; keep
+    # them in step with it.
+    #
+    # Allowlist: scripts/verify/bundle-service-role-allow.txt starts empty. If
+    # the first run flags a library string that is harmless, add a
+    # `substring<TAB>reason` line there -- do not loosen the scanner.
+    name: Browser Bundle Service-Role Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run db:generate || true
+      - run: bun run build
+        env:
+          DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          NODE_OPTIONS: --max-old-space-size=8192
+      - name: Scan the built browser bundle (.next/static) for service_role secrets
+        run: bash scripts/verify/bundle-service-role-scan.sh
+      - name: Self-test the bundle scanner
+        run: bash scripts/verify/bundle-service-role-scan.selftest.sh
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -166,6 +208,28 @@ jobs:
       # it can never happen. See the script's own header for the same
       # honest-limitation note.
       - run: node scripts/check-migration-collision.mjs --base origin/main
+  ddl-authorization-check:
+    name: DDL Authorization Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      # 2026-09-29: this repo's ai-os/CONSTITUTION.yaml SEC-06 claimed
+      # "Live production database DDL/DCL execution is gated at dispatch
+      # time" as ENFORCED, citing a mechanism (claude-control's
+      # scripts/ddl_authorization_check.py, wired into scripts/
+      # task-gateway.py's dispatch-time gate) that ran on the
+      # VERIDIAN-DEV Hetzner server. That server was permanently deleted
+      # 2026-08-25, and zero live invocation path for that mechanism has
+      # existed since. This job re-homes a real, deliberately narrower
+      # (destructive-DDL-only, Category-A-citation-only) version of that
+      # check as a PR-time gate on every new/changed drizzle/*.sql
+      # migration file -- see scripts/check-ddl-authorization.mjs's own
+      # header for the full scope/limitation reasoning. fetch-depth 0
+      # (same as migration-collision-check just above) so the script's
+      # git merge-base/diff against origin/main always resolves.
+      - run: node scripts/check-ddl-authorization.mjs --base origin/main
   route-error-handling-check:
     name: Route Error Handling Check
     runs-on: ubuntu-latest
@@ -549,6 +613,16 @@ jobs:
     name: E2E Tests (Env-1, cross-repo)
     needs: [build]
     runs-on: ubuntu-latest
+    # AUDIT-100 (2026-10-05): ONE Env-1 run at a time across every PR and branch. It boots two real dev servers and drives real browsers against
+    # the LIVE database for up to 40 minutes with --workers=1; two or three of them at once (several PRs, several sessions) starved the shared
+    # database: the AI work-link guide answered 503 and the database-touching checks (Graph Drift, Migration Schema Drift, Screen Definition Label,
+    # Migration Integrity) crashed with FATAL. The check is not required, so a run that is replaced while waiting is acceptable; queueing is not.
+    # On a pull request it runs only when the PR carries the label `run-env1` (push to main, workflow_dispatch and the weekly schedule are unchanged):
+    # an unlabelled PR push no longer launches 40 minutes of browsers against the live database.
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-env1')
+    concurrency:
+      group: env1-live-database
+      cancel-in-progress: false
     # PM directive 2026-09-13: no job in this workflow set timeout-minutes, so
     # every job silently inherited GitHub's 6-hour default. This is the one
     # job that genuinely can hang -- it boots two real dev servers and drives
@@ -589,11 +663,21 @@ jobs:
           [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" ] && missing="$missing NEXT_PUBLIC_SUPABASE_ANON_KEY"
           [ -z "${{ secrets.PROJEXA_DATABASE_URL }}" ] && missing="$missing PROJEXA_DATABASE_URL"
           [ -z "${{ secrets.VERIDIAN_API_KEY }}" ] && missing="$missing VERIDIAN_API_KEY"
+          [ -z "${{ secrets.MINT_SECRET }}" ] && missing="$missing MINT_SECRET"
           if [ -n "$missing" ]; then
             echo "::error::e2e-env1 cannot run: missing repo secret(s):$missing -- see kt/FINDINGS.W-CI.jsonl F-2026-09-10-W-CI-001 / OR-7 / OR-8 (owner-only, direct GitHub UI entry, never via a shell)."
             exit 1
           fi
-          echo "all 6 required secrets present (values not printed)"
+          echo "all 7 required secrets present (values not printed)"
+          # 2026-09-30: MINT_SECRET added -- mint-session-r33's own secret was
+          # rotated server-side in the Supabase dashboard (closing the
+          # residual-risk gap that function's own header comment flagged), so
+          # the *-env1.spec.ts files' old published literal ("r33-mint-2026")
+          # now gets a genuine 401 from the live function. The specs read
+          # process.env.MINT_SECRET first (falling back to that literal only
+          # for a local run with no env var set) -- this repo secret must hold
+          # the CURRENT real value from the Supabase dashboard, entered
+          # directly by the owner, same as every other secret in this check.
       # R-80/81/82 investigation (2026-09-13): the REAL, confirmed root cause of
       # this job's cascading timeouts (15s/30s/45s/90s apiRequestContext/page.goto
       # failures across ~24 of 25 PROJEXA Env-1 tests, every one of them, not just
@@ -1012,6 +1096,7 @@ jobs:
         env:
           E2E_PROJEXA_ORIGIN: http://localhost:3100
           E2E_ENV1_JOB: "true"
+          MINT_SECRET: ${{ secrets.MINT_SECRET }}
 
       # --- Run projexa's own Env-1 spec(s) (R-60 today) under projexa's OWN
       # playwright config (auth.setup.ts + storageState, a different fixture

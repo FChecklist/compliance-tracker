@@ -2,9 +2,9 @@
 // existing e-signature workflow (esignature-service.ts, Wave 86) for
 // client approval instead of a bespoke approval mechanism -- see that
 // file's `linkedEntityType: "change_order"` branch (added alongside this).
-import { constructionChangeOrders } from "@/lib/db"
+import { constructionChangeOrders, esignatureRequests } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, count } from "drizzle-orm"
+import { and, eq, count, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { createSignatureRequest } from "./esignature-service"
@@ -129,5 +129,71 @@ export async function markChangeOrderRejected(ctx: { orgId: string }, changeOrde
       .where(and(eq(constructionChangeOrders.id, changeOrderId), eq(constructionChangeOrders.orgId, ctx.orgId))).returning()
     if (!row) throw new ServiceError("Change order not found", 404)
     return row
+  })
+}
+
+// lf-b5-ai-crud (owner order 2026-10-02, R7) -- the EDIT and the CANCEL of a
+// change order, which did not exist. The conservative rules, chosen here and
+// written into ai-os/AI_CRUD_COVERAGE.md for the owner to veto:
+//   - EDIT (title, description, reason, cost impact, schedule impact, trade):
+//     only while the change order is a DRAFT. Stricter than "draft or pending
+//     approval": once it is sent for e-signature the client is signing a hash
+//     of exactly these terms (esignature-service.ts computeDocumentHash), so an
+//     edit under a live signature would make the signature attest to something
+//     the client never saw. To change a pending one: cancel it and raise a new one.
+//   - CANCEL: only while draft or pending approval. The status becomes
+//     "cancelled" (a value drizzle/0687 adds) and, IN THE SAME TRANSACTION,
+//     every e-signature request of this change order that is still pending or
+//     partially signed is voided -- a signer who opens the link afterwards is
+//     told it was voided (getSigningSession). Nothing is deleted.
+//   - an approved, rejected or cancelled change order is immutable (409).
+// Every reader that counts change orders already filters on status
+// "approved", so a cancelled one counts nowhere.
+export const CHANGE_ORDER_EDITABLE_STATUSES = ["draft"] as const
+export const CHANGE_ORDER_CANCELLABLE_STATUSES = ["draft", "pending_approval"] as const
+
+export type ChangeOrderPatch = Partial<{
+  title: string; description: string | null; reason: string | null; costImpact: number; scheduleImpactDays: number; trade: string | null
+}>
+
+export async function updateChangeOrder(ctx: { orgId: string }, changeOrderId: string, patch: ChangeOrderPatch) {
+  if (patch.title !== undefined && !patch.title.trim()) throw new ServiceError("title cannot be empty", 400)
+  if (patch.costImpact !== undefined && !Number.isFinite(patch.costImpact)) throw new ServiceError("costImpact must be a number", 400)
+  if (patch.scheduleImpactDays !== undefined && !Number.isInteger(patch.scheduleImpactDays)) throw new ServiceError("scheduleImpactDays must be a whole number", 400)
+  const set = {
+    ...(patch.title !== undefined ? { title: patch.title.trim() } : {}),
+    ...(patch.description !== undefined ? { description: patch.description } : {}),
+    ...(patch.reason !== undefined ? { reason: patch.reason } : {}),
+    ...(patch.costImpact !== undefined ? { costImpact: String(patch.costImpact) } : {}),
+    ...(patch.scheduleImpactDays !== undefined ? { scheduleImpactDays: patch.scheduleImpactDays } : {}),
+    ...(patch.trade !== undefined ? { trade: patch.trade?.trim() || null } : {}),
+  }
+  if (Object.keys(set).length === 0) throw new ServiceError("Nothing to change", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionChangeOrders.findFirst({ where: and(eq(constructionChangeOrders.id, changeOrderId), eq(constructionChangeOrders.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Change order not found", 404)
+    if (!(CHANGE_ORDER_EDITABLE_STATUSES as readonly string[]).includes(existing.status)) {
+      throw new ServiceError(`Only a draft change order can be edited (this one is ${existing.status})`, 409)
+    }
+    const [row] = await db.update(constructionChangeOrders).set(set).where(eq(constructionChangeOrders.id, changeOrderId)).returning()
+    return row
+  })
+}
+
+export async function cancelChangeOrder(ctx: { orgId: string }, changeOrderId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionChangeOrders.findFirst({ where: and(eq(constructionChangeOrders.id, changeOrderId), eq(constructionChangeOrders.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Change order not found", 404)
+    if (!(CHANGE_ORDER_CANCELLABLE_STATUSES as readonly string[]).includes(existing.status)) {
+      throw new ServiceError(`An ${existing.status} change order cannot be cancelled`, 409)
+    }
+    const voided = await db.update(esignatureRequests).set({ status: "voided" }).where(and(
+      eq(esignatureRequests.orgId, ctx.orgId),
+      eq(esignatureRequests.linkedEntityType, "change_order"),
+      eq(esignatureRequests.linkedEntityId, changeOrderId),
+      inArray(esignatureRequests.status, ["pending", "partially_signed"]),
+    )).returning({ id: esignatureRequests.id })
+    const [row] = await db.update(constructionChangeOrders).set({ status: "cancelled" }).where(eq(constructionChangeOrders.id, changeOrderId)).returning()
+    return { changeOrder: row, signatureRequestsVoided: voided.map((v) => v.id) }
   })
 }

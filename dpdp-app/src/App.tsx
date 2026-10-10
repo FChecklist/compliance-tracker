@@ -1,0 +1,606 @@
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { createDpdpClient, type DpdpClient } from "./lib/client"
+import {
+  RpcFailure, acknowledgeWelcome, addNote, answerGroup, assignPerson, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
+  fetchPublicPlans, openAccount, saveProfile, fetchOrgSetup, flagNotMe, joinOrgViaInvite, markDone, markNotApplicable, ownerConfirmSetup, readDraftFragment, readUndoFragment, setDueDate, viewerContext,
+  type Area, type CaClient, type DraftFragment, type MyPage, type UndoFragment,
+} from "./lib/api"
+import type { OrgSetupPayload, PlanWirePayload } from "./lib/rpc-types"
+import { isPaymentDueError } from "./lib/billing-state"
+import { clearJoin, firstSeenAt, readLanding, recallEdition, recallEmail, recallJoin, recallPartner, recallReferral, recallSourceTag, rememberEmail, type Landing } from "./lib/landing"
+import { PaymentDue } from "./components/PaymentDue"
+import { OwnerAccountsAdmin } from "./components/OwnerAccountsAdmin"
+import { TestModeBanner } from "./components/TestModeBanner"
+import { ProfileCard } from "./components/ProfileCard"
+import { OnePageView } from "./components/onepage/OnePageView"
+import { FirstVisitWizard } from "./components/onepage/FirstVisitWizard"
+import { RoleWelcome } from "./components/onepage/RoleWelcome"
+import { NotMeWaiting } from "./components/onepage/NotMeWaiting"
+import { Timeline, type HistoryEntry } from "./components/onepage/Timeline"
+import { CaClients, type NewClient } from "./components/CaClients"
+import { CaPartnerFirstVisit } from "./components/CaPartnerFirstVisit"
+import { OwnerReview } from "./components/OwnerReview"
+import { AiWorkLink } from "./components/AiWorkLink"
+import { AuditLogPanel } from "./components/AuditLogPanel"
+import { forgetLoginReport, reportFailedLogin, reportLogin } from "./lib/audit-api"
+import { linkVisitToPerson, noteSignInStart } from "./lib/visit-link"
+import { BillingPanel } from "./components/BillingPanel"
+import { OwnerPaymentAdmin } from "./components/OwnerPaymentAdmin"
+import { OwnerPartnerPayouts } from "./components/OwnerPartnerPayouts"
+import { SalesPartner } from "./components/SalesPartner"
+import { DraftConfirm } from "./components/DraftConfirm"
+import { AiUndoConfirm } from "./components/AiUndoConfirm"
+import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type OpenAccountExtra, type ResendState } from "./components/Screens"
+import { BrandLine } from "./components/BrandLine"
+import { shareRoleFor } from "./lib/brand"
+import { AiFirstSteps } from "./components/AiFirstSteps"
+import { DeviceCopy } from "./components/DeviceCopy"
+import { createCopyStore } from "./lib/device-copy/copy-store"
+import { idbKv } from "./lib/device-copy/kv"
+import { isNetworkError } from "./lib/device-copy/network"
+import { loadWithCopy } from "./lib/device-copy/page-copy"
+
+// WO-DPDP-011 Step 2 spike: one role, the whole loop -- sign in, own jobs
+// load, Mark Yes, reload shows it. Step 3 added the owner: first-visit
+// wizard and History. Step 5 added everything WO-010 left: group answers,
+// the CA firm view ("My clients", + Add a client / Set it up for them), the
+// CA partner's three-step first visit, the owner's review when a CA set the
+// org up, the AI link button and the #draft= confirm. Single page, no
+// router: the phase below (plus one "page | clients" view flag) is the
+// entire navigation model.
+type Phase =
+  | { name: "booting" }
+  | { name: "signed-out"; busy: boolean; error: string | null }
+  | { name: "link-expired"; email: string | null; expired: boolean; busy: boolean; error: string | null }
+  | { name: "check-your-email"; email: string; resend: ResendState; error: string | null }
+  | { name: "loading" }
+  | { name: "app"; page: MyPage; clients: CaClient[] }
+  | { name: "no-membership"; busy: boolean; error: string | null }
+  // drizzle/0734: the account is LOCKED (payment due). Working screens give way to the Payment due screen.
+  | { name: "payment-due" }
+  | { name: "error"; message: string }
+
+const SIGNED_OUT: Phase = { name: "signed-out", busy: false, error: null }
+
+export function App() {
+  const [boot] = useState<{ landing: Landing; draft: DraftFragment | null; undo: UndoFragment | null; client: DpdpClient | Error }>(() => {
+    // The URL is read before the client exists: a success hash must be left
+    // for detectSessionInUrl, an error hash is consumed here (see landing.ts),
+    // a #draft= hash (the AI link's draftUrl) is consumed and cleared so the
+    // confirm token never stays in the address bar, and likewise a #undo=
+    // hash (a Level 1 action's undoUrl, WO-DPDP-013 Part 1).
+    const landing = readLanding()
+    const draft = readDraftFragment()
+    const undo = draft ? null : readUndoFragment()
+    try {
+      return { landing, draft, undo, client: createDpdpClient() }
+    } catch (e) {
+      return { landing, draft, undo, client: e instanceof Error ? e : new Error(String(e)) }
+    }
+  })
+  if (boot.client instanceof Error) {
+    return (
+      <>
+        <BrandLine />
+        <ErrorScreen message={boot.client.message} onRetry={() => window.location.reload()} onSignOut={() => window.location.reload()} />
+      </>
+    )
+  }
+  return <Session client={boot.client} landing={boot.landing} initialDraft={boot.draft} initialUndo={boot.undo} />
+}
+
+function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpClient; landing: Landing; initialDraft: DraftFragment | null; initialUndo: UndoFragment | null }) {
+  const [phase, setPhase] = useState<Phase>({ name: "booting" })
+  const [email, setEmail] = useState<string | null>(null)
+  const [draft, setDraft] = useState<DraftFragment | null>(initialDraft)
+  const [undo, setUndo] = useState<UndoFragment | null>(initialUndo)
+  const [view, setView] = useState<"page" | "clients">("page")
+  // The Sales Partner screen (drizzle/0673). Open from the Share box, the top bar, or "open your organisation".
+  const [partnerOpen, setPartnerOpen] = useState(false)
+  // The copy of this person's page on THIS device (src/lib/device-copy): the person's own machine keeps the app and the data, so a dropped
+  // connection costs nothing. `offline` = what is on screen came from the device because the network did not answer.
+  const store = useMemo(() => { try { return createCopyStore(idbKv()) } catch { return null } }, [])
+  const [copyInfo, setCopyInfo] = useState<{ offline: boolean; savedAt: string | null; pending: number }>({ offline: false, savedAt: null, pending: 0 })
+  const emailRef = useRef<string | null>(null)
+  // "Sign in and get my AI work link" (the sign-in e-mail's option 1) lands on /app/?next=ai-link: once the page is up, show the AI Link settings.
+  const wantsAiLink = useRef(typeof window !== "undefined" && new URLSearchParams(window.location.search).get("next") === "ai-link")
+  useEffect(() => {
+    if (phase.name !== "app" || !wantsAiLink.current) return
+    wantsAiLink.current = false
+    const url = new URL(window.location.href)
+    url.searchParams.delete("next")
+    window.history.replaceState(null, "", `${url.pathname}${url.search}#ai-link-settings`)
+    requestAnimationFrame(() => document.getElementById("ai-link-settings")?.scrollIntoView({ behavior: "smooth", block: "start" }))
+  }, [phase.name])
+  // The plans (public prices, from dpdp.plan) for the opening screen's one calm money line. Best effort: the screen works without them.
+  const [plans, setPlans] = useState<PlanWirePayload[] | undefined>(undefined)
+  const wantsPlans = phase.name === "no-membership"
+  useEffect(() => {
+    if (!wantsPlans || plans) return
+    let cancelled = false
+    fetchPublicPlans(client).then((p) => { if (!cancelled) setPlans(p) }, () => { /* an older database: no price line */ })
+    return () => { cancelled = true }
+  }, [wantsPlans, plans, client])
+  // Written only from the auth-event handler, never during render: whether
+  // this session's first page fetch has been kicked off, so supabase-js's
+  // SIGNED_IN re-emits on tab focus don't fetch the page again.
+  const fetchStarted = useRef(false)
+  // Which org the page shows: null = the caller's newest membership (the
+  // RPC's default); set when a CA opens one of their clients.
+  const orgRef = useRef<string | null>(null)
+
+  // Refetches can overlap (two job controls saved close together); only the newest one may put its page on screen, or an older, slower answer
+  // would win and show a row as it was before the last change.
+  const loadSeq = useRef(0)
+  const load = useCallback(async () => {
+    const mine = ++loadSeq.current
+    // Keep the page on screen during a refetch; only a first load blanks it.
+    setPhase((p) => (p.name === "app" ? p : { name: "loading" }))
+    // WO-DPDP-016 Step 2: a colleague who arrived on an invite link (?join=,
+    // remembered on this device by landing.ts the same way a referral code
+    // is) is joined to that organisation BEFORE the page is fetched, so
+    // dpdp_my_page finds the new membership as their newest one and shows
+    // that org straight away -- no separate "join" screen needed. Attempted
+    // once: clearJoin() makes every later call here (a refetch, opening a
+    // different client) a silent no-op. Best-effort, like the referral
+    // code's own landing-page handling: a stale/typo'd code must never
+    // block a person who is signing in for a completely unrelated reason.
+    const pendingJoin = landing.joinCode ?? recallJoin()
+    if (pendingJoin) {
+      clearJoin()
+      try {
+        await joinOrgViaInvite(client, pendingJoin)
+      } catch {
+        // invalid/expired/already-used code: nothing to recover, load() carries on as normal
+      }
+    }
+    try {
+      // The client list is a cross-org fact about the PERSON, read alongside
+      // the page so the shell can show "My clients (N)" without a second
+      // round of state. A person whose email no dpdp.identity knows gets a
+      // refusal from it -- that is the same "no membership" the page call
+      // reports, so it is folded into [] here and the page decides.
+      const got = await loadWithCopy<MyPage, CaClient>({
+        fetchPage: () => fetchMyPage(client, orgRef.current), fetchClients: () => fetchMyClients(client),
+        store, email: emailRef.current, org: orgRef.current, isNetwork: isNetworkError,
+      })
+      if (mine !== loadSeq.current) return
+      setCopyInfo((c) => ({ ...c, offline: got.source === "device", savedAt: got.savedAt }))
+      setPhase({ name: "app", page: got.page, clients: got.clients })
+      // Visit journey: tell the server this person is the visitor the public pages saw (links by identity id; silent, once per tab once it has a person to name).
+      void linkVisitToPerson(client)
+      // Counted after the page is on screen, so the page never waits on the device database.
+      const who = emailRef.current
+      if (store && who) void store.pending(who).then((t) => setCopyInfo((c) => (c.pending === t.length ? c : { ...c, pending: t.length })), () => {})
+    } catch (e) {
+      // The contract: an error from dpdp_my_page means "no active
+      // membership for this email". PGRST* codes are PostgREST itself
+      // (e.g. the function isn't deployed yet) -- those are shown as real
+      // errors rather than mis-labelled as a membership problem.
+      const isPostgrest = e instanceof RpcFailure && !!e.code?.startsWith("PGRST")
+      if (e instanceof RpcFailure && isPaymentDueError(e.message)) setPhase({ name: "payment-due" })
+      else if (e instanceof RpcFailure && !isPostgrest) setPhase({ name: "no-membership", busy: false, error: null })
+      else setPhase({ name: "error", message: e instanceof Error ? e.message : String(e) })
+    }
+  }, [client, landing.joinCode, store])
+
+  useEffect(() => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      setEmail(session?.user.email ?? null)
+      emailRef.current = session?.user.email ?? null
+      if (session?.user.email && store) void store.keepOnly(session.user.email).catch(() => {})
+      if (!session) {
+        fetchStarted.current = false
+        if (event === "INITIAL_SESSION") {
+          setPhase(landing.linkError
+            ? { name: "link-expired", email: landing.emailHint ?? recallEmail(), expired: landing.linkError.expired, busy: false, error: null }
+            : SIGNED_OUT)
+        } else if (event === "SIGNED_OUT") {
+          setPhase(SIGNED_OUT)
+        }
+        return
+      }
+      // Audit trail: tell the server this person has signed in (once per tab; the server records the address and browser it actually saw).
+      if (event === "SIGNED_IN") setTimeout(() => void reportLogin(client), 0)
+      if ((event === "INITIAL_SESSION" || event === "SIGNED_IN") && !fetchStarted.current) {
+        fetchStarted.current = true
+        // Deferred a tick because calling back into the client from inside
+        // its own auth callback can deadlock on the auth lock.
+        setTimeout(() => void load(), 0)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [client, load, landing, store])
+
+  // Back online: send the "done" taps made while offline, then re-read the page. A tap the server refuses is dropped (it said no), one the
+  // network fails on stays for next time.
+  useEffect(() => {
+    const onOnline = () => {
+      const who = emailRef.current
+      if (!store || !who) { void load(); return }
+      store.flush(who, (id) => markDone(client, id), isNetworkError).catch(() => null).finally(() => void load())
+    }
+    window.addEventListener("online", onOnline)
+    return () => window.removeEventListener("online", onOnline)
+  }, [client, load, store])
+
+  // A #draft= or #undo= fragment can arrive AFTER load too: the person is
+  // already on /app/ and pastes the AI's draftUrl/undoUrl into the same tab,
+  // which is a hash-only navigation (no reload, no remount). Read and clear
+  // it exactly as the boot path does, so the confirm/undo token never stays
+  // in the address.
+  useEffect(() => {
+    const onHashChange = () => {
+      const d = readDraftFragment()
+      if (d) { setDraft(d); return }
+      const u = readUndoFragment()
+      if (u) setUndo(u)
+    }
+    window.addEventListener("hashchange", onHashChange)
+    return () => window.removeEventListener("hashchange", onHashChange)
+  }, [])
+
+  // emailRedirectTo is the bare origin on purpose: the address is remembered
+  // in localStorage (landing.ts) rather than written into the link's URL.
+  // shouldCreateUser is left at its default (true), matching the Next app's
+  // own login form: membership is decided by dpdp_my_page after sign-in, not
+  // by whether an auth.users row already exists.
+  async function requestLink(address: string): Promise<string | null> {
+    void noteSignInStart()
+    const { error } = await client.auth.signInWithOtp({ email: address, options: { emailRedirectTo: new URL("/app/", window.location.origin).href } })
+    if (error) return error.message
+    rememberEmail(address)
+    return null
+  }
+
+  async function signIn(address: string) {
+    setPhase({ name: "signed-out", busy: true, error: null })
+    const err = await requestLink(address)
+    setPhase(err ? { name: "signed-out", busy: false, error: err } : { name: "check-your-email", email: address, resend: "idle", error: null })
+  }
+
+  // The passcode in the same e-mail (Supabase verifyOtp, type "email"). Success arrives through onAuthStateChange like a link does.
+  async function verifyCode(address: string, code: string): Promise<string | null> {
+    const { error } = await client.auth.verifyOtp({ email: address, token: code, type: "email" })
+    if (error) void reportFailedLogin(address, "otp")
+    return error ? "That passcode did not work. Check it, or send a new code." : null
+  }
+
+  async function sendFreshLink(address: string, expired: boolean) {
+    setPhase({ name: "link-expired", email: address, expired, busy: true, error: null })
+    const err = await requestLink(address)
+    setPhase(err ? { name: "link-expired", email: address, expired, busy: false, error: err } : { name: "check-your-email", email: address, resend: "idle", error: null })
+  }
+
+  async function resend(address: string) {
+    setPhase({ name: "check-your-email", email: address, resend: "sending", error: null })
+    const err = await requestLink(address)
+    setPhase({ name: "check-your-email", email: address, resend: err ? "idle" : "sent", error: err })
+  }
+
+  async function signOut() {
+    // Best effort: send anything still waiting, then remove this person's copy from the device before signing out.
+    const who = emailRef.current
+    if (store && who && navigator.onLine) await store.flush(who, (id) => markDone(client, id), isNetworkError).catch(() => null)
+    await store?.wipe().catch(() => {})
+    await client.auth.signOut()
+    forgetLoginReport()
+    orgRef.current = null
+    setView("page")
+    setPartnerOpen(false)
+    setPhase(SIGNED_OUT)
+  }
+
+  // WO-DPDP-015: a visitor with no organisation opens their own (the landing
+  // pages' "Start free"); load() then finds the new owner membership.
+  // WO-DPDP-016: the referral code they arrived with (landing.ts's ?ref=,
+  // or one remembered from an earlier visit on this device) rides along --
+  // a bad/unknown code is ignored server-side, never blocks the signup.
+  // drizzle/0734: the same sign-up, now as an ACCOUNT (type, plan, price, firm details, where the visitor came from). dpdp_open_account calls
+  // dpdp_create_my_org itself, so the referral code still ends there. A partner code outranks a referral code, the first link wins for 30 days,
+  // and nothing is paid now.
+  async function openMyOrg(name: string, product: "firm" | "institution", extra: OpenAccountExtra) {
+    setPhase({ name: "no-membership", busy: true, error: null })
+    try {
+      await openAccount(client, {
+        accountType: product, orgName: name,
+        professionalBody: extra.professionalBody, registrationNo: extra.registrationNo,
+        referralCode: landing.referralCode ?? recallReferral(), partnerCode: landing.partnerCode ?? recallPartner(),
+        sourceTag: landing.sourceTag ?? recallSourceTag(), firstSeenAt: firstSeenAt(), billingContactEmail: extra.billingContactEmail,
+      })
+      // Everything else on the opening page is optional and never blocks: a failure here is not a reason to stop the sign-up.
+      if (Object.keys(extra.profile).length > 0 || extra.practitionerDeclared) {
+        try { await saveProfile(client, { ...extra.profile, ...(extra.practitionerDeclared ? { practitionerDeclared: true } : {}) }) } catch { /* the profile card offers it again */ }
+      }
+    } catch (e) {
+      setPhase({ name: "no-membership", busy: false, error: e instanceof Error ? e.message : String(e) })
+      return
+    }
+    await load()
+  }
+
+  // "Open" on the CA clients table: the static app's switchDpdpActiveOrg --
+  // the next dpdp_my_page read is for THAT org (the caller must be a member
+  // of it; the RPC refuses otherwise and the error screen says so).
+  async function openOrg(orgId: string) {
+    orgRef.current = orgId
+    setView("page")
+    await load()
+  }
+
+  // "Yes, it is done": straight to the server; if only the network is down, kept on the device and sent when it is back.
+  async function markYes(id: string) {
+    try {
+      await markDone(client, id)
+    } catch (e) {
+      const who = emailRef.current
+      if (!store || !who || !isNetworkError(e)) throw e
+      await store.queueMarkDone(who, orgRef.current, id)
+    }
+  }
+
+  let screen: ReactNode
+  switch (phase.name) {
+    case "booting":
+    case "loading":
+      screen = <Loading />
+      break
+    case "signed-out":
+      screen = <SignIn onSubmit={signIn} busy={phase.busy} error={phase.error} />
+      break
+    case "link-expired":
+      screen = <LinkExpired email={phase.email} expired={phase.expired} busy={phase.busy} error={phase.error} onSend={(a) => sendFreshLink(a, phase.expired)} onUseAnother={() => setPhase(SIGNED_OUT)} />
+      break
+    case "check-your-email":
+      screen = <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} onVerify={(code) => verifyCode(phase.email, code)} />
+      break
+    case "no-membership":
+      screen = <OpenOrganisation email={email} initialEdition={landing.edition ?? recallEdition()} busy={phase.busy} error={phase.error} onCreate={openMyOrg} onSignOut={signOut} onOpenPartner={() => setPartnerOpen(true)} plans={plans} />
+      break
+    case "payment-due":
+      screen = <PaymentDue client={client} email={email} onSignOut={signOut} onRetry={load} />
+      break
+    case "error":
+      screen = <ErrorScreen message={phase.message} onRetry={load} onSignOut={signOut} />
+      break
+    case "app":
+      screen = (
+        <Page
+          client={client} page={phase.page} clients={phase.clients} refetch={load} email={email} onSignOut={signOut}
+          copyInfo={copyInfo} onMarkYes={markYes}
+          view={view} onView={setView} onOpenOrg={openOrg} draft={draft} onDraftDone={() => setDraft(null)}
+          undo={undo} onUndoDone={() => setUndo(null)} onOpenPartner={() => setPartnerOpen(true)}
+        />
+      )
+      break
+  }
+  // Signed in (with or without an organisation): the Sales Partner screen replaces whatever is shown.
+  if (partnerOpen && (phase.name === "app" || phase.name === "no-membership")) {
+    screen = <SalesPartner client={client} email={email} onClose={() => setPartnerOpen(false)} />
+  }
+
+  // WO-DPDP-014 §2/§3, widened by WO-DPDP-016 §1: the brand line above
+  // every phase of /app/; the share ask once the page is loaded, for
+  // whichever viewer is signed in -- shareRoleFor never returns null now.
+  const shareRole = phase.name === "app" ? shareRoleFor(phase.page.viewer) : null
+  return (
+    <>
+      <BrandLine share={phase.name === "app" && shareRole ? { client, orgId: phase.page.org.id, role: shareRole, onOpenPartner: () => setPartnerOpen(true) } : null} />
+      {screen}
+    </>
+  )
+}
+
+function Page({
+  client, page, clients, refetch, email, onSignOut, view, onView, onOpenOrg, draft, onDraftDone, undo, onUndoDone, onOpenPartner, copyInfo, onMarkYes,
+}: {
+  copyInfo: { offline: boolean; savedAt: string | null; pending: number }
+  onMarkYes: (id: string) => Promise<void>
+  onOpenPartner: () => void
+  client: DpdpClient
+  page: MyPage
+  clients: CaClient[]
+  refetch: () => Promise<void>
+  email: string | null
+  onSignOut: () => void
+  view: "page" | "clients"
+  onView: (v: "page" | "clients") => void
+  onOpenOrg: (orgId: string) => Promise<void>
+  draft: DraftFragment | null
+  onDraftDone: () => void
+  undo: UndoFragment | null
+  onUndoDone: () => void
+}) {
+  const { org, viewer: v, rows } = page
+  const viewer = viewerContext(v)
+  const createClient = async (c: NewClient) => { await createClientOrg(client, c.name, c.product, c.ownerEmail) }
+
+  // Same branching, in the same order, as src/app/dpdp/(app)/home/page.tsx
+  // on main, which is the source of truth for who sees which screen first
+  // -- with the two first-visit screens WO-010 never built slotted in where
+  // that file's own comments said they were missing.
+  let body: ReactNode
+  if (viewer.kind === "owner" && !v.firstVisitSeenAt && v.membershipId) {
+    // WO-DPDP-010 §4: the owner's first visit -- their own 3-step wizard, or
+    // the "looks right -- confirm" review when a CA set the org up for them.
+    body = <OwnerFirstVisit client={client} page={page} refetch={refetch} onSignOut={onSignOut} />
+  } else if (viewer.kind === "ca" && viewer.caSub === "partner" && !v.firstVisitSeenAt && v.membershipId) {
+    // WO-DPDP-010 §4: the CA partner's three steps.
+    const jobCount = rows.filter((r) => r.by === v.email && !r.na).length
+    body = (
+      <CaPartnerFirstVisit
+        orgName={org.name} jobCount={jobCount} clients={clients} refetch={refetch} onCreate={createClient}
+        onAcknowledge={() => acknowledgeWelcome(client, org.id)} onNotMe={() => flagNotMe(client, org.id)}
+      />
+    )
+  } else if (viewer.kind !== "owner" && !v.firstVisitSeenAt && v.membershipId) {
+    const jobCount = rows.filter((r) => (r.by === v.email || (r.isGroup && r.viewerIsGroupMember)) && !r.na).length
+    body = (
+      <RoleWelcome
+        orgName={org.name} roleKind={viewer.kind} caSub={viewer.caSub} jobCount={jobCount} refetch={refetch}
+        onAcknowledge={() => acknowledgeWelcome(client, org.id)}
+        onNotMe={() => flagNotMe(client, org.id)}
+      />
+    )
+  } else if (viewer.kind !== "owner" && v.saidNotMeAt && rows.some((r) => r.by === v.email && !r.na)) {
+    body = <NotMeWaiting orgName={org.name} />
+  } else if (view === "clients") {
+    body = <CaClients clients={clients} onOpen={(id) => void onOpenOrg(id)} onCreate={createClient} onBack={() => onView("page")} refetch={refetch} />
+  } else {
+    // PolicySection (the policy upload) is the one WO-010 section still
+    // without an RPC; everything else on the page is wired.
+    body = (
+      <>
+        <AiFirstSteps client={client} orgId={org.id} offline={copyInfo.offline} onMade={refetch} />
+        <div id="jobs" />
+        <OnePageView
+          orgName={org.name} rows={rows} viewer={viewer} refetch={refetch}
+          onMarkYes={onMarkYes}
+          onAnswerGroup={async (id, answer) => { await answerGroup(client, id, answer) }}
+          jobActions={{
+            onNote: (id, text) => addNote(client, id, text),
+            onAssign: (id, email) => assignPerson(client, id, email),
+            onSetDue: (id, dueOn) => setDueDate(client, id, dueOn),
+            onNotApplicable: (id, reason) => markNotApplicable(client, id, reason),
+          }}
+        />
+        <div id="ai-link-settings"><AiWorkLink client={client} orgId={org.id} onMade={refetch} /></div>
+        <AuditLogPanel client={client} orgId={org.id} email={email} />
+        {viewer.kind !== "staff" && <History client={client} page={page} />}
+      </>
+    )
+  }
+
+  return (
+    <div className="dpdp-onepage min-h-screen">
+      {/* Test mode (drizzle/0735): a calm strip, ONLY here inside the signed-in app -- never on a public page or in an e-mail. */}
+      <TestModeBanner client={client} orgId={org.id} isOwner={viewer.kind === "owner"} />
+      <DeviceCopy savedAt={copyInfo.savedAt} offline={copyInfo.offline} pending={copyInfo.pending} />
+      <div className="max-w-[1240px] mx-auto px-5 pt-3 flex justify-end items-center gap-3 flex-wrap" style={{ fontSize: 12.5, color: "var(--dpdp-ink3)" }}>
+        {clients.length > 0 && view === "page" && (
+          // WO-DPDP-010 §3 "CA firm view": DpdpShell's "🧾 My clients (N)"
+          // entry, shown for ANY identity named CA manager/partner on at
+          // least one client org, whatever their role in the current one.
+          <button type="button" onClick={() => onView("clients")} className="font-semibold rounded-lg" style={{ background: "var(--dpdp-vL)", color: "var(--dpdp-v)", fontSize: 12.5, padding: "5px 10px" }}>
+            🧾 My clients ({clients.length})
+          </button>
+        )}
+        <button type="button" onClick={onOpenPartner} className="font-semibold rounded-lg" style={{ background: "var(--dpdp-vL)", color: "var(--dpdp-v)", fontSize: 12.5, padding: "5px 10px" }}>
+          🤝 Sales Partner
+        </button>
+        {email && <span>Signed in as <b>{email}</b></span>}
+        <button type="button" onClick={onSignOut} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", padding: "4px 6px" }}>Sign out</button>
+      </div>
+      {viewer.kind === "owner" && <ProfileCard client={client} orgId={org.id} />}
+      {draft && <DraftConfirm client={client} draft={draft} onDone={refetch} onDismiss={onDraftDone} />}
+      {undo && <AiUndoConfirm client={client} undo={undo} onDone={refetch} onDismiss={onUndoDone} />}
+      {body}
+      {/* WO-DPDP-016 §7: lower-left, owner-only -- the component itself checks the role via dpdp_my_billing's own 42501. */}
+      {viewer.kind === "owner" && <BillingPanel client={client} orgId={org.id} />}
+      {/* Payment confirmation flow follow-on: lower-right, VERIDIAN's own team only -- the component checks dpdp__is_platform_admin() itself, unrelated to viewer.kind here. */}
+      <OwnerPaymentAdmin client={client} />
+      {/* Sales Partner payouts (drizzle/0673): the same VERIDIAN-team-only check, stacked above the payments pill. */}
+      <OwnerPartnerPayouts client={client} />
+      {/* Account checks (drizzle/0734): firm verification and "mark paid", the same VERIDIAN-team-only check, stacked above the partner payouts pill. */}
+      <OwnerAccountsAdmin client={client} />
+    </div>
+  )
+}
+
+// The owner's first visit: home/page.tsx fetched areasForProduct() in the
+// same server render; here the wizard's rows come from dpdp_areas_for_product
+// once the page has loaded, and saving goes through
+// dpdp_complete_owner_first_visit, after which the page is refetched -- the
+// RPC stamped firstVisitSeenAt, so the refetched page no longer lands here.
+// Before either, dpdp_org_setup says whether a CA set this org up: if so and
+// the owner has not confirmed, the review screen replaces the wizard (the
+// CA already did the wizard's work), and dpdp_owner_confirm_setup stamps
+// both owner_confirmed_at and first_visit_seen_at.
+function OwnerFirstVisit({ client, page, refetch, onSignOut }: { client: DpdpClient; page: MyPage; refetch: () => Promise<void>; onSignOut: () => void }) {
+  const { org, viewer: v, rows } = page
+  const [setup, setSetup] = useState<OrgSetupPayload | null>(null)
+  const [areas, setAreas] = useState<Area[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchOrgSetup(client, org.id), fetchAreas(client, org.product)]).then(
+      ([s, a]) => { if (!cancelled) { setSetup(s); setAreas(a) } },
+      (e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)) },
+    )
+    return () => { cancelled = true }
+  }, [client, org.id, org.product, attempt])
+
+  if (error) return <ErrorScreen message={error} onRetry={() => { setError(null); setAttempt((n) => n + 1) }} onSignOut={onSignOut} />
+  if (!areas || !setup) return <Loading />
+  if (setup.setUpBy && !setup.ownerConfirmedAt) {
+    return (
+      <OwnerReview
+        orgName={org.name} caEmail={setup.setUpBy.email} rows={rows} refetch={refetch}
+        onConfirm={async () => { await ownerConfirmSetup(client, org.id) }}
+      />
+    )
+  }
+  return (
+    <FirstVisitWizard
+      orgName={org.name} rows={rows} areas={areas} ownerEmail={v.email} refetch={refetch}
+      onComplete={async (assignments) => { await completeOwnerFirstVisit(client, org.id, assignments) }}
+    />
+  )
+}
+
+// The History timeline (owner/coordinator/GO/CA only, as on main). Re-read
+// whenever `page` changes, i.e. after every successful action's refetch, so
+// the entry for what was just done appears without a reload.
+// The kinds of entry whose `detail` is words a person wrote or a fact worth reading (a note, a "doesn't apply" reason, the old date). Every other
+// kind keeps its detail for the audit trail only: some are internal strings ("job <id>, answer done") that mean nothing on a page.
+const DETAIL_KINDS = new Set(["obligation_note_added", "obligation_not_my_job", "obligation_due_changed"])
+const HISTORY_PAGE = 15
+const HISTORY_MAX = 50 // dpdp_org_history clamps to 50
+
+function History({ client, page }: { client: DpdpClient; page: MyPage }) {
+  const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [limit, setLimit] = useState(HISTORY_PAGE)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchHistory(client, page.org.id, limit).then(
+      (history) => {
+        if (cancelled) return
+        setError(null)
+        setEntries(history.map((h) => ({
+          who: h.actorLabel, what: h.summary, detail: DETAIL_KINDS.has(h.kind) ? h.detail ?? undefined : undefined, at: h.occurredAt,
+          isNew: Date.now() - h.occurredAt.getTime() < 3_600_000,
+        })))
+      },
+      (e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)) },
+    )
+    return () => { cancelled = true }
+  }, [client, page, limit])
+
+  return (
+    <div className="dpdp-onepage">
+      <div className="max-w-[1240px] mx-auto px-5 pb-14">
+        <div className="mb-3" style={{ fontFamily: "Sora, sans-serif", fontSize: 20, fontWeight: 700, color: "var(--dpdp-ink)" }}>🕘 History</div>
+        {error ? (
+          <div role="alert" className="rounded-xl px-3.5 py-2.5" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>
+        ) : entries === null ? (
+          <div className="p-4" style={{ color: "var(--dpdp-ink3)" }}>Loading…</div>
+        ) : (
+          <>
+            <Timeline entries={entries} limit={limit} />
+            {entries.length >= limit && limit < HISTORY_MAX && (
+              <div className="text-center mt-3">
+                <button type="button" onClick={() => setLimit(HISTORY_MAX)} className="rounded-lg font-semibold" style={{ fontSize: 13, padding: "8px 14px", background: "#fff", color: "var(--dpdp-v)", border: "1.4px solid var(--dpdp-line)" }}>
+                  Show older entries
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

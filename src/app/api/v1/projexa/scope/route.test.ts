@@ -31,6 +31,7 @@
 // falsifiability check run against construction-boq-service.ts while writing
 // this test.)
 import { describe, test, expect, mock, beforeEach } from "bun:test"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 import { NextRequest } from "next/server"
 import { PgDialect } from "drizzle-orm/pg-core"
 import { ROLE_RANK } from "@/lib/supabase/role-rank"
@@ -157,6 +158,7 @@ let currentOrgId = ORG_A
 beforeEach(() => {
   currentOrgId = ORG_A
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...actingPersonDouble(),
     // Re-exported for the same reason construction/boq/route.test.ts does
     // it: approval-workflow-service.ts (pulled in transitively through
     // construction-boq-service.ts) imports the real ROLE_RANK from this

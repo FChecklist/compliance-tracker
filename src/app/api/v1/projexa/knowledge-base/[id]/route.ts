@@ -9,7 +9,7 @@
 // FK to users.id). PROJEXA's Bearer-key caller can now actually save an
 // edited page.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { getKbPage, updateKbPage, ServiceError } from "@/lib/services/knowledge-base-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -38,11 +38,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const { id } = await params
     const body = await request.json()
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: acting.person.id, ...acting.actor }
     const result = await updateKbPage(actorCtx, id, body)
     return NextResponse.json(result)
   } catch (error) {

@@ -1,0 +1,28 @@
+# Free outside-in uptime / response-time / timeout / certificate monitoring for veridian-aios.com (2026-10-02).
+# Every hour (and on demand) dpdp-app/scripts/site-health.mjs fetches every public page, /rum.js, the sitemap and robots.txt,
+# an unknown address (must be a real 404), the www redirect and the TLS certificate's expiry. A page that is down, answers
+# with an error, takes longer than 5 s, or times out (15 s, after one retry) turns the run red; GitHub then emails the
+# repository's watchers -- that email is the crash / timeout alarm. The table of response times is in the run's summary.
+# No credentials, no database, no Vercel, nothing written anywhere; the repository is public, so the minutes are free.
+# Complements DPDP live smoke (daily + after every deploy: what the pages SAY) -- this one is about whether they ANSWER, and how fast.
+name: DPDP site health
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    name: dpdp-app/scripts/site-health.mjs against veridian-aios.com
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node dpdp-app/scripts/site-health.mjs https://veridian-aios.com

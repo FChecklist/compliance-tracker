@@ -1,4 +1,5 @@
-import { auditLogs, type users } from "@/lib/db"
+import { auditLogs, auditLogsStamped, type users } from "@/lib/db"
+import type { AuditStamp } from "@/lib/audit-stamp"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
 import { hashSessionToken } from "@/lib/services/session-limit-service"
 
@@ -45,6 +46,31 @@ type CommonLogActivityParams = {
   // adoption is still nascent in this codebase; no auto-lookup is done
   // here to avoid an extra DB read on every single audit write).
   officeId?: string | null
+  // PROJEXA-BUILD-001 U-32 (BR-410, BR-415): which of the four surfaces the
+  // write came from (ai-os/projexa-build-001/FOUR_SURFACE_CONTRACT.md rule 4),
+  // stored in audit_logs.surface. Optional: absent or null writes nothing new,
+  // so every existing call site stores exactly the row it stored before (the
+  // column reads NULL). Any value that is not one of AUDIT_SURFACES is refused
+  // before the insert.
+  surface?: AuditSurface | null
+  // AUDIT TRAIL slice 1 (drizzle/0730): optional internal-only stamp from audit-stamp.ts buildStamp(). Absent = exactly the pre-0730 insert, so
+  // every existing call site is unchanged and works before 0730 is live. Present = the stamp columns are written too (0730 must be live).
+  stamp?: AuditStamp | null
+}
+
+// The four surface keys, the same list as the CHECK audit_logs_surface_check
+// of drizzle/0619_build001_audit_surface.sql.
+export const AUDIT_SURFACES = [
+  "s1_one_page_ai_prepared",
+  "s2_erp_screen_prefilled",
+  "s3_ai_link_chat",
+  "s4_email_inbox",
+] as const
+
+export type AuditSurface = (typeof AUDIT_SURFACES)[number]
+
+export function isAuditSurface(value: unknown): value is AuditSurface {
+  return typeof value === "string" && (AUDIT_SURFACES as readonly string[]).includes(value)
 }
 
 // Wave 9: a write can now be driven by a real logged-in user OR an external
@@ -52,11 +78,39 @@ type CommonLogActivityParams = {
 // be supplied so every audit row still gets a real actor, never a silent
 // gap. The discriminated union makes it a compile error to pass neither or
 // both, rather than a runtime surprise.
-export type LogActivityParams = CommonLogActivityParams &
-  (
-    | { dbUser: typeof users.$inferSelect; apiKey?: never }
-    | { dbUser?: never; apiKey: { id: string; name: string } }
-  )
+//
+// PROJEXA-BUILD-001 U-20 (2026-09-25): the third variant is the ONE way to pass
+// both, and it must say so (`actingViaApiKey: true`). It is for a call that an
+// API key authenticated but whose acting PERSON was resolved (resolveActingUser:
+// X-Acting-User / actorEmail). Before this, that call had to pass `dbUser`
+// alone and the key id was dropped, or `apiKey` alone and the person was
+// dropped: 267 of 267 key-attributed audit rows ever written had no person
+// (live SELECT 2026-09-25). Now one row records the key AND the person.
+export type LogActivityActor =
+  | { dbUser: typeof users.$inferSelect; apiKey?: never; actingViaApiKey?: never }
+  | { dbUser?: never; apiKey: { id: string; name: string }; actingViaApiKey?: never }
+  | { dbUser: typeof users.$inferSelect; apiKey: { id: string; name: string }; actingViaApiKey: true }
+
+export type LogActivityParams = CommonLogActivityParams & LogActivityActor
+
+// PROJEXA-BUILD-001 U-20b: the actor fields for logActivity() from any service
+// context that carries dbUser and/or apiKey (ActorCtx, ServiceActor, or an
+// equivalent local shape). Services used to hand-write
+// `ctx.dbUser ? { dbUser } : { apiKey }`, which silently drops the key id when
+// a route passes the acting person AND the key (requireActingPerson's
+// `actor`). This keeps all three variants intact.
+export function auditActorOf(source: {
+  dbUser?: typeof users.$inferSelect | null
+  apiKey?: { id: string; name: string } | null
+  actingViaApiKey?: boolean
+}): LogActivityActor {
+  if (source.dbUser && source.apiKey && source.actingViaApiKey) {
+    return { dbUser: source.dbUser, apiKey: { id: source.apiKey.id, name: source.apiKey.name }, actingViaApiKey: true }
+  }
+  if (source.dbUser) return { dbUser: source.dbUser }
+  if (source.apiKey) return { apiKey: { id: source.apiKey.id, name: source.apiKey.name } }
+  throw new Error("logActivity needs a dbUser or an apiKey actor")
+}
 
 function extractIp(request?: Request): string | undefined {
   if (!request) return undefined
@@ -106,16 +160,32 @@ export function deriveSessionId(request?: Request): string | null {
 }
 
 export async function logActivity(params: LogActivityParams): Promise<void> {
-  const { tx, action, entityType, entityId, details, orgId, clientId, request, supportSession, officeId } = params
+  const { tx, action, entityType, entityId, details, orgId, clientId, request, supportSession, officeId, surface, stamp } = params
+
+  // U-32: refused here, before anything is written, so a caller's typo fails
+  // in this process with a readable message instead of as a CHECK violation
+  // (SQLSTATE 23514) that aborts the caller's transaction.
+  const hasSurface = surface !== undefined && surface !== null
+  if (hasSurface && !isAuditSurface(surface)) {
+    throw new Error(`logActivity: unknown audit surface '${String(surface)}'; expected one of ${AUDIT_SURFACES.join(", ")}`)
+  }
 
   // Denormalized snapshot, not a live join -- if this user is later renamed
   // or deactivated, this row must keep showing who they were AT THE TIME of
   // the action, not whatever the users/api_keys table says today.
   const actor = params.dbUser
-    ? { userId: params.dbUser.id, actorName: params.dbUser.name, actorRole: params.dbUser.role, apiKeyId: null as string | null }
+    ? {
+        userId: params.dbUser.id,
+        actorName: params.dbUser.name,
+        actorRole: params.dbUser.role,
+        // U-20: the key id is kept when an API key acted on behalf of this person.
+        apiKeyId: params.actingViaApiKey ? params.apiKey.id : (null as string | null),
+      }
     : { userId: null as string | null, actorName: `API Key: ${params.apiKey.name}`, actorRole: "api_key", apiKeyId: params.apiKey.id }
 
-  await tx.insert(auditLogs).values({
+  // With a stamp the insert goes through the stamp-aware table object (same physical table); without one, the original path.
+  const table = stamp ? auditLogsStamped : auditLogs
+  await tx.insert(table).values({
     action,
     entityType,
     entityId,
@@ -132,5 +202,19 @@ export async function logActivity(params: LogActivityParams): Promise<void> {
     actingOnBehalfOfUserId: supportSession?.actingOnBehalfOfUserId ?? null,
     sessionId: params.sessionId !== undefined ? params.sessionId : deriveSessionId(request),
     officeId: officeId ?? null,
-  })
+    // Only when given: without a surface the values are exactly the pre-U-32
+    // ones, and Drizzle writes DEFAULT (NULL) into the column.
+    ...(hasSurface ? { surface } : {}),
+    ...(stamp
+      ? {
+          // The stamp's observed full IP wins over extractIp only when it is a valid address.
+          ...(stamp.ipAddress ? { ipAddress: stamp.ipAddress } : {}),
+          product: stamp.product, channel: stamp.channel, source: stamp.source, actionClass: stamp.actionClass,
+          deviceId: stamp.deviceId, aiName: stamp.aiName, aiLinkId: stamp.aiLinkId, aiCallId: stamp.aiCallId,
+          clientAt: stamp.clientAt, serverAt: stamp.serverAt, clockSkewMs: stamp.clockSkewMs,
+          ipPrefix: stamp.ipPrefix, uaFamily: stamp.uaFamily, internetId: stamp.internetId,
+          correlationId: stamp.correlationId, relayDeviceId: stamp.relayDeviceId, diff: stamp.diff,
+        }
+      : {}),
+  } as typeof auditLogsStamped.$inferInsert)
 }

@@ -9,7 +9,7 @@
 // pms_issues/pms_milestones are PROJEXA's generic task/schedule substrate,
 // not gated behind the separately-purchased PMS product branch.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listMilestones, createMilestone, ServiceError } from "@/lib/services/pms-taxonomy-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
@@ -49,7 +49,9 @@ async function POST_impl(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()

@@ -1,0 +1,110 @@
+name: Deploy (prebuilt)
+
+# Builds the production bundle on a GitHub-hosted runner and ships only the
+# finished output to Vercel with `vercel deploy --prebuilt --prod`.
+#
+# Why: the build on Vercel's own build machine was killed with out_of_memory
+# (SIGKILL during "Creating an optimized production build"). A GitHub runner has
+# 7GB RAM (+ swap added below) and a raised V8 heap, so the build fits. With
+# --prebuilt, Vercel never builds: no OOM there, and each release costs exactly
+# ONE deployment.
+#
+# Owner policy: spend no money, use Vercel as little as possible. This workflow
+# never runs on pull_request.
+#
+# How to release (owner or any session with the owner's go-ahead):
+#   gh workflow run deploy-prebuilt.yml --repo FChecklist/compliance-tracker -f deploy=true
+# Dry run (build only, nothing sent to Vercel):
+#   gh workflow run deploy-prebuilt.yml --repo FChecklist/compliance-tracker
+#
+# Push to main only runs when the repo variable PREBUILT_DEPLOY_ON_PUSH is the
+# string "true" (off by default, so merging this workflow itself, or any merge
+# while the Vercel API quota is exhausted, does not attempt a deployment).
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Send the finished build to Vercel production ("true"), or build only ("false")'
+        type: choice
+        options: ["false", "true"]
+        default: "false"
+  push:
+    branches: [main]
+    # Same skip list as vercel.json's historical ignoreCommand: a push that only
+    # touches these paths never builds or deploys.
+    paths-ignore:
+      - "**.md"
+      - "**.jsonl"
+      - "kt/**"
+      - "ai-os/**"
+      - ".github/**"
+      - "dpdp-app/**"
+      - "src/app/dpdp/**"
+      - "src/app/api/dpdp/**"
+
+permissions:
+  contents: read
+
+# One release at a time; a newer push cancels a stale queued/in-flight run.
+concurrency:
+  group: deploy-prebuilt
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    name: Build on GitHub, deploy prebuilt
+    if: github.event_name == 'workflow_dispatch' || vars.PREBUILT_DEPLOY_ON_PUSH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # veridian-compliance-ai in team veridian-ai-os (verified via the Vercel API).
+      VERCEL_ORG_ID: team_Iqx3zyb7sDdsdzcNskCFFsHD
+      VERCEL_PROJECT_ID: prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII
+      RAW_VERCEL_TOKEN: ${{ secrets.VERCEL_API_TOKEN || secrets.VERCEL_ACCESS_TOKEN }}
+      NODE_OPTIONS: --max-old-space-size=6144
+      # Lower build parallelism to keep peak memory down (next.config honours Next's own env).
+      NEXT_BUILD_CPUS: "2"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sanitize Vercel token
+        run: |
+          # The stored secret carries a leading BOM (U+FEFF) that the Vercel CLI rejects; keep printable ASCII only.
+          tok="$(printf '%s' "$RAW_VERCEL_TOKEN" | LC_ALL=C tr -cd '[:graph:]')"
+          echo "::add-mask::$tok"
+          echo "VERCEL_TOKEN=$tok" >> "$GITHUB_ENV"
+          echo "token length after sanitize: ${#tok}"
+
+      - name: Add 6GB swap
+        run: |
+          # The runner image already has an active /swapfile; add a second one on /mnt. Swap is a safety net, so never fail the job on it.
+          sudo fallocate -l 6G /mnt/build.swap && sudo chmod 600 /mnt/build.swap && sudo mkswap /mnt/build.swap && sudo swapon /mnt/build.swap || echo "::warning::extra swap not added"
+          free -m
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: bun install
+        run: bun install --frozen-lockfile
+
+      - name: Pull Vercel production settings and env
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build (production, on this runner)
+        run: |
+          rc=0
+          /usr/bin/time -v -o build-time.txt vercel build --prod --token="$VERCEL_TOKEN" || rc=$?
+          grep -E "Elapsed|Maximum resident" build-time.txt | tee -a "$GITHUB_STEP_SUMMARY" || true
+          exit $rc
+
+      - name: Deploy prebuilt output to Vercel production
+        if: github.event_name == 'push' || inputs.deploy == 'true'
+        # --archive=tgz: the prebuilt output has ~19,000 files and the CLI refuses more than 15,000 uploaded individually (run 37127751964).
+        run: vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN"

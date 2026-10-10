@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-OA0bgXFyv/GpwNrREoSXtDB9EEnwnk5vhY6sWgSZCtg='; style-src 'unsafe-inline'; connect-src https://pcrjmlpuqsbocqfwoxod.supabase.co; base-uri 'none'; form-action 'none'">
+<title>Changes your AI proposed</title>
+<style>
+body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1c2b3a; background: #fffdf9; }
+h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 1.6rem; }
+textarea { font: 14px/1.4 monospace; width: 100%; min-height: 8rem; box-sizing: border-box; padding: .4rem; border: 1px solid #8a94a0; border-radius: 4px; }
+input { font: inherit; padding: .4rem .5rem; border: 1px solid #8a94a0; border-radius: 4px; }
+#confirm-code { width: 8rem; letter-spacing: .3em; text-transform: uppercase; }
+output { font: 700 1.6rem/1 monospace; letter-spacing: .3em; background: #eef1f4; padding: .3rem .6rem; border-radius: 4px; }
+button { font: inherit; margin-top: .6rem; padding: .45rem 1rem; border: 0; border-radius: 4px; background: #0e7c6e; color: #fff; cursor: pointer; }
+button[disabled] { background: #9aa5b1; cursor: not-allowed; }
+ul { padding-left: 1.2rem; } li { margin: .5rem 0; }
+.block { border: 1px solid #c3cad2; border-radius: 4px; padding: .6rem .8rem; margin: .7rem 0; }
+.msg { white-space: pre-wrap; margin: .4rem 0; } .bad { color: #a12b1c; } .ok { color: #0b6a5d; }
+small { color: #4a5663; }
+</style>
+</head>
+<body>
+<h1>Changes your AI proposed</h1>
+<p>Nothing here changes by itself. You read each change, type the code shown below and press Confirm.</p>
+<p id="status"></p>
+<div id="confirm-links"></div>
+
+<h2>Waiting for your confirmation</h2>
+<ul id="drafts"></ul>
+<p><small>Open the confirm link your AI gave you for a draft, or open the page below with the draft code.</small></p>
+
+<h2>Changes pasted from your AI</h2>
+<textarea id="paste" spellcheck="false" placeholder="Paste the projexa-proposal blocks here (up to 20)"></textarea>
+<button id="read" type="button">Read the changes</button>
+<div id="blocks"></div>
+
+<p>Type this code to confirm you are here: <output id="shown-code" aria-live="off"></output>
+  <input id="confirm-code" type="text" autocomplete="off" spellcheck="false" maxlength="4" inputmode="text" aria-label="Code"></p>
+<p><small>An email scanner that opens this page cannot confirm anything: it does not type the code. An AI that drives your own browser could, so keep your assistant away from this page.</small></p>
+
+<script type="application/json" id="awl-config">
+{"function": "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/ai-work-link", "confirmPage": "ai-confirm.html"}
+</script>
+<script>
+"use strict";
+(function () {
+  var cfg = JSON.parse(document.getElementById("awl-config").textContent);
+  var $ = function (id) { return document.getElementById(id); };
+  var token = "", proposals = [], codes = {};
+  var DELETE_RE = /^(delete_|remove_|void_|archive_|cancel_|retire_|reject_)/;
+
+  // The link token is in the fragment (#t=pxa_...) with the changes after it, in one of two forms. Both are read into memory and the fragment is
+  // removed from the address bar. The token then travels in a header (header mode), never in an address.
+  //   plain words:  #t=pxa_...&do=create_project&name=Tower%20B&n=a%20new%20project   (one `do=` per change, its details follow it;
+  //                 `pid=<project id>` names the project, `n=` is the note, `ik=` an idempotency key, `<name>:j=<JSON>` carries a list or an object)
+  //   base64:       #t=pxa_...&p=<base64url JSON of {"v":1,"function":...,"params":{...}}>   (still read, for the links older answers made)
+  // A link that cannot be read is said so, and nothing is sent.
+  var frag = location.hash.replace(/^#/, "");
+  var tm = /(?:^|&)t=(pxa_[0-9a-f]{64})(?:&|$)/.exec(frag);
+  var pm = /(?:^|&)p=([A-Za-z0-9_-]{1,6000})(?:&|$)/.exec(frag);
+  var unreadable = false;
+  if (!pm && /(?:^|&)p=/.test(frag)) unreadable = true;
+  if (tm) token = tm[1];
+  if (pm) {
+    try {
+      var b64 = pm[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      var bin = atob(b64), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      proposals.push(JSON.parse(new TextDecoder().decode(bytes)));
+    } catch (e) { unreadable = true; }
+  }
+
+  function plainValue(raw) {
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    // a whole number or a decimal written the usual way (no leading zero, no plus sign) is a number; everything else stays text
+    if (/^-?(0|[1-9][0-9]{0,14})(\.[0-9]{1,8})?$/.test(raw)) return Number(raw);
+    return raw;
+  }
+  // The plain-words form. Returns the list of changes, or null when any part of it cannot be read.
+  function parsePlain(text) {
+    var out = [], cur = null, pid = "";
+    var pairs = text.split("&");
+    for (var q = 0; q < pairs.length; q++) {
+      var pair = pairs[q];
+      if (pair === "") continue;
+      var eq = pair.indexOf("=");
+      if (eq < 1) return null;
+      var key, val;
+      try {
+        key = decodeURIComponent(pair.slice(0, eq).replace(/\+/g, " "));
+        val = decodeURIComponent(pair.slice(eq + 1).replace(/\+/g, " "));
+      } catch (e) { return null; }
+      if (key === "t" || key === "p") continue;
+      if (key === "do") {
+        if (!/^[a-z][a-z0-9_]{0,63}$/.test(val) || out.length >= 20) return null;
+        cur = { v: 1, function: val, params: {} };
+        if (pid) cur.pid = pid;
+        out.push(cur);
+        continue;
+      }
+      if (key === "pid") {
+        if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(val)) return null;
+        if (cur) cur.pid = val; else pid = val;
+        continue;
+      }
+      if (!cur) return null;
+      if (key === "n") { cur.note = val.slice(0, 500); continue; }
+      if (key === "ik") { if (!/^[A-Za-z0-9_-]{1,64}$/.test(val)) return null; cur.idempotency_key = val; continue; }
+      var asJson = false;
+      if (key.slice(-2) === ":j") { asJson = true; key = key.slice(0, -2); }
+      if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(key) || Object.prototype.hasOwnProperty.call(cur.params, key)) return null;
+      if (asJson) { try { cur.params[key] = JSON.parse(val); } catch (e) { return null; } }
+      else cur.params[key] = plainValue(val);
+    }
+    return out;
+  }
+  if (/(?:^|&)(?!t=|p=)[^&]/.test(frag)) {
+    var plain = frag.length <= 8000 ? parsePlain(frag) : null;
+    if (plain === null || plain.length === 0) unreadable = true; else proposals = proposals.concat(plain);
+  }
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+
+  var ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  var buf = new Uint8Array(4);
+  crypto.getRandomValues(buf);
+  var code = "";
+  for (var j = 0; j < 4; j++) code += ALPHABET.charAt(buf[j] % ALPHABET.length);
+  $("shown-code").textContent = code;
+  var codeOk = function () { return $("confirm-code").value.trim().toUpperCase() === code; };
+
+  function api(method, path, body) {
+    var headers = { "link-token": token, accept: "application/json" };
+    if (body !== undefined) headers["content-type"] = "application/json";
+    return fetch(cfg["function"] + "/header" + path, { method: method, headers: headers, body: body === undefined ? undefined : JSON.stringify(body) })
+      .then(function (res) { return res.json().catch(function () { return {}; }).then(function (j) { return { status: res.status, j: j }; }); });
+  }
+  function line(parent, text, cls) {
+    var d = document.createElement("div");
+    d.className = "msg " + (cls || "");
+    d.textContent = text;
+    parent.appendChild(d);
+    return d;
+  }
+
+  var UNREADABLE = "This link could not be read. Nothing was sent. Ask your AI for the link again.";
+  if (!token) {
+    $("status").textContent = unreadable ? UNREADABLE : "Open this page from the link your AI gave you: it carries your link in the address.";
+  } else {
+    $("status").textContent = "Loading the drafts waiting for you...";
+    // Only a read: the link's own history, newest first. Nothing is posted on page load.
+    api("GET", "/history?format=json&limit=50").then(function (r) {
+      var list = $("drafts");
+      if (r.status !== 200) { $("status").textContent = "Your link could not be read (" + r.status + "). Ask your AI for a new link."; return; }
+      $("status").textContent = unreadable ? UNREADABLE : "";
+      var waiting = (r.j.items || []).filter(function (it) { return it.kind === "draft" && it.status === "awaiting_confirmation"; });
+      if (!waiting.length) { var li0 = document.createElement("li"); li0.textContent = "Nothing is waiting."; list.appendChild(li0); return; }
+      waiting.forEach(function (it) {
+        var li = document.createElement("li");
+        var a = document.createElement("a");
+        a.textContent = String(it.function_id) + " (" + String(it.created_at) + ")";
+        // a draft made on this page keeps its confirm code in memory, so its link opens the confirm page with the code in it
+        a.href = cfg.confirmPage + "#d=" + encodeURIComponent(String(it.intent_id)) + (codes[String(it.intent_id)] ? "." + codes[String(it.intent_id)] : "");
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    }).catch(function () { $("status").textContent = "Could not reach the service. Try again in a minute."; });
+  }
+
+  // The confirm link of a new draft: the answer carries confirm_url, and only its fragment (#d=<id>.<code>) is used, so the link always opens the
+  // confirm page next to this one. Anything else is not a link.
+  function confirmLinkOf(j) {
+    if (!j || typeof j.confirm_url !== "string") return null;
+    var at = j.confirm_url.indexOf("#");
+    if (at < 0) return null;
+    var hash = j.confirm_url.slice(at);
+    var m = /^#d=([A-Za-z0-9_-]{1,128})\.([0-9a-f]{64})$/.exec(hash);
+    return m ? { hash: hash, code: m[2] } : null;
+  }
+
+  // Blocks: ```projexa-proposal {"v":1,"function":"...","params":{...},"note":"...","idempotency_key":"..."} ```
+  function parseBlocks(text) {
+    var out = [], re = /```projexa-proposal\s*([\s\S]*?)```/g, m;
+    while ((m = re.exec(text)) && out.length < 20) {
+      try { out.push(JSON.parse(m[1])); } catch (e) { out.push(null); }
+    }
+    return out;
+  }
+  function render(list) {
+    var host = $("blocks");
+    host.textContent = "";
+    list.forEach(function (p) {
+      var box = document.createElement("div");
+      box.className = "block";
+      host.appendChild(box);
+      if (!p || typeof p.function !== "string" || typeof p.params !== "object" || p.params === null) { line(box, "This block could not be read.", "bad"); return; }
+      line(box, "Change: " + p.function);
+      Object.keys(p.params).forEach(function (k) { line(box, "  " + k + ": " + String(p.params[k])); });
+      if (p.note) line(box, "Note: " + String(p.note));
+      // a change inside one project of a person's link goes through that project's address
+      var at = "";
+      if (p.pid !== undefined) {
+        if (typeof p.pid !== "string" || !/^[A-Za-z0-9_.:-]{1,128}$/.test(p.pid)) { line(box, "This block could not be read.", "bad"); return; }
+        at = "/projects/" + encodeURIComponent(p.pid);
+      }
+      var verdict = line(box, token ? "Checking..." : "No link: it cannot be checked.");
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.textContent = "Confirm"; btn.disabled = true;
+      box.appendChild(btn);
+      var direct = false, checked = false, targetsOk = true, needTick = DELETE_RE.test(p.function), tick = null;
+      // Confirm is enabled only when the check is valid, every record the change points at was found, and (for a delete or money change) the extra tick is ticked
+      function sync() { btn.disabled = !(checked && targetsOk && (!needTick || (tick !== null && tick.checked === true))); }
+      if (token) api("POST", at + "/check", { function: p.function, params: p.params }).then(function (r) {
+        if (r.status === 200 && r.j.valid) {
+          verdict.textContent = "Checked: valid."; verdict.className = "msg ok"; direct = !!r.j.will_execute_directly;
+          // the change in plain words, as the service read it just now: who you are, the records it points at (their real names), and the extra tick
+          if (typeof r.j.plain === "string") line(box, r.j.plain);
+          if (r.j.acting_for && typeof r.j.acting_for.name === "string") line(box, "You are: " + r.j.acting_for.name + (r.j.acting_for.organisation ? " (" + r.j.acting_for.organisation + ")" : "") + ". If this is not you, close this page.");
+          (Array.isArray(r.j.targets) ? r.j.targets : []).forEach(function (t) {
+            line(box, t.found === true ? "Record: " + (t.name || "no name") + " (" + String(t.id) + ")" : "Record " + String(t.id) + (t.found === false ? " was not found in your projects. Nothing can be sent." : " could not be read just now. Try again in a minute."), t.found === true ? "" : "bad");
+          });
+          targetsOk = r.j.targets_ok !== false;
+          if (r.j.risk && r.j.risk.needs_tick === true) needTick = true;
+          if (needTick) {
+            var tl = document.createElement("div"); tl.className = "msg bad";
+            tick = document.createElement("input"); tick.type = "checkbox"; tick.id = "tick-" + String(Math.random()).slice(2, 8);
+            tick.addEventListener("change", sync);
+            tl.appendChild(tick);
+            var tt = document.createElement("span"); tt.textContent = " " + String((r.j.risk && r.j.risk.tick_text) || "I understand this deletes, cancels or changes money figures and cannot be undone from here.");
+            tl.appendChild(tt);
+            box.appendChild(tl);
+          }
+          checked = true; sync();
+        }
+        else { verdict.textContent = "Checked: " + (r.j.error || (r.j.problems || []).join(" ") || "not valid") + (r.j.missing && r.j.missing.length ? " Missing: " + r.j.missing.join(", ") : ""); verdict.className = "msg bad"; }
+      });
+      // The only requests that change anything, and only from this click, only after the typed code matches.
+      btn.addEventListener("click", function () {
+        if (!checked || !targetsOk) return;
+        if (needTick && !(tick !== null && tick.checked === true)) { line(box, "Tick the box above first.", "bad"); return; }
+        if (!codeOk()) { line(box, "Type the code shown above first.", "bad"); return; }
+        btn.disabled = true;
+        var body = { function: p.function, params: p.params };
+        if (p.idempotency_key) body.idempotency_key = String(p.idempotency_key);
+        api("POST", at + (direct ? "/actions" : "/drafts"), body).then(function (r) {
+          if (r.status !== 200 && r.status !== 201) { line(box, (r.j.error || "Not sent") + " (" + r.status + ")", "bad"); return; }
+          var receipt = typeof r.j.receipt === "string" ? " Receipt: " + r.j.receipt + " (tell your AI this code)." : "";
+          if (direct) { line(box, "Done." + receipt, "ok"); return; }
+          // A draft is not done until the person confirms it: show the confirm link, or say plainly that there is none.
+          var link = confirmLinkOf(r.j);
+          if (link) {
+            codes[String(r.j.draft_id)] = link.code;
+            line(box, "Recorded as a draft. Nothing has changed." + receipt + " Open the confirm page to review it and confirm:", "ok");
+            var a = document.createElement("a");
+            a.textContent = "Open the confirm page for this draft";
+            a.href = cfg.confirmPage + link.hash;
+            box.appendChild(a);
+          } else if (r.j.replayed) {
+            line(box, "This draft was recorded before. Its confirm link was shown once and cannot be shown again: ask your AI to record it again with a new idempotency_key.", "bad");
+          } else {
+            line(box, "The draft was recorded but no confirm link came back, so it cannot be confirmed. Ask your AI to record it again.", "bad");
+          }
+        }).catch(function () { line(box, "Could not reach the service. Nothing was sent.", "bad"); btn.disabled = false; });
+      });
+    });
+  }
+  $("read").addEventListener("click", function () { render(parseBlocks($("paste").value)); });
+  if (proposals.length) render(proposals);
+  if (unreadable && token) $("status").textContent = UNREADABLE;
+})();
+</script>
+</body>
+</html>

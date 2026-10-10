@@ -10,6 +10,7 @@ import { db, tokenUsageLedger, organisations } from "@/lib/db"
 import { sql, gte, and, isNotNull, eq } from "drizzle-orm"
 import { estimateCostUsd, estimateCostBreakdownUsd, estimateCacheSavingsUsd, type LLMUsage } from "@/lib/llm-client"
 import { buildSpendForecast, startOfMonthUtc, type SpendForecast } from "@/lib/spend-forecast"
+import { ServiceError } from "@/lib/services/service-error"
 
 // R65 Part D -- AI Usage Ledger (drizzle/0524, 2026-09-02): every new field
 // below is OPTIONAL and additive -- every pre-existing call site
@@ -45,12 +46,17 @@ export type LogTokenUsageInput = {
   failureReason?: string | null
 }
 
-/** Fire-and-forget-safe: caller decides whether to await or not. Never throws past a caught/logged failure. */
-export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
+/**
+ * The ledger write itself, and it THROWS when the row cannot be written. logTokenUsage() below swallows that on purpose (a cost
+ * record must not fail the work it describes), which is right for spend that is only watched. A caller that must BILL what it spends
+ * (PROJEXA-BUILD-002 WP-11: the internal AI's model calls are re-billed to the customer, so a call with no row is a defect) uses this
+ * one and refuses to go on when it throws.
+ */
+export async function recordTokenUsage(input: LogTokenUsageInput): Promise<void> {
+  const estimatedCostUsd = estimateCostUsd(input.model, input.usage)
+  const cacheSavingsUsd = estimateCacheSavingsUsd(input.model, input.usage)
+  const costBreakdown = estimateCostBreakdownUsd(input.model, input.usage)
   try {
-    const estimatedCostUsd = estimateCostUsd(input.model, input.usage)
-    const cacheSavingsUsd = estimateCacheSavingsUsd(input.model, input.usage)
-    const costBreakdown = estimateCostBreakdownUsd(input.model, input.usage)
     await db.insert(tokenUsageLedger).values({
       scope: input.scope,
       orgId: input.orgId ?? null,
@@ -81,6 +87,16 @@ export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
       success: input.success ?? true,
       failureReason: input.failureReason ?? null,
     })
+  } catch (err) {
+    // A typed error, so a caller that bills what it spends can tell "the ledger could not be written" from any other fault.
+    throw new ServiceError(`The usage ledger could not be written: ${err instanceof Error ? err.message : "unknown error"}`, 503)
+  }
+}
+
+/** Fire-and-forget-safe: caller decides whether to await or not. Never throws past a caught/logged failure. */
+export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
+  try {
+    await recordTokenUsage(input)
   } catch (err) {
     console.error("[token-usage] failed to log usage (non-fatal):", err)
   }

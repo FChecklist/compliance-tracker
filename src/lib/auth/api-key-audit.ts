@@ -1,6 +1,5 @@
 import { after } from "next/server"
-import { eq, sql } from "drizzle-orm"
-import { db, apiKeys } from "@/lib/db"
+import { insertAuditRows, touchApiKeyLastUsed } from "./audit-writer-client"
 
 // R67 F-17 (R-234) -- TAKE THE TWO API-KEY AUDIT WRITES OFF THE REQUEST PATH.
 //
@@ -38,6 +37,16 @@ import { db, apiKeys } from "@/lib/db"
 // (one request, then freeze) is the one where losing the row would actually be
 // noticed, in the settings screen's "Last used" line.
 //
+// 2026-10-01 -- WHY THE TIMER IS OFF ON VERCEL, AND WHY EVERY WRITE IS TIME-BOXED. Live incident: 16 pool connections sat `active` in
+// `ClientRead` (Postgres waiting for a client that had stopped talking), every one running record_api_key_request_batch(), 3-5 minutes
+// old, until the 5-connection pool had nothing left to give and every real query -- /api/health, the whole PROJEXA dashboard --
+// timed out. The five-second timer flush runs OUTSIDE any request, so once the response has gone out a serverless instance can be
+// frozen in the middle of that write and the pooler is left holding a half-spoken statement. Two changes: (1) with
+// `backgroundFlush: false` (production on Vercel) no timer is ever armed; every record schedules a flush through after(), which the
+// runtime keeps alive until it finishes. Rows still coalesce -- flushes run one at a time, so rows recorded while one is in flight
+// go out together in the next. (2) each write is raced against WRITE_TIMEOUT_MS so a stalled one drops its batch (as any failed
+// audit write already does) instead of holding the flush queue, and the function, open.
+//
 // AND THE RATE LIMIT STILL COUNTS WHAT IS IN THE QUEUE. validateApiKey() counts
 // rows in the trailing 60 s to enforce a key's limit. Buffering rows for five
 // seconds would otherwise hand every key a five-second hole in which nothing it
@@ -60,6 +69,8 @@ export type ApiKeyUse = {
 export const FLUSH_INTERVAL_MS = 5_000
 export const MAX_BUFFERED_ROWS = 100
 export const LAST_USED_AT_THROTTLE_MS = 60_000
+/** A single audit write that has not finished after this long is abandoned (its batch is dropped like any failed write). */
+export const WRITE_TIMEOUT_MS = 5_000
 
 export type ApiKeyAuditDeps = {
   now: () => number
@@ -74,6 +85,23 @@ export type ApiKeyAuditDeps = {
   startTimer: (task: () => void, ms: number) => unknown
   cancelTimer: (handle: unknown) => void
   onError: (stage: "insert" | "last_used_at", error: unknown) => void
+  /**
+   * True (default) lets a 5 s timer flush buffered rows outside any request. False means NO timer is ever armed and every record
+   * schedules a deferred flush instead -- required wherever the process can be frozen between requests (Vercel).
+   */
+  backgroundFlush?: boolean
+  /** Per-write time box; defaults to WRITE_TIMEOUT_MS. */
+  writeTimeoutMs?: number
+}
+
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let handle: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    // Deliberately NOT unref'd: it is cleared the moment the write settles, and while a write is hung this timer is the only thing
+    // that will ever end the wait.
+    handle = setTimeout(() => reject(new Error(`audit write timed out after ${ms} ms`)), ms)
+  })
+  return Promise.race([work, timeout]).finally(() => clearTimeout(handle))
 }
 
 export type ApiKeyAuditRecorder = {
@@ -92,6 +120,8 @@ export type ApiKeyAuditRecorder = {
 }
 
 export function createApiKeyAuditRecorder(deps: ApiKeyAuditDeps): ApiKeyAuditRecorder {
+  const writeTimeoutMs = deps.writeTimeoutMs ?? WRITE_TIMEOUT_MS
+  const backgroundFlush = deps.backgroundFlush ?? true
   // Waiting to be written.
   const buffered: ApiKeyUse[] = []
   // Handed to the driver, not yet acknowledged. Tracked separately so a row
@@ -148,7 +178,7 @@ export function createApiKeyAuditRecorder(deps: ApiKeyAuditDeps): ApiKeyAuditRec
     inFlight.push(...batch)
 
     try {
-      await deps.insertRequestLog(batch)
+      await withTimeout(deps.insertRequestLog(batch), writeTimeoutMs)
     } catch (error) {
       // Swallowed on purpose: a lost audit row is a smaller failure than a
       // failed customer request. The rows in this batch are dropped -- retrying
@@ -175,7 +205,7 @@ export function createApiKeyAuditRecorder(deps: ApiKeyAuditDeps): ApiKeyAuditRec
       lastUsedAtWrittenAt.set(row.apiKeyId, now)
 
       try {
-        await deps.touchLastUsedAt(row.apiKeyId, latestAtFor(batch, row.apiKeyId))
+        await withTimeout(deps.touchLastUsedAt(row.apiKeyId, latestAtFor(batch, row.apiKeyId)), writeTimeoutMs)
       } catch (error) {
         deps.onError("last_used_at", error)
       }
@@ -195,7 +225,7 @@ export function createApiKeyAuditRecorder(deps: ApiKeyAuditDeps): ApiKeyAuditRec
       // freshly deployed serverless instance may serve exactly one request and
       // then be frozen, and "this key has never been used" would be a lie the
       // settings screen shows for as long as traffic stays thin.
-      if (!anyFlushScheduledYet || buffered.length >= MAX_BUFFERED_ROWS) {
+      if (!backgroundFlush || !anyFlushScheduledYet || buffered.length >= MAX_BUFFERED_ROWS) {
         anyFlushScheduledYet = true
         scheduleImmediateFlush()
         return
@@ -263,12 +293,11 @@ function defaultDeps(): ApiKeyAuditDeps {
         // The request's own time. See this file's header.
         createdAt: row.at.toISOString(),
       }))
-      await db.execute(
-        sql`select compliance.record_api_key_request_batch(${JSON.stringify(payload)}::jsonb)`
-      )
+      // Dedicated one-connection client with a cancel-on-timeout (audit-writer-client.ts), not the shared `db` pool.
+      await insertAuditRows(JSON.stringify(payload), WRITE_TIMEOUT_MS)
     },
     touchLastUsedAt: async (apiKeyId, at) => {
-      await db.update(apiKeys).set({ lastUsedAt: at }).where(eq(apiKeys.id, apiKeyId))
+      await touchApiKeyLastUsed(apiKeyId, at, WRITE_TIMEOUT_MS)
     },
     defer: deferOffTheHotPath,
     startTimer: (task, ms) => {
@@ -282,6 +311,8 @@ function defaultDeps(): ApiKeyAuditDeps {
     onError: (stage, error) => {
       console.error(`[api-key-audit] ${stage} write failed (non-fatal, rows dropped):`, error)
     },
+    // Vercel freezes an instance between requests; a timer-driven write can be cut off mid-statement. See this file's header.
+    backgroundFlush: !process.env.VERCEL,
   }
 }
 

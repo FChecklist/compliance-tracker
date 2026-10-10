@@ -40,7 +40,7 @@ import { and, eq, ilike, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { requireErpEnabled, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import type { PagedResult } from "./crm-service"
 import { ActorCtx } from "./actor-context"
 import { isSelfApproval } from "./approval-workflow-service"
@@ -69,7 +69,7 @@ export async function resolveDocumentCurrency(db: TenantDb, orgId: string, curre
 type SellingActorCtx = ActorCtx
 
 function actorLogFields(ctx: SellingActorCtx) {
-  return ctx.dbUser ? ({ dbUser: ctx.dbUser } as const) : ({ apiKey: ctx.apiKey } as const)
+  return auditActorOf(ctx)
 }
 
 // ============================================================

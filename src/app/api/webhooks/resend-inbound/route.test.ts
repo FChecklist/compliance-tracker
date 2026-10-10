@@ -59,6 +59,27 @@ let resolveEmailAliasResult: { orgId: string; userId: string; aliasId: string } 
 let analyzeInboundEmailCalls: Array<{ ctx: unknown; input: unknown }> = []
 let analyzeInboundEmailShouldThrow = false
 
+// BUILD-002 WP-12: the sender check and the attachment intake are their own modules with their own tests (email-sender-check.test.ts,
+// email-attachment-intake.test.ts); here the route's use of them is what is under test, so both are stood in for.
+type SenderVerdictDouble = { ok: true; address: string; person: { id: string; role: string } } | { ok: false; code: string; note: string }
+const KNOWN_SENDER: SenderVerdictDouble = { ok: true, address: "sender@external.com", person: { id: "user-1", role: "member" } }
+let senderVerdict: SenderVerdictDouble = KNOWN_SENDER
+let verifySenderCalls: Array<{ orgId: string; fromAddress: string | null | undefined; headers: unknown }> = []
+let intakeCalls: unknown[] = []
+
+mock.module("@/lib/services/email-sender-check", () => ({
+  verifySender: async (_db: unknown, args: { orgId: string; fromAddress: string | null | undefined; headers: unknown }) => {
+    verifySenderCalls.push(args)
+    return senderVerdict
+  },
+}))
+mock.module("@/lib/services/email-attachment-intake", () => ({
+  prepareEmailProposals: async (args: unknown) => {
+    intakeCalls.push(args)
+    return { outcomes: [], notes: [] }
+  },
+}))
+
 mock.module("@/lib/db", () => ({
   ...realDb,
   db: {
@@ -118,6 +139,9 @@ beforeEach(() => {
   resolveEmailAliasResult = { orgId: "org-1", userId: "user-1", aliasId: "alias-1" }
   analyzeInboundEmailCalls = []
   analyzeInboundEmailShouldThrow = false
+  senderVerdict = KNOWN_SENDER
+  verifySenderCalls = []
+  intakeCalls = []
   process.env.RESEND_WEBHOOK_SECRET = SECRET
   process.env.RESEND_API_KEY = "re_test_placeholder"
 })
@@ -256,5 +280,45 @@ describe("POST /api/webhooks/resend-inbound -- end-to-end happy path", () => {
     const body = "not json {{{"
     const res = await POST(signedRequest(body) as any)
     expect(res.status).toBe(400)
+  })
+})
+
+describe("POST /api/webhooks/resend-inbound -- BUILD-002 WP-12 sender check (AW-604)", () => {
+  const deliver = (emailId: string) =>
+    POST(
+      signedRequest(
+        JSON.stringify({ type: "email.received", data: { email_id: emailId, from: "sender@external.com", to: ["raajat.agarwal@mail.veridian-aios.com"], subject: "BOQ" } })
+      ) as any
+    )
+
+  test("the sender is checked against the organisation the alias resolved to, with the From address and the headers of the full email", async () => {
+    receivingGetResult = {
+      data: { from: "Sender <sender@external.com>", to: ["raajat.agarwal@mail.veridian-aios.com"], subject: "Real subject", text: "Real body", html: null, headers: { "authentication-results": "mx; spf=pass" } },
+      error: null,
+    }
+    const res = await deliver("email_sender_1")
+    expect(res.status).toBe(200)
+    expect(verifySenderCalls).toEqual([{ orgId: "org-1", fromAddress: "Sender <sender@external.com>", headers: { "authentication-results": "mx; spf=pass" } }])
+    expect(analyzeInboundEmailCalls.length).toBe(1)
+  })
+
+  test("an unknown sender is a recorded refusal: 200 refused, the reason on the message row, the body is not analysed, no attachment step, no intake", async () => {
+    senderVerdict = { ok: false, code: "sender_not_a_user_of_this_organisation", note: "message refused: stranger@nowhere.example is not an active person of this organisation" }
+    const res = await deliver("email_sender_2")
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ ok: true, processed: false, refused: "sender_not_a_user_of_this_organisation" })
+    expect(insertedRows.length).toBe(1)
+    expect(analyzeInboundEmailCalls.length).toBe(0)
+    expect(updateCalls.length).toBe(1)
+    expect(updateCalls[0].values).toEqual({ processingError: "message refused: stranger@nowhere.example is not an active person of this organisation" })
+    expect(intakeCalls).toEqual([])
+  })
+
+  test("an unresolved recipient never reaches the sender check (there is no organisation to check against)", async () => {
+    resolveEmailAliasResult = null
+    const res = await deliver("email_sender_3")
+    expect(res.status).toBe(200)
+    expect(verifySenderCalls).toEqual([])
+    expect(analyzeInboundEmailCalls.length).toBe(0)
   })
 })

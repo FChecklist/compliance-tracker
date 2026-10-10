@@ -11,7 +11,7 @@
 // PATCH was brought up to match in this same wave -- see that route's
 // comment for the inconsistency this closes.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
 import { bulkUpdateSalesOrderStatus, ServiceError } from "@/lib/services/erp-selling-service"
 
@@ -21,7 +21,9 @@ export async function POST(request: NextRequest) {
   const roleErr = requirePermission(ctx, "erp.sales_orders.update_status")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()

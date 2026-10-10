@@ -209,8 +209,8 @@ describe("getOrCreateUserEmailAlias", () => {
     expect(insertCalls.length).toBe(0)
   })
 
-  test("ALLOWED_ALIAS_DOMAINS is exactly ['mail.veridian-aios.com'] today", () => {
-    expect(ALLOWED_ALIAS_DOMAINS).toEqual(["mail.veridian-aios.com"])
+  test("ALLOWED_ALIAS_DOMAINS is the default host plus the two inbound hosts DNS_RESEND_INBOUND_RECORDS.md lists (BUILD-002 WP-12)", () => {
+    expect(ALLOWED_ALIAS_DOMAINS).toEqual(["mail.veridian-aios.com", "inbound.veridian-aios.com", "inbound.projexa-ai.com"])
   })
 })
 

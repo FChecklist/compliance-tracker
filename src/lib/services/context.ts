@@ -11,9 +11,15 @@ import type { users } from "@/lib/db"
 // without re-deriving it. This is what lets a route handler built on
 // requireAuthOrApiKey() (Wave 9) and an MCP tool handler share the exact
 // same service call -- both just need to construct one of these.
+//
+// PROJEXA-BUILD-001 U-20b: the third variant is an API key acting for a named
+// person (auth-guard.ts's requireActingPerson `actor`), identical to
+// logActivity()'s own third variant -- so `...actor` still passes straight
+// through and one audit row records both the person and the key.
 export type ServiceActor =
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
+  | { dbUser: typeof users.$inferSelect; apiKey?: never; actingViaApiKey?: never }
+  | { dbUser?: never; apiKey: { id: string; name: string }; actingViaApiKey?: never }
+  | { dbUser: typeof users.$inferSelect; apiKey: { id: string; name: string }; actingViaApiKey: true }
 
 export type ServiceContext = {
   orgId: string

@@ -1,0 +1,36 @@
+# veridian-aios.com / dpdp.veridian-aios.com / app.veridian-aios.com -- Cloudflare Pages redirects
+# (WO-DPDP-013 v2 §2.4).
+# Format: <source> <destination> <status>. src/lib/redirects.test.ts parses
+# this file and pins both rules, with and without the trailing slash.
+#
+# There is deliberately NO rule here that sends dpdp.veridian-aios.com (or the
+# legacy app.veridian-aios.com) to veridian-aios.com. A Pages _redirects rule
+# matches a PATH, never a host, and this one file is served on ALL THREE
+# hostnames -- so such a rule would also redirect the apex to itself (a loop)
+# and would swallow /app/, /act/, /copy/, /p/, /unsubscribe/ and /ai/, which
+# must stay on dpdp. (the signed-in app, the Monday email's links and the AI
+# work link live there; app. keeps serving the same files so links in emails
+# already sent keep working). Search engines are
+# pointed at the apex by each public page's canonical link, the sitemap and
+# robots.txt instead; src/lib/redirects.test.ts pins that no rule here can
+# touch a private prefix or move a visitor between hosts.
+
+# The institution edition is singular -- owner decision, 18 Sep 2026.
+/dpdp-institutions   /dpdp-institution/   301
+/dpdp-institutions/  /dpdp-institution/   301
+
+# Withdrawn on 2026-10-01 (owner decision): the AI-only fact sheet, its
+# plain-text copy and the facts file are no longer published. A visitor or a
+# crawler that still has an old address is sent to the About page.
+/for-ai      /about/   301
+/for-ai/     /about/   301
+/for-ai.md   /about/   301
+/facts.json  /about/   301
+
+# /home is the root chooser.
+/home                /                    301
+/home/               /                    301
+
+# The /new/ design preview was promoted to the home page (2026-10-02): one page, no duplicate.
+/new   /   301
+/new/  /   301

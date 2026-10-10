@@ -9,9 +9,9 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { requireErpEnabled, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
-import { ErpContext } from "./actor-context"
+import { ErpContext, ActorCtx } from "./actor-context"
 
 
 export async function listCompanies(ctx: { orgId: string }) {
@@ -38,7 +38,7 @@ export type CompanyInput = {
 // route. updateCompany below keeps requiring a real dbUser unchanged (no
 // PROJEXA write path needs it yet).
 export async function createCompany(
-  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  ctx: ActorCtx,
   input: CompanyInput
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -55,9 +55,7 @@ export async function createCompany(
       dateOfIncorporation: input.dateOfIncorporation,
     }).returning()
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_company.created", entityType: "erp_company", entityId: company.id }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_company.created", entityType: "erp_company", entityId: company.id }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_company.created", entityType: "erp_company", entityId: company.id }
     )
     return company
   })

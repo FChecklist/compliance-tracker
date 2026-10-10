@@ -1,0 +1,580 @@
+/// <reference types="bun-types" />
+// The mock fixture is the spec's own job library (spec/veridian-dpdp.html,
+// LIB.firm / LIB.institution). e2e/acceptance-70.spec.ts hardcodes the
+// numbers that library produces -- 31 jobs, "5 of 30", 12 "required today"
+// tags, the sign-off chain -- with a comment saying where each comes from.
+// This test pins those derivations here, in the unit layer, so a change to
+// the fixture that would silently break the browser suite fails `bun test`
+// first, with the number that moved. No DOM, no browser: bun has no
+// localStorage or window, and the mock treats both as optional.
+import { describe, expect, test } from "bun:test"
+import { LIBRARY, MOCK_MEMBERS, MOCK_OWNER, MOCK_PARTNER, MOCK_STAFF, MOCK_UNDO_ACTION, createMockClient } from "./mock-client"
+import type { AiActionUndoPayload, AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, CaClientWire, MyPagePayload } from "./rpc-types"
+import { isToday } from "@/lib/dpdp-onepage/view-model"
+
+async function page(scenario: string, orgId?: string): Promise<MyPagePayload> {
+  const client = createMockClient(scenario)
+  const { data, error } = await client.rpc("dpdp_my_page", orgId ? { p_org_id: orgId } : undefined)
+  if (error) throw new Error(error.message)
+  return data as MyPagePayload
+}
+
+describe("the library is the spec's, verbatim in shape", () => {
+  test("31 firm jobs across 7 parts, 28 institution jobs", () => {
+    expect(LIBRARY.firm).toHaveLength(31)
+    expect(LIBRARY.institution).toHaveLength(28)
+    const perPart = [1, 2, 3, 4, 5, 6, 7].map((p) => LIBRARY.firm.filter((x) => x.part === p).length)
+    expect(perPart).toEqual([3, 7, 6, 5, 4, 3, 3]) // LAW-11 / FIRST-01 (wizard step 1)
+  })
+  test("12 firm jobs are required by today's law (an s: or a: code)", () => {
+    expect(LIBRARY.firm.filter((x) => isToday(x.lawCodes)).length).toBe(12) // LAW-05
+  })
+  test("the sign-off chain runs owner -> CA manager -> CA partner", () => {
+    const chain = LIBRARY.firm.filter((x) => x.part === 7).map((x) => [x.area, x.dep])
+    expect(chain).toEqual([["OWNER", undefined], ["CAMGR", "Owner confirms all the answers are true"], ["CAPARTNER", "CA manager checks the proof"]]) // LAW-15..17
+  })
+})
+
+describe("scenario owner-live (the set-up org, seen by the owner)", () => {
+  test("the numbers the Seal, chips and part headers show", async () => {
+    const p = await page("owner-live")
+    expect(p.viewer).toMatchObject({ email: MOCK_OWNER, kind: "owner" })
+    expect(p.viewer.firstVisitSeenAt).not.toBeNull()
+    const rows = p.rows
+    const live = rows.filter((r) => !r.na)
+    expect(rows).toHaveLength(31) // chip "All 31"
+    expect(live).toHaveLength(30) // Seal "N of 30"
+    expect(live.filter((r) => r.yes)).toHaveLength(5) // Seal "5 of 30", "17% done"; chip "Done 5"
+    expect(Math.round((5 / 30) * 100)).toBe(17)
+    expect(live.filter((r) => !r.yes)).toHaveLength(25) // chip "Not done 25"
+    expect(live.filter((r) => !r.by)).toHaveLength(1) // chip "Nobody named 1"; "1 job has nobody looking after it"
+    expect(live.filter((r) => isToday(r.lawCodes) && !r.yes)).toHaveLength(9) // chip "Required today 9"
+    expect(live.filter((r) => r.by === MOCK_OWNER && !r.yes)).toHaveLength(1) // chip "Mine 1"
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const late = live.filter((r) => !r.yes && new Date(r.due).getTime() < today.getTime())
+    expect(late.map((r) => r.what)).toEqual([
+      "Write down where it is kept, why you need it, and who can open it", // Customers, 6 days late (LAW-14)
+      "Publish a privacy policy on the website", // 3 days late
+      "Group company signs a data-sharing agreement", // 1 day late, nobody named
+    ]) // chip "Late 3"
+    const perPart = [1, 2, 3, 4, 5, 6, 7].map((n) => {
+      const rs = live.filter((r) => r.part === n)
+      return `${rs.filter((r) => r.yes).length} of ${rs.length}`
+    })
+    expect(perPart).toEqual(["2 of 3", "2 of 7", "0 of 6", "1 of 5", "0 of 3", "0 of 3", "0 of 3"]) // LAW-10 / LAW-12
+  })
+  test("who has what: the counts every welcome screen states", async () => {
+    const p = await page("owner-live")
+    const jobsOf = (email: string) => p.rows.filter((r) => r.by === email && !r.na).length
+    expect(jobsOf(MOCK_STAFF)).toBe(4) // FIRST-16, ROLES-03/05
+    expect(jobsOf("go@example.test")).toBe(4) // FIRST-17
+    expect(jobsOf("coord@example.test")).toBe(1) // FIRST-18
+    expect(jobsOf("manager@example.test")).toBe(1) // FIRST-19
+    expect(jobsOf(MOCK_PARTNER)).toBe(1) // FIRST-10
+    const group = p.rows.find((r) => r.isGroup)!
+    expect(group.by).toBe("All staff")
+    expect(group.groupTotal).toBe(MOCK_MEMBERS.length) // "0 of 3 answered"
+    expect(group.viewerIsGroupMember).toBe(false) // the owner is not in the group
+  })
+  test("the group job is visible to a member and not to other staff", async () => {
+    const member = await page("member")
+    expect(member.viewer.kind).toBe("staff")
+    expect(member.rows.find((r) => r.isGroup)!.viewerIsGroupMember).toBe(true)
+    expect(member.rows.filter((r) => r.by === "member@example.test")).toHaveLength(0) // their only job is the group's
+    const staff = await page("staff")
+    expect(staff.rows.find((r) => r.isGroup)!.viewerIsGroupMember).toBe(false)
+  })
+  test("everyone but the owner is on their first visit", async () => {
+    for (const s of ["staff", "member", "go", "coord", "manager", "partner"]) {
+      const p = await page(s)
+      expect(p.viewer.firstVisitSeenAt).toBeNull()
+      expect(p.viewer.saidNotMeAt).toBeNull()
+    }
+    expect((await page("manager")).viewer).toMatchObject({ kind: "ca", caSub: "manager" })
+    expect((await page("partner")).viewer).toMatchObject({ kind: "ca", caSub: "partner" })
+  })
+  test("the sign-off chain is wired and the manager's job waits on the owner's", async () => {
+    const p = await page("owner-live")
+    const owner = p.rows.find((r) => r.what === "Owner confirms all the answers are true")!
+    const mgr = p.rows.find((r) => r.what === "CA manager checks the proof")!
+    const partner = p.rows.find((r) => r.what === "CA partner signs the file")!
+    expect(owner.by).toBe(MOCK_OWNER)
+    expect(mgr).toMatchObject({ by: "manager@example.test", dependsOnObligationId: owner.id })
+    expect(partner).toMatchObject({ by: MOCK_PARTNER, dependsOnObligationId: mgr.id })
+    const client = createMockClient("manager")
+    const refused = await client.rpc("dpdp_mark_done", { p_obligation_id: mgr.id })
+    expect(refused.error?.message).toBe("Waiting — the step before this one isn't done yet")
+  })
+})
+
+describe("scenario owner (a brand-new org) and client-owner (a CA set it up)", () => {
+  test("owner: nothing named except the chain, first visit unseen", async () => {
+    const p = await page("owner")
+    expect(p.viewer.firstVisitSeenAt).toBeNull()
+    expect(p.rows.filter((r) => r.by).map((r) => r.what)).toEqual(["Owner confirms all the answers are true", "CA manager checks the proof", "CA partner signs the file"])
+    expect(p.rows.filter((r) => r.yes)).toHaveLength(0)
+  })
+  test("client-owner: set up by the partner, not yet confirmed", async () => {
+    const client = createMockClient("client-owner")
+    const setup = (await client.rpc("dpdp_org_setup")).data as { setUpBy: { email: string } | null; ownerConfirmedAt: string | null }
+    expect(setup.setUpBy?.email).toBe(MOCK_PARTNER)
+    expect(setup.ownerConfirmedAt).toBeNull()
+    const p = (await client.rpc("dpdp_my_page")).data as MyPagePayload
+    expect(p.viewer).toMatchObject({ email: "client-owner@example.test", kind: "owner", firstVisitSeenAt: null })
+    expect(p.rows.filter((r) => r.yes)).toHaveLength(2) // naming the GO and the coordinator is done by naming them
+    expect(p.rows.filter((r) => !r.by && !r.na)).toHaveLength(1) // "1 job has nobody yet"
+  })
+})
+
+describe("the CA's clients (dpdp_my_clients / whereItIs, drizzle/0609's labels)", () => {
+  test("the partner and the manager both see Mehta Traders, each under their own label", async () => {
+    for (const [s, sub] of [["partner", "partner"], ["manager", "manager"]] as const) {
+      const clients = (await createMockClient(s).rpc("dpdp_my_clients")).data as CaClientWire[]
+      expect(clients).toHaveLength(1)
+      expect(clients[0]).toMatchObject({ org: { name: "Mehta Traders" }, caSub: sub, done: 4, total: 31, whereItIs: "In progress", setUpByMe: false })
+    }
+    expect((await createMockClient("owner-live").rpc("dpdp_my_clients")).data).toEqual([])
+  })
+  test("a client a CA creates says 'No owner named yet' until an owner is named, then waits for that owner to confirm (drizzle/0612)", async () => {
+    // drizzle/0609 dpdp_create_client_org sets set_up_by_membership_id on
+    // EVERY CA-created org; 0612's whereItIs asks whether anybody exists who
+    // could confirm: no owner membership -> "No owner named yet", owner
+    // named but not yet confirmed -> "Waiting for the owner to confirm".
+    // "Not started" is never what a CA sees for an org they made until the
+    // owner has confirmed.
+    const client = createMockClient("partner")
+    await client.rpc("dpdp_create_client_org", { p_name: "Joshi Motors", p_product: "firm", p_owner_email: null })
+    await client.rpc("dpdp_create_client_org", { p_name: "Verma Textiles", p_product: "firm", p_owner_email: "suresh@vermatex.example" })
+    const clients = (await client.rpc("dpdp_my_clients")).data as CaClientWire[]
+    expect(clients.map((c) => [c.org.name, c.whereItIs, c.total, c.setUpByMe])).toEqual([
+      ["Mehta Traders", "In progress", 31, false],
+      ["Joshi Motors", "No owner named yet", 31, true],
+      ["Verma Textiles", "Waiting for the owner to confirm", 31, true],
+    ])
+    // "Open" is a real page for that org, with the partner still the partner.
+    const opened = (await client.rpc("dpdp_my_page", { p_org_id: clients[1].org.id })).data as MyPagePayload
+    expect(opened.org.name).toBe("Joshi Motors")
+    expect(opened.viewer).toMatchObject({ kind: "ca", caSub: "partner" })
+  })
+  test("a SCHOOL client a CA creates IS in My clients, as its partner (drizzle/0612 -- ACCEPTANCE-70.md finding 1, fixed)", async () => {
+    // drizzle/0602's institution library has no CAMGR or CAPARTNER template,
+    // so nothing is assigned to the caller; 0612's dpdp_my_clients counts the
+    // CA who set the org up (set_up_by_membership_id) as its partner
+    // regardless, so the school stays on the list from the moment it is made.
+    const client = createMockClient("partner")
+    await client.rpc("dpdp_create_client_org", { p_name: "Green Valley School", p_product: "institution", p_owner_email: "head@greenvalley.example" })
+    const clients = (await client.rpc("dpdp_my_clients")).data as CaClientWire[]
+    expect(clients.map((c) => [c.org.name, c.caSub, c.setUpByMe, c.whereItIs])).toEqual([
+      ["Mehta Traders", "partner", false, "In progress"],
+      ["Green Valley School", "partner", true, "Waiting for the owner to confirm"],
+    ])
+  })
+})
+
+describe("not me (drizzle/0604's dpdp_flag_not_me stamps both dates)", () => {
+  test("after 'this isn't me', first_visit_seen_at and said_not_me_at are both set", async () => {
+    const client = createMockClient("staff")
+    await client.rpc("dpdp_flag_not_me", { p_org_id: "org-mock" })
+    const p = (await client.rpc("dpdp_my_page")).data as MyPagePayload
+    expect(p.viewer.firstVisitSeenAt).not.toBeNull()
+    expect(p.viewer.saidNotMeAt).not.toBeNull()
+  })
+})
+
+// WO-DPDP-013 Part 1 (drizzle/0610): the AI WORK link -- the Copy-AI-link
+// screen (AiWorkLink.tsx) consumes exactly these five RPCs.
+describe("dpdp_ai_link_warning (the counts in the WO-013 §1.1 sentence)", () => {
+  test("owner-live: 31 jobs (every row, na or not) and 13 distinct people (10 named individuals + 3 group members)", async () => {
+    const client = createMockClient("owner-live")
+    const w = (await client.rpc("dpdp_ai_link_warning")).data as AiLinkWarning
+    // 31: LIBRARY.firm.length itself (pinned above). 13: the owner + GO +
+    // coordinator/accounts + customer-data + staff-records + website firm +
+    // CCTV + IT + CA manager + CA partner (10 distinct named individuals,
+    // LIVE_AREAS + the sign-off chain) + the 3-member "All staff" group.
+    expect(w).toEqual({ jobs: 31, people: 13 })
+  })
+  test("a brand-new org: every job still counts, but only the owner and the sign-off chain are named", async () => {
+    const w = (await createMockClient("owner").rpc("dpdp_ai_link_warning")).data as AiLinkWarning
+    expect(w).toEqual({ jobs: 31, people: 3 }) // owner + CA manager + CA partner
+  })
+})
+
+describe("dpdp_ai_link_create / dpdp_ai_link_list / dpdp_ai_link_revoke", () => {
+  test("create returns the token exactly once, with the level/hideEmails/label/warning-counts it was asked for", async () => {
+    const client = createMockClient("owner-live")
+    const created = (await client.rpc("dpdp_ai_link_create", { p_level: 1, p_hide_emails: true, p_days: 1, p_label: "ChatGPT" })).data as AiWorkLinkCreated
+    expect(created).toMatchObject({ level: 1, hideEmails: true, label: "ChatGPT", jobs: 31, people: 13 })
+    expect(created.token).toMatch(/^mock-work-link-1-/)
+    expect(new Date(created.expiresAt).getTime()).toBeGreaterThan(Date.now())
+    expect(new Date(created.expiresAt).getTime()).toBeLessThan(Date.now() + 2 * 86_400_000) // 1 day, not 7 or 30
+  })
+  test("default level 0, hideEmails true, 7 days, no label", async () => {
+    const created = (await createMockClient("owner-live").rpc("dpdp_ai_link_create", {})).data as AiWorkLinkCreated
+    expect(created).toMatchObject({ level: 0, hideEmails: true, label: null })
+    const days = Math.round((new Date(created.expiresAt).getTime() - Date.now()) / 86_400_000)
+    expect(days).toBe(7)
+  })
+  test("list shows every link newest first, active while neither revoked nor expired; revoke is recorded and re-read as inactive", async () => {
+    const client = createMockClient("owner-live")
+    await client.rpc("dpdp_ai_link_create", { p_label: "First" })
+    const second = (await client.rpc("dpdp_ai_link_create", { p_label: "Second" })).data as AiWorkLinkCreated
+    let list = (await client.rpc("dpdp_ai_link_list")).data as AiLinkListItem[]
+    expect(list.map((l) => l.label)).toEqual(["Second", "First"]) // newest first
+    expect(list.every((l) => l.active)).toBe(true)
+    expect(list.map((l) => l.callCount)).toEqual([0, 0])
+
+    const revoked = await client.rpc("dpdp_ai_link_revoke", { p_id: second.linkId })
+    expect(revoked.data).toEqual({ ok: true })
+    list = (await client.rpc("dpdp_ai_link_list")).data as AiLinkListItem[]
+    const secondRow = list.find((l) => l.label === "Second")!
+    expect(secondRow.active).toBe(false)
+    expect(secondRow.revokedAt).not.toBeNull()
+    expect(list.find((l) => l.label === "First")!.active).toBe(true) // the other link is untouched
+
+    // Idempotent: revoking an already-revoked link is still ok:true.
+    expect((await client.rpc("dpdp_ai_link_revoke", { p_id: second.linkId })).data).toEqual({ ok: true })
+    // An id that never existed at all is a real refusal, not a silent no-op.
+    expect((await client.rpc("dpdp_ai_link_revoke", { p_id: "nope" })).error?.message).toBe("Link not found")
+  })
+  test("a link made for one org does not appear in another org's list", async () => {
+    const partner = createMockClient("partner")
+    const clients = (await partner.rpc("dpdp_my_clients")).data as CaClientWire[]
+    const clientOrgId = clients[0].org.id
+    await partner.rpc("dpdp_ai_link_create", { p_org_id: clientOrgId, p_label: "For the client" })
+    const homeList = (await partner.rpc("dpdp_ai_link_list")).data as AiLinkListItem[]
+    expect(homeList).toEqual([])
+    const clientList = (await partner.rpc("dpdp_ai_link_list", { p_org_id: clientOrgId })).data as AiLinkListItem[]
+    expect(clientList.map((l) => l.label)).toEqual(["For the client"])
+  })
+})
+
+describe("dpdp_ai_action_undo (`/app/#undo=mock-action.mock-undo`)", () => {
+  test("the fixed mock action undoes once, then refuses a second time", async () => {
+    const client = createMockClient("owner-live")
+    const result = (await client.rpc("dpdp_ai_action_undo", { p_action_id: MOCK_UNDO_ACTION.actionId, p_undo_token: MOCK_UNDO_ACTION.undoToken })).data as AiActionUndoPayload
+    expect(result).toMatchObject({ ok: true, verb: "NOTE" })
+    expect(typeof result.jobId).toBe("string")
+    const again = await client.rpc("dpdp_ai_action_undo", { p_action_id: MOCK_UNDO_ACTION.actionId, p_undo_token: MOCK_UNDO_ACTION.undoToken })
+    expect(again.error?.message).toBe("This has already been undone")
+  })
+  test("a wrong id or token is refused, not silently accepted", async () => {
+    const client = createMockClient("owner-live")
+    const wrongId = await client.rpc("dpdp_ai_action_undo", { p_action_id: "not-mock-action", p_undo_token: MOCK_UNDO_ACTION.undoToken })
+    expect(wrongId.error?.message).toBe("This undo link is not valid")
+    const wrongToken = await client.rpc("dpdp_ai_action_undo", { p_action_id: MOCK_UNDO_ACTION.actionId, p_undo_token: "not-mock-undo" })
+    expect(wrongToken.error?.message).toBe("This undo link is not valid")
+  })
+})
+
+describe("dpdp_create_my_org (drizzle/0654: a visitor opens their own organisation)", () => {
+  test("a stranger has no page; naming a firm opens their own, owned by them, with the firm library and no CA named", async () => {
+    const c = createMockClient("visitor")
+    const before = await c.rpc("dpdp_my_page")
+    expect(before.error?.message).toContain("Not a member of this organisation")
+    const made = await c.rpc("dpdp_create_my_org", { p_name: "Mehta Traders", p_product: "firm" })
+    expect(made.error).toBeNull()
+    expect(made.data).toMatchObject({ ok: true, jobs: LIBRARY.firm.length, existing: false })
+    const p = (await c.rpc("dpdp_my_page")).data as MyPagePayload
+    expect(p.org.name).toBe("Mehta Traders")
+    expect(p.viewer).toMatchObject({ email: "visitor@example.test", kind: "owner", firstVisitSeenAt: null })
+    expect(p.rows).toHaveLength(LIBRARY.firm.length)
+    expect(p.rows.some((r) => r.by === MOCK_PARTNER)).toBe(false)
+  })
+
+  test("a school gets the school library", async () => {
+    const c = createMockClient("visitor")
+    const made = await c.rpc("dpdp_create_my_org", { p_name: "St Anne's", p_product: "institution" })
+    expect((made.data as { jobs: number }).jobs).toBe(LIBRARY.institution.length)
+    expect(((await c.rpc("dpdp_my_page")).data as MyPagePayload).org.product).toBe("institution")
+  })
+
+  test("a double call returns the same organisation, not a second one", async () => {
+    const c = createMockClient("visitor")
+    await c.rpc("dpdp_create_my_org", { p_name: "Once Ltd", p_product: "firm" })
+    const again = await c.rpc("dpdp_create_my_org", { p_name: "Once Ltd", p_product: "firm" })
+    expect(again.data).toMatchObject({ ok: true, existing: true, jobs: 0 })
+  })
+
+  test("an empty name, a 121-character name and an unknown edition are refused", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_create_my_org", { p_name: "   ", p_product: "firm" })).error?.message).toContain("name is required")
+    expect((await c.rpc("dpdp_create_my_org", { p_name: "X".repeat(121), p_product: "firm" })).error?.message).toContain("too long")
+    expect((await c.rpc("dpdp_create_my_org", { p_name: "Ok", p_product: "hospital" })).error?.message).toContain("product must be")
+  })
+
+  test("a ?ref= code travels through to org creation (WO-DPDP-016 §2: the real conflict-checking is a Postgres-side unit, drizzle/0655)", async () => {
+    const c = createMockClient("visitor")
+    const made = await c.rpc("dpdp_create_my_org", { p_name: "Referred Traders", p_product: "firm", p_referral_code: "ABCD1234" })
+    expect(made.error).toBeNull()
+    const history = (await c.rpc("dpdp_org_history")).data as { kind: string; summary: string }[]
+    expect(history.some((h) => h.kind === "referral_recorded" && h.summary.includes("ABCD1234"))).toBe(true)
+  })
+
+  test("a brand-new org starts on a 30-day trial", async () => {
+    const c = createMockClient("visitor")
+    await c.rpc("dpdp_create_my_org", { p_name: "Fresh Co", p_product: "firm" })
+    const billing = (await c.rpc("dpdp_my_billing")).data as { state: string; trialEndsAt: string }
+    expect(billing.state).toBe("trial")
+    const daysLeft = Math.round((new Date(billing.trialEndsAt).getTime() - Date.now()) / 86_400_000)
+    expect(daysLeft).toBeGreaterThanOrEqual(29)
+    expect(daysLeft).toBeLessThanOrEqual(30)
+  })
+})
+
+describe("WO-DPDP-016 §1: the share ask widens from decision-makers-only to every signed-in person", () => {
+  test("a plain staff member (scenario 'member', kind staff) now gets a code and role 'member', not a refusal", async () => {
+    const c = createMockClient("member")
+    const code = await c.rpc("dpdp_my_referral_code")
+    expect(code.error).toBeNull()
+    expect(code.data).toMatchObject({ role: "member" })
+    const press = await c.rpc("dpdp_record_share_press")
+    expect(press.error).toBeNull()
+    expect(press.data).toMatchObject({ ok: true, role: "member" })
+  })
+
+  test("the owner and a CA partner still keep their own named role, not 'member'", async () => {
+    expect(((await createMockClient("owner-live").rpc("dpdp_my_referral_code")).data as { role: string }).role).toBe("owner")
+    expect(((await createMockClient("partner").rpc("dpdp_my_referral_code")).data as { role: string }).role).toBe("partner")
+  })
+
+  test("a real stranger (not a member of anything) is still refused", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_my_referral_code")).error?.message).toContain("Not a member")
+  })
+})
+
+describe("WO-DPDP-016 Step 2: invite a colleague into my organisation (drizzle/0657)", () => {
+  test("any member can get the org's invite link, and it is the same code every time", async () => {
+    const owner = createMockClient("owner-live")
+    const first = (await owner.rpc("dpdp_my_org_invite_link")).data as { code: string }
+    const second = (await owner.rpc("dpdp_my_org_invite_link")).data as { code: string }
+    expect(first.code).toBe(second.code)
+    const staff = createMockClient("staff")
+    expect(((await staff.rpc("dpdp_my_org_invite_link")).data as { code: string }).code).toBe(first.code)
+  })
+
+  test("a non-member is refused an invite link, same as the referral code", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_my_org_invite_link")).error?.message).toContain("Not a member")
+  })
+
+  test("a visitor who was NOT a member can redeem the code and becomes staff", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_my_page")).error).not.toBeNull() // not a member yet
+
+    const { code } = (await createMockClient("owner-live").rpc("dpdp_my_org_invite_link")).data as { code: string }
+    const joined = await c.rpc("dpdp_join_org_via_invite", { p_code: code.toLowerCase() }) // case-insensitive, like ?ref=
+    expect(joined.error).toBeNull()
+    expect(joined.data).toMatchObject({ ok: true, alreadyMember: false })
+
+    const page = (await c.rpc("dpdp_my_page")).data as { viewer: { kind: string } }
+    expect(page.viewer.kind).toBe("staff")
+
+    const history = (await c.rpc("dpdp_org_history")).data as { kind: string; summary: string }[]
+    expect(history.filter((h) => h.kind === "membership_joined" && h.summary.includes("joined via an invite link")).length).toBe(1)
+  })
+
+  test("redeeming the same code twice is idempotent -- no duplicate history entry", async () => {
+    const c = createMockClient("visitor")
+    const { code } = (await createMockClient("owner-live").rpc("dpdp_my_org_invite_link")).data as { code: string }
+    await c.rpc("dpdp_join_org_via_invite", { p_code: code })
+    const second = await c.rpc("dpdp_join_org_via_invite", { p_code: code })
+    expect(second.data).toMatchObject({ ok: true, alreadyMember: true })
+    const history = (await c.rpc("dpdp_org_history")).data as { kind: string }[]
+    expect(history.filter((h) => h.kind === "membership_joined").length).toBe(1)
+  })
+
+  test("an unknown code is refused, and a blank one is refused before any lookup", async () => {
+    const c = createMockClient("visitor")
+    expect((await c.rpc("dpdp_join_org_via_invite", { p_code: "NOTREAL1" })).error?.message).toContain("not valid")
+    expect((await c.rpc("dpdp_join_org_via_invite", { p_code: "  " })).error?.message).toContain("required")
+  })
+})
+
+describe("WO-DPDP-016 §7-8: billing status and self-declared payment (drizzle/0655)", () => {
+  test("declaring a payment moves trial -> awaiting_confirmation, and changes nothing else visible", async () => {
+    const c = createMockClient("owner-live")
+    const before = (await c.rpc("dpdp_my_billing")).data as { state: string }
+    expect(before.state).toBe("trial")
+    const page1 = (await c.rpc("dpdp_my_page")).data as MyPagePayload
+
+    const declared = await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 999_900 })
+    expect(declared.error).toBeNull()
+    expect(declared.data).toEqual({ ok: true, state: "awaiting_confirmation" })
+
+    const after = (await c.rpc("dpdp_my_billing")).data as { state: string; interval: string; selfDeclaredAmountPaise: number; selfDeclaredInterval: string }
+    expect(after).toMatchObject({ state: "awaiting_confirmation", interval: "year", selfDeclaredAmountPaise: 999_900, selfDeclaredInterval: "year" })
+    // The Owner's own words, this session: "just an SLA label -- access never changes."
+    const page2 = (await c.rpc("dpdp_my_page")).data as MyPagePayload
+    expect(page2.rows).toEqual(page1.rows)
+  })
+
+  test("interval and amount are validated", async () => {
+    const c = createMockClient("owner-live")
+    expect((await c.rpc("dpdp_declare_payment", { p_interval: "week", p_amount_paise: 100 })).error?.message).toContain("interval must be")
+    expect((await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 0 })).error?.message).toContain("positive number")
+  })
+
+  test("only the owner can see or touch billing", async () => {
+    const c = createMockClient("member")
+    expect((await c.rpc("dpdp_my_billing")).error?.message).toContain("Only the owner")
+    expect((await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 999_900 })).error?.message).toContain("Only the owner")
+  })
+
+  test("a declared payment carries its proof (reference, screenshot path, note) through to dpdp_my_billing", async () => {
+    const c = createMockClient("owner-live")
+    const declared = await c.rpc("dpdp_declare_payment", {
+      p_interval: "year", p_amount_paise: 999_900, p_reference: "UTR900", p_proof_path: "org-mock/proof.png", p_note: "paid via GPay",
+    })
+    expect(declared.error).toBeNull()
+    const after = (await c.rpc("dpdp_my_billing")).data as { selfDeclaredReference: string; selfDeclaredProofPath: string; selfDeclaredNote: string }
+    expect(after).toMatchObject({ selfDeclaredReference: "UTR900", selfDeclaredProofPath: "org-mock/proof.png", selfDeclaredNote: "paid via GPay" })
+  })
+})
+
+describe("Payment confirmation flow follow-on: the Owner's approve/reject screen (drizzle/0658)", () => {
+  // In mock mode the "owner" scenario's own persona also stands in for
+  // VERIDIAN's own platform admin (mock-client.ts's own header comment on
+  // dpdp__is_platform_admin) -- a genuinely separate allowlist for real,
+  // but one identity is enough to preview and test the screen.
+  test("a non-admin (any other persona) is refused by all three admin RPCs -- falsifiability: this must fail if the gate is ever removed", async () => {
+    const c = createMockClient("member")
+    expect((await c.rpc("dpdp__is_platform_admin")).data).toBe(false)
+    expect((await c.rpc("dpdp_owner_pending_claims")).error?.message).toContain("Owner only")
+    expect((await c.rpc("dpdp_owner_approve_payment", { p_org_id: "org-mock" })).error?.message).toContain("Owner only")
+    expect((await c.rpc("dpdp_owner_reject_payment", { p_org_id: "org-mock" })).error?.message).toContain("Owner only")
+  })
+
+  test("the admin sees a declared claim in the worklist, with its proof, and can approve it -- state flips to active", async () => {
+    // "owner-live" and "owner" both sign in as MOCK_OWNER (mock-client.ts's
+    // own seedScenario) -- one client is both the org's own owner AND
+    // (mock-mode-only) the platform admin, so this exercises the real
+    // sequence (declare, then approve) without inventing cross-client state
+    // sharing this fixture was never built to support.
+    const c = createMockClient("owner-live")
+    await c.rpc("dpdp_declare_payment", { p_interval: "year", p_amount_paise: 999_900, p_reference: "UTR900", p_note: "paid via GPay" })
+
+    expect((await c.rpc("dpdp__is_platform_admin")).data).toBe(true)
+    const claims = (await c.rpc("dpdp_owner_pending_claims")).data as Array<{ orgId: string; reference: string; note: string }>
+    const mine = claims.find((claim) => claim.orgId === "org-mock")
+    expect(mine).toMatchObject({ reference: "UTR900", note: "paid via GPay" })
+
+    const approved = (await c.rpc("dpdp_owner_approve_payment", { p_org_id: "org-mock" })).data as { ok: true; paymentId: string }
+    expect(approved.ok).toBe(true)
+    expect(approved.paymentId).toBeTruthy()
+
+    const after = (await c.rpc("dpdp_my_billing")).data as { state: string }
+    expect(after.state).toBe("active")
+    const stillPending = (await c.rpc("dpdp_owner_pending_claims")).data as Array<{ orgId: string }>
+    expect(stillPending.find((claim) => claim.orgId === "org-mock")).toBeUndefined()
+  })
+
+  test("rejecting a claim sends the org back to trial with the claim cleared, not left dangling", async () => {
+    const c = createMockClient("owner-live")
+    await c.rpc("dpdp_declare_payment", { p_interval: "month", p_amount_paise: 199_900 })
+
+    const rejected = (await c.rpc("dpdp_owner_reject_payment", { p_org_id: "org-mock" })).data as { ok: true; state: string }
+    expect(rejected).toEqual({ ok: true, state: "trial" })
+
+    const after = (await c.rpc("dpdp_my_billing")).data as { state: string; selfDeclaredAmountPaise: number | null }
+    expect(after).toMatchObject({ state: "trial", selfDeclaredAmountPaise: null })
+  })
+
+  test("approving or rejecting an organisation with nothing awaiting confirmation is refused", async () => {
+    const c = createMockClient("owner-live")
+    expect((await c.rpc("dpdp_owner_approve_payment", { p_org_id: "org-mock" })).error?.message).toContain("no payment awaiting confirmation")
+    expect((await c.rpc("dpdp_owner_reject_payment", { p_org_id: "org-mock" })).error?.message).toContain("no payment awaiting confirmation")
+  })
+})
+
+describe("the job controls on the person's own page (drizzle/0605 + 0666, mirrored by the mock)", () => {
+  type Row = { id: string; what: string; by: string | null; yes: boolean; na: boolean; isGroup: boolean; due: string }
+  const rowsOf = async (c: ReturnType<typeof createMockClient>) => ((await c.rpc("dpdp_my_page")).data as { rows: Row[] }).rows
+  const history = async (c: ReturnType<typeof createMockClient>) => (await c.rpc("dpdp_org_history", { p_limit: 50 })).data as Array<{ kind: string; summary: string; detail: string | null; actorLabel: string }>
+  const inDays = (n: number) => new Date(Date.now() + n * 86_400_000 + 330 * 60_000).toISOString().slice(0, 10)
+
+  test("the owner changes a due date: the row shows it, History says what it was, and the date must be sensible", async () => {
+    const c = createMockClient("owner-live")
+    const job = (await rowsOf(c)).find((r) => !r.yes && !r.na && !r.isGroup)!
+    const to = inDays(40)
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: job.id, p_due_on: to })).error).toBeNull()
+    expect((await rowsOf(c)).find((r) => r.id === job.id)!.due).toBe(to)
+    expect((await history(c))[0]).toMatchObject({ kind: "obligation_due_changed", summary: `Set "${job.what}" due on ${to}`, detail: `It was due on ${job.due}`, actorLabel: MOCK_OWNER })
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: job.id, p_due_on: inDays(-31) })).error?.message).toContain("Pick a date from")
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: job.id, p_due_on: inDays(401) })).error?.message).toContain("Pick a date from")
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: job.id, p_due_on: "" })).error?.message).toBe("A date is required")
+    expect((await c.rpc("dpdp_set_due_date", { p_obligation_id: "no-such-job", p_due_on: to })).error?.message).toBe("Job not found")
+  })
+
+  test("a date is not moved on a finished job, and only the owner moves one", async () => {
+    const owner = createMockClient("owner-live")
+    const done = (await rowsOf(owner)).find((r) => r.yes)!
+    expect((await owner.rpc("dpdp_set_due_date", { p_obligation_id: done.id, p_due_on: inDays(10) })).error?.message).toBe("Already closed")
+    const staff = createMockClient("staff")
+    const open = (await rowsOf(staff)).find((r) => !r.yes && !r.na)!
+    expect((await staff.rpc("dpdp_set_due_date", { p_obligation_id: open.id, p_due_on: inDays(10) })).error?.message).toBe("Only the owner can do this")
+  })
+
+  test("a note goes to History as the words written, for whoever can see the job; empty and over-long notes are refused", async () => {
+    const c = createMockClient("owner-live")
+    const job = (await rowsOf(c)).find((r) => !r.yes)!
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: job.id, p_text: "  The signed copy is with the CA.  " })).error).toBeNull()
+    expect((await history(c))[0]).toMatchObject({ kind: "obligation_note_added", summary: `Added a note to "${job.what}"`, detail: "The signed copy is with the CA." })
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: job.id, p_text: "   " })).error?.message).toBe("A note needs some words")
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: job.id, p_text: "x".repeat(1001) })).error?.message).toContain("1000 characters at most")
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: job.id, p_text: "x".repeat(1000) })).error).toBeNull()
+  })
+
+  test("a staff member notes their own job but a job they cannot see is 'not found', never 'not allowed'", async () => {
+    const c = createMockClient("staff")
+    const rows = await rowsOf(c)
+    const mine = rows.find((r) => r.by === MOCK_STAFF && !r.yes)
+    const theirs = rows.find((r) => r.by && r.by !== MOCK_STAFF && !r.isGroup)!
+    if (mine) expect((await c.rpc("dpdp_add_note", { p_obligation_id: mine.id, p_text: "On it." })).error).toBeNull()
+    expect((await c.rpc("dpdp_add_note", { p_obligation_id: theirs.id, p_text: "Not mine." })).error?.message).toBe("Job not found")
+  })
+
+  test("'doesn't apply' is refused on a finished job (the database no longer flips a Yes), allowed on an open one with the reason kept", async () => {
+    const c = createMockClient("owner-live")
+    const rows = await rowsOf(c)
+    const done = rows.find((r) => r.yes && !r.na)!
+    expect((await c.rpc("dpdp_mark_not_applicable", { p_obligation_id: done.id, p_reason: "changed my mind" })).error?.message).toBe("Already closed")
+    expect((await rowsOf(c)).find((r) => r.id === done.id)!.yes).toBe(true)
+    const open = rows.find((r) => !r.yes && !r.na)!
+    expect((await c.rpc("dpdp_mark_not_applicable", { p_obligation_id: open.id, p_reason: "No cameras anywhere." })).error).toBeNull()
+    expect((await rowsOf(c)).find((r) => r.id === open.id)!.na).toBe(true)
+    expect((await history(c))[0]).toMatchObject({ kind: "obligation_not_my_job", detail: "No cameras anywhere." })
+  })
+
+  test("a 'doesn't apply' reason is capped like a note, counted in characters (an emoji is one)", async () => {
+    const c = createMockClient("owner-live")
+    const open = (await rowsOf(c)).find((r) => !r.yes && !r.na)!
+    expect((await c.rpc("dpdp_mark_not_applicable", { p_obligation_id: open.id, p_reason: "x".repeat(1001) })).error?.message).toContain("1000 characters at most")
+    expect((await c.rpc("dpdp_mark_not_applicable", { p_obligation_id: open.id, p_reason: "😀".repeat(600) })).error).toBeNull()
+  })
+
+  test("a staff member reads only their own entries in History; the owner reads everything", async () => {
+    const owner = createMockClient("owner-live")
+    const someone = (await rowsOf(owner)).find((r) => !r.yes && !r.na && !r.isGroup)!
+    await owner.rpc("dpdp_add_note", { p_obligation_id: someone.id, p_text: "Owner-only remark." })
+    expect((await history(owner)).some((h) => h.detail === "Owner-only remark.")).toBe(true)
+    const staff = createMockClient("staff")
+    const mine = (await rowsOf(staff)).find((r) => r.by === MOCK_STAFF && !r.yes)!
+    await staff.rpc("dpdp_add_note", { p_obligation_id: mine.id, p_text: "Staff remark." })
+    const seen = await history(staff)
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen.every((h) => h.actorLabel === MOCK_STAFF)).toBe(true)
+    expect(seen.some((h) => h.detail === "Staff remark.")).toBe(true)
+  })
+
+  test("giving a job to someone: owner only, not a finished job, and the row shows the new person", async () => {
+    const c = createMockClient("owner-live")
+    const job = (await rowsOf(c)).find((r) => !r.yes && !r.na && !r.isGroup)!
+    expect((await c.rpc("dpdp_assign_person", { p_obligation_id: job.id, p_email: "New.Person@Acme.example" })).error).toBeNull()
+    expect((await rowsOf(c)).find((r) => r.id === job.id)!.by).toBe("new.person@acme.example")
+    const done = (await rowsOf(c)).find((r) => r.yes)!
+    expect((await c.rpc("dpdp_assign_person", { p_obligation_id: done.id, p_email: "x@y.example" })).error?.message).toBe("Already closed")
+    const staff = createMockClient("staff")
+    expect((await staff.rpc("dpdp_assign_person", { p_obligation_id: job.id, p_email: "x@y.example" })).error?.message).toBe("Only the owner can do this")
+  })
+})

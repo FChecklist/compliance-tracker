@@ -19,6 +19,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { createSalesInvoice } from "./erp-invoicing-service"
+import { auditActorOf } from "@/lib/audit"
 export { ServiceError }
 
 export type ValuationContext = { orgId: string; userId: string }
@@ -152,7 +153,7 @@ export type GenerateInterimBillInput = {
 // exact call site the same way sales-invoices/route.ts's POST handler
 // already does at its own route layer.
 export async function generateInterimBill(
-  ctx: ValuationContext & { dbUser: typeof users.$inferSelect | null; apiKey?: { id: string; name: string } },
+  ctx: ValuationContext & { dbUser: typeof users.$inferSelect | null; apiKey?: { id: string; name: string }; actingViaApiKey?: true },
   input: GenerateInterimBillInput
 ) {
   if (!input.boqId) throw new ServiceError("boqId is required", 400)
@@ -218,8 +219,10 @@ export async function generateInterimBill(
     // as well (isErpEnabledForOrgWithDb), so the gate cannot open a second
     // transaction before the body is reached.
     const invoice = await createSalesInvoice(
+      // U-20b: auditActorOf keeps the key id when a route passed the acting
+      // person AND the key (actingViaApiKey), instead of dropping it.
       ctx.dbUser
-        ? { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser }
+        ? { orgId: ctx.orgId, userId: ctx.userId, ...auditActorOf(ctx) }
         : { orgId: ctx.orgId, userId: ctx.userId, apiKey: ctx.apiKey ?? { id: ctx.userId, name: "api-key" } },
       { customerId: input.customerId, projectId: input.projectId, postingDate: input.billDate, items: invoiceItems },
       db

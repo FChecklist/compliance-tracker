@@ -10,7 +10,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { ActorCtx } from "./actor-context"
 
 export type AccessReviewContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
@@ -39,9 +39,7 @@ export async function createAccessReviewCycle(ctx: AccessReviewActorCtx, input: 
     )
 
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "access_review.cycle_created", entityType: "access_review_cycle", entityId: cycle.id, details: JSON.stringify({ userCount: activeUsers.length }) }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "access_review.cycle_created", entityType: "access_review_cycle", entityId: cycle.id, details: JSON.stringify({ userCount: activeUsers.length }) }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "access_review.cycle_created", entityType: "access_review_cycle", entityId: cycle.id, details: JSON.stringify({ userCount: activeUsers.length }) }
     )
     return cycle
   })
@@ -100,9 +98,7 @@ export async function reviewCertification(ctx: AccessReviewActorCtx, certificati
     }
 
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "access_review.certification_decided", entityType: "access_review_certification", entityId: certificationId, details: JSON.stringify({ decision, subjectUserId: cert.userId }) }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "access_review.certification_decided", entityType: "access_review_certification", entityId: certificationId, details: JSON.stringify({ decision, subjectUserId: cert.userId }) }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "access_review.certification_decided", entityType: "access_review_certification", entityId: certificationId, details: JSON.stringify({ decision, subjectUserId: cert.userId }) }
     )
 
     // Auto-close the cycle once every certification has a real decision.

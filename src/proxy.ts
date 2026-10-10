@@ -2,7 +2,57 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import { PROTECTED_APP_ROUTE_PREFIXES } from "@/lib/protected-routes.generated"
 
+// PROJEXA server-merge Phase 1 (ai-os/PROJEXA_SERVER_MERGE_PLAN.md): 7 of
+// PROJEXA's top-level route segments collide with a DIFFERENT existing
+// compliance-tracker feature of the same name (dashboard = compliance
+// posture here, construction financials there; same clash for documents/
+// hr/knowledge-base/reports/settings/recruitment -- see the plan's own
+// inventory). Rather than a product-merge decision on all 7 at once, each
+// gets a physically distinct page under src/app/(app)/px/<name>/ (NOT
+// "_projexa" -- Next.js treats an underscore-prefixed segment as a private
+// folder and refuses to route it at all, confirmed against the App Router
+// docs before picking this name), and PROJEXA's own production host is
+// rewritten here so its visitors see the clean, unprefixed URL while every
+// other host keeps compliance-tracker's own page at that path untouched.
+// A direct visit to /px/<name> on any host also just works (Next.js routes
+// it like any other real page) -- the rewrite only exists for a clean URL,
+// it is not the only way in.
+const PROJEXA_HOSTS = new Set(["projexa-ai.com", "www.projexa-ai.com"])
+const PROJEXA_SHADOW_SEGMENTS = new Set([
+  "dashboard", "documents", "hr", "knowledge-base", "reports", "settings", "recruitment",
+])
+
+/**
+ * Pure (no request/response objects, no Supabase call) so it's unit tested
+ * directly in proxy.test.ts rather than only indirectly through a full
+ * middleware run with a mocked Supabase client. Returns the internal path to
+ * rewrite to, or null when this host/path should render compliance-tracker's
+ * own page unchanged.
+ */
+export function resolveProjexaRewriteTarget(host: string, pathname: string): string | null {
+  const normalizedHost = host.split(":")[0]?.toLowerCase() ?? ""
+  const topSegment = pathname.split("/")[1]
+  if (PROJEXA_HOSTS.has(normalizedHost) && PROJEXA_SHADOW_SEGMENTS.has(topSegment)) {
+    return `/px${pathname}`
+  }
+  return null
+}
+
 export async function proxy(request: NextRequest) {
+  // publicPathname is what a visitor actually typed/clicked and what every
+  // redirect this function builds must echo back (login/mfa-challenge's
+  // redirectTo) -- rewriteTarget (below, computed but not yet applied) is
+  // the internal path PROJEXA's own host renders instead, applied ONLY on
+  // the final pass-through response, deliberately AFTER every auth check
+  // below runs against the real, original pathname. Note /px/<name> does
+  // NOT need special handling in the isAppRoute check further down: the
+  // public segment (/dashboard, /documents, ...) is already a protected
+  // compliance-tracker route in its own right, so the existing check
+  // already gates it correctly without knowing a rewrite is about to
+  // happen -- this function does not mutate request.nextUrl at all.
+  const publicPathname = request.nextUrl.pathname
+  const rewriteTarget = resolveProjexaRewriteTarget(request.headers.get("host") ?? "", publicPathname)
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -55,7 +105,10 @@ export async function proxy(request: NextRequest) {
   if (!user && isAppRoute) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
-    url.searchParams.set("redirectTo", request.nextUrl.pathname)
+    // publicPathname, not request.nextUrl.pathname: the latter may be the
+    // internal /px/<name> rewrite target, which a PROJEXA visitor has never
+    // seen in their own address bar and must not see here either.
+    url.searchParams.set("redirectTo", publicPathname)
     return NextResponse.redirect(url)
   }
 
@@ -71,7 +124,7 @@ export async function proxy(request: NextRequest) {
     if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
       const url = request.nextUrl.clone()
       url.pathname = "/mfa-challenge"
-      url.searchParams.set("redirectTo", request.nextUrl.pathname)
+      url.searchParams.set("redirectTo", publicPathname)
       return NextResponse.redirect(url)
     }
   }
@@ -81,6 +134,20 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = "/home"
     return NextResponse.redirect(url)
+  }
+
+  // The real rewrite, applied last and only once every auth/MFA check above
+  // has already passed against the real, public pathname: NextResponse.
+  // rewrite() serves a different page's content while leaving the visitor's
+  // own address bar and browser history exactly as they were (the documented
+  // behaviour of .rewrite() vs .redirect()). Cookies the Supabase SSR flow
+  // above may have refreshed on supabaseResponse must be carried onto this
+  // new response object, or a session refresh mid-request would be silently
+  // dropped for every PROJEXA-hosted request that reaches this branch.
+  if (rewriteTarget) {
+    const rewritten = NextResponse.rewrite(new URL(rewriteTarget + request.nextUrl.search, request.url))
+    supabaseResponse.cookies.getAll().forEach((cookie) => rewritten.cookies.set(cookie))
+    return rewritten
   }
 
   return supabaseResponse

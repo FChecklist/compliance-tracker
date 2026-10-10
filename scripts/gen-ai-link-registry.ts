@@ -1,0 +1,395 @@
+// PROJEXA-BUILD-001 U-46 step 1 (BR-581; spec UNIVERSAL_AI_WORK_LINK_SPEC.md 9.1, register rows AWL-S03 and AWL-S05): generates the
+// Universal AI Work Link's function registry and record kinds from src/lib/pipeline/function-registry.ts.
+//
+//   bun scripts/gen-ai-link-registry.ts            write the three outputs below
+//   bun scripts/gen-ai-link-registry.ts --check    write nothing; exit 0 and print "ai-link registry up to date" when the committed
+//                                                  outputs equal what the registry now generates, exit 1 and name the stale file otherwise
+//   bun scripts/gen-ai-link-registry.ts --unreviewed   write nothing; list the registry functions that no list names (on no link), exit 0
+//
+// OUTPUTS (all committed):
+//   supabase/functions/ai-work-link/function-registry.generated.json   a JSON list, one object per registry function: what the Edge
+//        Function serves in the manual, /context and /check (label, kind, link level, minimum rank, required and declared parameters,
+//        the id parameters that need the same-project check of spec 9.10, the free-text parameters of 9.11). AWL-S03 reads it as a
+//        list and counts the entries whose link_level is not null.
+//   supabase/functions/ai-work-link/record-kinds.generated.json        the Tier-1 record kinds (money columns, filters, sort: 6.2, 6.6).
+//   the block between the BEGIN and END GENERATED markers of CURRENT_SEED_MIGRATION below (0628 until BUILD-002 WP-06, now 0643)   the same facts as rows of
+//        platform.ai_work_link_functions and platform.ai_work_link_record_kinds, plus public.ai_work_link__registry_version(), whose
+//        constant is the sha256 of exactly those rows (so the running database can say which registry it holds).
+//
+// HOW A FUNCTION GETS ON LINKS. Only by name, in LINK_FUNCTIONS of scripts/gen-ai-link-registry.data.ts. This file READS the registry
+// when it runs (a static import, not a copy) and selects by name, so the entries other units add to function-registry.ts (U-38 adds 26
+// of them) change none of the three outputs: a function is in the outputs only when a person has reviewed it, that is when it is named
+// in LINK_FUNCTIONS (on links) or in EXCLUDED_REASONS (the spec's 17, with the reason). A registry entry in neither list has no row, so
+// it is on no link, the same as a row with a null level. `--unreviewed` lists those entries. An allow-listed name that the registry no
+// longer has is an error, never a silent drop, and so is a change to a reviewed entry that the outputs show (its label or parameters):
+// the outputs are then stale until the generator runs again.
+//
+// The registry's kind "run" (a command that opens a screen) has no executor and is left out. "ask" becomes "read", "write" stays.
+//
+// THE SEED MIGRATION IS APPLIED LIVE ONCE. It is checked here only while it is the current seed migration, CURRENT_SEED_MIGRATION.
+// When the registry changes after 0628 has been applied, add a new seed migration, point that constant at it, and leave 0628 alone.
+// BUILD-002 WP-03/04/07 did that: 0644 holds the whole generated block (the 27 functions of 0628 plus create_project, update_project, add_boq_lines,
+// seal_boq and create_activity, and the same record kinds), so applying it after 0628 leaves the rows exactly as the generator writes them today.
+// 0628 is frozen. The `body_max_bytes` of the JSON is not a database fact (only the Edge Function reads it), so it is not in the seed block.
+// BUILD-002 WP-06 then moved it on to 0643 (drizzle/0643_build002_record_kinds.sql): the same whole-registry block plus 20 record kinds. 0643 is applied
+// AFTER 0644 on the live database, so its block must (and does) leave exactly the rows the generator writes.
+// BUILD-002 WP-05a (waves 1 and 2) then moved it on to 0650: the whole generated block again (the 33 functions of 0644 plus 19 reviewed for links, and the
+// 33 record kinds of 0643), so 0650 alone gives the same rows as 0643 followed by it.
+// BUILD-002 WP-05c/WP-05d did it again: 0647 holds the whole generated block (the 52 functions of 0650 plus the 18 of coverage waves 3 and 4), so 0647 alone
+// gives the same rows as 0650 followed by it.
+// BUILD-002 WP-05e/05f and AW-312 did it again: 0648 holds the whole generated block (the 70 functions of 0647 plus the 22 of waves 5 and 6 and the
+// exception-capture functions), so 0648 alone gives the same rows as 0647 followed by it.
+// BUILD-002 WP-05g/WP-05h did it once more: 0649 holds the whole generated block (the 92 functions of 0648 plus the 20 of waves 7, 8 and 9), so 0649 alone
+// gives the same rows as 0648 followed by it.
+// BUILD-002 persona-run finding 3 did it once more: 0651 holds the whole generated block (the 112 functions of 0649 plus submit_timesheet), so 0651 alone
+// gives the same rows as 0649 followed by it.
+// The USER-WIDE link did it once more: 0669 holds the whole generated block (the 113 functions of 0651, with create_project now at level 2, rank 2), so
+// 0669 alone gives the same rows as 0651 followed by it. The SQL that keeps create_project off every project link is 0668.
+// lf-b2-ai-crud (owner order 2026-10-02, AI create/update/delete) did it once more: 0685 holds the whole generated block (the 113 functions of 0669 plus
+// 24 updates, deletes and archives), so 0685 alone gives the same rows as 0669 followed by it.
+// lf-b5-ai-crud (owner order 2026-10-02, the rest of R7) did it once more: 0687 holds the whole generated block (the 140 functions of 0685 plus the 18 of
+// B5: the eight edits/deletes that had no service and the organisation-scoped class), so 0687 alone gives the same rows as 0685 followed by it.
+import { createHash } from "node:crypto"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+import { ALL_FUNCTION_SPECS, type FunctionSpec } from "../src/lib/pipeline/function-registry"
+import {
+  EXCLUDED_REASONS,
+  LINK_FUNCTIONS,
+  RECORD_KINDS,
+  type LinkFunctionPolicy,
+  type RecordKindDef,
+} from "./gen-ai-link-registry.data"
+
+export const CURRENT_SEED_MIGRATION = "drizzle/0743_awl_create_material_order.sql"
+export const FUNCTIONS_JSON = "supabase/functions/ai-work-link/function-registry.generated.json"
+export const KINDS_JSON = "supabase/functions/ai-work-link/record-kinds.generated.json"
+export const BEGIN_MARK = "-- BEGIN GENERATED BY scripts/gen-ai-link-registry.ts (do not edit by hand; run the generator)"
+export const END_MARK = "-- END GENERATED"
+
+export type LinkFunctionRow = {
+  function_id: string
+  label: string
+  module: string
+  product: "projexa"
+  kind: "read" | "write"
+  /** null = on no link (excluded_reason says why) */
+  link_level: 0 | 1 | 2 | null
+  money_sensitive: boolean
+  min_role_rank: number
+  excluded_reason: string | null
+  text_params: string[]
+  /** Only when the function may take a body over the link's 8 KB (gen-ai-link-registry.data.ts bodyMaxBytes); absent otherwise. */
+  body_max_bytes?: number
+  declared_params: string[]
+  required_params: { name: string; label: string; any_of: string[] }[]
+  id_params: string[]
+  /**
+   * The typed fields of the function's confirmation card (the registry's `card.fields`): what a person is asked, so what an AI is asked too. JSON only, not a
+   * database fact (dbShape does not read it, so the registry version constant is unchanged). Functions that take only ids have none.
+   */
+  fields: { key: string; label: string; type: string; required: boolean; unit?: string; default?: string | number }[]
+  /** Parameters the function accepts that are neither required nor a card field (a list, a retry key): JSON only. */
+  optional_params: string[]
+}
+
+export type RecordKindRow = {
+  kind: string
+  money_columns: string[]
+  filters: {
+    fields: Record<string, { type: string; ops: string[] }>
+    sort: string[]
+    omit_when_hidden?: string[]
+  }
+}
+
+const sorted = (xs: Iterable<string>) => [...new Set(xs)].sort()
+
+/** Every parameter name the registry declares for a function: required, their aliases, the card's fields, and its optionalParams (lists, ids, keys). */
+function declaredParams(spec: FunctionSpec): string[] {
+  const names: string[] = []
+  for (const r of spec.requiredParams) {
+    names.push(r.name, ...(r.alsoSatisfiedBy ?? []))
+  }
+  for (const f of spec.card?.fields ?? []) names.push(f.key)
+  names.push(...(spec.optionalParams ?? []))
+  return sorted(names)
+}
+
+/** The largest body any function may be given: LIMITS.bodyMaxBytesCeiling of supabase/functions/_shared/ai-link/core.ts. */
+export const BODY_MAX_BYTES_CEILING = 64 * 1024
+/** The body every function has when its policy says nothing: LIMITS.bodyMaxBytes of the same file. */
+export const BODY_MAX_BYTES_DEFAULT = 8 * 1024
+
+/** `body_max_bytes` only when the policy gives the function a larger body than the link's default. */
+const bodyLimitField = (p: LinkFunctionPolicy | undefined): { body_max_bytes?: number } => (p?.bodyMaxBytes !== undefined ? { body_max_bytes: p.bodyMaxBytes } : {})
+
+/** The registry's required parameters, then the ones only the link requires (a retry key). */
+function requiredParamsOf(spec: FunctionSpec, p: LinkFunctionPolicy | undefined): LinkFunctionRow["required_params"] {
+  return [
+    ...spec.requiredParams.map((r) => ({ name: r.name, label: r.label, any_of: [r.name, ...(r.alsoSatisfiedBy ?? [])] })),
+    ...(p?.linkRequiredParams ?? []).map((name) => ({ name, label: humanise(name), any_of: [name] })),
+  ]
+}
+
+const humanise = (name: string) => {
+  const words = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim().toLowerCase()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** True for a registry entry that has an executor (kind "ask" or "write"); the kind "run" only opens a screen. */
+const hasExecutor = (spec: FunctionSpec) => spec.kind !== "run"
+
+/** Checks one allow-listed entry against what the registry says about the same function. */
+function checkPolicy(spec: FunctionSpec, p: LinkFunctionPolicy, kind: "read" | "write", declared: readonly string[]): void {
+  const id = spec.functionId
+  if (p.linkLevel === 0 && kind !== "read") throw new Error(`"${id}" is allow-listed at level 0 but the registry says it writes`)
+  if (p.linkLevel !== 0 && kind !== "write") throw new Error(`"${id}" is allow-listed at level ${p.linkLevel} but the registry says it is a read`)
+  if (!Number.isInteger(p.minRank) || p.minRank < 1 || p.minRank > 6) throw new Error(`"${id}" has an invalid minimum rank ${p.minRank}`)
+  for (const t of p.textParams) {
+    if (!declared.includes(t)) throw new Error(`"${id}" lists text parameter "${t}", which the registry does not declare`)
+  }
+  for (const r of p.linkRequiredParams ?? []) {
+    if (!declared.includes(r)) throw new Error(`"${id}" makes "${r}" required on a link, but the registry does not declare it`)
+  }
+  if (p.bodyMaxBytes !== undefined && (!Number.isInteger(p.bodyMaxBytes) || p.bodyMaxBytes <= BODY_MAX_BYTES_DEFAULT || p.bodyMaxBytes > BODY_MAX_BYTES_CEILING)) {
+    throw new Error(`"${id}" has an invalid body limit ${p.bodyMaxBytes} (more than ${BODY_MAX_BYTES_DEFAULT}, at most ${BODY_MAX_BYTES_CEILING})`)
+  }
+}
+
+/**
+ * One row per REVIEWED registry function that has an executor (kind "ask" or "write"), sorted by id: the ones named in `policy`
+ * (on links) and in `excluded` (on no link, with the reason). A registry entry in neither is left out: it is on no link.
+ * @throws when an allow-listed function is missing from `specs`, has the wrong kind for its level, or names a text parameter the
+ *         registry does not declare, and when a function is both allow-listed and excluded.
+ */
+export function buildFunctionRows(
+  specs: readonly FunctionSpec[],
+  policy: Readonly<Record<string, LinkFunctionPolicy>> = LINK_FUNCTIONS,
+  excluded: Readonly<Record<string, string>> = EXCLUDED_REASONS,
+): LinkFunctionRow[] {
+  const byId = new Map(specs.map((s) => [s.functionId, s]))
+  for (const id of Object.keys(policy)) {
+    if (!byId.has(id)) throw new Error(`allow-listed function "${id}" is not in function-registry.ts (was it renamed or removed?)`)
+    if (id in excluded) throw new Error(`function "${id}" is both allow-listed and excluded`)
+  }
+  const rows: LinkFunctionRow[] = []
+  for (const spec of specs) {
+    if (!hasExecutor(spec)) continue
+    const p = policy[spec.functionId]
+    if (!p && !(spec.functionId in excluded)) continue // not reviewed for links: no row, so on no link
+    const declared = declaredParams(spec)
+    const kind = spec.kind === "write" ? "write" : "read"
+    if (p) checkPolicy(spec, p, kind, declared)
+    rows.push({
+      function_id: spec.functionId,
+      label: spec.label,
+      module: spec.module,
+      product: "projexa",
+      kind,
+      link_level: p ? p.linkLevel : null,
+      money_sensitive: p ? p.moneySensitive : false,
+      min_role_rank: p ? p.minRank : 0,
+      excluded_reason: p ? null : excluded[spec.functionId],
+      text_params: p ? [...p.textParams] : [],
+      ...bodyLimitField(p),
+      declared_params: declared,
+      required_params: requiredParamsOf(spec, p),
+      id_params: declared.filter((n) => /Ids?$/.test(n) && n !== "projectId"),
+      fields: (spec.card?.fields ?? []).map((f) => ({
+        key: f.key, label: f.label, type: f.type, required: f.required,
+        ...(f.unit ? { unit: f.unit } : {}),
+        ...(f.default !== undefined ? { default: f.default } : {}),
+      })),
+      optional_params: [...(spec.optionalParams ?? [])],
+    })
+  }
+  return rows.sort((a, b) => (a.function_id < b.function_id ? -1 : a.function_id > b.function_id ? 1 : 0))
+}
+
+/** The registry functions that have an executor and that no list names: on no link until a person reviews them. Sorted by id. */
+export function unreviewedFunctionIds(
+  specs: readonly FunctionSpec[] = ALL_FUNCTION_SPECS,
+  policy: Readonly<Record<string, LinkFunctionPolicy>> = LINK_FUNCTIONS,
+  excluded: Readonly<Record<string, string>> = EXCLUDED_REASONS,
+): string[] {
+  return specs
+    .filter((s) => hasExecutor(s) && !(s.functionId in policy) && !(s.functionId in excluded))
+    .map((s) => s.functionId)
+    .sort()
+}
+
+export function buildKindRows(kinds: readonly RecordKindDef[] = RECORD_KINDS): RecordKindRow[] {
+  const seen = new Set<string>()
+  return kinds.map((k) => {
+    if (seen.has(k.kind)) throw new Error(`record kind "${k.kind}" is defined twice`)
+    seen.add(k.kind)
+    for (const s of k.sort) {
+      if (!s) throw new Error(`record kind "${k.kind}" has an empty sort field`)
+    }
+    const filters: RecordKindRow["filters"] = {
+      fields: Object.fromEntries(Object.entries(k.fields).map(([f, d]) => [f, { type: d.type, ops: [...d.ops] }])),
+      sort: [...k.sort],
+    }
+    if (k.omitWhenHidden && k.omitWhenHidden.length > 0) {
+      for (const o of k.omitWhenHidden) {
+        if (!k.moneyColumns.includes(o)) throw new Error(`record kind "${k.kind}": omit_when_hidden column "${o}" is not a money column`)
+      }
+      filters.omit_when_hidden = [...k.omitWhenHidden]
+    }
+    return { kind: k.kind, money_columns: [...k.moneyColumns], filters }
+  })
+}
+
+/** The database-side facts only: what the seed migration writes. The version constant hashes exactly this. */
+function dbShape(functions: readonly LinkFunctionRow[], kinds: readonly RecordKindRow[]) {
+  return {
+    functions: functions.map((f) => ({
+      function_id: f.function_id, product: f.product, kind: f.kind, link_level: f.link_level, money_sensitive: f.money_sensitive,
+      min_role_rank: f.min_role_rank, excluded_reason: f.excluded_reason, text_params: f.text_params,
+    })),
+    kinds: kinds.map((k) => ({ kind: k.kind, money_columns: k.money_columns, filters: k.filters })),
+  }
+}
+
+export function registryVersion(functions: readonly LinkFunctionRow[], kinds: readonly RecordKindRow[]): string {
+  return createHash("sha256").update(JSON.stringify(dbShape(functions, kinds)), "utf8").digest("hex")
+}
+
+const json = (x: unknown) => `${JSON.stringify(x, null, 2)}\n`
+export const renderFunctionsJson = (rows: readonly LinkFunctionRow[]) => json(rows)
+export const renderKindsJson = (rows: readonly RecordKindRow[]) => json(rows)
+
+const q = (s: string) => `'${s.replace(/'/g, "''")}'`
+const qTextArray = (xs: readonly string[]) => (xs.length === 0 ? "'{}'::text[]" : `ARRAY[${xs.map(q).join(", ")}]::text[]`)
+
+/** The statements between the two markers of the seed migration. */
+export function renderSeedBlock(functions: readonly LinkFunctionRow[], kinds: readonly RecordKindRow[]): string {
+  const fnValues = functions
+    .map(
+      (f) =>
+        `  (${q(f.function_id)}, ${q(f.product)}, ${q(f.kind)}, ${f.link_level === null ? "NULL" : f.link_level}, ${f.money_sensitive}, ${f.min_role_rank}, ` +
+        `${f.excluded_reason === null ? "NULL" : q(f.excluded_reason)}, ${qTextArray(f.text_params)})`,
+    )
+    .join(",\n")
+  const kindValues = kinds
+    .map((k) => `  (${q(k.kind)}, ${qTextArray(k.money_columns)}, ${q(JSON.stringify(k.filters))}::jsonb)`)
+    .join(",\n")
+  const fnIds = functions.map((f) => q(f.function_id)).join(", ")
+  const kindIds = kinds.map((k) => q(k.kind)).join(", ")
+  return [
+    BEGIN_MARK,
+    `-- registry version ${registryVersion(functions, kinds)}`,
+    `DELETE FROM platform.ai_work_link_functions WHERE function_id <> ALL (ARRAY[${fnIds}]::text[]);`,
+    `INSERT INTO platform.ai_work_link_functions (function_id, product, kind, link_level, money_sensitive, min_role_rank, excluded_reason, text_params) VALUES`,
+    `${fnValues}`,
+    `ON CONFLICT (function_id) DO UPDATE SET`,
+    `  product = EXCLUDED.product, kind = EXCLUDED.kind, link_level = EXCLUDED.link_level, money_sensitive = EXCLUDED.money_sensitive,`,
+    `  min_role_rank = EXCLUDED.min_role_rank, excluded_reason = EXCLUDED.excluded_reason, text_params = EXCLUDED.text_params;`,
+    ``,
+    `DELETE FROM platform.ai_work_link_record_kinds WHERE kind <> ALL (ARRAY[${kindIds}]::text[]);`,
+    `INSERT INTO platform.ai_work_link_record_kinds (kind, money_columns, filters) VALUES`,
+    `${kindValues}`,
+    `ON CONFLICT (kind) DO UPDATE SET money_columns = EXCLUDED.money_columns, filters = EXCLUDED.filters;`,
+    ``,
+    `CREATE OR REPLACE FUNCTION public.ai_work_link__registry_version()`,
+    `RETURNS text`,
+    `LANGUAGE sql IMMUTABLE`,
+    `SET search_path = pg_catalog, pg_temp`,
+    `AS $fn$ SELECT '${registryVersion(functions, kinds)}'::text $fn$;`,
+    ``,
+    `REVOKE ALL ON FUNCTION public.ai_work_link__registry_version() FROM PUBLIC, anon, authenticated, app_runtime;`,
+    `GRANT EXECUTE ON FUNCTION public.ai_work_link__registry_version() TO service_role;`,
+    END_MARK,
+  ].join("\n")
+}
+
+/** The text between the markers (markers included), or null when the file has no complete pair. */
+export function extractBlock(fileText: string): string | null {
+  const a = fileText.indexOf(BEGIN_MARK)
+  const b = fileText.indexOf(END_MARK, a + 1)
+  if (a === -1 || b === -1) return null
+  return fileText.slice(a, b + END_MARK.length)
+}
+
+export function spliceBlock(fileText: string, block: string): string {
+  const old = extractBlock(fileText)
+  if (old === null) throw new Error(`${CURRENT_SEED_MIGRATION} has no complete BEGIN/END GENERATED marker pair`)
+  return fileText.replace(old, () => block)
+}
+
+export type Io = {
+  root: string
+  exists: (rel: string) => boolean
+  read: (rel: string) => string
+  write: (rel: string, text: string) => void
+  log: (line: string) => void
+}
+
+export const fsIo = (root: string): Io => ({
+  root,
+  exists: (rel) => existsSync(path.join(root, rel)),
+  read: (rel) => readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n"),
+  write: (rel, text) => {
+    mkdirSync(path.dirname(path.join(root, rel)), { recursive: true })
+    writeFileSync(path.join(root, rel), text, { encoding: "utf8" })
+  },
+  log: (line) => console.log(line),
+})
+
+/** What the three outputs should hold, given the registry `specs`. */
+export function expectedOutputs(specs: readonly FunctionSpec[] = ALL_FUNCTION_SPECS) {
+  const functions = buildFunctionRows(specs)
+  const kinds = buildKindRows()
+  return { functions, kinds, functionsJson: renderFunctionsJson(functions), kindsJson: renderKindsJson(kinds), seedBlock: renderSeedBlock(functions, kinds) }
+}
+
+/** The names of the outputs that differ from what the registry generates now (empty = up to date). */
+export function staleOutputs(io: Io, specs: readonly FunctionSpec[] = ALL_FUNCTION_SPECS): string[] {
+  const want = expectedOutputs(specs)
+  const stale: string[] = []
+  if (!io.exists(FUNCTIONS_JSON) || io.read(FUNCTIONS_JSON) !== want.functionsJson) stale.push(FUNCTIONS_JSON)
+  if (!io.exists(KINDS_JSON) || io.read(KINDS_JSON) !== want.kindsJson) stale.push(KINDS_JSON)
+  if (!io.exists(CURRENT_SEED_MIGRATION) || extractBlock(io.read(CURRENT_SEED_MIGRATION)) !== want.seedBlock) stale.push(CURRENT_SEED_MIGRATION)
+  return stale
+}
+
+export function main(argv: readonly string[], io: Io, specs: readonly FunctionSpec[] = ALL_FUNCTION_SPECS): number {
+  const check = argv.includes("--check")
+  const listUnreviewed = argv.includes("--unreviewed")
+  const unknown = argv.filter((a) => a !== "--check" && a !== "--unreviewed")
+  if (unknown.length > 0 || (check && listUnreviewed)) {
+    io.log(`usage: bun scripts/gen-ai-link-registry.ts [--check | --unreviewed] (unknown or combined argument ${unknown[0] ?? "--check --unreviewed"})`)
+    return 2
+  }
+  if (listUnreviewed) {
+    const ids = unreviewedFunctionIds(specs)
+    io.log(`${ids.length} registry function(s) are not reviewed for links (on no link): ${ids.join(", ") || "none"}`)
+    return 0
+  }
+  if (check) {
+    const stale = staleOutputs(io, specs)
+    if (stale.length === 0) {
+      io.log("ai-link registry up to date")
+      return 0
+    }
+    for (const s of stale) io.log(`ai-link registry is stale: ${s} (run: bun scripts/gen-ai-link-registry.ts)`)
+    return 1
+  }
+  const want = expectedOutputs(specs)
+  io.write(FUNCTIONS_JSON, want.functionsJson)
+  io.write(KINDS_JSON, want.kindsJson)
+  if (!io.exists(CURRENT_SEED_MIGRATION)) {
+    io.log(`cannot write the seed block: ${CURRENT_SEED_MIGRATION} does not exist (it holds the header and the markers)`)
+    return 2
+  }
+  io.write(CURRENT_SEED_MIGRATION, spliceBlock(io.read(CURRENT_SEED_MIGRATION), want.seedBlock))
+  const onLinks = want.functions.filter((f) => f.link_level !== null).length
+  io.log(`wrote ${want.functions.length} functions (${onLinks} on links) and ${want.kinds.length} record kinds; ${unreviewedFunctionIds(specs).length} registry functions are not reviewed for links`)
+  return 0
+}
+
+if (import.meta.main) {
+  process.exitCode = main(process.argv.slice(2), fsIo(fileURLToPath(new URL("..", import.meta.url))))
+}

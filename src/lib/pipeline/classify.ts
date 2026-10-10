@@ -26,7 +26,13 @@ export type SegmentVerdict = "task" | "chat" | "gap";
 // -- see src/lib/pipeline/reuse-cache.ts's own header for the full
 // argument). Purely additive: no exhaustive switch anywhere in this repo
 // depends on this union being closed (verified by grep before adding this).
-export type ResolutionSource = "phrase_map" | "structural" | "last_action" | "level1" | "reuse_cache" | "phrase_fuzzy";
+//
+// BUILD-002 WP-09a (spec 9.7 C-1) -- "external_ai" added: the function and its
+// parameters were chosen by the caller's own AI and arrived through an AI work
+// link. The internal pipeline ran no model for it (Level 1 is off on a link),
+// but a model DID choose the write, and pipeline_tasks.executor exists to say
+// so; executorFor() maps it to "ai". Additive, same as reuse_cache above.
+export type ResolutionSource = "phrase_map" | "structural" | "last_action" | "level1" | "reuse_cache" | "phrase_fuzzy" | "external_ai";
 
 /** What Level 0 or Level 1 resolved this segment to. Null when neither could. */
 export type ResolvedFunction = {

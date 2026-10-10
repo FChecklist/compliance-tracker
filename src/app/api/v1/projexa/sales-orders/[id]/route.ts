@@ -22,7 +22,7 @@
 // same single source of truth going forward instead of two independently
 // maintained string literals.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
 import { getSalesOrder, updateSalesOrderStatus, ServiceError } from "@/lib/services/erp-selling-service"
 
@@ -64,7 +64,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const roleErr = requirePermission(ctx, "erp.sales_orders.update_status")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const { id } = await params

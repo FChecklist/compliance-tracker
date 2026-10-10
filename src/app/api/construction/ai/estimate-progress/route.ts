@@ -5,6 +5,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { createClient } from "@supabase/supabase-js"
 import { estimateProgressFromPhoto, ServiceError } from "@/lib/services/construction-ai-service"
+import { assertProjexaInternalAi } from "@/lib/projexa-internal-ai"
 
 const BUCKET = "compliance-documents"
 
@@ -26,6 +27,8 @@ export async function POST(request: Request) {
   if (roleCheck) return roleCheck
 
   try {
+    // lf-b3-ai-off: refuse before reading the body or downloading any image -- off, the storage egress buys nothing.
+    assertProjexaInternalAi("construction.estimate_progress_from_photo")
     const body = await request.json()
     if (!body.documentId) return NextResponse.json({ error: "documentId is required" }, { status: 400 })
     if (!body.activityName) return NextResponse.json({ error: "activityName is required" }, { status: 400 })

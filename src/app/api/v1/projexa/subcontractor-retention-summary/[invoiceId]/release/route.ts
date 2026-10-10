@@ -6,7 +6,7 @@
 // releaseSubcontractorRetention's own header comment in
 // erp-invoicing-service.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { releaseSubcontractorRetention, ServiceError } from "@/lib/services/erp-invoicing-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ invoiceId: string }> }) {
@@ -17,11 +17,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const { invoiceId } = await params
     const body = await request.json()
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: acting.person.id, ...acting.actor }
     const updated = await releaseSubcontractorRetention(actorCtx, invoiceId, { amount: Number(body.amount) })
     return NextResponse.json(updated)
   } catch (error) {

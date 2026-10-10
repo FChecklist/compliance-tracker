@@ -19,7 +19,7 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects, constructionChangeOrders,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
+import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
 // R67 F-27 (R-243): a BOQ write moves contract value, earned value and
@@ -45,6 +45,16 @@ import { computeBoqLineMoneyView, rollUpRootLines, computeCostCoverage, validate
 // of what confirmation means (the same X-27 single-producer discipline this
 // file already applies to the money math itself).
 import { listBaselineVersionsWithDb } from "./boq-baseline-service"
+// PROJEXA-BUILD-001 U-27: the pure half of the (boq_id, id) keyset pagination below (flag, cursor codec, page size,
+// revision chain). See that file's header for why it is a separate module with no imports.
+import {
+  decodeBoqLineCursor,
+  encodeBoqLineCursor,
+  parseBoqLinePageLimit,
+  resolveRevisionChain,
+  BOQ_LINE_PAGE_MAX_LIMIT,
+  type BoqLineCursor,
+} from "@/lib/boq-line-keyset"
 export { ServiceError }
 
 export type BoqContext = { orgId: string; userId: string }
@@ -362,7 +372,7 @@ export function validateLineItemInputs(items: BoqLineItemInput[]): void {
  * can now trust a 201 absolutely: either every line item the caller sent is
  * stored, or there is no BOQ and an error says how many went missing.
  */
-async function assertLineItemsPersisted(db: TenantDb, boqId: string, expected: number): Promise<void> {
+export async function assertLineItemsPersisted(db: TenantDb, boqId: string, expected: number): Promise<void> {
   const stored = await db.query.constructionBoqLineItems.findMany({
     where: eq(constructionBoqLineItems.boqId, boqId),
     columns: { id: true },
@@ -391,7 +401,7 @@ export function normalizeCategory(category: string | null | undefined): string |
   return trimmed === "" ? null : trimmed
 }
 
-async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
+export async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
   if (items.length === 0) return
   const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
 
@@ -651,6 +661,8 @@ export function parseBoqInclude(include: string | null | undefined): {
   lineItems: boolean
   variation: boolean
   compare: boolean
+  /** PROJEXA G-12: headers only -- the caller does not want any line item (see the v1 BOQ list route). */
+  headers: boolean
 } {
   const parts = new Set(
     (include ?? "")
@@ -658,7 +670,12 @@ export function parseBoqInclude(include: string | null | undefined): {
       .map((s) => s.trim())
       .filter(Boolean)
   )
-  return { lineItems: parts.has("lineItems"), variation: parts.has("variation"), compare: parts.has("compare") }
+  return {
+    lineItems: parts.has("lineItems"),
+    variation: parts.has("variation"),
+    compare: parts.has("compare"),
+    headers: parts.has("headers"),
+  }
 }
 
 type RevisionSummary = BoqRevisionVariation & BoqRevisionCompare
@@ -680,7 +697,7 @@ async function loadRevisionSummaries(
   orgId: string,
   projectId: string
 ): Promise<Map<string, RevisionSummary>> {
-  const rows = (await db.execute(sql`
+  const raw = await db.execute(sql`
     WITH revision AS (
       SELECT id, parent_boq_id
       FROM compliance.construction_boqs
@@ -710,7 +727,10 @@ async function loadRevisionSummaries(
     FROM revision r
     LEFT JOIN totals c ON c.boq_id = r.id
     LEFT JOIN totals p ON p.boq_id = r.parent_boq_id
-  `)) as {
+  `)
+  // postgres.js (production) returns the rows as the array itself; PGlite's drizzle driver (the tests) wraps them in
+  // { rows }. Accept both so the same statement is testable on real SQL.
+  const rows = (Array.isArray(raw) ? raw : (raw as { rows: unknown[] }).rows) as {
     boq_id: string
     total: number | null
     line_count: number | null
@@ -750,6 +770,25 @@ const EMPTY_REVISION_SUMMARY: RevisionSummary = {
   deltaPct: null,
 }
 
+/**
+ * A project's BOQ headers in the one list order every "latest BOQ" reader relies on. Shared by listBoqs() and
+ * listBoqsPage() (PROJEXA-BUILD-001 U-27) so the two can never order them, and so resolve "current", differently.
+ */
+function findProjectBoqHeadersWithDb(db: TenantDb, orgId: string, projectId: string) {
+  return db.query.constructionBoqs.findMany({
+    where: and(eq(constructionBoqs.orgId, orgId), eq(constructionBoqs.projectId, projectId)),
+    // Point 177/E-116 fix: version DESC alone has no stable tiebreaker when a
+    // project has two or more INDEPENDENT (non-revision-chain) BOQs at the
+    // same version -- Postgres then returns them in an arbitrary physical
+    // order, so callers like work-progress/report/route.ts's
+    // `boqs.find(b => b.status !== "superseded")` silently picked whichever
+    // one the engine happened to return first, not the actual most-recent
+    // one. createdAt DESC as a secondary key makes the order deterministic
+    // and matches the intuitive meaning of "latest" when versions tie.
+    orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
+  })
+}
+
 export async function listBoqs(
   ctx: { orgId: string },
   projectId: string,
@@ -757,18 +796,7 @@ export async function listBoqs(
 ): Promise<BoqListRow[]> {
   const include = parseBoqInclude(options.include)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const boqs = await db.query.constructionBoqs.findMany({
-      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
-      // Point 177/E-116 fix: version DESC alone has no stable tiebreaker when a
-      // project has two or more INDEPENDENT (non-revision-chain) BOQs at the
-      // same version -- Postgres then returns them in an arbitrary physical
-      // order, so callers like work-progress/report/route.ts's
-      // `boqs.find(b => b.status !== "superseded")` silently picked whichever
-      // one the engine happened to return first, not the actual most-recent
-      // one. createdAt DESC as a secondary key makes the order deterministic
-      // and matches the intuitive meaning of "latest" when versions tie.
-      orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
-    })
+    const boqs = await findProjectBoqHeadersWithDb(db, ctx.orgId, projectId)
     // Every existing caller passes no options and keeps getting exactly the
     // headers it got before -- one statement, one transaction.
     if (boqs.length === 0 || (!include.lineItems && !include.variation && !include.compare)) return boqs
@@ -1087,6 +1115,183 @@ export function buildBoqListRows<B extends { id: string; parentBoqId: string | n
   }))
 }
 
+// ─── PROJEXA-BUILD-001 U-27 (BR-403, BR-404; D-11 as amended by PMD-09 and AM-088) ─────────────────────────────────
+// KEYSET PAGINATION OF BOQ LINE ITEMS ON (boq_id, id).
+//
+// THE MEASURED PROBLEM. GET /api/v1/construction/boq?projectId= calls listBoqs() with include=lineItems, which reads
+// every line item of every BOQ of the project in one statement and returns all of them. On the largest live project
+// (dd486dad, 2026-09-25) that was 5,924 BOQ headers and 10,907 line items, 7,561,948 bytes of line-item JSON, while
+// the database time was 13 to 17 ms: the cost is the response, not the query. getBoq() has the same shape for one BOQ.
+// Most of those headers are test residue (independent BOQs of 1 to 4 lines; the largest BOQ on the whole live database
+// has 153 lines), and the headers are over 1 MB on their own: the project's 6,702 headers read again later the same
+// day were 4,343,207 bytes of row JSON with no line item at all.
+//
+// WHAT listBoqsPage() RETURNS. The headers of ONE revision chain, every construction_boqs column kept on each, in
+// listBoqs() order: the selected revision and the older revisions it supersedes (plus the newer ones that supersede it
+// when an older revision is selected). Only the selected revision's header carries `lineItems`, and those are one page
+// of the keyset read below. The selected revision is `revision` when given, else the revision the cursor points into,
+// else resolveCurrentBoq() over the project's headers (approved, else submitted, else highest version: the same
+// "current" the Work Progress form, the chat and the reports already use). BOQs of the project outside that chain are
+// not in the response; `?revision=<boqId>` selects another chain.
+//
+// WHOLE-REVISION FIGURES. moneyView/costCoverage (and, with include=variation, totalVariation/totalVariationVsOriginal)
+// are sums over every line of a revision, so they come from one read of the chain's lines (bounded by the chain, never
+// by the project), computed by the same functions listBoqs() uses. Only the `lineItems` array is paged.
+//
+// ONE TRANSACTION. Every read above runs inside the single withTenantContext of the call, through the *WithDb
+// helpers, never a nested one (see listBoqs()'s own header on the five-connection pool).
+//
+// NOTHING CHANGES WITH THE FLAG OFF. listBoqs() and getBoq() send the same statements and return the same shapes as
+// before (their header read and baseline lookup moved into findProjectBoqHeadersWithDb()/loadBaselineInfoWithDb(),
+// unchanged, so the paged variants share them). Only the two v1 routes call the paged variants, and only when
+// BUILD001_BOQ_KEYSET_PAGINATION is on (read per request, src/lib/boq-line-keyset.ts); every other caller of listBoqs()
+// and getBoq() (reports, Excel round trip, scenarios, share links) keeps reading every line.
+
+/** A page request as the route receives it: both values are the raw query-string text, validated here. */
+export type BoqLinePageParams = {
+  /** The nextCursor of a previous page, unchanged. */
+  cursor?: string | null
+  /** Page size, 1 to 200, default 50. */
+  limit?: string | number | null
+}
+
+function parseBoqLinePageParams(params: BoqLinePageParams): { after: BoqLineCursor | null; limit: number } {
+  const limit = parseBoqLinePageLimit(params.limit)
+  if (limit === null) throw new ServiceError(`limit must be a whole number from 1 to ${BOQ_LINE_PAGE_MAX_LIMIT}`, 400)
+  if (params.cursor === null || params.cursor === undefined || params.cursor === "") return { after: null, limit }
+  const after = decodeBoqLineCursor(params.cursor)
+  if (!after) throw new ServiceError("cursor is not a valid BOQ line cursor", 400)
+  return { after, limit }
+}
+
+/**
+ * THE KEYSET READER (BR-403). One page of the line items of `boqIds` in (boq_id, id) byte order, strictly after
+ * `after`. It reads at most `limit + 1` rows: the extra row is never returned, it only says whether another page
+ * exists, so `hasMore` is exact and `nextCursor` is null on the last page instead of pointing at an empty one.
+ *
+ * COLLATE "C" on both the ORDER BY and the row comparison: the two must use the same order or a page boundary skips
+ * or repeats rows, and byte order is the one JavaScript and every client agree on. The cursor values are bound
+ * parameters, never spliced into the SQL text. Index note (2026-09-25, read-only catalog query): the table has
+ * idx_construction_boq_line_items_boq_id (boq_id) but no (boq_id, id) index and none in the "C" collation, so the
+ * boq_id filter is index-assisted and the id order is a sort over one BOQ's rows (153 at most today).
+ */
+export async function readBoqLineItemPageWithDb(
+  db: TenantDb,
+  boqIds: string[],
+  page: { after: BoqLineCursor | null; limit: number }
+): Promise<{ rows: BoqLineItemRow[]; nextCursor: string | null; hasMore: boolean }> {
+  if (boqIds.length === 0) return { rows: [], nextCursor: null, hasMore: false }
+  const t = constructionBoqLineItems
+  const rows = await db
+    .select()
+    .from(t)
+    .where(
+      and(
+        inArray(t.boqId, boqIds),
+        page.after
+          ? sql`(${t.boqId} COLLATE "C", ${t.id} COLLATE "C") > (${page.after.boqId}::text, ${page.after.id}::text)`
+          : undefined
+      )
+    )
+    .orderBy(sql`${t.boqId} COLLATE "C"`, sql`${t.id} COLLATE "C"`)
+    .limit(page.limit + 1)
+  const hasMore = rows.length > page.limit
+  const pageRows = hasMore ? rows.slice(0, page.limit) : rows
+  const last = pageRows[pageRows.length - 1]
+  return {
+    rows: pageRows,
+    hasMore,
+    nextCursor: hasMore && last ? encodeBoqLineCursor({ boqId: last.boqId, id: last.id }) : null,
+  }
+}
+
+export type BoqListPage = {
+  /** The selected revision chain's headers (see the section header above); only the selected one has lineItems. */
+  boqs: BoqListRow[]
+  /** The BOQ whose line items `boqs` carries a page of; null when the project has no BOQ. */
+  revision: string | null
+  limit: number
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+export type BoqListPageOptions = BoqListOptions &
+  BoqLinePageParams & {
+    /** A BOQ id of this project: page its line items instead of the current revision's. */
+    revision?: string | null
+  }
+
+/**
+ * BR-403/BR-404: the paged list behind GET /api/v1/construction/boq when BUILD001_BOQ_KEYSET_PAGINATION is on. See
+ * the section header above for what it returns and why. `include` keeps its listBoqs() meaning for `variation` and
+ * `compare`; line items are always included (one page of the selected revision).
+ */
+export async function listBoqsPage(ctx: { orgId: string }, projectId: string, options: BoqListPageOptions = {}): Promise<BoqListPage> {
+  const include = parseBoqInclude(options.include)
+  const { after, limit } = parseBoqLinePageParams(options)
+  const requested = options.revision ? options.revision : null
+  if (requested && after && after.boqId !== requested) {
+    throw new ServiceError("cursor belongs to a different revision than the one requested", 400)
+  }
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const headers = await findProjectBoqHeadersWithDb(db, ctx.orgId, projectId)
+    const selectedId = requested ?? after?.boqId ?? resolveCurrentBoq(headers)?.id ?? null
+    if (selectedId === null) return { boqs: [], revision: null, limit, nextCursor: null, hasMore: false }
+    const selected = headers.find((b) => b.id === selectedId)
+    if (!selected) {
+      // `headers` is already this organisation's and this project's: a cursor naming any other BOQ is refused here,
+      // before a single line item is read.
+      if (!requested) throw new ServiceError("cursor does not belong to a BOQ of this project", 400)
+      throw new ServiceError("BOQ not found", 404)
+    }
+
+    const chain = resolveRevisionChain(headers, selected.id)
+    const chainRows = await db.query.constructionBoqLineItems.findMany({
+      where: inArray(constructionBoqLineItems.boqId, chain.map((b) => b.id)),
+    })
+    const rawLineItemsByBoq = new Map<string, BoqLineItemRow[]>()
+    for (const row of chainRows) {
+      const list = rawLineItemsByBoq.get(row.boqId)
+      if (list) list.push(row)
+      else rawLineItemsByBoq.set(row.boqId, [row])
+    }
+    const page = await readBoqLineItemPageWithDb(db, [selected.id], { after, limit })
+
+    const summaryByBoq =
+      include.variation || include.compare
+        ? await loadRevisionSummaries(db, ctx.orgId, projectId)
+        : new Map<string, RevisionSummary>()
+    const chainVariationByBoq = include.variation
+      ? computeChainVariation(chain, rawLineItemsByBoq)
+      : new Map<string, ChainVariation>()
+
+    const boqs: BoqListRow[] = chain.map((boq) => {
+      const summary = summaryByBoq.get(boq.id) ?? EMPTY_REVISION_SUMMARY
+      return {
+        ...boq,
+        ...(boq.id === selected.id ? { lineItems: page.rows.map(withComputedRate) } : {}),
+        moneyView: rollUpRootLines(rawLineItemsByBoq.get(boq.id) ?? []),
+        costCoverage: computeCostCoverage(rawLineItemsByBoq.get(boq.id) ?? []),
+        ...(include.variation
+          ? { variationVsPrior: summary.variationVsPrior, lineDelta: summary.lineDelta }
+          : {}),
+        ...(chainVariationByBoq.get(boq.id) ?? {}),
+        ...(include.compare
+          ? {
+              compare: {
+                lineCount: summary.lineCount,
+                total: summary.total,
+                deltaAmount: summary.deltaAmount,
+                deltaPct: summary.deltaPct,
+              },
+            }
+          : {}),
+      }
+    })
+    return { boqs, revision: selected.id, limit, nextCursor: page.nextCursor, hasMore: page.hasMore }
+  })
+}
 
 export async function getBoq(ctx: { orgId: string }, boqId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -1105,41 +1310,134 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
       moneyView: rollUpRootLines(lineItems),
       costCoverage: computeCostCoverage(lineItems),
       // R85 Addendum 3 v4, Phase 2 (gate 2-02): lets the grid pre-emptively
-      // disable/explain a locked contract-side cell instead of only
-      // discovering the lock reactively from a 409 on the first edit
-      // attempt. "Confirmed" is Phase 3/E2's own event (>=1 boq_baseline
-      // row) -- reusing listBaselineVersionsWithDb rather than re-deriving
-      // it a second way (X-27 single-producer discipline extended to "is
-      // this BOQ confirmed", the same reasoning updateLineItemMoneyFields
-      // already applies to the lock check itself). Not cost data -- safe on
-      // both the internal and the `?view=customer` branch alike.
-      //
-      // WRAPPED, DELIBERATELY: a real regression was found and fixed here --
-      // dozens of this codebase's own EXISTING unit tests construct a
-      // reduced fake `db` covering only the tables their own fixture cares
-      // about (an established, widespread convention in this repo, not a
-      // one-off), and getBoq() is called from many of them with no
-      // `query.boqBaseline` on that fake at all. An unguarded call crashed
-      // the WHOLE response (a TypeError, not a graceful degrade) for every
-      // one of those pre-existing tests -- confirmed live via a real CI run
-      // on this PR, not assumed. This is genuinely supplementary UI
-      // metadata, not core to the response, so a lookup failure here
-      // degrades to "no baseline info available" rather than breaking
-      // getBoq() for every caller that doesn't happen to care about it.
-      ...(await (async () => {
-        try {
-          const baselines = await listBaselineVersionsWithDb(db, boqId)
-          const latest = baselines[baselines.length - 1]
-          return {
-            hasConfirmedBaseline: baselines.length > 0,
-            latestBaselineVersion: latest?.version ?? null,
-            latestBaselineConfirmedAt: latest?.confirmedAt ?? null,
-          }
-        } catch {
-          return { hasConfirmedBaseline: false, latestBaselineVersion: null, latestBaselineConfirmedAt: null }
-        }
-      })()),
+      // disable/explain a locked contract-side cell. See
+      // loadBaselineInfoWithDb() below for why, and why it is wrapped.
+      ...(await loadBaselineInfoWithDb(db, boqId)),
     }
+  })
+}
+
+/**
+ * R85 Addendum 3 v4, Phase 2 (gate 2-02): lets the grid pre-emptively
+ * disable/explain a locked contract-side cell instead of only
+ * discovering the lock reactively from a 409 on the first edit
+ * attempt. "Confirmed" is Phase 3/E2's own event (>=1 boq_baseline
+ * row) -- reusing listBaselineVersionsWithDb rather than re-deriving
+ * it a second way (X-27 single-producer discipline extended to "is
+ * this BOQ confirmed", the same reasoning updateLineItemMoneyFields
+ * already applies to the lock check itself). Not cost data -- safe on
+ * both the internal and the `?view=customer` branch alike.
+ *
+ * WRAPPED, DELIBERATELY: a real regression was found and fixed here --
+ * dozens of this codebase's own EXISTING unit tests construct a
+ * reduced fake `db` covering only the tables their own fixture cares
+ * about (an established, widespread convention in this repo, not a
+ * one-off), and getBoq() is called from many of them with no
+ * `query.boqBaseline` on that fake at all. An unguarded call crashed
+ * the WHOLE response (a TypeError, not a graceful degrade) for every
+ * one of those pre-existing tests -- confirmed live via a real CI run
+ * on this PR, not assumed. This is genuinely supplementary UI
+ * metadata, not core to the response, so a lookup failure here
+ * degrades to "no baseline info available" rather than breaking
+ * getBoq() for every caller that doesn't happen to care about it.
+ *
+ * PROJEXA-BUILD-001 U-27: moved out of getBoq() unchanged so getBoqPage() carries the same three fields.
+ */
+async function loadBaselineInfoWithDb(db: TenantDb, boqId: string) {
+  try {
+    const baselines = await listBaselineVersionsWithDb(db, boqId)
+    const latest = baselines[baselines.length - 1]
+    return {
+      hasConfirmedBaseline: baselines.length > 0,
+      latestBaselineVersion: latest?.version ?? null,
+      latestBaselineConfirmedAt: latest?.confirmedAt ?? null,
+    }
+  } catch {
+    return { hasConfirmedBaseline: false, latestBaselineVersion: null, latestBaselineConfirmedAt: null }
+  }
+}
+
+/**
+ * PROJEXA-BUILD-001 U-27 (BR-403): getBoq() with ONE PAGE of line items, for GET /api/v1/construction/boq/[id] when
+ * BUILD001_BOQ_KEYSET_PAGINATION is on. Same header, same whole-BOQ moneyView/costCoverage (computed from every line,
+ * so a total never shrinks to one page), same baseline fields; `lineItems` is the page and `limit`/`nextCursor`/
+ * `hasMore` say where it sits. A cursor minted for another BOQ is refused (400) before the transaction opens.
+ */
+export async function getBoqPage(ctx: { orgId: string }, boqId: string, params: BoqLinePageParams = {}) {
+  const { after, limit } = parseBoqLinePageParams(params)
+  if (after && after.boqId !== boqId) throw new ServiceError("cursor belongs to a different BOQ", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("BOQ not found", 404)
+    const allLines = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
+    const page = await readBoqLineItemPageWithDb(db, [boqId], { after, limit })
+    return {
+      ...boq,
+      lineItems: page.rows.map(withComputedRate),
+      moneyView: rollUpRootLines(allLines),
+      costCoverage: computeCostCoverage(allLines),
+      ...(await loadBaselineInfoWithDb(db, boqId)),
+      limit,
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
+    }
+  })
+}
+
+// ─── PROJEXA-BUILD-001 U-28 part 2 (BR-407): ONE PAGE OF ONE BOQ OF ONE PROJECT, FOR THE PIPELINE ──────────────────
+// The registry read get_boq_line_items (src/lib/pipeline/executor.ts) wraps this, not listBoqsPage() or getBoqPage():
+// both of those also read every line of the revision for their whole-revision money figures (listBoqsPage() every line
+// of the chain), and getBoqPage() checks the organisation only, not the project. This one checks that the BOQ is one
+// of the project's and then reads one page of it through readBoqLineItemPageWithDb(), all in ONE transaction, so at
+// most limit + 1 line rows leave the database per call. It never reads BUILD001_BOQ_KEYSET_PAGINATION: the flag
+// decides the response shape of the two v1 routes, and this read always pages.
+
+export type ProjectBoqLinePage = {
+  /** The BOQ the page is from; null when the project has no BOQ. */
+  boqId: string | null
+  lineItems: ReturnType<typeof withComputedRate>[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+/**
+ * One page of the line items of one BOQ of `projectId` in `ctx.orgId`, in (boq_id, id) byte order. The BOQ is `boqId`
+ * when given, else the BOQ the cursor points into, else the project's current BOQ (resolveCurrentBoq() over the
+ * headers in listBoqs() order, as listBoqsPage() resolves it).
+ *
+ * Null when `boqId` is not a BOQ of this organisation's project; no line item has been read. A cursor that does not
+ * decode, that names a BOQ other than `boqId`, or that points into a BOQ outside this project is a 400, and no line
+ * item is read either. `limit` follows the routes' rule (1 to 200, default 50); a caller with a smaller ceiling applies
+ * it before calling.
+ */
+export async function getProjectBoqLinePage(
+  ctx: { orgId: string },
+  projectId: string,
+  options: BoqLinePageParams & { boqId?: string | null } = {}
+): Promise<ProjectBoqLinePage | null> {
+  const { after, limit } = parseBoqLinePageParams(options)
+  const requested = options.boqId ? options.boqId : null
+  if (requested && after && after.boqId !== requested) throw new ServiceError("cursor belongs to a different BOQ", 400)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    let selectedId = requested ?? after?.boqId ?? null
+    if (selectedId === null) {
+      // First page with no BOQ named: the project's current BOQ, by the one shared list order and rule.
+      selectedId = resolveCurrentBoq(await findProjectBoqHeadersWithDb(db, ctx.orgId, projectId))?.id ?? null
+      if (selectedId === null) return { boqId: null, lineItems: [], nextCursor: null, hasMore: false }
+    } else {
+      // A named BOQ (by boqId or by the cursor) is read only when it is one of this organisation's and this project's.
+      const own = await db.query.constructionBoqs.findFirst({
+        where: and(eq(constructionBoqs.id, selectedId), eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
+        columns: { id: true },
+      })
+      if (!own) {
+        if (!requested) throw new ServiceError("cursor does not belong to a BOQ of this project", 400)
+        return null
+      }
+    }
+    const page = await readBoqLineItemPageWithDb(db, [selectedId], { after, limit })
+    return { boqId: selectedId, lineItems: page.rows.map(withComputedRate), nextCursor: page.nextCursor, hasMore: page.hasMore }
   })
 }
 
@@ -1237,6 +1535,12 @@ export async function updateLineItemBudget(
     materialAmount?: number | null
     manpowerAmount?: number | null
     category?: string | null
+    /**
+     * G-14 (two laptops edit the same field offline): the category the caller SAW when it made its edit. Absent = no check (every older
+     * caller). Present and different from what is stored now = the edit is refused with EditConflictError (409) carrying what is stored,
+     * so the person can choose, instead of the later write silently replacing the earlier one.
+     */
+    expectedCategory?: string | null
   }
 ) {
   if (input.budgetPercentage !== undefined && (input.budgetPercentage < 0 || input.budgetPercentage > 100)) {
@@ -1258,6 +1562,9 @@ export async function updateLineItemBudget(
     if (!existing) throw new ServiceError("Line item not found", 404)
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, existing.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("Line item not found", 404)
+    if (input.expectedCategory !== undefined && normalizeCategory(existing.category) !== normalizeCategory(input.expectedCategory)) {
+      throw new EditConflictError({ category: normalizeCategory(existing.category) })
+    }
 
     const setValues = {
       ...(input.budgetPercentage !== undefined ? { budgetPercentage: String(input.budgetPercentage) } : {}),
@@ -1289,10 +1596,25 @@ export async function updateLineItemBudget(
       return withComputedRate(existing)
     }
 
+    // The compare-and-set is repeated IN the update, so another writer between the read above and this write cannot slip through.
+    const expected = input.expectedCategory === undefined ? undefined : normalizeCategory(input.expectedCategory)
+    const sameAsExpected = expected === undefined ? undefined : expected === null ? isNull(constructionBoqLineItems.category) : eq(constructionBoqLineItems.category, expected)
     const [updated] = await db.update(constructionBoqLineItems).set(setValues)
-      .where(eq(constructionBoqLineItems.id, lineItemId)).returning()
+      .where(and(eq(constructionBoqLineItems.id, lineItemId), sameAsExpected)).returning()
+    if (!updated) {
+      const now = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
+      throw new EditConflictError({ category: normalizeCategory(now?.category) })
+    }
     return withComputedRate(updated)
   })
+}
+
+/** 409: the field was changed by someone else since the caller read it. `current` is what is stored now, for the person to choose from. */
+export class EditConflictError extends ServiceError {
+  constructor(public readonly current: { category: string | null }) {
+    super("This line was changed by someone else since you started editing it.", 409)
+    this.code = "EDIT_CONFLICT"
+  }
 }
 
 // R85 Addendum 3 v4, Phase 2 (gates 2-01/2-02/2-04) -- the grid's own write
@@ -1358,7 +1680,60 @@ export async function updateLineItemMoneyFields(
   })
 }
 
-export async function createBoq(ctx: BoqContext, input: BoqInput) {
+/**
+ * lf-b5-ai-crud (owner order 2026-10-02, R7) -- a line's DESCRIPTION and UNIT, which nothing could edit (updateLineItemMoneyFields edits
+ * the money side only, and quantity, rate and amount are never touched here). The conservative rule, chosen here and written into
+ * ai-os/AI_CRUD_COVERAGE.md for the owner to veto: only while the BOQ is a DRAFT and has never been confirmed (no baseline version). A
+ * submitted, approved or superseded BOQ, or one whose contract side was confirmed, is real scope that the client may have seen, and is
+ * changed by a revision (create_boq_revision), never by an edit in place (409). Text is trimmed: a description up to 2,000 characters,
+ * a unit up to 40; neither may be blank (both columns are NOT NULL).
+ */
+export async function updateLineItemDetails(
+  ctx: { orgId: string },
+  lineItemId: string,
+  input: { description?: string; unit?: string }
+) {
+  const set: { description?: string; unit?: string } = {}
+  if (input.description !== undefined) {
+    const d = input.description.trim()
+    if (!d) throw new ServiceError("description cannot be empty", 400)
+    if (d.length > 2000) throw new ServiceError("description must be 2,000 characters or fewer", 400)
+    set.description = d
+  }
+  if (input.unit !== undefined) {
+    const u = input.unit.trim()
+    if (!u) throw new ServiceError("unit cannot be empty", 400)
+    if (u.length > 40) throw new ServiceError("unit must be 40 characters or fewer", 400)
+    set.unit = u
+  }
+  if (Object.keys(set).length === 0) throw new ServiceError("Nothing to change", 400)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
+    if (!existing) throw new ServiceError("Line item not found", 404)
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, existing.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("Line item not found", 404)
+    if (boq.status !== "draft") throw new ServiceError(`A line of a ${boq.status} BOQ cannot be edited -- make a revision instead`, 409)
+    const baselines = await listBaselineVersionsWithDb(db, boq.id)
+    if (baselines.length > 0) throw new ServiceError("This BOQ was confirmed -- its lines cannot be edited in place; make a revision instead", 409)
+    const [updated] = await db.update(constructionBoqLineItems).set(set).where(eq(constructionBoqLineItems.id, lineItemId)).returning()
+    return withComputedRate(updated)
+  })
+}
+
+/**
+ * BUILD-002 WP-04: two optional steps that run INSIDE createBoq's own transaction, so a caller that
+ * needs to record something with the BOQ (a retry key) commits or rolls back with it. Neither is
+ * used by the routes.
+ */
+export type CreateBoqHooks = {
+  /** Runs first, after the project is known. A non-null BOQ id short-circuits: that BOQ is returned and nothing is written. */
+  findExisting?: (db: TenantDb) => Promise<string | null>
+  /** Runs last, with the new BOQ's id. A throw rolls the BOQ back with it. */
+  afterCreate?: (db: TenantDb, boqId: string) => Promise<void>
+}
+
+export async function createBoq(ctx: BoqContext, input: BoqInput, hooks?: CreateBoqHooks) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
   if (!input.projectId) throw new ServiceError("projectId is required", 400)
@@ -1370,6 +1745,9 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
     const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
     if (!project) throw new ServiceError("Project not found", 404)
 
+    const existingId = hooks?.findExisting ? await hooks.findExisting(db) : null
+    if (existingId) return getBoqRow(db, existingId)
+
     const [boq] = await db.insert(constructionBoqs).values({
       orgId: ctx.orgId, projectId: input.projectId, version: 1, title, createdById: ctx.userId,
     }).returning()
@@ -1377,6 +1755,7 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
     const lineItems = input.lineItems || []
     await insertLineItems(db, ctx.orgId, boq.id, lineItems)
     await assertLineItemsPersisted(db, boq.id, lineItems.length)
+    if (hooks?.afterCreate) await hooks.afterCreate(db, boq.id)
     return getBoqRow(db, boq.id)
   }).then((row) => {
     bustProjectDashboardCache(ctx.orgId, row.projectId)

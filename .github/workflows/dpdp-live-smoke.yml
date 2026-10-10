@@ -1,0 +1,40 @@
+# WO-DPDP-015: the deployed DPDP site checked from the outside, every day and after every deploy of dpdp-app.
+# No credentials, no database, no Vercel: GET requests against veridian-aios.com, dpdp.veridian-aios.com, the legacy app.veridian-aios.com and the two public Edge Function
+# addresses (plus one POST that must be refused). A red run is the alarm -- GitHub emails the repository's watchers.
+# The same script runs by hand: node dpdp-app/scripts/live-smoke.mjs
+name: DPDP live smoke
+
+on:
+  schedule:
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["dpdp-app deploy (Cloudflare Pages only)"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: dpdp-app/scripts/live-smoke.mjs against the deployed site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Give a fresh Cloudflare deploy a minute to be served everywhere
+        if: ${{ github.event_name == 'workflow_run' }}
+        run: sleep 60
+      - name: node dpdp-app/scripts/live-smoke.mjs (dpdp.veridian-aios.com, the signed-in app host)
+        env:
+          DPDP_PEERS: https://veridian-aios.com,https://app.veridian-aios.com
+        run: node dpdp-app/scripts/live-smoke.mjs https://dpdp.veridian-aios.com
+      # The legacy app host. Links in emails already sent, AI work links and copy pages still point at it, so it must keep serving the same files.
+      - name: node dpdp-app/scripts/live-smoke.mjs (app.veridian-aios.com, legacy host kept working)
+        run: node dpdp-app/scripts/live-smoke.mjs https://app.veridian-aios.com
+      # veridian-aios.com itself is served by the same Cloudflare Pages project (moved off Vercel 2026-09-28); check it too.
+      - name: node dpdp-app/scripts/live-smoke.mjs (veridian-aios.com)
+        run: node dpdp-app/scripts/live-smoke.mjs https://veridian-aios.com

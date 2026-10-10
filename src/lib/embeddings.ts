@@ -1,6 +1,7 @@
 import postgres from "postgres";
 import { createHash } from "crypto";
 import { getConnectionString } from "@/lib/db/connection-string";
+import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai";
 
 // Raw SQL client for vector operations (Drizzle doesn't support vector type)
 let rawClient: ReturnType<typeof postgres> | null = null;
@@ -151,6 +152,12 @@ export async function generateEmbeddingUncached(
   text: string,
   apiKey?: string
 ): Promise<{ vector: number[]; isReal: boolean; model: string }> {
+  // lf-b3-ai-off: a real embedding is a paid model call. With PROJEXA's internal AI off (projexa-internal-ai.ts) no provider is asked:
+  // the answer is the same deterministic hash pseudo-vector this function already falls back to when no provider is configured, so
+  // every caller degrades exactly as it always did in that case -- findSimilar() compares only against stored vectors of the same
+  // model label (so it finds hash-labelled rows, or nothing, never a wrong match), and storeEmbedding()/storeChunkEmbedding() refuse
+  // to persist a hash vector (D-1). Search degrades; nothing fails that did not already fail without a key. Silent: no warning per call.
+  if (!projexaInternalAiEnabled()) return { vector: hashToVector(text, 1536), isReal: false, model: HASH_PSEUDO_VECTOR_MODEL };
   const openRouterResult = await tryOpenRouterEmbedding(text);
   if (openRouterResult) return { vector: openRouterResult, isReal: true, model: OPENROUTER_EMBEDDING_MODEL };
 
@@ -204,6 +211,8 @@ export async function generateEmbeddingsBatchUncached(
   apiKey?: string
 ): Promise<{ vector: number[]; isReal: boolean; model: string }[]> {
   if (texts.length === 0) return [];
+  // lf-b3-ai-off: as generateEmbeddingUncached above -- off, every text gets the hash pseudo-vector and no provider is asked.
+  if (!projexaInternalAiEnabled()) return texts.map((text) => ({ vector: hashToVector(text, 1536), isReal: false, model: HASH_PSEUDO_VECTOR_MODEL }));
 
   const openRouterResult = await tryOpenRouterEmbeddingBatch(texts);
   if (openRouterResult) return openRouterResult.map((vector) => ({ vector, isReal: true, model: OPENROUTER_EMBEDDING_MODEL }));

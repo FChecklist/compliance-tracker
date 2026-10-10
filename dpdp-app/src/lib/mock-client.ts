@@ -1,0 +1,1248 @@
+import type { AuthListener, AuthSession, DpdpClient, RpcResult } from "./client"
+import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
+import { NOTE_MAX, charCount, dueBounds } from "@/lib/dpdp-onepage/job-actions"
+import { recallEdition } from "./landing"
+import type {
+  AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire,
+  OrgSetupPayload, ShareRoleWire, ViewerKind,
+} from "./rpc-types"
+
+// VITE_MOCK=1: an in-memory stand-in for the public.dpdp_* RPCs so the
+// whole loop (sign in -> owner's first-visit wizard -> jobs load -> Mark
+// Yes -> History shows it -> reload shows it) can run with no Supabase
+// credentials at all. State is mirrored into localStorage purely so a real
+// browser reload still "shows it", the same way a real session + real DB
+// would.
+//
+// v4 (WO-DPDP-011 Step 6, the 70 acceptance checks): the fixture is now the
+// spec's OWN job library -- spec/veridian-dpdp.html's LIB.firm (31 jobs) and
+// LIB.institution (28 jobs), copied verbatim: part, wording, area, due-in
+// days, data set, data types, law codes, the group flag and the sign-off
+// chain (owner confirms -> CA manager checks -> CA partner signs). Every
+// number the acceptance suite asserts (part counts, "required today" tags,
+// the Seal's "5 of 30") is derived from this library, never invented; the
+// unit test beside this file (mock-client.test.ts) pins those derivations.
+//
+// WHO YOU ARE is the sign-in address (PERSONAS below): a real magic link
+// carries exactly that, so the persona table is the closest honest stand-in
+// for dpdp.identity. Anyone not in the table signs in as the home org's
+// owner, as before.
+//
+// WHICH WORLD YOU ARE IN is `?mock=<scenario>` on /app/ (MOCK_SCENARIOS):
+// it seeds a FRESH fixture for that scenario, discards any stored state,
+// and signs the scenario's persona in directly (no 1.5 s inbox wait). It is
+// read only here, only in mock mode -- the real client never sees it. A
+// plain form sign-in with no `?mock=` keeps whatever state is stored (or
+// the "owner" fixture if nothing is), so one test can sign out and sign
+// back in as another persona against the same org, the way a real day
+// goes. Reloading a `?mock=` URL re-seeds; to prove something PERSISTED,
+// go to /app/ without the query.
+const STORAGE_KEY = "dpdp-mock-state-v4"
+const GO = "Grievance Officer (responsible for DPDP policy)"
+
+export const MOCK_OWNER = "owner@example.test"
+export const MOCK_PARTNER = "partner@example.test"
+export const MOCK_MANAGER = "manager@example.test"
+export const MOCK_CLIENT_OWNER = "client-owner@example.test"
+export const MOCK_GO = "go@example.test"
+export const MOCK_COORD = "coord@example.test"
+export const MOCK_STAFF = "staff@example.test"
+export const MOCK_HR = "hr@example.test"
+export const MOCK_MEMBERS = ["member@example.test", "member2@example.test", "member3@example.test"] as const
+
+// The fragment tokens the token pages accept in mock mode.
+export const MOCK_TOKENS = { done: "mock-done", cannot: "mock-cannot", unsubscribe: "mock-unsub", parent: "mock-parent", parentMulti: "mock-parent-multi", parentChild: "mock-parent-child" } as const
+/** The mock consent links with more than the one legacy item (drizzle/0725): what each asks about, and whether the person is a child. */
+const MOCK_CONSENT_LINKS: Record<string, { purposes: Array<{ key: string; label: string }>; child: boolean; noticeText: string }> = {
+  [MOCK_TOKENS.parentMulti]: { purposes: [{ key: "trip", label: "Photos on the school trip" }, { key: "news", label: "The school newsletter" }], child: false, noticeText: "The school keeps trip photos for one year and sends the newsletter by e-mail. You may say no to either." },
+  [MOCK_TOKENS.parentChild]: { purposes: [{ key: "photos", label: "Photos of your child" }], child: true, noticeText: "The school keeps your child's photos for one year." },
+}
+export const MOCK_DRAFT = { draftId: "mock-draft", confirmToken: "mock-confirm" } as const
+// WO-DPDP-013 Part 1 (drizzle/0610): `/app/#undo=<actionId>.<undoToken>`.
+export const MOCK_UNDO_ACTION = { actionId: "mock-action", undoToken: "mock-undo" } as const
+// WO-DPDP-014: the referral code every mock decision-maker gets (8 chars,
+// the real code's alphabet -- no 0/O/1/I), and the share_press event's
+// role labels, exactly as drizzle/0611 writes them.
+export const MOCK_REFERRAL_CODE = "MOCK1234"
+// WO-DPDP-016 Step 2: HOME_ORG's own evergreen invite code -- a fixed
+// per-org code, same simplification as the referral code above (proves the
+// shape, not a real multi-org code registry).
+export const MOCK_INVITE_CODE = "JOIN5678"
+export const SHARE_ROLE_LABEL: Record<ShareRoleWire, string> = { owner: "Owner", partner: "CA partner", manager: "CA manager", member: "Member" }
+
+export const MOCK_SCENARIOS = ["owner", "owner-live", "client-owner", "partner", "manager", "go", "coord", "staff", "hr", "member", "member2", "member3", "visitor"] as const
+export type MockScenario = (typeof MOCK_SCENARIOS)[number]
+export function isMockScenario(s: string | null | undefined): s is MockScenario {
+  return !!s && (MOCK_SCENARIOS as readonly string[]).includes(s)
+}
+
+type Persona = { kind: ViewerKind; caSub: "partner" | "manager" | null }
+const PERSONAS: Record<string, Persona> = {
+  [MOCK_OWNER]: { kind: "owner", caSub: null },
+  [MOCK_CLIENT_OWNER]: { kind: "owner", caSub: null },
+  [MOCK_PARTNER]: { kind: "ca", caSub: "partner" },
+  [MOCK_MANAGER]: { kind: "ca", caSub: "manager" },
+  [MOCK_GO]: { kind: "go", caSub: null },
+  [MOCK_COORD]: { kind: "coord", caSub: null },
+  [MOCK_STAFF]: { kind: "staff", caSub: null },
+  [MOCK_HR]: { kind: "staff", caSub: null },
+  "web@vendor.test": { kind: "staff", caSub: null },
+  "cctv@example.test": { kind: "staff", caSub: null },
+  "it@example.test": { kind: "staff", caSub: null },
+}
+for (const m of MOCK_MEMBERS) PERSONAS[m] = { kind: "staff", caSub: null }
+
+// ---------------------------------------------------------------------
+// The job library: spec/veridian-dpdp.html's LIB, verbatim. Each entry is
+// [part, task, who looks after it, due in days, data set, data types, law
+// codes, flags] exactly as the spec's J() takes them. Law codes -- d: DPDP
+// Act 2023 / Rules 2025 (from 13 May 2027) · s: SPDI Rules 2011 (in force
+// now) · a: Aadhaar Act 2016 (in force now) · g: good practice, not a
+// legal duty.
+// ---------------------------------------------------------------------
+export type LibraryRow = { part: number; what: string; area: string; dueDays: number; dataSet: string; dataTypes: string[]; lawCodes: string[]; fromArea?: boolean; grp?: boolean; dep?: string }
+function J(part: number, what: string, area: string, dueDays: number, dataSet: string, dataTypes: string[], lawCodes: string[], o: { fromArea?: boolean; grp?: boolean; dep?: string } = {}): LibraryRow {
+  return { part, what, area, dueDays, dataSet, dataTypes, lawCodes, ...o }
+}
+export const LIBRARY: Record<"firm" | "institution", LibraryRow[]> = {
+  firm: [
+    J(1, "Name the " + GO, GO, 4, "Whole organisation", [], ["d:§8(9)", "d:§8(10)", "s:R5(9)"], { fromArea: true }),
+    J(1, "Name a DPDP coordinator", "DPDP coordinator", 4, "Whole organisation", [], ["g:"], { fromArea: true }),
+    J(1, "Publish the Grievance Officer’s name and contact — on your website or a free VERIDIAN page", GO, 10, "Whole organisation", [], ["d:§8(9)", "d:R9", "s:R5(9)"]),
+    J(2, "Write down where it is kept, why you need it, and who can open it", "Customer data", 10, "Customers", ["Name", "Phone", "Email", "Address", "PAN", "Bank details"], ["d:§4", "d:§8(4)"]),
+    J(2, "Write down where it is kept, why you need it, and who can open it", "Staff records", 10, "Employees", ["Name", "PAN", "Aadhaar", "Bank account", "Salary", "Photo", "Medical"], ["d:§7(i)", "d:§8(4)"]),
+    J(2, "Write down where it is kept, why you need it, and who can open it", "Staff records", 12, "Job applicants", ["Name", "CV", "Phone", "Email"], ["d:§4", "d:§8(4)"]),
+    J(2, "Write down where it is kept, why you need it, and who can open it", "Website firm", 12, "Website visitors", ["Name", "Phone", "Email", "Cookies"], ["d:§4", "d:§8(4)"]),
+    J(2, "Write down where the recordings are kept and for how long", "CCTV", 12, "CCTV", ["Video of staff and visitors"], ["d:§4", "d:§8(7)"]),
+    J(2, "Write down where fingerprints or face scans are stored and who can open them", "Staff records", 12, "Attendance machine", ["Fingerprint", "Face"], ["d:§8(5)", "s:R3"]),
+    J(2, "Write down how long each is kept — keep only what tax and labour law require, delete the rest", "Accounts", 14, "All data sets", ["All"], ["d:§8(7)", "d:R8"]),
+    J(3, "Give a privacy notice when you collect their data — on the form, invoice or website", "Customer data", 14, "Customers", ["All of the above"], ["d:§5", "d:R3", "s:R5(3)"]),
+    J(3, "Take consent before sending marketing messages — and make stopping as easy as starting", "Customer data", 14, "Customers", ["Phone", "Email"], ["d:§6(1)", "d:§6(4)"]),
+    J(3, "Tell staff what you hold and why — no consent is needed for employment", "Staff records", 14, "Employees", ["All of the above"], ["d:§5", "d:§7(i)"]),
+    J(3, "Take written consent for sensitive data", "Staff records", 10, "Employees", ["Fingerprint", "Medical", "Bank account"], ["s:R5(1)"]),
+    J(3, "Publish a privacy policy on the website", "Website firm", 10, "Website visitors", ["Cookies", "Form data"], ["s:R4", "d:§5", "d:R3"]),
+    J(3, "Put up a notice wherever there is a camera", "CCTV", 10, "CCTV", ["Video"], ["d:§5"]),
+    J(4, "Mask Aadhaar copies — keep only the last 4 digits visible", "Staff records", 10, "Employees · Customers", ["Aadhaar"], ["a:§29", "d:§8(5)", "d:R6"]),
+    J(4, "Passwords on every computer, access only for those who need it, regular backups", "IT & computers", 14, "All data sets", ["All"], ["d:§8(5)", "d:R6", "s:R8"]),
+    J(4, "Keep a record of who opened personal data — for at least one year", "IT & computers", 21, "All data sets", ["Access logs"], ["d:R6(1)(c)", "d:R8(3)"]),
+    J(4, "Write down what to do if data leaks — tell the Board and every person affected, full report within 72 hours", GO, 21, "All data sets", ["All"], ["d:§8(6)", "d:R7"]),
+    J(4, "Check your own laptop and phone for customer data — never forward it on personal WhatsApp", "All staff", 12, "Everyone", ["Customer data on personal devices"], ["d:§8(5)"], { grp: true }),
+    J(5, "Website firm signs the data agreement", "Website firm", 12, "Website visitors", ["Enquiries"], ["d:§8(2)", "d:R6(1)(f)", "s:R7"]),
+    J(5, "Payroll firm signs the data agreement", "Payroll firm", 12, "Employees", ["Bank account", "PAN", "Salary"], ["d:§8(2)", "d:R6(1)(f)", "s:R7"]),
+    J(5, "Group company signs a data-sharing agreement", "Group company", 12, "Customers · Employees", ["Shared records"], ["d:§8(2)", "s:R7"]),
+    J(5, "Check where your software keeps data — Tally, Zoho, Google — and whether it is outside India", "IT & computers", 21, "All data sets", ["All"], ["d:§8(2)", "d:§16", "d:R15"]),
+    J(6, "Publish how people can ask to see, correct or delete their data", GO, 21, "All data sets", ["All"], ["d:§11", "d:§12", "d:R14(1)"]),
+    J(6, "Answer every complaint within 90 days — within one month under today’s law", GO, 21, "All data sets", ["All"], ["d:§13", "d:R14(3)", "s:R5(9)"]),
+    J(6, "Delete a customer’s data when they ask or when it is no longer needed — and tell anyone you shared it with", "Customer data", 21, "Customers", ["All"], ["d:§8(7)", "d:§12(3)"]),
+    J(7, "Owner confirms all the answers are true", "OWNER", 25, "Whole organisation", [], ["d:§8(1)"]),
+    J(7, "CA manager checks the proof", "CAMGR", 27, "Whole organisation", [], ["g:"], { dep: "Owner confirms all the answers are true" }),
+    J(7, "CA partner signs the file", "CAPARTNER", 30, "Whole organisation", [], ["g:"], { dep: "CA manager checks the proof" }),
+  ],
+  institution: [
+    J(1, "Name the " + GO, GO, 4, "Whole school", [], ["d:§8(9)", "d:§8(10)"], { fromArea: true }),
+    J(1, "Name a DPDP coordinator", "DPDP coordinator", 4, "Whole school", [], ["g:"], { fromArea: true }),
+    J(1, "Publish the Grievance Officer’s name and contact — on the school website or a free VERIDIAN page", GO, 10, "Whole school", [], ["d:§8(9)", "d:R9"]),
+    J(2, "Write down where it is kept — ERP, admission files, UDISE+ — and who can open it", "Admission office", 10, "Students", ["Name", "Date of birth", "Photo", "Address", "Aadhaar", "Marks", "Attendance", "Health", "Category"], ["d:§4", "d:§8(4)", "d:§9"]),
+    J(2, "Write down where it is kept and who can open it", "Fees office", 10, "Parents", ["Name", "Phone", "Email", "Occupation", "Income"], ["d:§4", "d:§8(4)"]),
+    J(2, "Write down where it is kept and who can open it", "Staff records", 10, "Staff", ["Name", "PAN", "Aadhaar", "Bank account", "Salary", "Medical"], ["d:§7(i)", "d:§8(4)"]),
+    J(2, "Write down where they are — school phones, website, magazine, Instagram", "DPDP coordinator", 12, "Photos & videos", ["Children’s photos", "Videos"], ["d:§8(4)", "d:§9"]),
+    J(2, "Write down what the bus system records and who can see it", "Transport in-charge", 12, "School buses", ["Live location", "Pickup address", "Parent phone"], ["d:§8(4)", "d:§9(3)", "d:R12"]),
+    J(2, "Write down where recordings are kept and for how long", "CCTV", 12, "CCTV", ["Video of children and staff"], ["d:§4", "d:§8(7)"]),
+    J(2, "Write down how long each is kept — admission and TC registers as your board requires; delete the rest", "Admission office", 14, "All data sets", ["All"], ["d:§8(7)", "d:R8"]),
+    J(3, "Take verifiable consent from a parent at admission — the school exemption covers only tracking for learning and safety, not admission data", "Admission office", 14, "Students", ["All of the above"], ["d:§9(1)", "d:R10", "d:R12"]),
+    J(3, "Take a separate Yes or No from parents for photos on the website, magazine and social media", "DPDP coordinator", 14, "Photos & videos", ["Children’s photos"], ["d:§6", "d:§9(1)"]),
+    J(3, "Give parents a notice — what you hold, why, and how to complain", "DPDP coordinator", 14, "Parents", ["All"], ["d:§5", "d:R3"]),
+    J(3, "Tell staff what you hold and why — no consent is needed for employment", "Staff records", 14, "Staff", ["All of the above"], ["d:§5", "d:§7(i)"]),
+    J(3, "Put up a notice wherever there is a camera", "CCTV", 10, "CCTV", ["Video"], ["d:§5"]),
+    J(4, "Mask Aadhaar copies — keep only the last 4 digits visible", "Admission office", 10, "Students · Staff", ["Aadhaar"], ["a:§29", "d:§8(5)", "d:R6"]),
+    J(4, "Passwords on the ERP and every office computer, access only for those who need it, backups", "IT & computers", 14, "All data sets", ["All"], ["d:§8(5)", "d:R6"]),
+    J(4, "Keep a record of who opened student data — for at least one year", "IT & computers", 21, "All data sets", ["Access logs"], ["d:R6(1)(c)", "d:R8(3)"]),
+    J(4, "Write down what to do if data leaks — tell the Board and every family affected, full report within 72 hours", GO, 21, "All data sets", ["All"], ["d:§8(6)", "d:R7"]),
+    J(4, "Check your own laptop and phone for student photos and marks — never share them on personal WhatsApp", "Teachers", 12, "Teachers", ["Children’s photos", "Marks"], ["d:§8(5)", "d:§9"], { grp: true }),
+    J(4, "No ads, profiling or tracking of children beyond learning and safety", "DPDP coordinator", 21, "Students", ["Behaviour", "Online activity"], ["d:§9(3)", "d:R12"]),
+    J(5, "Bus firm signs the data agreement — location only during the journey, only for safety", "Bus firm", 12, "School buses", ["Live location"], ["d:§8(2)", "d:R12"]),
+    J(5, "School software firm signs the data agreement", "School software firm", 12, "Students · Parents", ["Marks", "Attendance", "Fees"], ["d:§8(2)", "d:R6(1)(f)"]),
+    J(5, "Check where your apps keep data — ERP, fee app, WhatsApp groups — and whether it is outside India", "IT & computers", 21, "All data sets", ["All"], ["d:§8(2)", "d:§16", "d:R15"]),
+    J(6, "Publish how parents can ask to see, correct or delete their child’s data", GO, 21, "All data sets", ["All"], ["d:§11", "d:§12", "d:R14(1)"]),
+    J(6, "Answer every complaint within 90 days", GO, 21, "All data sets", ["All"], ["d:§13", "d:R14(3)"]),
+    J(6, "Delete a student’s data when it is no longer needed — keep the registers your board requires", "Admission office", 21, "Students", ["All"], ["d:§8(7)", "d:§12(3)"]),
+    J(7, "Sign off all the answers", "OWNER", 25, "Whole school", [], ["d:§8(1)"]),
+  ],
+}
+const NOT_AN_AREA = new Set(["OWNER", "CAMGR", "CAPARTNER"])
+const GROUP_LABEL = { firm: "All staff", institution: "All teachers" } as const
+
+// ---------------------------------------------------------------------
+// Org fixtures. Three worlds for the home org "Sharma & Associates", plus a
+// real client org so a CA's "Open" lands on a different page:
+//   fresh  -- nothing named yet except the sign-off chain; the owner's
+//             first visit is the 3-step wizard.
+//   live   -- set up: LIVE_AREAS named, 3 people in the "All staff" group,
+//             5 jobs done, 1 marked "doesn't apply", 1 with nobody, 3 late.
+//             The owner has seen the page; everyone else is newly invited.
+//   ca-set-up -- the live assignment, made by the CA partner, owner not
+//             yet confirmed: the owner's first visit is the review screen.
+// ---------------------------------------------------------------------
+const HOME_ORG = "org-mock"
+const HOME_NAME = "Sharma & Associates"
+const CLIENT_ORG = "org-mehta"
+
+const LIVE_AREAS: Record<string, string | "NA"> = {
+  [GO]: MOCK_GO,
+  "DPDP coordinator": MOCK_COORD,
+  "Customer data": MOCK_STAFF,
+  "Staff records": MOCK_HR,
+  "Website firm": "web@vendor.test",
+  CCTV: "cctv@example.test",
+  Accounts: MOCK_COORD,
+  "IT & computers": "it@example.test",
+  "Payroll firm": "NA",
+  // "Group company" is deliberately left off: one job with nobody named.
+}
+// The client org is fully staffed (nobody named = 0, nothing n/a), so its
+// "4 of 31 done" and "In progress" read exactly as the Step 5 fixture did.
+const CLIENT_AREAS: Record<string, string | "NA"> = { ...LIVE_AREAS, "Payroll firm": "payroll@mehtatraders.example", "Group company": "ops@mehtatraders.example" }
+
+type StoredRow = {
+  id: string; libIndex: number; part: number; what: string; area: string; dataSet: string; dataTypes: string[]; lawCodes: string[]
+  by: string | null; isGroup: boolean; due: string; yes: boolean; na: boolean; dependsOnObligationId: string | null
+}
+type ViewerFlags = { firstVisitSeenAt: string | null; saidNotMeAt: string | null }
+// WO-DPDP-013 Part 1 (drizzle/0610): one dpdp.ai_link row, the shape
+// dpdp_ai_link_list reads back. The token itself is never stored here (the
+// real RPC keeps only its sha256) -- callers only ever see it once, from
+// dpdp_ai_link_create's own return value.
+type AiWorkLinkRecord = {
+  id: string; label: string | null; level: 0 | 1; hideEmails: boolean
+  createdAt: string; expiresAt: string; revokedAt: string | null; lastUsedAt: string | null; callCount: number
+}
+type OrgState = {
+  id: string; name: string; product: "firm" | "institution"; ownerEmail: string; client: boolean
+  rows: StoredRow[]; groupMembers: string[]; groupAnswers: Record<string, Record<string, GroupAnswerKind>>
+  history: HistoryEntryWire[]; setUpBy: { membershipId: string; email: string } | null; ownerConfirmedAt: string | null
+  viewers: Record<string, ViewerFlags>
+  aiWorkLinks: AiWorkLinkRecord[]
+  /** Set by dpdp_create_my_org: this org was opened by the visitor themselves (a double click returns it again). */
+  createdByVisitor?: boolean
+  /** WO-DPDP-016 Step 2: emails that joined via dpdp_join_org_via_invite -- treated as staff by viewerIn, same as a real 'invited' membership. */
+  invitedMembers: string[]
+  // WO-DPDP-016 §7-8: billing status (drizzle/0655's dpdp.subscription).
+  // Every org gets one at creation; access never depends on any of it.
+  billing: {
+    state: "trial" | "awaiting_confirmation" | "active"
+    interval: "month" | "year" | null
+    trialEndsAt: string
+    selfDeclaredAt: string | null
+    selfDeclaredInterval: "month" | "year" | null
+    selfDeclaredAmountPaise: number | null
+    selfDeclaredReference: string | null
+    selfDeclaredProofPath: string | null
+    selfDeclaredNote: string | null
+    lastConfirmedAt: string | null
+  }
+}
+type State = {
+  signedInAs: string | null
+  orgs: Record<string, OrgState>
+  spentTokens: string[]; consentAnswered: boolean; consent?: Record<string, { answers: Record<string, "yes" | "no" | "withdrawn">; guardian?: { name: string; relation: string } }>; unsubscribed: boolean; draftConfirmed: boolean; aiLinks: number
+  aiWorkLinkSeq: number; aiActionUndone: boolean
+  /** Sales Partner lifecycle preview (drizzle/0674): the signed-in person's own profile. The real arithmetic lives in Postgres. */
+  partner?: MockPartner
+  partnerTdsPercent?: number | null
+}
+type MockPartner = {
+  status: "applied" | "active" | "paused" | "ended"; name: string | null; termsVersion: string | null; termsAcceptedAt: string | null
+  details: { method: "upi" | "bank"; upiId?: string; accountName?: string; accountNumber?: string; ifsc?: string; pan?: string; updatedAt: string } | null
+}
+const MOCK_TERMS_VERSION = "1.0"
+
+function daysFromNow(n: number): string {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + n)
+  return d.toISOString()
+}
+const pad2 = (n: number) => (n < 10 ? "0" : "") + n
+const rowId = (orgId: string, libIndex: number) => `${orgId}:f${pad2(libIndex)}`
+
+type MakeOrg = {
+  owner: string; client?: boolean; manager?: string | null; partner?: string | null
+  areas?: Record<string, string | "NA">; group?: readonly string[]; done?: number[]; due?: Record<number, number>
+  setUpBy?: { membershipId: string; email: string } | null; ownerConfirmedAt?: string | null; seenBy?: readonly string[]
+}
+function makeOrg(id: string, name: string, product: "firm" | "institution", o: MakeOrg): OrgState {
+  const lib = LIBRARY[product]
+  const areas = o.areas ?? {}
+  const rows: StoredRow[] = lib.map((x, i) => {
+    const n = i + 1
+    let by: string | null = null
+    let na = false
+    let isGroup = false
+    let yes = (o.done ?? []).includes(n)
+    if (x.area === "OWNER") by = o.owner || null
+    else if (x.area === "CAMGR") by = o.manager ?? null
+    else if (x.area === "CAPARTNER") by = o.partner ?? null
+    else if (x.fromArea) {
+      // The spec: naming the GO / coordinator is itself the job -- it is
+      // the owner's, and done the moment someone is named.
+      if (areas[x.area]) { by = o.owner; yes = true }
+    } else if (x.grp) {
+      if (o.group?.length) { by = GROUP_LABEL[product]; isGroup = true }
+    } else if (areas[x.area] === "NA") na = true
+    else if (areas[x.area]) by = areas[x.area]
+    const due = o.due?.[n] ?? (yes ? -5 : x.dueDays)
+    return { id: rowId(id, n), libIndex: n, part: x.part, what: x.what, area: x.area, dataSet: x.dataSet, dataTypes: x.dataTypes, lawCodes: x.lawCodes, by, isGroup, due: daysFromNow(due), yes, na, dependsOnObligationId: null }
+  })
+  for (const r of rows) {
+    const dep = lib[r.libIndex - 1].dep
+    if (dep) r.dependsOnObligationId = rows.find((y) => y.what === dep)?.id ?? null
+  }
+  const viewers: Record<string, ViewerFlags> = {}
+  for (const e of o.seenBy ?? []) viewers[e] = { firstVisitSeenAt: daysFromNow(-1), saidNotMeAt: null }
+  return {
+    id, name, product, ownerEmail: o.owner, client: o.client ?? false, rows, groupMembers: [...(o.group ?? [])], groupAnswers: {},
+    history: [], setUpBy: o.setUpBy ?? null, ownerConfirmedAt: o.ownerConfirmedAt ?? null, viewers, aiWorkLinks: [], invitedMembers: [],
+    billing: {
+      state: "trial", interval: null, trialEndsAt: daysFromNow(30), selfDeclaredAt: null, selfDeclaredInterval: null, selfDeclaredAmountPaise: null,
+      selfDeclaredReference: null, selfDeclaredProofPath: null, selfDeclaredNote: null, lastConfirmedAt: null,
+    },
+  }
+}
+
+function freshHomeOrg(owner: string): OrgState {
+  return makeOrg(HOME_ORG, HOME_NAME, "firm", { owner, manager: MOCK_MANAGER, partner: MOCK_PARTNER })
+}
+function liveHomeOrg(): OrgState {
+  return makeOrg(HOME_ORG, HOME_NAME, "firm", {
+    owner: MOCK_OWNER, manager: MOCK_MANAGER, partner: MOCK_PARTNER, areas: LIVE_AREAS, group: MOCK_MEMBERS,
+    done: [5, 8, 18], due: { 4: -6, 15: -3, 24: -1 }, seenBy: [MOCK_OWNER],
+  })
+}
+function caSetUpHomeOrg(): OrgState {
+  return makeOrg(HOME_ORG, HOME_NAME, "firm", {
+    owner: MOCK_CLIENT_OWNER, manager: MOCK_MANAGER, partner: MOCK_PARTNER, areas: LIVE_AREAS, group: MOCK_MEMBERS,
+    setUpBy: { membershipId: `m-${HOME_ORG}-${MOCK_PARTNER}`, email: MOCK_PARTNER },
+  })
+}
+function clientOrg(): OrgState {
+  return makeOrg(CLIENT_ORG, "Mehta Traders", "firm", {
+    owner: "kiran@mehtatraders.example", client: true, manager: MOCK_MANAGER, partner: MOCK_PARTNER, areas: CLIENT_AREAS, group: ["a@mehtatraders.example", "b@mehtatraders.example"],
+    // The CA people have worked this client before (4 jobs done), so their
+    // memberships here are past their first visit -- "Open" lands on the
+    // client's page, not on the three steps again.
+    done: [5, 8], ownerConfirmedAt: daysFromNow(-20), seenBy: ["kiran@mehtatraders.example", MOCK_PARTNER, MOCK_MANAGER],
+  })
+}
+
+function fresh(): State {
+  return {
+    signedInAs: null, orgs: { [HOME_ORG]: freshHomeOrg(MOCK_OWNER), [CLIENT_ORG]: clientOrg() }, spentTokens: [], consentAnswered: false,
+    unsubscribed: false, draftConfirmed: false, aiLinks: 0, aiWorkLinkSeq: 0, aiActionUndone: false,
+  }
+}
+
+/** The world `?mock=<scenario>` seeds, signed in as that scenario's persona. */
+export function seedScenario(scenario: MockScenario): State {
+  const s = fresh()
+  switch (scenario) {
+    case "owner":
+      s.signedInAs = MOCK_OWNER
+      break
+    case "client-owner":
+      s.orgs[HOME_ORG] = caSetUpHomeOrg()
+      s.signedInAs = MOCK_CLIENT_OWNER
+      break
+    case "owner-live":
+      s.orgs[HOME_ORG] = liveHomeOrg()
+      s.signedInAs = MOCK_OWNER
+      break
+    default:
+      s.orgs[HOME_ORG] = liveHomeOrg()
+      s.signedInAs = `${scenario}@example.test`
+  }
+  return s
+}
+
+function load(): State {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) return JSON.parse(raw) as State
+  } catch {
+    // private mode / blocked storage: fall through to a fresh fixture
+  }
+  return fresh()
+}
+
+function save(state: State) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // same as load(): storage is a convenience here, never a requirement
+  }
+}
+
+const GROUP_ANSWER_LABEL: Record<GroupAnswerKind, string> = { done: "Done", never_had_any: "Doesn't apply to me", cannot: "I can't" }
+
+// drizzle/0609's own "Where it is" labels, derived the same way: from the
+// jobs, never stored.
+function whereItIs(org: OrgState): string {
+  const live = org.rows.filter((r) => !r.na)
+  const done = live.filter((r) => r.yes).length
+  const openOther = live.filter((r) => !r.yes && !NOT_AN_AREA.has(r.area)).length
+  const openMgr = live.filter((r) => !r.yes && r.area === "CAMGR").length
+  // drizzle/0612: an org a CA set up with no owner named yet cannot be
+  // "waiting for the owner" -- nobody exists to confirm.
+  if (org.setUpBy && !org.ownerConfirmedAt && !org.ownerEmail) return "No owner named yet"
+  if (org.setUpBy && !org.ownerConfirmedAt) return "Waiting for the owner to confirm"
+  if (done === 0) return "Not started"
+  if (live.length > 0 && done === live.length) return "Signed off"
+  if (openOther === 0 && openMgr === 0) return "Ready to sign"
+  if (openOther === 0) return "With the CA manager"
+  return "In progress"
+}
+
+// WO-DPDP-013 Part 1 (drizzle/0610) dpdp_ai_link_warning: what the sentence
+// before "Copy link" reports -- every job in this org's view (an AI link is
+// scoped to the whole membership, not just the live ones), and every real
+// person a job names or a group carries, deduplicated. The real RPC's own
+// formula is server-side and may count differently; this is a deterministic
+// stand-in, not a claim about drizzle/0610's SQL.
+function warningFor(org: OrgState): AiLinkWarning {
+  const people = new Set<string>()
+  if (org.ownerEmail) people.add(org.ownerEmail)
+  for (const r of org.rows) {
+    if (!r.isGroup && r.by) people.add(r.by)
+  }
+  for (const m of org.groupMembers) people.add(m)
+  return { jobs: org.rows.length, people: people.size }
+}
+
+export function createMockClient(scenario?: string): DpdpClient {
+  const requested = scenario ?? (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("mock") : null)
+  const state: State = isMockScenario(requested) ? seedScenario(requested) : load()
+  if (isMockScenario(requested)) save(state)
+
+  const listeners = new Set<AuthListener>()
+  const session = (): AuthSession | null => (state.signedInAs ? { user: { email: state.signedInAs } } : null)
+  const emit = (event: string) => {
+    const s = session()
+    for (const l of listeners) l(event, s)
+  }
+  const ok = <T,>(data: T): RpcResult<T> => ({ data, error: null })
+  const fail = (message: string): RpcResult => ({ data: null, error: { message } })
+  const home = () => state.orgs[HOME_ORG]
+  const orgOf = (orgId: unknown): OrgState | null => (orgId ? (state.orgs[String(orgId)] ?? null) : home())
+  const rowOf = (id: unknown): { org: OrgState; row: StoredRow } | null => {
+    for (const org of Object.values(state.orgs)) {
+      const row = org.rows.find((r) => r.id === String(id ?? ""))
+      if (row) return { org, row }
+    }
+    return null
+  }
+  // dpdp__append_event's mirror: newest first, actor = the signed-in email.
+  const log = (org: OrgState, kind: string, summary: string, detail: string | null = null, actor: string | null = state.signedInAs) => {
+    org.history.unshift({ id: `ev-${Date.now()}-${org.history.length}`, kind, summary, detail, actorLabel: actor ?? "system", occurredAt: new Date().toISOString() })
+  }
+  const flags = (org: OrgState, email: string): ViewerFlags => (org.viewers[email] ??= { firstVisitSeenAt: null, saidNotMeAt: null })
+  // Who this address is in this org: its owner, one of the CA people named
+  // on its sign-off chain, or a persona from the table. Nobody else is a
+  // member -- the real RPC says so too.
+  const viewerIn = (org: OrgState, me: string): Persona | null => {
+    if (me === org.ownerEmail) return { kind: "owner", caSub: null }
+    const caRow = org.rows.find((r) => (r.area === "CAMGR" || r.area === "CAPARTNER") && r.by === me)
+    if (caRow) return { kind: "ca", caSub: caRow.area === "CAMGR" ? "manager" : "partner" }
+    // WO-DPDP-016 Step 2: someone who redeemed this org's invite link --
+    // real membership (level 'staff', joined_via 'invited'), checked before
+    // the HOME_ORG-only persona table below so it also works for CLIENT_ORG.
+    if (org.invitedMembers.includes(me)) return { kind: "staff", caSub: null }
+    if (org.id !== HOME_ORG) return null
+    return PERSONAS[me] ?? null
+  }
+  const blockedBy = (org: OrgState, row: StoredRow): boolean => {
+    if (!row.dependsOnObligationId) return false
+    const dep = org.rows.find((r) => r.id === row.dependsOnObligationId)
+    return !!dep && !dep.yes && !dep.na
+  }
+  const toWire = (org: OrgState, row: StoredRow, me: string): MyPageRowWire => {
+    const base: MyPageRowWire = {
+      id: row.id, part: row.part, what: row.what, dataSet: row.dataSet, dataTypes: row.dataTypes.length ? row.dataTypes : null, lawCodes: row.lawCodes,
+      by: row.by, isGroup: row.isGroup, due: row.due, yes: row.yes, na: row.na, dependsOnObligationId: row.dependsOnObligationId, sent: 0,
+    }
+    if (!row.isGroup) return base
+    const answers = org.groupAnswers[row.id] ?? {}
+    // The real RPC knows group membership from staff_group_member; here,
+    // the signed-in address being on the list is that fact.
+    return { ...base, groupTotal: org.groupMembers.length, groupDone: Object.keys(answers).length, viewerIsGroupMember: org.groupMembers.includes(me), myGroupAnswer: answers[me] ?? null }
+  }
+  const pageFor = (org: OrgState, me: string): MyPagePayload | null => {
+    const who = viewerIn(org, me)
+    if (!who) return null
+    const f = flags(org, me)
+    return {
+      org: { id: org.id, name: org.name, product: org.product },
+      viewer: { email: me, kind: who.kind, caSub: who.caSub, firstVisitSeenAt: f.firstVisitSeenAt, saidNotMeAt: f.saidNotMeAt, membershipId: `m-${org.id}-${me}` },
+      rows: org.rows.map((r) => toWire(org, r, me)),
+    }
+  }
+  // drizzle/0655 (WO-DPDP-016 §1): the org's owner or a CA partner/manager
+  // keep their named role; everyone else who is still a real member --
+  // coordinator, GO, staff, vendor, parent -- gets "member", never null,
+  // matching dpdp__share_role's widening from decision-makers-only.
+  const shareRoleIn = (org: OrgState, me: string): ShareRoleWire | null => {
+    const who = viewerIn(org, me)
+    if (!who) return null
+    if (who.kind === "owner") return "owner"
+    if (who.kind === "ca" && who.caSub) return who.caSub
+    return "member"
+  }
+  // A real Monday email mints one token PER JOB (drizzle/0606
+  // dpdp.issue_email_action_tokens): the "done" and "cannot" mock tokens are
+  // therefore two different jobs, so recording Done on one never makes the
+  // other read "already done".
+  const emailActionRow = (action: "done" | "cannot" = "done") => {
+    const rows = home().rows
+    if (action === "cannot") return rows.find((r) => r.area !== "OWNER" && !r.yes && !!r.by) ?? rows.find((r) => r.area !== "OWNER")!
+    return rows.find((r) => r.area === "OWNER")!
+  }
+  const draftRow = () => home().rows.find((r) => r.area === "Customer data")!
+
+  // The token functions (drizzle/0606 + 0609's parent consent) need no
+  // session: the token is the credential, so they are answered before the
+  // signed-in gate below, with { ok:false, reason } rather than an error.
+  function tokenRpc(fn: string, args?: Record<string, unknown>): RpcResult | null {
+    const token = String(args?.p_token ?? "")
+    const org = home()
+    switch (fn) {
+      case "dpdp_preview_email_action": {
+        const action = token === MOCK_TOKENS.done ? "done" : token === MOCK_TOKENS.cannot ? "cannot" : null
+        if (!action) return ok({ ok: false, reason: "This link is not valid." })
+        if (state.spentTokens.includes(token)) return ok({ ok: false, reason: "This link has already been used. Nothing has changed." })
+        const row = emailActionRow(action)
+        return ok({ ok: true, action, what: row.what, orgName: org.name, isGroup: false, alreadyDone: row.yes })
+      }
+      case "dpdp_apply_email_action": {
+        const action = token === MOCK_TOKENS.done ? "done" : token === MOCK_TOKENS.cannot ? "cannot" : null
+        if (!action) return ok({ ok: false, reason: "This link is not valid." })
+        if (state.spentTokens.includes(token)) return ok({ ok: false, reason: "This link has already been used. Nothing has changed." })
+        if (String(args?.p_answer) !== action) return ok({ ok: false, reason: "This link does not match that answer." })
+        const row = emailActionRow(action)
+        state.spentTokens.push(token)
+        if (row.yes) {
+          save(state)
+          return ok({ ok: false, reason: "This job is already marked done. Nothing has changed." })
+        }
+        if (action === "done") {
+          row.yes = true
+          log(org, "obligation_accepted", `Said Yes to "${row.what}"`, null, org.ownerEmail)
+        } else {
+          log(org, "obligation_stuck", "Said they are stuck", `Pressed "I can't" on the Monday email for "${row.what}"`, org.ownerEmail)
+        }
+        save(state)
+        return ok({ ok: true, obligationId: row.id, answer: action, what: row.what })
+      }
+      case "dpdp_unsubscribe": {
+        if (token !== MOCK_TOKENS.unsubscribe) return ok({ ok: false, reason: "This link is not valid." })
+        state.unsubscribed = true
+        log(org, "membership_email_unsubscribed", `${org.ownerEmail} stopped the weekly email (statutory notices continue)`, null, org.ownerEmail)
+        save(state)
+        return ok({ ok: true, email: org.ownerEmail })
+      }
+      case "dpdp_parent_consent_preview": {
+        const link = MOCK_CONSENT_LINKS[token]
+        if (token !== MOCK_TOKENS.parent && !link) return ok({ ok: false, reason: "This link is not valid or has expired" })
+        state.consent ??= {}
+        const rec = state.consent[token]
+        const answered = token === MOCK_TOKENS.parent ? state.consentAnswered : !!rec
+        const purposes = (link?.purposes ?? [{ key: "consent", label: "Use of your personal data as described in this notice" }]).map((p) => ({ ...p, answer: rec?.answers[p.key] ?? null }))
+        return ok({
+          ok: true, orgName: org.name, notice: { docKind: "privacy", version: "1.0", languages: ["en"] }, openedAt: new Date().toISOString(), actedAt: answered ? new Date().toISOString() : null, alreadyAnswered: answered,
+          ...(link ? { noticeText: link.noticeText, noticeSource: "organisation" as const } : {}),
+          purposes, principalIsChild: !!link?.child,
+          guardian: rec?.guardian ? { name: rec.guardian.name, relation: rec.guardian.relation } : null,
+          canWithdraw: answered,
+        })
+      }
+      case "dpdp_parent_consent": {
+        const answer = String(args?.p_answer ?? "")
+        if (answer !== "yes" && answer !== "no") return ok({ ok: false, reason: "That is not an answer this link can record." })
+        if (token !== MOCK_TOKENS.parent) return ok({ ok: false, reason: "This link is not valid or has expired" })
+        if (state.consentAnswered) return ok({ ok: false, reason: "This link has already been used. Nothing has changed." })
+        state.consentAnswered = true
+        state.consent ??= {}
+        state.consent[token] = { answers: { consent: answer } }
+        log(org, "consent_recorded", "Recorded 1 answer(s)", null, "A person on a link")
+        save(state)
+        return ok({ ok: true, answer })
+      }
+      case "dpdp_parent_consent_v2": {
+        const link = MOCK_CONSENT_LINKS[String(args?.p_token ?? "")]
+        if (!link) return ok({ ok: false, reason: "This link is not valid or has expired" })
+        const t = String(args?.p_token)
+        state.consent ??= {}
+        if (state.consent[t]) return ok({ ok: false, reason: "This link has already been used. Nothing has changed." })
+        const given = (args?.p_answers ?? {}) as Record<string, string>
+        for (const p of link.purposes) if (given[p.key] !== "yes" && given[p.key] !== "no") return ok({ ok: false, reason: "Please answer Yes or No for each item." })
+        const g = (args?.p_guardian ?? null) as { name?: string; relation?: string } | null
+        if (link.child) {
+          if (!g?.name || g.name.trim().length < 2) return ok({ ok: false, reason: "Please give the name of the parent or legal guardian answering for the child." })
+          if (g.relation !== "parent" && g.relation !== "legal_guardian") return ok({ ok: false, reason: "Please say whether you are the parent or the legal guardian." })
+        }
+        state.consent[t] = { answers: Object.fromEntries(link.purposes.map((p) => [p.key, given[p.key] as "yes" | "no"])), ...(link.child && g ? { guardian: { name: String(g.name).trim(), relation: String(g.relation) } } : {}) }
+        log(org, "consent_recorded", `Recorded ${link.purposes.length} answer(s)`, null, "A person on a link")
+        save(state)
+        return ok({ ok: true, recorded: link.purposes.length })
+      }
+      case "dpdp_consent_withdraw": {
+        const t = String(args?.p_token ?? "")
+        const key = String(args?.p_purpose_key ?? "")
+        state.consent ??= {}
+        const rec = state.consent[t]
+        if (t !== MOCK_TOKENS.parent && !MOCK_CONSENT_LINKS[t]) return ok({ ok: false, reason: "This link is not valid." })
+        if (!rec) return ok({ ok: false, reason: "There is nothing to withdraw yet." })
+        if (rec.answers[key] === undefined) return ok({ ok: false, reason: "That is not one of the items on this link." })
+        if (rec.answers[key] !== "yes") return ok({ ok: false, reason: "There is nothing to withdraw for this item." })
+        rec.answers[key] = "withdrawn"
+        log(org, "consent_withdrawn", "Withdrew consent for 1 item", null, "A person on a link")
+        save(state)
+        return ok({ ok: true, withdrawn: key })
+      }
+      default:
+        return null
+    }
+  }
+
+  return {
+    auth: {
+      async getSession() {
+        return { data: { session: session() } }
+      },
+      onAuthStateChange(cb) {
+        listeners.add(cb)
+        // supabase-js emits INITIAL_SESSION on subscribe; the app relies on it.
+        queueMicrotask(() => cb("INITIAL_SESSION", session()))
+        return { data: { subscription: { unsubscribe: () => listeners.delete(cb) } } }
+      },
+      // The mock passcode is any 6 to 8 digits (the real one comes in the e-mail); it signs in as whoever asked for it.
+      async verifyOtp({ token }) {
+        if (!/^\d{6,8}$/.test(token)) return { error: { message: "Token has expired or is invalid" } }
+        emit("SIGNED_IN")
+        return { error: null }
+      },
+      async signInWithOtp({ email }) {
+        const me = email.trim().toLowerCase()
+        const org = home()
+        // A persona (or the home org's owner) signs in as themself. Anyone
+        // else becomes the home org's owner, as before: the owner's rows
+        // and flags move to the new address.
+        // EXCEPT a visitor who chose an edition on a landing page (WO-DPDP-015): like the real product,
+        // an address no organisation knows is a stranger there, and is asked to open its own.
+        if (!PERSONAS[me] && me !== org.ownerEmail && !recallEdition()) {
+          const previous = org.ownerEmail
+          for (const r of org.rows) if (r.by === previous) r.by = me
+          if (org.viewers[previous]) { org.viewers[me] = org.viewers[previous]; delete org.viewers[previous] }
+          org.ownerEmail = me
+        }
+        // The client-owner persona IS "the owner whose CA set the org up"
+        // (drizzle/0609 dpdp_org_setup): a sign-in through the form seeds
+        // the same world `?mock=client-owner` does, so the review screen
+        // (OwnerReview) is reachable without the seed query string.
+        if (me === MOCK_CLIENT_OWNER && !org.setUpBy) state.orgs[HOME_ORG] = caSetUpHomeOrg()
+        state.signedInAs = me
+        save(state)
+        // A real magic link is an inbox round trip; signing in on a later
+        // tick keeps the app's check-your-email state (and its "Send me a
+        // new link" button) reachable in mock mode.
+        setTimeout(() => emit("SIGNED_IN"), 1500)
+        return { error: null }
+      },
+      async signOut() {
+        state.signedInAs = null
+        save(state)
+        emit("SIGNED_OUT")
+        return { error: null }
+      },
+    },
+    async uploadPaymentProof(orgId, file) {
+      // No real storage in mock mode -- a fake path is enough to preview
+      // the "proof attached" state in BillingPanel/OwnerPaymentAdmin.
+      return { path: `${orgId}/mock-${file.name}`, error: null }
+    },
+    async accessToken() {
+      return state.signedInAs ? "mock-access-token" : null
+    },
+    async rpc(fn, args) {
+      const viaToken = tokenRpc(fn, args)
+      if (viaToken) return viaToken
+      if (!state.signedInAs) return fail("Not a member of this organisation")
+      const me = state.signedInAs
+      switch (fn) {
+        case "dpdp_my_page": {
+          const org = orgOf(args?.p_org_id)
+          const page = org && pageFor(org, me)
+          return page ? ok(page) : fail("Not a member of this organisation")
+        }
+        case "dpdp_mark_done": {
+          const hit = rowOf(args?.p_obligation_id)
+          if (!hit) return fail("Job not found")
+          const { org, row } = hit
+          if (blockedBy(org, row)) return fail("Waiting — the step before this one isn't done yet")
+          row.yes = true
+          log(org, "obligation_accepted", `Said Yes to "${row.what}"`)
+          save(state)
+          return ok({ ok: true })
+        }
+        case "dpdp_acknowledge_welcome": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          flags(org, me).firstVisitSeenAt = new Date().toISOString()
+          log(org, "membership_first_visit_acknowledged", `${me} saw their DPDP jobs for the first time`)
+          save(state)
+          return ok({ ok: true })
+        }
+        case "dpdp_flag_not_me": {
+          // drizzle/0604's dpdp_flag_not_me stamps BOTH first_visit_seen_at
+          // and said_not_me_at -- so the waiting screen, not the welcome,
+          // is what this person sees next.
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          const now = new Date().toISOString()
+          const f = flags(org, me)
+          f.firstVisitSeenAt = now
+          f.saidNotMeAt = now
+          log(org, "membership_said_not_me", `${me} said this isn't them -- needs reassigning`)
+          save(state)
+          return ok({ ok: true })
+        }
+        case "dpdp_areas_for_product": {
+          // Same grouping as the SQL: by area, in first-appearance order,
+          // group flag if any job in the area is a group job. OWNER/CAMGR/
+          // CAPARTNER are not areas, exactly as dpdp_areas_for_product.
+          const product = String(args?.p_product ?? "firm") as "firm" | "institution"
+          const areas = new Map<string, AreaPayload>()
+          for (const x of LIBRARY[product] ?? LIBRARY.firm) {
+            if (NOT_AN_AREA.has(x.area)) continue
+            const a = areas.get(x.area) ?? { area: x.area, jobs: [], isGroup: false }
+            a.jobs.push(x.what)
+            if (x.grp) a.isGroup = true
+            areas.set(x.area, a)
+          }
+          return ok([...areas.values()])
+        }
+        case "dpdp_complete_owner_first_visit": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || viewerIn(org, me)?.kind !== "owner") return fail("Only the owner can do this")
+          const assignments = (args?.p_assignments ?? []) as AreaAssignmentWire[]
+          let assigned = 0
+          let notApplicable = 0
+          for (const a of assignments) {
+            const rows = org.rows.filter((r) => r.area === a.area)
+            if (!rows.length) continue
+            if (a.na) {
+              for (const r of rows) r.na = true
+              log(org, "obligation_not_my_job", `Marked "${a.area}" as not applicable`)
+              notApplicable++
+              continue
+            }
+            const emails = [...new Set(a.emails.map((e) => e.trim().toLowerCase()).filter(Boolean))]
+            if (!emails.length) continue
+            if (rows.some((r) => LIBRARY[org.product][r.libIndex - 1].grp)) {
+              org.groupMembers = emails
+              for (const r of rows) { r.by = GROUP_LABEL[org.product]; r.isGroup = true }
+              log(org, "membership_named_in_role", `Named ${emails.length} people to "${a.area}"`)
+              assigned++
+              continue
+            }
+            for (const r of rows) {
+              if (LIBRARY[org.product][r.libIndex - 1].fromArea) { r.by = org.ownerEmail; r.yes = true } else r.by = emails[0]
+            }
+            log(org, "membership_named_in_role", `Named ${emails[0]} as ${a.area}`)
+            assigned++
+          }
+          flags(org, me).firstVisitSeenAt = new Date().toISOString()
+          save(state)
+          return ok({ ok: true, assigned, notApplicable })
+        }
+        case "dpdp_assign_person": {
+          const hit = rowOf(args?.p_obligation_id)
+          if (!hit) return fail("Job not found")
+          const { org, row } = hit
+          if (viewerIn(org, me)?.kind !== "owner") return fail("Only the owner can do this")
+          const email = String(args?.p_email ?? "").trim().toLowerCase()
+          if (!email) return fail("An email address is required")
+          if (row.yes) return fail("Already closed")
+          if (row.na) return fail("Doesn't apply")
+          row.by = email
+          row.isGroup = false
+          log(org, "obligation_assigned", `Assigned "${row.what}" to ${email}`)
+          save(state)
+          return ok({ ok: true })
+        }
+        case "dpdp_mark_not_applicable": {
+          const hit = rowOf(args?.p_obligation_id)
+          if (!hit) return fail("Job not found")
+          const { org, row } = hit
+          if (row.by !== me && viewerIn(org, me)?.kind !== "owner") return fail("Not your job")
+          if (row.yes) return fail("Already closed")
+          const reason = String(args?.p_reason ?? "").trim() || null
+          if (reason && charCount(reason) > NOTE_MAX) return fail(`A reason can be ${NOTE_MAX} characters at most`)
+          row.na = true
+          log(org, "obligation_not_my_job", `Marked "${row.what}" as not applicable`, reason)
+          save(state)
+          return ok({ ok: true })
+        }
+        // --- drizzle/0666: the page's own due-date and note controls ---
+        case "dpdp_set_due_date": {
+          const hit = rowOf(args?.p_obligation_id)
+          if (!hit) return fail("Job not found")
+          const { org, row } = hit
+          if (!viewerIn(org, me)) return fail("Job not found")
+          if (viewerIn(org, me)?.kind !== "owner") return fail("Only the owner can do this")
+          const dueOn = String(args?.p_due_on ?? "")
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(dueOn)) return fail("A date is required")
+          if (row.yes) return fail("Already closed")
+          if (row.na) return fail("Doesn't apply")
+          const { min, max } = dueBounds(new Date())
+          if (dueOn < min || dueOn > max) return fail(`Pick a date from ${min} to ${max}`)
+          const was = row.due
+          row.due = dueOn
+          log(org, "obligation_due_changed", `Set "${row.what}" due on ${dueOn}`, `It was due on ${was}`)
+          save(state)
+          return ok({ ok: true, dueOn })
+        }
+        case "dpdp_add_note": {
+          const hit = rowOf(args?.p_obligation_id)
+          if (!hit) return fail("Job not found")
+          const { org, row } = hit
+          const who = viewerIn(org, me)
+          if (!who) return fail("Job not found")
+          // The page's own visibility rule: a staff member sees their own jobs and the group jobs they are in; everyone else sees the organisation (the mock has no parent persona).
+          const sees = who.kind !== "staff" || row.by === me || (row.isGroup && org.groupMembers.includes(me))
+          if (!sees) return fail("Job not found")
+          const text = String(args?.p_text ?? "").trim()
+          if (!text) return fail("A note needs some words")
+          if (charCount(text) > NOTE_MAX) return fail(`A note can be ${NOTE_MAX} characters at most`)
+          log(org, "obligation_note_added", `Added a note to "${row.what}"`, text)
+          save(state)
+          return ok({ ok: true })
+        }
+        case "dpdp_org_history": {
+          const org = orgOf(args?.p_org_id)
+          if (!org) return fail("Not a member of this organisation")
+          const limit = Math.max(1, Math.min(Number(args?.p_limit ?? 15) || 15, 50))
+          // drizzle/0666: a staff member reads only the entries they made themselves (a note or a reason may concern a job they cannot see).
+          const staff = viewerIn(org, me)?.kind === "staff"
+          return ok(structuredClone((staff ? org.history.filter((h) => h.actorLabel === me) : org.history).slice(0, limit)))
+        }
+        // --- WO-DPDP-011 Step 5 (drizzle/0609) ---
+        case "dpdp_answer_group": {
+          const hit = rowOf(args?.p_obligation_id)
+          if (!hit) return fail("Job not found")
+          const { org, row } = hit
+          const answer = String(args?.p_answer ?? "") as GroupAnswerKind
+          if (!(answer in GROUP_ANSWER_LABEL)) return fail("That is not an answer this job can record.")
+          if (!row.isGroup) return fail("This job isn't assigned to a group")
+          if (blockedBy(org, row)) return fail("Waiting — the step before this one isn't done yet")
+          if (!org.groupMembers.includes(me)) return fail("You aren't a member of the group this job is assigned to")
+          const answers = (org.groupAnswers[row.id] ??= {})
+          answers[me] = answer
+          const answered = Object.keys(answers).length
+          const total = org.groupMembers.length
+          const closed = answered >= total
+          if (closed) row.yes = true
+          log(org, answer === "cannot" ? "task_answer_refused" : "task_answered", `${me} answered "${GROUP_ANSWER_LABEL[answer]}" for "${row.what}" (${answered} of ${total})`)
+          save(state)
+          return ok({ ok: true, answered, total, closed })
+        }
+        case "dpdp_my_clients": {
+          // Every client org where the caller is named CA partner/manager.
+          const out: CaClientWire[] = []
+          for (const org of Object.values(state.orgs)) {
+            if (!org.client) continue
+            const who = viewerIn(org, me)
+            // drizzle/0612: the CA who set the org up is its partner even when
+            // the product's library has no CA-tagged job (a school).
+            const caSub = who?.kind === "ca" && who.caSub ? who.caSub : org.setUpBy?.email === me ? "partner" : null
+            if (!caSub) continue
+            const live = org.rows.filter((r) => !r.na)
+            out.push({ org: { id: org.id, name: org.name, product: org.product }, caSub, done: live.filter((r) => r.yes).length, total: live.length, whereItIs: whereItIs(org), dataLocations: 0, ownerConfirmedAt: org.ownerConfirmedAt, setUpByMe: org.setUpBy?.email === me })
+          }
+          return ok(out)
+        }
+        // --- WO-DPDP-015 (drizzle/0654): a signed-in visitor opens their own organisation ---
+        case "dpdp_create_my_org": {
+          const name = String(args?.p_name ?? "").trim()
+          const product = String(args?.p_product ?? "")
+          if (!name) return fail("An organisation name is required")
+          if (name.length > 120) return fail("The organisation name is too long (120 characters at most)")
+          if (product !== "firm" && product !== "institution") return fail("product must be 'firm' or 'institution'")
+          const existing = home()
+          if (existing.ownerEmail === me && existing.name === name && existing.product === product && existing.createdByVisitor) {
+            return ok({ ok: true, orgId: existing.id, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "org", membershipId: `m-${existing.id}-${me}`, jobs: 0, existing: true })
+          }
+          // The visitor's own organisation replaces the demo world: their page is the home org, owned by them,
+          // with no CA named on the sign-off chain (nobody has been invited yet).
+          const org = makeOrg(HOME_ORG, name, product, { owner: me })
+          org.createdByVisitor = true
+          state.orgs[HOME_ORG] = org
+          log(org, "organisation_created", `Organisation "${name}" created`)
+          log(org, "obligation_assigned", `${org.rows.length} jobs opened from library 0.2-wo010`, null, "system")
+          // WO-DPDP-016 §2: real attribution (self_referral/shared_advisor
+          // conflict-checking) lives in the SQL RPC, not this mock -- the
+          // mock only proves the code travels through and is noted, since
+          // there is no second identity to referee a conflict against here.
+          const referralCode = String(args?.p_referral_code ?? "").trim()
+          if (referralCode) log(org, "referral_recorded", `Signed up via referral code ${referralCode}`)
+          save(state)
+          return ok({ ok: true, orgId: HOME_ORG, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "org", membershipId: `m-${HOME_ORG}-${me}`, jobs: org.rows.length, existing: false })
+        }
+        case "dpdp_create_client_org": {
+          const name = String(args?.p_name ?? "").trim()
+          const product = String(args?.p_product ?? "")
+          const ownerEmail = String(args?.p_owner_email ?? "").trim().toLowerCase()
+          if (!name) return fail("An organisation name is required")
+          if (product !== "firm" && product !== "institution") return fail("product must be 'firm' or 'institution'")
+          const orgId = `org-client-${Object.keys(state.orgs).length + 1}`
+          const org = makeOrg(orgId, name, product, { owner: ownerEmail, client: true, partner: me, setUpBy: { membershipId: `m-${orgId}-${me}`, email: me } })
+          state.orgs[orgId] = org
+          const jobs = org.rows.length
+          log(org, "organisation_created", `Organisation "${name}" created`)
+          log(org, "obligation_assigned", `${jobs} jobs opened from library 0.2-wo010`, null, "system")
+          log(org, "membership_named_in_role", `Named ${me} as CA partner`)
+          if (ownerEmail) log(org, "membership_named_in_role", `Named ${ownerEmail} as owner`)
+          // The caller's own History (the page they are on) records it too.
+          log(home(), "organisation_created", `Organisation "${name}" created`)
+          if (ownerEmail) log(home(), "membership_named_in_role", `Named ${ownerEmail} as owner`)
+          save(state)
+          return ok({ ok: true, orgId, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "org", jobs, ownerMembershipId: ownerEmail ? `m-${orgId}-owner` : null })
+        }
+        case "dpdp_org_setup": {
+          const org = orgOf(args?.p_org_id)
+          if (!org) return fail("Not a member of this organisation")
+          const setup: OrgSetupPayload = { orgId: org.id, setUpBy: org.setUpBy, ownerConfirmedAt: org.ownerConfirmedAt }
+          return ok(structuredClone(setup))
+        }
+        case "dpdp_owner_confirm_setup": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || viewerIn(org, me)?.kind !== "owner") return fail("Only the owner can do this")
+          if (!org.setUpBy) return fail("Nothing to confirm — this organisation was set up by its owner")
+          if (org.ownerConfirmedAt) return ok({ ok: true, alreadyConfirmed: true })
+          const now = new Date().toISOString()
+          org.ownerConfirmedAt = now
+          const f = flags(org, me)
+          f.firstVisitSeenAt = f.firstVisitSeenAt ?? now
+          log(org, "organisation_owner_confirmed", `${me} confirmed the list their CA set up`)
+          save(state)
+          return ok({ ok: true, alreadyConfirmed: false })
+        }
+        // --- WO-DPDP-012 §7 (drizzle/0607) ---
+        case "dpdp_create_ai_link": {
+          const org = orgOf(args?.p_org_id) ?? home()
+          const revokedPrevious = state.aiLinks > 0 ? 1 : 0
+          state.aiLinks++
+          const token = `mock-ai-link-${state.aiLinks}-${Math.random().toString(36).slice(2, 10)}`
+          const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString()
+          log(org, "ai_link_created", "Made an AI link", `Read-only, expires ${expiresAt.slice(0, 16).replace("T", " ")} UTC`)
+          save(state)
+          return ok({ linkId: `link-${state.aiLinks}`, token, expiresAt, revokedPrevious })
+        }
+        case "dpdp_ai_draft_preview": {
+          if (String(args?.p_draft_id) !== MOCK_DRAFT.draftId || String(args?.p_confirm_token) !== MOCK_DRAFT.confirmToken) return fail("This draft link is not valid")
+          const org = home()
+          const row = draftRow()
+          const now = Date.now()
+          return ok({
+            draftId: MOCK_DRAFT.draftId, verb: "NOTE", obligationId: row.id, job: row.what, payload: { text: "Checked with the billing team — the list is in the shared drive." },
+            org: { id: org.id, name: org.name }, createdAt: new Date(now).toISOString(), expiresAt: new Date(now + 86_400_000).toISOString(), expired: false,
+            confirmedAt: state.draftConfirmed ? new Date(now).toISOString() : null,
+          })
+        }
+        case "dpdp_confirm_ai_draft": {
+          if (String(args?.p_draft_id) !== MOCK_DRAFT.draftId || String(args?.p_confirm_token) !== MOCK_DRAFT.confirmToken) return fail("This draft link is not valid")
+          if (state.draftConfirmed) return fail("This draft has already been confirmed")
+          const row = draftRow()
+          state.draftConfirmed = true
+          log(home(), "ai_draft_confirmed", `drafted by AI, confirmed by ${me} -- added a note to "${row.what}"`)
+          save(state)
+          return ok({ ok: true, verb: "NOTE", obligationId: row.id })
+        }
+        // --- WO-DPDP-013 Part 1 (drizzle/0610): the AI WORK link -- the
+        // Copy-AI-link screen (AiWorkLink.tsx, WO-013 §4 item 6). ---
+        case "dpdp_ai_link_warning": {
+          const org = orgOf(args?.p_org_id) ?? home()
+          return ok(warningFor(org))
+        }
+        case "dpdp_ai_link_create": {
+          const org = orgOf(args?.p_org_id) ?? home()
+          const level = (Number(args?.p_level) === 1 ? 1 : 0) as 0 | 1
+          const hideEmails = args?.p_hide_emails === undefined || args?.p_hide_emails === null ? true : !!args.p_hide_emails
+          const rawDays = Number(args?.p_days)
+          const days = (rawDays === 1 || rawDays === 30 ? rawDays : 7) as 1 | 7 | 30
+          const labelValue = (args?.p_label ? String(args.p_label).trim() : "") || null
+          const n = ++state.aiWorkLinkSeq
+          const id = `wlink-${n}`
+          const token = `mock-work-link-${n}-${Math.random().toString(36).slice(2, 10)}`
+          const createdAt = new Date().toISOString()
+          const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
+          const w = warningFor(org)
+          const record: AiWorkLinkRecord = { id, label: labelValue, level, hideEmails, createdAt, expiresAt, revokedAt: null, lastUsedAt: null, callCount: 0 }
+          org.aiWorkLinks.unshift(record)
+          log(org, "ai_work_link_created", "Made an AI link", `Level ${level}${hideEmails ? ", other people's emails hidden" : ""}, expires ${expiresAt.slice(0, 16).replace("T", " ")} UTC`)
+          save(state)
+          const created: AiWorkLinkCreated = { linkId: id, token, level, hideEmails, label: labelValue, expiresAt, jobs: w.jobs, people: w.people }
+          return ok(created)
+        }
+        case "dpdp_ai_link_list": {
+          const org = orgOf(args?.p_org_id) ?? home()
+          const now = Date.now()
+          const out: AiLinkListItem[] = org.aiWorkLinks.map((l) => ({
+            id: l.id, label: l.label, level: l.level, hideEmails: l.hideEmails, createdAt: l.createdAt, expiresAt: l.expiresAt,
+            revokedAt: l.revokedAt, lastUsedAt: l.lastUsedAt, callCount: l.callCount,
+            active: !l.revokedAt && new Date(l.expiresAt).getTime() > now,
+          }))
+          return ok(out)
+        }
+        case "dpdp_ai_link_revoke": {
+          const id = String(args?.p_id ?? "")
+          for (const org of Object.values(state.orgs)) {
+            const link = org.aiWorkLinks.find((l) => l.id === id)
+            if (!link) continue
+            if (!link.revokedAt) {
+              link.revokedAt = new Date().toISOString()
+              log(org, "ai_work_link_revoked", `Revoked an AI link${link.label ? ` ("${link.label}")` : ""}`)
+              save(state)
+            }
+            return ok({ ok: true })
+          }
+          // Idempotent per api.ts's own doc comment -- but an id that never
+          // existed at all is still a real refusal, not a silent no-op.
+          return fail("Link not found")
+        }
+        case "dpdp_ai_action_undo": {
+          const actionId = String(args?.p_action_id ?? "")
+          const undoToken = String(args?.p_undo_token ?? "")
+          if (actionId !== MOCK_UNDO_ACTION.actionId || undoToken !== MOCK_UNDO_ACTION.undoToken) return fail("This undo link is not valid")
+          if (state.aiActionUndone) return fail("This has already been undone")
+          const org = home()
+          const row = draftRow()
+          state.aiActionUndone = true
+          log(org, "ai_action_undone", `Undid an AI assistant's change to "${row.what}" (by ${me})`)
+          save(state)
+          return ok({ ok: true, verb: "NOTE", jobId: row.id })
+        }
+        // --- WO-DPDP-014 §3/§7 (drizzle/0611) ---
+        case "dpdp_my_referral_code": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          const role = shareRoleIn(org, me)
+          if (!role) return fail("Only the owner, a CA partner or a CA manager can share a referral code")
+          return ok({ code: MOCK_REFERRAL_CODE, role })
+        }
+        case "dpdp_record_share_press": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          const role = shareRoleIn(org, me)
+          if (!role) return fail("Only the owner, a CA partner or a CA manager can share a referral code")
+          // No email anywhere in the event: the actor is the role label.
+          log(org, "share_press", `${SHARE_ROLE_LABEL[role]} pressed Share`, role, SHARE_ROLE_LABEL[role])
+          save(state)
+          return ok({ ok: true, role })
+        }
+        // --- WO-DPDP-016 §5 (drizzle/0655) ---
+        case "dpdp_my_referral_summary": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          // The mock has no second identity to have actually earned
+          // anything from -- this proves the shape, not the arithmetic
+          // (which is a Postgres-side unit, dpdp_record_confirmed_payment).
+          return ok({ code: MOCK_REFERRAL_CODE, referredCount: 0, totalEarnedPaise: 0, pendingPaise: 0, paidPaise: 0 })
+        }
+        // --- WO-DPDP-016 Step 2 (drizzle/0657) ---
+        case "dpdp_my_org_invite_link": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          return ok({ code: MOCK_INVITE_CODE })
+        }
+        case "dpdp_join_org_via_invite": {
+          const code = String(args?.p_code ?? "").trim().toUpperCase()
+          if (!code) return fail("An invite link is required")
+          if (code !== MOCK_INVITE_CODE) return fail("That invite link is not valid")
+          const org = home()
+          const already = viewerIn(org, me) !== null
+          if (!already) {
+            org.invitedMembers.push(me)
+            log(org, "membership_joined", `${me} joined via an invite link`, "invited", me)
+            save(state)
+          }
+          return ok({ ok: true, orgId: org.id, membershipId: `m-${org.id}-${me}`, alreadyMember: already })
+        }
+        // --- WO-DPDP-016 §7-8 (drizzle/0655) ---
+        case "dpdp_my_billing": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          if (viewerIn(org, me)?.kind !== "owner") return fail("Only the owner can see billing")
+          const b = org.billing
+          return ok({
+            orgId: org.id, product: org.product, state: b.state, trialEndsAt: b.trialEndsAt, interval: b.interval,
+            selfDeclaredAt: b.selfDeclaredAt, selfDeclaredInterval: b.selfDeclaredInterval, selfDeclaredAmountPaise: b.selfDeclaredAmountPaise,
+            selfDeclaredReference: b.selfDeclaredReference, selfDeclaredProofPath: b.selfDeclaredProofPath, selfDeclaredNote: b.selfDeclaredNote,
+            lastConfirmedAt: b.lastConfirmedAt,
+          })
+        }
+        case "dpdp_declare_payment": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          if (viewerIn(org, me)?.kind !== "owner") return fail("Only the owner can declare a payment")
+          const interval = String(args?.p_interval ?? "")
+          const amount = Number(args?.p_amount_paise)
+          if (interval !== "month" && interval !== "year") return fail("interval must be 'month' or 'year'")
+          if (!Number.isFinite(amount) || amount <= 0) return fail("amount_paise must be a positive number")
+          org.billing.state = "awaiting_confirmation"
+          org.billing.interval = interval
+          org.billing.selfDeclaredAt = new Date().toISOString()
+          org.billing.selfDeclaredInterval = interval
+          org.billing.selfDeclaredAmountPaise = amount
+          org.billing.selfDeclaredReference = (args?.p_reference as string | null) ?? null
+          org.billing.selfDeclaredProofPath = (args?.p_proof_path as string | null) ?? null
+          org.billing.selfDeclaredNote = (args?.p_note as string | null) ?? null
+          log(org, "payment_declared", `Owner said they paid Rs ${(amount / 100).toLocaleString("en-IN")} (${interval}ly) -- awaiting confirmation`)
+          save(state)
+          return ok({ ok: true, state: "awaiting_confirmation" })
+        }
+        // --- WO-DPDP-016 follow-on: manual payment confirmation (mock preview) ---
+        // In mock mode ONLY, the "owner" scenario's own persona (owner@example.test)
+        // doubles as VERIDIAN's own platform admin, so the review screen can be
+        // previewed without a second identity -- the real dpdp.platform_admin
+        // table is a genuinely separate allowlist, unrelated to any org's owner.
+        case "dpdp__is_platform_admin":
+          return ok(me === MOCK_OWNER)
+        case "dpdp_owner_pending_claims": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          const claims = Object.values(state.orgs)
+            .filter((o) => o.billing.state === "awaiting_confirmation")
+            .map((o) => ({
+              orgId: o.id, orgName: o.name, product: o.product, interval: o.billing.interval, amountPaise: o.billing.selfDeclaredAmountPaise,
+              reference: o.billing.selfDeclaredReference, proofPath: o.billing.selfDeclaredProofPath, note: o.billing.selfDeclaredNote,
+              declaredAt: o.billing.selfDeclaredAt, ownerEmail: o.ownerEmail,
+            }))
+          return ok(claims)
+        }
+        case "dpdp_owner_approve_payment": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          const org = orgOf(args?.p_org_id)
+          if (!org) return fail("No such organisation")
+          if (org.billing.state !== "awaiting_confirmation") return fail("This organisation has no payment awaiting confirmation")
+          org.billing.state = "active"
+          org.billing.lastConfirmedAt = new Date().toISOString()
+          const paymentId = `mock-payment-${org.id}`
+          log(org, "payment_confirmed", `Payment confirmed: Rs ${((org.billing.selfDeclaredAmountPaise ?? 0) / 100).toLocaleString("en-IN")} (${org.product}, ${org.billing.interval}ly)`)
+          save(state)
+          return ok({ ok: true, paymentId, commissionId: null, commissionAmountPaise: null })
+        }
+        case "dpdp_owner_reject_payment": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          const org = orgOf(args?.p_org_id)
+          if (!org) return fail("No such organisation")
+          if (org.billing.state !== "awaiting_confirmation") return fail("This organisation has no payment awaiting confirmation")
+          org.billing.state = "trial"
+          org.billing.selfDeclaredAt = null; org.billing.selfDeclaredInterval = null; org.billing.selfDeclaredAmountPaise = null
+          org.billing.selfDeclaredReference = null; org.billing.selfDeclaredProofPath = null; org.billing.selfDeclaredNote = null
+          log(org, "payment_rejected", "Payment claim could not be confirmed")
+          save(state)
+          return ok({ ok: true, state: "trial" })
+        }
+        // --- Sales Partner lifecycle preview (drizzle/0674) ---
+        case "dpdp_partner_dashboard": {
+          const p = state.partner
+          const base = {
+            email: me, currentTermsVersion: MOCK_TERMS_VERSION, payableAfterDays: 30, payoutDay: 10, minPayoutPaise: 50000,
+            nextPayoutOn: daysFromNow(10).slice(0, 10), tdsPercentSet: state.partnerTdsPercent != null,
+          }
+          if (!p) return ok({ ...base, status: null, needsTerms: true })
+          const d = p.details
+          const mask = d && {
+            method: d.method,
+            upiMasked: d.upiId ? `${d.upiId.slice(0, 2)}****@${d.upiId.split("@")[1] ?? ""}` : null,
+            nameMasked: d.accountName ? d.accountName.split(/\s+/).map((w) => `${w[0]}***`).join(" ") : null,
+            accountMasked: d.accountNumber ? `${"X".repeat(Math.max(d.accountNumber.length - 4, 0))}${d.accountNumber.slice(-4)}` : null,
+            ifscMasked: d.ifsc ? `${d.ifsc.slice(0, 4)}*******` : null,
+            panMasked: d.pan ? `${d.pan.slice(0, 2)}*******${d.pan.slice(-1)}` : null,
+            updatedAt: d.updatedAt,
+          }
+          return ok({
+            ...base, status: p.status, displayName: p.name, termsVersion: p.termsVersion, termsAcceptedAt: p.termsAcceptedAt,
+            needsTerms: p.termsVersion !== MOCK_TERMS_VERSION, hasPayoutDetails: !!d, payoutDetails: mask, code: p.status === "active" ? MOCK_REFERRAL_CODE : null,
+            funnel: { signedUp: 0, inTrial: 0, paying: 0, notCounted: 0 },
+            money: { earnedPaise: 0, waitingPaise: 0, payablePaise: 0, paidGrossPaise: 0, paidTdsPaise: 0, paidNetPaise: 0 },
+            lines: [], payableBefore: daysFromNow(0).slice(0, 8) + "01",
+          })
+        }
+        case "dpdp_partner_accept_terms": {
+          if (String(args?.p_version ?? "") !== MOCK_TERMS_VERSION) return fail(`These are not the current partner terms (the current version is ${MOCK_TERMS_VERSION}). Reload the page and read them again.`)
+          if (state.partner?.status === "ended") return fail("Your partnership has ended. Write to us if you want to join again.")
+          const name = String(args?.p_display_name ?? "").trim() || null
+          state.partner = { status: "applied", name, details: null, ...state.partner, termsVersion: MOCK_TERMS_VERSION, termsAcceptedAt: new Date().toISOString() }
+          if (state.partner.details && state.partner.status === "applied") state.partner.status = "active"
+          save(state)
+          return ok({ ok: true, status: state.partner.status, activated: state.partner.status === "active" })
+        }
+        case "dpdp_partner_save_payout_details": {
+          if (!state.partner) return fail("Accept the partner terms first, then add your payout details.")
+          const method = String(args?.p_method ?? "")
+          if (method !== "upi" && method !== "bank") return fail("Choose how you want to be paid: UPI or bank transfer.")
+          const upi = String(args?.p_upi_id ?? "").trim().toLowerCase()
+          if (method === "upi" && !/^[a-z0-9._-]{2,64}@[a-z][a-z0-9]{1,31}$/.test(upi)) return fail("That UPI id does not look right. It looks like name@bank.")
+          state.partner.details = {
+            method, updatedAt: new Date().toISOString(),
+            ...(method === "upi" ? { upiId: upi } : { accountName: String(args?.p_account_name ?? ""), accountNumber: String(args?.p_account_number ?? ""), ifsc: String(args?.p_ifsc ?? "").toUpperCase() }),
+            ...(args?.p_pan ? { pan: String(args.p_pan).toUpperCase() } : {}),
+          }
+          if (state.partner.status === "applied" && state.partner.termsVersion === MOCK_TERMS_VERSION) state.partner.status = "active"
+          save(state)
+          return ok({ ok: true, status: state.partner.status, activated: state.partner.status === "active" })
+        }
+        case "dpdp_partner_get_code": {
+          if (state.partner?.status !== "active") return fail("Your personal link appears when your partner set-up is finished and active.")
+          return ok({ code: MOCK_REFERRAL_CODE })
+        }
+        case "dpdp_partner_statement": {
+          if (!state.partner) return fail("You are not a Sales Partner yet.")
+          const period = String(args?.p_period ?? "")
+          if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) return fail("Choose a month like 2026-09.")
+          return ok({ period, email: me, lines: [], payouts: [], totals: { madePaise: 0, paidGrossPaise: 0, paidTdsPaise: 0, paidNetPaise: 0, stillWaitingPaise: 0 } })
+        }
+        case "dpdp_admin_partner_settings":
+        case "dpdp_admin_partner_set_settings": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          if (fn === "dpdp_admin_partner_set_settings" && args?.p_tds_percent != null) state.partnerTdsPercent = Number(args.p_tds_percent)
+          save(state)
+          return ok({ payableAfterDays: 30, payoutDay: 10, minPayoutPaise: 50000, tdsPercent: state.partnerTdsPercent ?? 0, tdsPercentSet: state.partnerTdsPercent != null, termsVersion: MOCK_TERMS_VERSION, updatedAt: new Date().toISOString() })
+        }
+        case "dpdp_admin_partner_list":
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          return ok([])
+        case "dpdp_admin_partner_payout_run": {
+          if (me !== MOCK_OWNER) return fail("Owner only")
+          return ok({
+            period: String(args?.p_period ?? "") || daysFromNow(-30).slice(0, 7), payableBefore: daysFromNow(0).slice(0, 8) + "01",
+            tdsPercentSet: state.partnerTdsPercent != null, tdsPercent: state.partnerTdsPercent ?? 0, minPayoutPaise: 50000, payoutDay: 10, partners: [], held: [],
+          })
+        }
+        // --- drizzle/0734: open an account, the plans, the account's state. The mock keeps no billing clock: every account it shows is ACTIVE. ---
+        case "dpdp_open_account": {
+          const made = await this.rpc("dpdp_create_my_org", { p_name: args?.p_org_name, p_product: args?.p_account_type, p_referral_code: args?.p_referral_code })
+          if (made.error) return made
+          return ok({ ...(made.data as object), accountType: args?.p_account_type, planKey: args?.p_account_type === "institution" ? "institution" : "firm_starter", attribution: "none", verification: args?.p_professional_body ? "pending" : "none" })
+        }
+        case "dpdp_public_plans":
+          return ok([
+            { key: "institution", accountType: "institution", name: "Institution", maxClients: 0, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
+            { key: "firm_starter", accountType: "firm", name: "Starter", maxClients: 10, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
+          ])
+        case "dpdp_my_account":
+          return ok({ orgId: String(args?.p_org_id ?? HOME_ORG), hasAccount: false, state: "ACTIVE" })
+        default:
+          return fail(`Unknown RPC ${fn}`)
+      }
+    },
+  }
+}

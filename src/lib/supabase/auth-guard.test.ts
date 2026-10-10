@@ -288,7 +288,7 @@ describe("resolveActingUser -- D-05 X-Acting-User bridge", () => {
     expect(error!.status).toBe(400)
     const body = await error!.json()
     expect(body.code).toBe("USER_NOT_LINKED")
-    expect(body.error).toBe("Your PROJEXA account is not linked to a VERIDIAN user - ask your admin")
+    expect(body.error).toBe("Your PROJEXA account is not linked to a PROJEXA user - ask your admin")
   })
 
   test("an X-Acting-User id that maps to an active user in this org resolves to that real person", async () => {
@@ -430,11 +430,15 @@ describe("resolveWriteActorId -- PROJEXA-E2E-001 surface-4 fix", () => {
     expect(actorId).toBe("session-user")
   })
 
-  test("no acting-user signal at all falls back to the API key's own id -- unchanged legacy behaviour, so PROJEXA's existing UI proxies (which send no headers) are not broken by this fix", async () => {
+  // PROJEXA-BUILD-001 U-20b (BR-215): this used to pin the legacy fallback
+  // ("no signal -> the API key's own id"). The fallback is gone -- the key's
+  // id is never an actor any more -- so the same call is now refused.
+  test("no acting-user signal at all is refused with 400 ACTING_USER_REQUIRED, never the API key's own id (U-20b)", async () => {
     const { resolveWriteActorId } = await loadAuthGuardWithUserLookups([])
     const { actorId, error } = await resolveWriteActorId({ headers: new Headers() }, PROJEXA_ORG_KEY_CTX as never)
-    expect(error).toBeNull()
-    expect(actorId).toBe("key-1")
+    expect(actorId).toBeNull()
+    expect(error!.status).toBe(400)
+    expect((await error!.json()).code).toBe("ACTING_USER_REQUIRED")
   })
 
   test("an X-Acting-User(-Email) signal that resolves is used -- the whole point of the fix", async () => {

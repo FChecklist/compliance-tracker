@@ -65,7 +65,8 @@
           "ffe": "FF&E",
           "changeOrders": "Change Orders",
           "workProgress": "Work Progress",
-          "dashboard": "Construction Dashboard"
+          "dashboard": "Construction Dashboard",
+          "projects": "Projects"
         }
       },
       "theFirm": {

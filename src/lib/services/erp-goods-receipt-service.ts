@@ -14,7 +14,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { recordStockReceipt } from "./erp-inventory-service"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { ErpContext, ActorCtx } from "./actor-context"
@@ -100,7 +100,7 @@ export async function createPurchaseReceipt(
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_receipt.created", entityType: "erp_purchase_receipt", entityId: receipt.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_purchase_receipt.created", entityType: "erp_purchase_receipt", entityId: receipt.id })
     return receipt
   })
 }
@@ -196,7 +196,7 @@ export async function submitPurchaseReceipt(ctx: ActorCtx, receiptId: string) {
     }
 
     const [updated] = await db.update(erpPurchaseReceipts).set({ status: "submitted" }).where(eq(erpPurchaseReceipts.id, receiptId)).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_receipt.submitted", entityType: "erp_purchase_receipt", entityId: receiptId })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_purchase_receipt.submitted", entityType: "erp_purchase_receipt", entityId: receiptId })
     return updated
   })
 }
