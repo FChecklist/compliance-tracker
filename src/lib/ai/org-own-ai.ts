@@ -56,8 +56,34 @@ async function checkedKey(input: { provider: unknown; model?: unknown; apiKey: u
   if (apiKey.length < 8 || /\s/.test(apiKey)) throw new OwnAiError("Paste the key exactly as your AI company gave it, with no spaces.")
   const model = typeof input.model === "string" && input.model.trim() ? input.model.trim() : OWN_AI_DEFAULT_MODELS[input.provider]
   const test = await testProviderConnection(input.provider, model, apiKey)
-  if (!test.ok) throw new OwnAiError(`That key did not work, so nothing was saved. ${test.error}`)
+  if (!test.ok) throw new OwnAiError(plainKeyProblem(input.provider, test.error))
   return { provider: input.provider, model, apiKey }
+}
+
+const VENDOR_NAME: Record<OwnAiProvider, string> = { openai: "OpenAI (ChatGPT)", anthropic: "Anthropic (Claude)", google: "Google (Gemini)", groq: "Groq", openrouter: "OpenRouter" }
+
+/**
+ * A refused test, in words a person who is not technical can act on. The vendor's own message is kept at the end for support, but the first
+ * sentence says what to DO. Nothing was saved in any of these cases, and the sentence says so.
+ */
+export function plainKeyProblem(provider: OwnAiProvider, raw: string): string {
+  const vendor = VENDOR_NAME[provider]
+  const status = Number(/HTTP (\d{3})/.exec(raw)?.[1] ?? 0)
+  const lower = raw.toLowerCase()
+  let what: string
+  if (status === 401 || status === 403 || lower.includes("invalid api key") || lower.includes("incorrect api key") || lower.includes("unauthorized")) {
+    what = `${vendor} did not accept this key. Check that you copied ALL of it (it is long), that it has not been deleted on their site, and that it really is a ${vendor} key.`
+  } else if (status === 429 || lower.includes("quota") || lower.includes("insufficient") || lower.includes("credit") || lower.includes("billing")) {
+    what = `The key is real, but the ${vendor} account has no credit left or has reached its limit. Add credit on their billing page, wait a minute, and try again.`
+  } else if (status === 404 || lower.includes("model")) {
+    what = `The key is real, but this key cannot use that model. Clear the model box to use the one PROJEXA suggests, or type a model your ${vendor} account can use.`
+  } else if (status >= 500) {
+    what = `${vendor} is having a problem right now. Wait a few minutes and try again.`
+  } else {
+    what = `${vendor} did not answer correctly.`
+  }
+  const detail = raw.length > 200 ? `${raw.slice(0, 200)}...` : raw
+  return `Nothing was saved. ${what} (Details for support: ${detail})`
 }
 
 // ───────────── the ORGANISATION's connection (owner/admin) ─────────────

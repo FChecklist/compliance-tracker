@@ -114,8 +114,8 @@ describe("who is served by which AI", () => {
 
   test("7. a key that fails the test saves nothing, for a person and for the organisation", async () => {
     testResult = { ok: false, error: "Provider rejected the request (HTTP 401)" }
-    await expect(svc.saveMyAi("org-1", "anita", { provider: "openai", apiKey: "fake-bad-key-test" })).rejects.toThrow(/nothing was saved/)
-    await expect(svc.saveOwnAi("org-1", { provider: "openai", apiKey: "fake-bad-key-test" })).rejects.toThrow(/nothing was saved/)
+    await expect(svc.saveMyAi("org-1", "anita", { provider: "openai", apiKey: "fake-bad-key-test" })).rejects.toThrow(/Nothing was saved.*did not accept this key/)
+    await expect(svc.saveOwnAi("org-1", { provider: "openai", apiKey: "fake-bad-key-test" })).rejects.toThrow(/Nothing was saved/)
     expect(await svc.resolveAiFor("org-1", "anita")).toBeNull()
   })
 
@@ -142,5 +142,20 @@ describe("who is served by which AI", () => {
     await svc.saveMyAi("org-1", "bala", { provider: "groq", apiKey: "fake-bala-key-test" })
     expect(await eff("bala")).toBe("mine")
     expect((await svc.getAiPicture("org-1", "bala", false)).sharedWithMe).toEqual([{ ownerName: "Anita", provider: "anthropic", model: "claude-haiku-5-5" }])
+  })
+
+})
+
+describe("a refused key is explained in everyday words", () => {
+  test.each([
+    ["Provider rejected the request (HTTP 401): invalid api key", /did not accept this key.*copied ALL of it/],
+    ["Provider rejected the request (HTTP 429): You exceeded your current quota", /no credit left.*billing page/],
+    ["Provider rejected the request (HTTP 404): model not found", /cannot use that model/],
+    ["Provider rejected the request (HTTP 503)", /having a problem right now/],
+  ])("%s", (raw, expected) => {
+    const sentence = svc.plainKeyProblem("anthropic", raw)
+    expect(sentence).toMatch(expected)
+    expect(sentence.startsWith("Nothing was saved.")).toBe(true)
+    expect(sentence).toContain("Anthropic (Claude)")
   })
 })
