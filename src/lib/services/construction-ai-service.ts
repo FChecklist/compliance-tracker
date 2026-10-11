@@ -405,7 +405,7 @@ export async function discussConstruction(
   if (!policyDecision.allowed) return { reply: refusalMessageFor(policyDecision) }
 
   const modelConfig = ownAi
-    ? { provider: ownAi.provider, model: ownAi.model, apiKey: ownAi.apiKey, isCustomerConfigured: true, fallback: undefined }
+    ? { provider: ownAi.provider, model: ownAi.model, apiKey: ownAi.apiKey, baseUrl: ownAi.baseUrl, isCustomerConfigured: true, fallback: undefined }
     : await resolveModelConfig(ctx.orgId, "user_assistant_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
 
@@ -419,7 +419,7 @@ export async function discussConstruction(
 
   const { content, usage } = await callLLM(
     modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
-    { temperature: 0.4, maxTokens: 500, bypassBridge: modelConfig.isCustomerConfigured }, modelConfig.fallback
+    { temperature: 0.4, maxTokens: 500, bypassBridge: modelConfig.isCustomerConfigured, baseUrl: "baseUrl" in modelConfig ? modelConfig.baseUrl : undefined }, modelConfig.fallback
   )
 
   recordOrchestraExecution({

@@ -80,7 +80,9 @@ export async function classifyWithKey(
   candidateFunctions: string[],
   context: ClassifyContext,
   /** True when the key is the customer's own: the test bridge must not answer instead (llm-client bypassBridge). */
-  ownKey = false
+  ownKey = false,
+  /** DeepSeek / Z.ai / xAI: their own OpenAI-compatible chat address. */
+  baseUrl?: string
 ): Promise<ClassificationResult[]> {
   if (segments.length === 0) return [];
   // ONE call for ALL unresolved segments (M27) -- never one call per segment.
@@ -91,7 +93,7 @@ export async function classifyWithKey(
     apiKey,
     withProjexaBriefing(CLASSIFY_SYSTEM_PROMPT),
     userMessage,
-    { expectedKeys: ["results"], temperature: 0, bypassBridge: ownKey }
+    { expectedKeys: ["results"], temperature: 0, bypassBridge: ownKey, baseUrl }
   );
   if (!Array.isArray(data.results) || data.results.length !== segments.length) {
     throw new Error(`L1 returned ${data.results?.length ?? 0} result(s) for ${segments.length} segment(s) -- expected exactly one per segment.`);

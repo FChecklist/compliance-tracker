@@ -44,7 +44,8 @@ let testResult: { ok: true } | { ok: false; error: string } = { ok: true }
 mock.module("@/lib/db", () => ({ ...schema, db }))
 mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: async (_c: unknown, fn: (tx: never) => unknown) => fn(db) }))
 mock.module("@/lib/ai-config-crypto", () => ({ encryptApiKey: async (k: string) => `enc(${k})`, decryptApiKey: async (c: string) => c.slice(4, -1) }))
-mock.module("@/lib/orchestra-model-resolver", () => ({ testProviderConnection: async () => testResult }))
+const tested: Array<{ provider: string; model: string; key: string; baseUrl?: string }> = []
+mock.module("@/lib/orchestra-model-resolver", () => ({ testProviderConnection: async (provider: string, model: string, key: string, baseUrl?: string) => { tested.push({ provider, model, key, ...(baseUrl ? { baseUrl } : {}) }); return testResult } }))
 const svc = await import("./org-own-ai")
 
 beforeEach(async () => {
@@ -144,6 +145,36 @@ describe("who is served by which AI", () => {
     expect((await svc.getAiPicture("org-1", "bala", false)).sharedWithMe).toEqual([{ ownerName: "Anita", provider: "anthropic", model: "claude-haiku-5-5" }])
   })
 
+})
+
+describe("DeepSeek, Z.ai and xAI keys are called at their own OpenAI-compatible address", () => {
+  test.each([
+    ["deepseek", "https://api.deepseek.com/chat/completions", "deepseek-flash"],
+    ["zai", "https://api.z.ai/api/paas/v4/chat/completions", "glm-5"],
+    ["xai", "https://api.x.ai/v1/chat/completions", "grok-4.20-0309-non-reasoning"],
+  ])("%s: a person's key resolves to the OpenAI-shaped client with that vendor's address and model", async (vendor, baseUrl, model) => {
+    await svc.saveMyAi("org-1", "anita", { provider: vendor, apiKey: "fake-vendor-key-test" })
+    expect(tested.at(-1)).toEqual({ provider: "openai", model, key: "fake-vendor-key-test", baseUrl })
+    expect(await svc.resolveAiFor("org-1", "anita")).toMatchObject({ source: "mine", provider: "openai", model, baseUrl, apiKey: "fake-vendor-key-test" })
+  })
+
+  test("they can be shared like any other connection", async () => {
+    await svc.saveMyAi("org-1", "anita", { provider: "deepseek", apiKey: "fake-vendor-key-test" })
+    await svc.setMyShares("org-1", "anita", ["bala"])
+    expect(await svc.resolveAiFor("org-1", "bala")).toMatchObject({ source: "shared", sharedByName: "Anita", baseUrl: "https://api.deepseek.com/chat/completions" })
+  })
+
+  test("the organisation's own connection takes only the vendors its database enum has, with a plain reason", async () => {
+    await expect(svc.saveOwnAi("org-1", { provider: "deepseek", apiKey: "fake-vendor-key-test" })).rejects.toThrow(/whole organisation.*each person/)
+    await expect(svc.saveOwnAi("org-1", { provider: "xai", apiKey: "fake-vendor-key-test" })).rejects.toThrow(/xAI \(Grok\)/)
+    expect(await svc.resolveAiFor("org-1", "chitra")).toBeNull()
+    await svc.saveOwnAi("org-1", { provider: "openrouter", apiKey: "fake-vendor-key-test" })
+    expect(await svc.resolveAiFor("org-1", "chitra")).toMatchObject({ source: "org", provider: "openrouter" })
+  })
+
+  test("the migration's own CHECK allows exactly these vendors and nothing else", async () => {
+    await expect(pglite.exec("INSERT INTO compliance.user_ai_connections (org_id, owner_user_id, provider, model_name, encrypted_api_key) VALUES ('org-1','x','mystery','m','e')")).rejects.toThrow()
+  })
 })
 
 describe("a refused key is explained in everyday words", () => {

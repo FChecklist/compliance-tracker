@@ -20,8 +20,25 @@ import { decryptApiKey, encryptApiKey } from "@/lib/ai-config-crypto"
 import type { LLMProvider } from "@/lib/llm-client"
 import { testProviderConnection } from "@/lib/orchestra-model-resolver"
 
-export const OWN_AI_PROVIDERS = ["openai", "anthropic", "google", "groq", "openrouter"] as const
+/** The vendors a PERSON can connect. The organisation's own connection (customer_model_config.provider, a database enum) takes the first five only. */
+export const OWN_AI_PROVIDERS = ["openai", "anthropic", "google", "groq", "openrouter", "deepseek", "zai", "xai"] as const
 export type OwnAiProvider = (typeof OWN_AI_PROVIDERS)[number]
+export const ORG_AI_PROVIDERS: readonly OwnAiProvider[] = ["openai", "anthropic", "google", "groq", "openrouter"]
+
+/**
+ * DeepSeek, Z.ai and xAI publish an OpenAI-compatible chat endpoint and their own key page (checked in each company's API documentation,
+ * 2026-10-11), so a key from them is called through the OpenAI-shaped client with THEIR address. Nothing else about the call changes.
+ */
+export const VENDOR_ENDPOINTS: Partial<Record<OwnAiProvider, string>> = {
+  deepseek: "https://api.deepseek.com/chat/completions",
+  zai: "https://api.z.ai/api/paas/v4/chat/completions",
+  xai: "https://api.x.ai/v1/chat/completions",
+}
+
+/** The client-side provider a stored vendor is called through. */
+export function llmProviderFor(vendor: OwnAiProvider): LLMProvider {
+  return vendor === "deepseek" || vendor === "zai" || vendor === "xai" ? "openai" : vendor
+}
 
 /** A fast, cheap model per vendor so typed requests answer in about a second or two. The person may type another model name. */
 export const OWN_AI_DEFAULT_MODELS: Record<OwnAiProvider, string> = {
@@ -30,6 +47,9 @@ export const OWN_AI_DEFAULT_MODELS: Record<OwnAiProvider, string> = {
   google: "gemini-2.0-flash",
   groq: "llama-3.3-70b-versatile",
   openrouter: "deepseek/deepseek-chat",
+  deepseek: "deepseek-flash",
+  zai: "glm-5",
+  xai: "grok-4.20-0309-non-reasoning",
 }
 
 export class OwnAiError extends Error {
@@ -42,7 +62,8 @@ export class OwnAiError extends Error {
 
 export type AiSource = "mine" | "shared" | "org"
 export type OwnAiStatus = { connected: boolean; provider: OwnAiProvider | null; model: string | null; changedAt: string | null }
-export type OwnAiConfig = { provider: LLMProvider; model: string; apiKey: string }
+/** What one model call needs. `baseUrl` is set for DeepSeek, Z.ai and xAI (their own OpenAI-compatible address). */
+export type OwnAiConfig = { provider: LLMProvider; model: string; apiKey: string; baseUrl?: string }
 export type ResolvedAi = OwnAiConfig & { source: AiSource; sharedByName?: string }
 
 export function isOwnAiProvider(value: unknown): value is OwnAiProvider {
@@ -50,17 +71,20 @@ export function isOwnAiProvider(value: unknown): value is OwnAiProvider {
 }
 
 /** Validates the pasted vendor / key / model, then makes the one real tiny call. Throws OwnAiError in everyday words; returns what to store. */
-async function checkedKey(input: { provider: unknown; model?: unknown; apiKey: unknown }): Promise<{ provider: OwnAiProvider; model: string; apiKey: string }> {
-  if (!isOwnAiProvider(input.provider)) throw new OwnAiError("Choose one of: ChatGPT (OpenAI), Claude, Gemini, Groq, or Others (OpenRouter).")
+async function checkedKey(input: { provider: unknown; model?: unknown; apiKey: unknown }, allowed: readonly OwnAiProvider[] = OWN_AI_PROVIDERS): Promise<{ provider: OwnAiProvider; model: string; apiKey: string }> {
+  if (!isOwnAiProvider(input.provider)) throw new OwnAiError("Choose one of: ChatGPT (OpenAI), Claude, Gemini, Grok (xAI), DeepSeek, z.ai, Groq, or Others (OpenRouter).")
+  if (!allowed.includes(input.provider)) {
+    throw new OwnAiError(`For the whole organisation please use ChatGPT, Claude, Gemini, Groq or OpenRouter. ${VENDOR_NAME[input.provider]} can be connected by each person for themselves.`)
+  }
   const apiKey = typeof input.apiKey === "string" ? input.apiKey.trim() : ""
   if (apiKey.length < 8 || /\s/.test(apiKey)) throw new OwnAiError("Paste the key exactly as your AI company gave it, with no spaces.")
   const model = typeof input.model === "string" && input.model.trim() ? input.model.trim() : OWN_AI_DEFAULT_MODELS[input.provider]
-  const test = await testProviderConnection(input.provider, model, apiKey)
+  const test = await testProviderConnection(llmProviderFor(input.provider), model, apiKey, VENDOR_ENDPOINTS[input.provider])
   if (!test.ok) throw new OwnAiError(plainKeyProblem(input.provider, test.error))
   return { provider: input.provider, model, apiKey }
 }
 
-const VENDOR_NAME: Record<OwnAiProvider, string> = { openai: "OpenAI (ChatGPT)", anthropic: "Anthropic (Claude)", google: "Google (Gemini)", groq: "Groq", openrouter: "OpenRouter" }
+const VENDOR_NAME: Record<OwnAiProvider, string> = { openai: "OpenAI (ChatGPT)", anthropic: "Anthropic (Claude)", google: "Google (Gemini)", groq: "Groq", openrouter: "OpenRouter", deepseek: "DeepSeek", zai: "Z.ai", xai: "xAI (Grok)" }
 
 /**
  * A refused test, in words a person who is not technical can act on. The vendor's own message is kept at the end for support, but the first
@@ -103,15 +127,23 @@ export async function resolveOrgOwnAi(orgId: string): Promise<OwnAiConfig | null
   return { provider: row.provider as LLMProvider, model: row.modelName, apiKey: await decryptApiKey(row.encryptedApiKey) }
 }
 
+/** A stored person connection as one model call needs it (the vendor name is translated to the client-side provider and address). */
+async function personConfig(vendor: string, model: string, encrypted: string): Promise<OwnAiConfig> {
+  const v = vendor as OwnAiProvider
+  return { provider: llmProviderFor(v), model, apiKey: await decryptApiKey(encrypted), ...(VENDOR_ENDPOINTS[v] ? { baseUrl: VENDOR_ENDPOINTS[v] } : {}) }
+}
+
 export async function saveOwnAi(orgId: string, input: { provider: unknown; model?: unknown; apiKey: unknown }): Promise<OwnAiStatus> {
-  const ok = await checkedKey(input)
+  const ok = await checkedKey(input, ORG_AI_PROVIDERS)
+  // checkedKey already refused DeepSeek / Z.ai / xAI for the organisation; this narrows the type to the database enum's five values
+  const orgProvider = ok.provider as Exclude<OwnAiProvider, "deepseek" | "zai" | "xai">
   const encryptedApiKey = await encryptApiKey(ok.apiKey)
   await withTenantContext({ orgId }, async (tx) => {
     const existing = await tx.query.customerModelConfig.findFirst({ where: orgRow(orgId) })
     if (existing) {
-      await tx.update(customerModelConfig).set({ provider: ok.provider, modelName: ok.model, encryptedApiKey, isActive: true, updatedAt: new Date() }).where(eq(customerModelConfig.id, existing.id))
+      await tx.update(customerModelConfig).set({ provider: orgProvider, modelName: ok.model, encryptedApiKey, isActive: true, updatedAt: new Date() }).where(eq(customerModelConfig.id, existing.id))
     } else {
-      await tx.insert(customerModelConfig).values({ orgId, orchestraLayerId: null, provider: ok.provider, modelName: ok.model, encryptedApiKey, isActive: true })
+      await tx.insert(customerModelConfig).values({ orgId, orchestraLayerId: null, provider: orgProvider, modelName: ok.model, encryptedApiKey, isActive: true })
     }
   })
   return getOwnAiStatus(orgId)
@@ -220,14 +252,14 @@ export async function listShareCandidates(orgId: string, personId: string): Prom
 export async function resolveAiFor(orgId: string, personId: string | null): Promise<ResolvedAi | null> {
   if (personId) {
     const mine = await db.query.userAiConnections.findFirst({ where: and(mineRow(orgId, personId), eq(userAiConnections.isActive, true)) })
-    if (mine) return { source: "mine", provider: mine.provider as LLMProvider, model: mine.modelName, apiKey: await decryptApiKey(mine.encryptedApiKey) }
+    if (mine) return { source: "mine", ...(await personConfig(mine.provider, mine.modelName, mine.encryptedApiKey)) }
 
     const shares = await db.query.userAiConnectionShares.findMany({ where: and(eq(userAiConnectionShares.orgId, orgId), eq(userAiConnectionShares.sharedWithUserId, personId)) })
     for (const s of shares) {
       const conn = await db.query.userAiConnections.findFirst({ where: and(eq(userAiConnections.id, s.connectionId), eq(userAiConnections.isActive, true)) })
       if (!conn) continue
       const owner = await db.query.users.findFirst({ where: eq(users.id, conn.ownerUserId), columns: { name: true } })
-      return { source: "shared", sharedByName: owner?.name, provider: conn.provider as LLMProvider, model: conn.modelName, apiKey: await decryptApiKey(conn.encryptedApiKey) }
+      return { source: "shared", sharedByName: owner?.name, ...(await personConfig(conn.provider, conn.modelName, conn.encryptedApiKey)) }
     }
   }
   const org = await resolveOrgOwnAi(orgId)

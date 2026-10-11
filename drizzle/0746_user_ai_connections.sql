@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS compliance.user_ai_connections (
   id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   org_id text NOT NULL,
   owner_user_id text NOT NULL,
-  provider text NOT NULL CHECK (provider IN ('openai', 'anthropic', 'google', 'groq', 'openrouter')),
+  provider text NOT NULL CHECK (provider IN ('openai', 'anthropic', 'google', 'groq', 'openrouter', 'deepseek', 'zai', 'xai')),
   model_name text NOT NULL,
   encrypted_api_key text NOT NULL,
   is_active boolean NOT NULL DEFAULT true,

@@ -167,7 +167,7 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
       functionParams: functionParamsFor(ctx.candidateFunctionIds),
     };
     raw = ownAi
-      ? await classifyWithKey(ownAi.provider, ownAi.model, ownAi.apiKey, texts, [...ctx.candidateFunctionIds], classifyContext, true)
+      ? await classifyWithKey(ownAi.provider, ownAi.model, ownAi.apiKey, texts, [...ctx.candidateFunctionIds], classifyContext, true, ownAi.baseUrl)
       : await getAiProvider("pipeline_l1").classify(texts, [...ctx.candidateFunctionIds], classifyContext);
   } catch (error) {
     // A provider outage is a FAIL for every segment in the batch, with the
