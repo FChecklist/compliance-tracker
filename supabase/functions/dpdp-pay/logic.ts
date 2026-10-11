@@ -4,8 +4,9 @@
 // about money lives here so bun can test it (src/lib/services/dpdp-pay-logic.test.ts) the
 // same way dpdp-ai-link's router.ts is tested. index.ts only wires these to fetch and Supabase.
 //
-// WHAT RAZORPAY IS USED FOR. One thing: a hosted Payment Link per attempt. The customer
-// pays on Razorpay's own page, so no card field, no Razorpay script and no card data ever
+// WHAT RAZORPAY IS USED FOR (changed 2026-10-11, see the ORDER section below): an Order per attempt, paid in Razorpay's window inside the registered
+// IT Services pay frame. (Before: a hosted Payment Link; the link builders remain for old links still in flight.) The customer
+// pays on Razorpay's own window, so no card field, no Razorpay script and no card data ever
 // touches our site or our database. We then LEARN that they paid from a signed webhook, never
 // from the browser coming back (the browser can be closed, or forged).
 //
@@ -241,6 +242,116 @@ export function buildPaymentLinkBody(r: LinkRequest): Record<string, unknown> {
   }
   if (r.ownerEmail) body.customer = { email: r.ownerEmail }
   return body
+}
+
+// ---------------------------------------------------------------------
+// Creating an ORDER (the method Corporate Tambola uses; replaces the Payment Link, 2026-10-11)
+// ---------------------------------------------------------------------
+//
+// Owner decision: every product takes money the same way. The server creates a Razorpay ORDER (price fixed here, never by the browser); the
+// Razorpay window runs inside the registered website's pay frame (IT Services by Rajat Agarwal, PAY_HOP_URL); the browser then only REPORTS
+// the signed result, and /verify checks the signature AND asks Razorpay what really happened before anything is booked. The webhook stays as
+// the backstop for a buyer who closes the tab.
+
+/** Which product and which variation a payment is for. Written on the Razorpay order (notes + receipt) AND on our own attempt row, so any payment can be traced both ways. */
+export const PRODUCT_CODE = "veridian_dpdp"
+/** variation = the plan the buyer is on + the interval (the database writes it: dpdp_pay_begin). Falls back to edition_interval for an older database. */
+export const productNotes = (plan: string, interval: string, variation?: string | null): { product: string; variation: string } => ({ product: PRODUCT_CODE, variation: (variation && variation.trim()) || `${plan}_${interval}` })
+
+/** Receipt: "dpdp_" + our attempt id, at most 40 characters (Razorpay's limit). Starts with the product so a Razorpay export alone shows what each payment was for. */
+export const receiptFor = (attemptId: string): string => `dpdp_${attemptId}`.slice(0, 40)
+
+export type OrderRequest = {
+  attemptId: string
+  orgId: string
+  orgName: string
+  plan: string
+  variation?: string
+  interval: Interval
+  amountPaise: number
+  currency: string
+}
+
+/** The JSON body for POST /v1/orders. Notes carry product + variation + our ids; they are a cross-check, our attempt row stays the source of truth. */
+export function buildOrderBody(r: OrderRequest): Record<string, unknown> {
+  return {
+    amount: r.amountPaise,
+    currency: r.currency,
+    receipt: receiptFor(r.attemptId),
+    notes: { ...productNotes(r.plan, r.interval, r.variation), org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, plan: r.plan, organisation: r.orgName.slice(0, 80) },
+  }
+}
+
+export function parseOrderResponse(body: unknown): { id: string } | null {
+  if (!isObj(body)) return null
+  const id = str(body.id)
+  return id && /^order_\w{6,40}$/.test(id) ? { id } : null
+}
+
+/** What the browser's Razorpay window needs. UPI first, as on the other products. */
+export function buildCheckoutOptions(o: { keyId: string; orderId: string; amountPaise: number; currency: string; orgName: string; plan: string; variation?: string; interval: Interval; ownerEmail: string | null }): Record<string, unknown> {
+  const edition = o.plan === "institution" ? "Institution" : "Firm"
+  return {
+    key: o.keyId,
+    order_id: o.orderId,
+    amount: o.amountPaise,
+    currency: o.currency,
+    name: "VERIDIAN DPDP",
+    description: `${edition} plan, yearly | IT Services by Rajat Agarwal`,
+    prefill: o.ownerEmail ? { email: o.ownerEmail } : {},
+    notes: { ...productNotes(o.plan, o.interval, o.variation) },
+    theme: { color: "#0E7C6E" },
+    config: { display: { blocks: { upi: { name: "Pay with UPI", instruments: [{ method: "upi" }] }, other: { name: "Cards, net banking, wallets", instruments: [{ method: "card" }, { method: "netbanking" }, { method: "wallet" }] } }, sequence: ["block.upi", "block.other"], preferences: { show_default_blocks: false } } },
+  }
+}
+
+/** The three fields Razorpay's window hands the browser. Anything else is refused before we spend a network call. */
+export function parseVerifyRequest(body: unknown): { ok: true; orderId: string; paymentId: string; signature: string } | { ok: false } {
+  if (!isObj(body)) return { ok: false }
+  const orderId = str(body.razorpay_order_id) ?? ""
+  const paymentId = str(body.razorpay_payment_id) ?? ""
+  const signature = (str(body.razorpay_signature) ?? "").toLowerCase()
+  if (!/^order_\w{6,40}$/.test(orderId) || !/^pay_\w{6,40}$/.test(paymentId) || !/^[0-9a-f]{64}$/.test(signature)) return { ok: false }
+  return { ok: true, orderId, paymentId, signature }
+}
+
+/** Razorpay's checkout signature: HMAC-SHA256("order_id|payment_id", key secret). An empty secret never verifies. */
+export async function verifyCheckoutSignature(orderId: string, paymentId: string, signature: string, keySecret: string | null | undefined): Promise<boolean> {
+  if (!keySecret || !/^[0-9a-f]{64}$/.test(signature)) return false
+  return constantTimeEqual(await hmacSha256Hex(keySecret, `${orderId}|${paymentId}`), signature)
+}
+
+export type VerifyOutcome =
+  | { kind: "payment"; payment: CapturedPayment }
+  /** Razorpay has not captured it (yet). 202 = ask again shortly; 402 = failed. */
+  | { kind: "pending" }
+  | { kind: "failed"; status: string }
+  | { kind: "mismatch" }
+
+/** Builds a CapturedPayment from what Razorpay itself says about the order and payment (never from what the browser said). */
+export function capturedFromRazorpay(order: unknown, pay: unknown, orderId: string): VerifyOutcome {
+  if (!isObj(order) || !isObj(pay)) return { kind: "mismatch" }
+  const paymentId = str(pay.id)
+  if (!paymentId || str(pay.order_id) !== orderId || str(order.id) !== orderId) return { kind: "mismatch" }
+  if (typeof pay.amount !== "number" || !Number.isInteger(pay.amount) || pay.amount !== order.amount) return { kind: "mismatch" }
+  const status = str(pay.status) ?? ""
+  if (status === "created") return { kind: "pending" }
+  if (status !== "captured") return { kind: "failed", status }
+  return {
+    kind: "payment",
+    payment: {
+      eventId: `verify:${paymentId}`,
+      eventType: "order.paid",
+      paymentId,
+      orderId,
+      paymentLinkId: null,
+      referenceId: null,
+      amountPaise: pay.amount,
+      currency: (str(pay.currency) ?? "").toUpperCase(),
+      method: str(pay.method),
+      notes: mergeNotes(parseNotes(order), parseNotes(pay)),
+    },
+  }
 }
 
 /** The fields we keep from Razorpay's answer, or null if it did not give a usable link. */

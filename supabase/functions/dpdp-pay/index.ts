@@ -1,8 +1,9 @@
 // DPDP online payment through Razorpay -- the Edge Function. Two endpoints, one deploy:
 //
-//   POST /dpdp-pay            the signed-in ORG OWNER asks to pay online. Returns the URL of a
-//                             Razorpay-hosted Payment Link; the browser goes there. Nothing
-//                             about a card ever reaches our site or database.
+//   POST /dpdp-pay            the signed-in ORG OWNER asks to pay online. Creates a Razorpay ORDER (the same
+//                             method as Corporate Tambola) and returns what the pay frame needs to open
+//                             Razorpay's window. Nothing about a card ever reaches our site or database.
+//   POST /dpdp-pay/verify     the browser reports the signed result; checked, then confirmed with Razorpay.
 //   POST /dpdp-pay/webhook    Razorpay tells us a payment was captured. Signature-verified,
 //                             amount/currency-checked, recorded once, then the existing
 //                             dpdp_record_confirmed_payment flips the org active and creates
@@ -31,8 +32,9 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import { isDeliverableAddress, renderReceipt, sendViaResend } from "../_shared/billing-mail.ts"
 import {
-  type AttemptFacts, RAZORPAY_API, basicAuthHeader, buildPaymentLinkBody, corsHeadersFor, decideWebhook, httpStatusFor, parseCreateRequest,
-  parsePaymentLinkResponse, parseWebhookEvent, razorpayConfigured, verifyWebhookSignature,
+  type AttemptFacts, type CapturedPayment, RAZORPAY_API, basicAuthHeader, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
+  httpStatusFor, parseCreateRequest, parseOrderResponse, parseVerifyRequest, parseWebhookEvent, razorpayConfigured, receiptFor, verifyCheckoutSignature,
+  verifyWebhookSignature,
 } from "./logic.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
@@ -44,6 +46,8 @@ const KEY_SECRET = env("RAZORPAY_KEY_SECRET")
 const WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET")
 const RESEND_API_KEY = env("RESEND_API_KEY")
 const EMAIL_FROM = resolveFrom(env("DPDP_EMAIL_FROM"))
+// Where Razorpay's window runs: a page of the website registered with Razorpay (IT Services by Rajat Agarwal). The same frame Corporate Tambola uses.
+const PAY_HOP_URL = env("PAY_HOP_URL") || "https://itservices-rajat-agarwal.pages.dev/payframe/"
 const APP_ORIGIN = (env("APP_ORIGIN") || "https://dpdp.veridian-aios.com").replace(/\/+$/, "")
 const SENDER_WARNING = foreignSenderWarning(EMAIL_FROM)
 if (SENDER_WARNING) console.warn(SENDER_WARNING)
@@ -82,35 +86,76 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
     const status = error.code === "42501" ? 403 : error.code === "22023" ? 400 : 500
     return json({ error: status === 500 ? "Could not start the payment" : error.message }, status, cors)
   }
-  const a = data as { attemptId: string; orgId: string; orgName: string; interval: "year"; amountPaise: number; currency: string; ownerEmail: string | null }
+  const a = data as { attemptId: string; orgId: string; orgName: string; plan?: string; variation?: string; interval: "year"; amountPaise: number; currency: string; ownerEmail: string | null }
+  const plan = a.plan === "institution" ? "institution" : "firm"
 
   const sb = serviceClient()
-  let link: ReturnType<typeof parsePaymentLinkResponse> = null
+  let order: ReturnType<typeof parseOrderResponse> = null
   try {
-    const res = await fetch(`${RAZORPAY_API}/payment_links`, {
+    const res = await fetch(`${RAZORPAY_API}/orders`, {
       method: "POST",
       headers: { Authorization: basicAuthHeader(KEY_ID, KEY_SECRET), "Content-Type": "application/json" },
-      body: JSON.stringify(buildPaymentLinkBody({
-        attemptId: a.attemptId, orgId: a.orgId, orgName: a.orgName, interval: a.interval, amountPaise: a.amountPaise, currency: a.currency,
-        ownerEmail: a.ownerEmail, callbackUrl: `${APP_ORIGIN}/app/?payment=returned`,
-      })),
+      body: JSON.stringify(buildOrderBody({ attemptId: a.attemptId, orgId: a.orgId, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, amountPaise: a.amountPaise, currency: a.currency })),
     })
     const payload = await res.json().catch(() => null)
-    if (res.ok) link = parsePaymentLinkResponse(payload)
-    else console.warn(`dpdp-pay: Razorpay refused a payment link with HTTP ${res.status}`) // status only: never the body, never a key
+    if (res.ok) order = parseOrderResponse(payload)
+    else console.warn(`dpdp-pay: Razorpay refused an order with HTTP ${res.status}`) // status only: never the body, never a key
   } catch (e) {
     console.warn(`dpdp-pay: Razorpay call failed: ${e instanceof Error ? e.message : String(e)}`)
   }
-  if (!link) {
+  if (!order) {
     await sb.rpc("dpdp_pay_attempt_cancel", { p_attempt_id: a.attemptId })
     return json({ error: "Razorpay did not accept the request. Try again in a minute, or pay by bank transfer and press \"I have paid\"." }, 502, cors)
   }
-  const { error: linkErr } = await sb.rpc("dpdp_pay_attempt_link", { p_attempt_id: a.attemptId, p_payment_link_id: link.id, p_short_url: link.shortUrl, p_order_id: link.orderId })
+  const { error: linkErr } = await sb.rpc("dpdp_pay_attempt_order", { p_attempt_id: a.attemptId, p_order_id: order.id, p_receipt: receiptFor(a.attemptId) })
   if (linkErr) {
-    console.warn(`dpdp-pay: could not store the payment link for attempt ${a.attemptId}: ${linkErr.message}`)
+    console.warn(`dpdp-pay: could not store the order for attempt ${a.attemptId}: ${linkErr.message}`)
     return json({ error: "Could not start the payment" }, 500, cors)
   }
-  return json({ ok: true, url: link.shortUrl, attemptId: a.attemptId, amountPaise: a.amountPaise, currency: a.currency }, 200, cors)
+  return json({
+    ok: true, hop: PAY_HOP_URL, attemptId: a.attemptId, amountPaise: a.amountPaise, currency: a.currency,
+    razorpay: buildCheckoutOptions({ keyId: KEY_ID, orderId: order.id, amountPaise: a.amountPaise, currency: a.currency, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, ownerEmail: a.ownerEmail }),
+  }, 200, cors)
+}
+
+// ---------------------------------------------------------------------
+// POST /dpdp-pay/verify -- the browser reports Razorpay's signed result; we check it, then ask Razorpay
+// ---------------------------------------------------------------------
+async function verify(req: Request, cors: Record<string, string>): Promise<Response> {
+  if (!razorpayConfigured(KEY_ID, KEY_SECRET)) return json({ error: NOT_ENABLED, code: "not_enabled" }, 503, cors)
+  const raw = await req.text()
+  if (raw.length > 4096) return json({ error: "Request too large" }, 413, cors)
+  let body: unknown
+  try {
+    body = JSON.parse(raw)
+  } catch {
+    body = null
+  }
+  const v = parseVerifyRequest(body)
+  if (!v.ok) return json({ error: "We could not match this payment." }, 400, cors)
+  if (!(await verifyCheckoutSignature(v.orderId, v.paymentId, v.signature, KEY_SECRET))) {
+    return json({ error: "The payment could not be verified. If money was taken, write to us with your payment ID." }, 400, cors)
+  }
+  // Ask Razorpay itself: the browser's word is never enough.
+  let order: unknown
+  let pay: unknown
+  try {
+    const get = async (path: string) => {
+      const r = await fetch(`${RAZORPAY_API}${path}`, { headers: { Authorization: basicAuthHeader(KEY_ID, KEY_SECRET) } })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      return await r.json()
+    }
+    ;[order, pay] = await Promise.all([get(`/orders/${v.orderId}`), get(`/payments/${v.paymentId}`)])
+  } catch {
+    return json({ error: "We could not reach the payment service to confirm. Your payment is safe; check again in a minute." }, 502, cors)
+  }
+  const outcome = capturedFromRazorpay(order, pay, v.orderId)
+  if (outcome.kind === "mismatch") return json({ error: "The payment details did not match the order." }, 400, cors)
+  if (outcome.kind === "pending") return json({ confirming: true }, 202, cors)
+  if (outcome.kind === "failed") return json({ error: `The payment is ${outcome.status}. Nothing was charged to your order.` }, 402, cors)
+
+  const r = await recordCaptured(outcome.payment)
+  return json(r.body, r.status, cors)
 }
 
 // ---------------------------------------------------------------------
@@ -130,13 +175,19 @@ async function webhook(req: Request): Promise<Response> {
   if (parsed.kind === "ignored") return json({ ok: true, ignored: parsed.reason })
   const p = parsed.payment
 
+  const r = await recordCaptured(p)
+  return json(r.body, r.status)
+}
+
+/** Books one captured payment against its attempt (shared by the webhook and /verify; idempotent per Razorpay payment id). */
+async function recordCaptured(p: CapturedPayment): Promise<{ status: number; body: Record<string, unknown> }> {
   const sb = serviceClient()
   const { data: found, error: findErr } = await sb.rpc("dpdp_pay_attempt_lookup", {
     p_payment_link_id: p.paymentLinkId, p_order_id: p.orderId, p_reference_id: p.referenceId ?? p.notes.attemptId,
   })
   if (findErr) {
     console.warn(`dpdp-pay: attempt lookup failed: ${findErr.message}`)
-    return json({ error: "Temporary problem, please retry" }, 500) // Razorpay retries a non-2xx
+    return { status: 500, body: { error: "Temporary problem, please retry" } } // Razorpay retries a non-2xx
   }
   const decision = decideWebhook(p, (found as AttemptFacts | null) ?? null)
 
@@ -146,7 +197,7 @@ async function webhook(req: Request): Promise<Response> {
     await sb.rpc("dpdp_pay_log_event", {
       p_event_id: p.eventId, p_event_type: p.eventType, p_payment_id: p.paymentId, p_attempt_id: (found as AttemptFacts | null)?.id ?? null, p_outcome: outcome,
     })
-    return json(decision.action === "reject" ? { error: "Payment not recorded", reason: decision.reason } : { ok: true, recorded: false, outcome }, httpStatusFor(decision))
+    return { status: httpStatusFor(decision), body: decision.action === "reject" ? { error: "Payment not recorded", reason: decision.reason } : { ok: true, recorded: false, outcome } }
   }
 
   const { data: done, error: confirmErr } = await sb.rpc("dpdp_pay_confirm", {
@@ -155,14 +206,14 @@ async function webhook(req: Request): Promise<Response> {
   })
   if (confirmErr) {
     console.warn(`dpdp-pay: recording payment ${p.paymentId} failed: ${confirmErr.message}`)
-    return json({ error: "Temporary problem, please retry" }, 500)
+    return { status: 500, body: { error: "Temporary problem, please retry" } }
   }
   const r = done as { ok: boolean; duplicate?: boolean; reason?: string; paymentId?: string }
-  if (!r.ok) return json({ error: "Payment not recorded", reason: r.reason ?? "refused" }, 400)
-  if (r.duplicate || !r.paymentId) return json({ ok: true, recorded: false, outcome: "duplicate" })
+  if (!r.ok) return { status: 400, body: { error: "Payment not recorded", reason: r.reason ?? "refused" } }
+  if (r.duplicate || !r.paymentId) return { status: 200, body: { ok: true, recorded: false, outcome: "duplicate" } }
 
   await sendReceipt(sb, r.paymentId, p.paymentId)
-  return json({ ok: true, recorded: true })
+  return { status: 200, body: { ok: true, recorded: true } }
 }
 
 /** Receipt for a payment just recorded. Best effort: it can never turn a recorded payment into a failed webhook. Idempotent per payment (same key dpdp-invoice-email uses). */
@@ -202,5 +253,6 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405, cors)
   const path = new URL(req.url).pathname.replace(/\/+$/, "")
   if (path.endsWith("/webhook")) return await webhook(req)
+  if (path.endsWith("/verify")) return await verify(req, cors)
   return await createLink(req, cors)
 })

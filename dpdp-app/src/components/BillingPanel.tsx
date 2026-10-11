@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
-import { declarePayment, fetchMyAccount, myBilling, startOnlinePayment, uploadPaymentProof } from "@/lib/api"
+import { confirmOnlinePayment, declarePayment, fetchMyAccount, myBilling, startOnlinePayment, uploadPaymentProof } from "@/lib/api"
+import { PayFrameError, payViaFrame } from "@/lib/pay-frame"
 import type { BillingStatusPayload, MyAccountPayload } from "@/lib/rpc-types"
 import { parseDbTimestamp } from "@/lib/db-time"
 import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
@@ -158,8 +159,25 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
       setBusy(false)
       return
     }
+    // Razorpay's window runs in the registered pay frame on top of this page; only its signed result comes back here.
     writePending(orgId, billing.lastConfirmedAt ?? "none")
-    window.location.assign(r.url)
+    try {
+      const resp = await payViaFrame(r.hop, r.opts)
+      setPayStatus("waiting")
+      const c = await confirmOnlinePayment(resp)
+      clearPending(orgId)
+      if (!c.ok) {
+        setPayStatus("idle")
+        setError(c.error)
+      } else {
+        setBilling(await myBilling(client, orgId))
+        setPayStatus("received")
+      }
+    } catch (e) {
+      clearPending(orgId)
+      if (!(e instanceof PayFrameError && e.cancelled)) setError(e instanceof Error ? e.message : String(e))
+    }
+    setBusy(false)
   }
 
   async function pay() {
@@ -184,9 +202,8 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
   const waMessage = encodeURIComponent(`VERIDIAN payment -- org ${orgId}, ${formatRupees(amountDue)} (${chosen}ly). Reference: ${reference || "(see attached)"}`)
   const proofMailto = paymentProofMailto({ orgId, amountLabel: formatRupees(amountDue), interval: chosen, reference })
 
-  // A real account's price is not the Razorpay price the server charges online (drizzle/0673 still carries the old flat figure), so while an
-  // account row exists the online button stays off and the bank-transfer path, which declares the account's own price, is the one shown.
-  const onlineUnavailable = onlineOff || price !== null
+  // Online payment charges the account's own price (drizzle/0747 dpdp__pay_begin_core). Only a client covered by its firm has nothing to pay itself.
+  const onlineUnavailable = onlineOff || (account?.hasAccount === true && account.coveredByFirm)
   const state = account?.hasAccount ? account.state : null
   const trialDays = billing.state === "trial" ? daysLeft(billing.trialEndsAt) : null
   const pillLabel = payStatus === "waiting"
@@ -247,7 +264,7 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
                     ? <p style={{ margin: 0 }}>Online payment is not switched on yet. Please pay by bank transfer and email {PAY_EMAIL} with the reference.</p>
                     : (
                       <button type="button" onClick={payOnline} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
-                        {busy ? "Opening…" : `Renew online -- ${formatRupees(YEARLY_PAISE)}`}
+                        {busy ? "Opening…" : `Renew online -- ${formatRupees(yearPaise)}`}
                       </button>
                     )}
                 </div>
@@ -293,7 +310,7 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
                   ) : (
                     <>
                       <button type="button" onClick={payOnline} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
-                        {busy ? "Opening…" : `Pay online -- ${formatRupees(YEARLY_PAISE)} a year`}
+                        {busy ? "Opening…" : `Pay online -- ${formatRupees(yearPaise)} a year`}
                       </button>
                       <p style={{ margin: "6px 0 0", fontSize: 12 }}>
                         You go to Razorpay's own page to pay. Your card or UPI details are entered there, not on this site. We email a receipt once the payment is confirmed.

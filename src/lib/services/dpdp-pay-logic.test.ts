@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs"
 import {
   type AttemptFacts, type CapturedPayment, SUPPORTED_EVENTS, basicAuthHeader, buildPaymentLinkBody, constantTimeEqual, corsHeadersFor, decideWebhook,
   hmacSha256Hex, httpStatusFor, parseCreateRequest, parseNotes, parsePaymentLinkResponse, parseWebhookEvent, razorpayConfigured, verifyWebhookSignature,
+  PRODUCT_CODE, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, parseOrderResponse, parseVerifyRequest, receiptFor, verifyCheckoutSignature,
 } from "../../../supabase/functions/dpdp-pay/logic"
 
 const SECRET = "whsec_test_not_a_real_secret"
@@ -275,7 +276,7 @@ describe("the migration and the app agree", () => {
     expect(sql).toContain(`'yearPaise', ${year}`)
   })
   test("every function the Edge Functions call exists in the migration under that exact name", () => {
-    const calls = ["dpdp_pay_begin", "dpdp_pay_attempt_link", "dpdp_pay_attempt_cancel", "dpdp_pay_attempt_lookup", "dpdp_pay_confirm", "dpdp_pay_log_event",
+    const calls = ["dpdp_pay_begin", "dpdp_pay_attempt_cancel", "dpdp_pay_attempt_lookup", "dpdp_pay_confirm", "dpdp_pay_log_event",
       "dpdp_sales_due_reminders", "dpdp_sales_reminder_claim", "dpdp_sales_reminder_mark", "dpdp_billing_prices"]
     for (const fn of calls) expect(sql).toContain(`create or replace function public.${fn}(`)
     const pay = readFileSync("supabase/functions/dpdp-pay/index.ts", "utf8") + readFileSync("supabase/functions/dpdp-lifecycle-email/index.ts", "utf8")
@@ -283,7 +284,7 @@ describe("the migration and the app agree", () => {
   })
   test("parameter names the functions send match the SQL (PostgREST matches by name; a wrong name is 'function not found')", () => {
     const pay = readFileSync("supabase/functions/dpdp-pay/index.ts", "utf8")
-    for (const name of ["p_payment_link_id", "p_order_id", "p_reference_id", "p_event_id", "p_event_type", "p_payment_id", "p_amount_paise", "p_currency", "p_method", "p_attempt_id", "p_short_url", "p_outcome", "p_interval"]) {
+    for (const name of ["p_payment_link_id", "p_order_id", "p_reference_id", "p_event_id", "p_event_type", "p_payment_id", "p_amount_paise", "p_currency", "p_method", "p_attempt_id", "p_outcome", "p_interval"]) {
       expect(pay).toContain(name)
       expect(sql).toContain(name)
     }
@@ -299,5 +300,100 @@ describe("the migration and the app agree", () => {
     for (const f of ["supabase/functions/dpdp-pay/index.ts", "supabase/functions/dpdp-pay/logic.ts", "supabase/functions/dpdp-lifecycle-email/index.ts"]) {
       expect(readFileSync(f, "utf8")).not.toMatch(/rzp_(live|test)_[A-Za-z0-9]{6,}/)
     }
+  })
+})
+
+describe("paying through an ORDER (the Corporate Tambola method, 2026-10-11)", () => {
+  const SECRET_KEY = "key_secret_not_real"
+  const orderReq = { attemptId: "a".repeat(32), orgId: "org1", orgName: "Acme Associates", plan: "firm", variation: "professional_year", interval: "year" as const, amountPaise: 999900, currency: "INR" }
+
+  test("the order carries the price WE chose, a product-led receipt, and product + variation + our ids in its notes", () => {
+    const b = buildOrderBody(orderReq) as { amount: number; currency: string; receipt: string; notes: Record<string, string> }
+    expect(b.amount).toBe(999900)
+    expect(b.currency).toBe("INR")
+    expect(b.receipt).toBe(`dpdp_${"a".repeat(32)}`)
+    expect(b.receipt.length).toBeLessThanOrEqual(40)
+    expect(b.notes).toMatchObject({ product: PRODUCT_CODE, variation: "professional_year", org_id: "org1", attempt_id: "a".repeat(32), interval: "year", plan: "firm" })
+    expect(PRODUCT_CODE).toBe("veridian_dpdp")
+    expect(receiptFor("b".repeat(60)).length).toBe(40)
+  })
+  test("without a database-supplied variation the notes fall back to edition_interval", () => {
+    const b = buildOrderBody({ ...orderReq, variation: undefined }) as { notes: Record<string, string> }
+    expect(b.notes.variation).toBe("firm_year")
+  })
+  test("the order response needs a real order id", () => {
+    expect(parseOrderResponse({ id: "order_Abc123xyz" })).toEqual({ id: "order_Abc123xyz" })
+    expect(parseOrderResponse({ id: "plink_1" })).toBeNull()
+    expect(parseOrderResponse({ error: { description: "bad" } })).toBeNull()
+    expect(parseOrderResponse(null)).toBeNull()
+  })
+  test("the window options name the order, never carry a secret, and put UPI first", () => {
+    const o = buildCheckoutOptions({ keyId: "rzp_live_key", orderId: "order_Abc123xyz", amountPaise: 999900, currency: "INR", orgName: "Acme", plan: "institution", variation: "professional_year", interval: "year", ownerEmail: "o@acme.in" })
+    expect(o.order_id).toBe("order_Abc123xyz")
+    expect(o.amount).toBe(999900)
+    expect(o.description).toContain("IT Services by Rajat Agarwal")
+    expect((o.notes as Record<string, string>).product).toBe("veridian_dpdp")
+    expect((o.config as { display: { sequence: string[] } }).display.sequence[0]).toBe("block.upi")
+    expect(JSON.stringify(o)).not.toMatch(/secret/i)
+    expect((buildCheckoutOptions({ keyId: "k", orderId: "order_Abc123xyz", amountPaise: 1, currency: "INR", orgName: "A", plan: "firm", interval: "year", ownerEmail: null }).prefill)).toEqual({})
+  })
+  test("the verify request must look like Razorpay's three fields", () => {
+    const good = { razorpay_order_id: "order_Abc123xyz", razorpay_payment_id: "pay_Abc123xyz", razorpay_signature: "a".repeat(64) }
+    expect(parseVerifyRequest(good)).toEqual({ ok: true, orderId: "order_Abc123xyz", paymentId: "pay_Abc123xyz", signature: "a".repeat(64) })
+    for (const bad of [null, {}, { ...good, razorpay_signature: "short" }, { ...good, razorpay_order_id: "x" }, { ...good, razorpay_payment_id: "../etc" }]) expect(parseVerifyRequest(bad).ok).toBe(false)
+  })
+  test("the checkout signature is HMAC(order|payment) under the key secret; wrong, tampered or empty-secret never verifies", async () => {
+    const sig = await hmacSha256Hex(SECRET_KEY, "order_Abc123xyz|pay_Abc123xyz")
+    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Abc123xyz", sig, SECRET_KEY)).toBe(true)
+    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Other99999", sig, SECRET_KEY)).toBe(false)
+    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Abc123xyz", sig, "other")).toBe(false)
+    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Abc123xyz", sig, "")).toBe(false)
+    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Abc123xyz", "nothex", SECRET_KEY)).toBe(false)
+  })
+  const rzOrder = (over: Record<string, unknown> = {}) => ({ id: "order_Zzz1abc", amount: 999900, currency: "INR", notes: { org_id: "org1", attempt_id: "a".repeat(32), interval: "year" }, ...over })
+  const rzPay = (over: Record<string, unknown> = {}) => ({ id: "pay_Abc123", order_id: "order_Zzz1abc", amount: 999900, currency: "INR", status: "captured", method: "upi", ...over })
+  test("a captured payment becomes the same CapturedPayment the webhook produces, read from Razorpay's own answer", () => {
+    const r = capturedFromRazorpay(rzOrder(), rzPay(), "order_Zzz1abc")
+    expect(r.kind).toBe("payment")
+    if (r.kind !== "payment") return
+    expect(r.payment).toMatchObject({ paymentId: "pay_Abc123", orderId: "order_Zzz1abc", amountPaise: 999900, currency: "INR", method: "upi", eventId: "verify:pay_Abc123" })
+    expect(r.payment.notes).toEqual({ orgId: "org1", attemptId: "a".repeat(32), interval: "year" })
+    // and the same money rules apply to it
+    expect(decideWebhook(r.payment, attempt())).toEqual({ action: "record" })
+    expect(decideWebhook(r.payment, attempt({ amountPaise: 1 }))).toEqual({ action: "reject", reason: "amount_mismatch" })
+  })
+  test("pending, failed and mismatched payments book nothing", () => {
+    expect(capturedFromRazorpay(rzOrder(), rzPay({ status: "created" }), "order_Zzz1abc").kind).toBe("pending")
+    expect(capturedFromRazorpay(rzOrder(), rzPay({ status: "failed" }), "order_Zzz1abc")).toEqual({ kind: "failed", status: "failed" })
+    expect(capturedFromRazorpay(rzOrder(), rzPay({ order_id: "order_Other999" }), "order_Zzz1abc").kind).toBe("mismatch")
+    expect(capturedFromRazorpay(rzOrder(), rzPay({ amount: 100 }), "order_Zzz1abc").kind).toBe("mismatch")
+    expect(capturedFromRazorpay(rzOrder({ id: "order_Other999" }), rzPay(), "order_Zzz1abc").kind).toBe("mismatch")
+    expect(capturedFromRazorpay(null, rzPay(), "order_Zzz1abc").kind).toBe("mismatch")
+  })
+  test("/verify and the webhook share one booking path, and the browser is never believed on its own", () => {
+    const src = readFileSync("supabase/functions/dpdp-pay/index.ts", "utf8")
+    expect(src).toContain("async function recordCaptured(")
+    expect(src.match(/await recordCaptured\(/g)?.length).toBe(2)
+    expect(src).toContain("verifyCheckoutSignature(")
+    expect(src).toContain("capturedFromRazorpay(order, pay, v.orderId)") // Razorpay's own answer, not the browser's
+  })
+  test("migration 0747: product + variation + receipt on the attempt, the order RPC, the ledger view, journal entry", () => {
+    const m = readFileSync("drizzle/0747_dpdp_pay_order_product_variation.sql", "utf8")
+    for (const piece of ["add column if not exists product text not null default 'veridian_dpdp'", "add column if not exists variation text", "add column if not exists receipt text",
+      "create or replace function public.dpdp_pay_attempt_order(", "create or replace view dpdp.payment_ledger", "create or replace function public.dpdp__pay_begin_core(",
+      "dpdp.charge_paise(v_acc.locked_monthly_paise, p_interval)"]) expect(m).toContain(piece)
+    expect(m).not.toContain("create or replace function public.dpdp_pay_begin(") // the wrapper from 0734 stays untouched
+    expect(m.split("\n")[0]).toMatch(/^-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat on 2026-10-11/)
+    expect(readFileSync("supabase/functions/dpdp-pay/index.ts", "utf8")).toContain('"dpdp_pay_attempt_order"')
+    expect(readFileSync("supabase/functions/dpdp-pay/index.ts", "utf8")).toContain("p_receipt")
+    const j = JSON.parse(readFileSync("drizzle/meta/_journal.json", "utf8")) as { entries: Array<{ idx: number; when: number; tag: string }> }
+    const mine = j.entries.find((e) => e.tag === "0747_dpdp_pay_order_product_variation")
+    expect(mine).toBeDefined()
+    expect(Math.max(...j.entries.filter((e) => e.idx < mine!.idx).map((e) => e.when))).toBeLessThan(mine!.when)
+  })
+  test("the pay frame allows this site's origins (itservices-site/build.py is the other half; checked in CI of that repo by its own deploy)", () => {
+    const fr = readFileSync("dpdp-app/src/lib/pay-frame.ts", "utf8")
+    expect(fr).toContain("ev.origin !== origin")
+    expect(fr).toContain("ev.source !== frame.contentWindow")
   })
 })
