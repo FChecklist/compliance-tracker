@@ -231,13 +231,15 @@ Nothing on this list had been done when it was written. Steps 1 and 2 are decisi
 
 ## Online payment (Razorpay)
 
-**What it is.** The owner's Billing panel has a "Pay online" button (yearly plan, Rs 9,999). It calls the Edge Function `dpdp-pay`, which makes a Razorpay Payment Link and sends the browser to Razorpay's own page; no card field exists on our site. Razorpay then calls `dpdp-pay/webhook`; the function checks the signature, checks that amount and currency equal what we asked for, records the payment exactly once through the existing `dpdp_record_confirmed_payment` (org goes active, referral commission is created) and emails a receipt. The manual path ("I have paid by bank transfer" and your own confirmation screen) is unchanged and is what the app shows until the keys below exist (the function then answers 503 "Online payment is not switched on yet").
+**What it is (changed 2026-10-11).** The owner's Billing panel has a "Pay online" button (the yearly plan, at the account's own price). It takes money the same way Corporate Tambola does, through the Razorpay account of **IT Services by Rajat Agarwal**: the Edge Function `dpdp-pay` creates a Razorpay **Order** (the price is chosen in the database, never by the browser), and the browser opens Razorpay's window inside the registered pay frame (`https://itservices-rajat-agarwal.pages.dev/payframe/`, source `C:\ct\itservices-site`, allow-list in its `build.py`). No card field and no Razorpay script exists on our site. The frame hands back Razorpay's signed result; `dpdp-pay/verify` checks the signature, asks Razorpay what really happened, and records the payment exactly once (org goes active, referral commission is created, receipt is emailed). Razorpay also calls `dpdp-pay/webhook` as the backstop for someone who closes the tab; both paths share one booking function and the same payment is never booked twice. The manual path ("I have paid by bank transfer") is unchanged.
+
+**Tracing a payment to a product and variation (see `docs/PAYMENT_TRACING.md`).** Every DPDP order carries `notes.product = veridian_dpdp`, `notes.variation = <plan>_<interval>` and the receipt `dpdp_<attempt id>`; the same words sit on our `dpdp.payment_attempt` row and in the view `dpdp.payment_ledger`. `node scripts/razorpay-ledger-report.mjs` lists Razorpay orders by product and variation and compares them with that view in both directions.
 
 **What you do (6 steps, all yours; nobody else needs to see a key):**
 
-1. Create a Razorpay account at razorpay.com and finish KYC for the company. Start in **Test mode**.
+1. The Razorpay account is the existing one for IT Services by Rajat Agarwal (the same keys Corporate Tambola uses). Its registered website is `itservices-rajat-agarwal.pages.dev`; that is why the window runs in that site's pay frame.
 2. Dashboard > Account & Settings > API Keys > generate a key. You get a Key Id and a Key Secret.
-3. Dashboard > Account & Settings > Webhooks > add `https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/dpdp-pay/webhook`, choose a webhook secret you invent, and tick exactly: `payment.captured`, `payment_link.paid`, `order.paid`.
+3. Dashboard > Account & Settings > Webhooks > add `https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/dpdp-pay/webhook`, choose a webhook secret you invent, and tick: `payment.captured`, `order.paid` (`payment_link.paid` is still understood for old links). If the account already has a webhook for another product, add this URL as a second one: each function only books what it finds in its own attempt table and answers 404 `unknown_order` for anything else.
 4. Supabase dashboard > Edge Functions > Secrets: set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (the one from step 3). Type them there yourself; never paste them in chat or a file.
 5. Test in Test mode: press Pay online from a trial organisation and pay with Razorpay's test card or test UPI. Within a minute the panel says "Payment received, thank you", the organisation shows active, and `select * from dpdp.razorpay_event order by created_at desc limit 5;` shows `recorded`.
 6. Go live: in Razorpay switch to Live mode, generate Live keys and a Live webhook (same URL, same three events), replace the three secrets with the Live values.
@@ -256,7 +258,7 @@ Nothing on this list had been done when it was written. Steps 1 and 2 are decisi
 
 **Cost.** Nothing monthly on our side: the Edge Functions and cron are inside the existing Supabase plan. Razorpay charges a per-transaction fee (about 2% plus GST at the time of writing; check razorpay.com/pricing) and no monthly fee.
 
-**Honest limits.** The yearly price lives in two places that must match (`dpdp_plan_price_paise` in 0673, and what the panel shows); a test fails if they differ. The webhook is verified, but no test here has talked to Razorpay itself: do step 5 before telling anyone it works.
+**Honest limits.** An account's online price is its locked monthly price times the months charged for a year (`dpdp.charge_paise`, 0747); an organisation with no account row keeps the old flat Rs 9,999 (kept equal to the panel's fallback by a test). The webhook is verified, but no test here has talked to Razorpay itself: do step 5 before telling anyone it works.
 
 ||||||| 0f8cadf0
 

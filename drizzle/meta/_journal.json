@@ -3865,6 +3865,13 @@
       "when": 1790700026000,
       "tag": "0746_user_ai_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 554,
+      "version": "7",
+      "when": 1790700027000,
+      "tag": "0747_dpdp_pay_order_product_variation",
+      "breakpoints": true
     }
   ]
 }

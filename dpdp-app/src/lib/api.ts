@@ -532,14 +532,15 @@ export async function ownerRejectPayment(client: DpdpClient, orgId: string, note
 }
 
 export type OnlinePaymentStart =
-  | { ok: true; url: string; amountPaise: number }
+  | { ok: true; hop: string; opts: Record<string, unknown>; amountPaise: number }
   /** notEnabled: the Owner has not yet added the Razorpay keys (HTTP 503). The panel then shows only the bank-transfer path. */
   | { ok: false; notEnabled: boolean; error: string }
 
 /**
- * "Pay online": asks supabase/functions/dpdp-pay for a Razorpay-hosted Payment Link for the YEARLY plan. The browser is then sent to
- * Razorpay's own page, so no card field and no Razorpay script ever exists on our site. The amount is never sent from here: the server
- * charges its own price (dpdp_plan_price_paise), so a tampered browser cannot choose what it pays. Owner-only (the database refuses anyone else).
+ * "Pay online": asks supabase/functions/dpdp-pay for a Razorpay ORDER for the YEARLY plan -- the same method Corporate Tambola uses. The browser then
+ * runs Razorpay's window inside the registered IT Services pay frame (lib/pay-frame.ts), so no card field and no Razorpay script ever exists on our
+ * site. The amount is never sent from here: the server charges its own price (dpdp_plan_price_paise), so a tampered browser cannot choose what it
+ * pays. Owner-only (the database refuses anyone else).
  */
 export async function startOnlinePayment(client: DpdpClient, orgId?: string | null): Promise<OnlinePaymentStart> {
   const token = await client.accessToken()
@@ -550,13 +551,34 @@ export async function startOnlinePayment(client: DpdpClient, orgId?: string | nu
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ interval: "year", ...(orgId ? { orgId } : {}) }),
     })
-    const body = (await res.json().catch(() => ({}))) as { url?: string; amountPaise?: number; error?: string; code?: string }
-    if (res.ok && typeof body.url === "string" && body.url.startsWith("https://")) return { ok: true, url: body.url, amountPaise: Number(body.amountPaise ?? 0) }
+    const body = (await res.json().catch(() => ({}))) as { hop?: string; razorpay?: Record<string, unknown>; amountPaise?: number; error?: string; code?: string }
+    if (res.ok && typeof body.hop === "string" && body.hop.startsWith("https://") && body.razorpay && typeof body.razorpay.order_id === "string") {
+      return { ok: true, hop: body.hop, opts: body.razorpay, amountPaise: Number(body.amountPaise ?? 0) }
+    }
     return { ok: false, notEnabled: res.status === 503 || body.code === "not_enabled", error: body.error || `HTTP ${res.status}` }
   } catch (e) {
     // Offline, blocked, or the function is not deployed yet: the bank-transfer path still works.
     return { ok: false, notEnabled: true, error: e instanceof Error ? e.message : String(e) }
   }
+}
+
+export type OnlinePaymentConfirm = { ok: true } | { ok: false; error: string }
+
+/**
+ * After Razorpay's window reports a signed result: the server checks the signature, asks Razorpay what really happened, and books the payment.
+ * 202 = Razorpay has not finished yet, so ask again every few seconds (up to ~2 minutes). The webhook books it too if this page is closed first.
+ */
+export async function confirmOnlinePayment(resp: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }): Promise<OnlinePaymentConfirm> {
+  for (let i = 0; i < 30; i++) {
+    try {
+      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/dpdp-pay/verify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(resp) })
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
+      if (res.status === 200 && body.ok) return { ok: true }
+      if (res.status !== 202 && res.status !== 502) return { ok: false, error: body.error || `HTTP ${res.status}` }
+    } catch { /* a blip: ask again */ }
+    await new Promise((r) => setTimeout(r, 4000))
+  }
+  return { ok: false, error: `We are still waiting for Razorpay to confirm your payment. If money was taken it is safe and will show here shortly. Payment ID: ${resp.razorpay_payment_id}` }
 }
 
 /** Fires the invoice email (supabase/functions/dpdp-invoice-email) right after approval. Best-effort: a failure here never undoes the approval -- the Owner can re-send from the same row (idempotent per paymentId). */
