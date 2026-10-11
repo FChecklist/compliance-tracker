@@ -40,6 +40,13 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (PROJEXA Connect your AI: person / shared / organisation AI key, branch feat/own-ai-key-2026-10-11, projexa branch feat/connect-your-ai-2026-10-11)"
+    claimed_at: "2026-10-11 (this session)"
+    claim: |
+      Scope: drizzle/0746_user_ai_connections.sql (+down, +journal idx 553), src/lib/ai/org-own-ai.ts, src/lib/ai/projexa-briefing.ts,
+      src/app/api/v1/projexa/own-ai/**, src/lib/pipeline/level1.ts (own-AI branch), src/lib/services/construction-ai-service.ts (Discuss),
+      src/lib/llm-client.ts (bypassBridge), src/lib/ai/providers/openrouter.ts (classifyWithKey), supabase/functions/ai-work-link/manual.ts (RULES),
+      the authz-gap-inventory counts. Applies 0746 live via the Supabase MCP (additive, two new tables) after CI is green.
   - session_label: "claude-code (PROJEXA D3: public e-sign token lookup under RLS; worktree C:/ct/ct-d3, branch fix/esign-token-lookup-rls)"
     claimed_at: "2026-10-10 (this session)"
     claim: |

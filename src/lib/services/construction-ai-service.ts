@@ -42,7 +42,7 @@ import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, callLLMJson, callLLMVision, type LLMProvider } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { withProjexaBriefing } from "@/lib/ai/projexa-briefing"
-import { orgHasOwnAi } from "@/lib/ai/org-own-ai"
+import { resolveAiFor } from "@/lib/ai/org-own-ai"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
@@ -390,8 +390,9 @@ export async function discussConstruction(
   // lf-b3-ai-off: a 200 reply, not an error -- PROJEXA's Discuss pane shows a
   // reply as VERI's message and any non-2xx as "VERI AI didn't reply -- try
   // again", which would send the person round a retry that can never work.
-  // An organisation that connected its own AI (org-own-ai.ts) is served by it even while our own AI is off.
-  if (!projexaInternalAiEnabled() && !(await orgHasOwnAi(ctx.orgId))) return { reply: USE_YOUR_OWN_AI }
+  // A person's own AI, one a teammate shared with them, or the organisation's (org-own-ai.ts resolveAiFor) serves them even while our own AI is off.
+  const ownAi = await resolveAiFor(ctx.orgId, ctx.userId).catch(() => null)
+  if (!ownAi && !projexaInternalAiEnabled()) return { reply: USE_YOUR_OWN_AI }
   const startedAt = Date.now()
   // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
   // this is genuine free-form user chat, exactly the shape the Constitution's
@@ -403,7 +404,9 @@ export async function discussConstruction(
   )
   if (!policyDecision.allowed) return { reply: refusalMessageFor(policyDecision) }
 
-  const modelConfig = await resolveModelConfig(ctx.orgId, "user_assistant_oa")
+  const modelConfig = ownAi
+    ? { provider: ownAi.provider, model: ownAi.model, apiKey: ownAi.apiKey, isCustomerConfigured: true, fallback: undefined }
+    : await resolveModelConfig(ctx.orgId, "user_assistant_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
 
   // In this chat the model answers; the Assistant pill (or a typed instruction) is what changes data, so say where to go.

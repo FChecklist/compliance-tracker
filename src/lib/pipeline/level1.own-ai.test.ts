@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, expect, mock, test } from "bun:test"
 
 let ownAi: { provider: string; model: string; apiKey: string } | null = null
 const calls: Array<{ provider: string; model: string; apiKey: string; segments: string[]; ownKey: boolean }> = []
-mock.module("@/lib/ai/org-own-ai", () => ({ resolveOrgOwnAi: async () => ownAi }))
+mock.module("@/lib/ai/org-own-ai", () => ({ resolveAiFor: async () => ownAi }))
 mock.module("@/lib/ai/internal-ai-org-allowance", () => ({
   INTERNAL_AI_BRANCH_KEY: "internal_ai",
   isInternalAiAllowedForOrg: async () => false,

@@ -25,7 +25,7 @@ import { getAiProvider, assertAiProviderAllowed, AiProviderRefusalError, type Ai
 import type { ResolvedFunction } from "./classify";
 import { isInternalAiAllowedForOrg } from "@/lib/ai/internal-ai-org-allowance";
 import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai";
-import { resolveOrgOwnAi } from "@/lib/ai/org-own-ai";
+import { resolveAiFor } from "@/lib/ai/org-own-ai";
 import { classifyWithKey } from "@/lib/ai/providers/openrouter";
 import { promptParamsFor, type PromptParams } from "./function-registry";
 
@@ -133,10 +133,10 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
   // lf-b3-ai-off: PROJEXA's internal AI is off by default (projexa-internal-ai.ts). Off, this is level1OffRunner's answer -- nothing
   // resolved, zero model calls, no provider consulted -- so a caller that reaches runLevel1 without going through
   // run-submission.ts's effectiveLevel1() (classify-only.ts, reuse-cache.ts, a future caller) still costs nothing.
-  // "Connect your AI" (2026-10-11): an organisation that pasted ITS OWN key is served by that AI, whatever our switches say. Our
+  // "Connect your AI" (2026-10-11): a person (their own, or one a teammate shared) or an organisation that pasted ITS OWN key is served by that AI, whatever our switches say. Our
   // master switch, the per-org allowance and the owner-only subscription gate all exist to protect OUR spend and OUR subscription;
   // none applies to a customer's own key. Looked up first, and a lookup that fails is the same as "no own AI" (the normal path).
-  const ownAi = await resolveOrgOwnAi(ctx.orgId).catch(() => null);
+  const ownAi = await resolveAiFor(ctx.orgId, ctx.personId ?? null).catch(() => null);
   if (!ownAi && !projexaInternalAiEnabled()) {
     return { resolutions: texts.map(() => null), reasons: texts.map(() => LEVEL1_INTERNAL_AI_OFF_REASON), modelCalls: 0 };
   }
