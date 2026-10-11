@@ -9,6 +9,7 @@ mock.module("@/lib/ai/internal-ai-org-allowance", () => ({
   isInternalAiAllowedForOrg: async () => allowed,
   isInternalAiAllowedForOrgWithDb: async () => allowed,
 }))
+mock.module("@/lib/ai/org-own-ai", () => ({ resolveOrgOwnAi: async () => null }))
 import { LEVEL1_ORG_NOT_ALLOWED_REASON, runLevel1 } from "./level1"
 
 const saved = process.env.PROJEXA_INTERNAL_AI_ENABLED

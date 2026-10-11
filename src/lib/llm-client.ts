@@ -121,6 +121,11 @@ export async function logAiSupervisionEvent(content: Record<string, unknown>): P
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
 export type CallLLMOptions = {
+  /**
+   * The key belongs to the CUSTOMER (their own AI, org-own-ai.ts): call their vendor with it, never the owner-laptop test bridge, which
+   * would otherwise answer every call of the deployment regardless of key.
+   */
+  bypassBridge?: boolean;
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
@@ -595,7 +600,7 @@ function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, syste
   // PROJEXA test-mode AI BRIDGE (2026-10-01): with AI_BRIDGE=queue every model call is answered by Claude Code on the owner's own laptop through
   // a database queue instead of a paid provider -- see src/lib/ai/claude-code-bridge.ts. Unset (the default) this branch is never taken and
   // every provider call below is exactly as before. Imported lazily because the bridge imports this file's error class.
-  if (process.env.AI_BRIDGE === "queue") {
+  if (process.env.AI_BRIDGE === "queue" && options?.bypassBridge !== true) {
     return import("@/lib/ai/claude-code-bridge").then((m) => m.callViaBridge({ model, systemPrompt, userMessage, options }))
   }
   const overrideUrl = options?.baseUrl

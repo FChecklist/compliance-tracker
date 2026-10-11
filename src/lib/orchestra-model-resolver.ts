@@ -439,7 +439,7 @@ export async function testProviderConnection(
       apiKey,
       "You are a connection test. Reply with only the single word OK.",
       "ping",
-      { temperature: 0, maxTokens: 5 }
+      { temperature: 0, maxTokens: 5, bypassBridge: true }
     );
     return { ok: true };
   } catch (error) {
