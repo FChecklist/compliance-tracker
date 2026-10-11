@@ -29,6 +29,16 @@
 // through the in-memory ResolvedModelConfig/LLMFallback types as the
 // platform floor tier's own same-model failover target
 // (orchestra-model-resolver.ts), never through a customer's own config row.
+/**
+ * DeepSeek, Z.ai and xAI publish an OpenAI-compatible chat endpoint and their own key page (read in each company's API documentation, 2026-10-11).
+ * Kept here, in the gated transport, so no other file names a model endpoint (src/lib/projexa-internal-ai.architecture.test.ts rule 1).
+ */
+export const CUSTOMER_VENDOR_ENDPOINTS = {
+  deepseek: "https://api.deepseek.com/chat/completions",
+  zai: "https://api.z.ai/api/paas/v4/chat/completions",
+  xai: "https://api.x.ai/v1/chat/completions",
+} as const;
+
 export type LLMProvider = "groq" | "openai" | "anthropic" | "google" | "openrouter" | "cerebras";
 
 // AI-model supervision-by-logging (governance items 30/31/32, 2026-07-23 gap-
@@ -122,8 +132,9 @@ export type ChatTurn = { role: "user" | "assistant"; content: string };
 
 export type CallLLMOptions = {
   /**
-   * The key belongs to the CUSTOMER (their own AI, org-own-ai.ts): call their vendor with it, never the owner-laptop test bridge, which
-   * would otherwise answer every call of the deployment regardless of key.
+   * The key belongs to the CUSTOMER (their own AI, org-own-ai.ts): call their vendor with it, never the owner-laptop test bridge (which would otherwise
+   * answer every call of the deployment regardless of key), and do not apply PROJEXA's own-AI switch (assertProjexaInternalAi exists to stop OUR spend;
+   * a customer's own key is not our spend). Only the customer-AI paths (org-own-ai.ts callers) set this.
    */
   bypassBridge?: boolean;
   temperature?: number;
@@ -661,7 +672,7 @@ export async function callLLM(
   options?: CallLLMOptions,
   fallback?: LLMFallback
 ): Promise<LLMResult> {
-  assertProjexaInternalAi("llm-client.callLLM");
+  if (!options?.bypassBridge) assertProjexaInternalAi("llm-client.callLLM");
   const startedAt = Date.now();
   try {
     const result = await withRetry(() => dispatchLLM(provider, model, apiKey, systemPrompt, userMessage, options));

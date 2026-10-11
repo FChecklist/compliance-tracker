@@ -3,7 +3,8 @@
 // financial software, (2) it may do the user's work (add, edit, delete) as far as the user's role allows, (3) it works inside PROJEXA.
 //
 // Prepend this to a system prompt; never replace the prompt with it. The external AI's copy of the same three facts is the
-// last entries of RULES in supabase/functions/ai-work-link/manual.ts (Deno code cannot import from src/); projexa-briefing.test.ts
+// RULES in supabase/functions/ai-work-link/manual.ts: fact 1 is a rule of its own there, fact 2 is the existing "Do the work asked ... deletes included.
+// Stay inside this person's role", fact 3 the existing "never write code" (Deno code cannot import from src/); projexa-briefing.test.ts
 // fails if the two drift apart.
 
 export const PROJEXA_BRIEFING_FACTS = [

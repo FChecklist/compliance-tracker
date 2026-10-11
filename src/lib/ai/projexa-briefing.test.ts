@@ -18,7 +18,7 @@ describe("PROJEXA briefing every AI is told", () => {
     const manual = readFileSync("supabase/functions/ai-work-link/manual.ts", "utf8")
     expect(manual).toContain("construction project-management software")
     expect(manual).toContain("not accounting or financial software")
-    expect(manual).toContain("create, edit, update, archive and delete what the person asks for")
+    expect(manual).toContain("Do the work asked without asking permission at any step, deletes included")
     expect(PROJEXA_BRIEFING_FACTS.length).toBe(3)
   })
 })

@@ -17,7 +17,7 @@ import { and, eq, isNull } from "drizzle-orm"
 import { db, customerModelConfig, userAiConnections, userAiConnectionShares, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { decryptApiKey, encryptApiKey } from "@/lib/ai-config-crypto"
-import type { LLMProvider } from "@/lib/llm-client"
+import { CUSTOMER_VENDOR_ENDPOINTS, type LLMProvider } from "@/lib/llm-client"
 import { testProviderConnection } from "@/lib/orchestra-model-resolver"
 
 /** The vendors a PERSON can connect. The organisation's own connection (customer_model_config.provider, a database enum) takes the first five only. */
@@ -29,11 +29,7 @@ export const ORG_AI_PROVIDERS: readonly OwnAiProvider[] = ["openai", "anthropic"
  * DeepSeek, Z.ai and xAI publish an OpenAI-compatible chat endpoint and their own key page (checked in each company's API documentation,
  * 2026-10-11), so a key from them is called through the OpenAI-shaped client with THEIR address. Nothing else about the call changes.
  */
-export const VENDOR_ENDPOINTS: Partial<Record<OwnAiProvider, string>> = {
-  deepseek: "https://api.deepseek.com/chat/completions",
-  zai: "https://api.z.ai/api/paas/v4/chat/completions",
-  xai: "https://api.x.ai/v1/chat/completions",
-}
+export const VENDOR_ENDPOINTS: Partial<Record<OwnAiProvider, string>> = CUSTOMER_VENDOR_ENDPOINTS
 
 /** The client-side provider a stored vendor is called through. */
 export function llmProviderFor(vendor: OwnAiProvider): LLMProvider {
