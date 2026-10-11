@@ -21,7 +21,6 @@ export function payViaFrame(hop: string, opts: Record<string, unknown>): Promise
     const origin = new URL(hop).origin
     const wrap = document.createElement("div")
     const frame = document.createElement("iframe")
-    let timer: ReturnType<typeof setTimeout>
     const done = (fn: () => void) => {
       window.removeEventListener("message", onMessage)
       clearTimeout(timer)
@@ -36,7 +35,7 @@ export function payViaFrame(hop: string, opts: Record<string, unknown>): Promise
     frame.setAttribute("allow", "payment")
     frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent"
     wrap.appendChild(frame)
-    timer = setTimeout(() => done(() => reject(new PayFrameError("Could not reach the payment service. Check your internet and try again."))), 30_000)
+    const timer = setTimeout(() => done(() => reject(new PayFrameError("Could not reach the payment service. Check your internet and try again."))), 30_000)
     function onMessage(ev: MessageEvent) {
       if (ev.origin !== origin || ev.source !== frame.contentWindow || !ev.data) return
       const d = ev.data as { t?: string; message?: unknown; resp?: Partial<PaidResponse> }
