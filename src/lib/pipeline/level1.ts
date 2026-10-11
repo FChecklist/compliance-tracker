@@ -25,6 +25,8 @@ import { getAiProvider, assertAiProviderAllowed, AiProviderRefusalError, type Ai
 import type { ResolvedFunction } from "./classify";
 import { isInternalAiAllowedForOrg } from "@/lib/ai/internal-ai-org-allowance";
 import { projexaInternalAiEnabled } from "@/lib/projexa-internal-ai";
+import { resolveAiFor } from "@/lib/ai/org-own-ai";
+import { classifyWithKey } from "@/lib/ai/providers/openrouter";
 import { promptParamsFor, type PromptParams } from "./function-registry";
 
 /** M26's acceptance floor. A resolution below this is a FAIL, not a maybe. */
@@ -131,13 +133,17 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
   // lf-b3-ai-off: PROJEXA's internal AI is off by default (projexa-internal-ai.ts). Off, this is level1OffRunner's answer -- nothing
   // resolved, zero model calls, no provider consulted -- so a caller that reaches runLevel1 without going through
   // run-submission.ts's effectiveLevel1() (classify-only.ts, reuse-cache.ts, a future caller) still costs nothing.
-  if (!projexaInternalAiEnabled()) {
+  // "Connect your AI" (2026-10-11): a person (their own, or one a teammate shared) or an organisation that pasted ITS OWN key is served by that AI, whatever our switches say. Our
+  // master switch, the per-org allowance and the owner-only subscription gate all exist to protect OUR spend and OUR subscription;
+  // none applies to a customer's own key. Looked up first, and a lookup that fails is the same as "no own AI" (the normal path).
+  const ownAi = await resolveAiFor(ctx.orgId, ctx.personId ?? null).catch(() => null);
+  if (!ownAi && !projexaInternalAiEnabled()) {
     return { resolutions: texts.map(() => null), reasons: texts.map(() => LEVEL1_INTERNAL_AI_OFF_REASON), modelCalls: 0 };
   }
 
   // Audit 37 point 11: the master switch on is not enough; this organisation must also have been allowed our AI (default closed).
   // Same quiet outcome as "off": nothing resolved, zero model calls, no provider consulted.
-  if (!(await isInternalAiAllowedForOrg(ctx.orgId))) {
+  if (!ownAi && !(await isInternalAiAllowedForOrg(ctx.orgId))) {
     return { resolutions: texts.map(() => null), reasons: texts.map(() => LEVEL1_ORG_NOT_ALLOWED_REASON), modelCalls: 0 };
   }
 
@@ -148,18 +154,21 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
   // gate and getAiProvider() below always agree on which level's provider
   // config they're each resolving -- see provider-config.ts (P1.1).
   // U-49: the acting person, never ctx.userId (an API key's id on the proxy).
-  assertAiProviderAllowed(ctx.personId ?? null, "pipeline_l1");
+  if (!ownAi) assertAiProviderAllowed(ctx.personId ?? null, "pipeline_l1");
 
   const validItemCodes = await loadValidItemCodes(ctx.orgId, ctx.projectId);
 
   let raw: Awaited<ReturnType<ReturnType<typeof getAiProvider>["classify"]>>;
   try {
-    raw = await getAiProvider("pipeline_l1").classify(texts, [...ctx.candidateFunctionIds], {
+    const classifyContext = {
       orgId: ctx.orgId,
       projectId: ctx.projectId ?? undefined,
       validIds: validItemCodes.length > 0 ? { itemCode: validItemCodes } : undefined,
       functionParams: functionParamsFor(ctx.candidateFunctionIds),
-    });
+    };
+    raw = ownAi
+      ? await classifyWithKey(ownAi.provider, ownAi.model, ownAi.apiKey, texts, [...ctx.candidateFunctionIds], classifyContext, true, ownAi.baseUrl)
+      : await getAiProvider("pipeline_l1").classify(texts, [...ctx.candidateFunctionIds], classifyContext);
   } catch (error) {
     // A provider outage is a FAIL for every segment in the batch, with the
     // real reason recorded -- never a silent drop, and never a retry storm.

@@ -3858,6 +3858,13 @@
       "when": 1790700025000,
       "tag": "0745_esign_resolve_signer_fn",
       "breakpoints": true
+    },
+    {
+      "idx": 553,
+      "version": "7",
+      "when": 1790700026000,
+      "tag": "0746_user_ai_connections",
+      "breakpoints": true
     }
   ]
 }

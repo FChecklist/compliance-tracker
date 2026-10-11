@@ -6,8 +6,9 @@
 // those belong to the separate AI Dev Team / customer-communication systems;
 // M26/M27 ask for one narrow interface here, and reusing that larger
 // machinery would re-couple exactly what this pipeline exists to keep simple.
-import { callLLMJson } from "@/lib/llm-client";
+import { callLLMJson, type LLMProvider } from "@/lib/llm-client";
 import { resolvePipelineModel } from "@/lib/ai/level-model-registry";
+import { withProjexaBriefing } from "@/lib/ai/projexa-briefing";
 import type { AiProvider, ClassificationResult, Artifact, ClassifyContext } from "../adapter";
 
 // M26 target models -- exact OpenRouter slugs are an ops/cost decision, not
@@ -66,36 +67,53 @@ Output STRICT JSON: {"artifacts": [<Artifact>, ...]} where each Artifact is one 
   {"kind":"capability_gap","description":string,"frequency":number}
   {"kind":"no_action","reason":string}`;
 
+/**
+ * Level 1 with an explicit vendor, model and key: the same prompt, the same one-call-for-all-segments rule and the same shape
+ * check as the OpenRouter provider below. The organisation's OWN key (org-own-ai.ts) comes through here, so a typed request is
+ * understood by the AI the organisation chose.
+ */
+export async function classifyWithKey(
+  provider: LLMProvider,
+  model: string,
+  apiKey: string,
+  segments: string[],
+  candidateFunctions: string[],
+  context: ClassifyContext,
+  /** True when the key is the customer's own: the test bridge must not answer instead (llm-client bypassBridge). */
+  ownKey = false,
+  /** DeepSeek / Z.ai / xAI: their own OpenAI-compatible chat address. */
+  baseUrl?: string
+): Promise<ClassificationResult[]> {
+  if (segments.length === 0) return [];
+  // ONE call for ALL unresolved segments (M27) -- never one call per segment.
+  const userMessage = JSON.stringify({ segments, candidateFunctions, context });
+  const { data } = await callLLMJson<{ results: ClassificationResult[] }>(
+    provider,
+    model,
+    apiKey,
+    withProjexaBriefing(CLASSIFY_SYSTEM_PROMPT),
+    userMessage,
+    { expectedKeys: ["results"], temperature: 0, bypassBridge: ownKey, baseUrl }
+  );
+  if (!Array.isArray(data.results) || data.results.length !== segments.length) {
+    throw new Error(`L1 returned ${data.results?.length ?? 0} result(s) for ${segments.length} segment(s) -- expected exactly one per segment.`);
+  }
+  // Shape-normalize only; validate.ts does the real semantic validation (see the note in the provider below).
+  return data.results.map((r) => ({
+    functionId: r.functionId ?? null,
+    params: r.params ?? {},
+    missingParams: Array.isArray(r.missingParams) ? r.missingParams : [],
+    confidence: typeof r.confidence === "number" ? r.confidence : 0,
+    unmappedIntent: r.unmappedIntent ?? null,
+  }));
+}
+
 export const openrouterProvider: AiProvider = {
   async classify(segments: string[], candidateFunctions: string[], context: ClassifyContext): Promise<ClassificationResult[]> {
     if (segments.length === 0) return [];
     const apiKey = requireApiKey();
     const model = await resolvePipelineModel("pipeline_l1", L1_MODEL_FALLBACK);
-    // ONE call for ALL unresolved segments (M27) -- never one call per segment.
-    const userMessage = JSON.stringify({ segments, candidateFunctions, context });
-    const { data } = await callLLMJson<{ results: ClassificationResult[] }>(
-      "openrouter",
-      model,
-      apiKey,
-      CLASSIFY_SYSTEM_PROMPT,
-      userMessage,
-      { expectedKeys: ["results"], temperature: 0 }
-    );
-    if (!Array.isArray(data.results) || data.results.length !== segments.length) {
-      throw new Error(`L1 returned ${data.results?.length ?? 0} result(s) for ${segments.length} segment(s) -- expected exactly one per segment.`);
-    }
-    // Shape-normalize only. Real semantic validation (function_id actually in
-    // the candidate set, boq_line_item existence, permissions, project
-    // reachability) is validate.ts's job (seq12) -- this file never
-    // second-guesses the model's own answer beyond making sure it round-trips
-    // as the shape the rest of the pipeline expects.
-    return data.results.map((r) => ({
-      functionId: r.functionId ?? null,
-      params: r.params ?? {},
-      missingParams: Array.isArray(r.missingParams) ? r.missingParams : [],
-      confidence: typeof r.confidence === "number" ? r.confidence : 0,
-      unmappedIntent: r.unmappedIntent ?? null,
-    }));
+    return classifyWithKey("openrouter", model, apiKey, segments, candidateFunctions, context);
   },
 
   async analyse(batchInput: unknown): Promise<Artifact[]> {

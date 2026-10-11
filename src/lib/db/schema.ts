@@ -3022,6 +3022,32 @@ export const orchestraExecutionsRelations = relations(orchestraExecutions, ({ on
   task: one(tasks, { fields: [orchestraExecutions.taskId], references: [tasks.id] }),
 }))
 
+// "Connect your AI" for a PERSON (drizzle/0746): a person's own AI connection and the teammates they let use it. The organisation's own
+// connection stays in customerModelConfig. Key is encrypted (ai-config-crypto.ts) and selected only to answer the owner's/teammate's request.
+export const userAiConnections = complianceSchemaDB.table('user_ai_connections', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ownerUserId: text('owner_user_id').notNull(),
+  provider: text('provider').notNull(),
+  modelName: text('model_name').notNull(),
+  encryptedApiKey: text('encrypted_api_key').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  orgOwnerUnique: unique('user_ai_connections_org_owner_unique').on(t.orgId, t.ownerUserId),
+}))
+
+export const userAiConnectionShares = complianceSchemaDB.table('user_ai_connection_shares', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  connectionId: text('connection_id').notNull().references(() => userAiConnections.id, { onDelete: 'cascade' }),
+  sharedWithUserId: text('shared_with_user_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  connectionUserUnique: unique('user_ai_connection_shares_unique').on(t.connectionId, t.sharedWithUserId),
+}))
+
 export const customerModelConfigRelations = relations(customerModelConfig, ({ one, many }) => ({
   layer: one(orchestraLayers, { fields: [customerModelConfig.orchestraLayerId], references: [orchestraLayers.id] }),
   poolAllocations: many(sharedPoolAllocations),
