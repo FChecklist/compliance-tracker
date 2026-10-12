@@ -28,7 +28,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const result = await addMeetingActionItem(
       { orgId: ctx.orgId, userId: actorId, ...acting.actor },
       id,
-      { title: body.title, assigneeUserId: body.assigneeUserId, dueDate: body.dueDate }
+      { title: body.title, assigneeUserId: body.assigneeUserId, dueDate: body.dueDate },
+      // A person's action item is done by that person. Handing it to the AI executor made every new item show "failed" in the assignee's
+      // to-do list whenever no model was available (UAT 2026-10-12), the same reason the AI work link passes false (PROJEXA-BUILD-002 WP-05e).
+      { autoExecute: false }
     )
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
