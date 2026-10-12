@@ -1905,7 +1905,7 @@ export async function createBoqRevision(
       // the override instead of printing a paragraph.
       throw new ScopeReductionError(
         `Scope reduction blocked -- this revision would remove or reduce work already completed on site: ${violations.join("; ")}. ` +
-          `Pass allowScopeReductionOverride: true to proceed anyway.`,
+          `To go ahead anyway, choose "Apply anyway - override" (API callers: allowScopeReductionOverride: true).`,
         buildScopeReductionConflicts({ removed, changed }, progressDetailByLineItem)
       )
     }
