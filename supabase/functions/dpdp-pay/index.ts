@@ -32,7 +32,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import { isDeliverableAddress, renderReceipt, sendViaResend } from "../_shared/billing-mail.ts"
 import {
-  type AttemptFacts, type CapturedPayment, RAZORPAY_API, basicAuthHeader, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
+  type AttemptFacts, type CapturedPayment, RAZORPAY_API, basicAuthHeader, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
   httpStatusFor, parseCreateRequest, parseOrderResponse, parseVerifyRequest, parseWebhookEvent, razorpayConfigured, receiptFor, verifyCheckoutSignature,
   verifyWebhookSignature,
 } from "./logic.ts"
@@ -48,6 +48,9 @@ const RESEND_API_KEY = env("RESEND_API_KEY")
 const EMAIL_FROM = resolveFrom(env("DPDP_EMAIL_FROM"))
 // Where Razorpay's window runs: a page of the website registered with Razorpay (IT Services by Rajat Agarwal). The same frame Corporate Tambola uses.
 const PAY_HOP_URL = env("PAY_HOP_URL") || "https://itservices-rajat-agarwal.pages.dev/payframe/"
+// Central payments: the website's key for IT Services' payment service (secret PAY_SERVICE_KEY). Unset, or the service unreachable = the order is opened directly with Razorpay as before.
+const PAY_SERVICE_KEY = env("PAY_SERVICE_KEY")
+const PAY_SERVICE_URL = (env("PAY_SERVICE_URL") || "https://itservices-rajat-agarwal.pages.dev").replace(/\/+$/, "")
 const APP_ORIGIN = (env("APP_ORIGIN") || "https://dpdp.veridian-aios.com").replace(/\/+$/, "")
 const SENDER_WARNING = foreignSenderWarning(EMAIL_FROM)
 if (SENDER_WARNING) console.warn(SENDER_WARNING)
@@ -91,7 +94,20 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
 
   const sb = serviceClient()
   let order: ReturnType<typeof parseOrderResponse> = null
-  try {
+  if (PAY_SERVICE_KEY) {
+    try {
+      const res = await fetch(`${PAY_SERVICE_URL}/api/pay/order`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-site-key": PAY_SERVICE_KEY }, signal: AbortSignal.timeout(6000),
+        body: JSON.stringify(buildCentralOrderBody({ attemptId: a.attemptId, orgId: a.orgId, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, amountPaise: a.amountPaise, currency: a.currency, ownerEmail: a.ownerEmail })),
+      })
+      const payload = (await res.json().catch(() => null)) as { orderId?: string } | null
+      if (res.ok && payload?.orderId) order = parseOrderResponse({ id: payload.orderId })
+      else console.warn(`dpdp-pay: central order refused with HTTP ${res.status}`)
+    } catch (e) {
+      console.warn(`dpdp-pay: central order unreachable: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+  if (!order) try {
     const res = await fetch(`${RAZORPAY_API}/orders`, {
       method: "POST",
       headers: { Authorization: basicAuthHeader(KEY_ID, KEY_SECRET), "Content-Type": "application/json" },
@@ -116,6 +132,17 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
     ok: true, hop: PAY_HOP_URL, attemptId: a.attemptId, amountPaise: a.amountPaise, currency: a.currency,
     razorpay: buildCheckoutOptions({ keyId: KEY_ID, orderId: order.id, amountPaise: a.amountPaise, currency: a.currency, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, ownerEmail: a.ownerEmail }),
   }, 200, cors)
+}
+
+/** Tell the central ledger (IT Services) about a verified payment. Best effort: it never blocks or fails the buyer; the central webhook records it too. */
+async function reportToCentral(orderId: string, paymentId: string, signature: string): Promise<void> {
+  if (!PAY_SERVICE_KEY) return
+  try {
+    await fetch(`${PAY_SERVICE_URL}/api/pay/verify`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-site-key": PAY_SERVICE_KEY }, signal: AbortSignal.timeout(4000),
+      body: JSON.stringify({ site: "veridian-aios.com", razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature }),
+    })
+  } catch { /* the central webhook records it */ }
 }
 
 // ---------------------------------------------------------------------
@@ -154,6 +181,7 @@ async function verify(req: Request, cors: Record<string, string>): Promise<Respo
   if (outcome.kind === "pending") return json({ confirming: true }, 202, cors)
   if (outcome.kind === "failed") return json({ error: `The payment is ${outcome.status}. Nothing was charged to your order.` }, 402, cors)
 
+  await reportToCentral(v.orderId, v.paymentId, v.signature)
   const r = await recordCaptured(outcome.payment)
   return json(r.body, r.status, cors)
 }
