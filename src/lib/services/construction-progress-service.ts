@@ -889,6 +889,33 @@ export async function createProgressEntry(
       boqLineItemId = await resolveBoqLineItemForEntry(db, ctx.orgId, input.projectId, input.boqLineItemId)
     }
 
+    // Sumeet R-47 -- progress above 100% is REFUSED, not stored: a DELTA entry adds to what was already logged on the line, so the running total
+    // may not pass the line's own quantity. (A SNAPSHOT replaces the total and is already bounded to 0-100 by assertPercentComplete.) The wording
+    // names the line, the new total and what is left, so the person can correct the number rather than guess.
+    if (boqLineItemId && entryBasis === "DELTA" && Number(input.quantityDone) > 0) {
+      const line = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, boqLineItemId) })
+      const lineQty = Number(line?.quantity ?? 0)
+      if (line && lineQty > 0) {
+        const [prior] = await db
+          .select({ done: sql<string>`coalesce(sum(${constructionWorkProgressEntries.quantityDone}), 0)` })
+          .from(constructionWorkProgressEntries)
+          .where(and(
+            eq(constructionWorkProgressEntries.orgId, ctx.orgId),
+            eq(constructionWorkProgressEntries.boqLineItemId, boqLineItemId),
+            eq(constructionWorkProgressEntries.entryBasis, "DELTA"),
+          ))
+        const alreadyDone = Number(prior?.done ?? 0)
+        const newTotal = alreadyDone + Number(input.quantityDone)
+        if (newTotal > lineQty + 1e-9) {
+          const fmt = (n: number) => String(Math.round(n * 100) / 100)
+          throw new ServiceError(
+            `Progress on ${line.itemCode ?? "this line"} would reach ${fmt(newTotal)} of ${fmt(lineQty)} ${line.unit ?? ""} (${fmt((newTotal / lineQty) * 100)}%), more than 100%. Only ${fmt(Math.max(lineQty - alreadyDone, 0))} ${line.unit ?? ""} remains on this line.`.replace(/\s+\./g, "."),
+            422,
+          )
+        }
+      }
+    }
+
     const [row] = await db.insert(constructionWorkProgressEntries).values({
       orgId: ctx.orgId, projectId: input.projectId, activityId: input.activityId, boqLineItemId,
       entryDate: input.entryDate, quantityDone: input.quantityDone !== undefined ? String(input.quantityDone) : undefined, percentComplete: String(input.percentComplete),
