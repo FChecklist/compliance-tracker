@@ -278,7 +278,19 @@ export function buildOrderBody(r: OrderRequest): Record<string, unknown> {
     amount: r.amountPaise,
     currency: r.currency,
     receipt: receiptFor(r.attemptId),
-    notes: { ...productNotes(r.plan, r.interval, r.variation), org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, plan: r.plan, organisation: r.orgName.slice(0, 80) },
+    notes: { ...productNotes(r.plan, r.interval, r.variation), site: CENTRAL_SITE, stream: "sales", org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, plan: r.plan, organisation: r.orgName.slice(0, 80) },
+  }
+}
+
+/** Central payments (owner order 2026-10-12): the order is opened through IT Services by Rajat Agarwal, so it lands in its ONE Razorpay ledger as
+ *  razorpay / IT Services / veridian-aios.com / sales / <variation>. This builds the request to its POST /api/pay/order. */
+export const CENTRAL_SITE = "veridian-aios.com"
+export function buildCentralOrderBody(r: OrderRequest & { ownerEmail?: string | null }): Record<string, unknown> {
+  const { variation } = productNotes(r.plan, r.interval, r.variation)
+  return {
+    site: CENTRAL_SITE, product: PRODUCT_CODE, plan: variation, amount_minor: r.amountPaise, currency: r.currency, payment_ref: receiptFor(r.attemptId), user: r.orgId,
+    ...(r.ownerEmail ? { payer_email: r.ownerEmail } : {}),
+    extra_notes: { org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, edition: r.plan, organisation: r.orgName.slice(0, 80) },
   }
 }
 

@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs"
 import {
   type AttemptFacts, type CapturedPayment, SUPPORTED_EVENTS, basicAuthHeader, buildPaymentLinkBody, constantTimeEqual, corsHeadersFor, decideWebhook,
   hmacSha256Hex, httpStatusFor, parseCreateRequest, parseNotes, parsePaymentLinkResponse, parseWebhookEvent, razorpayConfigured, verifyWebhookSignature,
-  PRODUCT_CODE, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, parseOrderResponse, parseVerifyRequest, receiptFor, verifyCheckoutSignature,
+  PRODUCT_CODE, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, parseOrderResponse, parseVerifyRequest, receiptFor, verifyCheckoutSignature,
 } from "../../../supabase/functions/dpdp-pay/logic"
 
 const SECRET = "whsec_test_not_a_real_secret"
@@ -320,6 +320,18 @@ describe("paying through an ORDER (the Corporate Tambola method, 2026-10-11)", (
   test("without a database-supplied variation the notes fall back to edition_interval", () => {
     const b = buildOrderBody({ ...orderReq, variation: undefined }) as { notes: Record<string, string> }
     expect(b.notes.variation).toBe("firm_year")
+  })
+  test("the order notes name the website and the sales stream, so even a direct order lands in the central ledger", () => {
+    const b = buildOrderBody(orderReq) as { notes: Record<string, string> }
+    expect(b.notes).toMatchObject({ site: "veridian-aios.com", stream: "sales" })
+  })
+  test("the central order request: this website / sales / the variation as the plan, with our ids as extra notes", () => {
+    const c = buildCentralOrderBody({ ...orderReq, ownerEmail: "o@acme.in" }) as Record<string, any>
+    expect(c).toMatchObject({ site: "veridian-aios.com", product: "veridian_dpdp", plan: "professional_year", amount_minor: 999900, currency: "INR", payment_ref: `dpdp_${"a".repeat(32)}`, user: "org1", payer_email: "o@acme.in" })
+    expect(c.extra_notes).toEqual({ org_id: "org1", attempt_id: "a".repeat(32), interval: "year", edition: "firm", organisation: "Acme Associates" })
+    expect(Object.keys(c.extra_notes).length).toBeLessThanOrEqual(8)
+    expect((buildCentralOrderBody(orderReq) as Record<string, any>).payer_email).toBeUndefined()
+    expect((buildCentralOrderBody({ ...orderReq, variation: undefined }) as Record<string, any>).plan).toBe("firm_year")
   })
   test("the order response needs a real order id", () => {
     expect(parseOrderResponse({ id: "order_Abc123xyz" })).toEqual({ id: "order_Abc123xyz" })
