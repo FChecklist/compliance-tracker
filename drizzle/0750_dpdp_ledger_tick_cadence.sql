@@ -8,6 +8,7 @@
 -- 5-minute retry rule. Only that one constant changes. The function body is otherwise identical to the one in 0749, so this migration is safe to run again
 -- (create or replace; no table, grant or cron change). The same number is SUMMARY_EVERY_MS in supabase/functions/dpdp-pay/ledger.ts; keep the two equal.
 
+-- PRE-APPROVED-LIVE-DDL: Owner instruction in the live chat session on 2026-10-14 (two small DPDP fixes, item 2) to change the dpdp-ledger-tick summary rule to 29 minutes with a new migration and apply it live; it only re-creates the existing function public.dpdp_ledger_summary_claim, no grant or table change.
 create or replace function public.dpdp_ledger_summary_claim(p_force boolean default false)
 returns boolean
 language plpgsql security definer
