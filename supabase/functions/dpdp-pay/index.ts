@@ -7,7 +7,13 @@
 //   POST /dpdp-pay/webhook    Razorpay tells us a payment was captured. Signature-verified,
 //                             amount/currency-checked, recorded once, then the existing
 //                             dpdp_record_confirmed_payment flips the org active and creates
-//                             the referral commission. A receipt email follows.
+//                             the referral commission. A receipt email follows. The same message
+//                             (authorized / captured / failed / refund.*) is also written into
+//                             LEDGER C (ledger.ts, drizzle/0749): every attempt, success AND failure.
+//   POST /dpdp-pay/ledger     the platform OWNER's ledger report (JSON, or {"format":"csv"}); the
+//                             database refuses anyone who is not the owner (dpdp_owner_ledger).
+//   POST /dpdp-pay/ledger-tick  the 30-minute cron (Vault bearer): commission changes and the monthly
+//                             figures go to the central ledger (B).
 //
 // Pure decisions (signature, event reading, amount/currency/idempotency, request bodies) are
 // in logic.ts and unit-tested. This file only wires them to fetch and Supabase.
@@ -32,10 +38,11 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import { isDeliverableAddress, renderReceipt, sendViaResend } from "../_shared/billing-mail.ts"
 import { CONSENT_REQUIRED_CODE } from "../_shared/terms.ts"
+import { type Deps as LedgerDeps, type LedgerEvent, attemptStatusOfEntity, buildAttemptRow, ledgerCsv, ledgerTick, parseLedgerEvent, recordLedgerEvent } from "./ledger.ts"
 import {
   type AttemptFacts, type CapturedPayment, CONSENT_REQUIRED_BODY, RAZORPAY_API, basicAuthHeader, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
-  httpStatusFor, parseCreateRequest, parseOrderResponse, parseVerifyRequest, parseWebhookEvent, razorpayConfigured, readTermsConsent, receiptFor, verifyCheckoutSignature,
-  verifyWebhookSignature,
+  httpStatusFor, parseCreateRequest, parseOrderResponse, parseVerifyRequest, parseWebhookEvent, razorpayConfigured, readTermsConsent, receiptFor, txnIdOf, verifyCheckoutSignature,
+  verifyWebhookSignature, CENTRAL_SITE,
 } from "./logic.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
@@ -66,6 +73,39 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}): 
 const serviceClient = (): SupabaseClient => createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 const callerClient = (authHeader: string): SupabaseClient =>
   createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: authHeader } } })
+
+// ---------------------------------------------------------------------
+// Ledger C plumbing (the rules are in ledger.ts; this only wires them to Supabase and fetch)
+// ---------------------------------------------------------------------
+const ledgerDeps = (sb: SupabaseClient): LedgerDeps => ({
+  rpc: async (name, args) => {
+    const r = await sb.rpc(name, args)
+    return { data: r.data, error: r.error ? { message: r.error.message } : null }
+  },
+  fetchFn: fetch,
+  central: PAY_SERVICE_KEY ? { url: PAY_SERVICE_URL, key: PAY_SERVICE_KEY, site: CENTRAL_SITE } : null,
+})
+
+/** Runs work after the answer has gone out when the platform allows it (EdgeRuntime.waitUntil); otherwise waits for it. Never throws. */
+async function background(work: Promise<unknown>): Promise<void> {
+  const safe = work.catch((e) => console.warn(`dpdp-pay: background ledger work failed: ${e instanceof Error ? e.message : String(e)}`))
+  const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime
+  if (rt?.waitUntil) rt.waitUntil(safe)
+  else await safe
+}
+
+/** Ledger C from what Razorpay's own API returned for a payment (the /verify path). Best effort: the booking never depends on it; the webhook is the backstop. */
+async function recordPaymentEntity(pay: unknown): Promise<void> {
+  try {
+    const status = attemptStatusOfEntity((pay as { status?: unknown } | null)?.status)
+    const row = status ? buildAttemptRow(pay, status, Date.now()) : null
+    if (!row) return
+    const ev: LedgerEvent = { eventKey: null, event: null, attempt: row, refund: null }
+    await recordLedgerEvent(ledgerDeps(serviceClient()).rpc, ev)
+  } catch (e) {
+    console.warn(`dpdp-pay: ledger record from verify failed: ${e instanceof Error ? e.message : String(e)}`)
+  }
+}
 
 // ---------------------------------------------------------------------
 // POST /dpdp-pay -- the owner asks for a payment link
@@ -137,7 +177,7 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
     return json({ error: "Could not start the payment" }, 500, cors)
   }
   return json({
-    ok: true, hop: PAY_HOP_URL, attemptId: a.attemptId, amountPaise: a.amountPaise, currency: a.currency,
+    ok: true, hop: PAY_HOP_URL, attemptId: a.attemptId, txnId: txnIdOf(a.attemptId), amountPaise: a.amountPaise, currency: a.currency,
     razorpay: buildCheckoutOptions({ keyId: KEY_ID, orderId: order.id, amountPaise: a.amountPaise, currency: a.currency, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, ownerEmail: a.ownerEmail }),
   }, 200, cors)
 }
@@ -186,11 +226,13 @@ async function verify(req: Request, cors: Record<string, string>): Promise<Respo
   }
   const outcome = capturedFromRazorpay(order, pay, v.orderId)
   if (outcome.kind === "mismatch") return json({ error: "The payment details did not match the order." }, 400, cors)
+  await recordPaymentEntity(pay) // ledger C: this attempt, whatever its outcome (captured, authorized or failed)
   if (outcome.kind === "pending") return json({ confirming: true }, 202, cors)
   if (outcome.kind === "failed") return json({ error: `The payment is ${outcome.status}. Nothing was charged to your order.` }, 402, cors)
 
   await reportToCentral(v.orderId, v.paymentId, v.signature)
   const r = await recordCaptured(outcome.payment)
+  if (r.status < 300) await background(ledgerTick(ledgerDeps(serviceClient())))
   return json(r.body, r.status, cors)
 }
 
@@ -206,12 +248,32 @@ async function webhook(req: Request): Promise<Response> {
 
   if (!(await verifyWebhookSignature(raw, req.headers.get("x-razorpay-signature"), WEBHOOK_SECRET))) return json({ error: "Invalid signature" }, 401)
 
-  const parsed = parseWebhookEvent(raw, req.headers.get("x-razorpay-event-id"))
-  if (parsed.kind === "invalid") return json({ error: "Unreadable event", reason: parsed.reason }, 400)
-  if (parsed.kind === "ignored") return json({ ok: true, ignored: parsed.reason })
-  const p = parsed.payment
+  // Ledger C first look: a delivery Razorpay repeats (same x-razorpay-event-id, or the same derived key) is answered and ignored. It is marked as seen only AFTER everything
+  // below succeeded, so a delivery that failed half way is processed again on Razorpay's retry.
+  const eventId = req.headers.get("x-razorpay-event-id")
+  const ledger = parseLedgerEvent(raw, eventId, Date.now())
+  const sb = serviceClient()
+  if (ledger.eventKey) {
+    const seen = await sb.rpc("dpdp_ledger_event_seen", { p_event_id: ledger.eventKey })
+    if (!seen.error && seen.data === true) return json({ ok: true, recorded: false, outcome: "duplicate" })
+  }
 
-  const r = await recordCaptured(p)
+  const parsed = parseWebhookEvent(raw, eventId)
+  if (parsed.kind === "invalid") return json({ error: "Unreadable event", reason: parsed.reason }, 400)
+
+  // The booking path, exactly as before: only a captured payment books money. Every other validly signed event is acknowledged.
+  const r = parsed.kind === "payment" ? await recordCaptured(parsed.payment) : { status: 200, body: { ok: true, ignored: parsed.reason } as Record<string, unknown> }
+  if (r.status >= 500) return json(r.body, r.status)
+
+  // Ledger C: the attempt (authorized / captured / failed) or refund this message is about. A database fault answers 500 so Razorpay retries.
+  try {
+    await recordLedgerEvent(ledgerDeps(sb).rpc, ledger)
+    if (ledger.eventKey) await sb.rpc("dpdp_ledger_mark_event", { p_event_id: ledger.eventKey, p_event: ledger.event })
+  } catch (e) {
+    console.warn(`dpdp-pay: ledger C could not record event ${ledger.event ?? "?"}: ${e instanceof Error ? e.message : String(e)}`)
+    return json({ error: "Temporary problem, please retry" }, 500)
+  }
+  if (ledger.attempt || ledger.refund) await background(ledgerTick(ledgerDeps(sb)))
   return json(r.body, r.status)
 }
 
@@ -283,6 +345,45 @@ async function sendReceipt(sb: SupabaseClient, paymentId: string, razorpayPaymen
   }
 }
 
+// ---------------------------------------------------------------------
+// POST /dpdp-pay/ledger -- the platform owner's ledger report
+// ---------------------------------------------------------------------
+async function ownerLedger(req: Request, cors: Record<string, string>): Promise<Response> {
+  const authHeader = req.headers.get("authorization") ?? ""
+  if (!authHeader) return json({ error: "Sign in first" }, 401, cors)
+  let body: Record<string, unknown> = {}
+  try {
+    const b = await req.json()
+    if (b && typeof b === "object" && !Array.isArray(b)) body = b as Record<string, unknown>
+  } catch { /* an empty body means "this month" */ }
+  const month = typeof body.month === "string" ? body.month : null
+  const { data, error } = await callerClient(authHeader).rpc("dpdp_owner_ledger", { p_month: month })
+  if (error) {
+    const status = error.code === "42501" ? 403 : error.code === "22023" ? 400 : 500
+    return json({ error: status === 500 ? "Could not read the ledger" : error.message }, status, cors)
+  }
+  if (body.format === "csv") {
+    const key = typeof (data as { month?: unknown } | null)?.month === "string" ? String((data as { month: string }).month) : "month"
+    return new Response(ledgerCsv(data), { status: 200, headers: { ...cors, "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="ledger-c-DPD-${key}.csv"`, "Cache-Control": "no-store" } })
+  }
+  return json(data, 200, cors)
+}
+
+// ---------------------------------------------------------------------
+// POST /dpdp-pay/ledger-tick -- the 30-minute cron (same Vault bearer as the other DPDP jobs)
+// ---------------------------------------------------------------------
+async function tick(req: Request): Promise<Response> {
+  const m = /^Bearer\s+(.+)$/i.exec((req.headers.get("authorization") ?? "").trim())
+  const presented = m?.[1]?.trim() ?? ""
+  if (presented.length < 24 || !SUPABASE_URL || !SERVICE_ROLE_KEY) return json({ error: "Unauthorized" }, 401)
+  const sb = serviceClient()
+  const ok = await sb.rpc("dpdp_timer_check_bearer", { p_bearer: presented })
+  if (ok.error || ok.data !== true) return json({ error: "Unauthorized" }, 401)
+  let force = false
+  try { force = ((await req.json()) as { force?: unknown } | null)?.force === true } catch { /* no body */ }
+  return json({ ok: true, ...(await ledgerTick(ledgerDeps(sb), force)) })
+}
+
 Deno.serve(async (req: Request) => {
   const cors = corsHeadersFor(req.headers.get("origin"), [APP_ORIGIN, "https://app.veridian-aios.com", "https://dpdp.veridian-aios.com", "https://veridian-aios.com"])
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors })
@@ -290,5 +391,7 @@ Deno.serve(async (req: Request) => {
   const path = new URL(req.url).pathname.replace(/\/+$/, "")
   if (path.endsWith("/webhook")) return await webhook(req)
   if (path.endsWith("/verify")) return await verify(req, cors)
+  if (path.endsWith("/ledger-tick")) return await tick(req)
+  if (path.endsWith("/ledger")) return await ownerLedger(req, cors)
   return await createLink(req, cors)
 })

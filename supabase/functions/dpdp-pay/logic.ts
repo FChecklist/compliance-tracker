@@ -263,6 +263,12 @@ export const productNotes = (plan: string, interval: string, variation?: string 
 /** Receipt: "dpdp_" + our attempt id, at most 40 characters (Razorpay's limit). Starts with the product so a Razorpay export alone shows what each payment was for. */
 export const receiptFor = (attemptId: string): string => `dpdp_${attemptId}`.slice(0, 40)
 
+/** The id that ties Razorpay (A), the central ledger (B) and our own ledger (C) together for ONE website payment (= one "Pay online" press = one dpdp.payment_attempt row):
+ *  "DPD-" + the receipt. The central service builds the same text from the payment_ref we send it (its SITE_CODES entry for veridian-aios.com), and the database column
+ *  dpdp.payment_attempt.txn_id (drizzle/0749) is generated from the attempt id with the same recipe, so none of the three can drift. A bun test compares them. */
+export const SITE_CODE = "DPD"
+export const txnIdOf = (attemptId: string): string => `${SITE_CODE}-${receiptFor(attemptId)}`
+
 export type OrderRequest = {
   attemptId: string
   orgId: string
@@ -280,7 +286,7 @@ export function buildOrderBody(r: OrderRequest): Record<string, unknown> {
     amount: r.amountPaise,
     currency: r.currency,
     receipt: receiptFor(r.attemptId),
-    notes: { ...productNotes(r.plan, r.interval, r.variation), site: CENTRAL_SITE, stream: "sales", org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, plan: r.plan, organisation: r.orgName.slice(0, 80) },
+    notes: { ...productNotes(r.plan, r.interval, r.variation), site: CENTRAL_SITE, stream: "sales", txn_id: txnIdOf(r.attemptId), org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, plan: r.plan, organisation: r.orgName.slice(0, 80) },
   }
 }
 
