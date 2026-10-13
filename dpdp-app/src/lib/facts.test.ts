@@ -91,7 +91,7 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.library.job_count).toBe(lib.templates.length)
     // listed as a public field, never written as a value
     expect(read("data/veridian-facts.yaml")).not.toMatch(/^\s*job_count\s*:/m)
-    // Not lawyer-reviewed yet: null + owner_required, so the pages say "not yet recorded".
+    // No reviewer recorded: null + owner_required, so the pages print no reviewer line at all.
     expect(facts.library.reviewer).toBeNull()
     expect(facts.library.reviewed_on).toBeNull()
     expect(facts.library.owner_required).toBe(true)
@@ -665,6 +665,9 @@ describe("/proof/ (WO-013 §2.1): built and hidden until the owner switches it o
     for (const a of proof.aggregates.items) {
       if (a.value === null) expect(html).toContain(`${a.label}: not yet published`)
     }
-    expect(html).toContain("Reviewer: not yet recorded")
+    // Owner, 2026-10-14: with no reviewer recorded the page says nothing about a review; the version line stays.
+    expect(html).not.toContain("Reviewer:")
+    expect(html).not.toContain("not yet recorded")
+    expect(html).toContain("jobs, each mapped to its legal source.")
   })
 })

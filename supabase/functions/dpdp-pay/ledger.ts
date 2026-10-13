@@ -155,7 +155,9 @@ export const monthKeyOf = (ms: number): string => { const d = new Date(ms + IST)
 export const prevMonthKey = (key: string): string => { const [y, m] = key.split("-").map(Number) as [number, number]; return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}` }
 
 // ---------------------------------------------------------------- C -> B
-export const SUMMARY_EVERY_MS = 30 * 60_000
+// 29, not 30: the cron ticks every 30 minutes, and a tick can land a moment before the stored push time + 30 minutes, which skipped every second tick
+// (the summary went out hourly). 29 minutes keeps it at most every 29 minutes and lets every tick through. Keep equal to migration 0750.
+export const SUMMARY_EVERY_MS = 29 * 60_000
 export const COMMISSION_RETRY_MS = 10 * 60_000
 
 export type Summary = {
@@ -233,14 +235,14 @@ export async function syncCommissions(d: Deps, limit = 5): Promise<SyncOut> {
 }
 
 /**
- * Sends the current and the previous Indian month to B, at most once every 30 minutes. The "is it due" decision is taken in the database in one atomic step
+ * Sends the current and the previous Indian month to B, at most once every 29 minutes (the 30-minute cron then pushes on every tick). The "is it due" decision is taken in the database in one atomic step
  * (dpdp_ledger_summary_claim), so two overlapping runs cannot both push. A failed try is repeated after 5 minutes (the claim's own rule).
  */
 export async function pushSummaries(d: Deps, force = false): Promise<{ pushed: number; skipped?: string }> {
   if (!d.central) return { pushed: 0, skipped: "no central key" }
   const claim = await d.rpc("dpdp_ledger_summary_claim", { p_force: force })
   if (claim.error) throw new Error(`summary claim: ${claim.error.message}`)
-  if (claim.data !== true) return { pushed: 0, skipped: "pushed less than 30 minutes ago, or a try failed less than 5 minutes ago" }
+  if (claim.data !== true) return { pushed: 0, skipped: "pushed less than 29 minutes ago, or a try failed less than 5 minutes ago" }
   const figs = await d.rpc("dpdp_ledger_month_figures", {})
   if (figs.error || !Array.isArray(figs.data)) throw new Error(`summary figures: ${figs.error?.message ?? "no list"}`)
   let sent = 0, bad = 0

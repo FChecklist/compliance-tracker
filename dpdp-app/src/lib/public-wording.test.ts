@@ -9,8 +9,9 @@
 // Two honest exceptions, both deliberate and both pinned below so they cannot grow by accident:
 //   1. "draft" as a plain feature word. The AI assistant DRAFTS updates the person then confirms; that is what the product does, and the words
 //      are listed one by one in FEATURE_DRAFT_WORDS. Any NEW use of the word fails until it is added there on purpose.
-//   2. The product disclaimer on /disclaimer/ says the job library has not yet been reviewed or approved by a practising lawyer. That is a
-//      true disclosure to customers, it contains none of the words above, and a test below fails if anyone removes or softens it.
+//   Owner, 2026-10-14: no page may say that a legal or lawyer review is pending, not yet done or not yet recorded. Internal matters are written as a
+//   polite, standard disclaimer (general information, not legal advice, confirm with your own advocate or CA). The /disclaimer/ block at the end of
+//   this file pins that, and the BANNED list below applies the same rule to every public page and e-mail.
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -37,6 +38,8 @@ const BANNED: Array<[string, RegExp]> = [
   ["legal review", /legal\s+review/i],
   ["pending review", /pending\s+review/i],
   ["lawyer to read", /lawyer\s+to\s+read/i],
+  ["a review that has not happened yet", /not\s+yet\s+(been\s+)?(reviewed|approved)|yet\s+to\s+be\s+reviewed|reviewer:\s*not\s+yet|reviewed\s+on:\s*not\s+yet/i],
+  ["citations marked for verification", /marked\s+for\s+verification/i],
 ]
 
 /** "draft" as the AI assistant's plain verb/noun, exactly as the pages word it today. Lower case; matched against the whitespace-collapsed text. */
@@ -128,15 +131,28 @@ describe("receipt and reminder e-mail text", () => {
   })
 })
 
-describe("the product disclosure on /disclaimer/ is kept exactly as it is", () => {
-  test("it still says the job library and playbooks have not yet been reviewed or approved by a practising lawyer", () => {
-    const html = read("public/disclaimer/index.html")
-    expect(html).toContain("<b>They have not yet been reviewed or approved by a practising lawyer</b>")
-    expect(html).toContain("The job library and playbooks are general working aids written by the Company, with the help of AI, from public legal texts.")
+describe("the disclaimer on /disclaimer/ is a standard, polite notice with no pending-review language", () => {
+  const html = read("public/disclaimer/index.html")
+  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")
+
+  test("it exists and says plainly that the service is not legal advice and creates no lawyer-client relationship", () => {
+    expect(text).toContain("They are not legal advice, and no lawyer-client relationship is created by using the Service.")
+    expect(text).toMatch(/Nothing in the Service[^.]*is legal, tax, accounting, audit or other professional advice/)
+    expect(text).toContain("The law and the Rules are new")
+    expect(text).toContain("Please confirm any specific decision with your own advocate or chartered accountant")
+    expect(text).toContain("kept up to date on a best-efforts basis")
   })
 
-  test("that sentence is not one of the banned phrases (so the exception is not hiding a banned word)", () => {
-    const sentence = "They have not yet been reviewed or approved by a practising lawyer"
-    for (const [, re] of BANNED) expect(re.test(sentence)).toBe(false)
+  for (const phrase of ["not yet been reviewed", "not yet reviewed", "pending", "yet to be reviewed", "owner told", "marked for verification", "practising lawyer"]) {
+    test(`the disclaimer does not contain "${phrase}"`, () => {
+      expect(text.toLowerCase()).not.toContain(phrase)
+    })
+  }
+
+  test("the terms and the proof page carry no pending-review wording either", () => {
+    for (const f of ["public/terms/index.html", "proof/index.html"]) {
+      const body = read(f).replace(/<[^>]+>/g, " ").toLowerCase()
+      expect(body, f).not.toMatch(/not yet (been )?reviewed|yet to be reviewed|pending (legal )?review|marked for verification|reviewer: not yet recorded/)
+    }
   })
 })

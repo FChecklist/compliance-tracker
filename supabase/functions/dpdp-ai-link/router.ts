@@ -461,7 +461,7 @@ export function renderLawMarkdown(p: ReturnType<typeof lawWithWords>): string {
   lines.push(`In force: ${p.inForce ?? (p.inForceToday ? "today" : "from 13 May 2027")}`)
   lines.push(`Legal duty: ${p.legalDuty ? "yes" : "no -- good practice"}`)
   if (p.topic) lines.push("", `What it provides: ${p.topic}`)
-  if (p.verify) lines.push("", `Not yet lawyer-confirmed: ${p.verify}. Say so if you cite it.`)
+  if (p.verify) lines.push("", `Please confirm with an advocate or CA: ${p.verify}. Say so if you cite it.`)
   lines.push("", `## Jobs in this view that cite ${p.code}`, "")
   if (!p.jobs.length) lines.push("(none)")
   for (const j of p.jobs) lines.push(`- \`${oneLine(j.id, 80)}\` ${oneLine(j.what, 160)} -- Part ${j.part}, ${oneLine(j.status, 40)}, ${oneLine(j.by ?? "nobody yet", 80)}, due ${oneLine(j.due, 20)}`)
