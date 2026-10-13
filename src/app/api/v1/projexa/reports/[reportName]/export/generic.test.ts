@@ -95,6 +95,13 @@ describe("generic project-report export (R-C15 / R-C11)", () => {
     }
   })
 
+  test("the printed subtitle states the period in the house dd-mm-yyyy, never 2026-10-01", async () => {
+    const res = await call("manpower-cost", "?projectId=p1&format=pdf&from=2026-10-01&to=2026-10-13")
+    const raw = Buffer.from(await res.arrayBuffer()).toString("latin1")
+    expect(raw).toContain("01-10-2026 to 13-10-2026")
+    expect(raw).not.toContain("2026-10-01 to")
+  })
+
   test("PDF is a real PDF document", async () => {
     const res = await call("manpower-cost", "?projectId=p1&format=pdf")
     expect(res.status).toBe(200)
