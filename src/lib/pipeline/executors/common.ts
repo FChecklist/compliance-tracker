@@ -4,7 +4,7 @@
 // have the same behaviour, and exist so a new executor file does not have to import executor.ts's
 // internals (which would make executor.ts and the file import each other). The types come from
 // executor.ts with `import type`, which is erased at build time, so there is no import cycle.
-import { codeForServiceError, pipelineFailure, type PipelineFailure } from "../error-codes";
+import { codeForServiceError, pipelineFailure, refusalReason, type PipelineFailure } from "../error-codes";
 import { functionSpec, requiredParamSatisfied } from "../function-registry";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank";
 import { ServiceError } from "@/lib/services/compliance-service";
@@ -74,7 +74,9 @@ export function badRequest(task: ExecutableTask, reason?: string): ExecutionOutc
 /** Turns a service's own 4xx into the pipeline's failure; anything else is rethrown for executeTask() to classify. */
 export function failureFromServiceError(task: ExecutableTask, error: unknown): ExecutionOutcome | null {
   if (error instanceof ServiceError && error.status < 500) {
-    return refuse(pipelineFailure(codeForServiceError(error.status), [], { status: error.status, functionId: task.functionId }));
+    const failure = pipelineFailure(codeForServiceError(error.status), [], { status: error.status, functionId: task.functionId });
+    // a REQUEST_REJECTED carries the service's own words for the laptop push route (error-codes.ts safeRefusalReason)
+    return { ...refuse(failure), ...refusalReason(failure.code, error.message) };
   }
   return null;
 }

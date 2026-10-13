@@ -60,7 +60,8 @@ function logLine(deps: SyncDeps, line: string) {
 export type ExecRunBody = { op_id: string; function_id: string; params: Record<string, unknown>; ctx: { org_id: string; user_id: string; project_id: string | null; live_role: string; device_id: string } }
 export type ExecOutcome =
   | { kind: "done"; record: { id: string | null; route: string | null }; submission_id: string | null }
-  | { kind: "failed"; code: string; missing: string[] }
+  /** `reason`: a service's own business refusal in words (REQUEST_REJECTED only; checklist 2.19 / R-90). Answered to the laptop, never stored. */
+  | { kind: "failed"; code: string; missing: string[]; reason?: string }
   | { kind: "unavailable" }
   | { kind: "uncertain" }
 
@@ -1050,7 +1051,11 @@ export function execOutcomeOf(status: number, body: unknown): ExecOutcome {
   const j = (body ?? null) as { status?: string; record?: { id?: string | null; route?: string | null }; submission_id?: string | null; code?: string; missing?: unknown } | null
   if (!j || typeof j !== "object") return { kind: "uncertain" }
   if (j.status === "done") return { kind: "done", record: { id: j.record?.id ?? null, route: j.record?.route ?? null }, submission_id: j.submission_id ?? null }
-  if (j.status === "failed" && typeof j.code === "string") return { kind: "failed", code: j.code, missing: Array.isArray(j.missing) ? (j.missing as unknown[]).filter((m): m is string => typeof m === "string") : [] }
+  if (j.status === "failed" && typeof j.code === "string") {
+    // checklist 2.19 / R-90: a service's own words for a REQUEST_REJECTED travel to the laptop (bounded again here; never stored, see push())
+    const reason = j.code === "REQUEST_REJECTED" && typeof j.reason === "string" && j.reason.trim() !== "" ? j.reason.slice(0, 300) : undefined
+    return { kind: "failed", code: j.code, missing: Array.isArray(j.missing) ? (j.missing as unknown[]).filter((m): m is string => typeof m === "string") : [], ...(reason ? { reason } : {}) }
+  }
   // the batch route's "this op was not started" (the exec function's own time budget ran out before it): nothing ran
   if (j.status === "not_run") return { kind: "unavailable" }
   return { kind: "uncertain" }
@@ -1212,7 +1217,8 @@ async function push(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
         const cls = classifyFailure(outcome.code)
         await finish(p, cls, { missing: outcome.missing }, outcome.code, null, null)
         if (cls !== "rejected") holdKey(p.recKey)
-        results[p.i] = { op_id: p.opId, status: cls, error: { code: outcome.code, missing: outcome.missing } }
+        // `message` is the service's own reason for this one answer only: finish() above stored the code and the missing names, never the words
+        results[p.i] = { op_id: p.opId, status: cls, error: { code: outcome.code, missing: outcome.missing, ...(outcome.reason ? { message: outcome.reason } : {}) } }
         continue
       }
       if (outcome.kind === "unavailable") {

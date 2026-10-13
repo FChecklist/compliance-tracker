@@ -17,7 +17,7 @@
 import { sql } from "drizzle-orm"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { ServiceError } from "@/lib/services/service-error"
-import { codeForServiceError, normaliseThrownError } from "./error-codes"
+import { codeForServiceError, normaliseThrownError, refusalReason } from "./error-codes"
 import { executeRead } from "./execute-read"
 import { NOT_AVAILABLE_ON_EXEC } from "./link-exec-stubs/unavailable"
 import { functionWrites, hasExecutor } from "./executor"
@@ -37,15 +37,19 @@ export const NO_PROJECT_FUNCTION = "create_project"
 
 export type LinkRunOutcome =
   | { status: "done"; submission_id: string | null; record: { id: string | null; route: string | null } }
-  | { status: "failed"; code: string; missing: string[]; submission_id?: string | null }
+  // `reason`: a service's own business refusal in words (REQUEST_REJECTED only, made safe by error-codes.ts safeRefusalReason). Read by ONE caller, the
+  // laptop push route (runSyncOp -> ai-work-link-exec sync-run -> projexa-sync), so the laptop can tell the person WHY. The AI-link intent path
+  // (ai-work-link-exec's intent route) picks code and missing explicitly and never forwards or stores it.
+  | { status: "failed"; code: string; missing: string[]; submission_id?: string | null; reason?: string }
 
 const CODE_RE = /^[A-Z][A-Z0-9_]{0,63}$/
 
-const failed = (code: string, missing: string[] = [], submissionId?: string | null): LinkRunOutcome => ({
+const failed = (code: string, missing: string[] = [], submissionId?: string | null, reason?: string): LinkRunOutcome => ({
   status: "failed",
   code,
   missing,
   ...(submissionId !== undefined ? { submission_id: submissionId } : {}),
+  ...(reason ? { reason } : {}),
 })
 
 function isText(v: unknown): v is string {
@@ -127,11 +131,12 @@ export async function runLinkIntent(claimed: ClaimedIntent): Promise<LinkRunOutc
       }
     }
     const f = result.failures[0]
-    return failed(f && CODE_RE.test(f.code) ? f.code : "INTERNAL_ERROR", f?.missing ?? [], result.submissionId)
+    return failed(f && CODE_RE.test(f.code) ? f.code : "INTERNAL_ERROR", f?.missing ?? [], result.submissionId, f?.code === "REQUEST_REJECTED" ? result.refusalReason : undefined)
   } catch (error) {
-    // the raw text stays in the exec function's own log; only the closed code travels on
+    // the raw text stays in the exec function's own log; only the closed code travels on (and, for a service's own REQUEST_REJECTED, its safe words)
     console.error(`[ai-work-link-exec] intent=${claimed.intent.id} function=${fn} run failed:`, error)
-    return failed(codeOfThrown(error))
+    const code = codeOfThrown(error)
+    return failed(code, [], undefined, error instanceof ServiceError ? refusalReason(code, error.message).reason : undefined)
   }
 }
 
