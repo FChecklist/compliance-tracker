@@ -25,8 +25,8 @@ export default async function PrivacyPage() {
       <section>
         <h2>1. Controller</h2>
         <p>
-          The data controller for VERIDIAN AI OS and its products is <strong>{COMPANY.legalName}</strong>, a
-          company {COMPANY.incorporation}. Privacy contact:{" "}
+          The data controller for VERIDIAN AI OS and its products is <strong>{COMPANY.legalName}</strong>,{" "}
+          {COMPANY.description}. Privacy contact:{" "}
           <a href={`mailto:${COMPANY.contactEmail}`}>{COMPANY.contactEmail}</a>.
         </p>
       </section>

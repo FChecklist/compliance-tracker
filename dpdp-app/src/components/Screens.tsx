@@ -218,8 +218,8 @@ function priceLine(plans: PlanWirePayload[] | undefined, product: "firm" | "inst
   const now = formatRupees(plan.monthlyPaise)
   const offer = plan.offerLabel
   return offer
-    ? `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month + GST. ${offer} (normally ${formatRupees(plan.listMonthlyPaise)}).`
-    : `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month + GST.`
+    ? `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month, the whole amount (GST is not charged). ${offer} (normally ${formatRupees(plan.listMonthlyPaise)}).`
+    : `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month, the whole amount (GST is not charged).`
 }
 
 export function OpenOrganisation({

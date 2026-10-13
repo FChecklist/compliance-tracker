@@ -26,7 +26,7 @@ export function EarningsCalculator({ plans }: { plans: PlanWirePayload[] }) {
         {plan ? <>, less the {plan.name} plan {formatRupees(plan.monthlyPaise)}</> : <>, less your plan</>}
         {" "}= <b>{formatRupees(Math.round(e.netRupees * 100))}</b> a month.
       </p>
-      <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--dpdp-ink3)" }}>{EARNINGS_DISCLAIMER} Plan prices are per month, plus GST.</p>
+      <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--dpdp-ink3)" }}>{EARNINGS_DISCLAIMER} Plan prices are per month, the whole amount (GST is not charged).</p>
     </div>
   )
 }

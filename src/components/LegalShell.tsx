@@ -1,21 +1,20 @@
 // Wave 113: shared shell for the legal pages (/terms, /privacy, /data-policy).
 // Server-compatible (no hooks) — paper styling matching the Cognitive root.
-// DIRECTOR-PROTECTION NOTE: these pages intentionally publish the corporate
-// identity ONLY (legal name + jurisdiction) — never director names, DINs, or
-// personal addresses. Statutory particulars (CIN, registered office) should
-// be added by the owner where marked; they are required on official company
-// publications under the Companies Act but were not available to publish at
-// build time.
+// The seller is IT SERVICES BY RAJAT AGARWAL, a sole proprietorship (the trade
+// name of Rajat Agarwal, an individual). It is not registered for GST.
 import Link from "next/link";
 import Image from "next/image";
 import type { PreAuthBrand } from "@/lib/services/org-branding-service";
 
 export const COMPANY = {
-  legalName: "SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED",
+  legalName: "IT SERVICES BY RAJAT AGARWAL",
   jurisdiction: "India",
-  incorporation: "incorporated in India under the Companies Act",
+  description: "a sole proprietorship in India, the trade name of Rajat Agarwal, an individual",
+  address: "B-1105, Shipra Krishna Vista, Indirapuram, Ghaziabad, Uttar Pradesh, 201014, India",
+  phone: "+91 96503 97480",
+  gstNote: "Not registered for GST. GST is not charged.",
   brand: "VERIDIAN AI OS",
-  contactEmail: "raajat.agarwal@gmail.com", // swap for a branded legal/compliance inbox when available
+  contactEmail: "rajatsiroffice@gmail.com",
 };
 
 // GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
@@ -61,7 +60,7 @@ export function LegalShell({ title, updated, brand, children }: { title: string;
       <footer className="border-t border-[#1a1a17]/10">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 px-6 py-8 text-xs text-[#1a1a17]/65">
           <span>
-            {brandLabel} is owned and operated by {COMPANY.legalName}, a company {COMPANY.incorporation}.
+            {brandLabel} is owned and operated by {COMPANY.legalName}, {COMPANY.description}.
           </span>
           <span>© {new Date().getFullYear()} {COMPANY.legalName}. All rights reserved.</span>
         </div>

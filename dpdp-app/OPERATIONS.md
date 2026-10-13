@@ -256,7 +256,7 @@ Nothing on this list had been done when it was written. Steps 1 and 2 are decisi
 
 **Trial and renewal reminders.** Job `dpdp-sales-lifecycle` (04:00 UTC daily) posts to `dpdp-lifecycle-email`: trial ends in 10 days, in 3 days, and the day it ends ("your data is safe, access unchanged"); yearly renewal 30 and 7 days ahead. Owner only, one send per reminder (`dpdp.sales_reminder_sent`), each with a 3-day catch-up window so an organisation whose trial ended long ago gets nothing. An owner who unsubscribed from the weekly email is skipped. With no `RESEND_API_KEY` it only counts what it would send. Preview: `select public.dpdp_sales_due_reminders();` (service role). **Before the first live run, read that list:** it is exactly who would be mailed.
 
-**Cost.** Nothing monthly on our side: the Edge Functions and cron are inside the existing Supabase plan. Razorpay charges a per-transaction fee (about 2% plus GST at the time of writing; check razorpay.com/pricing) and no monthly fee.
+**Cost.** Nothing monthly on our side: the Edge Functions and cron are inside the existing Supabase plan. Razorpay charges a per-transaction fee (about 2% plus tax at the time of writing; check razorpay.com/pricing) and no monthly fee.
 
 **Honest limits.** An account's online price is its locked monthly price times the months charged for a year (`dpdp.charge_paise`, 0747); an organisation with no account row keeps the old flat Rs 9,999 (kept equal to the panel's fallback by a test). The webhook is verified, but no test here has talked to Razorpay itself: do step 5 before telling anyone it works.
 
