@@ -965,7 +965,7 @@ export const PUSH_FAILURE_CLASS: Readonly<Record<string, FailureClass>> = {
   QUANTITY_REQUIRED: "rejected", CATEGORY_REQUIRED: "rejected", LINK_REQUIRED: "rejected", BOQ_VERSION_REQUIRED: "rejected",
   BOQ_LINE_NOT_FOUND: "rejected", BOQ_LINE_IS_PARENT: "rejected", PROJECT_NOT_REACHABLE: "rejected", VALUE_OUT_OF_RANGE: "rejected",
   RECORD_NOT_FOUND: "rejected", ALREADY_RECORDED: "rejected", REQUEST_REJECTED: "rejected",
-  TOTAL_MISMATCH: "rejected", BOQ_SEALED: "rejected", DUPLICATE_ITEM_CODE: "rejected",
+  TOTAL_MISMATCH: "rejected", BOQ_SEALED: "rejected", DUPLICATE_ITEM_CODE: "rejected", SCOPE_REDUCTION_BLOCKED: "rejected",
   NOT_PERMITTED: "rejected", READ_AS_QUESTION: "rejected",
   // a previous step of the same submission failed; for a one-op push that step may have been transient, so it may run again
   DEPENDENCY_FAILED: "failed",
