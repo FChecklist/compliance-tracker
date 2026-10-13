@@ -17,6 +17,7 @@ const realAuth = await import("@/lib/supabase/auth-guard")
 const realDispatch = await import("@/lib/services/report-run-dispatch")
 const realTenant = await import("@/lib/db/tenant-scoped")
 const realErp = await import("@/lib/services/erp-accounting-service")
+let current: unknown = PAYLOAD
 let runCalls: { report: string; params: string; projectId: string }[] = []
 mock.module("@/lib/supabase/auth-guard", () => ({
   ...realAuth,
@@ -26,7 +27,7 @@ mock.module("@/lib/services/report-run-dispatch", () => ({
   ...realDispatch,
   runReportPayload: mock(async (_org: string, report: string, sp: URLSearchParams, projectId: string) => {
     runCalls.push({ report, params: sp.toString(), projectId })
-    return PAYLOAD
+    return current
   }),
 }))
 mock.module("@/lib/services/erp-accounting-service", () => ({ ...realErp, getBaseCurrency: mock(async () => ({ baseCurrency: { code: "AED" } })) }))
@@ -78,6 +79,20 @@ describe("generic project-report export (R-C15 / R-C11)", () => {
     expect(grid[1]).toEqual(["Mason", 3, 540])
     expect(String(grid[2]![0]).startsWith("'=")).toBe(true)
     expect(grid.at(-1)).toEqual(["Grand Total", 4, 720])
+  })
+
+  test("a report with no rows still downloads with its column names (CSV header line, XLSX header row), never a 0-byte file", async () => {
+    current = { byTrade: [] }
+    try {
+      const csv = await call("manpower-cost", "?projectId=p1&format=csv")
+      expect(await csv.text()).toBe("Trade,Worker-days,Cost")
+      const xlsx = await call("manpower-cost", "?projectId=p1&format=xlsx")
+      const wb = XLSX.read(Buffer.from(await xlsx.arrayBuffer()), { type: "buffer" })
+      const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" })
+      expect(grid).toEqual([["Trade", "Worker-days", "Cost"]])
+    } finally {
+      current = PAYLOAD
+    }
   })
 
   test("PDF is a real PDF document", async () => {
