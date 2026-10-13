@@ -473,6 +473,9 @@ if (has("_headers")) {
     expect(!h["x-robots-tag"], `_headers: PUBLIC ${pub.path} gets X-Robots-Tag "${h["x-robots-tag"]}"`)
     expect(h["referrer-policy"] === "strict-origin-when-cross-origin", `_headers: ${pub.path} gets Referrer-Policy "${h["referrer-policy"]}"`)
     expect(h["x-content-type-options"] === "nosniff", `_headers: ${pub.path} lacks X-Content-Type-Options: nosniff`)
+    expect(h["x-frame-options"] === "DENY", `_headers: ${pub.path} lacks X-Frame-Options: DENY`)
+    expect(h["content-security-policy"] === "frame-ancestors 'none'", `_headers: ${pub.path} gets Content-Security-Policy "${h["content-security-policy"]}" -- must be exactly frame-ancestors 'none'`)
+    expect(h["permissions-policy"] === "camera=(), microphone=(), geolocation=()", `_headers: ${pub.path} lacks the Permissions-Policy that switches off camera, microphone and location`)
     // HTML stays on the Pages default (revalidate); a public page must never be sent no-store or cached hard.
     expect(!h["cache-control"], `_headers: PUBLIC ${pub.path} gets Cache-Control "${h["cache-control"]}" -- public HTML is left on the default on purpose`)
   }

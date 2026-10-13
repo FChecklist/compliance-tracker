@@ -9,6 +9,8 @@ header.top .in{max-width:860px;margin:0 auto;padding:14px 20px;display:flex;flex
 header.top b{letter-spacing:.04em}
 header.top nav a{color:#fff;margin-right:16px;font-size:14px;text-decoration:none;border-bottom:1px solid transparent}
 header.top nav a[aria-current]{border-bottom-color:var(--saffron)}
+/* Tap targets: every header link is at least 44px tall (phone audit, 2026-10-13). */
+header.top nav a{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}
 main{max-width:860px;margin:0 auto;padding:28px 20px 56px}
 h1{font-size:28px;line-height:1.25;margin:0 0 6px;color:var(--navy)}
 h2{font-size:19px;margin:34px 0 8px;color:var(--navy);border-top:1px solid var(--line);padding-top:18px}
@@ -28,6 +30,6 @@ th{background:#f3efe3}
 footer{max-width:860px;margin:0 auto;padding:0 20px 40px;font-size:14px;color:#55524a}
 footer hr{border:0;border-top:1px solid var(--line);margin:0 0 14px}
 footer .company{margin:14px 0 0;font-size:13.5px;line-height:1.6;color:#55524a}
-footer .company a{color:inherit;text-decoration:underline}
+footer .company a{color:inherit;text-decoration:underline;display:inline-block;padding:14px 2px;margin:-14px 0}
 @media (max-width:560px){h1{font-size:23px}table{font-size:14px}}
 @media print{header.top{background:#fff;color:#000}header.top nav{display:none}}
