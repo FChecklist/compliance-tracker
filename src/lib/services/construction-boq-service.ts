@@ -1952,6 +1952,27 @@ function lineItemKey(item: BoqLineItemRow) {
   return item.itemCode || item.description
 }
 
+// A line that was saved with no item code reaches the revise form with an
+// invented one, `_row_<id>` (PROJEXA boq-helpers toDrafts, this app's scope page
+// toDraft; the id is a cuid, so it never contains `_`, and a de-dup suffix such
+// as `_x` or `_1` may follow). The revision then stores that invented code, so
+// diffing by `itemCode || description` saw the OLD row (no code, key = its
+// description) as REMOVED and the NEW row (key = `_row_<id>`) as ADDED. A revision
+// that changed nothing therefore read as "removes the whole line", and was hard-
+// blocked whenever the line had progress. The invented code names the previous
+// row it came from, so resolve it back to that row's own key.
+const SYNTHETIC_ROW_CODE = /^_row_([^_]+)(?:_.*)?$/
+
+function currentLineItemKey(item: BoqLineItemRow, previousById: Map<string, BoqLineItemRow>) {
+  const match = item.itemCode ? SYNTHETIC_ROW_CODE.exec(item.itemCode) : null
+  if (match) {
+    const previous = previousById.get(match[1])
+    // Only a previous row that really had no code of its own can have been the source of an invented one.
+    if (previous && !previous.itemCode) return lineItemKey(previous)
+  }
+  return lineItemKey(item)
+}
+
 /**
  * Sum of every real amount change between two revisions: added items' full
  * amount, minus removed items' full amount, plus/minus each changed item's
@@ -2177,10 +2198,11 @@ export async function loadLatestProgressDetailByLineItem(db: TenantDb, orgId: st
  * change from a sub-task change without a second lookup.
  */
 export function diffLineItems(previousItems: BoqLineItemRow[], currentItems: BoqLineItemRow[]): { added: BoqLineItemRow[]; removed: BoqLineItemRow[]; changed: ChangedLineItem[] } {
+  const previousById = new Map(previousItems.map((i) => [i.id, i]))
   const previousByKey = new Map(previousItems.map((i) => [lineItemKey(i), i]))
-  const currentByKey = new Map(currentItems.map((i) => [lineItemKey(i), i]))
+  const currentByKey = new Map(currentItems.map((i) => [currentLineItemKey(i, previousById), i]))
 
-  const added = currentItems.filter((i) => !previousByKey.has(lineItemKey(i)))
+  const added = currentItems.filter((i) => !previousByKey.has(currentLineItemKey(i, previousById)))
   const removed = previousItems.filter((i) => !currentByKey.has(lineItemKey(i)))
   const changed: ChangedLineItem[] = []
 
