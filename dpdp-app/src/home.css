@@ -546,6 +546,7 @@ body.hm {
 }
 .hm-chat small {
   display: block;
+  font-size: 0.75rem;
   margin-top: 4px;
   color: var(--hero-text);
 }
