@@ -14,7 +14,7 @@ import { createProgressEntry } from "@/lib/services/construction-progress-servic
 import { approveTimeEntry, getTimeEntry, logTime, rejectTimeEntry, REJECTION_REASON_MIN_LENGTH } from "@/lib/services/pms-time-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
 import { createRosterEntry, recordAttendance } from "@/lib/services/construction-labour-service";
-import { createBoq, createBoqRevision, getProjectBoqLinePage, updateLineItemBudget, validateBoqBodyShape, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
+import { createBoq, createBoqRevision, getProjectBoqLinePage, ScopeReductionError, updateLineItemBudget, validateBoqBodyShape, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
 import { redactProjectSideFields } from "@/lib/services/cost-visibility-service";
 import { createMeeting } from "@/lib/services/pms-meeting-service";
 import { createDocumentRecord, createDrawingRecord } from "@/lib/services/document-service";
@@ -2063,6 +2063,15 @@ export async function executeTask(
     //
     // >=500 deliberately falls through: a service that raises a 5xx is
     // reporting a system failure, which belongs with the transport shapes.
+    // OFFLINE WRITERS 2: the scope-reduction 409 has its own closed code. As ALREADY_RECORDED a laptop that sent a revision offline would tell the
+    // person "this was already done", the opposite of the truth (work is recorded against a line the revision removes or reduces).
+    if (error instanceof ScopeReductionError) {
+      return {
+        success: false,
+        failure: pipelineFailure("SCOPE_REDUCTION_BLOCKED", [], { status: 409, functionId: task.functionId }),
+        debug: `${error.name}(409): ${error.message}`,
+      };
+    }
     if (error instanceof ServiceError && error.status < 500) {
       console.error(`executeTask: "${task.functionId}" refused with ${error.status}`, error.message);
       return {
