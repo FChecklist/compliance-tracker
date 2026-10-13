@@ -2,6 +2,7 @@ import type { AuthListener, AuthSession, DpdpClient, RpcResult } from "./client"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
 import { NOTE_MAX, charCount, dueBounds } from "@/lib/dpdp-onepage/job-actions"
 import { recallEdition } from "./landing"
+import { CONSENT_REQUIRED_CODE, TERMS_VERSION, TICK_TO_CONTINUE } from "./terms"
 import type {
   AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire,
   OrgSetupPayload, ShareRoleWire, ViewerKind,
@@ -1229,6 +1230,11 @@ export function createMockClient(scenario?: string): DpdpClient {
         }
         // --- drizzle/0734: open an account, the plans, the account's state. The mock keeps no billing clock: every account it shows is ACTIVE. ---
         case "dpdp_open_account": {
+          // drizzle/0748: the sign-up is refused unless the K2 box is ticked for the CURRENT Terms version (the mock's dpdp_create_my_org below stands
+          // for the real one's internal core, so only this door checks).
+          if (args?.p_terms_accepted !== true || args?.p_terms_version !== TERMS_VERSION) {
+            return { data: null, error: { message: TICK_TO_CONTINUE, code: "22023", hint: CONSENT_REQUIRED_CODE } }
+          }
           const made = await this.rpc("dpdp_create_my_org", { p_name: args?.p_org_name, p_product: args?.p_account_type, p_referral_code: args?.p_referral_code })
           if (made.error) return made
           return ok({ ...(made.data as object), accountType: args?.p_account_type, planKey: args?.p_account_type === "institution" ? "institution" : "firm_starter", attribution: "none", verification: args?.p_professional_body ? "pending" : "none" })

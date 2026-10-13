@@ -10,6 +10,7 @@ import type {
   AdminMarkPaidResult, AdminPartnerRow, AdminPartnerSettings, AdminPayoutRun, PartnerDashboardPayload, PartnerDetailsInput, PartnerStatementPayload, PartnerStatus,
 } from "./rpc-types"
 import { SITE_ORIGIN } from "./site-origin.mjs"
+import { TERMS_VERSION } from "./terms"
 
 // Only reached from inside /app/ (never the public marketing surface --
 // check-two-doors.mjs's own wall only scans publicSurfaceFiles(), which
@@ -19,10 +20,13 @@ const SUPABASE_FUNCTIONS_URL = `${(import.meta.env.VITE_SUPABASE_URL || "").repl
 
 export class RpcFailure extends Error {
   code?: string
+  /** Postgres's HINT. The database sends 'consent-required' here when a Terms box was not ticked (drizzle/0748). */
+  hint?: string
   constructor(err: RpcError) {
     super(err.message)
     this.name = "RpcFailure"
     this.code = err.code
+    this.hint = err.hint
   }
 }
 
@@ -136,7 +140,7 @@ export async function createClientOrg(client: DpdpClient, name: string, product:
   return data as CreateClientPayload
 }
 
-/** "Open my organisation": a signed-in visitor with no organisation opens their own and becomes its owner (drizzle/0654). referralCode (WO-DPDP-016, drizzle/0655) is the ?ref=<code> this visitor arrived with, if any -- a bad/unknown code is ignored server-side, never fails the signup. */
+/** NOT used by the app any more (it calls openAccount below). Since drizzle/0748 the database refuses this call unless the K2 Terms box is ticked, so a direct call without it fails with consent-required. "Open my organisation": a signed-in visitor with no organisation opens their own and becomes its owner (drizzle/0654). referralCode (WO-DPDP-016, drizzle/0655) is the ?ref=<code> this visitor arrived with, if any -- a bad/unknown code is ignored server-side, never fails the signup. */
 export async function createMyOrg(client: DpdpClient, name: string, product: "firm" | "institution", referralCode?: string | null): Promise<CreateMyOrgPayload> {
   const { data, error } = await client.rpc("dpdp_create_my_org", { p_name: name, p_product: product, p_referral_code: referralCode?.trim() || null })
   if (error) throw new RpcFailure(error)
@@ -158,9 +162,11 @@ export type OpenAccountInput = {
   /** When the visitor first touched the link that brought them here (first link wins; older than 30 days is ignored by the server). */
   firstSeenAt?: string | null
   billingContactEmail?: string | null
+  /** The K2 box ("I have read and agree to the Terms & Conditions and the Privacy Policy."). The database refuses the sign-up unless it is true. */
+  termsAccepted: boolean
 }
 
-/** "Open my account": the organisation, its first-visit jobs and the account (type, plan, price, source) in one call. No payment. */
+/** "Open my account": the organisation, its first-visit jobs and the account (type, plan, price, source) in one call. No payment. Needs the K2 box ticked (drizzle/0748). */
 export async function openAccount(client: DpdpClient, i: OpenAccountInput): Promise<OpenAccountPayload> {
   const { data, error } = await client.rpc("dpdp_open_account", {
     p_account_type: i.accountType, p_org_name: i.orgName,
@@ -168,6 +174,7 @@ export async function openAccount(client: DpdpClient, i: OpenAccountInput): Prom
     p_referral_code: i.referralCode?.trim() || null, p_partner_code: i.partnerCode?.trim() || null,
     p_source_tag: i.sourceTag?.trim() || null, p_first_seen_at: i.firstSeenAt ?? null,
     p_billing_contact_email: i.billingContactEmail?.trim() || null,
+    p_terms_version: TERMS_VERSION, p_terms_accepted: i.termsAccepted === true,
   })
   if (error) throw new RpcFailure(error)
   return data as OpenAccountPayload
@@ -542,14 +549,15 @@ export type OnlinePaymentStart =
  * site. The amount is never sent from here: the server charges its own price (dpdp_plan_price_paise), so a tampered browser cannot choose what it
  * pays. Owner-only (the database refuses anyone else).
  */
-export async function startOnlinePayment(client: DpdpClient, orgId?: string | null): Promise<OnlinePaymentStart> {
+export async function startOnlinePayment(client: DpdpClient, orgId: string | null | undefined, termsAccepted: boolean): Promise<OnlinePaymentStart> {
   const token = await client.accessToken()
   if (!token) return { ok: false, notEnabled: false, error: "Sign in first" }
   try {
+    // The K3 box ("I agree to the Terms and the Refund Policy.") travels with the request; the Edge Function and the database each refuse without it.
     const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/dpdp-pay`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ interval: "year", ...(orgId ? { orgId } : {}) }),
+      body: JSON.stringify({ interval: "year", ...(orgId ? { orgId } : {}), termsVersion: TERMS_VERSION, termsAccepted: termsAccepted === true }),
     })
     const body = (await res.json().catch(() => ({}))) as { hop?: string; razorpay?: Record<string, unknown>; amountPaise?: number; error?: string; code?: string }
     if (res.ok && typeof body.hop === "string" && body.hop.startsWith("https://") && body.razorpay && typeof body.razorpay.order_id === "string") {
