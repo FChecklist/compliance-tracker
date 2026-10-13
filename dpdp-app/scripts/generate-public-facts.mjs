@@ -176,8 +176,8 @@ function organizationNode(facts) {
       email: facts.contact.contact_email,
     })),
   }
-  if (facts.company.legal_name) node.legalName = facts.company.legal_name
-  if (facts.company.registered_office) node.address = { "@type": "PostalAddress", streetAddress: facts.company.registered_office, addressCountry: "IN" }
+  node.legalName = facts.company.legal_name
+  node.address = { "@type": "PostalAddress", streetAddress: facts.company.address, addressCountry: "IN" }
   return node
 }
 
@@ -350,12 +350,14 @@ function footer(facts) {
 const contactBullets = (facts) => [contactSentence(facts), grievanceOfficerLine(facts)]
 
 function companyLines(facts) {
-  const out = []
-  if (facts.company.legal_name) out.push(`${facts.company.legal_name}, ${facts.company.incorporation}.`)
-  if (facts.company.cin) out.push(`CIN: ${facts.company.cin}`)
-  if (facts.company.registered_office) out.push(`Registered office: ${facts.company.registered_office}`)
-  if (facts.company.gstin) out.push(`GSTIN: ${facts.company.gstin}`)
-  return out
+  const c = facts.company
+  return [
+    `${c.legal_name}, ${c.form}.`,
+    `Address: ${c.address}`,
+    `E-mail: ${c.email}`,
+    `Phone: ${c.phone}`,
+    c.gst_note,
+  ]
 }
 
 function libraryLines(facts) {
@@ -408,7 +410,7 @@ const indent = (s, n) => s
 
 // ---------------------------------------------------------------- /about/
 // 2026-10-01 (owner): the About page is for people and says what the home page
-// says, plus the dates, where the data is, the company and how to reach us. It
+// says, plus the dates, where the data is, the seller and how to reach us. It
 // carries no version, approval date, library reviewer or other internal
 // process wording, and it links to no AI-only surface (those were withdrawn).
 function aboutPage(facts) {
@@ -422,7 +424,7 @@ function aboutPage(facts) {
       { h2: "Key dates", paragraphs: [facts.deadline_line], bullets: facts.key_dates.items.map((d) => `${d.label}: ${d.what}`) },
       { h2: "Where the data is", bullets: [facts.storage.database.sentence, facts.storage.email.sentence, facts.storage.website.sentence] },
       { h2: "Your own AI assistant", paragraphs: [facts.ai_work_link_public_sentence] },
-      { h2: "The company", paragraphs: companyLines(facts) },
+      { h2: "The seller", paragraphs: companyLines(facts) },
       { h2: "Contact", bullets: contactBullets(facts) },
     ]),
     `</main>`,
@@ -474,7 +476,7 @@ function partnerTermsPage(facts) {
     `  <h1>${esc(t.heading)}</h1>`,
     `  <p class="lead">${esc(t.status_line)}</p>`,
     `  <p class="partner-note">${esc(t.lead)}</p>`,
-    sectionsHtml([...t.sections, { h2: "The company", paragraphs: companyLines(facts) }, { h2: "Contact", bullets: contactBullets(facts) }]),
+    sectionsHtml([...t.sections, { h2: "The seller", paragraphs: companyLines(facts) }, { h2: "Contact", bullets: contactBullets(facts) }]),
     `  <p class="partner-note"><a href="/partner/">${esc(t.back_link_text)}</a> · <a href="/terms/">Terms of Service</a></p>`,
     `  <!-- BEGIN generated: facts -->`,
     indent(factBlock(facts), 2),

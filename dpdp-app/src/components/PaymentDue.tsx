@@ -83,7 +83,7 @@ export function PaymentDue({ client, email, onSignOut, onRetry }: { client: Dpdp
         {isOwner ? (
           <>
             <p style={{ margin: "6px 0 10px", fontSize: 13.5 }}>
-              {amount ? <>Your plan is {formatRupees(amount.monthlyPaise)} a month, or {formatRupees(amount.yearPaise)} for a year (ten months), plus GST.{amount.offerLabel ? ` ${amount.offerLabel}.` : ""} </> : null}
+              {amount ? <>Your plan is {formatRupees(amount.monthlyPaise)} a month, or {formatRupees(amount.yearPaise)} for a year (ten months). That is the whole amount; GST is not charged.{amount.offerLabel ? ` ${amount.offerLabel}.` : ""} </> : null}
               Pay by bank transfer or UPI, then tell us here. Everything opens again once we have seen the payment.
             </p>
             <button type="button" style={primary} onClick={() => setShowPay(true)} aria-expanded={showPay}>Pay now</button>

@@ -112,7 +112,7 @@ describe("receipt", () => {
     const r = renderReceipt({ ...rec, razorpayPaymentId: "pay_Abc123" })
     expect(r.subject).toBe("Your VERIDIAN receipt -- Acme Associates (Rs 9,999)")
     expect(r.text).toContain("Plan: Institution edition, Yearly")
-    expect(r.text).toContain("Amount: Rs 9,999")
+    expect(r.text).toContain("Amount paid: Rs 9,999 (the whole amount; GST is not charged)")
     expect(r.text).toContain("Payment reference: pay_Abc123")
     expect(r.text).toContain("Billing period start: 1 Oct 2026")
   })
@@ -131,15 +131,16 @@ describe("recipient guard", () => {
 })
 
 describe("the receipt names who issued it", () => {
-  test("legal name, GSTIN, CIN and registered office are on the receipt and equal the facts file", () => {
+  test("legal name, address, e-mail and phone are on the receipt and equal the facts file; no GSTIN, no CIN, no old entity", () => {
     const text = renderReceipt({ orgName: "A", plan: "firm", interval: "year", amountPaise: 999900, periodStart: "2026-10-01", confirmedAt: "2026-10-01T05:00:00Z" }).text
-    expect(text).toContain("GSTIN: 09AAZCS4477M1Z3")
-    expect(text).toContain("CIN: U74999UP2017PTC098453")
-    expect(text).toContain("SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED")
+    expect(text).toContain("Issued by IT SERVICES BY RAJAT AGARWAL")
+    expect(text).toContain("Not registered for GST. GST is not charged.")
+    expect(text).not.toMatch(/GSTIN|CIN|SHOBHA|U74999|09AAZ|Private Limited|Registered office/i)
     const facts = readFileSync(join(__dirname, "../../../dpdp-app/data/veridian-facts.yaml"), "utf8") as string
-    expect(facts).toContain(`gstin: ${SELLER.gstin}`)
-    expect(facts).toContain(`cin: ${SELLER.cin}`)
     expect(facts).toContain(`legal_name: ${SELLER.legalName}`)
-    expect(facts).toContain(SELLER.registeredOffice)
+    expect(facts).toContain(`address: ${SELLER.address}`)
+    expect(facts).toContain(`email: ${SELLER.email}`)
+    expect(facts).toContain(`phone: "${SELLER.phone}"`)
+    expect(facts).toContain(`gst_note: ${SELLER.gstNote}`)
   })
 })

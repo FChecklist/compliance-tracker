@@ -210,26 +210,30 @@ storage:
   stored_in_india_wording: "Stored in India: the database is in Mumbai. Email goes through Resend, a US company."
 
 # ---------------------------------------------------------------------------
-# The company. WO-DPDP-013 v2 §2.2: "Verify before it appears anywhere: exact
-# registered company name, address, GSTIN." Legal name, CIN and registered
-# office are stated as facts on the company's own published disclaimer page
-# (src/app/disclaimer/page.tsx, veridian-aios.com/disclaimer) and are copied
-# from there. GSTIN was given by the owner in chat on 2026-10-01
-# (09AAZCS4477M1Z3); the CIN was already stated and is unchanged.
+# The seller. The seller of VERIDIAN DPDP is a sole proprietorship: "IT SERVICES
+# BY RAJAT AGARWAL" is the trade name of Rajat Agarwal, an individual in India.
+# It is not a company and has no CIN. It is not registered for GST, so GST is not
+# charged and no GSTIN exists; there are deliberately no cin / gstin keys. Every
+# page, receipt and e-mail reads the seller from here (the receipt's SELLER
+# constant in supabase/functions/_shared/billing-mail.ts is pinned equal to it
+# by src/lib/services/dpdp-billing-mail.test.ts).
 # ---------------------------------------------------------------------------
 company:
-  owner_approved: false
-  owner_required: true
-  source: src/app/disclaimer/page.tsx (veridian-aios.com/disclaimer, "23. Contact"); src/components/LegalShell.tsx COMPANY.legalName
-  legal_name: SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED
-  cin: U74999UP2017PTC098453
-  registered_office: B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India
-  gstin: 09AAZCS4477M1Z3
-  incorporation: incorporated in India under the Companies Act, 2013
-  # The company's own website (it carries the CIN, GSTIN and registered office) and the year of the footer's copyright line
-  # (given by the owner, 2026-10-02: ONE short ownership line at the end of every public footer -- the company name linked to
-  # this website, then the copyright -- built from these fields by scripts/generate-public-facts.mjs).
-  website: shobhakamalsolutions.pages.dev
+  owner_approved: true
+  owner_required: false
+  source: src/components/LegalShell.tsx COMPANY; src/app/disclaimer/page.tsx; supabase/functions/_shared/billing-mail.ts SELLER
+  legal_name: IT SERVICES BY RAJAT AGARWAL
+  proprietor: Rajat Agarwal
+  form: a sole proprietorship in India, the trade name of Rajat Agarwal, an individual
+  address: B-1105, Shipra Krishna Vista, Indirapuram, Ghaziabad, Uttar Pradesh, 201014, India
+  email: rajatsiroffice@gmail.com
+  phone: "+91 96503 97480"
+  gst_note: Not registered for GST. GST is not charged.
+  # The seller's own website, its policies page for this product, and the year of the footer's copyright line
+  # (ONE short ownership line at the end of every public footer -- the seller's name linked to this website, then the
+  # copyright -- built from these fields by scripts/generate-public-facts.mjs).
+  website: itservices-rajat-agarwal.pages.dev
+  policies_url: https://itservices-rajat-agarwal.pages.dev/policies/veridian-dpdp/
   copyright_year: 2026
 
 # Public contact point. Since 2026-09-29 the public sees ONE address,
@@ -298,7 +302,7 @@ pages:
   "/about/":
     name: About VERIDIAN
     description: About VERIDIAN, DPDP compliance software for India. The SPDI Rules 2011 apply until 13 May 2027; compliance with the DPDP Act 2023 and DPDP Rules 2025 is due from 13 May 2027.
-    summary: "what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the company"
+    summary: "what VERIDIAN is, who it is for, what it does and does not do, key dates, where the data is, the seller"
     audience: CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs
   "/partner/":
     name: Become a Sales Partner
@@ -428,7 +432,7 @@ sales_partner_terms:
   sections:
     - h2: Who we are
       paragraphs:
-        - "In these terms, \"we\" and \"us\" mean Shobha Kamal Solutions Private Limited, the company that runs VERIDIAN DPDP. \"You\" means the person who accepts these terms."
+        - "In these terms, \"we\" and \"us\" mean IT SERVICES BY RAJAT AGARWAL, the sole proprietorship of Rajat Agarwal that runs VERIDIAN DPDP. \"You\" means the person who accepts these terms."
     - h2: Joining
       paragraphs:
         - Anyone with a VERIDIAN sign-in can join. It is free.

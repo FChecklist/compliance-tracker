@@ -88,7 +88,7 @@ claims:
     sentence: For India, by India
     words: []
     where: The brand line (WO-DPDP-014 §1), on every page, email footer and report.
-    evidence: Built and owned by an Indian founder and company -- owner statement, WO-DPDP-014 §1. The company is SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, CIN U74999UP2017PTC098453, incorporated in India under the Companies Act, 2013 (src/app/disclaimer/page.tsx).
+    evidence: Built and owned by an Indian founder -- owner statement, WO-DPDP-014 §1. The seller is IT SERVICES BY RAJAT AGARWAL, a sole proprietorship of Rajat Agarwal in India (src/app/disclaimer/page.tsx).
     owner_approved: true
     approved_on: "2026-09-22"
     legal_approved: false

@@ -47,12 +47,13 @@ export function dateLabel(ymdOrIso: string): string {
   return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`
 }
 
-/** Who issues the receipt. Same values as company.* in dpdp-app/data/veridian-facts.yaml (owner gave the GSTIN in chat, 2026-10-01); a test pins them equal. */
+/** Who issues the receipt. Same values as company.* in dpdp-app/data/veridian-facts.yaml; a test pins them equal. The seller is a sole proprietorship that is not registered for GST: no GSTIN, no CIN, and GST is not charged. */
 export const SELLER = {
-  legalName: "SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED",
-  gstin: "09AAZCS4477M1Z3",
-  cin: "U74999UP2017PTC098453",
-  registeredOffice: "B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India",
+  legalName: "IT SERVICES BY RAJAT AGARWAL",
+  address: "B-1105, Shipra Krishna Vista, Indirapuram, Ghaziabad, Uttar Pradesh, 201014, India",
+  email: "rajatsiroffice@gmail.com",
+  phone: "+91 96503 97480",
+  gstNote: "Not registered for GST. GST is not charged.",
 } as const
 
 export type ReceiptInput = {
@@ -74,16 +75,16 @@ export function renderReceipt(d: ReceiptInput): Rendered {
     `Thank you -- your payment for ${d.orgName} is confirmed.`,
     ``,
     `Plan: ${planLabel}, ${intervalLabel}`,
-    `Amount: ${rupees(d.amountPaise)}`,
+    `Amount paid: ${rupees(d.amountPaise)} (the whole amount; GST is not charged)`,
     `Billing period start: ${dateLabel(d.periodStart)}`,
     `Confirmed: ${dateLabel(d.confirmedAt)}`,
     d.razorpayPaymentId ? `Paid online through Razorpay. Payment reference: ${d.razorpayPaymentId}` : null,
     ``,
     `This is your receipt -- keep it for your records. Questions? Just reply to this email.`,
     ``,
-    `Issued by ${SELLER.legalName}`,
-    `GSTIN: ${SELLER.gstin} | CIN: ${SELLER.cin}`,
-    `Registered office: ${SELLER.registeredOffice}`,
+    `Issued by ${SELLER.legalName}, ${SELLER.address}`,
+    `${SELLER.gstNote}`,
+    `E-mail: ${SELLER.email} | Phone: ${SELLER.phone}`,
   ].filter((l): l is string => l !== null)
   return brandWrap({ subject, text: lines.join("\n") + "\n\n-- VERIDIAN AI DPDP", html: toHtml(lines) })
 }

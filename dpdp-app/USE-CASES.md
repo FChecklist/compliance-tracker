@@ -141,7 +141,7 @@ Razorpay is NOT configured live (the function answers 503 "not switched on"). No
 | H11 | Owner | none | 11 attempts within an hour; attempts older than an hour stop counting | 11th refused | double-click / script flood | NEW pglite | PASS |
 | H12 | Owner | no edition set | pay | "no edition set yet" | charging an undefined plan | NEW pglite | PASS |
 | H13 | Refund-like / failed payment | `payment.failed` or not captured | acknowledged 200 and ignored, no retry storm | | `dpdp-pay-logic.test` | PASS. A real refund flow does not exist in code (NOT-TESTABLE; no refund function) |
-| H14 | System | receipt | GSTIN, CIN, legal name, address on the receipt equal the facts file | | `dpdp-billing-mail.test` (pins SELLER to `veridian-facts.yaml`) | PASS |
+| H14 | System | receipt | seller name, address, e-mail, phone and the "GST is not charged" line on the receipt equal the facts file (no GSTIN, no CIN) | | `dpdp-billing-mail.test` (pins SELLER to `veridian-facts.yaml`) | PASS |
 | H15 | Owner | none | real Razorpay payment link, real money | | none | NOT-TESTABLE-WITHOUT-OWNER (keys and money) |
 | H17 | Owner | referred org | approve a yearly claim | partner earns 20% of the declared amount once; a blocked (self) referral earns nothing | double or wrongful commission | NEW `dpdp-payment-claim.pglite` | PASS |
 | H18 | Platform owner | org with no edition (`product` null) | approve its claim | refused, nothing booked | the refusal is a raw `null value in column plan` constraint message, because `NULL not in (...)` is not true so the friendly check is skipped | NEW `dpdp-payment-claim.pglite` | PASS (safe) with a low cosmetic defect in the report |
