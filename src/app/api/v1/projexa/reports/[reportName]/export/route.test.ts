@@ -44,8 +44,9 @@ describe("GET /api/v1/projexa/reports/[reportName]/export -- R-C15 export whitel
     const res = await callExport("trial-balance")
     expect(res.status).toBe(400)
     const body = await res.json()
+    // R-C15 (2026-10-13): every project report now exports (see generic.test.ts); only a name that is not a report is refused.
     expect(body.error).toBe(
-      "The trial-balance report has no document export yet. Exportable reports: budget-variance, project-status, designer-timesheet"
+      "The trial-balance report is not a project report. Exportable reports: budget-variance, project-status, designer-timesheet, every report in the project report list"
     )
   })
 
@@ -53,7 +54,7 @@ describe("GET /api/v1/projexa/reports/[reportName]/export -- R-C15 export whitel
     const res = await callExport("cash-flow")
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toContain("cash-flow report has no document export yet")
+    expect(body.error).toContain("cash-flow report is not a project report")
   })
 
   for (const name of ["budget-variance", "project-status", "designer-timesheet"] as const) {

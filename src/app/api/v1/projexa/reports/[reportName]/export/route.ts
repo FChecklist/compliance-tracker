@@ -23,7 +23,10 @@
 // narrower schema.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
-import { boqBudgetVarianceReport, designerTimesheetReport, ServiceError } from "@/lib/services/construction-reports-service"
+import { boqBudgetVarianceReport, buildReportTable, designerTimesheetReport, ServiceError } from "@/lib/services/construction-reports-service"
+import { isValidReportName, runReportPayload } from "@/lib/services/report-run-dispatch"
+import { schemaFromTable, xlsxSafeRows } from "@/lib/services/report-table-document"
+import { getBaseCurrency } from "@/lib/services/erp-accounting-service"
 import { designerTimesheetExportRows, reportCsv, reportExportSchema, reportXlsxBuffer } from "@/lib/services/report-export"
 import { generateBudgetVarianceReportPdf, filterLabel } from "@/lib/pdf/budget-variance-report-pdf"
 import { generateReportDocumentPdf } from "@/lib/pdf/report-document-pdf"
@@ -73,10 +76,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { reportName } = await params
   const schema = (EXPORTABLE as readonly string[]).includes(reportName) ? reportExportSchema(reportName) : null
   if (!schema) {
-    return NextResponse.json(
-      { error: `The ${reportName} report has no document export yet. Exportable reports: ${EXPORTABLE.join(", ")}` },
-      { status: 400 }
-    )
+    // Sumeet R-C15 / R-C11: every report that has a table (all of REPORT_REGISTRY) exports as PDF / XLSX / CSV from that same table. Only a name that
+    // is not a report at all is refused, in words, never with a silent empty file.
+    if (isValidReportName(reportName)) return exportGenericReport(request, orgId, reportName)
+    return NextResponse.json({ error: `The ${reportName} report is not a project report. Exportable reports: ${[...EXPORTABLE, "every report in the project report list"].join(", ")}` }, { status: 400 })
   }
 
   const { searchParams } = request.nextUrl
@@ -232,6 +235,61 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error(`v1 projexa ${reportName} export error:`, error)
+    return NextResponse.json({ error: `Failed to export the ${reportName} report` }, { status: 500 })
+  }
+}
+
+/**
+ * Any project report as a document. The rows are the ones GET /reports/[reportName] answers with (same dispatcher, same table builder), so the
+ * downloaded file and the on-screen table are one fact. Money columns carry the org's base currency once, in the PDF header.
+ */
+async function exportGenericReport(request: NextRequest, orgId: string, reportName: Parameters<typeof runReportPayload>[1]) {
+  const { searchParams } = request.nextUrl
+  const projectId = searchParams.get("projectId")
+  if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
+  const requested = searchParams.get("format") ?? "pdf"
+  if (!FORMATS.includes(requested as Format)) {
+    return NextResponse.json({ error: `Unknown format. Valid formats: ${FORMATS.join(", ")}` }, { status: 400 })
+  }
+  const format = requested as Format
+  try {
+    const payload = await runReportPayload(orgId, reportName, searchParams, projectId)
+    const baseCurrency = await getBaseCurrency({ orgId }).then((c) => c.baseCurrency?.code ?? null).catch(() => null)
+    const table = buildReportTable(reportName, payload, baseCurrency)
+    const schema = schemaFromTable(reportName, table)
+    const totals = (table.totals ?? {}) as Record<string, number | null>
+    const filename = `${reportName}-${projectId}`
+    const period = searchParams.get("weekStart") ? `week of ${searchParams.get("weekStart")}` : searchParams.get("from") && searchParams.get("to") ? `${searchParams.get("from")} to ${searchParams.get("to")}` : null
+
+    if (format === "csv") {
+      return new NextResponse(reportCsv(schema, table.rows, totals), {
+        headers: { "Content-Type": CONTENT_TYPE.csv, "Content-Disposition": `attachment; filename="${filename}.csv"` },
+      })
+    }
+    if (format === "xlsx") {
+      const bytes = new Uint8Array(reportXlsxBuffer(schema, xlsxSafeRows(table.rows), totals))
+      return new NextResponse(new Blob([bytes], { type: CONTENT_TYPE.xlsx }), {
+        headers: { "Content-Type": CONTENT_TYPE.xlsx, "Content-Disposition": `attachment; filename="${filename}.xlsx"` },
+      })
+    }
+    const { project, org, currency } = await documentBranding(orgId, projectId)
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    const pdf = generateReportDocumentPdf(schema, {
+      org: org ?? { name: "VERIDIAN AI", address: null, gstin: null },
+      projectName: project.name,
+      subtitle: period,
+      currency: currency?.code ?? table.currency,
+      rows: table.rows,
+      totals,
+      filterLine: table.note ?? null,
+      emptyMessage: `No rows for the ${schema.title} report.`,
+    })
+    return new NextResponse(new Blob([pdf], { type: CONTENT_TYPE.pdf }), {
+      headers: { "Content-Type": CONTENT_TYPE.pdf, "Content-Disposition": `attachment; filename="${filename}.pdf"` },
+    })
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error(`v1 projexa ${reportName} generic export error:`, error)
     return NextResponse.json({ error: `Failed to export the ${reportName} report` }, { status: 500 })
   }
 }
