@@ -149,6 +149,43 @@ describe("update_milestone", () => {
   });
 });
 
+describe("create_mom (R-C04): the meeting, its attendees, agenda, minutes and action items", () => {
+  const MOM = {
+    title: "Weekly site meeting", scheduledAt: "2026-10-12T10:30:00.000Z", meetingType: "site", attendees: ["Asha", "Ravi"], agenda: ["Slab", "Safety"],
+    minutes: "Pour agreed.", actionItems: [{ title: "Order tiles", dueDate: "2026-10-20" }, { title: "Check props" }],
+  };
+
+  test("writes the meeting with its lists and minutes, and one task plus one link per action item, all re-read from the store", async () => {
+    const out = resultOf(await run("create_mom", MOM));
+    expect(out.route).toBe(`/moms/${out.id}`);
+    expect(row("veri_meetings", out.id)).toMatchObject({
+      orgId: ORG, title: "Weekly site meeting", meetingType: "site", attendees: ["Asha", "Ravi"], agenda: ["Slab", "Safety"], minutes: "Pour agreed.",
+      contextEntityType: "project", contextEntityId: PROJECT_A, createdById: MANAGER,
+    });
+    const tasks = rowsOf(store, "tasks");
+    expect(tasks.map((t) => [t.title, t.userId, t.assignedById])).toEqual([["Order tiles", MANAGER, MANAGER], ["Check props", MANAGER, MANAGER]]);
+    expect((tasks[0]!.dueDate as Date).toISOString().slice(0, 10)).toBe("2026-10-20");
+    expect(tasks[1]!.dueDate).toBeNull();
+    expect(rowsOf(store, "veri_meeting_action_items").map((l) => [l.meetingId, l.taskId])).toEqual(tasks.map((t) => [out.id, t.id]));
+  });
+
+  test("a meeting with no action items writes no task; an action item with an empty title is skipped", async () => {
+    const out = resultOf(await run("create_mom", { title: "Short one", scheduledAt: MOM.scheduledAt, actionItems: [{ title: "   " }] }));
+    expect(row("veri_meetings", out.id)).toMatchObject({ title: "Short one", meetingType: "team", attendees: [], agenda: [], minutes: null });
+    expect(rowsOf(store, "tasks")).toEqual([]);
+    expect(rowsOf(store, "veri_meeting_action_items")).toEqual([]);
+  });
+
+  test("action items that are not a list of titles, more than 25, or a title missing: refused with nothing written", async () => {
+    const before = snapshot(store);
+    for (const bad of [{ actionItems: "Order tiles" }, { actionItems: ["Order tiles"] }, { actionItems: Array.from({ length: 26 }, (_, i) => ({ title: `T${i}` })) }, { title: "  " }]) {
+      const out = await run("create_mom", { ...MOM, ...bad });
+      expect({ bad: Object.keys(bad)[0], ok: out.success }).toEqual({ bad: Object.keys(bad)[0], ok: false });
+    }
+    expect(snapshot(store)).toBe(before);
+  });
+});
+
 describe("create_site_instruction", () => {
   test("writes one numbered instruction under the acting person, re-read from the store, and changes no other table", async () => {
     const before = tableJson(store);
