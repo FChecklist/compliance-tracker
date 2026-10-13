@@ -187,3 +187,19 @@ describe("2026-10-02: the company ownership line in the footer is readable type 
     expect(ruleProp(".footer-company a", "color")).toBe("inherit")
   })
 })
+
+// Found by the 2026-10-14 live walkthrough at 360px: the home page's "For professionals / For organisations" labels and its Done / Waiting chips
+// were 11px. The only sizes below 12px that remain are the two logo labels named above (.wordmark-sub, .card-badge), in site.css and home.css.
+describe("home.css: no readable text under 12px", () => {
+  const home = readFileSync(join(import.meta.dir, "..", "home.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")
+  test("every font-size / font shorthand in home.css is >= 12px, except the nav logo label (.wordmark-sub)", () => {
+    for (const m of home.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      const body = m[2]
+      const px = /(?:^|;|\s)font-size\s*:\s*([\d.]+)px/.exec(body) ?? /(?:^|;|\s)font\s*:\s*[^;]*?\b([\d.]+)px\b/.exec(body)
+      const rem = /(?:^|;|\s)font-size\s*:\s*([\d.]+)rem/.exec(body)
+      const size = px ? parseFloat(px[1]) : rem ? parseFloat(rem[1]) * 16 : null
+      if (size === null || size >= 12) continue
+      expect(m[1].trim(), `font size ${size}px`).toMatch(/\.wordmark-sub/)
+    }
+  })
+})
