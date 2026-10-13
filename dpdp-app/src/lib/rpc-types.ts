@@ -203,7 +203,7 @@ export type OpenAccountPayload = CreateMyOrgPayload & {
   verification?: VerificationStatus
 }
 
-/** One element of dpdp_public_plans (prices in paise per month, excluding GST). monthlyPaise is what a new sign-up pays today. */
+/** One element of dpdp_public_plans (prices in paise per month, the whole amount payable; GST is not charged). monthlyPaise is what a new sign-up pays today. */
 export type PlanWirePayload = {
   key: string
   accountType: "firm" | "institution"

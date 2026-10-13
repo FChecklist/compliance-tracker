@@ -349,8 +349,8 @@ export default async function CognitiveRootPage({
         <div className="border-t border-[#1a1a17]/10">
           <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-5 text-xs text-[#1a1a17]/65 md:flex-row md:items-center md:justify-between">
             <span>
-              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company
-              incorporated in India under the Companies Act.
+              VERIDIAN AI OS is owned and operated by IT SERVICES BY RAJAT AGARWAL, a sole proprietorship in
+              India, the trade name of Rajat Agarwal, an individual.
             </span>
             <span className="flex gap-5">
               <Link href="/terms" className="hover:text-[#1a1a17]">Terms & Conditions</Link>
@@ -383,7 +383,7 @@ export default async function CognitiveRootPage({
             "@context": "https://schema.org",
             "@type": "Organization",
             name: "VERIDIAN COGNITIVE AI OS",
-            legalName: "SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED",
+            legalName: "IT SERVICES BY RAJAT AGARWAL",
             url: "https://veridian-ai-os.vercel.app",
             logo: "https://veridian-ai-os.vercel.app/logo-mark.svg",
             description:

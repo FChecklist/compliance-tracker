@@ -45,7 +45,7 @@ active:
     claim: |
       Scope: supabase/functions/_shared/billing-mail.ts (+ dpdp-pay price logic), dpdp-app/data/veridian-facts.yaml + claims-register.yaml, dpdp-app/src/lib/facts.* + company-footer,
       dpdp-app generated pages (index, about, contact, proof, partner, ai-assistant, dpdp-firm, dpdp-institution) and dpdp-app/public legal pages + llms-full.txt, src/app/page.tsx,
-      src/components/LegalShell.tsx, LegalBar.tsx, src/app/disclaimer/page.tsx, related tests, plus K2/K3 consent boxes. No deploy, no live Supabase.
+      src/components/LegalShell.tsx, LegalBar.tsx, src/app/disclaimer/page.tsx, related tests. No deploy, no live Supabase.
   - session_label: "claude-code (PROJEXA Connect your AI: person / shared / organisation AI key, branch feat/own-ai-key-2026-10-11, projexa branch feat/connect-your-ai-2026-10-11)"
     claimed_at: "2026-10-11 (this session)"
     claim: |
