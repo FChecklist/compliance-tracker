@@ -38,7 +38,7 @@ import { categoryForKind, DRAWING_STATUSES } from "@/lib/drawings-register";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ServiceError } from "@/lib/services/compliance-service";
 import { financialsAllowedForRole, redactProjectDashboardFinancials } from "@/lib/task-execution/construction-tools";
-import { codeForServiceError, normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
+import { codeForServiceError, normaliseThrownError, pipelineFailure, refusalReason, type PipelineFailure } from "./error-codes";
 import { functionSpec, requiredParamSatisfied, WRITE_FUNCTION_IDS as REGISTERED_WRITES } from "./function-registry";
 // PROJEXA-BUILD-002: executors that live in their own files (WP-03 project, WP-04 BOQ batches, WP-07 activity).
 import { executeCreateProject, executeUpdateProject } from "./executors/project";
@@ -72,7 +72,8 @@ import { notPermitted, rankOf } from "./executors/common";
  */
 export type ExecutionOutcome =
   | { success: true; result: unknown }
-  | { success: false; failure: PipelineFailure; debug?: string };
+  /** `reason`: a service's own business refusal in words, safe to show (error-codes.ts safeRefusalReason); only for REQUEST_REJECTED. */
+  | { success: false; failure: PipelineFailure; debug?: string; reason?: string };
 
 export type ExecutableTask = {
   orgId: string;
@@ -2074,14 +2075,17 @@ export async function executeTask(
     }
     if (error instanceof ServiceError && error.status < 500) {
       console.error(`executeTask: "${task.functionId}" refused with ${error.status}`, error.message);
+      // functionId is carried for the CLIENT'S BRANCHING, never for its
+      // wording: "already recorded" means something different for
+      // attendance than for a BOQ revision, and projexa's dictionary picks
+      // the true sentence from it without ever printing it.
+      const failure = pipelineFailure(codeForServiceError(error.status), [], { status: error.status, functionId: task.functionId });
       return {
         success: false,
-        // functionId is carried for the CLIENT'S BRANCHING, never for its
-        // wording: "already recorded" means something different for
-        // attendance than for a BOQ revision, and projexa's dictionary picks
-        // the true sentence from it without ever printing it.
-        failure: pipelineFailure(codeForServiceError(error.status), [], { status: error.status, functionId: task.functionId }),
+        failure,
         debug: `${error.name}(${error.status}): ${error.message}`,
+        // the service's own words for a REQUEST_REJECTED, for the laptop push route only (error-codes.ts safeRefusalReason)
+        ...refusalReason(failure.code, error.message),
       };
     }
     console.error(`executeTask: unexpected error running "${task.functionId}"`, error);
