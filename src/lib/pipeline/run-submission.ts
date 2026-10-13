@@ -384,6 +384,11 @@ export type RunSubmissionResult = {
    * Fix chain; `chatMessages` now carries only real conversational replies.
    */
   failures: ({ segmentText: string } & PipelineFailure)[];
+  /**
+   * runDirectTask only: the service's own words for a business refusal (REQUEST_REJECTED), already made safe (error-codes.ts safeRefusalReason).
+   * NOT persisted anywhere here (the task row keeps the closed failure only); the laptop push route is its one reader (link-exec-entry.ts).
+   */
+  refusalReason?: string;
   /** segments that resolved to nothing -- one gap_log row each. */
   gaps: { text: string; reason: string }[];
   flagged: boolean; // MAX_SEGMENTS truncation, surfaced so the caller can ask the user to split their message
@@ -1015,7 +1020,7 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
     ? await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "external_ai")
     : await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "phrase_map");
 
-  let outcome: { success: true; result: unknown } | { success: false; failure: PipelineFailure; debug?: string };
+  let outcome: { success: true; result: unknown } | { success: false; failure: PipelineFailure; debug?: string; reason?: string };
   if (!hasExecutor(input.functionId)) {
     outcome = { success: false, failure: pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: input.functionId }) };
   } else {
@@ -1102,6 +1107,7 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
       },
     ],
     failures: outcome.success ? [] : [{ segmentText: base.rawInput, ...outcome.failure }],
+    ...(!outcome.success && outcome.reason ? { refusalReason: outcome.reason } : {}),
     gaps: [],
     flagged: false,
     l0HitRate: 1, // a pill is Level 0 by definition -- the user supplied the function

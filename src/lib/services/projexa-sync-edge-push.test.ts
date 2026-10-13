@@ -116,6 +116,22 @@ describe("failure classes come from the codes the pipeline REALLY returns (SYNC-
     expect(r.results.map((x) => x.status)).toEqual(["rejected", "applied"])
     expect(w.calls.finish[0]).toMatchObject({ status: "rejected", code: "VALUE_REQUIRED" })
   })
+
+  // checklist 2.19 / R-90: the service's own words for a REQUEST_REJECTED reach the laptop in this one answer - and are never written to the ledger
+  test("a REQUEST_REJECTED answers the service's reason as error.message; the ledger keeps the code only", async () => {
+    const w = world()
+    const reason = "Progress on A1 would reach 105 of 100 sqm (105%), more than 100%. Only 5 sqm remains on this line."
+    const r = await push(w, [op("op-rr-00001", recOf("t1"))], { execRun: scripted({ "op-rr-00001": { kind: "failed", code: "REQUEST_REJECTED", missing: [], reason } }) })
+    expect(r.results[0]).toMatchObject({ status: "rejected", error: { code: "REQUEST_REJECTED", message: reason } })
+    expect(w.calls.finish[0]).toEqual({ op: "op-rr-00001", status: "rejected", code: "REQUEST_REJECTED" })
+    expect(JSON.stringify(w.calls.finish)).not.toContain("sqm")
+  })
+
+  test("any other business code answers no message", async () => {
+    const w = world()
+    const r = await push(w, [op("op-rr-00002", recOf("t1"))], { execRun: scripted({ "op-rr-00002": { kind: "failed", code: "VALUE_REQUIRED", missing: ["title"] } }) })
+    expect(r.results[0].error).toEqual({ code: "VALUE_REQUIRED", missing: ["title"] })
+  })
 })
 
 describe("op checks at the edge, before any RPC (F-02, F-03, F-08)", () => {
