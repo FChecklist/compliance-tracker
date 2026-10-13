@@ -80,6 +80,10 @@ describe("POST /uploads/sign", () => {
     expect((await handleUploadSign(post({ ...good, fileName: "  " }), deps())).status).toBe(422)
     expect((await handleUploadSign(post({ ...good, contentType: undefined }), deps())).status).toBe(422)
   })
+  test("a 24-character cuid project id (the Demo Organization's projects) is accepted like a uuid; a path-like or too-short id is not", async () => {
+    expect((await handleUploadSign(post({ ...good, projectId: "mr5xsm5nulrv1eml2aulls6u" }), deps())).status).toBe(200)
+    for (const projectId of ["../../x", "a/b/c/d/e/f/g", "short", "has space in it", 12345678]) expect((await handleUploadSign(post({ ...good, projectId }), deps())).status).toBe(422)
+  })
   test("the file name is sanitised: no separators, no control chars, extension kept, max 120", async () => {
     for (const n of ["../../etc/passwd", "a\\b\\c.pdf", "x\u0000y\u001f.pdf", "..", "///", "a/../../b.pdf"]) {
       const s = sanitizeFileName(n)

@@ -1,7 +1,7 @@
 // PROJEXA FILE UPLOADS WITHOUT VERCEL: POST <projexa-api>/uploads/sign (contract: ai-os/audit37/UPLOAD_CONTRACT_2026-10-06.md; SQL: drizzle/0732).
 //
 // POST /uploads/sign   Authorization: Bearer <the person's own PROJEXA session token>
-//   body {kind:"permit"|"drawing"|"document", projectId?:uuid, fileName:string, contentType:string, size:number}
+//   body {kind:"permit"|"drawing"|"document", projectId?:uuid-or-cuid, fileName:string, contentType:string, size:number}
 //   200  {uploadUrl, method:"PUT", headers:{"content-type", "x-upsert":"false"}, externalUrl, expiresAt, maxBytes}
 //   401 signed out | 400 {"error":"No organization"} | 403 read-only role | 413 too big | 415 type | 422 bad body | 429 > 200 signs/hour for the org | 5xx retryable
 //
@@ -29,6 +29,9 @@ export const ALLOWED_CONTENT_TYPES: ReadonlySet<string> = new Set([
   "application/zip", "application/x-zip-compressed",
 ])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// A project id is a uuid (older orgs) or a 24-char cuid (organisations provisioned since: the Demo Organization). It is only checked for shape here -- it never reaches the
+// object path -- but a uuid-only check refused every file for a cuid project (live UAT 2026-10-13: "projectId must be a uuid" on an offline permit upload).
+const PROJECT_ID_RE = /^[A-Za-z0-9_-]{8,64}$/
 
 export type SignedUpload = { ok: true; signedUrl: string } | { ok: false }
 export type UploadSignDeps = {
@@ -127,7 +130,7 @@ export async function handleUploadSign(req: Request, deps: UploadSignDeps): Prom
   }
   const { kind, projectId, fileName, contentType, size } = body
   if (typeof kind !== "string" || !(UPLOAD_KINDS as readonly string[]).includes(kind)) return json(req, deps, 422, { error: "kind must be permit, drawing or document" })
-  if (projectId !== undefined && projectId !== null && (typeof projectId !== "string" || !UUID_RE.test(projectId))) return json(req, deps, 422, { error: "projectId must be a uuid" })
+  if (projectId !== undefined && projectId !== null && (typeof projectId !== "string" || !PROJECT_ID_RE.test(projectId))) return json(req, deps, 422, { error: "projectId is not a valid project id" })
   if (typeof fileName !== "string" || fileName.trim() === "") return json(req, deps, 422, { error: "fileName is required" })
   if (typeof contentType !== "string" || contentType.trim() === "") return json(req, deps, 422, { error: "contentType is required" })
   if (typeof size !== "number" || !Number.isInteger(size) || size < 1) return json(req, deps, 422, { error: "size must be a whole number of bytes, at least 1" })
