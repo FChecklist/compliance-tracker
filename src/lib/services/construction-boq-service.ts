@@ -1554,7 +1554,7 @@ export async function updateLineItemBudget(
   // silently storing one would put a negative subtotal into every report that
   // groups by these columns. Rejected at the write path, the same way
   // budgetPercentage's own range is.
-  for (const key of ["materialAmount", "manpowerAmount"] as const) {
+  for (const key of ["vendorAmount", "materialAmount", "manpowerAmount"] as const) {
     const value = input[key]
     if (value === undefined || value === null) continue
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
