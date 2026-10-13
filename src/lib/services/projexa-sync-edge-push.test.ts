@@ -90,7 +90,7 @@ describe("failure classes come from the codes the pipeline REALLY returns (SYNC-
     expect(classifyFailure("UPSTREAM_TIMEOUT")).toBe("failed")
     expect(classifyFailure("INTERNAL_ERROR")).toBe("failed")
     expect(classifyFailure("FUNCTION_NOT_AVAILABLE")).toBe("needs_server")
-    for (const code of ["VALUE_REQUIRED", "RECORD_NOT_FOUND", "ALREADY_RECORDED", "NOT_PERMITTED", "REQUEST_REJECTED", "TOTAL_MISMATCH", "BOQ_SEALED", "DUPLICATE_ITEM_CODE", "TEXT_TOO_LONG", "BAD_OP"]) expect([code, classifyFailure(code)]).toEqual([code, "rejected"])
+    for (const code of ["VALUE_REQUIRED", "RECORD_NOT_FOUND", "ALREADY_RECORDED", "NOT_PERMITTED", "REQUEST_REJECTED", "TOTAL_MISMATCH", "BOQ_SEALED", "DUPLICATE_ITEM_CODE", "SCOPE_REDUCTION_BLOCKED", "TEXT_TOO_LONG", "BAD_OP"]) expect([code, classifyFailure(code)]).toEqual([code, "rejected"])
     expect(classifyFailure("SOMETHING_NEW_FROM_A_SERVICE")).toBe("failed")
   })
 

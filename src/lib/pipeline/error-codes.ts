@@ -65,6 +65,10 @@ export const PIPELINE_ERROR_CODES = [
   "TOTAL_MISMATCH",
   "BOQ_SEALED",
   "DUPLICATE_ITEM_CODE",
+  // OFFLINE WRITERS 2: a BOQ revision that would remove or reduce a line with progress already recorded on site (ScopeReductionError, 409).
+  // Its own code, not ALREADY_RECORDED: a laptop that sent the revision offline must say "work is recorded against this line", never "already done".
+  // Not retryable: the same revision gives the same answer until the person chooses the explicit override online.
+  "SCOPE_REDUCTION_BLOCKED",
   // --- what this account/workspace may not do ----------------------------
   "FUNCTION_NOT_AVAILABLE",
   "NOT_PERMITTED",
@@ -120,6 +124,7 @@ const PICKER_BY_CODE: Readonly<Record<PipelineErrorCode, PickerHint>> = {
   TOTAL_MISMATCH: "none",
   BOQ_SEALED: "none",
   DUPLICATE_ITEM_CODE: "none",
+  SCOPE_REDUCTION_BLOCKED: "none",
   FUNCTION_NOT_AVAILABLE: "none",
   NOT_PERMITTED: "none",
   READ_AS_QUESTION: "none",

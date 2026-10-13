@@ -169,7 +169,7 @@ describe("BR-408: allowScopeReductionOverride reaches createBoqRevision (the sco
   test("without it, reducing A1 (40% done) is refused with the 409, and nothing is written", async () => {
     const failure = await refusedWithNothingWritten({ lineItems: REDUCED });
 
-    expect(failure).toEqual({ code: "ALREADY_RECORDED", missing: [], context: { status: 409, functionId: "create_boq_revision" }, picker: "none" });
+    expect(failure).toEqual({ code: "SCOPE_REDUCTION_BLOCKED", missing: [], context: { status: 409, functionId: "create_boq_revision" }, picker: "none" });
     expect(revisionsOf("boq_a")).toEqual([]);
     expect(boq("boq_a").status).toBe("approved");
   });
@@ -186,7 +186,7 @@ describe("BR-408: allowScopeReductionOverride reaches createBoqRevision (the sco
   test('only a real boolean overrides: the string "true" is refused like no override at all', async () => {
     const failure = await refusedWithNothingWritten({ lineItems: REDUCED, allowScopeReductionOverride: "true" });
 
-    expect(failure.code).toBe("ALREADY_RECORDED");
+    expect(failure.code).toBe("SCOPE_REDUCTION_BLOCKED");
   });
 });
 
