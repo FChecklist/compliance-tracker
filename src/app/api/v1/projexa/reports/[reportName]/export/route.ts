@@ -259,7 +259,9 @@ async function exportGenericReport(request: NextRequest, orgId: string, reportNa
     const schema = schemaFromTable(reportName, table)
     const totals = (table.totals ?? {}) as Record<string, number | null>
     const filename = `${reportName}-${projectId}`
-    const period = searchParams.get("weekStart") ? `week of ${searchParams.get("weekStart")}` : searchParams.get("from") && searchParams.get("to") ? `${searchParams.get("from")} to ${searchParams.get("to")}` : null
+    // The house date everywhere is dd-mm-yyyy (owner, 2026-10-12): the subtitle of a printed report must not read 2026-10-01.
+    const dmy = (iso: string | null) => (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.split("-").reverse().join("-") : iso)
+    const period = searchParams.get("weekStart") ? `week of ${dmy(searchParams.get("weekStart"))}` : searchParams.get("from") && searchParams.get("to") ? `${dmy(searchParams.get("from"))} to ${dmy(searchParams.get("to"))}` : null
 
     if (format === "csv") {
       return new NextResponse(table.rows.length === 0 ? emptyReportCsv(schema) : reportCsv(schema, table.rows, totals), {
