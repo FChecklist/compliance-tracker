@@ -167,9 +167,10 @@ key_dates:
 # ---------------------------------------------------------------------------
 # The job library. `version` is read from data/dpdp-library-<version>.json;
 # `job_count` is computed from that file at generation time (never typed).
-# The library has NOT been lawyer-reviewed yet (data/README.md: "when the
+# No reviewer is recorded for this library yet (data/README.md: "when the
 # lawyer-reviewed library replaces 0.2-wo010"), so reviewer and date are
-# null and owner_required: the pages say "reviewer: not yet recorded".
+# null and owner_required: the pages print no reviewer line at all (they
+# never say a review is pending).
 # ---------------------------------------------------------------------------
 library:
   owner_approved: false

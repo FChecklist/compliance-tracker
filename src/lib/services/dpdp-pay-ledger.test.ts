@@ -239,7 +239,7 @@ describe("commission C -> B", () => {
   })
 })
 
-describe("monthly figures C -> B (at most every 30 minutes)", () => {
+describe("monthly figures C -> B (at most every 29 minutes)", () => {
   const figures = [
     { period_key: "2026-10", currency: "INR", paid_count: 1, failed_count: 0, revenue_minor: 999900, fee_minor: 23600, tax_minor: 3600, refunded_minor: 0, commission_accrued_minor: 199980, commission_paid_minor: 0 },
     { period_key: "2026-09", currency: "INR", paid_count: 0, failed_count: 1, revenue_minor: 0, fee_minor: 0, tax_minor: 0, refunded_minor: 0, commission_accrued_minor: 0, commission_paid_minor: 0 },
@@ -371,5 +371,33 @@ describe("the edge function wiring", () => {
     expect(indexTs).toContain('path.endsWith("/ledger")')
     // the cron endpoint is guarded by the Vault bearer
     expect(indexTs).toContain('"dpdp_timer_check_bearer"')
+  })
+})
+
+describe("the summary push runs on every 30-minute tick (migration 0750)", () => {
+  const read = (rel: string) => readFileSync(new URL(`../../../${rel}`, import.meta.url), "utf8")
+  const tick = read("drizzle/0750_dpdp_ledger_tick_cadence.sql")
+  const base = read("drizzle/0749_dpdp_ledger_c.sql")
+
+  test("the cron still ticks every 30 minutes, and the push rule is shorter than that, so a tick is never refused for being a moment early", () => {
+    expect(base).toContain("'*/30 * * * *'")
+    const minutes = Number(/clock_timestamp\(\) - v_push < interval '(\d+) minutes'/.exec(tick)![1])
+    expect(minutes).toBe(29)
+    expect(minutes).toBeLessThan(30)
+  })
+  test("0750 only redefines the claim function (create or replace, so it can run again) and changes no grant, table or cron job", () => {
+    expect(tick).toContain("create or replace function public.dpdp_ledger_summary_claim(p_force boolean default false)")
+    const code = tick.split(/\r?\n/).filter((l) => !l.trim().startsWith("--")).join(" ")
+    expect(code).not.toMatch(/cron\.schedule|create table|alter table|grant |revoke /i)
+    expect(tick).toContain("clock_timestamp() - v_try < interval '5 minutes'")
+  })
+  test("ledger.ts and the migration agree on the number", async () => {
+    const mod = await import("../../../supabase/functions/dpdp-pay/ledger")
+    expect(mod.SUMMARY_EVERY_MS).toBe(29 * 60_000)
+    expect(mod.SUMMARY_EVERY_MS).toBeLessThan(30 * 60_000)
+  })
+  test("the journal lists 0750 once", () => {
+    const journal = JSON.parse(read("drizzle/meta/_journal.json")) as { entries: Array<{ tag: string; when: number }> }
+    expect(journal.entries.filter((e) => e.tag === "0750_dpdp_ledger_tick_cadence")).toHaveLength(1)
   })
 })
