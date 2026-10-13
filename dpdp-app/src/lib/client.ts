@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { createMockClient } from "./mock-client"
 
-export type RpcError = { message: string; code?: string }
+export type RpcError = { message: string; code?: string; hint?: string }
 export type RpcResult<T = unknown> = { data: T | null; error: RpcError | null }
 export type AuthSession = { user: { email?: string } }
 export type AuthListener = (event: string, session: AuthSession | null) => void

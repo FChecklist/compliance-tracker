@@ -40,6 +40,12 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (DPDP Terms boxes + security header + readable text; worktree agent-aaf5b6f203e929954, branch fix/dpdp-terms-boxes-and-ui)"
+    claimed_at: "2026-10-13 (this session)"
+    claim: |
+      Scope: dpdp-app/public/_headers + scripts/generate-public-facts.mjs (header source), dpdp-app CSS/markup for footer/header/assistant link rows and /app/ 404,
+      dpdp-app sign-up and pay screens (Terms boxes), supabase/functions/dpdp-pay + _shared consent helper, one new additive DPDP migration (not applied), dpdp-app tests.
+      No deploy, no live Supabase.
   - session_label: "claude-code (DPDP seller change to IT Services by Rajat Agarwal; worktree agent-ab2f4fb446f406f32, branch fix/dpdp-seller-it-services)"
     claimed_at: "2026-10-13 (this session)"
     claim: |

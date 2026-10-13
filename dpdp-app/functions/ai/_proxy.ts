@@ -28,6 +28,8 @@ export const PRIVATE_HEADERS: Readonly<Record<string, string>> = {
   "Referrer-Policy": "no-referrer",
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
   "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
 }
 

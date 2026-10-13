@@ -8,7 +8,9 @@ Two endpoints, one function. Full owner steps: `dpdp-app/OPERATIONS.md`, "Online
 
 Files: `index.ts` (wiring), `logic.ts` (pure, tested by `src/lib/services/dpdp-pay-logic.test.ts`), shared `../_shared/billing-mail.ts`, `mail-outbound.ts`, `mail-taxonomy.ts`.
 
-Deploy: `verify_jwt: false` (Razorpay cannot send a Supabase JWT; the create endpoint's owner check is in the database). Needs migrations `0673_dpdp_razorpay_sales_lifecycle.sql` and `0747_dpdp_pay_order_product_variation.sql` first. Optional secret `PAY_HOP_URL` (default `https://itservices-rajat-agarwal.pages.dev/payframe/`).
+The K3 box (`drizzle/0748_dpdp_terms_acceptance.sql`): `POST /dpdp-pay` needs `termsVersion` (the current Terms version) and `termsAccepted: true` in the body. Without them it answers 400 `{"error":"Please tick the box to continue.","code":"consent-required"}` before any Razorpay call, and the database (`dpdp_pay_begin`) refuses the same way and records the tick against the payment attempt. The version constant is `../_shared/terms.ts`.
+
+Deploy: `verify_jwt: false` (Razorpay cannot send a Supabase JWT; the create endpoint's owner check is in the database). Needs migrations `0673_dpdp_razorpay_sales_lifecycle.sql`, `0747_dpdp_pay_order_product_variation.sql` and `0748_dpdp_terms_acceptance.sql` first (deploying this version before 0748 is applied makes every payment attempt fail: the database would not know the two new arguments). Optional secret `PAY_HOP_URL` (default `https://itservices-rajat-agarwal.pages.dev/payframe/`).
 
 Secrets (Edge env, set by the Owner only): `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`. Optional: `RESEND_API_KEY`, `DPDP_EMAIL_FROM`, `APP_ORIGIN`. With the keys missing every call answers 503 `{"code":"not_enabled"}` and the app falls back to bank transfer.
 

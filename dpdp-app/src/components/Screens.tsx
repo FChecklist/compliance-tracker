@@ -3,6 +3,8 @@ import "./onepage/dpdp-onepage-tokens.css"
 import { SIGNIN_BENEFITS } from "@/lib/signin-benefits"
 import { formatRupees } from "@/lib/billing-state"
 import { EarningsCalculator } from "./EarningsCalculator"
+import { TermsCheckbox, TermsWhy } from "./TermsBox"
+import { BOX_K2 } from "@/lib/terms"
 import type { PlanWirePayload, ProfessionalBody } from "@/lib/rpc-types"
 
 export function Card({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
@@ -205,6 +207,8 @@ export type OpenAccountExtra = {
   /** Optional details typed on the opening page (any may be empty); sent after the account opens and never blocking. */
   profile: Record<string, string>
   practitionerDeclared: boolean
+  /** The K2 box: always true when onCreate is called (the button waits for it); the database refuses the sign-up without it as well. */
+  termsAccepted: boolean
 }
 
 const OPENING_FIRM_FIELDS: Array<[string, string]> = [["firmName", "Firm name"], ["city", "City"], ["gstin", "GSTIN"], ["clientsEstimate", "About how many clients"], ["contactPerson", "Contact person"], ["phone", "Phone"]]
@@ -241,15 +245,16 @@ export function OpenOrganisation({
   const [billing, setBilling] = useState("")
   const [declared, setDeclared] = useState(false)
   const [more, setMore] = useState<Record<string, string>>({})
+  const [terms, setTerms] = useState(false) // K2: never pre-ticked
   function submit(e: FormEvent) {
     e.preventDefault()
-    if (!product) return
+    if (!product || !terms) return
     const isFirm = product === "firm"
     const profile: Record<string, string> = {}
     for (const [k, v] of Object.entries(more)) if (v.trim() !== "") profile[k] = v.trim()
     onCreate(name.trim(), product, {
       professionalBody: isFirm && body !== "" ? (body as ProfessionalBody) : null, registrationNo: isFirm ? registration.trim() : "", billingContactEmail: billing.trim(),
-      profile, practitionerDeclared: isFirm && declared,
+      profile, practitionerDeclared: isFirm && declared, termsAccepted: true,
     })
   }
   const money = priceLine(plans, product)
@@ -322,9 +327,11 @@ export function OpenOrganisation({
         <p style={{ fontSize: 13, color: "var(--dpdp-ink2)", margin: "2px 0 0" }}>
           <b>Nothing to pay now.</b> You get 30 days with everything switched on.{money ? ` ${money}` : ""}
         </p>
-        <button type="submit" disabled={busy || !product} className="font-bold text-white" style={{ ...primaryButton, opacity: busy || !product ? 0.6 : 1 }}>
+        <TermsCheckbox box={BOX_K2} checked={terms} onChange={setTerms} disabled={busy} />
+        <button type="submit" disabled={busy || !product || !terms} aria-describedby={terms ? undefined : "terms-why-k2"} className="font-bold text-white" style={{ ...primaryButton, opacity: busy || !product || !terms ? 0.6 : 1 }}>
           {busy ? "Opening…" : "Open my organisation"}
         </button>
+        <TermsWhy id="terms-why-k2" ticked={terms} />
         <InlineError message={error} />
       </form>
       <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "18px auto 4px", maxWidth: "44ch" }}>

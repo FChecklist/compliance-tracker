@@ -24,6 +24,8 @@
 //   * A second, different payment id for an attempt that is already paid is NOT recorded
 //     automatically: it is flagged for the owner (it is real money that needs a human).
 
+import { CONSENT_REQUIRED_CODE, CONSENT_REQUIRED_MESSAGE, TERMS_VERSION } from "../_shared/terms.ts"
+
 export const RAZORPAY_API = "https://api.razorpay.com/v1"
 
 /** Events that can record money. Anything else that is validly signed is acknowledged and ignored. */
@@ -383,6 +385,21 @@ export function parseCreateRequest(body: unknown): { ok: true; interval: Interva
   const orgId = str(body.orgId)
   return { ok: true, interval: "year", orgId }
 }
+
+/**
+ * The K3 box ("I agree to the Terms and the Refund Policy.") as the request carries it. `given` is true only for the CURRENT Terms version
+ * AND a boolean true: anything else (missing, "true" as a string, an older version) is not a tick. The database re-checks the same two
+ * things and is the authority; this early refusal just saves a Razorpay round trip and gives the browser the same sentence and code.
+ */
+export function readTermsConsent(body: unknown): { version: string | null; accepted: boolean; given: boolean } {
+  const o = isObj(body) ? body : {}
+  const version = typeof o.termsVersion === "string" ? o.termsVersion : null
+  const accepted = o.termsAccepted === true
+  return { version, accepted, given: accepted && version === TERMS_VERSION }
+}
+
+/** The refusal body for a payment request without the tick: HTTP 400, this sentence, this code. */
+export const CONSENT_REQUIRED_BODY = { error: CONSENT_REQUIRED_MESSAGE, code: CONSENT_REQUIRED_CODE } as const
 
 /** Razorpay credentials present? Both halves, non-empty. Webhook secret is checked separately (it is not needed to create a link). */
 export function razorpayConfigured(keyId: string | null | undefined, keySecret: string | null | undefined): boolean {

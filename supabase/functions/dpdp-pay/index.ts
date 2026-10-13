@@ -31,9 +31,10 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import { isDeliverableAddress, renderReceipt, sendViaResend } from "../_shared/billing-mail.ts"
+import { CONSENT_REQUIRED_CODE } from "../_shared/terms.ts"
 import {
-  type AttemptFacts, type CapturedPayment, RAZORPAY_API, basicAuthHeader, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
-  httpStatusFor, parseCreateRequest, parseOrderResponse, parseVerifyRequest, parseWebhookEvent, razorpayConfigured, receiptFor, verifyCheckoutSignature,
+  type AttemptFacts, type CapturedPayment, CONSENT_REQUIRED_BODY, RAZORPAY_API, basicAuthHeader, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
+  httpStatusFor, parseCreateRequest, parseOrderResponse, parseVerifyRequest, parseWebhookEvent, razorpayConfigured, readTermsConsent, receiptFor, verifyCheckoutSignature,
   verifyWebhookSignature,
 } from "./logic.ts"
 
@@ -83,9 +84,16 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
   const parsed = parseCreateRequest(body)
   if (!parsed.ok) return json({ error: parsed.error }, 400, cors)
 
-  // Owner check + price + attempt row, all in the database under the caller's own JWT.
-  const { data, error } = await callerClient(authHeader).rpc("dpdp_pay_begin", { p_interval: parsed.interval, ...(parsed.orgId ? { p_org_id: parsed.orgId } : {}) })
+  // The K3 box: no ticked box for the CURRENT Terms version, no order. The database refuses the same way (drizzle/0748); this saves the round trip.
+  const consent = readTermsConsent(body)
+  if (!consent.given) return json(CONSENT_REQUIRED_BODY, 400, cors)
+
+  // Owner check + price + attempt row + the recorded tick, all in the database under the caller's own JWT.
+  const { data, error } = await callerClient(authHeader).rpc("dpdp_pay_begin", {
+    p_interval: parsed.interval, ...(parsed.orgId ? { p_org_id: parsed.orgId } : {}), p_terms_version: consent.version, p_terms_accepted: consent.accepted,
+  })
   if (error) {
+    if ((error as { hint?: string }).hint === CONSENT_REQUIRED_CODE) return json(CONSENT_REQUIRED_BODY, 400, cors)
     const status = error.code === "42501" ? 403 : error.code === "22023" ? 400 : 500
     return json({ error: status === 500 ? "Could not start the payment" : error.message }, status, cors)
   }

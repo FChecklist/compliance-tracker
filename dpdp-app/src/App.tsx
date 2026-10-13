@@ -307,6 +307,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
         professionalBody: extra.professionalBody, registrationNo: extra.registrationNo,
         referralCode: landing.referralCode ?? recallReferral(), partnerCode: landing.partnerCode ?? recallPartner(),
         sourceTag: landing.sourceTag ?? recallSourceTag(), firstSeenAt: firstSeenAt(), billingContactEmail: extra.billingContactEmail,
+        termsAccepted: extra.termsAccepted,
       })
       // Everything else on the opening page is optional and never blocks: a failure here is not a reason to stop the sign-up.
       if (Object.keys(extra.profile).length > 0 || extra.practitionerDeclared) {
