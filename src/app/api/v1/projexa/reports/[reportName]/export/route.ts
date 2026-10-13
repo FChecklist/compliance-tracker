@@ -25,7 +25,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { boqBudgetVarianceReport, buildReportTable, designerTimesheetReport, ServiceError } from "@/lib/services/construction-reports-service"
 import { isValidReportName, runReportPayload } from "@/lib/services/report-run-dispatch"
-import { schemaFromTable, xlsxSafeRows } from "@/lib/services/report-table-document"
+import { emptyReportCsv, emptyReportXlsx, schemaFromTable, xlsxSafeRows } from "@/lib/services/report-table-document"
 import { getBaseCurrency } from "@/lib/services/erp-accounting-service"
 import { designerTimesheetExportRows, reportCsv, reportExportSchema, reportXlsxBuffer } from "@/lib/services/report-export"
 import { generateBudgetVarianceReportPdf, filterLabel } from "@/lib/pdf/budget-variance-report-pdf"
@@ -262,12 +262,12 @@ async function exportGenericReport(request: NextRequest, orgId: string, reportNa
     const period = searchParams.get("weekStart") ? `week of ${searchParams.get("weekStart")}` : searchParams.get("from") && searchParams.get("to") ? `${searchParams.get("from")} to ${searchParams.get("to")}` : null
 
     if (format === "csv") {
-      return new NextResponse(reportCsv(schema, table.rows, totals), {
+      return new NextResponse(table.rows.length === 0 ? emptyReportCsv(schema) : reportCsv(schema, table.rows, totals), {
         headers: { "Content-Type": CONTENT_TYPE.csv, "Content-Disposition": `attachment; filename="${filename}.csv"` },
       })
     }
     if (format === "xlsx") {
-      const bytes = new Uint8Array(reportXlsxBuffer(schema, xlsxSafeRows(table.rows), totals))
+      const bytes = new Uint8Array(table.rows.length === 0 ? emptyReportXlsx(schema) : reportXlsxBuffer(schema, xlsxSafeRows(table.rows), totals))
       return new NextResponse(new Blob([bytes], { type: CONTENT_TYPE.xlsx }), {
         headers: { "Content-Type": CONTENT_TYPE.xlsx, "Content-Disposition": `attachment; filename="${filename}.xlsx"` },
       })

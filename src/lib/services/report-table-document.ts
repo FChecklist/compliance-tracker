@@ -3,7 +3,8 @@
 // Export menu offered PDF and XLSX for 3 of 24 reports and a browser-built CSV for the rest. This turns ANY report's table into the same
 // ReportExportSchema the three hand-described reports use, so PDF / XLSX / CSV come from the rows the screen showed and cannot disagree with them.
 import type { ReportTable } from "@/lib/services/construction-reports-service"
-import { EMPTY, type ReportExportColumn, type ReportExportSchema } from "@/lib/services/report-export"
+import { EMPTY, schemaColumnLabels, type ReportExportColumn, type ReportExportSchema } from "@/lib/services/report-export"
+import { csvEscape } from "@/lib/report-export-shared"
 
 /** "manpower-daily-summary" -> "Manpower Daily Summary". */
 export function reportTitleFromSlug(slug: string): string {
@@ -46,6 +47,22 @@ export function schemaFromTable(slug: string, table: Pick<ReportTable, "columns"
 /** Rows for the XLSX: text cells guarded against formula injection. */
 export function xlsxSafeRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
   return rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, guardCell(v)])))
+}
+
+/**
+ * A report with no rows must still download as a file that names its columns: the writers build the header from the first row, so an empty report
+ * came out as a 0-byte CSV and a sheet with no header (live finding 2026-10-13: site-picture and kpi on a project with no photos / KPIs).
+ */
+export function emptyReportCsv(schema: ReportExportSchema): string {
+  return schemaColumnLabels(schema).map((l) => csvEscape(l)).join(",")
+}
+
+export function emptyReportXlsx(schema: ReportExportSchema): Buffer {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- same lazy load as report-export-shared.ts's rowsToXLSXBuffer
+  const XLSX = require("xlsx") as typeof import("xlsx")
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([schemaColumnLabels(schema)]), schema.sheetName)
+  return XLSX.write(wb, { bookType: "xlsx", type: "buffer" }) as Buffer
 }
 
 export { EMPTY }
