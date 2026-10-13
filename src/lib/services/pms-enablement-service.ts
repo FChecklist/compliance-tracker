@@ -36,7 +36,7 @@ const DEFAULT_ISSUE_TYPES = [
 
 // Copy-on-enable: seed org-owned default issue types, only if this org has
 // none yet (re-enabling after a disable must not duplicate them).
-async function seedDefaultIssueTypes(db: TenantDb, orgId: string): Promise<void> {
+export async function seedDefaultIssueTypes(db: TenantDb, orgId: string): Promise<void> {
   const existingTypes = await db.query.pmsIssueTypes.findMany({ where: eq(pmsIssueTypes.orgId, orgId) })
   if (existingTypes.length === 0) {
     await db.insert(pmsIssueTypes).values(DEFAULT_ISSUE_TYPES.map((t) => ({ orgId, ...t })))

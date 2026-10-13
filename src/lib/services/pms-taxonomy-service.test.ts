@@ -135,7 +135,37 @@ describe("resolveDefaultIssueTypeId / resolveDefaultStatusId -- the 60 s lookup 
     expect(await resolveDefaultIssueTypeId({ orgId: F33_ORG })).toBeNull()
     f33Types = [{ id: "type-task", isDefault: true }]
     expect(await resolveDefaultIssueTypeId({ orgId: F33_ORG })).toBe("type-task")
-    expect(f33TypeReads).toBe(2)
+    // first call: list + the seeding check + list again (still nothing in this stub); second call: one list
+    expect(f33TypeReads).toBe(4)
+  })
+
+  // Sumeet live UAT 2026-10-13: an organisation opened through projexa_provision_org had PMS enabled but no issue types, so its first task was refused.
+  test("an org with NO issue types gets the defaults seeded on first use (copy-on-first-use), then a default type is returned and cached", async () => {
+    const { resolveDefaultIssueTypeId } = await import("./pms-taxonomy-service")
+    let seeded: Array<{ orgId: string; name: string; isDefault: boolean }> = []
+    f33Types = []
+    const seedingDb = {
+      query: { pmsIssueTypes: { findMany: async () => { f33TypeReads += 1; return f33Types } } },
+      insert: () => ({
+        values: async (rows: Array<{ orgId: string; name: string; isDefault: boolean }>) => {
+          seeded = rows
+          f33Types = rows.map((r, i) => ({ id: `seeded-${i}`, isDefault: r.isDefault }))
+        },
+      }),
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...f33RealTenantScoped,
+      withTenantContext: async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(seedingDb),
+    }))
+    const id = await resolveDefaultIssueTypeId({ orgId: "org-never-enabled-via-pms" })
+    expect(id).toBe("seeded-0")
+    expect(seeded.map((r) => r.name)).toEqual(["Task", "Bug", "Story", "Epic"])
+    expect(seeded.every((r) => r.orgId === "org-never-enabled-via-pms")).toBe(true)
+    expect(seeded.filter((r) => r.isDefault)).toHaveLength(1)
+    // cached now: no further read
+    const reads = f33TypeReads
+    expect(await resolveDefaultIssueTypeId({ orgId: "org-never-enabled-via-pms" })).toBe("seeded-0")
+    expect(f33TypeReads).toBe(reads)
   })
 
   test("creating an issue type drops the cached answer, so the next create sees the new taxonomy", async () => {
