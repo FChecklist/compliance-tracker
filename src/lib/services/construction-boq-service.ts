@@ -401,6 +401,10 @@ export function normalizeCategory(category: string | null | undefined): string |
   return trimmed === "" ? null : trimmed
 }
 
+// The revise form gives a line saved without an item code an invented one, `_row_<id>` (the id is a cuid, so it holds no `_`; a de-dup suffix such as
+// `_x` or `_1` may follow). See currentLineItemKey below for how a diff resolves it.
+const SYNTHETIC_ROW_CODE = /^_row_([^_]+)(?:_.*)?$/
+const isInventedRowCode = (code: string | null | undefined): boolean => Boolean(code && SYNTHETIC_ROW_CODE.test(code))
 export async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
   if (items.length === 0) return
   const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
@@ -427,7 +431,9 @@ export async function insertLineItems(db: TenantDb, orgId: string, boqId: string
           orgId,
           boqId,
           activityId: item.activityId || null,
-          itemCode: item.itemCode || null,
+          // An invented `_row_<id>` code only exists so parent/child links survive the revise form's round trip; it is never a real item code, so
+          // it is not stored (links are resolved below through the INPUT code, in insertion order).
+          itemCode: isInventedRowCode(item.itemCode) ? null : item.itemCode || null,
           parentLineItemId: item.parentItemCode ? idByItemCode.get(item.parentItemCode)! : null,
           breakdownPercentage: item.breakdownPercentage !== undefined ? String(item.breakdownPercentage) : null,
           description: item.description,
@@ -460,7 +466,10 @@ export async function insertLineItems(db: TenantDb, orgId: string, boqId: string
       })
     ).returning({ id: constructionBoqLineItems.id, itemCode: constructionBoqLineItems.itemCode })
 
-    for (const row of inserted) if (row.itemCode) idByItemCode.set(row.itemCode, row.id)
+    // Postgres returns a multi-row INSERT's rows in the order given, so row i is ready[i]: link by the INPUT code (an invented one is not stored).
+    ready.forEach((item, i) => {
+      if (item.itemCode) idByItemCode.set(item.itemCode, inserted[i].id)
+    })
     remaining = notReady
   }
 }
@@ -1961,7 +1970,6 @@ function lineItemKey(item: BoqLineItemRow) {
 // that changed nothing therefore read as "removes the whole line", and was hard-
 // blocked whenever the line had progress. The invented code names the previous
 // row it came from, so resolve it back to that row's own key.
-const SYNTHETIC_ROW_CODE = /^_row_([^_]+)(?:_.*)?$/
 
 function currentLineItemKey(item: BoqLineItemRow, previousById: Map<string, BoqLineItemRow>) {
   const match = item.itemCode ? SYNTHETIC_ROW_CODE.exec(item.itemCode) : null
