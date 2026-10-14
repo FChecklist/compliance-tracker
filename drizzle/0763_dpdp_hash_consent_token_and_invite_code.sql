@@ -45,7 +45,7 @@ create unique index if not exists consent_token_token_hash_key on dpdp.consent_t
 
 create or replace function dpdp.consent_token_protect()
 returns trigger
-language plpgsql
+language plpgsql security definer
 set search_path = ''
 as $$
 begin
