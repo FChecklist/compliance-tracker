@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs"
 import {
   type AttemptFacts, type CapturedPayment, SUPPORTED_EVENTS, basicAuthHeader, buildPaymentLinkBody, constantTimeEqual, corsHeadersFor, decideWebhook,
   hmacSha256Hex, httpStatusFor, parseCreateRequest, parseNotes, parsePaymentLinkResponse, parseWebhookEvent, razorpayConfigured, verifyWebhookSignature,
-  PRODUCT_CODE, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, parseOrderResponse, parseVerifyRequest, receiptFor, verifyCheckoutSignature,
+  CONSENT_REQUIRED_BODY, readTermsConsent, PRODUCT_CODE, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, parseOrderResponse, parseVerifyRequest, receiptFor, verifyCheckoutSignature,
 } from "../../../supabase/functions/dpdp-pay/logic"
 
 const SECRET = "whsec_test_not_a_real_secret"
@@ -245,6 +245,23 @@ describe("creating the payment link", () => {
     expect(parseCreateRequest(null).ok).toBe(false)
     const withAmount = parseCreateRequest({ interval: "year", amountPaise: 1 })
     expect(withAmount.ok && Object.keys(withAmount)).not.toContain("amountPaise")
+  })
+  test("the K3 box (drizzle/0748): only the CURRENT Terms version with a boolean true is a tick; the refusal is one sentence and one code", () => {
+    expect(readTermsConsent({ termsVersion: "2026-10-13", termsAccepted: true })).toEqual({ version: "2026-10-13", accepted: true, given: true })
+    for (const body of [null, {}, { termsAccepted: true }, { termsVersion: "2026-10-13" }, { termsVersion: "2026-10-13", termsAccepted: false },
+      { termsVersion: "2026-10-12", termsAccepted: true }, { termsVersion: "2026-10-13", termsAccepted: "true" }, { termsVersion: 20261013, termsAccepted: true }]) {
+      expect(readTermsConsent(body).given, JSON.stringify(body)).toBe(false)
+    }
+    expect(CONSENT_REQUIRED_BODY).toEqual({ error: "Please tick the box to continue.", code: "consent-required" })
+  })
+  test("the dpdp-pay function refuses before it asks Razorpay for an order, and passes the version and the tick to dpdp_pay_begin", () => {
+    const src = readFileSync(new URL("../../../supabase/functions/dpdp-pay/index.ts", import.meta.url), "utf8")
+    const refuse = src.indexOf("if (!consent.given) return json(CONSENT_REQUIRED_BODY, 400, cors)")
+    expect(refuse).toBeGreaterThan(0)
+    expect(refuse).toBeLessThan(src.indexOf('.rpc("dpdp_pay_begin"'))
+    expect(src.indexOf('.rpc("dpdp_pay_begin"')).toBeLessThan(src.indexOf("`${RAZORPAY_API}/orders`"))
+    expect(src).toContain("p_terms_version: consent.version, p_terms_accepted: consent.accepted")
+    expect(src).toContain("hint === CONSENT_REQUIRED_CODE")
   })
   test("Basic auth header and the 'keys present' check", () => {
     expect(basicAuthHeader("rzp_test_id", "sec")).toBe("Basic " + Buffer.from("rzp_test_id:sec").toString("base64"))

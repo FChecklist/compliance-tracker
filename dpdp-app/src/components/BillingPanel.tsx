@@ -5,6 +5,8 @@ import { PayFrameError, payViaFrame } from "@/lib/pay-frame"
 import type { BillingStatusPayload, MyAccountPayload } from "@/lib/rpc-types"
 import { parseDbTimestamp } from "@/lib/db-time"
 import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
+import { BOX_K3 } from "@/lib/terms"
+import { TermsCheckbox, TermsWhy } from "./TermsBox"
 
 // Where to actually send the money -- swap these for the real values the
 // moment the Owner shares them (bank/UPI details + a QR code image at
@@ -98,6 +100,7 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
   const [error, setError] = useState<string | null>(null)
   const [onlineOff, setOnlineOff] = useState(false)
   const [payStatus, setPayStatus] = useState<"idle" | "waiting" | "received" | "slow">("idle")
+  const [terms, setTerms] = useState(false) // K3: never pre-ticked
 
   useEffect(() => {
     let cancelled = false
@@ -149,10 +152,10 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
   if (billing === undefined || billing === null) return null
 
   async function payOnline() {
-    if (!billing) return
+    if (!billing || !terms) return
     setBusy(true)
     setError(null)
-    const r = await startOnlinePayment(client, orgId)
+    const r = await startOnlinePayment(client, orgId, terms)
     if (!r.ok) {
       if (r.notEnabled) setOnlineOff(true)
       else setError(r.error)
@@ -263,9 +266,13 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
                   {onlineOff
                     ? <p style={{ margin: 0 }}>Online payment is not switched on yet. Please pay by bank transfer and email {PAY_EMAIL} with the reference.</p>
                     : (
-                      <button type="button" onClick={payOnline} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
-                        {busy ? "Opening…" : `Renew online -- ${formatRupees(yearPaise)}`}
-                      </button>
+                      <>
+                        <TermsCheckbox box={BOX_K3} checked={terms} onChange={setTerms} disabled={busy} />
+                        <button type="button" onClick={payOnline} disabled={busy || !terms} aria-describedby={terms ? undefined : "terms-why-k3"} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5, opacity: busy || !terms ? 0.6 : 1 }}>
+                          {busy ? "Opening…" : `Renew online -- ${formatRupees(yearPaise)}`}
+                        </button>
+                        <TermsWhy id="terms-why-k3" ticked={terms} />
+                      </>
                     )}
                 </div>
               )}
@@ -309,9 +316,11 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
                     <p style={{ margin: 0, fontSize: 12.5 }}>Online payment is not switched on yet. Please pay by bank transfer below.</p>
                   ) : (
                     <>
-                      <button type="button" onClick={payOnline} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
+                      <TermsCheckbox box={BOX_K3} checked={terms} onChange={setTerms} disabled={busy} />
+                      <button type="button" onClick={payOnline} disabled={busy || !terms} aria-describedby={terms ? undefined : "terms-why-k3"} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5, opacity: busy || !terms ? 0.6 : 1 }}>
                         {busy ? "Opening…" : `Pay online -- ${formatRupees(yearPaise)} a year`}
                       </button>
+                      <TermsWhy id="terms-why-k3" ticked={terms} />
                       <p style={{ margin: "6px 0 0", fontSize: 12 }}>
                         You go to Razorpay's own page to pay. Your card or UPI details are entered there, not on this site. We email a receipt once the payment is confirmed.
                       </p>

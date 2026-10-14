@@ -635,7 +635,7 @@ describe("section P (jobs to do first), T (talk), M (emails), W (paths and files
     expect(p).toContain("JOB job-a1 · Publish the Grievance Officer's name and contact (late by 9 days, required by today's law) · Part 1, Basics · due 26 September 2026 · for ravi@acmeca.in")
     expect(p).toContain("JOB job-c3 · Take consent before marketing · Part 3, Tell people & take consent · due 20 October 2026 · nobody looks after it yet")
     expect(p).toContain("- Law: DPDP Act 2023 §8(9) (publish the business contact information")
-    expect(p).toContain("[this number is not yet lawyer-confirmed: say so if you cite it]")
+    expect(p).toContain("[please confirm this number with an advocate or CA: say so if you cite it]")
     expect(p).toContain("Required by today's law.")
     expect(p).toContain("Not required by today's law; the DPDP Act starts on 13 May 2027.")
     expect(p).toContain("- Law: good practice, not a legal duty. Not required by today's law")

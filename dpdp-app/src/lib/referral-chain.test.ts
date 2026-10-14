@@ -108,9 +108,10 @@ describe("referral carry-through: share link -> ref.js -> localStorage -> sign-u
   test("the RPC argument names in api.ts are the parameter names of the real dpdp_create_my_org", () => {
     const api = read("src/lib/api.ts")
     expect(api).toContain('client.rpc("dpdp_create_my_org", { p_name: name, p_product: product, p_referral_code: referralCode?.trim() || null })')
-    // the LAST migration that defines the function is the one that is live
+    // the LAST migration that defines the function BODY is the one that is live. 0748 only puts the Terms-box check in front of it (the body
+    // is renamed dpdp__create_my_org_core, unchanged), so it is not a body definition.
     const dir = join(root, "..", "drizzle")
-    const defs = readdirSync(dir).filter((f) => /^0\d{3}_.*\.sql$/.test(f) && f >= "0654").sort()
+    const defs = readdirSync(dir).filter((f) => /^0\d{3}_.*\.sql$/.test(f) && f >= "0654" && f !== "0748_dpdp_terms_acceptance.sql").sort()
       .filter((f) => /create or replace function public\.dpdp_create_my_org\(/i.test(readFileSync(join(dir, f), "utf8")))
     expect(defs.length).toBeGreaterThan(0)
     const last = readFileSync(join(dir, defs[defs.length - 1]), "utf8")

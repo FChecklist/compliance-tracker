@@ -70,10 +70,6 @@ const WEBSITE_ID = `${PUBLIC_ORIGIN}/#website`
 const LOGO_URL = `${PUBLIC_ORIGIN}/logo.png`
 const ICON_PATH = "/favicon-48.png"
 
-/** The three "not yet" renderings. Never a number, never a name, when the
- * facts file says null. */
-const orNotRecorded = (v) => (v === null || v === undefined ? "not yet recorded" : String(v))
-
 // The handful of entities the landings use (same table as
 // scripts/check-public-surface.mjs).
 export function decodeEntities(s) {
@@ -361,10 +357,12 @@ function companyLines(facts) {
 }
 
 function libraryLines(facts) {
-  return [
-    `Version ${facts.library.version}: ${facts.library.job_count} jobs, each mapped to its legal source.`,
-    `Reviewer: ${orNotRecorded(facts.library.reviewer)}. Reviewed on: ${orNotRecorded(facts.library.reviewed_on)}.`,
-  ]
+  const lines = [`Version ${facts.library.version}: ${facts.library.job_count} jobs, each mapped to its legal source.`]
+  // Owner, 2026-10-14: no public page may say a review is pending or not recorded. The reviewer line appears only once a reviewer exists.
+  if (facts.library.reviewer && facts.library.reviewed_on) {
+    lines.push(`Reviewed by ${facts.library.reviewer} on ${facts.library.reviewed_on}.`)
+  }
+  return lines
 }
 
 const withEmailOff = (s) => (s.includes("@") ? EMAIL_OFF(esc(s)) : esc(s))
@@ -551,7 +549,7 @@ function proofPage(facts, proof) {
     sectionsHtml([
       { h2: "In use", paragraphs: asOf, bullets: aggregates },
       { h2: "Case studies", bullets: cases },
-      { h2: "The job library and its reviewer", paragraphs: libraryLines(facts) },
+      { h2: "The job library", paragraphs: libraryLines(facts) },
     ]),
     `  <!-- BEGIN generated: facts -->`,
     indent(factBlock(facts), 2),

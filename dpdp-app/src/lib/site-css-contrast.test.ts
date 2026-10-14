@@ -132,6 +132,48 @@ describe("WO-DPDP-014 §2: the brand line meets WCAG AA contrast and the 12px fl
   })
 })
 
+describe("2026-10-13: phone audit -- footer text is at least 12px with AA contrast, links are at least 44px tall", () => {
+  const vars = rootVars()
+
+  test(".footer-legal (the disclaimer line and the footer link rows) is >= 12px and >= 4.5:1 on the footer background", () => {
+    expect(parseFloat(ruleProp(".footer-legal", "font-size"))).toBeGreaterThanOrEqual(12)
+    const fg = resolve(ruleProp(".footer-legal", "color"), vars)
+    const bg = resolve(ruleProp(".footer", "background"), vars)
+    expect(fg).not.toMatch(/rgba/) // a translucent colour hides the real contrast
+    expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(AA)
+  })
+
+  test(".band-note is >= 12px", () => {
+    expect(parseFloat(ruleProp(".band-note", "font-size"))).toBeGreaterThanOrEqual(12)
+  })
+
+  test("no text on the public pages is set below 12px except the two decorative labels (.wordmark-sub, .card-badge)", () => {
+    const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "")
+    for (const m of stripped.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      const size = /(?:^|;|\s)font-size\s*:\s*([\d.]+)px/.exec(m[2])
+      if (!size || parseFloat(size[1]) >= 12) continue
+      expect(m[1].trim(), `font-size ${size[1]}px`).toMatch(/\.wordmark-sub|\.card-badge/)
+    }
+  })
+
+  test("header, link-row and footer links are 44px tall (min-height 44px on a flex box)", () => {
+    const block = /(\.nav-signin,[\s\S]*?\.footer-line a)\s*\{([^}]*)\}/.exec(css)
+    if (!block) throw new Error("site.css lost its tap-target rule")
+    for (const sel of [".nav-signin", ".nav-partner", ".nav-ai", ".nav-links a", ".facts-links a", ".footer-legal a", ".footer-line a"]) {
+      expect(block[1], sel).toContain(sel)
+    }
+    expect(block[2]).toMatch(/min-height:\s*44px/)
+    expect(block[2]).toMatch(/display:\s*inline-flex/)
+  })
+
+  test("the company-line link (inside a sentence) grows its hit area with padding to >= 44px and cancels it with an equal negative margin", () => {
+    const body = /\.footer-company a\s*\{\s*display:\s*inline-block;\s*padding:\s*(\d+)px[^;]*;\s*margin:\s*-(\d+)px/.exec(css)
+    if (!body) throw new Error("site.css lost the company-line tap-target rule")
+    expect(body[1]).toBe(body[2])
+    expect(parseFloat(ruleProp(".footer-company", "font-size")) * 1.6 + 2 * Number(body[1])).toBeGreaterThanOrEqual(44)
+  })
+})
+
 describe("2026-10-02: the company ownership line in the footer is readable type with AA contrast", () => {
   const vars = rootVars()
 
@@ -143,5 +185,21 @@ describe("2026-10-02: the company ownership line in the footer is readable type 
     const bg = resolve(ruleProp(".footer", "background"), vars)
     expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(AA)
     expect(ruleProp(".footer-company a", "color")).toBe("inherit")
+  })
+})
+
+// Found by the 2026-10-14 live walkthrough at 360px: the home page's "For professionals / For organisations" labels and its Done / Waiting chips
+// were 11px. The only sizes below 12px that remain are the two logo labels named above (.wordmark-sub, .card-badge), in site.css and home.css.
+describe("home.css: no readable text under 12px", () => {
+  const home = readFileSync(join(import.meta.dir, "..", "home.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")
+  test("every font-size / font shorthand in home.css is >= 12px, except the nav logo label (.wordmark-sub)", () => {
+    for (const m of home.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      const body = m[2]
+      const px = /(?:^|;|\s)font-size\s*:\s*([\d.]+)px/.exec(body) ?? /(?:^|;|\s)font\s*:\s*[^;]*?\b([\d.]+)px\b/.exec(body)
+      const rem = /(?:^|;|\s)font-size\s*:\s*([\d.]+)rem/.exec(body)
+      const size = px ? parseFloat(px[1]) : rem ? parseFloat(rem[1]) * 16 : null
+      if (size === null || size >= 12) continue
+      expect(m[1].trim(), `font size ${size}px`).toMatch(/\.wordmark-sub/)
+    }
   })
 })

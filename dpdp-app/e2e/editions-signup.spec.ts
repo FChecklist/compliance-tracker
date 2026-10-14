@@ -10,6 +10,8 @@ import { test, expect, type Page } from "@playwright/test"
 // step5-by-role; the live-database version of every role is
 // src/lib/services/dpdp-editions-roles.test.ts.
 
+const BOX_K2 = "I have read and agree to the Terms & Conditions and the Privacy Policy."
+
 type Edition = { slug: "firm" | "institution"; path: string; radio: string; otherRadio: string; email: string; area: string }
 const EDITIONS: Edition[] = [
   { slug: "firm", path: "/dpdp-firm/", radio: "A company, firm or NGO", otherRadio: "A school or institution", email: "new-firm-owner@example.test", area: "All staff" },
@@ -47,11 +49,15 @@ for (const ed of EDITIONS) {
       await expect(page.getByText(ed.email)).toBeVisible()
       await expect(page.getByText("Invited by someone else?", { exact: false })).toBeVisible()
 
-      // The name is required: nothing happens without one.
-      await page.getByRole("button", { name: "Open my organisation", exact: true }).click()
+      // The name is required, and so is the K2 box: the button waits (disabled) and nothing is opened.
+      await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeDisabled()
       await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
 
       await page.getByLabel("Organisation name", { exact: true }).fill(`Mehta ${ed.slug} 1`)
+      // The K2 box is never pre-ticked: the button waits (and says why) until it is.
+      await expect(page.getByRole("checkbox", { name: BOX_K2 })).not.toBeChecked()
+      await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeDisabled()
+      await page.getByRole("checkbox", { name: BOX_K2 }).check()
       await page.getByRole("button", { name: "Open my organisation", exact: true }).click()
 
       // The owner's own first visit: the list, then who looks after what.
@@ -93,6 +99,9 @@ test.describe("a visitor with no organisation", () => {
 
     await page.getByLabel("Organisation name", { exact: true }).fill("St Anne's High School")
     await page.getByLabel("A school or institution", { exact: true }).check()
+    await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeDisabled() // the K2 box is still unticked
+    await expect(page.getByText("Please tick the box to continue.", { exact: true })).toBeVisible()
+    await page.getByRole("checkbox", { name: BOX_K2 }).check()
     await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeEnabled()
     await page.getByRole("button", { name: "Open my organisation", exact: true }).dblclick()
 

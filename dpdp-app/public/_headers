@@ -15,9 +15,17 @@
 # headers itself -- _headers only applies to static assets -- but the rule is
 # kept here so the one list in public-surface.mjs stays whole.
 
+# Framing and device access (2026-10-13): no page may be shown inside another site's frame, and
+# no page asks for the camera, microphone or location. Deliberately NOT a full script/style
+# Content-Security-Policy -- only the frame-ancestors directive -- so nothing the app loads can
+# break. _headers applies to static files only; the /ai/* Pages Function (the one that returns
+# pages) sends X-Frame-Options and Permissions-Policy itself (functions/ai/_proxy.ts).
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
 
 # Caching (speed, 2026-10-01). Only files whose bytes can never change under
 # the same URL are cached hard:

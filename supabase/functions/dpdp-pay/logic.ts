@@ -24,6 +24,8 @@
 //   * A second, different payment id for an attempt that is already paid is NOT recorded
 //     automatically: it is flagged for the owner (it is real money that needs a human).
 
+import { CONSENT_REQUIRED_CODE, CONSENT_REQUIRED_MESSAGE, TERMS_VERSION } from "../_shared/terms.ts"
+
 export const RAZORPAY_API = "https://api.razorpay.com/v1"
 
 /** Events that can record money. Anything else that is validly signed is acknowledged and ignored. */
@@ -261,6 +263,12 @@ export const productNotes = (plan: string, interval: string, variation?: string 
 /** Receipt: "dpdp_" + our attempt id, at most 40 characters (Razorpay's limit). Starts with the product so a Razorpay export alone shows what each payment was for. */
 export const receiptFor = (attemptId: string): string => `dpdp_${attemptId}`.slice(0, 40)
 
+/** The id that ties Razorpay (A), the central ledger (B) and our own ledger (C) together for ONE website payment (= one "Pay online" press = one dpdp.payment_attempt row):
+ *  "DPD-" + the receipt. The central service builds the same text from the payment_ref we send it (its SITE_CODES entry for veridian-aios.com), and the database column
+ *  dpdp.payment_attempt.txn_id (drizzle/0749) is generated from the attempt id with the same recipe, so none of the three can drift. A bun test compares them. */
+export const SITE_CODE = "DPD"
+export const txnIdOf = (attemptId: string): string => `${SITE_CODE}-${receiptFor(attemptId)}`
+
 export type OrderRequest = {
   attemptId: string
   orgId: string
@@ -278,7 +286,7 @@ export function buildOrderBody(r: OrderRequest): Record<string, unknown> {
     amount: r.amountPaise,
     currency: r.currency,
     receipt: receiptFor(r.attemptId),
-    notes: { ...productNotes(r.plan, r.interval, r.variation), site: CENTRAL_SITE, stream: "sales", org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, plan: r.plan, organisation: r.orgName.slice(0, 80) },
+    notes: { ...productNotes(r.plan, r.interval, r.variation), site: CENTRAL_SITE, stream: "sales", txn_id: txnIdOf(r.attemptId), org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, plan: r.plan, organisation: r.orgName.slice(0, 80) },
   }
 }
 
@@ -383,6 +391,21 @@ export function parseCreateRequest(body: unknown): { ok: true; interval: Interva
   const orgId = str(body.orgId)
   return { ok: true, interval: "year", orgId }
 }
+
+/**
+ * The K3 box ("I agree to the Terms and the Refund Policy.") as the request carries it. `given` is true only for the CURRENT Terms version
+ * AND a boolean true: anything else (missing, "true" as a string, an older version) is not a tick. The database re-checks the same two
+ * things and is the authority; this early refusal just saves a Razorpay round trip and gives the browser the same sentence and code.
+ */
+export function readTermsConsent(body: unknown): { version: string | null; accepted: boolean; given: boolean } {
+  const o = isObj(body) ? body : {}
+  const version = typeof o.termsVersion === "string" ? o.termsVersion : null
+  const accepted = o.termsAccepted === true
+  return { version, accepted, given: accepted && version === TERMS_VERSION }
+}
+
+/** The refusal body for a payment request without the tick: HTTP 400, this sentence, this code. */
+export const CONSENT_REQUIRED_BODY = { error: CONSENT_REQUIRED_MESSAGE, code: CONSENT_REQUIRED_CODE } as const
 
 /** Razorpay credentials present? Both halves, non-empty. Webhook secret is checked separately (it is not needed to create a link). */
 export function razorpayConfigured(keyId: string | null | undefined, keySecret: string | null | undefined): boolean {
