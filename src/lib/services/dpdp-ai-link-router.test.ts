@@ -8,7 +8,7 @@ import { ENDPOINTS, PAGINATION, RATE_LIMIT } from "../../../supabase/functions/d
 import { BRAND_LINE, PREPARED_WITH } from "../../../supabase/functions/dpdp-ai-link/facts"
 import { citeLawCode } from "../../../supabase/functions/dpdp-ai-link/law"
 import {
-  LINK_GONE, contentTypeFor, csvEscape, errorBody, isRateLimited, jobFilters, lawWithWords, methodsFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
+  LINK_GONE, isPrefetchRequest, contentTypeFor, csvEscape, errorBody, isRateLimited, jobFilters, lawWithWords, methodsFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
   renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderReportCsv, renderReportMarkdown, reportFooterCsv, reportFooterMarkdown,
   type JobDetail, type JobRow, type ReportPayload,
 } from "../../../supabase/functions/dpdp-ai-link/router"
@@ -238,5 +238,17 @@ describe("WO-DPDP-014 §4/§6: report footers", () => {
     expect(byLaw).toContain("| g: | Good practice | good practice |")
     expect(renderReportMarkdown(kinds[3])).toContain("## Part 1 — Basics ✓ complete")
     expect(renderReportCsv(kinds[3]).split("\n")[1]).toBe("1,Basics,o1,X,a@x.test,2026-09-01,done")
+  })
+})
+
+describe('the GET-only write fallback is refused for a page fetched ahead of time (audit fix 27)', () => {
+  const h = (o: Record<string, string>) => new Headers(o)
+  test('prefetch, prerender and preview requests are recognised; a plain fetch by an assistant is not', () => {
+    expect(isPrefetchRequest(h({ purpose: 'prefetch' }))).toBe(true)
+    expect(isPrefetchRequest(h({ 'sec-purpose': 'prefetch;prerender' }))).toBe(true)
+    expect(isPrefetchRequest(h({ 'x-moz': 'prefetch' }))).toBe(true)
+    expect(isPrefetchRequest(h({ purpose: 'preview' }))).toBe(true)
+    expect(isPrefetchRequest(h({}))).toBe(false)
+    expect(isPrefetchRequest(h({ 'user-agent': 'ChatGPT-User/1.0', accept: 'application/json' }))).toBe(false)
   })
 })

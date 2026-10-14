@@ -951,6 +951,7 @@ describe("review: withdrawals and requests as people really type them, on the tw
     "Send me all the data you have on me", "What is the information you hold about me?", "Do you hold my data? Tell me.", "I want my data back",
     "Update my phone number in your records", "Please correct my name in your records", "Kindly do not share my data with third parties",
     "I object to the processing of my data", "Nominate my brother as my nominee under the DPDP Act",
+    "I want to name a nominee to use my rights if I cannot", "Please record my nominee: my wife", "I would like to nominate another person to act for me",
     "I no longer wish to receive this", "Kindly discontinue these mails", "I don’t want these emails", "कृपया माझा डेटा हटवा.",
     "mail band karo", "ye email sab band kijiye", "mujhe ye mail nahi chahiye", "mujhe mera data chahiye",
     "मुझे ये मेल नहीं चाहिए", "ये ईमेल बंद करो", "मुझे मेरा डेटा चाहिए", "मेरी अनुमति वापस", "मुझे मेरी जानकारी चाहिए",

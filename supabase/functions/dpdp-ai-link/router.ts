@@ -128,6 +128,16 @@ export function methodOverride(method: string, route: Route, params: URLSearchPa
   return { method: "POST", body: body || "{}" }
 }
 
+/**
+ * A browser or a link-preview tool that fetches a page ahead of time (prefetch / prerender) must never trigger a write, which the GET-only fallback would otherwise
+ * allow: such a request announces itself with a `Purpose: prefetch`, `Sec-Purpose: prefetch;prerender` or `X-Moz: prefetch` header. A chat assistant that
+ * really fetches the address sends none of these (audit fix 27, 2026-10-14).
+ */
+export function isPrefetchRequest(headers: { get(name: string): string | null }): boolean {
+  const v = `${headers.get("sec-purpose") ?? ""} ${headers.get("purpose") ?? ""} ${headers.get("x-moz") ?? ""}`.toLowerCase()
+  return /prefetch|prerender|preview/.test(v)
+}
+
 /** The methods a route accepts: one, except /suggestions, which is read (GET) and written (POST). */
 export function methodsFor(route: Route): ReadonlyArray<"GET" | "POST"> {
   return route.kind === "suggestions" ? ["GET", "POST"] : [methodFor(route)]

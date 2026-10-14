@@ -33,7 +33,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
 import {
-  LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodsFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
+  LINK_GONE, contentTypeFor, errorBody, isPrefetchRequest, isRateLimited, jobFilters, lawWithWords, methodsFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
   maskEmails, maskPersonal, methodOverride, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
   type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
 } from "./router.ts"
@@ -48,12 +48,12 @@ import { mailGate } from "../_shared/mail-gate.ts"
 // Audit trail (drizzle/0731): one audit row per call, joined to the call log above by ai_call_id. Never blocks or fails a call.
 import { GUIDE_ROUTES, auditAiLinkCall, sha256HexOfBytes } from "../_shared/audit/ai-call.ts"
 import { parseVendorRanges } from "../_shared/audit/provenance.ts"
-import { type KeyRing, keyRingFrom } from "../_shared/audit/seal.ts"
+import { cachedKeyRing } from "../_shared/audit/seal.ts"
 import { type Rpc, makeWriter } from "../_shared/audit/writer.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
-let auditRingPromise: Promise<KeyRing> | null = null
-const auditRing = (): Promise<KeyRing> => (auditRingPromise ??= keyRingFrom((n) => Deno.env.get(n)))
+// Rebuilt after a failure (a secret set or fixed later takes effect on the next call, not only after a restart).
+const auditRing = cachedKeyRing((n) => Deno.env.get(n))
 const AUDIT_VENDOR_RANGES = parseVendorRanges(Deno.env.get("DPDP_AUDIT_VENDOR_IP_RANGES"))
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -386,6 +386,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const override = methodOverride(method, route, url.searchParams)
   let overrideError: Response | null = null
   if ("error" in override) overrideError = fail(override.status, override.error)
+  else if (override.method === "POST" && method === "GET" && isPrefetchRequest(req.headers)) overrideError = fail(403, "A page fetched ahead of time cannot make a change. Open the address itself to do this.")
   else if (override.method === "POST" && method === "GET") {
     method = "POST"
     request = new Request(url.toString(), { method: "POST", headers: { "content-type": "application/json", accept: req.headers.get("accept") ?? "application/json" }, body: override.body ?? "{}" })
