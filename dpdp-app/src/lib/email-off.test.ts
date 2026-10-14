@@ -57,10 +57,12 @@ describe("no visible e-mail address is left for Cloudflare to hide", () => {
   })
 
   test("the generated pages really do carry the marker (guards the generator, not just today's files)", () => {
-    for (const rel of ["about/index.html", "dpdp-firm/index.html", "dpdp-institution/index.html"]) {
-      const html = read(rel)
-      expect(html, rel).toContain("<!--email_off-->Write to")
-      expect(html, rel).toContain("<!--email_off-->Grievance Officer:")
+    const about = read("about/index.html")
+    expect(about).toContain("<!--email_off-->Write to")
+    expect(about).toContain("<!--email_off-->Grievance Officer:")
+    // the uniform footer (every page) keeps the seller's address readable for a reader without JavaScript
+    for (const rel of ["about/index.html", "dpdp-firm/index.html", "dpdp-institution/index.html", "index.html", "public/privacy/index.html"]) {
+      expect(read(rel), rel).toContain('<!--email_off--><a href="mailto:rajatsiroffice@gmail.com">rajatsiroffice@gmail.com</a><!--/email_off-->')
     }
   })
 })

@@ -6,7 +6,7 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
-import { PRIVATE_PAGES, PUBLIC_PAGES } from "./public-surface.mjs"
+import { LEGAL_PAGES, PRIVATE_PAGES, PUBLIC_PAGES } from "./public-surface.mjs"
 import { parseRedirects } from "./redirects.test"
 
 const APP = resolve(import.meta.dir, "../..")
@@ -28,7 +28,7 @@ describe("404 page", () => {
     for (const href of ["/", "/dpdp-firm/", "/dpdp-institution/", "/app/", "/contact/"]) expect(html).toContain(`href="${href}"`)
   })
   test("every internal link on it is a real page or file", () => {
-    const real = new Set([...PUBLIC_PAGES.map((p) => p.path), ...PRIVATE_PAGES.map((p) => p.prefix), "/contact/"])
+    const real = new Set([...PUBLIC_PAGES.map((p) => p.path), ...LEGAL_PAGES.map((p) => p.path), ...PRIVATE_PAGES.map((p) => p.prefix), "/contact/"])
     for (const m of html.matchAll(/href="(\/[^"]*)"/g)) {
       if (m[1] === "/legal/legal.css" || m[1] === "/favicon-48.png") expect(existsSync(join(APP, "public", m[1].slice(1)))).toBe(true)
       else expect(real.has(m[1])).toBe(true)

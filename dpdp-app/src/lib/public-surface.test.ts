@@ -236,7 +236,7 @@ describe("public/_headers: framing and device access (every page, public and pri
     const pages = [...PUBLIC_PAGES, ...PRIVATE_PAGES, ...HIDDEN_PAGES].map((p) => p.source).filter((s): s is string => typeof s === "string")
     expect(pages.length).toBeGreaterThan(10)
     for (const s of pages) {
-      for (const m of read(s).matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
+      for (const m of read(s).replace(/<!--[\s\S]*?-->/g, "").matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
         const attrs = m[1]
         expect(/\bsrc=/.test(attrs) || /type="application\/ld\+json"/.test(attrs) ? "ok" : `inline script in ${s}`, s).toBe("ok")
       }

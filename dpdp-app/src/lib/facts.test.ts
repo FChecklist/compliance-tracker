@@ -402,7 +402,7 @@ describe("no internal-process wording on any public surface", () => {
 describe("/partner/ (Sales Partner): the page says what the database does", () => {
   const sql = readFileSync(join(APP, "..", "drizzle", "0655_dpdp_wo016_refer_and_earn.sql"), "utf8")
   const html = read("partner/index.html")
-  const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ")
+  const text = html.replace(/<footer[\s\S]*?<\/footer>/g, " ").replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ")
 
   test("the yearly percentage on the page equals v_rate in dpdp_record_confirmed_payment; the monthly rule is not on the page (monthly is not sold today)", () => {
     const rates = [...sql.matchAll(/v_rate := (0\.\d+);/g)].map((m) => Math.round(Number(m[1]) * 100))
@@ -473,7 +473,7 @@ describe("/partner/terms/ (the Sales Partner agreement): the agreement says what
   const sql674 = readFileSync(join(APP, "..", "drizzle", "0674_dpdp_sales_partner_lifecycle.sql"), "utf8")
   const facts = loadFacts()
   const html = read("partner/terms/index.html")
-  const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/\s+/g, " ")
+  const text = html.replace(/<footer[\s\S]*?<\/footer>/g, " ").replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/\s+/g, " ")
 
   test("the version on the page is the version the database asks partners to accept", () => {
     const v = /terms_version text not null default '([^']+)'/.exec(sql674)![1]

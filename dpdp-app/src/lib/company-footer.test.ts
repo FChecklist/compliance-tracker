@@ -41,7 +41,7 @@ describe("the uniform footer", () => {
     for (const p of LEGAL_PAGES) {
       const html = read(p.source)
       const after = html.slice(html.indexOf("</footer>") + "</footer>".length)
-      expect(after.replace(/<script\b[^>]*><\/script>/g, "").replace(/\s+/g, ""), p.source).toBe("</body></html>")
+      expect(after.replace(/<script\b[^>]*><\/script>/g, "").replace(/<!--\/email_off-->/g, "").replace(/\s+/g, ""), p.source).toBe("</body></html>")
     }
   })
 
