@@ -235,7 +235,7 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
     try {
       const preview = d.render(placeholders)
       // The recorded subject is the one the recipient would see, prefix included.
-      const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: withSubjectPrefix(cls, preview.subject), p_status: "dry_run", p_body_text: preview.text })
+      const rec = await rpc<RecordResult>(sb, "dpdp_timer_record_email_send", { ...base, p_subject: withSubjectPrefix(cls, preview.subject), p_status: "dry_run" }) // metadata only: the body of an e-mail is never stored (drizzle/0762)
       if (rec.duplicate) { summary.skipped++; summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "skipped-duplicate" }); return }
       summary.dry_run++
       summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "dry_run" })

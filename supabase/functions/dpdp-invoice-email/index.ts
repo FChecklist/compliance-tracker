@@ -146,7 +146,7 @@ Deno.serve(async (req: Request) => {
   const { data: rec, error: recErr } = await sb.rpc("dpdp_timer_record_email_send", {
     p_org_id: d.orgId, p_membership_id: d.ownerMembershipId, p_identity_id: d.ownerIdentityId, p_obligation_ids: [],
     p_kind: "invoice", p_period_key: d.paymentId, p_to_email: d.ownerEmail, p_subject: out.subject,
-    p_status: dryRun ? "dry_run" : "queued", p_body_text: rendered.text,
+    p_status: dryRun ? "dry_run" : "queued", // metadata only: the body of an e-mail is never stored (drizzle/0762)
   })
   if (recErr) return json({ error: recErr.message }, 500)
   const rowId = (rec as { id: string | null } | null)?.id ?? null

@@ -767,13 +767,13 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
     } finally { warn.mockRestore() }
   })
 
-  test("a dry run records the placeholder, never mints a link, and never reads the person's AI changes", async () => {
+  test("a dry run records metadata only (no body is stored), never mints a link, and never reads the person's AI changes", async () => {
     resetWorld(); wire()
     const res = await post({ job: "monday", dryRun: true })
     expect(await res.json()).toMatchObject({ dryRun: true, dry_run: 1, sent: 0 })
     const rec = callsTo("dpdp_timer_record_email_send")[0].args
-    expect(rec.p_body_text).toContain("{{AI_WORK_LINK}}")
-    expect(rec.p_body_text).not.toMatch(/\/ai\/[0-9a-f]{64}/)
+    expect(rec.p_body_text).toBeUndefined() // drizzle/0762: the log keeps metadata only
+    expect(JSON.stringify(rec)).not.toMatch(/\/ai\/[0-9a-f]{64}/)
     expect(callsTo("dpdp_timer_mint_email_ai_link")).toHaveLength(0)
     expect(callsTo("dpdp_timer_ai_actions_for_digest")).toHaveLength(0)
   })
