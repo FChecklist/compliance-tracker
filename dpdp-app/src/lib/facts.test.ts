@@ -18,7 +18,7 @@ import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
-import { contactSentence, grievanceOfficerLine, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "./facts.mjs"
+import { contactSentence, grievanceOfficerLine, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause, uniformFooterHtml } from "./facts.mjs"
 import { FACTS, HIDDEN_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES } from "./public-surface.mjs"
 import { buildOutputs } from "../../scripts/generate-public-facts.mjs"
 
@@ -205,7 +205,7 @@ describe("the generator (scripts/generate-public-facts.mjs)", () => {
     for (const path of ["/", "/dpdp-firm/", "/dpdp-institution/"]) {
       const page = PUBLIC_PAGES.find((p) => p.path === path)!
       const html = read(page.source)
-      for (const name of ["brand-line", "facts", "footer-links"]) {
+      for (const name of ["brand-line", "facts"]) {
         const i = html.indexOf(`<!-- BEGIN generated: ${name} -->`)
         const j = html.indexOf(`<!-- END generated: ${name} -->`)
         expect(i, `${page.source}: ${name} BEGIN`).toBeGreaterThan(-1)
@@ -275,17 +275,17 @@ describe("the single published address (owner decision, 2026-09-29): dpdp@veridi
     }
   })
 
-  test("the two hand-kept landing footers say what the generated footers say (same sentence, same Grievance Officer line)", () => {
-    for (const path of ["/dpdp-firm/", "/dpdp-institution/"]) {
+  test("the footer of every landing and of /about/ is the uniform footer (owner order 15); the contact address and the Grievance Officer line stay on the page body", () => {
+    for (const path of ["/", "/dpdp-firm/", "/dpdp-institution/"]) {
       const page = PUBLIC_PAGES.find((p) => p.path === path)!
       const html = read(page.source)
-      expect(html, page.source).toContain(`Write to <b class="white">${ADDRESS}</b> ${subjectTopicsClause(facts)}`)
-      expect(html, page.source).toContain(`Grievance Officer: <b class="white">${ADDRESS}</b> (subject: Grievance)`)
+      expect(/<footer\b[\s\S]*?<\/footer>/.exec(html)![0], page.source).toBe(uniformFooterHtml())
+      expect(html, page.source).toContain(ADDRESS)
     }
-    // ...and the generated footer on /about/ is the same two lines.
     const about = read("about/index.html")
-    expect(about).toContain(`Write to <b class="white">${ADDRESS}</b> ${subjectTopicsClause(facts)}`)
-    expect(about).toContain(`Grievance Officer: <b class="white">${ADDRESS}</b> (subject: Grievance)`)
+    expect(/<footer\b[\s\S]*?<\/footer>/.exec(about)![0]).toBe(uniformFooterHtml())
+    expect(about).toContain(`Write to ${ADDRESS}`)
+    expect(about).toContain("Grievance Officer")
   })
 
   test("the Next.js edition landing (veridian-aios.com/dpdp) carries the same footer copy as this app's landings", () => {

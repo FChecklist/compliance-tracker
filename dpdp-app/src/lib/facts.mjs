@@ -173,6 +173,16 @@ export function companyFooterHtml(facts) {
   return `<p class="footer-company">${p.ownerHtml} ${p.rights}</p>`
 }
 
+/**
+ * The uniform footer (owner order 15, 2026-10-14): ONE footer for every public page of every site of the group, made by the shared generator (games-ops footer
+ * generator, site key DPD) and checked in as data/uniform-footer.html. It carries the seller line ("A product of IT Services by Rajat Agarwal."), the links to every
+ * legal page, the group's other sites and the Rs 1 test-payment link. Every public page's <footer> is exactly this text; the generator below writes it into the
+ * generated pages and the landings, and the tests check the hand-kept legal pages against it.
+ */
+export function uniformFooterHtml() {
+  return readFileSync(join(DATA_DIR, "uniform-footer.html"), "utf8").replace(/\r?\n$/, "")
+}
+
 export function contactSentence(facts) {
   return `Write to ${facts.contact.contact_email} ${subjectTopicsClause(facts)}`
 }

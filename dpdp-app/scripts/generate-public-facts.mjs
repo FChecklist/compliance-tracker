@@ -54,7 +54,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { APP_DIR, companyFooterHtml, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
+import { APP_DIR, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause, uniformFooterHtml } from "../src/lib/facts.mjs"
 import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, RUM_SCRIPT, VISIT_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
@@ -75,6 +75,7 @@ const ICON_PATH = "/favicon-48.png"
 export function decodeEntities(s) {
   return s
     .replace(/&nbsp;/g, " ")
+    .replace(/&copy;/g, "©")
     .replace(/&rsquo;/g, "’")
     .replace(/&lsquo;/g, "‘")
     .replace(/&rdquo;/g, "”")
@@ -316,26 +317,18 @@ function nav(facts, current) {
  * locked-down device -- then sees no way to reach us. Every visible address the generator writes goes through this. */
 const EMAIL_OFF = (html) => `<!--email_off-->${html}<!--/email_off-->`
 
-/** The footer's row of internal links to the fact surfaces: the same row on
- * every public page (generated pages write it into their footer; the
- * hand-kept landings and the root carry it between BEGIN/END markers). */
-function footerLinks() {
-  return `<p class="footer-legal footer-legal-links">${FOOTER_LINKS.map(([href, label]) => `<a href="${esc(href)}">${esc(label)}</a>`).join(" · ")}</p>`
+/** The footer of every public page is the uniform footer (owner order 15, 2026-10-14): one text, data/uniform-footer.html, made by the shared footer generator. The
+ * generated pages get it from here; the hand-kept landings get it written over their old <footer> (applyToLanding); the hand-kept legal pages carry it too, and
+ * the tests compare every page's footer with this text. */
+function footer(_facts) {
+  return uniformFooterHtml()
 }
 
-function footer(facts) {
-  return [
-    `<footer class="footer">`,
-    `  <b class="font-heading footer-brand">VERIDIAN · VERy INDIAN</b>`,
-    `  <p class="footer-line">${EMAIL_OFF(`Write to <b class="white">${esc(facts.contact.contact_email)}</b> ${esc(subjectTopicsClause(facts))}`)}</p>`,
-    `  <p class="footer-line">${EMAIL_OFF(`Grievance Officer: <b class="white">${esc(facts.contact.contact_email)}</b> (subject: Grievance)`)}</p>`,
-    `  <p class="footer-line">${esc(facts.storage.stored_in_india_wording)}</p>`,
-    `  <p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>`,
-    `  ${footerLinks()}`,
-    `  <p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a> · <a href="/pricing/">Pricing</a> · <a href="/refund/">Cancellation &amp; Refund</a> · <a href="/shipping/">Delivery</a> · <a href="/contact/">Contact</a> · <a href="/subprocessors/">Sub-processors</a></p>`,
-    `  ${companyFooterHtml(facts)}`,
-    `</footer>`,
-  ].join("\n")
+/** Replace the <footer>...</footer> element of a hand-kept page with the uniform footer (idempotent). */
+const FOOTER_ELEMENT = /<footer\b[^>]*>[\s\S]*?<\/footer>/i
+function withUniformFooter(html, file) {
+  if (!FOOTER_ELEMENT.test(html)) throw new Error(`${file}: no <footer> element to replace with the uniform footer`)
+  return html.replace(FOOTER_ELEMENT, () => uniformFooterHtml())
 }
 
 /** The Contact section's bullets, everywhere it appears (/about/,
@@ -635,8 +628,7 @@ export function applyToLanding(facts, html, path, file) {
   out = replaceBetween(out, "brand-line", brandLine(facts, { shareAsk: true }), file)
   if (path === "/") out = replaceBetween(out, "ai-assistant", homeAiSection(facts), file)
   out = replaceBetween(out, "facts", factBlock(facts, { compact: path === "/" }), file)
-  out = replaceBetween(out, "footer-links", footerLinks(), file)
-  out = replaceBetween(out, "company-line", companyFooterHtml(facts), file)
+  out = withUniformFooter(out, file)
   return out
 }
 

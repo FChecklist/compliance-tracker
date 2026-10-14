@@ -24,7 +24,7 @@
 // canonical, X-Robots-Tag noindex, absent from the sitemap and llms*.txt,
 // linked from nowhere -- but NOT a private prefix (no robots Disallow, so a
 // crawler that finds it can still read the noindex).
-import { companyFooterParts, loadFacts, pageTitle, subjectTopicsClause } from "./facts.mjs"
+import { loadFacts, pageTitle, subjectTopicsClause } from "./facts.mjs"
 
 import { LEGACY_APP_ORIGIN, PUBLIC_ORIGIN, SITE_ORIGIN } from "./site-origin.mjs"
 // SITE_ORIGIN is the signed-in app's host (kept for the /app/ bundle and the
@@ -48,7 +48,7 @@ export const OG_IMAGE = {
  * text; the post-build check proves each href is in the raw HTML of each
  * public page. Owner decision 2026-10-01: About VERIDIAN alone -- the fact
  * sheet for AI systems, its plain-text copy and facts.json are withdrawn. */
-export const FOOTER_LINKS = [["/about/", FACTS.pages["/about/"].name]]
+export const FOOTER_LINKS = [["/about/", "About"]]
 
 // The copy generated from the facts file onto EVERY public page (the fact
 // block, WO-013 §2.1; the brand line, WO-014 §2): the post-build check
@@ -116,9 +116,8 @@ export const scriptOpensFor = (path) => (path === "/" ? HOME_SCRIPT_OPENS : PUBL
 FACT_COPY.push(RUM_SCRIPT.tag)
 FACT_COPY.push(VISIT_SCRIPT.tag)
 
-/** The ownership line at the end of every public footer (coordinator, 2026-10-02), from facts.company. */
-const COMPANY_FOOTER = companyFooterParts(FACTS)
-export const COMPANY_FOOTER_COPY = Object.values(COMPANY_FOOTER)
+/** The seller line in the uniform footer (owner order 15, 2026-10-14; data/uniform-footer.html): who the product belongs to, and the copyright. */
+export const COMPANY_FOOTER_COPY = ["A product of IT Services by Rajat Agarwal.", `${FACTS.company.copyright_year} Rajat Agarwal. All rights reserved.`]
 FACT_COPY.push(...COMPANY_FOOTER_COPY)
 
 /** Every crawler WO-012 §3 names. Each must appear as its own User-agent
