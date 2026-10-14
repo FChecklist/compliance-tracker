@@ -124,6 +124,8 @@ const lineItemRows = [
 let insertedRows: Record<string, unknown>[] = []
 /** What the fake says is already logged (DELTA) on the line being written to. */
 let priorDeltaDone = 0
+/** What the fake says is already logged on the line as percent-only entries (no quantity). */
+let priorDeltaPct = 0
 // R67 D-28: every `set()` the service issues on an update, so a test can prove
 // BOTH that a rejected edit wrote nothing and that an accepted edit wrote only
 // the fields the caller actually sent.
@@ -213,7 +215,7 @@ const fakeDb = {
   }),
   // The cap check selects { done: sum(quantity_done) }; every other select in this file is the enriched read.
   select: (projection?: Record<string, unknown>) => ({
-    from: () => (projection && "done" in projection ? { where: () => selectResult([{ done: String(priorDeltaDone) }]) } : joinChain),
+    from: () => (projection && "done" in projection ? { where: () => selectResult([{ done: String(priorDeltaDone), pct: String(priorDeltaPct) }]) } : joinChain),
   }),
   update: () => ({
     set: (v: Record<string, unknown>) => ({
@@ -235,6 +237,7 @@ beforeEach(() => {
   insertedRows = []
   updatedSets = []
   priorDeltaDone = 0
+  priorDeltaPct = 0
   mockWithTenantContext.mockClear()
 })
 
@@ -679,6 +682,8 @@ describe("createProgressEntry rolls the site records up onto the linked schedule
         }),
       }),
       update: () => ({ set: (set: Record<string, unknown>) => ({ where: async () => { updates.push({ set }); } }) }),
+      // the R-47 cap check reads what is already logged on the line: nothing yet
+      select: () => ({ from: () => ({ where: async () => [{ done: "0", pct: "0" }] }) }),
       execute: async (query: { queryChunks?: unknown[] }) => {
         const text = JSON.stringify(query?.queryChunks ?? "")
         if (text.includes("percent_complete")) {
@@ -1346,5 +1351,45 @@ describe("createProgressEntry -- Sumeet R-47: progress above 100% is refused", (
     priorDeltaDone = 40
     await createProgressEntry({ orgId: ORG, userId: "user-1" }, { ...base, quantityDone: 60, percentComplete: 60 })
     expect(insertedRows).toHaveLength(1)
+  })
+
+  // Percent-only ("% complete") entries carry no quantity; they add up like quantity entries and may not pass 100% either (found live: six 60% entries = 360%).
+  test("60% already logged as percent entries + another 60% is refused (422), says it would reach 120%, and writes nothing", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createProgressEntry } = await import("./construction-progress-service")
+    priorDeltaPct = 60
+    let error: unknown
+    try {
+      await createProgressEntry({ orgId: ORG, userId: "user-1" }, { ...base, percentComplete: 60 })
+    } catch (e) {
+      error = e
+    }
+    expect((error as { status?: number }).status).toBe(422)
+    expect((error as Error).message).toContain("A-10.1")
+    expect((error as Error).message).toContain("120")
+    expect((error as Error).message).toContain("40")
+    expect(insertedRows).toHaveLength(0)
+  })
+
+  test("60% already logged as percent entries + 40% more lands exactly on 100% and is accepted", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createProgressEntry } = await import("./construction-progress-service")
+    priorDeltaPct = 60
+    await createProgressEntry({ orgId: ORG, userId: "user-1" }, { ...base, percentComplete: 40 })
+    expect(insertedRows).toHaveLength(1)
+  })
+
+  test("quantity entries and percent entries count together: 70 m3 of 100 logged + a 40% entry is refused", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createProgressEntry } = await import("./construction-progress-service")
+    priorDeltaDone = 70
+    let error: unknown
+    try {
+      await createProgressEntry({ orgId: ORG, userId: "user-1" }, { ...base, percentComplete: 40 })
+    } catch (e) {
+      error = e
+    }
+    expect((error as { status?: number }).status).toBe(422)
+    expect(insertedRows).toHaveLength(0)
   })
 })
