@@ -3893,6 +3893,34 @@
       "when": 1790700030000,
       "tag": "0750_dpdp_ledger_tick_cadence",
       "breakpoints": true
+    },
+    {
+      "idx": 558,
+      "version": "7",
+      "when": 1790700040000,
+      "tag": "0760_dpdp_audit_note_failure",
+      "breakpoints": true
+    },
+    {
+      "idx": 559,
+      "version": "7",
+      "when": 1790700050000,
+      "tag": "0761_dpdp_retention_more_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 560,
+      "version": "7",
+      "when": 1790700060000,
+      "tag": "0762_dpdp_email_send_metadata_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 561,
+      "version": "7",
+      "when": 1790700070000,
+      "tag": "0763_dpdp_hash_consent_token_and_invite_code",
+      "breakpoints": true
     }
   ]
 }
