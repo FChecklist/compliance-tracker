@@ -12,6 +12,7 @@ import { join } from "node:path"
 import {
   FACTS,
   FOOTER_LINKS,
+  HIDDEN_PAGES,
   NAV_AI,
   NAV_PARTNER,
   NAV_SIGN_IN,
@@ -188,16 +189,58 @@ describe("public/_headers: framing and device access (every page, public and pri
     for (const path of paths) {
       const h = resolveHeaders(rules, path)
       expect(h["x-frame-options"], path).toBe("DENY")
-      expect(h["content-security-policy"], path).toBe("frame-ancestors 'none'")
+      expect(csp(h["content-security-policy"])["frame-ancestors"], path).toEqual(["'none'"])
       expect(h["permissions-policy"], path).toBe("camera=(), microphone=(), geolocation=()")
+      expect(h["strict-transport-security"], path).toBe("max-age=31536000")
     }
   })
 
-  test("the Content-Security-Policy is the frame-ancestors directive only (a script or style policy could break the app)", () => {
-    for (const rule of rules) {
-      for (const [name, value] of rule.set) {
-        if (name.toLowerCase() === "content-security-policy") expect(value).toBe("frame-ancestors 'none'")
+  // Audit fixes 15 and 16 (2026-10-14): a real Content-Security-Policy, and no Cloudflare analytics script on the pages parents use.
+  const csp = (v: string | undefined): Record<string, string[]> => Object.fromEntries((v ?? "").split(";").map((d) => d.trim()).filter(Boolean).map((d) => { const [n, ...rest] = d.split(/\s+/); return [n, rest] }))
+  const SUPABASE = "https://pcrjmlpuqsbocqfwoxod.supabase.co"
+  const BEACON = "static.cloudflareinsights.com"
+
+  test("every page has ONE Content-Security-Policy (never two joined with a comma) with no unsafe-eval and no inline script", () => {
+    const paths = [...PUBLIC_PAGES.map((p) => p.path), ...PRIVATE_PAGES.flatMap((p) => [p.prefix, `${p.prefix}anything`]), "/404.html", "/proof/"]
+    for (const path of paths) {
+      const raw = resolveHeaders(rules, path)["content-security-policy"]
+      expect(raw, path).toBeDefined()
+      expect(raw.includes(","), path).toBe(false)
+      const d = csp(raw)
+      expect(d["default-src"], path).toEqual(["'self'"])
+      expect(d["script-src"].includes("'unsafe-inline'") || d["script-src"].includes("'unsafe-eval'"), path).toBe(false)
+      expect(d["object-src"], path).toEqual(["'none'"])
+      expect(d["base-uri"], path).toEqual(["'self'"])
+      // the only outside origins any page may talk to: the data project and the central payment page (frame)
+      expect(d["connect-src"].filter((s) => s.startsWith("https://") && s !== SUPABASE && !s.includes("cloudflareinsights.com")), path).toEqual([])
+      expect(d["frame-src"], path).toEqual(["https://itservices-rajat-agarwal.pages.dev"])
+    }
+  })
+
+  test("public pages may load Cloudflare's measurement script (disclosed in the Privacy Notice); the private pages, including the ones a parent opens, may NOT", () => {
+    for (const pub of PUBLIC_PAGES) {
+      const d = csp(resolveHeaders(rules, pub.path)["content-security-policy"])
+      expect(d["script-src"], pub.path).toEqual(["'self'", `https://${BEACON}`])
+    }
+    for (const priv of PRIVATE_PAGES) {
+      for (const path of [priv.prefix, `${priv.prefix}x`]) {
+        const raw = resolveHeaders(rules, path)["content-security-policy"]
+        expect(raw, path).not.toContain("cloudflareinsights")
+        expect(csp(raw)["script-src"], path).toEqual(["'self'"])
       }
+    }
+    for (const prefix of ["/p/", "/act/", "/copy/", "/app/"]) expect(PRIVATE_PAGES.some((p) => p.prefix === prefix), prefix).toBe(true)
+  })
+
+  test("no page the policy covers carries an inline script (it would be blocked): every <script> is a src file or a JSON-LD data block", () => {
+    const pages = [...PUBLIC_PAGES, ...PRIVATE_PAGES, ...HIDDEN_PAGES].map((p) => p.source).filter((s): s is string => typeof s === "string")
+    expect(pages.length).toBeGreaterThan(10)
+    for (const s of pages) {
+      for (const m of read(s).matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
+        const attrs = m[1]
+        expect(/\bsrc=/.test(attrs) || /type="application\/ld\+json"/.test(attrs) ? "ok" : `inline script in ${s}`, s).toBe("ok")
+      }
+      expect(/\son[a-z]+="/.test(read(s)), `${s} has an inline event handler`).toBe(false)
     }
   })
 })
@@ -277,7 +320,7 @@ describe("withdrawn surfaces: /for-ai/, /for-ai.md, /facts.json", () => {
   test("the files do not exist and are not in the page lists", () => {
     for (const rel of ["for-ai/index.html", "public/for-ai.md", "public/facts.json"]) expect(existsSync(join(root, rel)), rel).toBe(false)
     expect(PUBLIC_PAGES.some((p) => p.path === "/for-ai/")).toBe(false)
-    expect(FOOTER_LINKS).toEqual([["/about/", "About VERIDIAN"]])
+    expect(FOOTER_LINKS).toEqual([["/about/", "About"]])
   })
 
   test("no public page, llms file, robots.txt, _headers or sitemap names them", () => {

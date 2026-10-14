@@ -465,6 +465,9 @@ if (has("_headers")) {
       expect(h["x-robots-tag"] === "noindex, nofollow", `_headers: ${path} gets X-Robots-Tag "${h["x-robots-tag"]}"`)
       expect(h["referrer-policy"] === "no-referrer", `_headers: ${path} gets Referrer-Policy "${h["referrer-policy"]}" -- must be exactly no-referrer (Cloudflare comma-joins a header set twice unless the broad one is detached first)`)
       expect(h["cache-control"] === "no-store", `_headers: ${path} gets Cache-Control "${h["cache-control"]}"`)
+      // Audit fix 16: the pages a parent or a signed-in person opens must refuse Cloudflare's analytics script.
+      expect(!(h["content-security-policy"] ?? "").includes("cloudflareinsights"), `_headers: ${path} lets the Cloudflare analytics script load (CSP "${h["content-security-policy"]}")`)
+      expect(!(h["content-security-policy"] ?? "").includes(","), `_headers: ${path} gets two Content-Security-Policy values joined by a comma`)
       expect(h["x-content-type-options"] === "nosniff", `_headers: ${path} lacks X-Content-Type-Options: nosniff`)
     }
   }
@@ -474,7 +477,10 @@ if (has("_headers")) {
     expect(h["referrer-policy"] === "strict-origin-when-cross-origin", `_headers: ${pub.path} gets Referrer-Policy "${h["referrer-policy"]}"`)
     expect(h["x-content-type-options"] === "nosniff", `_headers: ${pub.path} lacks X-Content-Type-Options: nosniff`)
     expect(h["x-frame-options"] === "DENY", `_headers: ${pub.path} lacks X-Frame-Options: DENY`)
-    expect(h["content-security-policy"] === "frame-ancestors 'none'", `_headers: ${pub.path} gets Content-Security-Policy "${h["content-security-policy"]}" -- must be exactly frame-ancestors 'none'`)
+    expect(/(^|;)\s*frame-ancestors 'none'\s*(;|$)/.test(h["content-security-policy"] ?? ""), `_headers: ${pub.path} gets Content-Security-Policy "${h["content-security-policy"]}" -- must contain frame-ancestors 'none'`)
+    expect(!(h["content-security-policy"] ?? "").includes(","), `_headers: ${pub.path} gets two Content-Security-Policy values joined by a comma`)
+    expect(!/'unsafe-eval'|script-src[^;]*'unsafe-inline'/.test(h["content-security-policy"] ?? ""), `_headers: ${pub.path}: the script policy allows unsafe-eval or unsafe-inline`)
+    expect(h["strict-transport-security"] === "max-age=31536000", `_headers: ${pub.path} lacks Strict-Transport-Security`)
     expect(h["permissions-policy"] === "camera=(), microphone=(), geolocation=()", `_headers: ${pub.path} lacks the Permissions-Policy that switches off camera, microphone and location`)
     // HTML stays on the Pages default (revalidate); a public page must never be sent no-store or cached hard.
     expect(!h["cache-control"], `_headers: PUBLIC ${pub.path} gets Cache-Control "${h["cache-control"]}" -- public HTML is left on the default on purpose`)

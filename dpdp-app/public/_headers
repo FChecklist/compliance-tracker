@@ -15,16 +15,25 @@
 # headers itself -- _headers only applies to static assets -- but the rule is
 # kept here so the one list in public-surface.mjs stays whole.
 
-# Framing and device access (2026-10-13): no page may be shown inside another site's frame, and
-# no page asks for the camera, microphone or location. Deliberately NOT a full script/style
-# Content-Security-Policy -- only the frame-ancestors directive -- so nothing the app loads can
-# break. _headers applies to static files only; the /ai/* Pages Function (the one that returns
-# pages) sends X-Frame-Options and Permissions-Policy itself (functions/ai/_proxy.ts).
+# Security headers (2026-10-14, audit fixes 15 and 16).
+#  * Strict-Transport-Security: browsers must use https for this host for a year. No includeSubDomains and no preload on purpose: other hosts under the
+#    domain are not covered by this file, and a preload entry cannot be taken back quickly.
+#  * Content-Security-Policy: a real policy. Everything the pages load comes from their own origin (scripts, styles, fonts, images, the service worker,
+#    the same-origin /api/ and /ai/ endpoints), plus: the Supabase project (the signed-in app's data calls and signed proof images), and the central payment
+#    page that holds the Razorpay window (frame-src only). Styles allow 'unsafe-inline' because the pages carry a few style attributes. No inline script is
+#    allowed anywhere, and no page needs one (src/lib/public-surface.test.ts checks this against the built pages).
+#    The public pages ALSO allow Cloudflare's Web Analytics script and its report address (disclosed in the Privacy Notice, section 8). The private pages
+#    (below: /app/ /act/ /unsubscribe/ /p/ /copy/ /ai/ /api/, the ones a parent or any signed-in person opens) detach that policy and send one WITHOUT them, so
+#    the browser refuses Cloudflare's script there (audit fix 16: no tracking script where a child's parent answers). Cloudflare's own automatic injection
+#    can also be switched off in the dashboard (ai-os/DPDP_AUDIT_FIX_LIVE_STEPS_2026-10-14.md); this header works even if that is never done.
+#  * frame-ancestors / X-Frame-Options: no page may be shown inside another site's frame. Permissions-Policy: no camera, microphone or location.
+# _headers applies to static files only; the /ai/* Pages Function (the one that returns pages) sends its own headers (functions/ai/_proxy.ts).
 /*
+  Strict-Transport-Security: max-age=31536000
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
-  Content-Security-Policy: frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pcrjmlpuqsbocqfwoxod.supabase.co; font-src 'self' data:; connect-src 'self' https://pcrjmlpuqsbocqfwoxod.supabase.co https://cloudflareinsights.com; frame-src https://itservices-rajat-agarwal.pages.dev; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 
 # Caching (speed, 2026-10-01). Only files whose bytes can never change under
@@ -62,60 +71,74 @@
 
 /app/*
   ! Referrer-Policy
+  ! Content-Security-Policy
 
 /app/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pcrjmlpuqsbocqfwoxod.supabase.co; font-src 'self' data:; connect-src 'self' https://pcrjmlpuqsbocqfwoxod.supabase.co; frame-src https://itservices-rajat-agarwal.pages.dev; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   Cache-Control: no-store
 
 /act/*
   ! Referrer-Policy
+  ! Content-Security-Policy
 
 /act/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pcrjmlpuqsbocqfwoxod.supabase.co; font-src 'self' data:; connect-src 'self' https://pcrjmlpuqsbocqfwoxod.supabase.co; frame-src https://itservices-rajat-agarwal.pages.dev; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   Cache-Control: no-store
 
 /unsubscribe/*
   ! Referrer-Policy
+  ! Content-Security-Policy
 
 /unsubscribe/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pcrjmlpuqsbocqfwoxod.supabase.co; font-src 'self' data:; connect-src 'self' https://pcrjmlpuqsbocqfwoxod.supabase.co; frame-src https://itservices-rajat-agarwal.pages.dev; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   Cache-Control: no-store
 
 /p/*
   ! Referrer-Policy
+  ! Content-Security-Policy
 
 /p/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pcrjmlpuqsbocqfwoxod.supabase.co; font-src 'self' data:; connect-src 'self' https://pcrjmlpuqsbocqfwoxod.supabase.co; frame-src https://itservices-rajat-agarwal.pages.dev; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   Cache-Control: no-store
 
 /copy/*
   ! Referrer-Policy
+  ! Content-Security-Policy
 
 /copy/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pcrjmlpuqsbocqfwoxod.supabase.co; font-src 'self' data:; connect-src 'self' https://pcrjmlpuqsbocqfwoxod.supabase.co; frame-src https://itservices-rajat-agarwal.pages.dev; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   Cache-Control: no-store
 
 /ai/*
   ! Referrer-Policy
+  ! Content-Security-Policy
 
 /ai/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pcrjmlpuqsbocqfwoxod.supabase.co; font-src 'self' data:; connect-src 'self' https://pcrjmlpuqsbocqfwoxod.supabase.co; frame-src https://itservices-rajat-agarwal.pages.dev; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   Cache-Control: no-store
 
 # /api/* is the first-party monitoring endpoint (functions/api/telemetry.ts), also served by
 # a Pages Function that sets these headers itself. Never indexed, never cached.
 /api/*
   ! Referrer-Policy
+  ! Content-Security-Policy
 
 /api/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pcrjmlpuqsbocqfwoxod.supabase.co; font-src 'self' data:; connect-src 'self' https://pcrjmlpuqsbocqfwoxod.supabase.co; frame-src https://itservices-rajat-agarwal.pages.dev; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   Cache-Control: no-store
 
 # /proof/ (WO-DPDP-013 v2 §2.1) is built but hidden until the owner switches
