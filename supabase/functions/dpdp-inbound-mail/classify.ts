@@ -421,7 +421,7 @@ const KEYWORD_RULES: ReadonlyArray<{ cls: MailClass; re: RegExp }> = [
       "\\bobject\\s+to\\s+(?:the\\s+|my\\s+|our\\s+)?(?:processing|use|collection|sharing)\\b|\\bobjection\\s+to\\s+(?:the\\s+)?processing\\b",
       "\\bnominat(?:e|ion)\\b[^\\n.]{0,60}\\b(?:dpdp|data\\s+principal|the\\s+act)\\b",
       // Section 14: naming another person to use these rights if the person dies or cannot act. The Privacy Notice asks for "Data request" and the word nominee.
-      "\\bnominee\\b|\\bnominat(?:e|ing|ion)\\b[^\\n.]{0,40}\\b(?:another\\s+person|someone|a\\s+person|representative|on\\s+my\\s+behalf|to\\s+act\\s+for\\s+me)\\b",
+      "\\b(?:name|add|record|register|appoint|set\\s+up|want|wish|like)\\b[^\\n.]{0,30}\\bnominee\\b|\\bmy\\s+nominee\\b|\\bnominat(?:e|ing|ion)\\b[^\\n.]{0,40}\\b(?:another\\s+person|someone|a\\s+person|representative|on\\s+my\\s+behalf|to\\s+act\\s+for\\s+me)\\b",
       "\\b(?:correct|rectify|amend|update|change|fix)\\s+(?:my|our)\\s+(?:[a-z]+\\s+){0,2}(?:name|number|phone|mobile|address|e-?mail|contact|details|information|data|birth)\\b[^\\n.]{0,40}\\b(?:in|from)\\s+your\\s+(?:records?|system|database|files?)\\b",
       // More withdrawals, objections and rights requests as people type them (second review of the classifier, 2026-09-29: each of these,
       // sent as a reply to the Monday digest, stayed `monday`: no D- ticket, no due date, no acknowledgement).

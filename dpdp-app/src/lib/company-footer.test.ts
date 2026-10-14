@@ -54,7 +54,7 @@ describe("the uniform footer", () => {
       expect(existsSync(join(root, rel)) || existsSync(join(root, "public", rel)), `${h} -> ${rel}`).toBe(true)
     }
     // the outside links are the group's own sites, the seller's Rs 1 test payment page, a mailto and a phone number
-    for (const h of hrefs.filter((x) => !x.startsWith("/"))) expect(h, h).toMatch(/^(https:\/\/[a-z0-9.-]+\.(pages\.dev|veridian-aios\.com)(\/|$)|mailto:rajatsiroffice@gmail\.com$|tel:\+919650397480$)/)
+    for (const h of hrefs.filter((x) => !x.startsWith("/"))) expect(h, h).toMatch(/^(https:\/\/([a-z0-9.-]+\.pages\.dev|veridian-aios\.com)(\/|$)|mailto:rajatsiroffice@gmail\.com$|tel:\+919650397480$)/)
   })
 
   test("the colours are bright and the text is readable: no dark background, every text/background pair is at least AA (4.5:1)", () => {
