@@ -15081,7 +15081,9 @@ export const dpdpConsentCampaign = dpdpSchemaDB.table('consent_campaign', {
 export const dpdpConsentToken = dpdpSchemaDB.table('consent_token', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   campaignId: text('campaign_id').notNull(),
-  token: text('token').notNull().unique(),
+  // drizzle/0763: only the SHA-256 of the link token is kept (tokenHash). `token` is empty for every row: a trigger turns a plain token written by an older writer into a hash.
+  token: text('token'),
+  tokenHash: text('token_hash').unique(),
   contactHash: text('contact_hash').notNull(),
   openedAt: timestamp('opened_at'),
   actedAt: timestamp('acted_at'),

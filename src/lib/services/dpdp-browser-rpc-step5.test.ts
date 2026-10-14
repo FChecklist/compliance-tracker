@@ -59,6 +59,7 @@ const { createDpdpOrganisation } = await import("./dpdp-organisation-service")
 const { instantiateObligationsForOrg } = await import("./dpdp-obligation-service")
 const { getCurrentLibraryVersion, listObligationTemplates } = await import("./dpdp-obligation-library")
 const { verifyDpdpEventChain } = await import("./dpdp-event-service")
+const { hashToken } = await import("./dpdp-principal-service")
 const {
   db, dpdpIdentity, dpdpIdentityEmail, dpdpMembership, dpdpObligation, dpdpObligationTemplate, dpdpOrganisation,
   dpdpPrincipalGroup, dpdpNoticeVersion, dpdpConsentCampaign, dpdpConsentToken, dpdpConsentRecord,
@@ -491,14 +492,14 @@ d("WO-DPDP-011 Step 5: parent consent (token is the credential, no claims)", () 
       const [notice] = await tx.insert(dpdpNoticeVersion).values({ orgId: org.id, docKind: "privacy", version: "1.0", releasedOn: "2026-09-22", effectiveFrom: new Date(), languages: ["en"], state: "live" }).returning()
       const [campaign] = await tx.insert(dpdpConsentCampaign).values({ orgId: org.id, groupId: group.id, noticeVersionId: notice.id, sentAt: new Date() }).returning()
       const rows = await tx.insert(dpdpConsentToken).values([
-        { campaignId: campaign.id, token: yesTok, contactHash: "hash-yes", expiresAt: year },
-        { campaignId: campaign.id, token: noTok, contactHash: "hash-no", expiresAt: year },
-        { campaignId: campaign.id, token: oldTok, contactHash: "hash-old", expiresAt: new Date(Date.now() - 86400000) },
+        { campaignId: campaign.id, tokenHash: hashToken(yesTok), contactHash: "hash-yes", expiresAt: year },
+        { campaignId: campaign.id, tokenHash: hashToken(noTok), contactHash: "hash-no", expiresAt: year },
+        { campaignId: campaign.id, tokenHash: hashToken(oldTok), contactHash: "hash-old", expiresAt: new Date(Date.now() - 86400000) },
       ]).returning()
-      return { tokenIds: Object.fromEntries(rows.map((r) => [r.token, r.id])), noticeId: notice.id }
+      return { tokenIds: Object.fromEntries(rows.map((r) => [r.tokenHash, r.id])), noticeId: notice.id }
     })
-    const tokenRow = (token: string) => withDpdpContext({ orgId: org.id }, (tx) => tx.query.dpdpConsentToken.findFirst({ where: eq(dpdpConsentToken.token, token) }))
-    const records = (token: string) => withDpdpContext({ orgId: org.id }, (tx) => tx.query.dpdpConsentRecord.findMany({ where: eq(dpdpConsentRecord.tokenId, tokenIds[token]) }))
+    const tokenRow = (token: string) => withDpdpContext({ orgId: org.id }, (tx) => tx.query.dpdpConsentToken.findFirst({ where: eq(dpdpConsentToken.tokenHash, hashToken(token)) }))
+    const records = (token: string) => withDpdpContext({ orgId: org.id }, (tx) => tx.query.dpdpConsentRecord.findMany({ where: eq(dpdpConsentRecord.tokenId, tokenIds[hashToken(token)]) }))
 
     // Opening the link: the notice and the org, nothing answered, opened_at stamped (the TS's own behaviour).
     const preview = await consentPreview(yesTok)

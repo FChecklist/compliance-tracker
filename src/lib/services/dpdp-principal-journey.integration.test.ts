@@ -22,17 +22,18 @@
 // DATABASE_URL; skips cleanly if unset.
 import { beforeAll, describe, expect, mock, test } from "bun:test"
 
+const sentHtml: string[] = [] // the raw consent token exists only in the e-mailed link (drizzle/0763: the database keeps its hash)
 await mock.module("@/lib/email", () => ({
   FROM: "test@example.test",
-  sendEmail: async () => {},
-  emailTemplate: (title: string, body: string) => `${title}: ${body}`,
+  sendEmail: async (m: { html?: string }) => { sentHtml.push(String(m?.html ?? "")) },
+  emailTemplate: (title: string, body: string, url?: string) => `${title}: ${body} ${url ?? ""}`,
   notifyAssigned: async () => {},
   notifyOverdue: async () => {},
   notifyDeadlineApproaching: async () => {},
   notifyNewComment: async () => {},
 }))
 
-const { sendConsentCampaign, resolveConsentToken, recordConsent, raiseRightsRequest } = await import("./dpdp-principal-service")
+const { sendConsentCampaign, resolveConsentToken, recordConsent, raiseRightsRequest, hashToken } = await import("./dpdp-principal-service")
 const { db, dpdpNoticeVersion, dpdpOrganisation, dpdpPrincipalGroup } = await import("@/lib/db")
 const { withDpdpContext } = await import("@/lib/db/tenant-scoped")
 
@@ -88,24 +89,25 @@ d("dpdp principal (Data Principal) journey -- the one real variant, end to end",
     expect(sent).toBe(1)
 
     // The raw token only ever exists in the (mocked) email -- recover it the
-    // only way a real click could, by reading back the row
-    // sendConsentCampaign just created (the token column IS the raw value
-    // here, not a hash -- see dpdp-principal-service.ts's own
-    // newOpaqueToken()). This org has exactly one campaign/token at this
-    // point in the test, so the most recent row is unambiguous.
+    // only way a real click could, from the link in the mail. The row
+    // sendConsentCampaign just created holds only its SHA-256 (drizzle/0763).
+    // This org has exactly one campaign/token at this point in the test, so
+    // the most recent row is unambiguous.
     const { dpdpConsentToken } = await import("@/lib/db")
     const { eq } = await import("drizzle-orm")
+    const raw = /\/dpdp\/p\/([A-Za-z0-9_-]+)/.exec(sentHtml[sentHtml.length - 1] ?? "")![1]
     const campaignTokens = await withDpdpContext({ orgId }, (tx) =>
       tx.query.dpdpConsentToken.findMany({ orderBy: (t, { desc }) => [desc(t.id)], limit: 1 }),
     )
-    const raw = campaignTokens[0].token
+    expect(campaignTokens[0].token).toBeNull() // no plain token is stored
+    expect(campaignTokens[0].tokenHash).toBe(hashToken(raw))
 
     const opened = await resolveConsentToken(raw)
     expect(opened).toBeTruthy()
     expect(opened!.orgId).toBe(orgId)
     expect(opened!.notice!.id).toBe(noticeVersionId)
 
-    const reOpened = await withDpdpContext({ orgId }, (tx) => tx.query.dpdpConsentToken.findFirst({ where: eq(dpdpConsentToken.token, raw) }))
+    const reOpened = await withDpdpContext({ orgId }, (tx) => tx.query.dpdpConsentToken.findFirst({ where: eq(dpdpConsentToken.tokenHash, hashToken(raw)) }))
     expect(reOpened!.openedAt).not.toBeNull()
 
     const granted = await recordConsent(raw, [{ purposeKey: "order", granted: true }, { purposeKey: "offers", granted: false }], "en")
@@ -130,10 +132,12 @@ d("dpdp principal (Data Principal) journey -- the one real variant, end to end",
     const [campaign] = await withDpdpContext({ orgId }, (tx) =>
       tx.insert(dpdpConsentCampaign).values({ orgId, groupId, noticeVersionId, sentAt: new Date() }).returning(),
     )
+    const expiredRaw = crypto.randomUUID()
     const [expiredToken] = await withDpdpContext({ orgId }, (tx) =>
-      tx.insert(dpdpConsentToken).values({ campaignId: campaign.id, token: crypto.randomUUID(), contactHash: "test", expiresAt: new Date(Date.now() - 1000) }).returning(),
+      tx.insert(dpdpConsentToken).values({ campaignId: campaign.id, tokenHash: hashToken(expiredRaw), contactHash: "test", expiresAt: new Date(Date.now() - 1000) }).returning(),
     )
-    const resolved = await resolveConsentToken(expiredToken.token)
+    expect(expiredToken.token).toBeNull()
+    const resolved = await resolveConsentToken(expiredRaw)
     expect(resolved).toBeNull()
   }, 30_000)
 })

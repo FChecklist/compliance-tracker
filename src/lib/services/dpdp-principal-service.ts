@@ -20,6 +20,10 @@ const CONSENT_TOKEN_TTL_DAYS = 3650 // "This link is yours. Keep the email." -- 
 function hashContact(raw: string): string {
   return createHash("sha256").update(raw.trim().toLowerCase()).digest("hex")
 }
+/** The only form of a consent link token that is stored (drizzle/0763): its SHA-256, so a copy of the database does not hold working links. */
+export function hashToken(raw: string): string {
+  return createHash("sha256").update(raw, "utf8").digest("hex")
+}
 function newOpaqueToken(): string {
   return randomBytes(24).toString("base64url")
 }
@@ -41,7 +45,7 @@ export async function sendConsentCampaign(input: SendConsentCampaignInput) {
     for (const email of input.contacts) {
       const raw = newOpaqueToken()
       await tx.insert(dpdpConsentToken).values({
-        campaignId: campaign.id, token: raw, contactHash: hashContact(email), expiresAt: new Date(Date.now() + CONSENT_TOKEN_TTL_DAYS * 86400000),
+        campaignId: campaign.id, tokenHash: hashToken(raw), contactHash: hashContact(email), expiresAt: new Date(Date.now() + CONSENT_TOKEN_TTL_DAYS * 86400000),
       })
       tokens.push(raw)
       await sendEmail({
@@ -70,7 +74,7 @@ export type ConsentTokenContext = {
 
 /** Public lookup -- no org context, no login, by design. */
 export async function resolveConsentToken(rawToken: string): Promise<ConsentTokenContext | null> {
-  const token = await db.query.dpdpConsentToken.findFirst({ where: eq(dpdpConsentToken.token, rawToken) })
+  const token = await db.query.dpdpConsentToken.findFirst({ where: eq(dpdpConsentToken.tokenHash, hashToken(rawToken)) })
   if (!token || token.expiresAt < new Date()) return null
   const campaign = await db.query.dpdpConsentCampaign.findFirst({ where: eq(dpdpConsentCampaign.id, token.campaignId) })
   if (!campaign) return null
