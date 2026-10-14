@@ -65,7 +65,7 @@ describe("the uniform footer", () => {
     expect(lum(bg)).toBeGreaterThan(0.8)
     const pairs: Array<[string, string, string]> = [
       ["body text", /\.uf\{[^}]*color:(#[0-9A-Fa-f]{6})/.exec(css)![1], bg],
-      ["headings", /\.uf h4\{[^}]*color:(#[0-9A-Fa-f]{6})/.exec(css)![1], bg],
+      ["headings", /\.uf \.uft\{[^}]*color:(#[0-9A-Fa-f]{6})/.exec(css)![1], bg],
       ["links", /\.uf a\{color:(#[0-9A-Fa-f]{6})/.exec(css)![1], bg],
       ["brand name", /\.uf \.ufb\{[^}]*color:(#[0-9A-Fa-f]{6})/.exec(css)![1], bg],
       ["small print", /\.uf \.ufl\{[^}]*color:(#[0-9A-Fa-f]{6})/.exec(css)![1], bg],

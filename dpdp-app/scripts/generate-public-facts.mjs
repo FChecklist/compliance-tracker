@@ -324,11 +324,26 @@ function footer(_facts) {
   return uniformFooterHtml()
 }
 
-/** Replace the <footer>...</footer> element of a hand-kept page with the uniform footer (idempotent). */
-const FOOTER_ELEMENT = /<footer\b[^>]*>[\s\S]*?<\/footer>/i
-function withUniformFooter(html, file) {
+/** The two landings for firms and institutions carry, just above the uniform footer, the three plain notices their old footer carried: the one contact address and the
+ * ask to name the topic, where the data is stored, and "not a law firm". Between BEGIN/END markers so the generator can rewrite it (and --check can compare it). */
+function landingNotice(facts) {
+  return [
+    `<!-- BEGIN generated: footer-notice -->`,
+    `<div style="background:#FFF6E5;color:#2B3A4A;padding:16px;text-align:center;font-size:14px;line-height:1.55">`,
+    `  <p style="margin:0 0 6px">${EMAIL_OFF(`Write to <b>${esc(facts.contact.contact_email)}</b> ${esc(subjectTopicsClause(facts))}`)}</p>`,
+    `  <p style="margin:0 0 6px">${EMAIL_OFF(`Grievance Officer: <b>${esc(facts.contact.contact_email)}</b> (subject: Grievance)`)}</p>`,
+    `  <p style="margin:0 0 6px">${esc(facts.storage.stored_in_india_wording)}</p>`,
+    `  <p style="margin:0">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>`,
+    `</div>`,
+    `<!-- END generated: footer-notice -->`,
+  ].join("\n")
+}
+
+/** Replace the <footer>...</footer> element of a hand-kept page with the uniform footer (idempotent). `notice`, when given, is written just above it. */
+const FOOTER_ELEMENT = /(?:<!-- BEGIN generated: footer-notice -->[\s\S]*?<!-- END generated: footer-notice -->\s*)?<footer\b[^>]*>[\s\S]*?<\/footer>/i
+function withUniformFooter(html, file, notice) {
   if (!FOOTER_ELEMENT.test(html)) throw new Error(`${file}: no <footer> element to replace with the uniform footer`)
-  return html.replace(FOOTER_ELEMENT, () => uniformFooterHtml())
+  return html.replace(FOOTER_ELEMENT, () => (notice ? `${notice}\n${uniformFooterHtml()}` : uniformFooterHtml()))
 }
 
 /** The Contact section's bullets, everywhere it appears (/about/,
@@ -628,7 +643,7 @@ export function applyToLanding(facts, html, path, file) {
   out = replaceBetween(out, "brand-line", brandLine(facts, { shareAsk: true }), file)
   if (path === "/") out = replaceBetween(out, "ai-assistant", homeAiSection(facts), file)
   out = replaceBetween(out, "facts", factBlock(facts, { compact: path === "/" }), file)
-  out = withUniformFooter(out, file)
+  out = withUniformFooter(out, file, path === "/dpdp-firm/" || path === "/dpdp-institution/" ? landingNotice(facts) : null)
   return out
 }
 

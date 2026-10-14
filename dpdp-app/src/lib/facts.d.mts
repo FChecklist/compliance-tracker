@@ -150,3 +150,5 @@ export function contactSentence(facts: Facts): string
 export function grievanceOfficerLine(facts: Facts): string
 export function loadClaims(): ClaimsRegister
 export function loadProof(): Proof
+
+export function uniformFooterHtml(): string;
