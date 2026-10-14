@@ -11,6 +11,7 @@ export class FakeAuditDb {
   calls: string[] = []
   heads: Array<{ head_date: string; head_hash: string; last_seq: number; row_count: number; org: string }> = []
   failAppend = false
+  failures: Array<{ source: string; error: string }> = []
   anchor: Record<string, { hash: string; seq: number }> = {}
   accessLog: Array<{ id: string; email: string; org: string; reason: string; rows: number | null }> = []
   hold: Record<string, boolean> = {}
@@ -87,6 +88,9 @@ export class FakeAuditDb {
         this.hold[String(a.p_org)] = a.p_hold === true
         return ok({ orgId: a.p_org, legalHold: a.p_hold })
       }
+      case 'dpdp_audit_note_failure':
+        this.failures.push({ source: String(a.p_source), error: String(a.p_error) })
+        return ok(null)
       default:
         return { data: null, error: { message: `fake: ${fn} not implemented` } }
     }

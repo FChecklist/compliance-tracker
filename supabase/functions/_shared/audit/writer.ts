@@ -17,6 +17,11 @@ export type Writer = {
 
 export function makeWriter(rpc: Rpc, ring: () => Promise<KeyRing>, now: () => number = Date.now): Writer {
   const stats = { written: 0, failed: 0 }
+  // A failed write is also counted in dpdp.audit_failure (drizzle/0760), so "0 failures" in that table means no write failed, not "the Edge Function could not say".
+  // The note is a code only (never a value), best effort: if it cannot be written either, the caller still gets the failure and the log line.
+  const noteFailure = async (error: string): Promise<void> => {
+    try { await rpc("dpdp_audit_note_failure", { p_source: "edge_function", p_error: error }) } catch { /* nothing more can be done */ }
+  }
   return {
     stats,
     async append(input, opts = {}) {
@@ -25,16 +30,19 @@ export function makeWriter(rpc: Rpc, ring: () => Promise<KeyRing>, now: () => nu
         built = await buildContent(await ring(), input, now())
       } catch (e) {
         stats.failed++
-        return { ok: false, error: e instanceof Error && /seal[_ ]key/i.test(e.message) ? "no_key" : "build_failed" }
+        const error = e instanceof Error && /seal[_ ]key/i.test(e.message) ? "no_key" : "build_failed"
+        await noteFailure(error)
+        return { ok: false, error }
       }
       try {
         const { data, error } = await rpc("dpdp_audit_append", { p_content: built.canonical, p_ai_call_id: opts.aiCallId ?? input.aiCallId ?? null, p_ref_hash: opts.refHash ?? input.refHash ?? null })
-        if (error) { stats.failed++; return { ok: false, error: error.code ?? "db_error" } }
+        if (error) { stats.failed++; const code = error.code ?? "db_error"; await noteFailure(code); return { ok: false, error: code } }
         const r = data as { id: string; seq: number; rowHash: string }
         stats.written++
         return { ok: true, id: r.id, seq: Number(r.seq), rowHash: r.rowHash }
       } catch {
         stats.failed++
+        await noteFailure("rpc_failed")
         return { ok: false, error: "rpc_failed" }
       }
     },

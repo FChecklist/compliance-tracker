@@ -56,6 +56,23 @@ export async function keyRingFrom(get: (name: string) => string | undefined): Pr
   return { current, byId }
 }
 
+/**
+ * A key ring that is built once and then reused, but that does NOT remember a failure: if the secret was missing or wrong when the function started, the next
+ * call tries again, so setting or fixing the secret takes effect without waiting for a cold start. (An Edge Function that cached the rejected promise would keep
+ * refusing to write audit rows until it was restarted.)
+ */
+export function cachedKeyRing(get: (name: string) => string | undefined): () => Promise<KeyRing> {
+  let pending: Promise<KeyRing> | null = null
+  return () => {
+    if (!pending) {
+      const attempt = keyRingFrom(get)
+      pending = attempt
+      attempt.catch(() => { if (pending === attempt) pending = null })
+    }
+    return pending
+  }
+}
+
 export const aadFor = (orgId: string, field: string): BufferSource => new TextEncoder().encode(`${orgId}|${field}`) as unknown as BufferSource
 
 export async function seal(ring: KeyRing, plain: string, orgId: string, field: string): Promise<string> {

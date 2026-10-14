@@ -7,7 +7,7 @@
 // Secrets: DPDP_AUDIT_SEAL_KEY (+ _ID), optionally DPDP_AUDIT_SEAL_KEY_OLD (+ _ID) for rotation, DPDP_AUDIT_CODE_MAX_AGE_SECONDS, DPDP_AUDIT_EXPORTS_PER_HOUR,
 // DPDP_AUDIT_ALLOWED_ORIGINS, APP_ORIGIN. SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are platform-injected and never leave this process.
 import { createClient } from "npm:@supabase/supabase-js@2"
-import { type KeyRing, keyRingFrom } from "../_shared/audit/seal.ts"
+import { cachedKeyRing } from "../_shared/audit/seal.ts"
 import type { Rpc } from "../_shared/audit/writer.ts"
 import { handle } from "./handler.ts"
 
@@ -30,8 +30,8 @@ function claimsOf(jwt: string): Record<string, unknown> {
   }
 }
 
-let ringPromise: Promise<KeyRing> | null = null
-const ring = (): Promise<KeyRing> => (ringPromise ??= keyRingFrom((n) => Deno.env.get(n)))
+// Rebuilt after a failure (a secret set or fixed later takes effect on the next call, not only after a restart).
+const ring = cachedKeyRing((n) => Deno.env.get(n))
 
 Deno.serve((req: Request): Promise<Response> => {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return Promise.resolve(new Response(JSON.stringify({ error: "This service is not configured." }), { status: 500, headers: { "content-type": "application/json" } }))
