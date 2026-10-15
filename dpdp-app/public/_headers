@@ -26,6 +26,7 @@
   X-Frame-Options: DENY
   Content-Security-Policy: frame-ancestors 'none'
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000
 
 # Caching (speed, 2026-10-01). Only files whose bytes can never change under
 # the same URL are cached hard:

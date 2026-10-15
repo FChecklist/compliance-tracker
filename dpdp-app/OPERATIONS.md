@@ -56,7 +56,7 @@ Addresses on reserved test domains (`*.test`, `example.*`, `*.invalid`, `localho
 
 The public shows exactly one address, `dpdp@veridian-aios.com`. Everything the platform sends comes from `VERIDIAN AI DPDP <dpdp@veridian-aios.com>` (Resend sending domain `veridian-aios.com`), and everything that comes back to it is sorted, given a ticket number and put in front of the operator. **Nothing is silently dropped or demoted.** A grievance or a data-subject request must never miss its clock or its acknowledgement, whatever tag, thread or header the mail arrived with.
 
-**Status when this section was written (2026-09-29): none of it is live.** The migration is not applied, the Edge Function and the Worker are not deployed, Email Routing is not pointed at the Worker, and the Resend domain is not confirmed as verified. The go-live list below is the order to do it in. Until it is done, do not let a page or an email tell people to write to `dpdp@` unless mail sent there already reaches a person.
+**Status (updated 2026-10-15): this is all live.** The migration is applied, the Edge Function and the Worker are deployed, Email Routing reaches the Worker and the Resend domain is verified (inbound mail was proven end to end on 2026-09-30). The go-live list below is kept as the record of the order it was done in.
 
 ### How a mail travels
 
@@ -178,7 +178,7 @@ A follow-up from the same person is a **new ticket**; it names the earlier one i
 
 ### Retention: the owner's call
 
-`dpdp.mail_inbound` keeps each mail's subject, the sender's address and the **first 4096 characters of the text** (which can hold whatever personal data the sender typed) until someone deletes them. Attachments are never stored. **No retention period is set and nothing deletes or redacts anything, `dpdp_mail_close` included.** How long a closed ticket's excerpt, subject and address may be kept is the owner's decision with counsel; decide it, then add a job for it. The same question applies to the copies in the operator's Gmail, and to what Resend and Cloudflare keep in their own logs (not covered here).
+`dpdp.mail_inbound` keeps each mail's subject, the sender's address and the **first 4096 characters of the text** (which can hold whatever personal data the sender typed) until someone deletes them. Attachments are never stored. **Retention (updated 2026-10-15): a closed ticket is kept 730 days, then removed by the daily `dpdp-retention-sweep` job (02:10 UTC). That job is still a dry run while `dpdp.retention_setting.live` is false; switching it to true makes the deletion real.** The same question applies to the copies in the operator's Gmail, and to what Resend and Cloudflare keep in their own logs (not covered here).
 
 ### Operator daily digest and sales forward (owner decision 2026-10-01)
 

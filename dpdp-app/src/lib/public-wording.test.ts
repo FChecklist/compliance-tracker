@@ -40,6 +40,8 @@ const BANNED: Array<[string, RegExp]> = [
   ["lawyer to read", /lawyer\s+to\s+read/i],
   ["a review that has not happened yet", /not\s+yet\s+(been\s+)?(reviewed|approved)|yet\s+to\s+be\s+reviewed|reviewer:\s*not\s+yet|reviewed\s+on:\s*not\s+yet/i],
   ["citations marked for verification", /marked\s+for\s+verification/i],
+  ["a pending approval", /legal\s+approval|owner'?s\s+approval|owner\s+approval|awaiting\s+(?:legal|lawyer|owner|approval)|review\s+pending/i],
+  ["an internal note about the owner", /owner\s+told|owner\s+has\s+not|not\s+done\s+yet/i],
 ]
 
 /** "draft" as the AI assistant's plain verb/noun, exactly as the pages word it today. Lower case; matched against the whitespace-collapsed text. */

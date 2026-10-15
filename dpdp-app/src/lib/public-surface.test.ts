@@ -190,6 +190,7 @@ describe("public/_headers: framing and device access (every page, public and pri
       expect(h["x-frame-options"], path).toBe("DENY")
       expect(h["content-security-policy"], path).toBe("frame-ancestors 'none'")
       expect(h["permissions-policy"], path).toBe("camera=(), microphone=(), geolocation=()")
+      expect(h["strict-transport-security"], path).toBe("max-age=31536000")
     }
   })
 
