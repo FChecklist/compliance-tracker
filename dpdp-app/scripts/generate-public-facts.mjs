@@ -55,7 +55,7 @@ import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, companyFooterHtml, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
-import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, RUM_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
+import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, RUM_SCRIPT, VISIT_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
 
@@ -69,10 +69,6 @@ const ORG_ID = `${PUBLIC_ORIGIN}/#organization`
 const WEBSITE_ID = `${PUBLIC_ORIGIN}/#website`
 const LOGO_URL = `${PUBLIC_ORIGIN}/logo.png`
 const ICON_PATH = "/favicon-48.png"
-
-/** The three "not yet" renderings. Never a number, never a name, when the
- * facts file says null. */
-const orNotRecorded = (v) => (v === null || v === undefined ? "not yet recorded" : String(v))
 
 // The handful of entities the landings use (same table as
 // scripts/check-public-surface.mjs).
@@ -176,8 +172,8 @@ function organizationNode(facts) {
       email: facts.contact.contact_email,
     })),
   }
-  if (facts.company.legal_name) node.legalName = facts.company.legal_name
-  if (facts.company.registered_office) node.address = { "@type": "PostalAddress", streetAddress: facts.company.registered_office, addressCountry: "IN" }
+  node.legalName = facts.company.legal_name
+  node.address = { "@type": "PostalAddress", streetAddress: facts.company.address, addressCountry: "IN" }
   return node
 }
 
@@ -220,7 +216,9 @@ function socialLines(facts, { title, description }) {
     `<meta name="twitter:description" content="${esc(description)}" />`,
     `<meta name="twitter:image" content="${esc(image)}" />`,
     `<meta name="twitter:image:alt" content="${esc(OG_IMAGE.alt)}" />`,
+    `<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />`,
     `<link rel="icon" type="image/png" sizes="48x48" href="${ICON_PATH}" />`,
+    `<link rel="apple-touch-icon" href="/apple-touch-icon.png" />`,
   ]
 }
 
@@ -275,6 +273,7 @@ function head(facts, { path, title, description, nodes, hidden = false }) {
     `<link rel="stylesheet" href="/src/site.css" />`,
     REF_SCRIPT.tag,
     RUM_SCRIPT.tag,
+    VISIT_SCRIPT.tag,
     jsonLdScript(nodes),
   )
   return lines.map((l) => "    " + l).join("\n")
@@ -304,7 +303,7 @@ function nav(facts, current) {
   return [
     `<header class="nav">`,
     `  <div class="nav-inner">`,
-    `    <a class="wordmark" href="/">VERIDIAN<span class="wordmark-sub">VERy INDIAN</span></a>`,
+    `    <a class="wordmark" href="/"><img class="wordmark-logo" src="/logo-mark.svg" alt="" width="34" height="34">VERIDIAN<span class="wordmark-sub">VERy INDIAN</span></a>`,
     `    <nav class="nav-links" aria-label="Pages">`,
     ...links.map(([href, label]) => `      <a${href === current ? ' aria-current="page"' : ""} href="${href}">${esc(label)}</a>`),
     `    </nav>`,
@@ -335,7 +334,7 @@ function footer(facts) {
     `  <p class="footer-line">${esc(facts.storage.stored_in_india_wording)}</p>`,
     `  <p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>`,
     `  ${footerLinks()}`,
-    `  <p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a> · <a href="/pricing/">Pricing</a> · <a href="/refund/">Cancellation &amp; Refund</a> · <a href="/shipping/">Delivery</a> · <a href="/contact/">Contact</a></p>`,
+    `  <p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a> · <a href="/pricing/">Pricing</a> · <a href="/refund/">Cancellation &amp; Refund</a> · <a href="/shipping/">Delivery</a> · <a href="/contact/">Contact</a> · <a href="/subprocessors/">Sub-processors</a></p>`,
     `  ${companyFooterHtml(facts)}`,
     `</footer>`,
   ].join("\n")
@@ -349,19 +348,23 @@ function footer(facts) {
 const contactBullets = (facts) => [contactSentence(facts), grievanceOfficerLine(facts)]
 
 function companyLines(facts) {
-  const out = []
-  if (facts.company.legal_name) out.push(`${facts.company.legal_name}, ${facts.company.incorporation}.`)
-  if (facts.company.cin) out.push(`CIN: ${facts.company.cin}`)
-  if (facts.company.registered_office) out.push(`Registered office: ${facts.company.registered_office}`)
-  if (facts.company.gstin) out.push(`GSTIN: ${facts.company.gstin}`)
-  return out
+  const c = facts.company
+  return [
+    `${c.legal_name}, ${c.form}.`,
+    `Address: ${c.address}`,
+    `E-mail: ${c.email}`,
+    `Phone: ${c.phone}`,
+    c.gst_note,
+  ]
 }
 
 function libraryLines(facts) {
-  return [
-    `Version ${facts.library.version}: ${facts.library.job_count} jobs, each mapped to its legal source.`,
-    `Reviewer: ${orNotRecorded(facts.library.reviewer)}. Reviewed on: ${orNotRecorded(facts.library.reviewed_on)}.`,
-  ]
+  const lines = [`Version ${facts.library.version}: ${facts.library.job_count} jobs, each mapped to its legal source.`]
+  // Owner, 2026-10-14: no public page may say a review is pending or not recorded. The reviewer line appears only once a reviewer exists.
+  if (facts.library.reviewer && facts.library.reviewed_on) {
+    lines.push(`Reviewed by ${facts.library.reviewer} on ${facts.library.reviewed_on}.`)
+  }
+  return lines
 }
 
 const withEmailOff = (s) => (s.includes("@") ? EMAIL_OFF(esc(s)) : esc(s))
@@ -407,7 +410,7 @@ const indent = (s, n) => s
 
 // ---------------------------------------------------------------- /about/
 // 2026-10-01 (owner): the About page is for people and says what the home page
-// says, plus the dates, where the data is, the company and how to reach us. It
+// says, plus the dates, where the data is, the seller and how to reach us. It
 // carries no version, approval date, library reviewer or other internal
 // process wording, and it links to no AI-only surface (those were withdrawn).
 function aboutPage(facts) {
@@ -421,7 +424,7 @@ function aboutPage(facts) {
       { h2: "Key dates", paragraphs: [facts.deadline_line], bullets: facts.key_dates.items.map((d) => `${d.label}: ${d.what}`) },
       { h2: "Where the data is", bullets: [facts.storage.database.sentence, facts.storage.email.sentence, facts.storage.website.sentence] },
       { h2: "Your own AI assistant", paragraphs: [facts.ai_work_link_public_sentence] },
-      { h2: "The company", paragraphs: companyLines(facts) },
+      { h2: "The seller", paragraphs: companyLines(facts) },
       { h2: "Contact", bullets: contactBullets(facts) },
     ]),
     `</main>`,
@@ -473,7 +476,7 @@ function partnerTermsPage(facts) {
     `  <h1>${esc(t.heading)}</h1>`,
     `  <p class="lead">${esc(t.status_line)}</p>`,
     `  <p class="partner-note">${esc(t.lead)}</p>`,
-    sectionsHtml([...t.sections, { h2: "The company", paragraphs: companyLines(facts) }, { h2: "Contact", bullets: contactBullets(facts) }]),
+    sectionsHtml([...t.sections, { h2: "The seller", paragraphs: companyLines(facts) }, { h2: "Contact", bullets: contactBullets(facts) }]),
     `  <p class="partner-note"><a href="/partner/">${esc(t.back_link_text)}</a> · <a href="/terms/">Terms of Service</a></p>`,
     `  <!-- BEGIN generated: facts -->`,
     indent(factBlock(facts), 2),
@@ -548,7 +551,7 @@ function proofPage(facts, proof) {
     sectionsHtml([
       { h2: "In use", paragraphs: asOf, bullets: aggregates },
       { h2: "Case studies", bullets: cases },
-      { h2: "The job library and its reviewer", paragraphs: libraryLines(facts) },
+      { h2: "The job library", paragraphs: libraryLines(facts) },
     ]),
     `  <!-- BEGIN generated: facts -->`,
     indent(factBlock(facts), 2),
@@ -601,7 +604,7 @@ export function applyToLanding(facts, html, path, file) {
   out = replaceOne(out, /<meta property="og:description" content="[^"]*" \/>/i, `<meta property="og:description" content="${esc(description)}" />`, file, "og:description")
   // Open Graph image, Twitter card and favicon: drop any earlier copy, then
   // write them right after og:description (idempotent, byte-stable).
-  out = out.replace(/^[ \t]*<(?:meta (?:property="og:image[^"]*"|name="twitter:[^"]*")|link rel="icon")[^>]*\/>\r?\n/gm, "")
+  out = out.replace(/^[ \t]*<(?:meta (?:property="og:image[^"]*"|name="twitter:[^"]*")|link rel="(?:icon|apple-touch-icon)")[^>]*\/>\r?\n/gm, "")
   out = replaceOne(
     out,
     /^([ \t]*)(<meta property="og:description" content="[^"]*" \/>)\r?\n/m,
@@ -610,13 +613,13 @@ export function applyToLanding(facts, html, path, file) {
     "og:description (to attach the image and card tags)",
   )
 
-  // The two allowed scripts besides JSON-LD: /ref.js then /rum.js, right after the stylesheet link (idempotent).
+  // The two allowed scripts besides JSON-LD: /ref.js then /rum.js then /visit.js, right after the stylesheet link (idempotent).
   out = replaceOne(
     out,
-    /^([ \t]*)(<link rel="stylesheet" href="\/src\/site\.css" \/>)\r?\n(?:[ \t]*<script defer src="\/ref\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/rum\.js"><\/script>\r?\n)?/m,
-    (m) => `${m[1]}${m[2]}\n${m[1]}${REF_SCRIPT.tag}\n${m[1]}${RUM_SCRIPT.tag}\n`,
+    /^([ \t]*)(<link rel="stylesheet" href="\/src\/site\.css" \/>)\r?\n(?:[ \t]*<script defer src="\/ref\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/rum\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/visit\.js"><\/script>\r?\n)?/m,
+    (m) => `${m[1]}${m[2]}\n${m[1]}${REF_SCRIPT.tag}\n${m[1]}${RUM_SCRIPT.tag}\n${m[1]}${VISIT_SCRIPT.tag}\n`,
     file,
-    "the stylesheet link (to attach /ref.js and /rum.js)",
+    "the stylesheet link (to attach /ref.js, /rum.js and /visit.js)",
   )
 
   const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/i.exec(out)

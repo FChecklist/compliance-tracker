@@ -889,6 +889,55 @@ export async function createProgressEntry(
       boqLineItemId = await resolveBoqLineItemForEntry(db, ctx.orgId, input.projectId, input.boqLineItemId)
     }
 
+    // Sumeet R-47 -- progress above 100% is REFUSED, not stored: a DELTA entry adds to what was already logged on the line, so the running total
+    // may not pass the line's own quantity. (A SNAPSHOT replaces the total and is already bounded to 0-100 by assertPercentComplete.) The wording
+    // names the line, the new total and what is left, so the person can correct the number rather than guess.
+    // A "% complete" entry (no quantity) is a DELTA entry too, so it adds to the line like a quantity entry does: the line's progress is the quantity
+    // entries (as a share of the line's quantity) plus the percent-only entries, and that total may not pass 100%.
+    const newQty = Number(input.quantityDone)
+    const isQuantityEntry = newQty > 0
+    const line = boqLineItemId && entryBasis === "DELTA"
+      ? await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, boqLineItemId) })
+      : undefined
+    const lineQty = Number(line?.quantity ?? 0)
+    // a quantity entry on a line with no quantity of its own has nothing to be measured against
+    if (boqLineItemId && entryBasis === "DELTA" && (!isQuantityEntry || (line && lineQty > 0))) {
+      const [prior] = await db
+        .select({
+          done: sql<string>`coalesce(sum(${constructionWorkProgressEntries.quantityDone}), 0)`,
+          pct: sql<string>`coalesce(sum(case when coalesce(${constructionWorkProgressEntries.quantityDone}, 0) = 0 then ${constructionWorkProgressEntries.percentComplete} else 0 end), 0)`,
+        })
+        .from(constructionWorkProgressEntries)
+        .where(and(
+          eq(constructionWorkProgressEntries.orgId, ctx.orgId),
+          eq(constructionWorkProgressEntries.boqLineItemId, boqLineItemId),
+          eq(constructionWorkProgressEntries.entryBasis, "DELTA"),
+        ))
+      const alreadyDone = Number(prior?.done ?? 0)
+      const alreadyPct = Number(prior?.pct ?? 0)
+      const fmt = (n: number) => String(Math.round(n * 100) / 100)
+      if (isQuantityEntry) {
+        if (line && lineQty > 0) {
+          const newTotal = alreadyDone + newQty
+          const totalPct = (newTotal / lineQty) * 100 + alreadyPct
+          if (totalPct > 100 + 1e-9) {
+            throw new ServiceError(
+              `Progress on ${line.itemCode ?? "this line"} would reach ${fmt(newTotal)} of ${fmt(lineQty)} ${line.unit ?? ""} (${fmt(totalPct)}%), more than 100%. Only ${fmt(Math.max(lineQty - alreadyDone - (alreadyPct / 100) * lineQty, 0))} ${line.unit ?? ""} remains on this line.`.replace(/\s+\./g, "."),
+              422,
+            )
+          }
+        }
+      } else {
+        const totalPct = (lineQty > 0 ? (alreadyDone / lineQty) * 100 : 0) + alreadyPct + Number(input.percentComplete)
+        if (totalPct > 100 + 1e-9) {
+          throw new ServiceError(
+            `Progress on ${line?.itemCode ?? "this line"} would reach ${fmt(totalPct)}%, more than 100%. Only ${fmt(Math.max(100 - (totalPct - Number(input.percentComplete)), 0))}% remains on this line.`,
+            422,
+          )
+        }
+      }
+    }
+
     const [row] = await db.insert(constructionWorkProgressEntries).values({
       orgId: ctx.orgId, projectId: input.projectId, activityId: input.activityId, boqLineItemId,
       entryDate: input.entryDate, quantityDone: input.quantityDone !== undefined ? String(input.quantityDone) : undefined, percentComplete: String(input.percentComplete),

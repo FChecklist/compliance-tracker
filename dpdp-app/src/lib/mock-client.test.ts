@@ -208,9 +208,9 @@ describe("dpdp_ai_link_create / dpdp_ai_link_list / dpdp_ai_link_revoke", () => 
     expect(new Date(created.expiresAt).getTime()).toBeGreaterThan(Date.now())
     expect(new Date(created.expiresAt).getTime()).toBeLessThan(Date.now() + 2 * 86_400_000) // 1 day, not 7 or 30
   })
-  test("default level 0, hideEmails false, 7 days, no label", async () => {
+  test("default level 0, hideEmails true, 7 days, no label", async () => {
     const created = (await createMockClient("owner-live").rpc("dpdp_ai_link_create", {})).data as AiWorkLinkCreated
-    expect(created).toMatchObject({ level: 0, hideEmails: false, label: null })
+    expect(created).toMatchObject({ level: 0, hideEmails: true, label: null })
     const days = Math.round((new Date(created.expiresAt).getTime() - Date.now()) / 86_400_000)
     expect(days).toBe(7)
   })

@@ -52,8 +52,13 @@ async function GET_impl(request: NextRequest) {
     // lineCount / total / deltaAmount / deltaPct on the row. It shares the
     // SAME statement as `variation`, so asking for both is not a second query.
     const include = request.nextUrl.searchParams.get("include")
-    const { variation, compare } = parseBoqInclude(include)
-    const parts = ["lineItems"]
+    const { variation, compare, headers } = parseBoqInclude(include)
+    // PROJEXA G-12 (2026-10-06): `include=headers` is the list screens' opt-out of line items. On the largest live
+    // project (dd486dad: 14,013 BOQ headers, 25,328 lines, ~12 MB of line-item JSON) the database answers in ~0.2 s and the
+    // request still blew PROJEXA's 8 s upstream budget, because the cost is building and shipping every line of every
+    // BOQ. The banners/list need only headers (+ the SQL variation/compare figures); callers that send no `headers`
+    // token get exactly the response they always got. Not combined with the keyset flag path below: that path pages lines.
+    const parts = headers && !isBoqKeysetPaginationEnabled() ? [] : ["lineItems"]
     if (variation) parts.push("variation")
     if (compare) parts.push("compare")
     // 6-01/6-03a: rate_project/qty_project (and any future project-side

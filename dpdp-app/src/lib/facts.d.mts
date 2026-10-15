@@ -91,7 +91,7 @@ export interface Facts {
     website: { provider: string; sentence: string; source: string }
     stored_in_india_wording: string
   }
-  company: { owner_approved: boolean; owner_required: boolean; source: string; legal_name: string | null; cin: string | null; registered_office: string | null; gstin: string | null; incorporation: string; website: string; copyright_year: number }
+  company: { owner_approved: boolean; owner_required: boolean; source: string; legal_name: string; proprietor: string; form: string; address: string; email: string; phone: string; gst_note: string; website: string; policies_url: string; copyright_year: number }
   contact: { owner_approved: boolean; address_approved_on: string; source: string; contact_email: string; subject_topics: string[] }
   ai_work_link_public_sentence: string
   sales_partner: SalesPartner

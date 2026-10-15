@@ -41,12 +41,12 @@ describe("data/claims-register.yaml", () => {
     expect(register.fact_exceptions.map((e) => e.sentence)).toContain("no DPDP certification exists in India")
   })
 
-  test('CLM-001 "For India, by India": owner-approved, evidence = Indian founder and company, legal_approved false until a lawyer signs', () => {
+  test('CLM-001 "For India, by India": owner-approved, evidence = Indian founder, legal_approved false until a lawyer signs', () => {
     const c = register.claims.find((k) => k.id === "CLM-001")!
     expect(c.sentence).toBe("For India, by India")
     expect(c.owner_approved).toBe(true)
     expect(c.legal_approved).toBe(false)
-    expect(c.evidence.toLowerCase()).toContain("indian founder and company")
+    expect(c.evidence.toLowerCase()).toContain("indian founder")
   })
 
   test("no claim is legally approved yet (a lawyer has not signed)", () => {

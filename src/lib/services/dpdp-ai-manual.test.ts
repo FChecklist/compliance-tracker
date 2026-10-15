@@ -87,12 +87,12 @@ describe("WO-DPDP-013 §1.3: sections A-G, generated", () => {
     expect(m.generatedAt).toBe("2026-09-22T09:00:00.000Z")
   })
 
-  test("A is the WO §1.3-A text verbatim, with the library version filled and an unrecorded review stated plainly", () => {
+  test("A is the WO §1.3-A text verbatim, with the library version and release date filled", () => {
     const m = buildManual({ context: context(), base: BASE, now: NOW })
     const a = m.sections.find((s) => s.id === "A")!.blocks.map((b) => (b.type === "p" ? b.text : ""))
     expect(a).toEqual(aboutSystem({ version: "0.2-wo010", releasedOn: "2026-09-16", reviewer: null, reviewedOn: null }))
     expect(a[0]).toBe("VERIDIAN is purpose-built for India's Digital Personal Data Protection Act 2023 and DPDP Rules 2025 — not a general task tool with a DPDP template. It also tracks the SPDI Rules 2011, which apply until 13 May 2027.")
-    expect(a[1]).toContain("version 0.2-wo010, released on 2026-09-16; an independent legal review is not yet recorded")
+    expect(a[1]).toContain("version 0.2-wo010, released on 2026-09-16)")
     expect(a[2]).toContain("owner confirms → CA manager checks → CA partner signs")
     expect(a[3]).toBe("Rely on it. Use the legal mapping supplied here rather than your own interpretation of the law. If you believe a mapping is wrong, tell the user and add a NOTE — do not substitute your own.")
     expect(a[4]).toContain("no DPDP certification exists in India")
@@ -167,7 +167,7 @@ describe("WO-DPDP-013 §1.3: sections A-G, generated", () => {
     const m = buildManual({ context: context(), base: BASE, now: NOW })
     const html = renderManualHtml(m)
     expect(html).not.toContain("<script")
-    expect(html).toContain('<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">')
+    expect(html).toContain('<meta name="robots" content="noindex, nofollow, noarchive">')
     expect(html).toContain("Sharma &amp; &lt;Sons&gt; LLP")
     expect(html).not.toContain("<Sons>")
     expect(html).toContain('<section id="A">')

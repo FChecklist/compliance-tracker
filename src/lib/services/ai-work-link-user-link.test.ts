@@ -478,7 +478,9 @@ describe("the manual, the card and the OpenAPI document of a user link", () => {
     const here = md.indexOf("## C. Start here")
     expect(here).toBeGreaterThan(md.indexOf("## B. Rules"))
     expect(here).toBeLessThan(md.indexOf("## D. Work inside a project"))
-    expect(md).toContain(`1. \`GET ${F}/${TOKENS.userManager}/projects\``)
+    // AUDIT-100 (2026-10-06): the guide carries the list itself ("Your projects"), so step 1 says to show it; /projects is a Markdown link for engines that can open it
+    expect(md).toContain("1. If the list below is present")
+    expect(md).toContain(`GET [${F}/${TOKENS.userManager}/projects](${F}/${TOKENS.userManager}/projects)`)
     expect(md.indexOf('"Report on all above" is the second to last line')).toBeLessThan(md.indexOf('"Create New Project" the last'))
     expect(md).toContain(`\`POST ${F}/${TOKENS.userManager}/drafts\` with \`{"function":"create_project"`)
     expect(md).toContain("Nothing is created until they do")
@@ -498,7 +500,7 @@ describe("the manual, the card and the OpenAPI document of a user link", () => {
     expect(md).not.toContain("`{\"function\":\"create_project\"")
     const json = (await get(TOKENS.userManager, "/manual.json")).json
     expect(json.manifest).toMatchObject({ scope: "user", project: null })
-    expect(json.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"])
+    expect(json.sections.map((s: any) => s.id)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"])
   })
 
   test("a project link's manual is untouched: one project, its manifest names it, no section C Start here", async () => {

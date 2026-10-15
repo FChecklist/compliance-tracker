@@ -255,7 +255,11 @@ describe("role redaction: money, wages and rates arrive empty below the role tha
   })
 
   test("the seeded traps never reach a member: money in free text (an expense description) and the attendees' e-mails of a MoM", async () => {
-    const ex = JSON.stringify((await pull("u-mem", "expenses")).json)
+    const exRes = (await pull("u-mem", "expenses")).json
+    // Server timestamps ("...23:22:31.538000Z") are random digits and can contain "38000" by chance; the trap is the money in the
+    // row's own fields, so drop every ISO timestamp before the substring check (keeps the whole-payload scan, loses only the clock).
+    const ex = JSON.stringify(exRes).replace(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?/g, "<ts>")
+    expect((exRes.items as J[]).some((i) => i.id === "ex-1")).toBe(true) // the row under test really is in the payload
     expect(ex).not.toContain("38000")
     expect(ex).not.toContain("V9")
     const mom = ((await pull("u-mem", "meeting_minutes")).json.items as J[]).find((i) => i.id === "vm-1")!

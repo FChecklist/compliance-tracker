@@ -2,6 +2,7 @@ import type { AuthListener, AuthSession, DpdpClient, RpcResult } from "./client"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
 import { NOTE_MAX, charCount, dueBounds } from "@/lib/dpdp-onepage/job-actions"
 import { recallEdition } from "./landing"
+import { CONSENT_REQUIRED_CODE, TERMS_VERSION, TICK_TO_CONTINUE } from "./terms"
 import type {
   AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire,
   OrgSetupPayload, ShareRoleWire, ViewerKind,
@@ -51,7 +52,12 @@ export const MOCK_HR = "hr@example.test"
 export const MOCK_MEMBERS = ["member@example.test", "member2@example.test", "member3@example.test"] as const
 
 // The fragment tokens the token pages accept in mock mode.
-export const MOCK_TOKENS = { done: "mock-done", cannot: "mock-cannot", unsubscribe: "mock-unsub", parent: "mock-parent" } as const
+export const MOCK_TOKENS = { done: "mock-done", cannot: "mock-cannot", unsubscribe: "mock-unsub", parent: "mock-parent", parentMulti: "mock-parent-multi", parentChild: "mock-parent-child" } as const
+/** The mock consent links with more than the one legacy item (drizzle/0725): what each asks about, and whether the person is a child. */
+const MOCK_CONSENT_LINKS: Record<string, { purposes: Array<{ key: string; label: string }>; child: boolean; noticeText: string }> = {
+  [MOCK_TOKENS.parentMulti]: { purposes: [{ key: "trip", label: "Photos on the school trip" }, { key: "news", label: "The school newsletter" }], child: false, noticeText: "The school keeps trip photos for one year and sends the newsletter by e-mail. You may say no to either." },
+  [MOCK_TOKENS.parentChild]: { purposes: [{ key: "photos", label: "Photos of your child" }], child: true, noticeText: "The school keeps your child's photos for one year." },
+}
 export const MOCK_DRAFT = { draftId: "mock-draft", confirmToken: "mock-confirm" } as const
 // WO-DPDP-013 Part 1 (drizzle/0610): `/app/#undo=<actionId>.<undoToken>`.
 export const MOCK_UNDO_ACTION = { actionId: "mock-action", undoToken: "mock-undo" } as const
@@ -239,7 +245,7 @@ type OrgState = {
 type State = {
   signedInAs: string | null
   orgs: Record<string, OrgState>
-  spentTokens: string[]; consentAnswered: boolean; unsubscribed: boolean; draftConfirmed: boolean; aiLinks: number
+  spentTokens: string[]; consentAnswered: boolean; consent?: Record<string, { answers: Record<string, "yes" | "no" | "withdrawn">; guardian?: { name: string; relation: string } }>; unsubscribed: boolean; draftConfirmed: boolean; aiLinks: number
   aiWorkLinkSeq: number; aiActionUndone: boolean
   /** Sales Partner lifecycle preview (drizzle/0674): the signed-in person's own profile. The real arithmetic lives in Postgres. */
   partner?: MockPartner
@@ -543,8 +549,19 @@ export function createMockClient(scenario?: string): DpdpClient {
         return ok({ ok: true, email: org.ownerEmail })
       }
       case "dpdp_parent_consent_preview": {
-        if (token !== MOCK_TOKENS.parent) return ok({ ok: false, reason: "This link is not valid or has expired" })
-        return ok({ ok: true, orgName: org.name, notice: { docKind: "privacy", version: "1.0", languages: ["en"] }, openedAt: new Date().toISOString(), actedAt: state.consentAnswered ? new Date().toISOString() : null, alreadyAnswered: state.consentAnswered })
+        const link = MOCK_CONSENT_LINKS[token]
+        if (token !== MOCK_TOKENS.parent && !link) return ok({ ok: false, reason: "This link is not valid or has expired" })
+        state.consent ??= {}
+        const rec = state.consent[token]
+        const answered = token === MOCK_TOKENS.parent ? state.consentAnswered : !!rec
+        const purposes = (link?.purposes ?? [{ key: "consent", label: "Use of your personal data as described in this notice" }]).map((p) => ({ ...p, answer: rec?.answers[p.key] ?? null }))
+        return ok({
+          ok: true, orgName: org.name, notice: { docKind: "privacy", version: "1.0", languages: ["en"] }, openedAt: new Date().toISOString(), actedAt: answered ? new Date().toISOString() : null, alreadyAnswered: answered,
+          ...(link ? { noticeText: link.noticeText, noticeSource: "organisation" as const } : {}),
+          purposes, principalIsChild: !!link?.child,
+          guardian: rec?.guardian ? { name: rec.guardian.name, relation: rec.guardian.relation } : null,
+          canWithdraw: answered,
+        })
       }
       case "dpdp_parent_consent": {
         const answer = String(args?.p_answer ?? "")
@@ -552,9 +569,43 @@ export function createMockClient(scenario?: string): DpdpClient {
         if (token !== MOCK_TOKENS.parent) return ok({ ok: false, reason: "This link is not valid or has expired" })
         if (state.consentAnswered) return ok({ ok: false, reason: "This link has already been used. Nothing has changed." })
         state.consentAnswered = true
+        state.consent ??= {}
+        state.consent[token] = { answers: { consent: answer } }
         log(org, "consent_recorded", "Recorded 1 answer(s)", null, "A person on a link")
         save(state)
         return ok({ ok: true, answer })
+      }
+      case "dpdp_parent_consent_v2": {
+        const link = MOCK_CONSENT_LINKS[String(args?.p_token ?? "")]
+        if (!link) return ok({ ok: false, reason: "This link is not valid or has expired" })
+        const t = String(args?.p_token)
+        state.consent ??= {}
+        if (state.consent[t]) return ok({ ok: false, reason: "This link has already been used. Nothing has changed." })
+        const given = (args?.p_answers ?? {}) as Record<string, string>
+        for (const p of link.purposes) if (given[p.key] !== "yes" && given[p.key] !== "no") return ok({ ok: false, reason: "Please answer Yes or No for each item." })
+        const g = (args?.p_guardian ?? null) as { name?: string; relation?: string } | null
+        if (link.child) {
+          if (!g?.name || g.name.trim().length < 2) return ok({ ok: false, reason: "Please give the name of the parent or legal guardian answering for the child." })
+          if (g.relation !== "parent" && g.relation !== "legal_guardian") return ok({ ok: false, reason: "Please say whether you are the parent or the legal guardian." })
+        }
+        state.consent[t] = { answers: Object.fromEntries(link.purposes.map((p) => [p.key, given[p.key] as "yes" | "no"])), ...(link.child && g ? { guardian: { name: String(g.name).trim(), relation: String(g.relation) } } : {}) }
+        log(org, "consent_recorded", `Recorded ${link.purposes.length} answer(s)`, null, "A person on a link")
+        save(state)
+        return ok({ ok: true, recorded: link.purposes.length })
+      }
+      case "dpdp_consent_withdraw": {
+        const t = String(args?.p_token ?? "")
+        const key = String(args?.p_purpose_key ?? "")
+        state.consent ??= {}
+        const rec = state.consent[t]
+        if (t !== MOCK_TOKENS.parent && !MOCK_CONSENT_LINKS[t]) return ok({ ok: false, reason: "This link is not valid." })
+        if (!rec) return ok({ ok: false, reason: "There is nothing to withdraw yet." })
+        if (rec.answers[key] === undefined) return ok({ ok: false, reason: "That is not one of the items on this link." })
+        if (rec.answers[key] !== "yes") return ok({ ok: false, reason: "There is nothing to withdraw for this item." })
+        rec.answers[key] = "withdrawn"
+        log(org, "consent_withdrawn", "Withdrew consent for 1 item", null, "A person on a link")
+        save(state)
+        return ok({ ok: true, withdrawn: key })
       }
       default:
         return null
@@ -924,7 +975,7 @@ export function createMockClient(scenario?: string): DpdpClient {
         case "dpdp_ai_link_create": {
           const org = orgOf(args?.p_org_id) ?? home()
           const level = (Number(args?.p_level) === 1 ? 1 : 0) as 0 | 1
-          const hideEmails = !!args?.p_hide_emails
+          const hideEmails = args?.p_hide_emails === undefined || args?.p_hide_emails === null ? true : !!args.p_hide_emails
           const rawDays = Number(args?.p_days)
           const days = (rawDays === 1 || rawDays === 30 ? rawDays : 7) as 1 | 7 | 30
           const labelValue = (args?.p_label ? String(args.p_label).trim() : "") || null
@@ -1177,6 +1228,24 @@ export function createMockClient(scenario?: string): DpdpClient {
             tdsPercentSet: state.partnerTdsPercent != null, tdsPercent: state.partnerTdsPercent ?? 0, minPayoutPaise: 50000, payoutDay: 10, partners: [], held: [],
           })
         }
+        // --- drizzle/0734: open an account, the plans, the account's state. The mock keeps no billing clock: every account it shows is ACTIVE. ---
+        case "dpdp_open_account": {
+          // drizzle/0748: the sign-up is refused unless the K2 box is ticked for the CURRENT Terms version (the mock's dpdp_create_my_org below stands
+          // for the real one's internal core, so only this door checks).
+          if (args?.p_terms_accepted !== true || args?.p_terms_version !== TERMS_VERSION) {
+            return { data: null, error: { message: TICK_TO_CONTINUE, code: "22023", hint: CONSENT_REQUIRED_CODE } }
+          }
+          const made = await this.rpc("dpdp_create_my_org", { p_name: args?.p_org_name, p_product: args?.p_account_type, p_referral_code: args?.p_referral_code })
+          if (made.error) return made
+          return ok({ ...(made.data as object), accountType: args?.p_account_type, planKey: args?.p_account_type === "institution" ? "institution" : "firm_starter", attribution: "none", verification: args?.p_professional_body ? "pending" : "none" })
+        }
+        case "dpdp_public_plans":
+          return ok([
+            { key: "institution", accountType: "institution", name: "Institution", maxClients: 0, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
+            { key: "firm_starter", accountType: "firm", name: "Starter", maxClients: 10, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
+          ])
+        case "dpdp_my_account":
+          return ok({ orgId: String(args?.p_org_id ?? HOME_ORG), hasAccount: false, state: "ACTIVE" })
         default:
           return fail(`Unknown RPC ${fn}`)
       }

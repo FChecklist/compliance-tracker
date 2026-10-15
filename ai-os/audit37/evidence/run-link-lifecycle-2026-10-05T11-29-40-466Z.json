@@ -1,0 +1,76 @@
+{
+  "file": "./scripts/verify/awl-live/link-lifecycle.live.test.ts",
+  "args": [],
+  "commit": "b9cf5e2ba8a29090fca4d4cbfaf8ef683c316ae4",
+  "tree_dirty": true,
+  "started_at": "2026-10-05T11:29:40.466Z",
+  "ended_at": "2026-10-05T11:30:07.037Z",
+  "exit_code": 0,
+  "pass": 11,
+  "fail": 0,
+  "skip": 0,
+  "tests": [
+    {
+      "name": "HEADER MODE: Link-Token and Authorization: Bearer answer exactly what the path form answers",
+      "result": "pass",
+      "time_s": 1.873771
+    },
+    {
+      "name": "HEADER MODE: a token in a query string is refused 400, and a wrong or missing header token is refused",
+      "result": "pass",
+      "time_s": 1.210321
+    },
+    {
+      "name": "HEADER MODE: the header-mode API documents carry no token and declare the two header schemes",
+      "result": "pass",
+      "time_s": 0.337148
+    },
+    {
+      "name": "CARD: card.md is Markdown under 8,000 bytes and teaches the projexa-proposal block; card-data.md is under 100,000 bytes",
+      "result": "pass",
+      "time_s": 0.692713
+    },
+    {
+      "name": "CARD: a link for all projects has no card data (it must name a project first) - the paste card always uses a project link",
+      "result": "pass",
+      "time_s": 0.297537
+    },
+    {
+      "name": "REACHABILITY: scripts/verify/awl-reachability.sh passes all 8 checks (H04-H08, H16, H17, H19) on a fresh link",
+      "result": "pass",
+      "time_s": 4.196609
+    },
+    {
+      "name": "DRAFT: create_project is a draft that waits for the person; the confirm page host is real and up; nothing is created",
+      "result": "pass",
+      "time_s": 2.446904
+    },
+    {
+      "name": "DRAFT: confirming needs a signed-in person - the confirm route refuses a call with no session",
+      "result": "pass",
+      "time_s": 0.418856
+    },
+    {
+      "name": "LIFECYCLE: a link whose expiry time has passed answers 410 at once (and its card too)",
+      "result": "pass",
+      "time_s": 1.895756
+    },
+    {
+      "name": "LIFECYCLE: revoking makes the very next call 410 on every door (guide, REST, header mode, MCP, card)",
+      "result": "pass",
+      "time_s": 4.331464
+    },
+    {
+      "name": "LIFECYCLE: the two other links are revoked at the end and then answer 410",
+      "result": "pass",
+      "time_s": 2.210159
+    }
+  ],
+  "function_calls_during_run": {
+    "note": "every caller of the function in this window, not only this run (the database and the function are shared)",
+    "calls": 34,
+    "slow_3s_or_more": 0,
+    "failed_5xx": 0,
+    "status_503": 0
+  }
+}

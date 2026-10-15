@@ -8,18 +8,23 @@ const PASTE = "I use VERIDIAN, my organisation's DPDP software & I want help.\nM
 
 describe("chatOptions", () => {
   const o = Object.fromEntries(chatOptions(PASTE).map((x) => [x.id, x]))
-  test("ChatGPT, Grok and Claude open with the whole paste encoded in the address", () => {
-    expect(o.chatgpt.href).toBe(`https://chatgpt.com/?q=${encodeURIComponent(PASTE)}`)
-    expect(o.grok.href).toBe(`https://grok.com/?q=${encodeURIComponent(PASTE)}`)
-    expect(o.claude.href).toBe(`https://claude.ai/new?q=${encodeURIComponent(PASTE)}`)
-    for (const k of ["chatgpt", "grok", "claude"]) expect(o[k].kind).toBe("open")
-    expect(decodeURIComponent(o.chatgpt.href.split("?q=")[1])).toBe(PASTE)
+  test("the secret link is never placed in another company's address: no href carries any part of the paste, a query string or the token", () => {
+    const token = "a".repeat(64)
+    for (const x of chatOptions(PASTE)) {
+      expect(x.href).not.toContain("?")
+      expect(x.href).not.toContain(token)
+      expect(x.href).not.toContain(encodeURIComponent("DPDP"))
+      expect(x.href).not.toContain("veridian-aios")
+    }
   })
-  test("Gemini, DeepSeek and z.ai copy first, then open the site", () => {
-    expect(o.gemini.href.startsWith("https://gemini.google.com/app?q=")).toBe(true)
+  test("every button copies first, then opens the plain site", () => {
+    expect(o.chatgpt.href).toBe("https://chatgpt.com/")
+    expect(o.grok.href).toBe("https://grok.com/")
+    expect(o.claude.href).toBe("https://claude.ai/new")
+    expect(o.gemini.href).toBe("https://gemini.google.com/app")
     expect(o.deepseek.href).toBe("https://chat.deepseek.com/")
     expect(o.zai.href).toBe("https://chat.z.ai/")
-    for (const k of ["gemini", "deepseek", "zai"]) expect(o[k].kind).toBe("copy-open")
+    for (const k of ["chatgpt", "grok", "claude", "gemini", "deepseek", "zai"]) expect(o[k].kind).toBe("copy-open")
   })
   test("six buttons here; the seventh (plain Copy) is in the component", () => {
     expect(chatOptions(PASTE)).toHaveLength(6)

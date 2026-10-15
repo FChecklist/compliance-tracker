@@ -495,7 +495,7 @@ export function manifestOf(markdown: string): Record<string, any> {
 export const PRIVATE_HEADERS: Record<string, string> = {
   "cache-control": "no-store",
   "referrer-policy": "no-referrer",
-  "x-robots-tag": "noindex, nofollow, noarchive, nosnippet",
+  "x-robots-tag": "noindex, nofollow, noarchive",
   "x-content-type-options": "nosniff",
   "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
   "access-control-allow-origin": "*",

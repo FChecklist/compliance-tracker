@@ -49,7 +49,7 @@ There is no penalty attached to this job. It exists because the file stalls with
 
 ## What done looks like
 
-The job "Name a DPDP coordinator" is marked Yes in the company, firm or NGO's VERIDIAN file by the person responsible for DPDP coordinator, with the date, within the 4-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.
+The job "Name a DPDP coordinator" is marked Yes in the company, firm or NGO's VERIDIAN file by the person responsible for DPDP coordinator, with the date, within the 4-day window — and the log line that records it is in the file's record, which is added to, not edited.
 
 **[Track this with VERIDIAN](https://app.veridian-aios.com/)**
 

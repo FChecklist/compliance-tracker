@@ -26,6 +26,7 @@ import { pipelineFailure } from "../error-codes";
 import type { ExecutableTask, ExecutionOutcome } from "../executor";
 import { badRequest, created, failureFromServiceError, notPermitted, rankOf, RANK_MANAGER, RANK_MEMBER, refuse, str } from "./common";
 import { allPeopleOfProject, cleanOneText, isOutcome, notFound, recordInProject, scopeOf, type ScopeRules } from "./scope";
+import { bad, BAD, optDate } from "./record-scope";
 
 const MOM_ROUTE = "/moms";
 
@@ -67,6 +68,10 @@ export async function executeAddMeetingActionItem(task: ExecutableTask): Promise
   const title = cleanOneText(task.params.title);
   if (!title.ok) return badRequest(task, "title_text");
   if (title.text === undefined) return refuse(pipelineFailure("TITLE_REQUIRED", ["title"]));
+  // A due date is a real calendar day written YYYY-MM-DD (2026-02-30 and "next week" are refused here: the service would hand them to
+  // `new Date()` and store an invalid date). The offline PROJEXA laptop checks the same rule before it keeps the write.
+  const dueDate = optDate(task, "dueDate");
+  if (dueDate === BAD) return bad(task, "dueDate");
   const meetingId = str(task.params.meetingId)!;
   if (!(await recordInProject(task, "veri_meeting", meetingId, scope.projectId))) return notFound(task);
   // Work may only be given to a person the project names. Without an assignee the item is the acting person's own.
@@ -78,7 +83,7 @@ export async function executeAddMeetingActionItem(task: ExecutableTask): Promise
   if ("failure" in built) return built.failure;
   try {
     // autoExecute false: the item is recorded and nothing hands its title to the task execution engine, which can run a model.
-    const row = await addMeetingActionItem(built.ctx, meetingId, { title: title.text, assigneeUserId, dueDate: str(task.params.dueDate) }, { autoExecute: false });
+    const row = await addMeetingActionItem(built.ctx, meetingId, { title: title.text, assigneeUserId, dueDate }, { autoExecute: false });
     return created(row.id, `${MOM_ROUTE}/${meetingId}`, row);
   } catch (error) {
     const refused = failureFromServiceError(task, error);

@@ -104,10 +104,17 @@ export const RUM_SCRIPT = { src: "/rum.js", tag: '<script defer src="/rum.js"></
  * is on <html data-theme> before the first paint. It keeps the three-dot colour choice in this browser's localStorage and sends nothing. */
 export const THEME_SCRIPT = { src: "/theme.js", tag: '<script src="/theme.js"></script>', open: '<script src="/theme.js">' }
 /** Exactly these opening tags, in this order, are the only scripts a public page may carry besides its JSON-LD: ref.js then rum.js; the home page adds theme.js first. */
-export const PUBLIC_SCRIPT_OPENS = [REF_SCRIPT.open, RUM_SCRIPT.open]
-export const HOME_SCRIPT_OPENS = [THEME_SCRIPT.open, REF_SCRIPT.open, RUM_SCRIPT.open]
+/** The FOURTH script (2026-10-06): public/visit.js, same origin, deferred, right after rum.js. First-party visit journey (where a visit came from, which sections were seen,
+ * where it ended), posted with sendBeacon to this site's own /api/visit -> the dpdp-track Edge Function. A random visitor id (cookie + local storage, one year); with Global
+ * Privacy Control / Do Not Track it stores no id and sends one count-only ping. Never on the private prefixes. */
+export const VISIT_SCRIPT = { src: "/visit.js", tag: '<script defer src="/visit.js"></script>', open: '<script defer src="/visit.js">' }
+export const PUBLIC_SCRIPT_OPENS = [REF_SCRIPT.open, RUM_SCRIPT.open, VISIT_SCRIPT.open]
+export const HOME_SCRIPT_OPENS = [THEME_SCRIPT.open, REF_SCRIPT.open, RUM_SCRIPT.open, VISIT_SCRIPT.open]
+/** The hand-kept legal pages carry rum.js then visit.js and nothing else. */
+export const LEGAL_SCRIPT_OPENS = [RUM_SCRIPT.open, VISIT_SCRIPT.open]
 export const scriptOpensFor = (path) => (path === "/" ? HOME_SCRIPT_OPENS : PUBLIC_SCRIPT_OPENS)
 FACT_COPY.push(RUM_SCRIPT.tag)
+FACT_COPY.push(VISIT_SCRIPT.tag)
 
 /** The ownership line at the end of every public footer (coordinator, 2026-10-02), from facts.company. */
 const COMPANY_FOOTER = companyFooterParts(FACTS)
@@ -167,8 +174,8 @@ const LANDING_COPY = [
   "Questions people ask",
   "One email. No card. Fifteen minutes.",
   "Jobs with names and dates",
-  "A record nobody can edit",
-  "We keep no documents",
+  "A record that is added to, not edited",
+  "We keep no compliance documents",
   "People answer by email",
   "Do you touch our systems?",
   "Do you keep our documents?",
@@ -228,7 +235,7 @@ export const PUBLIC_PAGES = [
     jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
       "For CA, CS, audit and legal firms",
-      "Give each client a list of jobs. Chase the answers by email. Keep a dated record nobody can edit.",
+      "Give each client a list of jobs. Chase the answers by email. Keep a dated record that is added to, not edited.",
       "Your own firm's file is free. No licence fee. You pay per client file, after you have billed the client.",
       "Add each client",
       "Every client has its own file",
@@ -248,7 +255,7 @@ export const PUBLIC_PAGES = [
     jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
       "For companies, institutions, schools and NGOs",
-      "Get a list of jobs. Give each job to a person. Keep a dated record nobody can edit.",
+      "Get a list of jobs. Give each job to a person. Keep a dated record that is added to, not edited.",
       "Pricing after a short conversation, because the right number depends on what you hold.",
       "Open your organisation",
       "Parents' consent, on a link",
@@ -356,6 +363,7 @@ export const LEGAL_PAGES = [
   { path: "/refund/", source: "public/refund/index.html", h1: "Cancellation and Refund Policy" },
   { path: "/shipping/", source: "public/shipping/index.html", h1: "Delivery Policy" },
   { path: "/contact/", source: "public/contact/index.html", h1: "Contact Us" },
+  { path: "/subprocessors/", source: "public/subprocessors/index.html", h1: "Sub-processors" },
 ]
 
 /** The /proof/ page (WO-013 §2.1): public once facts.proof.enabled is true,

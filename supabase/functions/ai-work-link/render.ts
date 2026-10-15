@@ -34,11 +34,26 @@ export function contextMarkdown(doc: Record<string, unknown>): string {
  * after them are ours, so they are plain text with the number each takes. The AI shows the person the numbered list and asks which one.
  */
 export function projectsMarkdown(doc: Record<string, unknown>): string {
-  const projects = Array.isArray(doc.projects) ? (doc.projects as Array<Record<string, unknown>>) : []
-  const extra = Array.isArray(doc.extra_options) ? (doc.extra_options as Array<Record<string, unknown>>) : []
   const lines = [
     "# Your projects",
     "",
+    ...projectListLines(doc),
+    "",
+    `To work in a project, use its id in the address: ${String(doc.project_url ?? "/projects/{id}/context")} (with the id in place of {id}), then /projects/{id}/records/<kind> and the rest of the manual's list.`,
+  ]
+  if (typeof doc.note === "string") lines.push("", doc.note)
+  lines.push("", DATA_CLOSING, "")
+  return lines.join("\n")
+}
+
+/**
+ * The numbered list of GET /projects (readProjects), from the count line to the options after the projects. ONE function draws it for both places it is shown:
+ * the /projects answer and the "Your projects" section of a user link's guide (manual.ts), so the AI sees the very same list, rows fenced as data, in both.
+ */
+export function projectListLines(doc: Record<string, unknown>): string[] {
+  const projects = Array.isArray(doc.projects) ? (doc.projects as Array<Record<string, unknown>>) : []
+  const extra = Array.isArray(doc.extra_options) ? (doc.extra_options as Array<Record<string, unknown>>) : []
+  return [
     `${projects.length} project${projects.length === 1 ? "" : "s"} of the person you work for${doc.truncated === true ? ` (the first ${projects.length} of ${String(doc.total)})` : ""}. Nothing has been changed.`,
     "",
     "Show the person this list, numbered exactly as below (the number is n), then the options after it, and ask which number they want:",
@@ -47,12 +62,7 @@ export function projectsMarkdown(doc: Record<string, unknown>): string {
     "",
     "After the projects, offer these, with these numbers:",
     ...extra.map((o) => `- ${String(o.n)}. ${String(o.label)}: ${String(o.method)} ${String(o.url)}. ${String(o.then)}`),
-    "",
-    `To work in a project, use its id in the address: ${String(doc.project_url ?? "/projects/{id}/context")} (with the id in place of {id}), then /projects/{id}/records/<kind> and the rest of the manual's list.`,
   ]
-  if (typeof doc.note === "string") lines.push("", doc.note)
-  lines.push("", DATA_CLOSING, "")
-  return lines.join("\n")
 }
 
 /** GET /portfolio as Markdown: the rows are data in a fenced block, the totals are ours. */
@@ -86,16 +96,34 @@ export function recordMarkdown(doc: Record<string, unknown>): string {
   return `# Record: ${line(String(doc.kind ?? ""))}\n\n${fenceValue(doc.record)}\n\n${DATA_CLOSING}\n`
 }
 
-export function functionsMarkdown(functions: FunctionView[], note: string): string {
-  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.module} | ${f.kind} | ${f.level} | ${availableWord(f)} | ${f.required.join(", ") || "none"} |`)
+export function functionsMarkdown(functions: FunctionView[], note: string, filtered = false): string {
+  const rows = functions.map((f) => `| ${f.id} | ${f.label} | ${f.module} | ${f.kind} | ${f.level} | ${availableWord(f)} | ${f.signature} |`)
+  const detail = filtered || functions.length <= 6
+    ? functions.flatMap((f) => [
+      "",
+      `## ${f.id}: ${f.label}`,
+      "",
+      "| Field | What it is | Type | Required | How to write it |",
+      "| --- | --- | --- | --- | --- |",
+      ...(f.fields.length ? f.fields.map((x) => `| ${x.name} | ${x.label} | ${x.type}${x.unit ? ` (${x.unit})` : ""} | ${x.required ? "yes" : "no"} | ${x.note ?? ""} |`) : ["| (none) | | | | |"]),
+      "",
+      "Example parameters:",
+      "```json",
+      JSON.stringify({ function: f.id, params: f.example_params }),
+      "```",
+    ])
+    : []
   return [
     "# Functions on this link",
     "",
     note,
     "",
-    "| Function | What it does | Module | Kind | Level | Available | Required parameters |",
+    "A * marks a required field. Add `?fn=<id>` for one function in full, or `?module=<name>` for one area (scope, work_progress, budget ...).",
+    "",
+    "| Function | What it does | Module | Kind | Level | Available | Fields |",
     "| --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
+    ...detail,
     "",
   ].join("\n")
 }

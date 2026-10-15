@@ -1,0 +1,44 @@
+{
+  "file": "scripts/verify/awl-live/paste-card.live.playwright.ts",
+  "checklist_rows": [
+    "B43",
+    "A32"
+  ],
+  "commit": "ec8722185dd3cfe1b9ef1066930bf08e00c9e4f1",
+  "date_utc": "2026-10-05T15:23:28.957Z",
+  "inbox_page": "https://projexa-link-pages.pages.dev/ai-inbox",
+  "card": {
+    "status": 200,
+    "bytes": 2691,
+    "content_type": "text/plain; charset=utf-8"
+  },
+  "engine": {
+    "tools": "none",
+    "request": "create a new project called <name> (no description). Do your part following the card.",
+    "sessions_run": 3,
+    "sessions_with_valid_block": 0,
+    "sessions": [
+      {
+        "session": 1,
+        "gave_block": false,
+        "block_valid": false,
+        "block": null,
+        "answer_excerpt": "I can't do this one. Creating a new project needs a higher access level than what your role currently has — it's not something available at your level. You'd need to ask an admin or whoever manages project setup at your company to create \"T-PASTE-CARD-1791213754313-1\" for you."
+      },
+      {
+        "session": 2,
+        "gave_block": false,
+        "block_valid": false,
+        "block": null,
+        "answer_excerpt": "I can't do this one. Creating a new project needs a higher level of access than your role currently has, so this isn't something I can carry out on your behalf. You'd need to either ask an admin/owner on your team to create \"T-PASTE-CARD-1791213754313-2\" for you, or do it yourself from the project creation screen if your account gets upgraded to that access level."
+      },
+      {
+        "session": 3,
+        "gave_block": false,
+        "block_valid": false,
+        "block": null,
+        "answer_excerpt": "I can't create this project. Creating a new project needs a higher access level than what your account currently has — this isn't something I can do on your behalf here. You'd need to ask whoever manages permissions in your organization (like a Projexa admin or your workspace owner) to either create it for you or raise your access level."
+      }
+    ]
+  }
+}

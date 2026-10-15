@@ -25,7 +25,7 @@ export function AiPasteOptions({ paste, onReplace, replacing }: { paste: string;
         {chatOptions(paste).map((o) => (
           <a
             key={o.id} href={o.href} target="_blank" rel="noopener noreferrer" className="font-bold text-white rounded-lg" style={btn}
-            onClick={o.kind === "copy-open" ? () => { void copy() } : undefined}
+            onClick={() => { void copy() }}
           >
             {o.label}
           </a>

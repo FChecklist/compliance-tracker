@@ -10,6 +10,8 @@ import {
   KEY_TTL_MS,
   PULL_IDS_MAX,
   RateLimiter,
+  RELEASE_ORIGIN,
+  releaseOriginOf,
   RELEASE_TTL_MS,
   type PublicKeyInfo,
   type Rpc,
@@ -151,6 +153,15 @@ describe("error branches a laptop depends on (tests-quality:F09)", () => {
     }
   })
 
+  test("the manifest carries the organisation's internal_ai flag through, only as a real boolean (absent otherwise)", async () => {
+    const ok = (extra: J) => fakeDb({ projexa_sync_manifest: async () => ({ data: { status: "ok", user: { id: "u1", org_id: "org-a" }, projects: [], kinds: [], view_class: "vc-member", org_view_class: "ovc-member", ...extra }, error: null }) })
+    expect(((await (await call(deps(ok({ internal_ai: true }).rpc), "manifest")).json()) as J).internal_ai).toBe(true)
+    expect(((await (await call(deps(ok({ internal_ai: false }).rpc), "manifest")).json()) as J).internal_ai).toBe(false)
+    for (const bad of [{}, { internal_ai: "true" }, { internal_ai: 1 }, { internal_ai: null }]) {
+      expect("internal_ai" in ((await (await call(deps(ok(bad).rpc), "manifest")).json()) as J)).toBe(false)
+    }
+  })
+
   test("an SQL error is a closed 500 (no relation name, no message); a thrown RPC is 503 with no address", async () => {
     const { rpc } = fakeDb({ projexa_sync_manifest: async () => ({ data: null, error: { message: "relation platform.secret does not exist", code: "42P01" } }) })
     const r = await call(deps(rpc), "manifest")
@@ -236,6 +247,26 @@ describe("release memory and registration cost (F-01, F7)", () => {
     now = new Date(T0.getTime() + RELEASE_TTL_MS + 1000)
     await call(d, "manifest", { headers: h })
     expect(calls.projexa_release_current).toBe(2)
+  })
+
+  test("P4: PX_RELEASE_ORIGIN decides where release bytes come from: releaseOriginOf, /release/current `origin`, and the manifest the registry reads", async () => {
+    const bucket = "https://pcrjmlpuqsbocqfwoxod.supabase.co/storage/v1/object/public/projexa-release"
+    expect(releaseOriginOf(undefined)).toBe(RELEASE_ORIGIN)
+    expect(releaseOriginOf("")).toBe(RELEASE_ORIGIN)
+    expect(releaseOriginOf(`${bucket}/`)).toBe(bucket)
+    // not a plain https URL = the safe default, never an attacker-shaped value
+    for (const bad of ["http://x.example/p", "https://u:p@x.example/p", "https://x.example/p?q=1", "https://x.example/p#h", "not a url", "javascript:alert(1)"]) {
+      expect(releaseOriginOf(bad)).toBe(RELEASE_ORIGIN)
+    }
+    const { rpc } = fakeDb()
+    expect(((await (await call(deps(rpc), "release/current")).json()) as J).origin).toBe(RELEASE_ORIGIN)
+    expect(((await (await call(deps(rpc, { releaseOrigin: bucket }), "release/current")).json()) as J).origin).toBe(bucket)
+    const rec = { release_version: "2026.10.05-001", files: [] as unknown[] }
+    const man = { ...rec, manifest_sha256: await sha256Hex(canonicalize(rec)) }
+    const seen: string[] = []
+    const fetchImpl = (async (url: string) => (seen.push(url), new Response(JSON.stringify(man), { status: 200 }))) as unknown as typeof fetch
+    await call(deps(rpc, { fetchImpl, releaseOrigin: bucket, registerBox: { at: 0, answer: null }, releaseBox: { at: 0, value: null } }), "release/register", { body: "{}" })
+    expect(seen).toEqual([`${bucket}/_release/release.json`])
   })
 
   test("/release/current?files=0 leaves out the file table", async () => {

@@ -20,6 +20,7 @@
 //      success it sets `executing` and returns the intent and the live context: organisation, person, project, role.
 //   2. deps.run(claim): the pipeline (src/lib/pipeline/link-exec-entry.ts). The text rules, the project pin and the same-project id check are its.
 //   3. ai_work_link_intent_finish(...): the outcome is stored as {id, route} on success or {code, missing} on failure, never a message.
+//      (The laptop PUSH routes, /sync-run and /sync-run-batch, are the one exception: a service's own REQUEST_REJECTED refusal also answers `reason`, see runOneSync.)
 // The business write and step 3 are not one transaction. A crash between them leaves `executing`; SQL reads it as failed EXECUTION_UNCERTAIN after
 // 10 minutes and it is NEVER retried by this function.
 //
@@ -38,7 +39,10 @@ export type Claimed = {
 /** What the pipeline answers (link-exec-entry.ts LinkRunOutcome). */
 export type Ran =
   | { status: "done"; submission_id: string | null; record: { id: string | null; route: string | null } }
-  | { status: "failed"; code: string; missing: string[]; submission_id?: string | null }
+  | { status: "failed"; code: string; missing: string[]; submission_id?: string | null; reason?: string }
+
+/** The most characters of a refusal reason a laptop push is answered with (the pipeline already bounds it; this is the second bound). */
+const SYNC_REASON_MAX = 300
 
 /** What POST /read answers (link-exec-entry.ts LinkReadOutcome). */
 export type ReadRan =
@@ -219,7 +223,11 @@ async function runOneSync(deps: ExecDeps, body: SyncBody, log: (l: string) => vo
   }
   // no intent row exists for a laptop push: the outcome goes back to projexa-sync, which stores it in the push ledger (a closed code, never a message)
   if (ranSync.status === "done") return { op_id: body.op_id, status: "done", submission_id: ranSync.submission_id, record: ranSync.record }
-  return { op_id: body.op_id, status: "failed", code: CODE_RE.test(ranSync.code) ? ranSync.code : "INTERNAL_ERROR", missing: ranSync.missing.slice(0, 20).map((m) => String(m).slice(0, 64)) }
+  // THE ONE EXCEPTION (checklist 2.19 / R-90): a service's own business refusal (REQUEST_REJECTED) travels with its words, so the laptop can tell the person
+  // WHY ("would reach 105 of 100 sqm ..."). The pipeline already made it safe (error-codes.ts safeRefusalReason); it is re-bounded here, only ever on
+  // this push route, and projexa-sync does not write it to the push ledger. A thrown error's text, a driver string, an address never travel.
+  const reason = ranSync.code === "REQUEST_REJECTED" && typeof ranSync.reason === "string" && ranSync.reason.length > 0 ? ranSync.reason.slice(0, SYNC_REASON_MAX) : undefined
+  return { op_id: body.op_id, status: "failed", code: CODE_RE.test(ranSync.code) ? ranSync.code : "INTERNAL_ERROR", missing: ranSync.missing.slice(0, 20).map((m) => String(m).slice(0, 64)), ...(reason ? { reason } : {}) }
 }
 
 // The SQL this needs is NOT in this package (it is a migration; see the D1 report): public.projexa_sync_push_claim(p_user_id, p_op_id, p_org_id,

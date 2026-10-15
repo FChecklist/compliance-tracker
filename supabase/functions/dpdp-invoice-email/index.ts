@@ -29,6 +29,7 @@
 // never fail or delay the send (supabase/functions/_shared/mail-outbound.ts).
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { type OutboundEnvelope, buildOutbound, foreignSenderWarning, logOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
+import { SUPPRESSED_MESSAGE_ID, mailGate } from "../_shared/mail-gate.ts"
 import type { MailClass } from "../_shared/mail-taxonomy.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
@@ -99,6 +100,7 @@ function renderInvoice(d: InvoiceDetails): { subject: string; text: string; html
 }
 
 async function sendViaResend(to: string, rendered: { text: string; html: string }, out: OutboundEnvelope): Promise<string> {
+  if (!(await mailGate(to, "dpdp-invoice-email")).send) return SUPPRESSED_MESSAGE_ID // Test mode: not on the allowlist (drizzle/0735)
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },

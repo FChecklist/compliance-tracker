@@ -19,7 +19,7 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects, constructionChangeOrders,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
+import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
 // R67 F-27 (R-243): a BOQ write moves contract value, earned value and
@@ -401,6 +401,10 @@ export function normalizeCategory(category: string | null | undefined): string |
   return trimmed === "" ? null : trimmed
 }
 
+// The revise form gives a line saved without an item code an invented one, `_row_<id>` (the id is a cuid, so it holds no `_`; a de-dup suffix such as
+// `_x` or `_1` may follow). See currentLineItemKey below for how a diff resolves it.
+const SYNTHETIC_ROW_CODE = /^_row_([^_]+)(?:_.*)?$/
+const isInventedRowCode = (code: string | null | undefined): boolean => Boolean(code && SYNTHETIC_ROW_CODE.test(code))
 export async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
   if (items.length === 0) return
   const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
@@ -427,7 +431,9 @@ export async function insertLineItems(db: TenantDb, orgId: string, boqId: string
           orgId,
           boqId,
           activityId: item.activityId || null,
-          itemCode: item.itemCode || null,
+          // An invented `_row_<id>` code only exists so parent/child links survive the revise form's round trip; it is never a real item code, so
+          // it is not stored (links are resolved below through the INPUT code, in insertion order).
+          itemCode: isInventedRowCode(item.itemCode) ? null : item.itemCode || null,
           parentLineItemId: item.parentItemCode ? idByItemCode.get(item.parentItemCode)! : null,
           breakdownPercentage: item.breakdownPercentage !== undefined ? String(item.breakdownPercentage) : null,
           description: item.description,
@@ -460,7 +466,10 @@ export async function insertLineItems(db: TenantDb, orgId: string, boqId: string
       })
     ).returning({ id: constructionBoqLineItems.id, itemCode: constructionBoqLineItems.itemCode })
 
-    for (const row of inserted) if (row.itemCode) idByItemCode.set(row.itemCode, row.id)
+    // Postgres returns a multi-row INSERT's rows in the order given, so row i is ready[i]: link by the INPUT code (an invented one is not stored).
+    ready.forEach((item, i) => {
+      if (item.itemCode) idByItemCode.set(item.itemCode, inserted[i].id)
+    })
     remaining = notReady
   }
 }
@@ -661,6 +670,8 @@ export function parseBoqInclude(include: string | null | undefined): {
   lineItems: boolean
   variation: boolean
   compare: boolean
+  /** PROJEXA G-12: headers only -- the caller does not want any line item (see the v1 BOQ list route). */
+  headers: boolean
 } {
   const parts = new Set(
     (include ?? "")
@@ -668,7 +679,12 @@ export function parseBoqInclude(include: string | null | undefined): {
       .map((s) => s.trim())
       .filter(Boolean)
   )
-  return { lineItems: parts.has("lineItems"), variation: parts.has("variation"), compare: parts.has("compare") }
+  return {
+    lineItems: parts.has("lineItems"),
+    variation: parts.has("variation"),
+    compare: parts.has("compare"),
+    headers: parts.has("headers"),
+  }
 }
 
 type RevisionSummary = BoqRevisionVariation & BoqRevisionCompare
@@ -690,7 +706,7 @@ async function loadRevisionSummaries(
   orgId: string,
   projectId: string
 ): Promise<Map<string, RevisionSummary>> {
-  const rows = (await db.execute(sql`
+  const raw = await db.execute(sql`
     WITH revision AS (
       SELECT id, parent_boq_id
       FROM compliance.construction_boqs
@@ -698,7 +714,11 @@ async function loadRevisionSummaries(
     ),
     totals AS (
       SELECT li.boq_id AS boq_id,
-             coalesce(sum(li.quantity * li.rate), 0)::float AS total,
+             -- total is ROOT lines only (A7/R-32): a sub-task's money is already inside its root line, so adding
+             -- it again overstated the BOQ (5,000 showed as 7,500). all_total keeps every line so a sub-task
+             -- breakdown-% change still registers as a variation (R-24) -- variation is a change measure, not a total.
+             coalesce(sum(li.quantity * li.rate) FILTER (WHERE li.parent_line_item_id IS NULL), 0)::float AS total,
+             coalesce(sum(li.quantity * li.rate), 0)::float AS all_total,
              count(*)::int AS line_count
       FROM compliance.construction_boq_line_items li
       JOIN revision r ON r.id = li.boq_id
@@ -708,19 +728,22 @@ async function loadRevisionSummaries(
            coalesce(c.total, 0)::float AS total,
            coalesce(c.line_count, 0)::int AS line_count,
            CASE WHEN r.parent_boq_id IS NULL THEN NULL
-                ELSE (coalesce(c.total, 0) - coalesce(p.total, 0))::float END AS variation_vs_prior,
+                ELSE (coalesce(c.all_total, 0) - coalesce(p.all_total, 0))::float END AS variation_vs_prior,
            CASE WHEN r.parent_boq_id IS NULL THEN NULL
                 ELSE (coalesce(c.line_count, 0) - coalesce(p.line_count, 0))::int END AS line_delta,
            -- NULLIF, not a division: a percentage change from a parent that
            -- totalled nothing is not a number, and "∞%" or "0%" beside a real
            -- increase would be a false statement about the project's money.
            CASE WHEN r.parent_boq_id IS NULL THEN NULL
-                ELSE ((coalesce(c.total, 0) - coalesce(p.total, 0))
-                      / NULLIF(coalesce(p.total, 0), 0) * 100)::float END AS delta_pct
+                ELSE ((coalesce(c.all_total, 0) - coalesce(p.all_total, 0))
+                      / NULLIF(coalesce(p.all_total, 0), 0) * 100)::float END AS delta_pct
     FROM revision r
     LEFT JOIN totals c ON c.boq_id = r.id
     LEFT JOIN totals p ON p.boq_id = r.parent_boq_id
-  `)) as {
+  `)
+  // postgres.js (production) returns the rows as the array itself; PGlite's drizzle driver (the tests) wraps them in
+  // { rows }. Accept both so the same statement is testable on real SQL.
+  const rows = (Array.isArray(raw) ? raw : (raw as { rows: unknown[] }).rows) as {
     boq_id: string
     total: number | null
     line_count: number | null
@@ -1525,6 +1548,12 @@ export async function updateLineItemBudget(
     materialAmount?: number | null
     manpowerAmount?: number | null
     category?: string | null
+    /**
+     * G-14 (two laptops edit the same field offline): the category the caller SAW when it made its edit. Absent = no check (every older
+     * caller). Present and different from what is stored now = the edit is refused with EditConflictError (409) carrying what is stored,
+     * so the person can choose, instead of the later write silently replacing the earlier one.
+     */
+    expectedCategory?: string | null
   }
 ) {
   if (input.budgetPercentage !== undefined && (input.budgetPercentage < 0 || input.budgetPercentage > 100)) {
@@ -1534,7 +1563,7 @@ export async function updateLineItemBudget(
   // silently storing one would put a negative subtotal into every report that
   // groups by these columns. Rejected at the write path, the same way
   // budgetPercentage's own range is.
-  for (const key of ["materialAmount", "manpowerAmount"] as const) {
+  for (const key of ["vendorAmount", "materialAmount", "manpowerAmount"] as const) {
     const value = input[key]
     if (value === undefined || value === null) continue
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
@@ -1546,6 +1575,9 @@ export async function updateLineItemBudget(
     if (!existing) throw new ServiceError("Line item not found", 404)
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, existing.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("Line item not found", 404)
+    if (input.expectedCategory !== undefined && normalizeCategory(existing.category) !== normalizeCategory(input.expectedCategory)) {
+      throw new EditConflictError({ category: normalizeCategory(existing.category) })
+    }
 
     const setValues = {
       ...(input.budgetPercentage !== undefined ? { budgetPercentage: String(input.budgetPercentage) } : {}),
@@ -1577,10 +1609,25 @@ export async function updateLineItemBudget(
       return withComputedRate(existing)
     }
 
+    // The compare-and-set is repeated IN the update, so another writer between the read above and this write cannot slip through.
+    const expected = input.expectedCategory === undefined ? undefined : normalizeCategory(input.expectedCategory)
+    const sameAsExpected = expected === undefined ? undefined : expected === null ? isNull(constructionBoqLineItems.category) : eq(constructionBoqLineItems.category, expected)
     const [updated] = await db.update(constructionBoqLineItems).set(setValues)
-      .where(eq(constructionBoqLineItems.id, lineItemId)).returning()
+      .where(and(eq(constructionBoqLineItems.id, lineItemId), sameAsExpected)).returning()
+    if (!updated) {
+      const now = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
+      throw new EditConflictError({ category: normalizeCategory(now?.category) })
+    }
     return withComputedRate(updated)
   })
+}
+
+/** 409: the field was changed by someone else since the caller read it. `current` is what is stored now, for the person to choose from. */
+export class EditConflictError extends ServiceError {
+  constructor(public readonly current: { category: string | null }) {
+    super("This line was changed by someone else since you started editing it.", 409)
+    this.code = "EDIT_CONFLICT"
+  }
 }
 
 // R85 Addendum 3 v4, Phase 2 (gates 2-01/2-02/2-04) -- the grid's own write
@@ -1867,7 +1914,7 @@ export async function createBoqRevision(
       // the override instead of printing a paragraph.
       throw new ScopeReductionError(
         `Scope reduction blocked -- this revision would remove or reduce work already completed on site: ${violations.join("; ")}. ` +
-          `Pass allowScopeReductionOverride: true to proceed anyway.`,
+          `To go ahead anyway, choose "Apply anyway - override" (API callers: allowScopeReductionOverride: true).`,
         buildScopeReductionConflicts({ removed, changed }, progressDetailByLineItem)
       )
     }
@@ -1912,6 +1959,26 @@ export type BoqComparison = {
 
 function lineItemKey(item: BoqLineItemRow) {
   return item.itemCode || item.description
+}
+
+// A line that was saved with no item code reaches the revise form with an
+// invented one, `_row_<id>` (PROJEXA boq-helpers toDrafts, this app's scope page
+// toDraft; the id is a cuid, so it never contains `_`, and a de-dup suffix such
+// as `_x` or `_1` may follow). The revision then stores that invented code, so
+// diffing by `itemCode || description` saw the OLD row (no code, key = its
+// description) as REMOVED and the NEW row (key = `_row_<id>`) as ADDED. A revision
+// that changed nothing therefore read as "removes the whole line", and was hard-
+// blocked whenever the line had progress. The invented code names the previous
+// row it came from, so resolve it back to that row's own key.
+
+function currentLineItemKey(item: BoqLineItemRow, previousById: Map<string, BoqLineItemRow>) {
+  const match = item.itemCode ? SYNTHETIC_ROW_CODE.exec(item.itemCode) : null
+  if (match) {
+    const previous = previousById.get(match[1])
+    // Only a previous row that really had no code of its own can have been the source of an invented one.
+    if (previous && !previous.itemCode) return lineItemKey(previous)
+  }
+  return lineItemKey(item)
 }
 
 /**
@@ -2139,10 +2206,11 @@ export async function loadLatestProgressDetailByLineItem(db: TenantDb, orgId: st
  * change from a sub-task change without a second lookup.
  */
 export function diffLineItems(previousItems: BoqLineItemRow[], currentItems: BoqLineItemRow[]): { added: BoqLineItemRow[]; removed: BoqLineItemRow[]; changed: ChangedLineItem[] } {
+  const previousById = new Map(previousItems.map((i) => [i.id, i]))
   const previousByKey = new Map(previousItems.map((i) => [lineItemKey(i), i]))
-  const currentByKey = new Map(currentItems.map((i) => [lineItemKey(i), i]))
+  const currentByKey = new Map(currentItems.map((i) => [currentLineItemKey(i, previousById), i]))
 
-  const added = currentItems.filter((i) => !previousByKey.has(lineItemKey(i)))
+  const added = currentItems.filter((i) => !previousByKey.has(currentLineItemKey(i, previousById)))
   const removed = previousItems.filter((i) => !currentByKey.has(lineItemKey(i)))
   const changed: ChangedLineItem[] = []
 

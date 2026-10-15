@@ -22,6 +22,7 @@ import {
   PUBLIC_PAGES,
   SITEMAP_PAGES,
   RUM_SCRIPT,
+  VISIT_SCRIPT,
   THEME_SCRIPT,
   REQUIRED_BOTS,
   SITE_ORIGIN,
@@ -164,6 +165,39 @@ describe("public/_headers (WO-012 §2 over HTTP, on Cloudflare Pages)", () => {
       expect(h["x-robots-tag"]).toBeUndefined()
       expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin")
       expect(h["x-content-type-options"]).toBe("nosniff")
+    }
+  })
+})
+
+describe("every page declares its own icon (a page without one makes the browser ask /favicon.ico, which is a 404 on /app/)", () => {
+  test("each built HTML page links /favicon-48.png, and that file exists", () => {
+    // /copy/ is left out on purpose: it is a one-tap page whose test (copy-prompt.test.ts) pins the exact set of links it may carry, and a visitor
+    // never keeps it open in a tab.
+    const sources = [...PRIVATE_PAGES.filter((p) => p.prefix !== "/copy/"), ...PUBLIC_PAGES].map((p) => p.source).filter((s): s is string => typeof s === "string")
+    expect(sources.length).toBeGreaterThan(8)
+    for (const s of sources) expect(read(s), s).toMatch(/<link rel="icon"[^>]*href="\/favicon-48\.png"/)
+    expect(read("public/favicon-48.png").length).toBeGreaterThan(0)
+  })
+})
+
+describe("public/_headers: framing and device access (every page, public and private)", () => {
+  const rules = parseHeadersFile(read("public/_headers"))
+
+  test("every page is sent X-Frame-Options DENY, frame-ancestors 'none' and a Permissions-Policy that switches off camera, microphone and location", () => {
+    const paths = [...PUBLIC_PAGES.map((p) => p.path), ...PRIVATE_PAGES.flatMap((p) => [p.prefix, `${p.prefix}anything`]), "/404.html", "/assets/x.js"]
+    for (const path of paths) {
+      const h = resolveHeaders(rules, path)
+      expect(h["x-frame-options"], path).toBe("DENY")
+      expect(h["content-security-policy"], path).toBe("frame-ancestors 'none'")
+      expect(h["permissions-policy"], path).toBe("camera=(), microphone=(), geolocation=()")
+    }
+  })
+
+  test("the Content-Security-Policy is the frame-ancestors directive only (a script or style policy could break the app)", () => {
+    for (const rule of rules) {
+      for (const [name, value] of rule.set) {
+        if (name.toLowerCase() === "content-security-policy") expect(value).toBe("frame-ancestors 'none'")
+      }
     }
   })
 })
@@ -480,7 +514,7 @@ describe("page sources", () => {
       expect(html).toContain(`<link rel="canonical" href="${pageUrl(pub.path)}" />`)
       expect(html).not.toMatch(/<meta\s+name="robots"[^>]*no(index|follow)/i)
       const scripts = html.match(/<script\b[^>]*>/g) ?? []
-      for (const s of scripts) expect(s === REF_SCRIPT.open || s === RUM_SCRIPT.open || s === THEME_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
+      for (const s of scripts) expect(s === REF_SCRIPT.open || s === RUM_SCRIPT.open || s === VISIT_SCRIPT.open || s === THEME_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
       expect(html).not.toMatch(/https?:\/\/fonts\.(googleapis|gstatic)\.com/)
     }
   })

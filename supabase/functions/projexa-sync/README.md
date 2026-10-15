@@ -91,3 +91,7 @@ Nine kinds are **not project-scoped**: `vendors` (`erp_suppliers`), `customers` 
 
 ## Logging
 One redacted line per 5xx, per lost exec answer / lost ledger close, per begin failure and per signing outage: the route or SQL function and a status or SQLSTATE class, never a token, an email, a row or an error message. `index.ts` keeps the isolate alive on an unhandled rejection (same listeners as `ai-work-link-exec`).
+
+## PX_RELEASE_ORIGIN (optional secret)
+
+Where release bytes are served from, for example the public Supabase Storage bucket `projexa-release`. A plain https URL (a path is fine); anything else is ignored and the default `https://projexa-ai.com` stays. `/release/register` reads `<origin>/_release/release.json`, and `/release/current` returns the same base as `origin` so laptops know where to fetch. Laptops still verify the manifest digest, the release signature and every file hash, so the origin only decides where bytes come from. Set it with `supabase secrets set PX_RELEASE_ORIGIN=...` (owner action; not set by this change).

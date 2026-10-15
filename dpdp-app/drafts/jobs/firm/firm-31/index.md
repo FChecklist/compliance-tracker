@@ -47,7 +47,7 @@ There is no penalty attached to this job. It exists because the file stalls with
 
 ## What done looks like
 
-The job "CA partner signs the file" is marked Yes in the company, firm or NGO's VERIDIAN file by the person responsible for CAPARTNER, with the date, within the 30-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.
+The job "CA partner signs the file" is marked Yes in the company, firm or NGO's VERIDIAN file by the person responsible for CAPARTNER, with the date, within the 30-day window — and the log line that records it is in the file's record, which is added to, not edited.
 
 This job waits for firm-30 ("CA manager checks the proof") to be done first — it stays blocked until then.
 

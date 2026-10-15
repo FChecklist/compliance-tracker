@@ -56,6 +56,7 @@ Deno.serve((req: Request) =>
     limiter,
     orgCache,
     releaseBox,
+    releaseOrigin: Deno.env.get("PX_RELEASE_ORIGIN") ?? undefined,
     registerBox,
     execRun,
     execRunBatch,

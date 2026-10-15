@@ -57,8 +57,19 @@ export async function createTaxTemplate(
   await requireErpEnabled(ctx.orgId)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one tax line (e.g. CGST, SGST) is required", 400)
+  for (const i of input.items) {
+    if (!i.taxAccountId) throw new ServiceError("Every tax line needs a tax account", 400)
+    if (typeof i.rate !== "number" || !Number.isFinite(i.rate) || i.rate < 0 || i.rate > 100) {
+      throw new ServiceError("Each tax rate must be a number between 0 and 100", 400)
+    }
+  }
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    // Every tax account must be a real, non-group account of THIS org.
+    const ids = [...new Set(input.items.map((i) => i.taxAccountId))]
+    const found = await db.query.erpAccounts.findMany({ where: and(eq(erpAccounts.orgId, ctx.orgId), inArray(erpAccounts.id, ids)) })
+    const ok = new Set(found.filter((a) => !a.isGroup).map((a) => a.id))
+    if (ids.some((id) => !ok.has(id))) throw new ServiceError("Tax account not found in your organisation", 400)
     const [template] = await db.insert(erpTaxTemplates).values({
       orgId: ctx.orgId, name: input.name, isSalesTax: input.isSalesTax ?? false, isPurchaseTax: input.isPurchaseTax ?? false,
     }).returning()

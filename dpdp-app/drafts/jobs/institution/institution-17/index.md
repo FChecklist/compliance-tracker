@@ -52,7 +52,7 @@ From 13 May 2027, a person can take an unresolved grievance to the Data Protecti
 
 ## What done looks like
 
-The job "Passwords on the ERP and every office computer, access only for those who need it, backups" is marked Yes in the school's VERIDIAN file by the person responsible for IT & computers, with the date, within the 14-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.
+The job "Passwords on the ERP and every office computer, access only for those who need it, backups" is marked Yes in the school's VERIDIAN file by the person responsible for IT & computers, with the date, within the 14-day window — and the log line that records it is in the file's record, which is added to, not edited.
 
 **[Track this with VERIDIAN](https://app.veridian-aios.com/)**
 

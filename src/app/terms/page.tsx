@@ -28,9 +28,14 @@ export default async function TermsPage() {
         <p>
           VERIDIAN AI OS and all products offered under it — including VERIDIAN OFFICE AI OS, THE FIRM AI OS,
           VERI FM &amp; CS AI OS, and FORGE (together, the &ldquo;Services&rdquo;) — are owned and operated by{" "}
-          <strong>{COMPANY.legalName}</strong>, a company {COMPANY.incorporation} (&ldquo;the Company&rdquo;,
+          <strong>{COMPANY.legalName}</strong>, {COMPANY.description} (&ldquo;the Company&rdquo;,
           &ldquo;we&rdquo;, &ldquo;us&rdquo;). By accessing or using the Services you agree to these Terms.
           If you use the Services on behalf of an organisation, you represent that you are authorised to bind it.
+        </p>
+        <p>
+          We are a software company. We deliver no physical products or services; everything is delivered digitally
+          over the internet. The software, code and concepts of the Services are owned by Rajat Agarwal alone.
+          Seller: {COMPANY.legalName}, {COMPANY.address}. {COMPANY.gstNote}
         </p>
       </section>
 
