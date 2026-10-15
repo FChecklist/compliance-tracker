@@ -96,9 +96,10 @@ export type ResendState = "idle" | "sending" | "sent"
 /** The Veridian DPDP mark, top right of the sign-in pop-up (the same wordmark as the site and the e-mails). */
 export function BrandMark() {
   return (
-    <span aria-label="Veridian DPDP" style={{ fontFamily: "Sora, sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em", color: "var(--dpdp-ink)", whiteSpace: "nowrap" }}>
-      VERIDIAN <span style={{ color: "var(--dpdp-v)" }}>DPDP</span>
-    </span>
+    <a href="/" aria-label="Veridian DPDP" style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: "Sora, sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em", color: "var(--dpdp-ink)", whiteSpace: "nowrap" }}>
+      <img src="/logo-mark.svg" alt="" width={26} height={26} style={{ borderRadius: 7, display: "block" }} />
+      <span>VERIDIAN <span style={{ color: "var(--dpdp-v)" }}>DPDP</span></span>
+    </a>
   )
 }
 

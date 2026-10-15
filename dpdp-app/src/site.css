@@ -792,3 +792,8 @@ b {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* logo 2026-10-15: the Veridian DPDP mark sits to the left of the wordmark, which is unchanged */
+.wordmark { display: inline-block; position: relative; padding-left: 42px; min-height: 34px; }
+.wordmark-logo { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 22%; display: block; }
+.chooser .wordmark { padding-left: 42px; }
