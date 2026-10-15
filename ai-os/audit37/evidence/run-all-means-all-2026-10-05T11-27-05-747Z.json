@@ -1,0 +1,76 @@
+{
+  "file": "./scripts/verify/awl-live/all-means-all.live.test.ts",
+  "args": [],
+  "commit": "b9cf5e2ba8a29090fca4d4cbfaf8ef683c316ae4",
+  "tree_dirty": true,
+  "started_at": "2026-10-05T11:27:05.747Z",
+  "ended_at": "2026-10-05T11:28:08.323Z",
+  "exit_code": 0,
+  "pass": 11,
+  "fail": 0,
+  "skip": 0,
+  "tests": [
+    {
+      "name": "ALL: each person's project list is exactly the organisation's projects, and every one opens",
+      "result": "pass",
+      "time_s": 10.759824
+    },
+    {
+      "name": "ALL: the portfolio report covers the projects (first 25 rows) and reports the full count",
+      "result": "pass",
+      "time_s": 0.387759
+    },
+    {
+      "name": "ALL: every record kind the manual promises can be read inside a project (33 kinds, none refused as unknown)",
+      "result": "pass",
+      "time_s": 8.072685
+    },
+    {
+      "name": "ORGANISATION: a foreign project is a 404 on every route, with the same body as a project that does not exist",
+      "result": "pass",
+      "time_s": 9.018465
+    },
+    {
+      "name": "ORGANISATION: no id of another organisation appears in any list, and the MCP tool refuses it too",
+      "result": "pass",
+      "time_s": 0.835543
+    },
+    {
+      "name": "ROLE: a viewer's link offers read functions only",
+      "result": "pass",
+      "time_s": 0.931705
+    },
+    {
+      "name": "ROLE: a viewer cannot write: every write function is refused 403, and the database shows no write and no intent",
+      "result": "pass",
+      "time_s": 4.141475
+    },
+    {
+      "name": "ROLE: above-role and permission-changing functions are refused for a member and a viewer (dry-run /check, nothing runs)",
+      "result": "pass",
+      "time_s": 3.143601
+    },
+    {
+      "name": "ROLE: money is null and marked redacted for a member and a viewer, and visible to the manager",
+      "result": "pass",
+      "time_s": 1.939517
+    },
+    {
+      "name": "NO CODE: the guide and the token-free card tell the outside AI never to write code",
+      "result": "pass",
+      "time_s": 0.831284
+    },
+    {
+      "name": "the three throwaway links are revoked at the end",
+      "result": "pass",
+      "time_s": 8.040581
+    }
+  ],
+  "function_calls_during_run": {
+    "note": "every caller of the function in this window, not only this run (the database and the function are shared)",
+    "calls": 98,
+    "slow_3s_or_more": 0,
+    "failed_5xx": 0,
+    "status_503": 0
+  }
+}

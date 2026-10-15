@@ -65,4 +65,23 @@ describe("GET /api/v1/projexa/exceptions", () => {
     expect(res.status).toBe(400)
     expect(getProjectExceptions).not.toHaveBeenCalled()
   })
+  test("an unexpected failure returns the real error code, not just a generic string", async () => {
+    mockAuth({ orgId: "org-1" })
+    const err = Object.assign(new Error("canceling statement due to statement timeout"), { code: "57014" })
+    const getProjectExceptions = mock(async () => { throw err })
+    mock.module("@/lib/services/construction-exceptions-service", () => ({ getProjectExceptions, ServiceError }))
+    const spy = mock(() => {})
+    const orig = console.error
+    console.error = spy as any
+    try {
+      const { GET } = await import("./route")
+      const res = await GET({ nextUrl: new URL("http://localhost/api/v1/projexa/exceptions?projectId=proj-1") } as any)
+      expect(res.status).toBe(500)
+      const body = await res.json()
+      expect(body.code).toBe("57014")
+      expect(JSON.stringify(body)).not.toContain("statement timeout")
+    } finally {
+      console.error = orig
+    }
+  })
 })

@@ -15,6 +15,10 @@ export type Landing = {
   referralCode: string | null
   /** ?join=<code> from a colleague's invite link (WO-DPDP-016 Step 2): which organisation this visitor is here to join, if any. */
   joinCode: string | null
+  /** ?sp=<code> from a Sales Partner's own link (drizzle/0734): outranks a ?ref= referral at account opening. */
+  partnerCode: string | null
+  /** ?src= or ?utm_source= : a campaign tag, kept as the account's source. */
+  sourceTag: string | null
   linkError: { expired: boolean; description: string | null } | null
 }
 
@@ -47,6 +51,10 @@ function parse(): Landing {
   // source of truth for whether it actually resolves to an organisation.
   const joinParam = query.get("join")
   const joinCode = joinParam && /^[A-Za-z0-9]{4,16}$/.test(joinParam) ? joinParam : null
+  // ?sp= (a Sales Partner's code) and ?src= / ?utm_source= (a campaign tag): both kept with the FIRST link winning for 30 days.
+  const spParam = query.get("sp")
+  const partnerCode = spParam && /^[A-Za-z0-9]{4,16}$/.test(spParam) ? spParam : null
+  const sourceTag = cleanSourceTag(query.get("src") ?? query.get("utm_source"))
   const hasToken = hash.has("access_token")
   const errorParams = hash.has("error") || hash.has("error_code") ? hash : query.has("error") || query.has("error_code") ? query : null
   const linkError = !hasToken && errorParams
@@ -56,18 +64,84 @@ function parse(): Landing {
   if (edition) rememberEdition(edition)
   if (referralCode) rememberReferral(referralCode)
   if (joinCode) rememberJoin(joinCode)
-  if (emailHint || edition || referralCode || joinCode || linkError) {
+  if (partnerCode) rememberFirstTouch(PARTNER_KEY, partnerCode)
+  if (sourceTag) rememberFirstTouch(SOURCE_KEY, sourceTag)
+  if (referralCode) markFirstSeen()
+  if (emailHint || edition || referralCode || joinCode || partnerCode || sourceTag || linkError) {
     query.delete("email")
     query.delete("edition")
     query.delete("ref")
     query.delete("join")
+    query.delete("sp")
+    query.delete("src")
+    query.delete("utm_source")
     if (linkError) {
       if (errorParams === hash) url.hash = ""
       else for (const k of ["error", "error_code", "error_description"]) query.delete(k)
     }
     window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash)
   }
-  return { emailHint, edition, referralCode, joinCode, linkError }
+  return { emailHint, edition, referralCode, joinCode, partnerCode, sourceTag, linkError }
+}
+
+// ---- first link wins, for 30 days (drizzle/0734) ----
+// A partner link and a campaign tag are kept with the moment the visitor FIRST arrived. A later link does not replace an earlier one until 30
+// days have passed (the server enforces the same window from the timestamp we send). A partner code outranks a ?ref= referral on the server.
+export const ATTRIBUTION_WINDOW_DAYS = 30
+const PARTNER_KEY = "dpdp-partner"
+const SOURCE_KEY = "dpdp-source"
+const FIRST_SEEN_KEY = "dpdp-first-seen"
+const VISITOR_KEY = "dpdp_vid"
+
+export function cleanSourceTag(raw: string | null | undefined): string | null {
+  const v = (raw ?? "").trim().toLowerCase()
+  return /^[a-z0-9_.-]{1,60}$/.test(v) ? v : null
+}
+
+function readStore(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+function writeStore(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // a convenience, never a requirement
+  }
+}
+
+/** The ISO time of the first remembered touch, or null when none is within the window. */
+export function firstSeenAt(now: number = Date.now()): string | null {
+  const v = readStore(FIRST_SEEN_KEY)
+  const t = v ? Date.parse(v) : NaN
+  return Number.isFinite(t) && now - t <= ATTRIBUTION_WINDOW_DAYS * 86_400_000 ? v : null
+}
+
+export function markFirstSeen(now: number = Date.now()): void {
+  if (!firstSeenAt(now)) writeStore(FIRST_SEEN_KEY, new Date(now).toISOString())
+}
+
+/** Keep `value` under `key` only when nothing is remembered inside the window (first link wins). */
+export function rememberFirstTouch(key: string, value: string, now: number = Date.now()): void {
+  if (firstSeenAt(now) && readStore(key)) return
+  writeStore(key, value)
+  markFirstSeen(now)
+}
+
+export function recallPartner(): string | null {
+  const v = firstSeenAt() ? readStore(PARTNER_KEY) : null
+  return v && /^[A-Za-z0-9]{4,16}$/.test(v) ? v : null
+}
+
+/** The campaign tag, or -- when there is none -- the visitor's own random id from the public-page tracker, as `vid.<hex>`, so the owner can join the account to its journey. */
+export function recallSourceTag(): string | null {
+  const tag = firstSeenAt() ? cleanSourceTag(readStore(SOURCE_KEY)) : null
+  if (tag) return tag
+  const vid = readStore(VISITOR_KEY)
+  return vid && /^[a-f0-9]{8,64}$/.test(vid) ? `vid.${vid}` : null
 }
 
 // The edition a visitor chose on a landing page. The magic link they open

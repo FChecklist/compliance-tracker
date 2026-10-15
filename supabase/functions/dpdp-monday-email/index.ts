@@ -61,6 +61,7 @@ import {
   type AiStats, type Rpc, aiOnlyChanges, finishEmailAiLink, loadAiChanges, markChangesShown, mintAiLink, newAiStats, parseAiLinkConfig,
 } from "./ai-link-email.ts"
 import { type OutboundEnvelope, buildOutbound, foreignSenderWarning, logOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
+import { SUPPRESSED_MESSAGE_ID, mailGate } from "../_shared/mail-gate.ts"
 import { type MailClass, newRef, withSubjectPrefix } from "../_shared/mail-taxonomy.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
@@ -79,8 +80,8 @@ const UNSUBSCRIBE_PATH = env("DPDP_UNSUBSCRIBE_PATH") || "/unsubscribe/"
 // The AI work link inside the Monday email (drizzle/0663 + 0664; ai-link-email.ts). Owner, 2026-09-30: the emailed link is
 // READ / EDIT / WORK, which is level 1 (read + small edits directly; anything with legal weight is a draft the person confirms).
 // FAIL CLOSED: a switch is on only when unset or exactly "1". DPDP_EMAIL_AI_LINK_ENABLED=0 takes the link out of the email;
-// DPDP_EMAIL_AI_CHANGES_ENABLED=0 stops listing what the person's AI changed; DPDP_EMAIL_AI_LINK_LEVEL is 1 unless set to
-// anything else (then read-only); DPDP_EMAIL_AI_LINK_DAYS is 1, 7 or 30 (default 7). Emergency: update dpdp.ai_link set
+// DPDP_EMAIL_AI_CHANGES_ENABLED=0 stops listing what the person's AI changed; DPDP_EMAIL_AI_LINK_LEVEL is 1 ONLY when set to exactly "1"
+// (unset or anything else: read-only, owner 2026-10-06); DPDP_EMAIL_AI_LINK_DAYS is 1, 7 or 30 (default 7). Emergency: update dpdp.ai_link set
 // revoked_at = now() where label = 'Monday email' and revoked_at is null.
 const AI = parseAiLinkConfig((k) => env(k).trim())
 for (const w of AI.warnings) console.warn(`dpdp-monday-email: ${w}`)
@@ -173,6 +174,7 @@ function unsubscribeUrl(token: string): string {
 }
 
 async function sendViaResend(to: string, rendered: Rendered, out: OutboundEnvelope): Promise<string> {
+  if (!(await mailGate(to, "dpdp-monday-email")).send) return SUPPRESSED_MESSAGE_ID // Test mode: not on the allowlist (drizzle/0735)
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -348,6 +350,14 @@ async function runMonday(sb: SupabaseClient, now: Date, orgId: string | null, dr
           console.warn(`dpdp_timer_ensure_link_codes failed for org ${id}: ${e instanceof Error ? e.message : String(e)}`)
         }
         const digests = await rpc<Digest[]>(sb, "dpdp_timer_build_monday_digests", { p_now: now.toISOString(), p_org_id: id })
+        // drizzle/0734: an account that is DUE / GRACE / LOCKED carries one calm "payment is due" line in every e-mail it sends. Best effort:
+        // a failure here never withholds the digest (it goes out without the line this once).
+        try {
+          const due = await rpc<{ state: string; line: string } | null>(sb, "dpdp_timer_billing_due_line", { p_org_id: id })
+          if (due?.line) for (const d of digests) d.billingDueLine = due.line
+        } catch (e) {
+          console.warn(`dpdp_timer_billing_due_line failed for org ${id}: ${e instanceof Error ? e.message : String(e)}`)
+        }
         await deliverDigests(sb, digests, dryRun, summary)
       } catch (e) {
         summary.failed++

@@ -40,6 +40,13 @@ export type McpReads = {
   /** The suggestions board (drizzle/0672): record one suggestion for the PROJEXA team (changes no data and no part of the app), and read the board. */
   suggest(args: Record<string, unknown>): Promise<Record<string, unknown>>
   suggestions(limit: string | null): Promise<Record<string, unknown>>
+  /** The function dictionary (dictionary.ts): what exists on this link, and how to use one function. */
+  functions(module: string | null, project?: string): Promise<Record<string, unknown>>
+  describe(fn: string, project?: string): Promise<Record<string, unknown>>
+  /** Run a read function (reports, analysis) as POST /functions/{fn} does. */
+  runRead(fn: string, params: Record<string, unknown>, project?: string): Promise<Record<string, unknown>>
+  /** Make a change as POST /actions does when the link allows it directly, else record a draft as POST /drafts does. */
+  change(fn: string, params: Record<string, unknown>, project?: string, idempotencyKey?: string): Promise<{ mode: "direct" | "draft"; status: number; body: unknown }>
 }
 
 export type McpInput = { headers: { get(name: string): string | null }; bodyText: string }
@@ -156,6 +163,18 @@ async function runTool(name: string, args: Record<string, unknown>, reads: McpRe
         return toolText(await reads.suggest(args))
       case "list_suggestions":
         return toolText(await reads.suggestions(args.limit === undefined ? null : String(args.limit)))
+      case "list_functions":
+        return toolText(await reads.functions(typeof args.module === "string" && args.module ? args.module : null, project))
+      case "describe_function":
+        return toolText(await reads.describe(typeof args.function === "string" ? args.function : "", project))
+      case "run_read_function":
+        return toolText(await reads.runRead(typeof args.function === "string" ? args.function : "", asObject(args.params), project))
+      case "make_change": {
+        const done = await reads.change(typeof args.function === "string" ? args.function : "", asObject(args.params), project, typeof args.idempotency_key === "string" && args.idempotency_key ? args.idempotency_key : undefined)
+        const body = asObject(done.body)
+        if (done.status >= 400) return toolError(`${done.status}: ${typeof body.error === "string" ? body.error : "The change was refused."}${typeof body.hint === "string" ? ` ${body.hint}` : ""}${Array.isArray(body.missing) && body.missing.length ? ` Missing: ${body.missing.join(", ")}.` : ""}`)
+        return toolText({ mode: done.mode, ...body, next: done.mode === "draft" ? "Give the person the confirm_url. Say the change is done only after the draft's status is done." : "Read the record again and tell the person what you saw." })
+      }
       default:
         return toolError(`Unknown tool ${name}.`)
     }
@@ -170,7 +189,7 @@ export function toolList(): Array<Record<string, unknown>> {
     name: t.name,
     description: t.description,
     inputSchema: t.inputSchema,
-    annotations: { readOnlyHint: t.readOnly, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: t.readOnly, destructiveHint: t.destructive === true, idempotentHint: t.readOnly, openWorldHint: false },
   }))
 }
 
@@ -240,7 +259,7 @@ async function dispatch(msg: Record<string, unknown>, headers: McpInput["headers
 function messageBodyLimit(message: unknown): number {
   const m = asObject(message)
   const params = asObject(m.params)
-  if (m.method !== "tools/call" || (params.name !== "check_change" && params.name !== "propose_change")) return LIMITS.bodyMaxBytes
+  if (m.method !== "tools/call" || (params.name !== "check_change" && params.name !== "propose_change" && params.name !== "make_change" && params.name !== "run_read_function" && params.name !== "describe_function")) return LIMITS.bodyMaxBytes
   return bodyLimitFor(asObject(params.arguments).function)
 }
 

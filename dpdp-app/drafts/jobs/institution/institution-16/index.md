@@ -58,7 +58,7 @@ From 13 May 2027, a person can take an unresolved grievance to the Data Protecti
 
 ## What done looks like
 
-The job "Mask Aadhaar copies — keep only the last 4 digits visible" is marked Yes in the school's VERIDIAN file by the person responsible for Admission office, with the date, within the 10-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.
+The job "Mask Aadhaar copies — keep only the last 4 digits visible" is marked Yes in the school's VERIDIAN file by the person responsible for Admission office, with the date, within the 10-day window — and the log line that records it is in the file's record, which is added to, not edited.
 
 **[Track this with VERIDIAN](https://app.veridian-aios.com/)**
 

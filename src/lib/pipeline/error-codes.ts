@@ -65,6 +65,10 @@ export const PIPELINE_ERROR_CODES = [
   "TOTAL_MISMATCH",
   "BOQ_SEALED",
   "DUPLICATE_ITEM_CODE",
+  // OFFLINE WRITERS 2: a BOQ revision that would remove or reduce a line with progress already recorded on site (ScopeReductionError, 409).
+  // Its own code, not ALREADY_RECORDED: a laptop that sent the revision offline must say "work is recorded against this line", never "already done".
+  // Not retryable: the same revision gives the same answer until the person chooses the explicit override online.
+  "SCOPE_REDUCTION_BLOCKED",
   // --- what this account/workspace may not do ----------------------------
   "FUNCTION_NOT_AVAILABLE",
   "NOT_PERMITTED",
@@ -120,6 +124,7 @@ const PICKER_BY_CODE: Readonly<Record<PipelineErrorCode, PickerHint>> = {
   TOTAL_MISMATCH: "none",
   BOQ_SEALED: "none",
   DUPLICATE_ITEM_CODE: "none",
+  SCOPE_REDUCTION_BLOCKED: "none",
   FUNCTION_NOT_AVAILABLE: "none",
   NOT_PERMITTED: "none",
   READ_AS_QUESTION: "none",
@@ -298,6 +303,35 @@ export function isTransportErrorMessage(message: string): boolean {
  */
 export function revealsInternals(message: string): boolean {
   return ERRNO_PATTERN.test(message) || HOST_PORT_PATTERN.test(message);
+}
+
+/** The longest refusal reason a laptop is sent (one sentence or two; a card shows it whole). */
+export const REFUSAL_REASON_MAX = 300;
+
+/**
+ * UAT 2026-10-13 (checklist 2.19 / R-90): the ONE bounded exception to "a closed code, never a message" on the laptop push route.
+ *
+ * A service's own business refusal (ServiceError, status < 500, mapped to REQUEST_REJECTED) carries prose this project wrote for the person
+ * ("Progress on A1 would reach 105 of 100 sqm (105%), more than 100%. Only 5 sqm remains on this line."). A laptop that sent the write offline
+ * could only say "check the values", because the sentence never reached it. This returns that sentence ONLY when it is safe to hand a client:
+ * a non-empty string, control characters removed, at most REFUSAL_REASON_MAX characters, and not one that shows a driver errno or an address
+ * (revealsInternals). Anything else is undefined and the closed code stands alone. Never called for a thrown non-ServiceError (those can carry
+ * driver text), and never stored: it travels in the one push answer and is not written to the push ledger or the intent row.
+ */
+export function safeRefusalReason(message: unknown): string | undefined {
+  if (typeof message !== "string") return undefined;
+  // eslint-disable-next-line no-control-regex
+  const text = message.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").replace(/\s+/g, " ").trim();
+  if (!text || text.length > REFUSAL_REASON_MAX) return undefined;
+  if (revealsInternals(text)) return undefined;
+  return text;
+}
+
+/** `{ reason }` for a business refusal that may carry its words (REQUEST_REJECTED with a safe message), else `{}`. */
+export function refusalReason(code: string, message: unknown): { reason?: string } {
+  if (code !== "REQUEST_REJECTED") return {};
+  const reason = safeRefusalReason(message);
+  return reason ? { reason } : {};
 }
 
 /**

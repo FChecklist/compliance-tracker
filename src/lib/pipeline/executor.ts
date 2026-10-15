@@ -14,7 +14,7 @@ import { createProgressEntry } from "@/lib/services/construction-progress-servic
 import { approveTimeEntry, getTimeEntry, logTime, rejectTimeEntry, REJECTION_REASON_MIN_LENGTH } from "@/lib/services/pms-time-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
 import { createRosterEntry, recordAttendance } from "@/lib/services/construction-labour-service";
-import { createBoq, createBoqRevision, getProjectBoqLinePage, updateLineItemBudget, validateBoqBodyShape, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
+import { createBoq, createBoqRevision, getProjectBoqLinePage, ScopeReductionError, updateLineItemBudget, validateBoqBodyShape, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
 import { redactProjectSideFields } from "@/lib/services/cost-visibility-service";
 import { createMeeting } from "@/lib/services/pms-meeting-service";
 import { createDocumentRecord, createDrawingRecord } from "@/lib/services/document-service";
@@ -38,7 +38,7 @@ import { categoryForKind, DRAWING_STATUSES } from "@/lib/drawings-register";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ServiceError } from "@/lib/services/compliance-service";
 import { financialsAllowedForRole, redactProjectDashboardFinancials } from "@/lib/task-execution/construction-tools";
-import { codeForServiceError, normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
+import { codeForServiceError, normaliseThrownError, pipelineFailure, refusalReason, type PipelineFailure } from "./error-codes";
 import { functionSpec, requiredParamSatisfied, WRITE_FUNCTION_IDS as REGISTERED_WRITES } from "./function-registry";
 // PROJEXA-BUILD-002: executors that live in their own files (WP-03 project, WP-04 BOQ batches, WP-07 activity).
 import { executeCreateProject, executeUpdateProject } from "./executors/project";
@@ -72,7 +72,8 @@ import { notPermitted, rankOf } from "./executors/common";
  */
 export type ExecutionOutcome =
   | { success: true; result: unknown }
-  | { success: false; failure: PipelineFailure; debug?: string };
+  /** `reason`: a service's own business refusal in words, safe to show (error-codes.ts safeRefusalReason); only for REQUEST_REJECTED. */
+  | { success: false; failure: PipelineFailure; debug?: string; reason?: string };
 
 export type ExecutableTask = {
   orgId: string;
@@ -211,6 +212,7 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
   // converted below, once the line (and therefore its total quantity) is
   // known -- it cannot be converted before the read.
   const quantityDone = num(task.params.quantityDone);
+  const chosenActivityId = str(task.params.activityId);
   const projectId = task.projectId ?? str(task.params.projectId) ?? null;
   if (!itemCode && !boqLineItemId) return { success: false, failure: pipelineFailure("BOQ_LINE_REQUIRED", ["boqLine"]) };
   if (typeof percent !== "number" && quantityDone === undefined) {
@@ -339,9 +341,18 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     // changes only the last step: a project that genuinely has none used to
     // fail with ACTIVITY_REQUIRED; it now gets one default activity, made
     // below by executors/activity.ts through the existing service.
-    const activity = await db.query.constructionActivities.findFirst({
-      where: and(eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
-    });
+    // P2b: a caller-chosen activityId is honoured only when it is an activity of THIS project and org; anything else reads as absent
+    // (RECORD_NOT_FOUND, the failure a boqId of another project gets). Absent: the project's first activity, exactly as before.
+    const activity = chosenActivityId
+      ? await db.query.constructionActivities.findFirst({
+          where: and(eq(constructionActivities.id, chosenActivityId), eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
+        })
+      : await db.query.constructionActivities.findFirst({
+          where: and(eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
+        });
+    if (chosenActivityId && !activity) {
+      return { ok: false, failure: pipelineFailure("RECORD_NOT_FOUND", ["activityId"]) };
+    }
     // BUILD-002 WP-07: no activity used to end the task with ACTIVITY_REQUIRED, and no function an AI could
     // call made one. The default activity is created after this transaction closes (below), through the
     // same service PROJEXA's own screens use, rather than refusing a project that has just been set up.
@@ -2053,16 +2064,28 @@ export async function executeTask(
     //
     // >=500 deliberately falls through: a service that raises a 5xx is
     // reporting a system failure, which belongs with the transport shapes.
-    if (error instanceof ServiceError && error.status < 500) {
-      console.error(`executeTask: "${task.functionId}" refused with ${error.status}`, error.message);
+    // OFFLINE WRITERS 2: the scope-reduction 409 has its own closed code. As ALREADY_RECORDED a laptop that sent a revision offline would tell the
+    // person "this was already done", the opposite of the truth (work is recorded against a line the revision removes or reduces).
+    if (error instanceof ScopeReductionError) {
       return {
         success: false,
-        // functionId is carried for the CLIENT'S BRANCHING, never for its
-        // wording: "already recorded" means something different for
-        // attendance than for a BOQ revision, and projexa's dictionary picks
-        // the true sentence from it without ever printing it.
-        failure: pipelineFailure(codeForServiceError(error.status), [], { status: error.status, functionId: task.functionId }),
+        failure: pipelineFailure("SCOPE_REDUCTION_BLOCKED", [], { status: 409, functionId: task.functionId }),
+        debug: `${error.name}(409): ${error.message}`,
+      };
+    }
+    if (error instanceof ServiceError && error.status < 500) {
+      console.error(`executeTask: "${task.functionId}" refused with ${error.status}`, error.message);
+      // functionId is carried for the CLIENT'S BRANCHING, never for its
+      // wording: "already recorded" means something different for
+      // attendance than for a BOQ revision, and projexa's dictionary picks
+      // the true sentence from it without ever printing it.
+      const failure = pipelineFailure(codeForServiceError(error.status), [], { status: error.status, functionId: task.functionId });
+      return {
+        success: false,
+        failure,
         debug: `${error.name}(${error.status}): ${error.message}`,
+        // the service's own words for a REQUEST_REJECTED, for the laptop push route only (error-codes.ts safeRefusalReason)
+        ...refusalReason(failure.code, error.message),
       };
     }
     console.error(`executeTask: unexpected error running "${task.functionId}"`, error);

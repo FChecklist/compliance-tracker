@@ -878,3 +878,21 @@ describe("toPreviewRows (D-25)", () => {
     expect(row.breakdownPercentage).toBeNull()
   })
 })
+
+describe("mapRowsToLineItems -- a sub-task row identified only by its Parent Item Code is not a category header", () => {
+  test("blank Qty/Rate + Parent Item Code + Breakdown % imports as a sub-task; the same row without a parent is still skipped as a header", async () => {
+    const { mapRowsToLineItems, mapBoqHeaders } = await import("./construction-boq-import-service")
+    const headers = ["Code", "Description", "Unit", "Qty", "Rate", "Parent Item Code", "Breakdown %"]
+    const mapping = mapBoqHeaders(headers)
+    const rows = [
+      { Code: "B-10", Description: "Wall plaster", Unit: "m2", Qty: 200, Rate: 30, "Parent Item Code": "", "Breakdown %": "" },
+      { Code: "B-10-1", Description: "Plaster prep", Unit: "", Qty: "", Rate: "", "Parent Item Code": "B-10", "Breakdown %": 40 },
+      { Code: "", Description: "SECTION HEADING", Unit: "", Qty: "", Rate: "", "Parent Item Code": "", "Breakdown %": "" },
+    ]
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+    expect(lineItems.map((l) => l.itemCode)).toEqual(["B-10", "B-10-1"])
+    expect(lineItems[1]).toMatchObject({ parentItemCode: "B-10", breakdownPercentage: 40 })
+    expect(warnings.some((w) => w.includes("SECTION HEADING") && w.includes("category header"))).toBe(true)
+    expect(warnings.some((w) => w.includes("Plaster prep"))).toBe(false)
+  })
+})

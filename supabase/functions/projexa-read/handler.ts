@@ -34,7 +34,7 @@ export type GatewayDeps = {
 
 // The PROJEXA browser origins (production and the local dev server on port 3100, see CLAUDE.md). Any other origin gets no
 // Access-Control-Allow-Origin header, so a browser on another site cannot read a response.
-export const ALLOWED_ORIGINS = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100"] as const
+export const ALLOWED_ORIGINS = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100", "http://localhost:3110"] as const
 
 export const SUPPORTED_FNS = ["boq_lines"] as const
 

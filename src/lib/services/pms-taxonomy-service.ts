@@ -10,6 +10,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray } from "drizzle-orm"
 import { hasRole } from "@/lib/supabase/role-rank"
 import { ServiceError } from "./compliance-service"
+import { seedDefaultIssueTypes } from "./pms-enablement-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
 import {
@@ -89,7 +90,15 @@ export async function resolveDefaultIssueTypeId(
     options.onCacheHit?.()
     return cached
   }
-  const types = await listIssueTypes(ctx)
+  let types = await listIssueTypes(ctx)
+  if (types.length === 0) {
+    // Sumeet live UAT 2026-10-13: an organisation opened through projexa_provision_org (every new PROJEXA customer, the demo organisation) has
+    // the PMS branch enabled but NO issue types -- they were only seeded by enablePmsForOrg(), a path provisioning does not take -- so the first
+    // "New task" answered "No issue types configured ... ask an admin to set one up in VERIDIAN AI PMS" and, with no activity, Work Progress
+    // could not be used either. Same copy-on-first-use the statuses already have: seed the org's default types (only when it has none), then read again.
+    await withTenantContext({ orgId: ctx.orgId }, (db) => seedDefaultIssueTypes(db, ctx.orgId))
+    types = await listIssueTypes(ctx)
+  }
   const typeId = pickDefaultIssueTypeId(types)
   if (typeId) writeScheduleLookup(key, typeId)
   return typeId

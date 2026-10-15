@@ -53,6 +53,7 @@ const ORG = "org_u49_a";
 const PROJECT = "proj_cedar";
 const OWNER: PersonRow = { id: "user_owner", orgId: ORG, email: "owner@example.test", authUserId: null, role: "admin", isActive: true, name: "Rajat" };
 const MEMBER: PersonRow = { id: "user_member", orgId: ORG, email: "member@example.test", authUserId: null, role: "member", isActive: true, name: "Arjun" };
+const VIEWER: PersonRow = { id: "user_viewer", orgId: ORG, email: "viewer@example.test", authUserId: null, role: "client_viewer", isActive: true, name: "Client" };
 // Level 0 answers the first line (a promoted phrase); nothing answers the second.
 const HIT = "how is the project doing";
 const MISS = "arrange the site handover paperwork";
@@ -69,7 +70,7 @@ const realAuthGuard = await import("@/lib/supabase/auth-guard");
 const realClaudeCli = await import("@/lib/ai/providers/claude-cli");
 const realDashboard = await import("@/lib/services/construction-dashboard-service");
 
-mock.module("@/lib/db", () => ({ ...realDb, db: { query: { users: { findFirst: mock(usersLookupDouble(() => [OWNER, MEMBER])) } } } }));
+mock.module("@/lib/db", () => ({ ...realDb, db: { query: { users: { findFirst: mock(usersLookupDouble(() => [OWNER, MEMBER, VIEWER])) } } } }));
 mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(fakeWithTenantContext(() => store)) }));
 mock.module("@/lib/supabase/auth-guard", () => ({
   ...realAuthGuard,
@@ -168,6 +169,26 @@ describe("BR-221 -- assistant: a Level 1 refusal is HTTP 200 with the records", 
     expect(body.level1Outcome).toBe("resolved");
     expect(body.chatMessages).not.toContain(NO_COMMENTARY_SENTENCE);
     expect(classifyCalls).toHaveLength(1);
+  });
+});
+
+// Audit 100 A4 (2026-10-05): tasks/route.ts got this floor in #2076; the assistant's rawInput path had the same scope-only check, so a
+// client_viewer named by the org key could run (and write through) the pipeline. Falsifiability: with readOnlyPersonRefusal() returning
+// null in route.ts, this test fails (expected 403, received 200: the pipeline ran) -- seen 2026-10-05.
+describe("Audit 100 A4 -- assistant: a read-only person named by the org key cannot write", () => {
+  test("client_viewer on the rawInput path: 403 before anything is written", async () => {
+    const { status, body } = await ask(`${HIT}\n${MISS}`, { "x-acting-user-email": VIEWER.email });
+    expect(status).toBe(403);
+    expect(body.error).toBe("A read-only account cannot submit tasks");
+    expect(rowsIn(store, "submissions")).toHaveLength(0);
+    expect(rowsIn(store, "pipeline_tasks")).toHaveLength(0);
+    expect(classifyCalls).toHaveLength(0);
+  });
+
+  test("control: a member named by the same key is not refused", async () => {
+    const { status } = await ask(`${HIT}\n${MISS}`);
+    expect(status).toBe(200);
+    expect(rowsIn(store, "submissions")).toHaveLength(1);
   });
 });
 

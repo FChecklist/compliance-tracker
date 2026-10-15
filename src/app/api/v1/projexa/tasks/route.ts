@@ -21,7 +21,7 @@
 //                                  CALL EVER
 import { NextRequest, NextResponse } from "next/server"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, type CombinedAuthContext } from "@/lib/supabase/auth-guard"
+import { hasRole, requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, type CombinedAuthContext } from "@/lib/supabase/auth-guard"
 import { resolvePipelineActor } from "@/lib/supabase/acting-role"
 import { assertKeyProjectScope, keyProjectScope } from "@/lib/supabase/api-key-auth"
 import { ServiceError } from "@/lib/services/compliance-service"
@@ -142,6 +142,13 @@ async function POST_impl(request: NextRequest) {
   // key's id for PROJEXA. A key naming nobody is refused by the gate (fail
   // closed), not by this route; the request itself still runs.
   const { role: financialRole, personId: level1PersonId } = await resolvePipelineActor(ctx, request, body)
+  // Audit 100 A4 (2026-10-05): requireRoleOrScope above holds a SESSION caller to "member", but for an org API key (how PROJEXA's
+  // composer reaches this route) it checks only the key's scope, so a read-only person the key names (viewer, client_viewer,
+  // external_auditor: rank 1) could submit and confirm writes here -- found live, a client_viewer's typed "add a task" was created.
+  // PROJEXA's own proxy refuses them first (its api-write-policy.ts, "/tasks": ANY_MEMBER); this is the same floor on this side.
+  if (!ctx.dbUser && level1PersonId && financialRole && !hasRole({ role: financialRole }, "member")) {
+    return NextResponse.json({ error: "A read-only account cannot submit tasks" }, { status: 403 })
+  }
 
   try {
     // R67 B-05 -- STEP ONE: PROPOSE. {rawInput, dryRun:true} classifies,

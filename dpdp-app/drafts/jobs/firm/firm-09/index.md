@@ -58,7 +58,7 @@ This is today's law: under section 43A of the Information Technology Act, 2000, 
 
 ## What done looks like
 
-The job "Write down where fingerprints or face scans are stored and who can open them" is marked Yes in the company, firm or NGO's VERIDIAN file by the person responsible for Staff records, with the date, within the 12-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.
+The job "Write down where fingerprints or face scans are stored and who can open them" is marked Yes in the company, firm or NGO's VERIDIAN file by the person responsible for Staff records, with the date, within the 12-day window — and the log line that records it is in the file's record, which is added to, not edited.
 
 **[Track this with VERIDIAN](https://app.veridian-aios.com/)**
 

@@ -41,6 +41,8 @@ import { eq } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, callLLMJson, callLLMVision, type LLMProvider } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { withProjexaBriefing } from "@/lib/ai/projexa-briefing"
+import { resolveAiFor } from "@/lib/ai/org-own-ai"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
@@ -388,7 +390,9 @@ export async function discussConstruction(
   // lf-b3-ai-off: a 200 reply, not an error -- PROJEXA's Discuss pane shows a
   // reply as VERI's message and any non-2xx as "VERI AI didn't reply -- try
   // again", which would send the person round a retry that can never work.
-  if (!projexaInternalAiEnabled()) return { reply: USE_YOUR_OWN_AI }
+  // A person's own AI, one a teammate shared with them, or the organisation's (org-own-ai.ts resolveAiFor) serves them even while our own AI is off.
+  const ownAi = await resolveAiFor(ctx.orgId, ctx.userId).catch(() => null)
+  if (!ownAi && !projexaInternalAiEnabled()) return { reply: USE_YOUR_OWN_AI }
   const startedAt = Date.now()
   // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
   // this is genuine free-form user chat, exactly the shape the Constitution's
@@ -400,16 +404,22 @@ export async function discussConstruction(
   )
   if (!policyDecision.allowed) return { reply: refusalMessageFor(policyDecision) }
 
-  const modelConfig = await resolveModelConfig(ctx.orgId, "user_assistant_oa")
+  const modelConfig = ownAi
+    ? { provider: ownAi.provider, model: ownAi.model, apiKey: ownAi.apiKey, baseUrl: ownAi.baseUrl, isCustomerConfigured: true, fallback: undefined }
+    : await resolveModelConfig(ctx.orgId, "user_assistant_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
 
-  const systemPrompt = await resolvePromptTemplate("construction.discuss")
+  // In this chat the model answers; the Assistant pill (or a typed instruction) is what changes data, so say where to go.
+  const systemPrompt = withProjexaBriefing(
+    (await resolvePromptTemplate("construction.discuss")) +
+      " In this chat you cannot press the buttons yourself: when the person wants something created, changed or deleted, tell them to type it as an instruction in the box or pick it from the Assistant pill, and that it will be done."
+  )
   const transcript = history.map((m) => `${m.role === "user" ? "User" : "VERI"}: ${m.content}`).join("\n")
   const userMessage = transcript ? `${transcript}\nUser: ${message}` : message
 
   const { content, usage } = await callLLM(
     modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
-    { temperature: 0.4, maxTokens: 500 }, modelConfig.fallback
+    { temperature: 0.4, maxTokens: 500, bypassBridge: modelConfig.isCustomerConfigured, baseUrl: "baseUrl" in modelConfig ? modelConfig.baseUrl : undefined }, modelConfig.fallback
   )
 
   recordOrchestraExecution({

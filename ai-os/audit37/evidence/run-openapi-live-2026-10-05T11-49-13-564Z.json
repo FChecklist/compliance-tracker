@@ -1,0 +1,36 @@
+{
+  "file": "./scripts/verify/awl-live/openapi-live.live.test.ts",
+  "args": [],
+  "commit": "b9cf5e2ba8a29090fca4d4cbfaf8ef683c316ae4",
+  "tree_dirty": true,
+  "started_at": "2026-10-05T11:49:13.564Z",
+  "ended_at": "2026-10-05T11:49:21.114Z",
+  "exit_code": 0,
+  "pass": 3,
+  "fail": 0,
+  "skip": 0,
+  "tests": [
+    {
+      "name": "/openapi.json (path mode) is valid OpenAPI 3.0.3, its $refs resolve, its server address is the link and answers",
+      "result": "pass",
+      "time_s": 2.680289
+    },
+    {
+      "name": "/swagger.json (path mode) is valid Swagger 2.0, its $refs resolve, host + basePath + scheme form the link",
+      "result": "pass",
+      "time_s": 0.335409
+    },
+    {
+      "name": "header mode: both documents are valid, name the /header base and contain no token",
+      "result": "pass",
+      "time_s": 0.726986
+    }
+  ],
+  "function_calls_during_run": {
+    "note": "every caller of the function in this window, not only this run (the database and the function are shared)",
+    "calls": 5,
+    "slow_3s_or_more": 0,
+    "failed_5xx": 0,
+    "status_503": 0
+  }
+}

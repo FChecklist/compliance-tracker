@@ -28,7 +28,7 @@ export const newAiStats = (): AiStats => ({ minted: 0, mintFailed: 0, changesLis
 
 /**
  * FAIL CLOSED. This is a switch on a credential that goes out by email, so a typo must not leave it on with more authority than
- * intended: a switch is on only when unset or exactly "1"; the level is 1 only when unset or exactly "1" (anything else is
+ * intended: a switch is on only when unset or exactly "1"; the level is 1 only when exactly "1" (unset is read-only since 2026-10-06; anything else is
  * read-only); days is 1, 7 or 30 exactly, else 7. Any other value is reported in `warnings`.
  */
 export function parseAiLinkConfig(get: (key: string) => string): AiLinkConfig {
@@ -40,7 +40,7 @@ export function parseAiLinkConfig(get: (key: string) => string): AiLinkConfig {
     return false
   }
   const levelRaw = get("DPDP_EMAIL_AI_LINK_LEVEL")
-  const level: 0 | 1 = levelRaw === "" || levelRaw === "1" ? 1 : 0
+  const level: 0 | 1 = levelRaw === "1" ? 1 : 0 // owner 2026-10-06: default READ-ONLY; edit rights only by an explicit "1"
   if (levelRaw !== "" && levelRaw !== "0" && levelRaw !== "1") warnings.push(`DPDP_EMAIL_AI_LINK_LEVEL=${JSON.stringify(levelRaw)} is not "1" or "0"; treated as 0 (read only)`)
   const daysRaw = get("DPDP_EMAIL_AI_LINK_DAYS")
   // 2026-10-05 (owner): the link in an e-mail is its own short-lived link, 48 hours for the weekly e-mail (24 hours for a one-off mail).

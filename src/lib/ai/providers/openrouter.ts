@@ -6,8 +6,9 @@
 // those belong to the separate AI Dev Team / customer-communication systems;
 // M26/M27 ask for one narrow interface here, and reusing that larger
 // machinery would re-couple exactly what this pipeline exists to keep simple.
-import { callLLMJson } from "@/lib/llm-client";
+import { callLLMJson, type LLMProvider } from "@/lib/llm-client";
 import { resolvePipelineModel } from "@/lib/ai/level-model-registry";
+import { withProjexaBriefing } from "@/lib/ai/projexa-briefing";
 import type { AiProvider, ClassificationResult, Artifact, ClassifyContext } from "../adapter";
 
 // M26 target models -- exact OpenRouter slugs are an ops/cost decision, not
@@ -20,7 +21,20 @@ import type { AiProvider, ClassificationResult, Artifact, ClassifyContext } from
 const L1_MODEL_FALLBACK = process.env.AI_L1_MODEL ?? "deepseek/deepseek-chat";
 const L2_MODEL_FALLBACK = process.env.AI_L2_MODEL ?? "deepseek/deepseek-chat-v3.1"; // "Pro" tier per M26; falls back to the same family as L1 if unset rather than a hardcoded guess at a Pro-tier slug
 
-function requireApiKey(): string {
+/**
+ * Placeholder handed to callLLMJson when the test-mode AI bridge is on. Never sent anywhere: with AI_BRIDGE=queue,
+ * llm-client.ts's dispatchLLM answers through the database queue (claude-code-bridge.ts) BEFORE it reads the key.
+ */
+export const BRIDGE_NO_KEY = "ai-bridge-no-paid-key";
+
+/**
+ * Audit 100 A4/A14 (2026-10-05): the bridge is how Claude Code on the owner's laptop answers Level 1, and it needs no paid key.
+ * This used to throw "OPENROUTER_API_KEY is not set" first, so on a laptop without a paid OpenRouter key the test AI never ran
+ * (every Level 1 call came back "Level 1 unavailable"), and on one with a key the key looked required when it was never used.
+ * Checked inline, not by importing claude-code-bridge.ts, so this transport keeps its one llm-client dependency.
+ */
+export function requireApiKey(): string {
+  if (process.env.AI_BRIDGE === "queue") return BRIDGE_NO_KEY;
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY is not set -- required when AI_PROVIDER=openrouter.");
   return key;
@@ -35,6 +49,7 @@ Rules, absolute:
 - You may NEVER return prose. Output ONLY the JSON shape described below.
 - If a segment names a valid function but is missing a required parameter, return that function_id with the params you found and list the rest in missingParams -- do not guess a missing value.
 - If a segment cannot be matched to any candidate function, set functionId to null, missingParams to [], confidence to 0, and unmappedIntent to a short honest description of what the user seems to want.
+- context.functionParams lists each candidate's parameter names. Put values in params under exactly those names, never a renamed or invented one. missingParams may only name that function's "required" names; an optional value the user did not give is left out, not missing. Write dates as YYYY-MM-DD.
 
 Output STRICT JSON: {"results": [{"functionId": string|null, "params": object, "missingParams": string[], "confidence": number (0-1), "unmappedIntent": string|null}, ...]} with exactly one entry per input segment, in the same order.`;
 
@@ -52,36 +67,53 @@ Output STRICT JSON: {"artifacts": [<Artifact>, ...]} where each Artifact is one 
   {"kind":"capability_gap","description":string,"frequency":number}
   {"kind":"no_action","reason":string}`;
 
+/**
+ * Level 1 with an explicit vendor, model and key: the same prompt, the same one-call-for-all-segments rule and the same shape
+ * check as the OpenRouter provider below. The organisation's OWN key (org-own-ai.ts) comes through here, so a typed request is
+ * understood by the AI the organisation chose.
+ */
+export async function classifyWithKey(
+  provider: LLMProvider,
+  model: string,
+  apiKey: string,
+  segments: string[],
+  candidateFunctions: string[],
+  context: ClassifyContext,
+  /** True when the key is the customer's own: the test bridge must not answer instead (llm-client bypassBridge). */
+  ownKey = false,
+  /** DeepSeek / Z.ai / xAI: their own OpenAI-compatible chat address. */
+  baseUrl?: string
+): Promise<ClassificationResult[]> {
+  if (segments.length === 0) return [];
+  // ONE call for ALL unresolved segments (M27) -- never one call per segment.
+  const userMessage = JSON.stringify({ segments, candidateFunctions, context });
+  const { data } = await callLLMJson<{ results: ClassificationResult[] }>(
+    provider,
+    model,
+    apiKey,
+    withProjexaBriefing(CLASSIFY_SYSTEM_PROMPT),
+    userMessage,
+    { expectedKeys: ["results"], temperature: 0, bypassBridge: ownKey, baseUrl }
+  );
+  if (!Array.isArray(data.results) || data.results.length !== segments.length) {
+    throw new Error(`L1 returned ${data.results?.length ?? 0} result(s) for ${segments.length} segment(s) -- expected exactly one per segment.`);
+  }
+  // Shape-normalize only; validate.ts does the real semantic validation (see the note in the provider below).
+  return data.results.map((r) => ({
+    functionId: r.functionId ?? null,
+    params: r.params ?? {},
+    missingParams: Array.isArray(r.missingParams) ? r.missingParams : [],
+    confidence: typeof r.confidence === "number" ? r.confidence : 0,
+    unmappedIntent: r.unmappedIntent ?? null,
+  }));
+}
+
 export const openrouterProvider: AiProvider = {
   async classify(segments: string[], candidateFunctions: string[], context: ClassifyContext): Promise<ClassificationResult[]> {
     if (segments.length === 0) return [];
     const apiKey = requireApiKey();
     const model = await resolvePipelineModel("pipeline_l1", L1_MODEL_FALLBACK);
-    // ONE call for ALL unresolved segments (M27) -- never one call per segment.
-    const userMessage = JSON.stringify({ segments, candidateFunctions, context });
-    const { data } = await callLLMJson<{ results: ClassificationResult[] }>(
-      "openrouter",
-      model,
-      apiKey,
-      CLASSIFY_SYSTEM_PROMPT,
-      userMessage,
-      { expectedKeys: ["results"], temperature: 0 }
-    );
-    if (!Array.isArray(data.results) || data.results.length !== segments.length) {
-      throw new Error(`L1 returned ${data.results?.length ?? 0} result(s) for ${segments.length} segment(s) -- expected exactly one per segment.`);
-    }
-    // Shape-normalize only. Real semantic validation (function_id actually in
-    // the candidate set, boq_line_item existence, permissions, project
-    // reachability) is validate.ts's job (seq12) -- this file never
-    // second-guesses the model's own answer beyond making sure it round-trips
-    // as the shape the rest of the pipeline expects.
-    return data.results.map((r) => ({
-      functionId: r.functionId ?? null,
-      params: r.params ?? {},
-      missingParams: Array.isArray(r.missingParams) ? r.missingParams : [],
-      confidence: typeof r.confidence === "number" ? r.confidence : 0,
-      unmappedIntent: r.unmappedIntent ?? null,
-    }));
+    return classifyWithKey("openrouter", model, apiKey, segments, candidateFunctions, context);
   },
 
   async analyse(batchInput: unknown): Promise<Artifact[]> {

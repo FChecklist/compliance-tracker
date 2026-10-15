@@ -582,8 +582,8 @@ b {
 }
 .band-note {
   margin-top: 8px;
-  font-size: 11px;
-  opacity: 0.65;
+  font-size: 12px;
+  opacity: 0.8;
 }
 
 /* ---- landing: sections ---- */
@@ -707,8 +707,11 @@ b {
 .footer-legal {
   max-width: 32rem;
   margin: 16px auto 0;
-  font-size: 10.5px;
-  color: rgba(157, 148, 196, 0.7);
+  /* 12px, the footer's own muted colour at full strength (was 10.5px at 70%
+     opacity). site-css-contrast.test.ts pins the size and the 4.5:1 contrast. */
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dark-muted);
 }
 /* The company ownership line, last thing in every public footer (2026-10-02): readable
    type (13.5px, the footer's own muted colour -- the same contrast as .footer-line, which
@@ -725,6 +728,38 @@ b {
 .footer-company a {
   color: inherit;
   text-decoration: underline;
+}
+
+/* ---- tap targets (phone audit, 2026-10-13) ----
+   Every link in the header, the page's link rows and the footer is at least
+   44px tall, so a thumb can hit it. A link on its own line or in a row is made
+   a 44px flex box; the one link that sits inside a sentence (the company line)
+   gets padding with an equal negative margin, so its hit area grows but the
+   sentence's line spacing does not. site-css-contrast.test.ts pins both. */
+.nav-signin,
+.nav-partner,
+.nav-ai,
+.nav-links a,
+.facts-links a,
+.link-violet,
+.ai-highlight-more,
+.footer-legal a,
+.footer-line a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.nav-ai {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.footer-legal a {
+  padding: 0 2px;
+}
+.footer-company a {
+  display: inline-block;
+  padding: 14px 2px;
+  margin: -14px 0;
 }
 
 @media (min-width: 640px) {
@@ -757,3 +792,8 @@ b {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* logo 2026-10-15: the Veridian DPDP mark sits to the left of the wordmark, which is unchanged */
+.wordmark { display: inline-block; position: relative; padding-left: 42px; min-height: 34px; }
+.wordmark-logo { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 22%; display: block; }
+.chooser .wordmark { padding-left: 42px; }

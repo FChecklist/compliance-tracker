@@ -84,7 +84,7 @@ export function AiLinkClient() {
       </div>
 
       <Card className="mb-4 bg-[#FEF3C7]"><CardContent className="pt-6 text-sm">
-        <b>Why this is built the way it is:</b> we sell you protection against personal data leaving your control. It would be absurd if our own feature sent your customers&rsquo; names to a server elsewhere. Nothing personal is in that link — it carries the shape of your compliance, never the people inside it.
+        <b>Why this is built the way it is:</b> we sell you protection against personal data leaving your control. It would be absurd if our own feature sent your customers&rsquo; names to a server elsewhere. The link itself is only a random code. What the AI reads through it hides other people&rsquo;s email addresses unless you choose otherwise.
       </CardContent></Card>
 
       {data?.reads && data.reads.length > 0 && (

@@ -164,6 +164,8 @@ const BASE_SPECS: readonly FunctionSpec[] = [
       // reach the same column.
       { name: "percent", label: "Percent complete", code: "VALUE_REQUIRED", alsoSatisfiedBy: ["quantityDone"] },
     ],
+    // P2b: the activity the entry is recorded against; absent keeps the old behaviour (the project's first activity).
+    optionalParams: ["activityId"],
     card: {
       fields: [
         { key: "itemCode", label: "BOQ line", type: "select", required: true, picker: "boq-line" },
@@ -1245,6 +1247,32 @@ const BASE_SPECS: readonly FunctionSpec[] = [
         { key: "note", label: "Note", type: "text", required: false },
       ],
       primaryLabel: "Save issue",
+    },
+  },
+  {
+    functionId: "create_material_order",
+    label: "Order material",
+    module: "materials",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "materialId", label: "Material", code: "MATERIAL_REQUIRED", field: "material" },
+      { name: "quantity", label: "Quantity", code: "QUANTITY_REQUIRED", field: "value" },
+      { name: "expectedDate", label: "Expected date", code: "DATE_REQUIRED", field: "date" },
+    ],
+    optionalParams: ["boqLineItemId"],
+    card: {
+      fields: [
+        { key: "materialId", label: "Material", type: "select", required: true, picker: "material" },
+        { key: "quantity", label: "Quantity", type: "number", required: true },
+        { key: "expectedDate", label: "Expected on", type: "date", required: true },
+        { key: "reference", label: "PO / reference", type: "text", required: false },
+        { key: "notes", label: "Notes", type: "text", required: false },
+      ],
+      facts: [{ label: "Effect", value: "Records an order. Stock on hand changes only when the delivery is recorded as a receipt.", editable: false }],
+      primaryLabel: "Save order",
     },
   },
   {
@@ -2395,6 +2423,27 @@ const BASE_SPECS: readonly FunctionSpec[] = [
       primaryLabel: "Save permit",
     },
   },
+  // P5 (2026-10-08, ai-os/audit37/AI_FUNCTION_COVERAGE_2026-10-08.md): the drawing edit PATCH /api/v1/projexa/drawings/{id} already offers
+  {
+    functionId: "update_drawing",
+    label: "Change a drawing",
+    module: "drawings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "drawingId", label: "Drawing", code: "VALUE_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: false },
+        { key: "discipline", label: "Discipline", type: "text", required: false },
+        { key: "category", label: "Drawing or 3D", type: "select", required: false },
+      ],
+      primaryLabel: "Save drawing",
+    },
+  },
   {
     functionId: "delete_permit",
     label: "Delete a permit",
@@ -2525,6 +2574,25 @@ const SPECS: Readonly<Record<string, FunctionSpec>> = Object.fromEntries(SPEC_LI
 
 export function functionSpec(functionId: string): FunctionSpec | undefined {
   return SPECS[functionId];
+}
+
+/**
+ * Audit 100 A4 follow-up (2026-10-05) -- THE PARAMETER NAMES LEVEL 1 IS SHOWN. The model used to get only function ids, so it guessed
+ * the field names (`name` for a schedule task's `title`) and listed an optional finish date as missing, scoring itself 0.6. This is
+ * the compact per-function list level1.ts puts in the classify context: required names (what may be listed as missing) and optional
+ * names (card fields and optionalParams). `projectId` is left out: it arrives on the submission, never from the sentence.
+ */
+export type PromptParams = { required: string[]; optional: string[] };
+
+export function promptParamsFor(functionId: string): PromptParams | undefined {
+  const spec = SPECS[functionId];
+  if (!spec) return undefined;
+  const required = spec.requiredParams.map((p) => p.name).filter((n) => n !== "projectId");
+  const optional: string[] = [];
+  for (const name of [...(spec.card?.fields ?? []).map((f) => f.key), ...(spec.optionalParams ?? [])]) {
+    if (name !== "projectId" && !required.includes(name) && !optional.includes(name)) optional.push(name);
+  }
+  return { required, optional };
 }
 
 function blank(value: unknown): boolean {

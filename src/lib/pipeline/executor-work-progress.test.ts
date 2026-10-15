@@ -273,3 +273,65 @@ describe("AW-331: create_activity", () => {
     expect(entries()[0].activityId).toBe(activities()[0].id);
   });
 });
+
+// P2b: record_work_progress takes an OPTIONAL activityId. Run: bun test --isolate src/lib/pipeline/executor-work-progress.test.ts
+describe("P2b: record_work_progress activityId", () => {
+  beforeEach(() => {
+    seedRows(store, "construction_categories", [
+      { id: "cat_a", orgId: ORG, projectId: PROJECT, name: "Civil" },
+      { id: "cat_b", orgId: ORG, projectId: PROJECT_B, name: "Civil" },
+    ]);
+    seedRows(store, "construction_activities", [
+      { id: "act_first", orgId: ORG, projectId: PROJECT, categoryId: "cat_a", name: "Earthwork" },
+      { id: "act_second", orgId: ORG, projectId: PROJECT, categoryId: "cat_a", name: "Concrete" },
+      { id: "act_other", orgId: ORG, projectId: PROJECT_B, categoryId: "cat_b", name: "Other project's" },
+    ]);
+  });
+
+  test("*** the entry is recorded against the CHOSEN activity of the project, read back from the stored row", async () => {
+    const o = await progress({ itemCode: "EX-01", percent: 20, activityId: "act_second" });
+    expect(codeOf(o)).toBe("OK");
+    expect(entries()).toHaveLength(1);
+    expect(entries()[0].activityId).toBe("act_second");
+  });
+
+  test("an activity of ANOTHER project is refused (RECORD_NOT_FOUND) and nothing is written", async () => {
+    const o = await progress({ itemCode: "EX-01", percent: 20, activityId: "act_other" });
+    expect(codeOf(o)).toBe("RECORD_NOT_FOUND");
+    // refused by the executor's own project+org-scoped lookup (names the field), not left to the service behind it
+    expect(!o.success && o.failure.missing).toEqual(["activityId"]);
+    expect(entries()).toHaveLength(0);
+  });
+
+  test("an activity that does not exist is refused and nothing is written", async () => {
+    const o = await progress({ itemCode: "EX-01", percent: 20, activityId: "nope" });
+    expect(codeOf(o)).toBe("RECORD_NOT_FOUND");
+    // refused by the executor's own project+org-scoped lookup (names the field), not left to the service behind it
+    expect(!o.success && o.failure.missing).toEqual(["activityId"]);
+    expect(entries()).toHaveLength(0);
+  });
+
+  test("an activity of another ORG is refused", async () => {
+    seedRows(store, "construction_activities", [{ id: "act_org2", orgId: OTHER_ORG, projectId: PROJECT, categoryId: "cat_a", name: "Foreign" }]);
+    const o = await progress({ itemCode: "EX-01", percent: 20, activityId: "act_org2" });
+    expect(codeOf(o)).toBe("RECORD_NOT_FOUND");
+    // refused by the executor's own project+org-scoped lookup (names the field), not left to the service behind it
+    expect(!o.success && o.failure.missing).toEqual(["activityId"]);
+    expect(entries()).toHaveLength(0);
+  });
+
+  test("with activityId absent the behaviour is unchanged: the project's first activity, no new activity made", async () => {
+    const o = await progress({ itemCode: "EX-01", percent: 20 });
+    expect(codeOf(o)).toBe("OK");
+    expect(entries()[0].activityId).toBe("act_first");
+    expect(activities()).toHaveLength(3);
+  });
+
+  test("the registry DECLARES activityId on record_work_progress (the generated copy the Edge Function serves)", () => {
+    const registry = JSON.parse(readFileSync(new URL("../../../supabase/functions/ai-work-link/function-registry.generated.json", import.meta.url), "utf8")) as Array<{ function_id: string; declared_params: string[]; required_params: string[]; id_params: string[] }>;
+    const rwp = registry.find((f) => f.function_id === "record_work_progress")!;
+    expect(rwp.declared_params).toContain("activityId");
+    expect(rwp.required_params).not.toContain("activityId");
+    expect(rwp.id_params).toContain("activityId");
+  });
+});

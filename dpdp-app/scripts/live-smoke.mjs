@@ -95,6 +95,11 @@ check(oldPreview.status === 301 && (oldPreview.headers.get("location") || "").re
 const rumJs = await get("/rum.js")
 check(rumJs.status === 200 && /javascript/i.test(rumJs.type) && rumJs.body.includes("/api/telemetry"), "/rum.js is served as JavaScript and posts to /api/telemetry", `${rumJs.status} ${rumJs.type}`)
 for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/", "/privacy/", "/terms/"]) check((await get(p)).body.includes('<script defer src="/rum.js"></script>'), `${p} loads /rum.js`)
+const visitJs = await get("/visit.js")
+check(visitJs.status === 200 && /javascript/i.test(visitJs.type) && visitJs.body.includes("/api/visit"), "/visit.js is served as JavaScript and posts to /api/visit", `${visitJs.status} ${visitJs.type}`)
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/", "/privacy/", "/terms/"]) check((await get(p)).body.includes('<script defer src="/visit.js"></script>'), `${p} loads /visit.js`)
+const visitBeacon = await get("/api/visit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ off: 1, p: "/", d: "desktop" }) })
+check(visitBeacon.status === 204, "POST /api/visit (a count-only ping) answers 204", String(visitBeacon.status))
 for (const body of [{ e: [] }, { e: [{ k: "pv", p: "/app/", d: "|desktop" }] }]) {
   const beacon = await get("/api/telemetry", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
   check(beacon.status === 204, `POST /api/telemetry ${JSON.stringify(body).slice(0, 40)} answers 204`, String(beacon.status))

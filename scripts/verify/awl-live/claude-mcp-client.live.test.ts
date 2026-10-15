@@ -42,7 +42,7 @@ describe.skipIf(!canRun)("Claude Code as a real MCP client of the work link (liv
     const [row] = await mgmtSql<{ n: number }>(`select count(*)::int as n from compliance.projects where org_id = '${E2E_ORG}'`)
     expect(row.n).toBeGreaterThan(5)
 
-    const r = spawnSync(
+    const attempt = () => spawnSync(
       CLAUDE,
       [
         "-p", "An MCP server named awl is connected and has a tool list_projects (full name mcp__awl__list_projects). If it is not in your tool list yet, load it with ToolSearch using the query select:mcp__awl__list_projects (the server may need a moment to connect: try again if it is not found). Call it with no arguments. Then reply with ONLY the integer in the field named total of its answer, and nothing else.",
@@ -53,6 +53,15 @@ describe.skipIf(!canRun)("Claude Code as a real MCP client of the work link (liv
       ],
       { cwd: work, encoding: "utf8", timeout: 240_000, env: { ...process.env, MCP_TIMEOUT: "60000" } },
     )
+    // Claude Code connects MCP servers in the background, and on this laptop a TCP connect to the Supabase host sometimes stalls for ~21 s before it
+    // fails once (measured: "Connection failed after 21205ms: Unable to connect", then the retry connects in 1.3 s). The model can give up before the
+    // retry lands. That is the caller's network (checklist row B33), not the function, so the run is repeated - up to 3 times - ONLY when the
+    // client never got as far as calling the tool. A client that called the tool and got a wrong answer fails at once.
+    let r = attempt()
+    let tries = 1
+    const called = (res: ReturnType<typeof attempt>) => /"name":"mcp__awl__list_projects"/.test(redact(res.stdout ?? ""))
+    while (!called(r) && tries < 3) { r = attempt(); tries++ }
+    console.log(`claude attempts needed to reach the tool: ${tries}`)
     const out = redact(`${r.stdout ?? ""}`)
     expect(r.status, redact(`claude exited ${r.status}: ${r.stderr ?? ""}`.slice(0, 400))).toBe(0)
     // stream-json: one JSON event per line. The tool call and the final result are both in it.
@@ -63,7 +72,14 @@ describe.skipIf(!canRun)("Claude Code as a real MCP client of the work link (liv
     expect(toolCalls.map((c: any) => c.name)).toContain("mcp__awl__list_projects")
     // and the connector really connected: the init event lists the awl server as connected, with its tools
     const init = events.find((e: any) => e.type === "system" && e.subtype === "init")
-    expect(init?.mcp_servers?.find((m: any) => m.name === "awl")?.status).toBe("connected")
+    // (the init event is written before the HTTP connection has finished, so its status may still read "pending": what proves the connection
+    // is the tool call that came back OK below, and the number it carried)
+    expect(["connected", "pending"]).toContain(init?.mcp_servers?.find((m: any) => m.name === "awl")?.status)
+    const call = toolCalls.find((c: any) => c.name === "mcp__awl__list_projects")
+    const result = events.flatMap((e: any) => (e.type === "user" ? e.message?.content ?? [] : [])).find((c: any) => c.type === "tool_result" && c.tool_use_id === call.id)
+    expect(result, "the tool call must have a result").toBeDefined()
+    expect(result.is_error).toBeFalsy()
+    expect(JSON.parse(Array.isArray(result.content) ? result.content[0].text : String(result.content)).total).toBe(row.n)
     const final = events.find((e: any) => e.type === "result")
     expect(final?.is_error).toBeFalsy()
     expect(String(final?.result).trim()).toBe(String(row.n))

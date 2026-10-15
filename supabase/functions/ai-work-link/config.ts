@@ -50,5 +50,24 @@ export function configFromEnv(get: (name: string) => string | undefined): AwlCon
     appBase: /^https:\/\/[^/?#\s]+$/.test(app) ? app : DEFAULT_APP_BASE,
     addressPosition: /^[1-8]$/.test(posText) ? Number(posText) : null,
     execPresent: EXEC_FUNCTION_PRESENT,
+    altHosts: (get("AWL_ALT_HOSTS") ?? "").split(",").map((h) => h.trim().toLowerCase()).filter((h) => HOST_RE.test(h) && !h.includes("/")),
   }
+}
+
+/**
+ * AUDIT-100 item 6 (ENGINE_CAPABILITIES change 7): every address the function prints uses the host form the person typed, so an engine that blocks or
+ * distrusts one host form can still follow the links in our answers. The request's host is used ONLY when it is the project's own host or one the
+ * deployment lists in AWL_ALT_HOSTS; any other (forged) Host keeps the fixed base, as spec 3.2 requires. The path part is always FUNCTION_PATH.
+ */
+export function configForRequest(config: AwlConfig, requestHost: string): AwlConfig {
+  const host = requestHost.trim().toLowerCase()
+  if (!host || !HOST_RE.test(host)) return config
+  let own = ""
+  try {
+    own = new URL(config.functionBase).host.toLowerCase()
+  } catch {
+    return config
+  }
+  if (host === own || !(config.altHosts ?? []).includes(host)) return config
+  return { ...config, functionBase: `https://${host}${FUNCTION_PATH}` }
 }

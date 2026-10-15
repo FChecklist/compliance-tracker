@@ -20,3 +20,11 @@ export function level1OffRunner() {
     modelCalls: 0,
   })
 }
+// PURE, kept real (level1.ts): dry-run.ts reads them at module load; as missing exports the bundle did not build (live UAT 2026-10-13).
+export const MIN_CONFIDENCE = 0.8
+const BELOW_FLOOR_REASON_TAIL = ` floor`
+export const NOT_SURE_SENTENCE = "I was not sure what you meant: please say it again with the name and the date";
+/** True for the per-segment reason runLevel1 records when the answer was below the confidence floor. */
+export function isBelowConfidenceFloorReason(reason: string | null | undefined): boolean {
+  return typeof reason === "string" && reason.startsWith("Level 1 confidence ") && reason.endsWith(`below the ${MIN_CONFIDENCE}${BELOW_FLOOR_REASON_TAIL}`);
+}

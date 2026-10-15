@@ -32,6 +32,7 @@
 import { errorBody } from "../_shared/ai-link/core.ts"
 import type { ExecClient, ExecOutcome, Rpc } from "./reads.ts"
 import type { SessionVerifier } from "./session.ts"
+import { receiptOf, riskOf } from "./risk.ts"
 
 export type ConfirmDeps = {
   rpc: Rpc
@@ -155,8 +156,11 @@ export async function personGate(who: { sub: string; email: string | null }, dep
   return { ok: true, value: userId }
 }
 
-/** The JSON body {confirmToken} shared by the confirm and the preview routes: the id, the size and the shape are checked before any lookup. */
-export async function readConfirmBody(req: Request, draftId: string): Promise<Gate<string>> {
+/**
+ * The JSON body {confirmToken, acknowledged?} shared by the confirm and the preview routes: the id, the size and the shape are checked before any lookup.
+ * `acknowledged: true` is the person's extra tick for a change that deletes or touches money (AUDIT-100 item 4).
+ */
+export async function readConfirmBodyAck(req: Request, draftId: string): Promise<Gate<{ token: string; acknowledged: boolean }>> {
   if (!ID_RE.test(draftId)) return { ok: false, answer: answer(404, "No such draft.", "DRAFT_NOT_FOUND") }
   const raw = await req.text()
   if (new TextEncoder().encode(raw).length > BODY_MAX_BYTES) return { ok: false, answer: answer(413, "The body is over 8 KB.", "BODY_TOO_LARGE") }
@@ -166,11 +170,17 @@ export async function readConfirmBody(req: Request, draftId: string): Promise<Ga
   } catch {
     parsed = null
   }
-  const confirmToken = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>).confirmToken : undefined
+  const o = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
+  const confirmToken = o?.confirmToken
   if (typeof confirmToken !== "string" || confirmToken.length === 0 || confirmToken.length > TOKEN_MAX_CHARS) {
     return { ok: false, answer: answer(400, "The body must be JSON with the confirm code from the link, as confirmToken.", "CONFIRM_TOKEN_REQUIRED") }
   }
-  return { ok: true, value: confirmToken }
+  return { ok: true, value: { token: confirmToken, acknowledged: o?.acknowledged === true } }
+}
+
+export async function readConfirmBody(req: Request, draftId: string): Promise<Gate<string>> {
+  const g = await readConfirmBodyAck(req, draftId)
+  return g.ok ? { ok: true, value: g.value.token } : g
 }
 
 /** What the person is told once the exec function has answered for a confirmed draft. The confirm itself succeeded, so this is 200 with a message. */
@@ -221,7 +231,14 @@ async function redrive(deps: ConfirmDeps, draftId: string, confirmToken: string,
   return applyConfirmed(deps.exec, draftId, fn, log)
 }
 
+/** The confirm answer, with the change's receipt (R-XXXXX) added to every 200 so the person can read it back to their AI (AUDIT-100 item 5). */
 export async function handleConfirm(req: Request, draftId: string, deps: ConfirmDeps): Promise<ConfirmAnswer> {
+  const out = await confirmInner(req, draftId, deps)
+  const b = out.body && typeof out.body === "object" && !Array.isArray(out.body) ? (out.body as Record<string, unknown>) : null
+  return out.status === 200 && b && typeof b.draft_id === "string" ? { ...out, body: { ...b, receipt: receiptOf(b.draft_id) } } : out
+}
+
+async function confirmInner(req: Request, draftId: string, deps: ConfirmDeps): Promise<ConfirmAnswer> {
   const log = deps.log ?? ((line: string) => console.log(line))
 
   // 1 and 2. THE SESSION AND THE BRAKE ------------------------------------------------------------------------------------------------------
@@ -230,14 +247,37 @@ export async function handleConfirm(req: Request, draftId: string, deps: Confirm
   const who = gate.value
 
   // 3. THE DRAFT AND THE BODY --------------------------------------------------------------------------------------------------------------
-  const body = await readConfirmBody(req, draftId)
+  const body = await readConfirmBodyAck(req, draftId)
   if (!body.ok) return body.answer
-  const confirmToken = body.value
+  const confirmToken = body.value.token
+  const acknowledged = body.value.acknowledged
 
   // 4. WHO THE PERSON IS -------------------------------------------------------------------------------------------------------------------
   const person = await personGate(who, deps)
   if (!person.ok) return person.answer
   const userId = person.value
+
+  // 4b. THE EXTRA TICK (AUDIT-100 item 4, owner decision D1): a draft that deletes, cancels or touches money is confirmed only with `acknowledged: true`, the
+  //     person's own tick on the confirm page. The function is read from the draft itself (owner and code checked by draft_state), never from the caller.
+  //     A draft whose state cannot be read is not confirmed (fail closed).
+  if (!acknowledged) {
+    let st
+    try {
+      st = await deps.rpc("ai_work_link_draft_state", { p_draft_id: draftId, p_actor_user_id: userId, p_confirm_token: confirmToken })
+    } catch {
+      st = { data: null, error: { message: "rpc threw" } }
+    }
+    const d = !st.error && st.data && typeof st.data === "object" && !Array.isArray(st.data) ? (st.data as Record<string, unknown>) : null
+    if (!d || (d.status !== "ok" && d.status !== "refused")) {
+      log("ai-work-link: confirm: draft state unavailable for the tick check -> 503, nothing confirmed")
+      return answer(503, "Service unavailable. Try again in a minute.", "CONFIRM_UNAVAILABLE", "Nothing was confirmed.")
+    }
+    const dr = d.status === "ok" && d.draft && typeof d.draft === "object" ? (d.draft as Record<string, unknown>) : null
+    if (dr && typeof dr.function_id === "string" && dr.state === "awaiting_confirmation" && riskOf(dr.function_id).needs_tick) {
+      log("ai-work-link: confirm: the extra tick is missing -> 409")
+      return answer(409, "This change deletes, cancels or touches money. Tick the box on the confirm page to confirm it.", "ACK_REQUIRED", "Nothing was confirmed.")
+    }
+  }
 
   // 5. THE CONFIRMATION, by the SQL function ----------------------------------------------------------------------------------------------
   let out

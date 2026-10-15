@@ -430,7 +430,9 @@ export type ConnectionTestResult = { ok: true } | { ok: false; error: string };
 export async function testProviderConnection(
   provider: LLMProvider,
   model: string,
-  apiKey: string
+  apiKey: string,
+  /** The vendor's own OpenAI-compatible chat endpoint (DeepSeek, Z.ai, xAI); omitted = the provider's usual address. */
+  baseUrl?: string
 ): Promise<ConnectionTestResult> {
   try {
     await callLLM(
@@ -439,7 +441,7 @@ export async function testProviderConnection(
       apiKey,
       "You are a connection test. Reply with only the single word OK.",
       "ping",
-      { temperature: 0, maxTokens: 5 }
+      { temperature: 0, maxTokens: 5, bypassBridge: true, baseUrl }
     );
     return { ok: true };
   } catch (error) {

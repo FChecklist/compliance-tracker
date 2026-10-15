@@ -372,6 +372,30 @@ describe("legal clocks and RFC 8058 headers", () => {
   })
 })
 
+describe("drizzle/0734: the calm 'payment is due' line, carried by every e-mail of a DUE / GRACE / LOCKED account", () => {
+  const line = "A gentle note: payment for this account is due. Everything keeps working while you sort it out."
+  test("shown above the intro with a pay link, in the owner's and a member's e-mail, and in the statutory-only one", () => {
+    for (const kind of [undefined, "statutory"] as const) {
+      const out = renderDigest(digest({ billingDueLine: line }), live, kind)
+      expect(out.html).toContain(line)
+      expect(out.html).toContain("Pay for this account")
+      expect(out.text).toContain(line)
+      expect(out.html.indexOf(line)).toBeLessThan(out.html.indexOf("Here are your DPDP jobs") === -1 ? Number.MAX_SAFE_INTEGER : out.html.indexOf("Here are your DPDP jobs"))
+    }
+  })
+  test("absent or null: nothing is added, and the digest is otherwise the same", () => {
+    const plain = renderDigest(digest({}), live)
+    expect(renderDigest(digest({ billingDueLine: null }), live).html).toBe(plain.html)
+    expect(plain.html).not.toContain("Pay for this account")
+  })
+  test("it never replaces the list: every job is still there with the line present", () => {
+    const withLine = renderDigest(digest({ billingDueLine: line }), live)
+    const without = renderDigest(digest({}), live)
+    expect(withLine.html.length).toBeGreaterThan(without.html.length)
+    expect(withLine.html).toContain(without.html.slice(without.html.indexOf("<h2")))
+  })
+})
+
 describe("WO-DPDP-016 §9: the billing banner, before everything else", () => {
   test("trial and awaiting_confirmation both get the banner, ahead of the intro", () => {
     for (const state of ["trial", "awaiting_confirmation"] as const) {

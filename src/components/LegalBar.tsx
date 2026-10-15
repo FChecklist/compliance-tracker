@@ -7,8 +7,8 @@ export function LegalBar() {
     <div className="border-t border-ct-border/60 bg-ct-cream">
       <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-5 text-xs text-ct-muted md:flex-row md:items-center md:justify-between">
         <span>
-          Owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company incorporated in India under the
-          Companies Act. Part of{" "}
+          Owned and operated by IT SERVICES BY RAJAT AGARWAL, a sole proprietorship in India, the trade name of Rajat
+          Agarwal, an individual. Part of{" "}
           <Link href="/" className="underline underline-offset-2 hover:text-ct-navy">VERIDIAN COGNITIVE AI OS</Link>.
         </span>
         <span className="flex gap-4">

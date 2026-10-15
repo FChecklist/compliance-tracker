@@ -1,18 +1,13 @@
 import { headers } from "next/headers";
 import type { Metadata } from "next";
-import { LegalShell } from "@/components/LegalShell";
+import { LegalShell, COMPANY } from "@/components/LegalShell";
 import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
 
 // Disclaimer, Limitation of Liability and Notice of Rights -- full text of the
 // owner-approved source document (VERIDIAN-Disclaimer-v2_1.docx), reformatted
 // into this repo's existing legal-page shell (LegalShell, shared with /terms,
-// /privacy, /data-policy). Content is presented verbatim: no paraphrasing,
-// shortening or legal-substance changes were made, only structural HTML
-// (headings/paragraphs matching the source document's own 23 numbered
-// sections). The source document contains literal placeholder tokens
-// ("[INSERT CONTACT EMAIL]", "[INSERT WEBSITE]", "[INSERT DATE]") which are
-// intentionally rendered as-is below -- do not invent values for them; the
-// owner needs to fill these in.
+// /privacy, /data-policy), in 23 numbered sections. The seller is
+// IT SERVICES BY RAJAT AGARWAL (see COMPANY in LegalShell).
 export async function generateMetadata(): Promise<Metadata> {
   const headerList = await headers();
   const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
@@ -28,11 +23,12 @@ export default async function DisclaimerPage() {
   return (
     <LegalShell title="Disclaimer, Limitation of Liability and Notice of Rights" updated="Version 2.0" brand={brand}>
       <div className="rounded-lg border border-[#1a1a17]/15 bg-[#1a1a17]/[0.03] px-6 py-5 text-sm">
-        <p className="font-semibold">SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED</p>
-        <p>CIN: U74999UP2017PTC098453</p>
-        <p>Registered Office: B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India</p>
-        <p>Email: [INSERT CONTACT EMAIL]   |   Website: [INSERT WEBSITE]</p>
-        <p>Version 2.0   |   Effective from: [INSERT DATE]</p>
+        <p className="font-semibold">{COMPANY.legalName}</p>
+        <p>{COMPANY.description}</p>
+        <p>Address: {COMPANY.address}</p>
+        <p>{COMPANY.gstNote}</p>
+        <p>Email: {COMPANY.contactEmail}   |   Phone: {COMPANY.phone}   |   Website: itservices-rajat-agarwal.pages.dev</p>
+        <p>Version 2.0   |   Effective from: 13 October 2026</p>
       </div>
 
       <div className="mt-8 rounded-lg border-2 border-[#8a1f1f]/40 bg-[#8a1f1f]/[0.05] px-6 py-5">
@@ -43,7 +39,7 @@ export default async function DisclaimerPage() {
       <section>
         <h2>1. Definitions and scope</h2>
         <p>In this Disclaimer:</p>
-        <p>"Company", "we", "us", "our" means Shobha Kamal Solutions Private Limited (CIN U74999UP2017PTC098453), a company incorporated under the Companies Act, 2013, together with its directors, officers, employees, contractors, consultants, agents, licensors, suppliers, successors and assigns.</p>
+        <p>"Company", "we", "us", "our" means IT SERVICES BY RAJAT AGARWAL, a sole proprietorship in India (the trade name of Rajat Agarwal, an individual), together with its proprietor, employees, contractors, consultants, agents, licensors, suppliers, successors and assigns.</p>
         <p>"Platform" means the VERIDIAN AI OS ERP platform in all its versions, editions and deployments.</p>
         <p>"Products" means any software, platform, product, module, feature, application, website, application programming interface, dataset, template or service made available by the Company, including without limitation PROJEXA (projexa-ai.com) and VERIDIAN-AIOS (veridian-aios.com), and any product, module or service released, rebranded, renamed or acquired by the Company at any time in the future.</p>
         <p>"Services" means the Platform, the Products, the Company's websites, documentation, demonstrations, trials, training, support and any related offering, in each case whether provided free of charge or for a fee.</p>
@@ -250,10 +246,9 @@ export default async function DisclaimerPage() {
       <section>
         <h2>23. Contact</h2>
         <p>All notices, requests, licence enquiries and notices of claimed infringement under this Disclaimer should be sent in writing to:</p>
-        <p><strong>SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED</strong></p>
-        <p>CIN: U74999UP2017PTC098453</p>
-        <p>B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India</p>
-        <p>Email: [INSERT CONTACT EMAIL]</p>
+        <p><strong>{COMPANY.legalName}</strong></p>
+        <p>{COMPANY.address}</p>
+        <p>Email: {COMPANY.contactEmail}   |   Phone: {COMPANY.phone}</p>
       </section>
 
     </LegalShell>

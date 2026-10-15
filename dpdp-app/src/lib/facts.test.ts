@@ -43,10 +43,10 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     )
     expect(facts.fact_block_title).toBe("What VERIDIAN (VERy INDIAN) is")
     expect(facts.what_it_does).toBe(
-      "It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords. Each answer is recorded with a date and cannot be edited, building the proof an organisation needs. Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.",
+      "It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords. Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs. Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.",
     )
     expect(facts.deadline_line).toBe("Every CA firm whose clients hold personal data will need to show DPDP compliance by 13 May 2027 — VERIDIAN is built for exactly that work.")
-    expect(facts.what_it_does_not_do).toBe("It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.")
+    expect(facts.what_it_does_not_do).toBe("It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).")
     // The three strongest facts are the three sentences of the second paragraph, in order.
     expect(facts.three_strongest_facts.join(" ")).toBe(facts.what_it_does)
     // Owner, 2026-10-01: "Who it is for" is TWO separate lines, never one dotted line.
@@ -91,7 +91,7 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.library.job_count).toBe(lib.templates.length)
     // listed as a public field, never written as a value
     expect(read("data/veridian-facts.yaml")).not.toMatch(/^\s*job_count\s*:/m)
-    // Not lawyer-reviewed yet: null + owner_required, so the pages say "not yet recorded".
+    // No reviewer recorded: null + owner_required, so the pages print no reviewer line at all.
     expect(facts.library.reviewer).toBeNull()
     expect(facts.library.reviewed_on).toBeNull()
     expect(facts.library.owner_required).toBe(true)
@@ -108,12 +108,17 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.storage.stored_in_india_wording).toContain("Resend, a US company")
   })
 
-  test("company: legal name + CIN + registered office from the published disclaimer; GSTIN as given by the owner (2026-10-01)", () => {
-    expect(facts.company.legal_name).toBe("SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED")
-    expect(facts.company.cin).toBe("U74999UP2017PTC098453")
-    expect(facts.company.registered_office).toContain("Ghaziabad")
-    expect(facts.company.gstin).toBe("09AAZCS4477M1Z3")
-    expect(facts.company.owner_required).toBe(true)
+  test("seller: IT SERVICES BY RAJAT AGARWAL, a sole proprietorship, not registered for GST (no CIN, no GSTIN)", () => {
+    expect(facts.company.legal_name).toBe("IT SERVICES BY RAJAT AGARWAL")
+    expect(facts.company.proprietor).toBe("Rajat Agarwal")
+    expect(facts.company.form).toContain("sole proprietorship")
+    expect(facts.company.address).toContain("Indirapuram, Ghaziabad, Uttar Pradesh, 201014, India")
+    expect(facts.company.email).toBe("rajatsiroffice@gmail.com")
+    expect(facts.company.phone).toBe("+91 96503 97480")
+    expect(facts.company.gst_note).toBe("Not registered for GST. GST is not charged.")
+    expect("cin" in facts.company).toBe(false)
+    expect("gstin" in facts.company).toBe(false)
+    expect(facts.company.policies_url).toBe("https://itservices-rajat-agarwal.pages.dev/policies/veridian-dpdp/")
     expect(facts.company.source).toContain("src/app/disclaimer/page.tsx")
   })
 
@@ -505,7 +510,8 @@ describe("/partner/terms/ (the Sales Partner agreement): the agreement says what
   test("tax: only the fixed TDS sentence, no rate, no advice", () => {
     expect(text).toContain("Tax (TDS) is deducted where the law requires it and shown on your statement.")
     expect(text).toContain("We do not give tax advice.")
-    expect(text).not.toMatch(/TDS (?:at|of|rate)\s*\d|\d+(?:\.\d+)?\s?%\s*TDS|\bGST\b|₹/i)
+    // The seller block states, once, that GST is not charged; nothing else on the page may mention GST.
+    expect(text.replace(facts.company.gst_note, "")).not.toMatch(/TDS (?:at|of|rate)\s*\d|\d+(?:\.\d+)?\s?%\s*TDS|\bGST\b|₹/i)
   })
 
   test("it says what a partner may and may not say, and bans spam and self-sign-up", () => {
@@ -513,7 +519,7 @@ describe("/partner/terms/ (the Sales Partner agreement): the agreement says what
   })
 
   test("it names the company as the facts file does, ends by notice, and is under Indian law", () => {
-    expect(text).toContain(facts.company.legal_name!)
+    expect(text).toContain(facts.company.legal_name)
     expect(text).toContain("You can end them at any time.")
     expect(text).toContain("These terms are governed by the laws of India.")
   })
@@ -659,6 +665,9 @@ describe("/proof/ (WO-013 §2.1): built and hidden until the owner switches it o
     for (const a of proof.aggregates.items) {
       if (a.value === null) expect(html).toContain(`${a.label}: not yet published`)
     }
-    expect(html).toContain("Reviewer: not yet recorded")
+    // Owner, 2026-10-14: with no reviewer recorded the page says nothing about a review; the version line stays.
+    expect(html).not.toContain("Reviewer:")
+    expect(html).not.toContain("not yet recorded")
+    expect(html).toContain("jobs, each mapped to its legal source.")
   })
 })

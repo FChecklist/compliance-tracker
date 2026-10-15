@@ -8,7 +8,7 @@ This is the visible text of every public page of https://veridian-aios.com.
 
 DPDP Act 2023 · DPDP Rules 2025
 ### Compliance that outlasts the person who set it up.
-VERIDIAN turns the law into a list of jobs, hands each one to a named person, and keeps a dated record that nobody can edit.
+VERIDIAN turns the law into a list of jobs, hands each one to a named person, and keeps a dated record that is added to, not edited.
 For professionals CA · CS · Legal · Audit firm Doing it for my clients → For organisations Company · School · NGO Doing it for ourselves →
 No accounts or passwords for stakeholders One email a week Never stores your documents
 Already have an account? Sign in
@@ -39,7 +39,7 @@ The job goes to the responsible person. Owners, staff, vendors and group compani
 ### One email a week
 Everyone answers through one email a week, with no accounts or passwords.
 ### The record builds itself
-Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.
+Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 ### Your free DPDP AI assistant
 It does the routine work. You stay in charge.
 Open your personal link in your own AI. It reads your jobs and drafts the updates. You confirm them.
@@ -60,19 +60,19 @@ Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
 - It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
-- Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.
+- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 - Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
-It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.
+It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 About VERIDIAN
 Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact
-VERIDIAN, this website and its software are owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED . © 2026 SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED. All rights reserved.
+VERIDIAN, this website and its software are owned and operated by IT SERVICES BY RAJAT AGARWAL . © 2026 IT SERVICES BY RAJAT AGARWAL. All rights reserved.
 
 ## DPDP Act Compliance for CA, CS, Audit and Legal Firms — https://veridian-aios.com/dpdp-firm/
 
 For CA, CS, audit and legal firms
 ### DPDP compliance for all your clients, in one place
-Give each client a list of jobs. Chase the answers by email. Keep a dated record nobody can edit.
+Give each client a list of jobs. Chase the answers by email. Keep a dated record that is added to, not edited.
 Start free →
 Your own firm's file is free. No licence fee. You pay per client file, after you have billed the client.
 ### What VERIDIAN (VERy INDIAN) is
@@ -81,9 +81,9 @@ Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
 - It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
-- Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.
+- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 - Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
-It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.
+It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 ### How it works
 🧾 Add each client Name the client and choose the type of organisation. Invite the owner by email.
@@ -93,9 +93,9 @@ About VERIDIAN
 👥 Every client has its own file Add as many clients as you serve. Keep each one apart.
 🗂️ Jobs with names and dates Every job has a person, a due date and its legal source.
 ✍️ Checks and sign-off The owner confirms. Your manager checks. Your partner signs.
-🛡️ A record nobody can edit Every answer is dated and kept. Nobody can change it later.
+🛡️ A record that is added to, not edited Every answer is dated and kept. A change is a new entry, not an overwrite.
 🤖 Your own AI assistant Give it a private, time-limited link from inside VERIDIAN.
-🗄️ We keep no documents We keep a fingerprint, a name and a date. The file stays with you.
+🗄️ We keep no compliance documents We keep a fingerprint, a name and a date. The file stays with you (a payment proof you upload is the one exception).
 ### What we do, and where we stop
 ✅ We do Turn the Act into jobs · Give each job to a person · Chase the answers · Keep a dated record
 🚫 We do not Touch your systems · Keep your documents · Give legal advice · Certify you as compliant · Promise that nobody will be fined
@@ -110,6 +110,8 @@ What if we stop paying?
 Your record stays readable and can be exported. You lose new entries, not old ones.
 Has anyone been fined yet?
 No penalty order has been issued in India to date. The date to prepare for is 13 May 2027.
+### A quick example
+This is an example, not a promise. Say you charge each client Rs 500 a month for DPDP work. Ten clients bring in Rs 5,000 a month, fifty bring in Rs 25,000, two hundred bring in Rs 1,00,000. The price of your plan comes off that, and you see it, with a calculator you can change, when you open your account.
 ### Start with one client
 One email. No card. Fifteen minutes.
 Start free →
@@ -121,13 +123,13 @@ Stored in India: the database is in Mumbai. Email goes through Resend, a US comp
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.
 About VERIDIAN
 Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact
-VERIDIAN, this website and its software are owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED . © 2026 SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED. All rights reserved.
+VERIDIAN, this website and its software are owned and operated by IT SERVICES BY RAJAT AGARWAL . © 2026 IT SERVICES BY RAJAT AGARWAL. All rights reserved.
 
 ## DPDP Act Compliance for Companies, Institutions, Schools and NGOs — https://veridian-aios.com/dpdp-institution/
 
 For companies, institutions, schools and NGOs
 ### DPDP compliance for your own organisation, with proof you can show
-Get a list of jobs. Give each job to a person. Keep a dated record nobody can edit.
+Get a list of jobs. Give each job to a person. Keep a dated record that is added to, not edited.
 Start free →
 Pricing after a short conversation, because the right number depends on what you hold.
 ### What VERIDIAN (VERy INDIAN) is
@@ -136,9 +138,9 @@ Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
 - It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
-- Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.
+- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 - Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
-It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.
+It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 ### How it works
 🚪 Open your organisation Sign in with your email. There is no password. Name your organisation.
@@ -147,10 +149,10 @@ About VERIDIAN
 ### What you get
 🗂️ Jobs with names and dates Every job has a person, a due date and its legal source.
 📧 One email a week Each person answers Yes or No from their inbox. Most never open the website.
-🛡️ A record nobody can edit Every answer is dated and kept. Nobody can change it later.
+🛡️ A record that is added to, not edited Every answer is dated and kept. A change is a new entry, not an overwrite.
 👨‍👩‍👧 Parents' consent, on a link Parents give consent item by item. Withdrawing is the same tap as agreeing.
 🎧 A Grievance Officer, published Name your officer on a public page. The law asks for it.
-🗄️ We keep no documents We keep a fingerprint, a name and a date. The file stays with you.
+🗄️ We keep no compliance documents We keep a fingerprint, a name and a date. The file stays with you (a payment proof you upload is the one exception).
 ### What we do, and where we stop
 ✅ We do Turn the Act into jobs · Give each job to a person · Chase the answers · Keep a dated record
 🚫 We do not Touch your systems · Keep your documents · Give legal advice · Certify you as compliant · Promise that nobody will be fined
@@ -178,7 +180,7 @@ Stored in India: the database is in Mumbai. Email goes through Resend, a US comp
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.
 About VERIDIAN
 Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact
-VERIDIAN, this website and its software are owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED . © 2026 SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED. All rights reserved.
+VERIDIAN, this website and its software are owned and operated by IT SERVICES BY RAJAT AGARWAL . © 2026 IT SERVICES BY RAJAT AGARWAL. All rights reserved.
 
 ## About VERIDIAN — https://veridian-aios.com/about/
 
@@ -189,9 +191,9 @@ Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
 - It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
-- Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.
+- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 - Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
-It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.
+It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 ### Key dates
 Every CA firm whose clients hold personal data will need to show DPDP compliance by 13 May 2027 — VERIDIAN is built for exactly that work.
@@ -203,11 +205,12 @@ Every CA firm whose clients hold personal data will need to show DPDP compliance
 - The public website is served by Cloudflare Pages, a global content delivery network.
 ### Your own AI assistant
 Users can give their own AI assistant a private, time-limited AI work link from inside VERIDIAN.
-### The company
-SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, incorporated in India under the Companies Act, 2013.
-CIN: U74999UP2017PTC098453
-Registered office: B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India
-GSTIN: 09AAZCS4477M1Z3
+### The seller
+IT SERVICES BY RAJAT AGARWAL, a sole proprietorship in India, the trade name of Rajat Agarwal, an individual.
+Address: B-1105, Shipra Krishna Vista, Indirapuram, Ghaziabad, Uttar Pradesh, 201014, India
+E-mail: rajatsiroffice@gmail.com
+Phone: +91 96503 97480
+Not registered for GST. GST is not charged.
 ### Contact
 - Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
 - Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
@@ -217,8 +220,8 @@ Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 Stored in India: the database is in Mumbai. Email goes through Resend, a US company.
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.
 About VERIDIAN
-Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact
-VERIDIAN, this website and its software are owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED . © 2026 SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED. All rights reserved.
+Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact · Sub-processors
+VERIDIAN, this website and its software are owned and operated by IT SERVICES BY RAJAT AGARWAL . © 2026 IT SERVICES BY RAJAT AGARWAL. All rights reserved.
 
 ## Become a Sales Partner — https://veridian-aios.com/partner/
 
@@ -273,9 +276,9 @@ Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
 - It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
-- Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.
+- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 - Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
-It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.
+It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN
 Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
@@ -283,8 +286,8 @@ Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 Stored in India: the database is in Mumbai. Email goes through Resend, a US company.
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.
 About VERIDIAN
-Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact
-VERIDIAN, this website and its software are owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED . © 2026 SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED. All rights reserved.
+Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact · Sub-processors
+VERIDIAN, this website and its software are owned and operated by IT SERVICES BY RAJAT AGARWAL . © 2026 IT SERVICES BY RAJAT AGARWAL. All rights reserved.
 
 ## Sales Partner terms — https://veridian-aios.com/partner/terms/
 
@@ -292,7 +295,7 @@ VERIDIAN, this website and its software are owned and operated by SHOBHA KAMAL S
 Version 1.0. In force from 1 October 2026. We may change these terms with 30 days' notice.
 These terms are the agreement between you and us when you become a VERIDIAN Sales Partner. They are short and in plain English.
 ### Who we are
-In these terms, "we" and "us" mean Shobha Kamal Solutions Private Limited, the company that runs VERIDIAN DPDP. "You" means the person who accepts these terms.
+In these terms, "we" and "us" mean IT SERVICES BY RAJAT AGARWAL, the sole proprietorship of Rajat Agarwal that runs VERIDIAN DPDP. "You" means the person who accepts these terms.
 ### Joining
 Anyone with a VERIDIAN sign-in can join. It is free.
 You join by accepting these terms in the app and by giving us your payout details. We record the version you accepted and when.
@@ -343,11 +346,12 @@ We may change these terms and the payout terms. We will tell you by email at lea
 We may ask you to accept the new version in the app. If you do not agree, you can end the partnership before the change takes effect.
 ### Law
 These terms are governed by the laws of India. If we disagree, write to us first. We will try in good faith to settle it within 30 days. After that, the dispute clause in our Terms of Service applies.
-### The company
-SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, incorporated in India under the Companies Act, 2013.
-CIN: U74999UP2017PTC098453
-Registered office: B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India
-GSTIN: 09AAZCS4477M1Z3
+### The seller
+IT SERVICES BY RAJAT AGARWAL, a sole proprietorship in India, the trade name of Rajat Agarwal, an individual.
+Address: B-1105, Shipra Krishna Vista, Indirapuram, Ghaziabad, Uttar Pradesh, 201014, India
+E-mail: rajatsiroffice@gmail.com
+Phone: +91 96503 97480
+Not registered for GST. GST is not charged.
 ### Contact
 - Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
 - Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
@@ -358,9 +362,9 @@ Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
 - It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
-- Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.
+- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 - Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
-It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.
+It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN
 Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
@@ -368,8 +372,8 @@ Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 Stored in India: the database is in Mumbai. Email goes through Resend, a US company.
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.
 About VERIDIAN
-Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact
-VERIDIAN, this website and its software are owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED . © 2026 SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED. All rights reserved.
+Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact · Sub-processors
+VERIDIAN, this website and its software are owned and operated by IT SERVICES BY RAJAT AGARWAL . © 2026 IT SERVICES BY RAJAT AGARWAL. All rights reserved.
 
 ## Your DPDP AI Assistant — https://veridian-aios.com/ai-assistant/
 
@@ -412,9 +416,9 @@ Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
 - It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
-- Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.
+- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 - Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
-It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.
+It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN
 Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
@@ -422,8 +426,8 @@ Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 Stored in India: the database is in Mumbai. Email goes through Resend, a US company.
 We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.
 About VERIDIAN
-Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact
-VERIDIAN, this website and its software are owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED . © 2026 SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED. All rights reserved.
+Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact · Sub-processors
+VERIDIAN, this website and its software are owned and operated by IT SERVICES BY RAJAT AGARWAL . © 2026 IT SERVICES BY RAJAT AGARWAL. All rights reserved.
 
 ## Contact
 

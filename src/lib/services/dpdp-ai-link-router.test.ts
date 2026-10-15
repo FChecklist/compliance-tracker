@@ -176,7 +176,7 @@ describe("renderings", () => {
     const md = renderLawMarkdown(law)
     expect(md).toContain("# SPDI Rules 2011 rule 5(9)")
     expect(md).toContain("In force: IT Act §43A and SPDI Rules 2011 — in force TODAY, until 13 May 2027")
-    expect(md).toContain("Not yet lawyer-confirmed:")
+    expect(md).toContain("Please confirm with an advocate or CA:")
     expect(md).toContain("- `o1` Name the GO -- Part 1, open, nobody yet, due 2026-09-30")
   })
 })
