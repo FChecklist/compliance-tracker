@@ -1,17 +1,23 @@
 import "./onepage/dpdp-onepage-tokens.css"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { isIosSafari, subscribeAppCopy, type AppCopy } from "@/lib/device-copy/device"
+import { createCopyStore } from "@/lib/device-copy/copy-store"
+import { idbKv } from "@/lib/device-copy/kv"
+import { armReminders } from "@/lib/device-copy/notify"
 
 // The strip at the top of /app/ that tells the person, in plain words, that the whole app and their own jobs are being kept ON THEIR OWN
 // DEVICE (laptop, phone, tablet), so it opens and works without internet and without our server doing the work. Four honest states:
 // preparing (with a real percentage from the service worker), ready, offline, and "this browser cannot keep a copy".
 type BeforeInstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }
 
-export function DeviceCopy({ savedAt, offline, pending }: { savedAt: string | null; offline: boolean; pending: number }) {
+export function DeviceCopy({ savedAt, offline, pending, email }: { savedAt: string | null; offline: boolean; pending: number; email: string | null }) {
   const [app, setApp] = useState<AppCopy>({ state: "preparing", percent: 0 })
   const [offer, setOffer] = useState<BeforeInstallPrompt | null>(null)
   const [installed, setInstalled] = useState(false)
   useEffect(() => subscribeAppCopy(setApp), [])
+  // Reminders made on this device from this person's own copy, switched on silently (src/lib/device-copy/notify.ts): nothing is sent to us.
+  const store = useMemo(() => { try { return createCopyStore(idbKv()) } catch { return null } }, [])
+  useEffect(() => (store && email ? armReminders(store, email) : undefined), [store, email])
   useEffect(() => {
     const onOffer = (e: Event) => { e.preventDefault(); setOffer(e as BeforeInstallPrompt) }
     const onInstalled = () => { setInstalled(true); setOffer(null) }

@@ -476,7 +476,7 @@ function Page({
     <div className="dpdp-onepage min-h-screen">
       {/* Test mode (drizzle/0735): a calm strip, ONLY here inside the signed-in app -- never on a public page or in an e-mail. */}
       <TestModeBanner client={client} orgId={org.id} isOwner={viewer.kind === "owner"} />
-      <DeviceCopy savedAt={copyInfo.savedAt} offline={copyInfo.offline} pending={copyInfo.pending} />
+      <DeviceCopy savedAt={copyInfo.savedAt} offline={copyInfo.offline} pending={copyInfo.pending} email={email} />
       <div className="max-w-[1240px] mx-auto px-5 pt-3 flex justify-end items-center gap-3 flex-wrap" style={{ fontSize: 12.5, color: "var(--dpdp-ink3)" }}>
         {clients.length > 0 && view === "page" && (
           // WO-DPDP-010 §3 "CA firm view": DpdpShell's "🧾 My clients (N)"
