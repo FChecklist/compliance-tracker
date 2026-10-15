@@ -429,3 +429,22 @@ export type AdminMarkPaidResult = {
   ok: true; alreadyPaid: boolean; payoutId: string; netPaise: number
   email?: string | null; commissions?: number; grossPaise?: number; tdsPaise?: number
 }
+
+// ---------------------------------------------------------------------
+// A person's own rights (drizzle/0752): see what we hold, ask, nominate.
+// ---------------------------------------------------------------------
+
+export type RightKind = "access" | "correction" | "erasure"
+
+/** dpdp_my_data: everything we hold about the signed-in person, in the shape the "My data" panel shows. */
+export type MyDataPayload = {
+  identity: { email: string; createdAt: string; lastSeenAt: string | null }
+  organisations: Array<{ name: string; level: string; state: string; since: string }>
+  nominee: { name: string; email: string | null; relation: string | null; recordedAt: string } | null
+  requests: Array<{ ref: string; kind: RightKind; state: "open" | "done"; receivedAt: string; dueAt: string }>
+  emailsSent: number
+  actionsRecorded: number
+}
+
+/** dpdp_request_my_right / dpdp_set_my_nominee / dpdp_clear_my_nominee. */
+export type RightResult = { ok: true; ref?: string; dueAt?: string } | { ok: false; reason: string }
