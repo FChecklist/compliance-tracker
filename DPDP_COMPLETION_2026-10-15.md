@@ -8,10 +8,10 @@ App: https://app.veridian-aios.com (Cloudflare Pages `veridian-dpdp-app`), datab
 | 1. Gate checklist, each gate proved by a test | 90% (16 of 18 fully proved; 2 proved by unit tests only) | 5% (live Razorpay test-mode order) | 5% (real payment, real sign-up with a throw-away account) |
 | 2. Defects and copy | 100% of defects the new tests found (3 pages that scrolled sideways on phones, wording that overstated, missing HSTS); spelling pass found no mistakes | 0% | 0% |
 | 3. PR #2055 (silent on-device reminders) | 100%: conflict resolved, CI green, merged | 0% | 0% |
-| 4. Data-audit findings that Claude can fix | 55% (see section 4) | 35% | 10% |
+| 4. Data-audit findings that Claude can fix | 100% of those that are code or data (see section 4) | 0% | the dashboard and legal items listed in section 4 |
 | 5. Extraction prepared, not executed | 100% of the preparation (`DPDP_EXTRACTION_SECRETS_NEEDED_2026-10-15.md`) | 0% | execution waits for the owner's go and secrets |
 | 6. Every change through PR, CI green, deployed, live verified | 100% (PR #2158 and PR #2055, deploy runs green, live pages checked) | 0% | 0% |
-| **Overall** | **about 85%** | **about 10%** | **about 5%** |
+| **Overall (final, 15 Oct, after the second round)** | **about 93%** | **about 2%** (a live Razorpay test-mode order) | **about 5%** |
 
 ## 1. Gates and the proof for each
 "CI" means the GitHub run on the merge commit (Lint, Type Check, Build, Unit Tests, dpdp-app typecheck/lint/test/build, dpdp-app e2e in real Chromium: 221 browser tests passed, 0 failed). "Live" means run against https://app.veridian-aios.com today.
@@ -51,7 +51,7 @@ Sound: it never asks for a push subscription, sends nothing to our server, shows
 
 ## 4. Data audit (`DPDP_DATA_AUDIT_2026-10-14.md`, section 5)
 Fixed: D21 (AI reads now audited; the other audit tables were empty only because the last business event was 4 Oct, before the trail existed), D09 (HSTS), D04 and D22 (notice), D20 (notice), section 5.3 statements 1 to 4 and 7, stale OPERATIONS lines. Found already fixed since the audit: retention now live (D06), per-table retention for e-mail log and AI-link calls, overdue-ticket job (D16).
-Still open, Claude can do, each is its own piece of work (proposed as a follow-up session): D13 erase or de-identify one person; D07 hash `consent_token.token` and `org_invite.code`; D05/D12 self-service "my data" and correction screen; D15 nomination form; D03 store a hash of the exact consent text shown.
+Second round (PR #2160, migration 0752, live): D12 and D05 a "My data" panel in the signed-in application (what we hold, ask for a copy, a correction or erasure; each request opens a data_request ticket, due in 30 days, in the queue the operator digest already reads); D15 a nominee (name, e-mail, relationship) the person can set and remove; D13 `dpdp.erase_person(identity, ticket)` for the operator (ends memberships, removes sign-in tokens and sessions, blanks the text and address of e-mails sent to them and their inbound tickets, unlinks them from `dpdp.event`, replaces their e-mail; refuses a platform administrator; keeps the hash-chained event record, payments and the audit log); D03 `consent_record.text_hash` = SHA-256 of the exact notice text shown, copied onto a withdrawal. D07 was already fixed before this round: consent links are stored as hashes (18 of 18) and invite codes are encrypted (572 of 572). Proved: the SQL ran end to end in a rolled-back transaction on the live database (request gave ticket D-2026-0002, nominee saved, My data read both, erasure blanked the inbound ticket and replaced the e-mail); `src/lib/own-rights-migration.test.ts`; browser spec `e2e/my-data.spec.ts` (CI green, real Chromium, mock mode); privacy notice and `OPERATIONS.md` updated; deploy green and the live notice names My data.
 Left as designed: the AI-link write-by-GET fallback (needed for chat assistants that cannot send a POST; same checks as a POST apply).
 Owner-only or outside this repo: the Cloudflare Web Analytics script on parents' pages (Cloudflare dashboard switch, D17); signed vendor agreements (D18/D19); lawyer sign-off on the breach runbook (D11); Supabase Auth "OTP expiry" and "leaked password" dashboard settings (D07).
 
