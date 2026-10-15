@@ -4,7 +4,7 @@ import type {
   AiActionUndoPayload, AiDraftConfirmPayload, AiDraftPreviewPayload, AiLinkListItem, AiLinkPayload, AiLinkWarning, AiWorkLinkCreated,
   AreaAssignmentWire, AreaPayload, BillingStatusPayload, CaClientWire, ConfirmSetupPayload,
   CreateClientPayload, CreateMyOrgPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
-  ConsentAnswersResult, ConsentWithdrawResult, JoinOrgResult, OrgInviteLinkPayload, OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
+  ConsentAnswersResult, ConsentWithdrawResult, JoinOrgResult, MyDataPayload, RightKind, RightResult, OrgInviteLinkPayload, OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
   ApprovePaymentResult, PendingClaimWire, RejectPaymentResult,
   DataExportPayload, MyAccountPayload, OpenAccountPayload, DeclaredFirmWire, PlatformModePayload, SaveProfilePayload, PlanWirePayload, ProfessionalBody,
   AdminMarkPaidResult, AdminPartnerRow, AdminPartnerSettings, AdminPayoutRun, PartnerDashboardPayload, PartnerDetailsInput, PartnerStatementPayload, PartnerStatus,
@@ -734,4 +734,35 @@ export async function withdrawConsent(client: DpdpClient, token: string, purpose
   const { data, error } = await client.rpc("dpdp_consent_withdraw", { p_token: token, p_purpose_key: purposeKey })
   if (error) throw new RpcFailure(error)
   return data as ConsentWithdrawResult
+}
+
+// ---------------------------------------------------------------------
+// A person's own rights (drizzle/0752).
+// ---------------------------------------------------------------------
+
+/** What we hold about the signed-in person. */
+export async function myData(client: DpdpClient): Promise<MyDataPayload> {
+  const { data, error } = await client.rpc("dpdp_my_data")
+  if (error) throw new RpcFailure(error)
+  return data as MyDataPayload
+}
+
+/** Ask for a copy of the data, a correction, or erasure. Opens a ticket the operator answers. */
+export async function requestMyRight(client: DpdpClient, kind: RightKind, details: string): Promise<RightResult> {
+  const { data, error } = await client.rpc("dpdp_request_my_right", { p_kind: kind, p_details: details })
+  if (error) throw new RpcFailure(error)
+  return data as RightResult
+}
+
+/** Name (or replace) the person who may use these rights if the signed-in person dies or cannot act. */
+export async function setMyNominee(client: DpdpClient, name: string, email: string, relation: string): Promise<RightResult> {
+  const { data, error } = await client.rpc("dpdp_set_my_nominee", { p_name: name, p_email: email, p_relation: relation })
+  if (error) throw new RpcFailure(error)
+  return data as RightResult
+}
+
+export async function clearMyNominee(client: DpdpClient): Promise<RightResult> {
+  const { data, error } = await client.rpc("dpdp_clear_my_nominee")
+  if (error) throw new RpcFailure(error)
+  return data as RightResult
 }

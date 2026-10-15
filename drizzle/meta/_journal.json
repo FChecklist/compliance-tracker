@@ -3900,6 +3900,13 @@
       "when": 1790700031000,
       "tag": "0751_dpdp_audit_ai_read",
       "breakpoints": true
+    },
+    {
+      "idx": 559,
+      "version": "7",
+      "when": 1790700032000,
+      "tag": "0752_dpdp_own_rights",
+      "breakpoints": true
     }
   ]
 }

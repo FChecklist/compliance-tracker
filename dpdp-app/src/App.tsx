@@ -27,6 +27,7 @@ import { linkVisitToPerson, noteSignInStart } from "./lib/visit-link"
 import { BillingPanel } from "./components/BillingPanel"
 import { OwnerPaymentAdmin } from "./components/OwnerPaymentAdmin"
 import { OwnerPartnerPayouts } from "./components/OwnerPartnerPayouts"
+import { MyData } from "./components/MyData"
 import { SalesPartner } from "./components/SalesPartner"
 import { DraftConfirm } from "./components/DraftConfirm"
 import { AiUndoConfirm } from "./components/AiUndoConfirm"
@@ -412,6 +413,7 @@ function Page({
   undo: UndoFragment | null
   onUndoDone: () => void
 }) {
+  const [myDataOpen, setMyDataOpen] = useState(false)
   const { org, viewer: v, rows } = page
   const viewer = viewerContext(v)
   const createClient = async (c: NewClient) => { await createClientOrg(client, c.name, c.product, c.ownerEmail) }
@@ -489,9 +491,11 @@ function Page({
         <button type="button" onClick={onOpenPartner} className="font-semibold rounded-lg" style={{ background: "var(--dpdp-vL)", color: "var(--dpdp-v)", fontSize: 12.5, padding: "5px 10px" }}>
           🤝 Sales Partner
         </button>
+        <button type="button" onClick={() => setMyDataOpen(true)} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", padding: "4px 6px" }}>My data</button>
         {email && <span>Signed in as <b>{email}</b></span>}
         <button type="button" onClick={onSignOut} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", padding: "4px 6px" }}>Sign out</button>
       </div>
+      {myDataOpen && <MyData client={client} onClose={() => setMyDataOpen(false)} />}
       {viewer.kind === "owner" && <ProfileCard client={client} orgId={org.id} />}
       {draft && <DraftConfirm client={client} draft={draft} onDone={refetch} onDismiss={onDraftDone} />}
       {undo && <AiUndoConfirm client={client} undo={undo} onDone={refetch} onDismiss={onUndoDone} />}

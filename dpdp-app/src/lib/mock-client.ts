@@ -431,6 +431,8 @@ export function createMockClient(scenario?: string): DpdpClient {
   }
   const ok = <T,>(data: T): RpcResult<T> => ({ data, error: null })
   const fail = (message: string): RpcResult => ({ data: null, error: { message } })
+  // drizzle/0752: the signed-in person's own rights, kept in memory for the mock.
+  const mockRights: { nominee: { name: string; email: string | null; relation: string | null; recordedAt: string } | null; requests: Array<{ ref: string; kind: string; state: string; receivedAt: string; dueAt: string }> } = { nominee: null, requests: [] }
   const home = () => state.orgs[HOME_ORG]
   const orgOf = (orgId: unknown): OrgState | null => (orgId ? (state.orgs[String(orgId)] ?? null) : home())
   const rowOf = (id: unknown): { org: OrgState; row: StoredRow } | null => {
@@ -1057,6 +1059,34 @@ export function createMockClient(scenario?: string): DpdpClient {
           // (which is a Postgres-side unit, dpdp_record_confirmed_payment).
           return ok({ code: MOCK_REFERRAL_CODE, referredCount: 0, totalEarnedPaise: 0, pendingPaise: 0, paidPaise: 0 })
         }
+        // --- drizzle/0752: a person's own rights ---
+        case "dpdp_my_data":
+          return ok({
+            identity: { email: me, createdAt: "2026-09-01T09:00:00Z", lastSeenAt: null },
+            organisations: [],
+            nominee: mockRights.nominee,
+            requests: mockRights.requests,
+            emailsSent: 3,
+            actionsRecorded: 5,
+          })
+        case "dpdp_request_my_right": {
+          const kind = String(args?.p_kind ?? "")
+          const details = String(args?.p_details ?? "").trim()
+          if (!["access", "correction", "erasure"].includes(kind)) return ok({ ok: false, reason: "Choose what you are asking for." })
+          if (kind === "correction" && !details) return ok({ ok: false, reason: "Please say what is wrong and what it should be." })
+          const ref = `D-2026-${String(mockRights.requests.length + 1).padStart(4, "0")}`
+          mockRights.requests.unshift({ ref, kind, state: "open", receivedAt: "2026-10-15T09:00:00Z", dueAt: "2026-11-14T09:00:00Z" })
+          return ok({ ok: true, ref, dueAt: "2026-11-14T09:00:00Z" })
+        }
+        case "dpdp_set_my_nominee": {
+          const name = String(args?.p_name ?? "").trim()
+          if (name.length < 2) return ok({ ok: false, reason: "Please give the name of the person you nominate." })
+          mockRights.nominee = { name, email: String(args?.p_email ?? "").trim() || null, relation: String(args?.p_relation ?? "").trim() || null, recordedAt: "2026-10-15T09:00:00Z" }
+          return ok({ ok: true })
+        }
+        case "dpdp_clear_my_nominee":
+          mockRights.nominee = null
+          return ok({ ok: true })
         // --- WO-DPDP-016 Step 2 (drizzle/0657) ---
         case "dpdp_my_org_invite_link": {
           const org = orgOf(args?.p_org_id)
