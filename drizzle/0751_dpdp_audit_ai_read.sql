@@ -22,6 +22,5 @@ begin
 end
 $$;
 
-drop trigger if exists audit_from_ai_link_read on dpdp.ai_link_call;
-create trigger audit_from_ai_link_read after insert on dpdp.ai_link_call
+create or replace trigger audit_from_ai_link_read after insert on dpdp.ai_link_call
   for each row execute function dpdp.audit_from_ai_link_read();

@@ -9,7 +9,7 @@ import { join } from "node:path"
 const sql = readFileSync(join(import.meta.dir, "..", "..", "..", "drizzle", "0751_dpdp_audit_ai_read.sql"), "utf8")
 
 test("0751 audits a GET read through an AI link, first path segment only", () => {
-  expect(sql).toMatch(/create trigger audit_from_ai_link_read after insert on dpdp\.ai_link_call/)
+  expect(sql).toMatch(/create or replace trigger audit_from_ai_link_read after insert on dpdp\.ai_link_call/)
   expect(sql).toMatch(/new\.method = 'GET'/)
   expect(sql).toMatch(/'ai_read', 'ai_link'/)
   expect(sql).toMatch(/split_part\(ltrim\(coalesce\(new\.path, ''\), '\/'\), '\/', 1\)/)
