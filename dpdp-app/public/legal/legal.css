@@ -32,4 +32,6 @@ footer hr{border:0;border-top:1px solid var(--line);margin:0 0 14px}
 footer .company{margin:14px 0 0;font-size:13.5px;line-height:1.6;color:#55524a}
 footer .company a{color:inherit;text-decoration:underline;display:inline-block;padding:14px 2px;margin:-14px 0}
 @media (max-width:560px){h1{font-size:23px}table{font-size:14px}}
+/* Phones: a table is read one row at a time, so the page never scrolls sideways (checked at 320, 375 and 430 px). */
+@media (max-width:640px){table,tbody,thead,tr,th,td{display:block;width:100%;box-sizing:border-box}tr{margin:0 0 12px;border:1px solid var(--line)}th,td{border:0;border-bottom:1px solid var(--line)}tr>:last-child{border-bottom:0}td,th{overflow-wrap:anywhere}}
 @media print{header.top{background:#fff;color:#000}header.top nav{display:none}}

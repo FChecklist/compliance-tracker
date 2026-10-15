@@ -30,6 +30,7 @@ export const PRIVATE_HEADERS: Readonly<Record<string, string>> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  "Strict-Transport-Security": "max-age=31536000",
   "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
 }
 

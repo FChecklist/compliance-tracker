@@ -22,7 +22,7 @@ Publish the privacy notice Principal · due this week
 Waiting
 Breach drill — 72-hour rule IT head · not started
 Next
-8 dated answers, each with who said it and when. Cannot be edited later.
+8 dated answers, each with who said it and when. Changes are added to the record, never overwritten.
 Whoever leaves, the proof stays.
 Built for DPDP Act 2023 & Rules 2025 SPDI Rules 2011 apply until 13 May 2027 Every job mapped to its legal source Free AI assistant, you confirm every update
 Why it matters
@@ -53,7 +53,7 @@ What VERIDIAN is not
 Not a law firm. It is software, not legal advice.
 Not a certifier. No DPDP certification exists in India and we do not offer one.
 No promised outcome. It helps you do and prove the work. It does not promise a result.
-Not a document store. It never stores your documents.
+Not a document store. It does not keep your documents. The one exception is a payment proof you choose to upload.
 ### What VERIDIAN (VERy INDIAN) is
 dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 Who it is for:
