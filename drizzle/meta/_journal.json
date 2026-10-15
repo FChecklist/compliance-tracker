@@ -3893,6 +3893,13 @@
       "when": 1790700030000,
       "tag": "0750_dpdp_ledger_tick_cadence",
       "breakpoints": true
+    },
+    {
+      "idx": 558,
+      "version": "7",
+      "when": 1790700031000,
+      "tag": "0751_dpdp_audit_ai_read",
+      "breakpoints": true
     }
   ]
 }

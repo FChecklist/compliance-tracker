@@ -178,7 +178,7 @@ A follow-up from the same person is a **new ticket**; it names the earlier one i
 
 ### Retention: the owner's call
 
-`dpdp.mail_inbound` keeps each mail's subject, the sender's address and the **first 4096 characters of the text** (which can hold whatever personal data the sender typed) until someone deletes them. Attachments are never stored. **Retention (updated 2026-10-15): a closed ticket is kept 730 days, then removed by the daily `dpdp-retention-sweep` job (02:10 UTC). That job is still a dry run while `dpdp.retention_setting.live` is false; switching it to true makes the deletion real.** The same question applies to the copies in the operator's Gmail, and to what Resend and Cloudflare keep in their own logs (not covered here).
+`dpdp.mail_inbound` keeps each mail's subject, the sender's address and the **first 4096 characters of the text** (which can hold whatever personal data the sender typed) until someone deletes them. Attachments are never stored. **Retention (updated 2026-10-15): a closed ticket is kept 730 days, then removed by the daily `dpdp-retention-sweep` job (02:10 UTC). The job is live (`dpdp.retention_setting.live` = true since 2026-10-14); set it to false to return to a dry run.** The same question applies to the copies in the operator's Gmail, and to what Resend and Cloudflare keep in their own logs (not covered here).
 
 ### Operator daily digest and sales forward (owner decision 2026-10-01)
 
