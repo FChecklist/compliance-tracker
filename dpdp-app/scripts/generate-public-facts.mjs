@@ -216,9 +216,9 @@ function socialLines(facts, { title, description }) {
     `<meta name="twitter:description" content="${esc(description)}" />`,
     `<meta name="twitter:image" content="${esc(image)}" />`,
     `<meta name="twitter:image:alt" content="${esc(OG_IMAGE.alt)}" />`,
-    `<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2" />`,
+    `<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />`,
     `<link rel="icon" type="image/png" sizes="48x48" href="${ICON_PATH}" />`,
-    `<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />`,
+    `<link rel="apple-touch-icon" href="/apple-touch-icon.png" />`,
   ]
 }
 
