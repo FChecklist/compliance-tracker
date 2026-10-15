@@ -1,0 +1,70 @@
+{
+ "at": "2026-10-06T04:13:48.379Z",
+ "link_id": "e1867a7fb4e24f69b65a4816ebb3e9a2",
+ "guide_1": {
+  "status": 200,
+  "ms": 4224,
+  "ctype": "text/plain; charset=utf-8",
+  "robots": "noindex, nofollow",
+  "bytes": 43281,
+  "has_inline": true,
+  "rows": 19,
+  "report_line": true,
+  "step_one": true,
+  "footer": true,
+  "workspace_pointer": true
+ },
+ "guide_2": {
+  "status": 200,
+  "ms": 448,
+  "ctype": "text/plain; charset=utf-8",
+  "robots": "noindex, nofollow",
+  "bytes": 43281,
+  "has_inline": true,
+  "rows": 19,
+  "report_line": true,
+  "step_one": true,
+  "footer": true,
+  "workspace_pointer": true
+ },
+ "projects": {
+  "status": 200,
+  "robots": "noindex, nofollow, noarchive, nosnippet"
+ },
+ "workspace": {
+  "status": 200,
+  "ms": 1589,
+  "ctype": "text/plain; charset=utf-8",
+  "robots": "noindex, nofollow",
+  "bytes": 24892,
+  "sections": [
+   [
+    "## Your projects",
+    true
+   ],
+   [
+    "## Report on all projects",
+    true
+   ],
+   [
+    "### Project 1",
+    true
+   ],
+   [
+    "## What I can do for you",
+    true
+   ],
+   [
+    "## All addresses",
+    true
+   ]
+  ],
+  "not_read": 0,
+  "more": true
+ },
+ "workspace_txt": {
+  "status": 200,
+  "disposition": "attachment; filename=\"projexa-workspace.txt\""
+ },
+ "revoked": "revoked"
+}

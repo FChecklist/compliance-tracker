@@ -104,9 +104,9 @@ export function describeLinkContract(x: LinkExpectation): void {
       expect({ id: x.id, listed: (await listed(tokenAtRank(x.rank))).includes(x.id) }).toEqual({ id: x.id, listed: true });
     });
 
-    test("a valid check names the level and is only 'will execute directly' for a level-1 write", async () => {
+    test("a valid check names the level and is only 'will execute directly' for a level-1 or level-2 write (drizzle/0693)", async () => {
       const res = await checkOf(await check(tokenAtRank(x.rank), x.valid));
-      expect(res).toMatchObject({ valid: true, missing: [], problems: [], level: x.level, will_execute_directly: x.kind === "write" && x.level === 1 });
+      expect(res).toMatchObject({ valid: true, missing: [], problems: [], level: x.level, will_execute_directly: x.kind === "write" && x.level >= 1 });
     });
 
     test("each required parameter left out is reported by name", async () => {
@@ -132,12 +132,12 @@ export function describeLinkContract(x: LinkExpectation): void {
     }
 
     if (x.kind === "write" && x.level === 2) {
-      test("a level-2 function is refused on /actions (LEVEL_NOT_ALLOWED) and is a valid check and a proposal: a draft the person confirms", async () => {
+      test("a level-2 function passes /actions like level 1 (503 at the executor gate, never LEVEL_NOT_ALLOWED: drizzle/0693) and is still a valid check and a proposal", async () => {
         const { run: go } = link();
         const token = tokenAtRank(x.rank);
         const direct = await go(`/${token}/actions`, { method: "POST", body: { function: x.id, params: x.valid } });
-        expect(direct.status).toBe(403);
-        expect(((await direct.json()) as { code: string }).code).toBe("LEVEL_NOT_ALLOWED");
+        expect(direct.status).toBe(503);
+        expect(((await direct.json()) as { code: string }).code).not.toBe("LEVEL_NOT_ALLOWED");
         const proposal = await go(`/${token}/propose?fn=${x.id}`, { headers: { accept: "application/json" } });
         expect(proposal.status).toBe(200);
         const body = (await proposal.json()) as { check: Check; confirm_url: string; note: string };

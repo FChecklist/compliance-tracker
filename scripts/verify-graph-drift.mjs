@@ -57,6 +57,18 @@ export function summarizeDrift(rows) {
   return { drifted, totalChanged, clean: drifted.length === 0 }
 }
 
+// AUDIT-100 (2026-10-05): one resync at a time. Every push to every PR runs this against the LIVE database and the resync takes tens of
+// seconds; several overlapping runs (6 seen at once, the oldest 79 s) starved the shared database, so the AI work-link guide answered 503 and
+// the app timed out. A transaction-level advisory lock (it works through the pooler, unlike a session lock) makes a run that finds another one
+// in progress skip with a warning: the running one already proves the same thing. Returns null when it skipped.
+export async function runResyncSingleFlight(sql) {
+  return await sql.begin(async (tx) => {
+    const [{ locked }] = await tx`select pg_try_advisory_xact_lock(hashtext('graph_drift_ci_resync')) as locked`
+    if (!locked) return null
+    return await tx`select phase, step, row_count from platform.graph_full_resync()`
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) {
     console.warn("WARNING: DATABASE_URL not set -- skipping the graph-drift check.")
@@ -68,7 +80,12 @@ async function main() {
     const postgres = (await import("postgres")).default
     sql = postgres(process.env.DATABASE_URL, { max: 1, connect_timeout: 15, idle_timeout: 5 })
 
-    const rows = await sql`select phase, step, row_count from platform.graph_full_resync()`
+    const rows = await runResyncSingleFlight(sql)
+    if (rows === null) {
+      console.warn("Graph drift check: another run is resyncing the graph right now -- skipping this one (it proves the same thing).")
+      await sql.end({ timeout: 5 })
+      process.exit(0)
+    }
 
     console.log(`Graph drift check: platform.graph_full_resync() ran ${rows.length} step(s).`)
     for (const r of rows) {

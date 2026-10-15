@@ -46,7 +46,7 @@ test.describe("WO-DPDP-013 Part 1 -- the Copy-AI-link screen", () => {
 
   test("hide-other-emails is unchecked by default, and 7 days is the default choice", async ({ page }) => {
     await seed(page, "owner-live")
-    await expect(page.getByLabel("Hide other people’s emails (show their role instead)", { exact: true })).not.toBeChecked()
+    await expect(page.getByLabel("Hide other people’s emails (show their role instead)", { exact: true })).toBeChecked() // hidden by default (DPDP fix programme, wave 1)
     await expect(page.getByLabel("Link lasts", { exact: true })).toHaveValue("7")
   })
 

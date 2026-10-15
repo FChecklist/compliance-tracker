@@ -108,11 +108,11 @@ describe("AW-308: the eight functions are registered, executable, writes, and le
     }
   });
 
-  test("every wave 7 function is refused on the direct path of a link, even for a manager (403 LEVEL_NOT_ALLOWED), so the person's own confirmation is the only way in", async () => {
+  test("every wave 7 function passes the direct path of a manager's link up to the executor gate (503, never 403 LEVEL_NOT_ALLOWED: drizzle/0693, no confirmation gate on top of the role)", async () => {
     const { action } = linkHarness();
     for (const c of CASES) {
       const res = await action(TOKENS.manager, c.fn, c.valid);
-      expect({ fn: c.fn, status: res.status, code: res.body.code }).toEqual({ fn: c.fn, status: 403, code: "LEVEL_NOT_ALLOWED" });
+      expect({ fn: c.fn, status: res.status, code: res.body.code }).toEqual({ fn: c.fn, status: 503, code: "EXECUTOR_NOT_AVAILABLE" });
     }
   });
 });

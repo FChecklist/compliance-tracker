@@ -1,9 +1,10 @@
 /// <reference types="bun-types" />
-// lf-b2-ai-crud GROUP 2 (owner order 2026-10-02): the Edge function's half of "let my AI act without asking". The SQL half (record_intent, the claim,
-// the table, the setter) is proven on PGlite in ai-work-link-person-switch.pglite.test.ts; this file runs the REAL handler over the link fake:
-//   * the direct path: with the person's switch off a level-2 function is refused on POST /actions (403 LEVEL_NOT_ALLOWED) and /check says it will not
-//     run directly; with it on, the same call passes the level gate (503, the executor is not wired here: never 403) and /check says it runs directly;
-//     another person's switch does nothing for this link; the kill switch still stops it (403 WRITES_NOT_ENABLED); a level-1 function is unchanged;
+// lf-b2-ai-crud GROUP 2 (owner order 2026-10-02) and AI FULL RIGHTS (owner decision 2026-10-04, drizzle/0693): the Edge function's half of "let my AI act
+// without asking". The SQL half (record_intent, the claim, the table, the setter) is proven on PGlite in ai-work-link-person-switch.pglite.test.ts; this file
+// runs the REAL handler over the link fake:
+//   * the direct path: the person's switch no longer gates anything. With it off (the default) a level-2 function (a delete) passes the level gate on
+//     POST /actions exactly as with it on (503, the executor is not wired here: never 403) and /check says it runs directly; the kill switch still stops it
+//     (403 WRITES_NOT_ENABLED); a level-0 link stays drafts-only; a level-1 function is unchanged;
 //   * the app route GET|POST /settings/act-without-asking: a signed-in person reads and sets THEIR OWN switch, resolved from the session exactly as the
 //     confirm route resolves them; a link token is refused (401: an AI cannot switch on its own permission); a bad body is 400; an unlinked person 403;
 //     a failing database 503.
@@ -27,12 +28,13 @@ function link(opts: { writesEnabled?: boolean; actWithoutAsking?: string[] } = {
   return { action: (token: string, b: unknown) => run(token, "/actions", b), check: (token: string, b: unknown) => run(token, "/check", b) }
 }
 
-describe("the direct path follows the PERSON's switch", () => {
-  test("switch off (default): a level-2 function is 403 LEVEL_NOT_ALLOWED on /actions and /check says it will not run directly", async () => {
+describe("the direct path does NOT wait for the person's switch (drizzle/0693)", () => {
+  test("switch off (default): a level-2 function passes the level gate on /actions (503 EXECUTOR_NOT_AVAILABLE, never 403) and /check says it runs directly", async () => {
     const { action, check } = link()
     const direct = await action(TOKENS.manager, LEVEL_2)
-    expect(direct).toMatchObject({ status: 403, body: { code: "LEVEL_NOT_ALLOWED" } })
-    expect((await check(TOKENS.manager, LEVEL_2)).body).toMatchObject({ valid: true, level: 2, will_execute_directly: false })
+    expect(direct.status).toBe(503)
+    expect(direct.body.code).toBe("EXECUTOR_NOT_AVAILABLE")
+    expect((await check(TOKENS.manager, LEVEL_2)).body).toMatchObject({ valid: true, level: 2, will_execute_directly: true })
   })
 
   test("switch on: the same call passes the level gate (503 EXECUTOR_NOT_AVAILABLE, never 403) and /check says it runs directly", async () => {
@@ -43,9 +45,9 @@ describe("the direct path follows the PERSON's switch", () => {
     expect((await check(TOKENS.manager, LEVEL_2)).body).toMatchObject({ valid: true, level: 2, will_execute_directly: true })
   })
 
-  test("another person's switch does nothing for this link: the member's switch on, the manager's link still refuses", async () => {
-    const { action } = link({ actWithoutAsking: ["usr_member"] })
-    expect(await action(TOKENS.manager, LEVEL_2)).toMatchObject({ status: 403, body: { code: "LEVEL_NOT_ALLOWED" } })
+  test("nobody's switch matters: the manager's and the member's link both pass the level gate with every switch off", async () => {
+    const { action } = link()
+    expect((await action(TOKENS.manager, LEVEL_2)).status).toBe(503)
     expect((await action(TOKENS.member, LEVEL_2)).status).toBe(503)
   })
 
@@ -54,9 +56,11 @@ describe("the direct path follows the PERSON's switch", () => {
     expect(await action(TOKENS.manager, LEVEL_2)).toMatchObject({ status: 403, body: { code: "WRITES_NOT_ENABLED" } })
   })
 
-  test("a link made at level 0 stays drafts-only with the switch on", async () => {
-    const { action } = link({ actWithoutAsking: ["usr_manager"] })
-    expect(await action(TOKENS.levelZero, LEVEL_2)).toMatchObject({ status: 403, body: { code: "LEVEL_NOT_ALLOWED" } })
+  test("a link made at level 0 stays drafts-only, with the switch on or off", async () => {
+    for (const actWithoutAsking of [["usr_manager"], []]) {
+      const { action } = link({ actWithoutAsking })
+      expect(await action(TOKENS.levelZero, LEVEL_2)).toMatchObject({ status: 403, body: { code: "LEVEL_NOT_ALLOWED" } })
+    }
   })
 
   test("a level-1 function is unchanged either way", async () => {

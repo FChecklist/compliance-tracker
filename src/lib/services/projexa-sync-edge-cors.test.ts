@@ -52,6 +52,15 @@ describe("CORS preflight, exactly as a browser sends it", () => {
     expect(evil.headers.get("access-control-allow-origin")).toBeNull()
   })
 
+  test("a laptop on ANY loopback port is allowed (each user's laptop is its own server); lookalike hosts are not", async () => {
+    for (const origin of ["http://localhost:3110", "http://localhost", "http://127.0.0.1:5173", "http://[::1]:4000"]) {
+      expect((await preflight(origin)).headers.get("access-control-allow-origin")).toBe(origin)
+    }
+    for (const origin of ["https://localhost:3110", "http://localhost.evil.com", "http://evil.com:3100", "http://192.168.1.5:3100", "http://localhost:99999x"]) {
+      expect((await preflight(origin)).headers.get("access-control-allow-origin")).toBeNull()
+    }
+  })
+
   test("the preflight is cached for 2 h (Chromium's ceiling) so a laptop does not pay an extra invocation per call", async () => {
     const r = await preflight("https://projexa-ai.com")
     expect(CORS_MAX_AGE_SECONDS).toBe(7200)

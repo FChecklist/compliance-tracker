@@ -16,7 +16,7 @@ import { test, expect, type Page } from "@playwright/test"
 
 async function signIn(page: Page, email: string) {
   await page.goto("/app/")
-  await expect(page.getByRole("heading", { level: 1, name: "VERIDIAN DPDP", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
   await page.getByLabel("Your email", { exact: true }).fill(email)
   await page.getByRole("button", { name: "Email me a sign-in link", exact: true }).click()
   await expect(page.getByRole("heading", { level: 1, name: "Check your email", exact: true })).toBeVisible()

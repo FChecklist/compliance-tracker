@@ -32,6 +32,7 @@ import {
   executeUpdateRoom,
 } from "./crud-interior";
 import { executeArchiveProject, executeDeletePermit, executeUpdatePermit } from "./crud-permits-project";
+import { executeUpdateDrawing } from "./crud-drawings";
 
 export const CRUD_B2_EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   update_boq: executeUpdateBoq,
@@ -62,4 +63,6 @@ export const CRUD_B2_EXECUTORS: Record<string, (task: ExecutableTask) => Promise
   update_permit: executeUpdatePermit,
   delete_permit: executeDeletePermit,
   archive_project: executeArchiveProject,
+  // P5 (2026-10-08, crud-drawings.ts): the drawing edit the app route already had
+  update_drawing: executeUpdateDrawing,
 };

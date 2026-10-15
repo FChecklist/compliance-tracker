@@ -90,7 +90,7 @@ describe("it is a private page like /act/ and /unsubscribe/", () => {
     const html = read("copy/index.html")
     expect(html).toContain('<meta name="robots" content="noindex, nofollow" />')
     expect(html).toContain('<meta name="referrer" content="no-referrer" />')
-    expect(html.match(/(?:src|href)="([^"]+)"/g)!.every((a) => /="\/(src\/copy\.tsx|fonts\/[\w.-]+\.woff2)"/.test(a))).toBe(true)
+    expect(html.match(/(?:src|href)="([^"]+)"/g)!.every((a) => /="\/(src\/copy\.tsx|favicon-48\.png|fonts\/[\w.-]+\.woff2)"/.test(a))).toBe(true)
     const page = read("src/components/CopyPromptPage.tsx")
     expect(page).toContain("window.history.replaceState(null, \"\", window.location.pathname + window.location.search)")
     for (const bad of ["localStorage", "sessionStorage", "console.", "document.cookie", "https://"]) expect(page).not.toContain(bad)

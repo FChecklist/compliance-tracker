@@ -25,6 +25,8 @@ const SAVED = Object.fromEntries(KEYS.map((k) => [k, process.env[k]])) as Record
 
 const OWNER = "user-owner"
 const CUSTOMER = "user-customer"
+/** The organisation has been allowed our AI (Audit 37 point 11). */
+const ALLOWED = { orgAllowed: true } as const
 
 function env(values: Partial<Record<(typeof KEYS)[number], string>>) {
   for (const k of KEYS) delete process.env[k]
@@ -70,69 +72,108 @@ describe("the owner-only switch", () => {
 describe("the route for one request", () => {
   test("configured for claude-cli, switch OFF: the owner is NOT served by the subscription, the metered route serves them", () => {
     env({ AI_PROVIDER: "claude-cli", RAJAT_USER_ID: OWNER, OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(OWNER)).toEqual({ allowed: true, kind: "metered", provider: "openrouter", providerCostType: "METERED_API", rebillable: true })
+    expect(resolveInternalAiRoute(OWNER, ALLOWED)).toEqual({ allowed: true, kind: "metered", provider: "openrouter", providerCostType: "METERED_API", rebillable: true })
   })
 
   test("the switch off and no metered key: a refusal with its reason, not the subscription and not a guess", () => {
     env({ AI_PROVIDER: "claude-cli", RAJAT_USER_ID: OWNER })
-    expect(resolveInternalAiRoute(OWNER)).toEqual({ allowed: false, reason: "metered_provider_not_configured" })
+    expect(resolveInternalAiRoute(OWNER, ALLOWED)).toEqual({ allowed: false, reason: "metered_provider_not_configured" })
     // The default provider of provider-config.ts is claude-cli: an empty environment is the same answer.
     env({ RAJAT_USER_ID: OWNER })
-    expect(resolveInternalAiRoute(OWNER)).toEqual({ allowed: false, reason: "metered_provider_not_configured" })
+    expect(resolveInternalAiRoute(OWNER, ALLOWED)).toEqual({ allowed: false, reason: "metered_provider_not_configured" })
   })
 
   test("configured for claude-cli, switch ON, the owner: the subscription route, recorded as SUBSCRIPTION_ALLOCATED and never re-billed", () => {
     env({ AI_PROVIDER: "claude-cli", [CLAUDE_CLI_OWNER_FLAG]: "1", RAJAT_USER_ID: OWNER, OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(OWNER)).toEqual({ allowed: true, kind: "owner_subscription", provider: "claude-cli", providerCostType: "SUBSCRIPTION_ALLOCATED", rebillable: false })
+    expect(resolveInternalAiRoute(OWNER, ALLOWED)).toEqual({ allowed: true, kind: "owner_subscription", provider: "claude-cli", providerCostType: "SUBSCRIPTION_ALLOCATED", rebillable: false })
     env({ AI_PROVIDER_PIPELINE_L1: "claude-cli-remote", AI_PROVIDER: "openrouter", [CLAUDE_CLI_OWNER_FLAG]: "1", RAJAT_USER_ID: OWNER })
-    expect(resolveInternalAiRoute(OWNER)).toMatchObject({ allowed: true, kind: "owner_subscription", provider: "claude-cli-remote" })
+    expect(resolveInternalAiRoute(OWNER, ALLOWED)).toMatchObject({ allowed: true, kind: "owner_subscription", provider: "claude-cli-remote" })
   })
 
   test("switch ON but the person is not the owner: never the subscription (another person's request is not the owner's own use)", () => {
     env({ AI_PROVIDER: "claude-cli", [CLAUDE_CLI_OWNER_FLAG]: "1", RAJAT_USER_ID: OWNER, OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(CUSTOMER)).toMatchObject({ allowed: true, kind: "metered", provider: "openrouter" })
+    expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toMatchObject({ allowed: true, kind: "metered", provider: "openrouter" })
     env({ AI_PROVIDER: "claude-cli", [CLAUDE_CLI_OWNER_FLAG]: "1", RAJAT_USER_ID: OWNER })
-    expect(resolveInternalAiRoute(CUSTOMER)).toEqual({ allowed: false, reason: "metered_provider_not_configured" })
+    expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toEqual({ allowed: false, reason: "metered_provider_not_configured" })
   })
 
   test("switch ON and the owner id unset: fails closed, the subscription is not used", () => {
     env({ AI_PROVIDER: "claude-cli", [CLAUDE_CLI_OWNER_FLAG]: "1", OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(OWNER)).toMatchObject({ allowed: true, kind: "metered" })
+    expect(resolveInternalAiRoute(OWNER, ALLOWED)).toMatchObject({ allowed: true, kind: "metered" })
   })
 
   test("configured for openrouter: metered whatever the switch says", () => {
     env({ AI_PROVIDER: "openrouter", OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(CUSTOMER)).toMatchObject({ allowed: true, kind: "metered", providerCostType: "METERED_API", rebillable: true })
+    expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toMatchObject({ allowed: true, kind: "metered", providerCostType: "METERED_API", rebillable: true })
     env({ AI_PROVIDER: "openrouter", [CLAUDE_CLI_OWNER_FLAG]: "1", RAJAT_USER_ID: OWNER, OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(OWNER)).toMatchObject({ allowed: true, kind: "metered" })
+    expect(resolveInternalAiRoute(OWNER, ALLOWED)).toMatchObject({ allowed: true, kind: "metered" })
   })
 
   test("the metered route has its own gate: the allowlist and the key", () => {
     env({ AI_PROVIDER: "openrouter" })
-    expect(resolveInternalAiRoute(CUSTOMER)).toEqual({ allowed: false, reason: "metered_provider_not_configured" })
+    expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toEqual({ allowed: false, reason: "metered_provider_not_configured" })
     env({ AI_PROVIDER: "claude-cli", AI_ALLOWED_PROVIDERS: "claude-cli", OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(CUSTOMER)).toEqual({ allowed: false, reason: "metered_provider_not_allowed" })
+    expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toEqual({ allowed: false, reason: "metered_provider_not_allowed" })
     // A blank allowlist is a misconfiguration: refused, not "allow everything".
     env({ AI_ALLOWED_PROVIDERS: " ", OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(CUSTOMER)).toEqual({ allowed: false, reason: "provider_config_invalid" })
+    expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toEqual({ allowed: false, reason: "provider_config_invalid" })
   })
 
   test("a deployment that allows only openrouter and names no provider is the metered route (the default claude-cli is not on its allowlist)", () => {
     env({ AI_ALLOWED_PROVIDERS: "openrouter", OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(CUSTOMER)).toMatchObject({ allowed: true, kind: "metered" })
+    expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toMatchObject({ allowed: true, kind: "metered" })
   })
 
   test("no acting person: refused first, whatever the deployment says", () => {
     env({ AI_PROVIDER: "openrouter", OPENROUTER_API_KEY: "present" })
-    expect(resolveInternalAiRoute(null)).toEqual({ allowed: false, reason: "actor_unresolved" })
+    expect(resolveInternalAiRoute(null, ALLOWED)).toEqual({ allowed: false, reason: "actor_unresolved" })
     env({ AI_PROVIDER: "claude-cli", [CLAUDE_CLI_OWNER_FLAG]: "1", RAJAT_USER_ID: OWNER })
-    expect(resolveInternalAiRoute(null)).toEqual({ allowed: false, reason: "actor_unresolved" })
+    expect(resolveInternalAiRoute(null, ALLOWED)).toEqual({ allowed: false, reason: "actor_unresolved" })
+  })
+})
+
+// Audit 37 point 11: "our AI is used only if we allow" -- the per-organisation allow flag, default closed.
+// Run for falsifiability: delete the `opts.orgAllowed !== true` line in resolveInternalAiRoute and the first two tests here fail.
+describe("the per-organisation allow flag", () => {
+  const configured = { AI_PROVIDER: "openrouter", OPENROUTER_API_KEY: "present" } as const
+
+  test("master on, organisation NOT allowed (flag false, absent or not exactly true): refused with org_not_allowed", () => {
+    env({ ...configured })
+    expect(resolveInternalAiRoute(CUSTOMER, { orgAllowed: false })).toEqual({ allowed: false, reason: "org_not_allowed" })
+    expect(resolveInternalAiRoute(CUSTOMER)).toEqual({ allowed: false, reason: "org_not_allowed" })
+    expect(resolveInternalAiRoute(CUSTOMER, {})).toEqual({ allowed: false, reason: "org_not_allowed" })
+    expect(resolveInternalAiRoute(CUSTOMER, { orgAllowed: "yes" as unknown as boolean })).toEqual({ allowed: false, reason: "org_not_allowed" })
+  })
+
+  test("the owner is not exempt: an organisation that is not allowed is refused for the owner too, subscription route included", () => {
+    env({ AI_PROVIDER: "claude-cli", [CLAUDE_CLI_OWNER_FLAG]: "1", RAJAT_USER_ID: OWNER, OPENROUTER_API_KEY: "present" })
+    expect(resolveInternalAiRoute(OWNER)).toEqual({ allowed: false, reason: "org_not_allowed" })
+    expect(resolveInternalAiRoute(OWNER, ALLOWED)).toMatchObject({ allowed: true, kind: "owner_subscription" })
+  })
+
+  test("master on, organisation allowed: the request routes", () => {
+    env({ ...configured })
+    expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toMatchObject({ allowed: true, kind: "metered", provider: "openrouter" })
+  })
+
+  test("master OFF: refused even when the organisation is allowed (the deployment switch stays the master off)", () => {
+    env({ ...configured })
+    const saved = process.env.PROJEXA_INTERNAL_AI_ENABLED
+    try {
+      delete process.env.PROJEXA_INTERNAL_AI_ENABLED
+      expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toEqual({ allowed: false, reason: "projexa_internal_ai_off" })
+      process.env.PROJEXA_INTERNAL_AI_ENABLED = "true"
+      expect(resolveInternalAiRoute(CUSTOMER, ALLOWED)).toEqual({ allowed: false, reason: "projexa_internal_ai_off" })
+    } finally {
+      if (saved === undefined) delete process.env.PROJEXA_INTERNAL_AI_ENABLED
+      else process.env.PROJEXA_INTERNAL_AI_ENABLED = saved
+    }
   })
 })
 
 describe("what a person is told", () => {
   test("a fixed sentence per refusal that names no variable, provider, key or model", () => {
-    const reasons: InternalAiRefusalReason[] = ["actor_unresolved", "claude_cli_flag_off", "owner_not_configured", "not_owner", "provider_config_invalid", "metered_provider_not_allowed", "metered_provider_not_configured"]
+    const reasons: InternalAiRefusalReason[] = ["actor_unresolved", "org_not_allowed", "claude_cli_flag_off", "owner_not_configured", "not_owner", "provider_config_invalid", "metered_provider_not_allowed", "metered_provider_not_configured"]
     for (const reason of reasons) {
       const sentence = refusalSentence(reason)
       expect(sentence.length).toBeGreaterThan(20)

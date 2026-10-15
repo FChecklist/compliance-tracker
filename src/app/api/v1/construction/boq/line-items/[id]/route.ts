@@ -10,7 +10,7 @@
 // budgetPercentage is completely unaffected.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
-import { updateLineItemBudget, updateLineItemMoneyFields, ServiceError } from "@/lib/services/construction-boq-service"
+import { updateLineItemBudget, updateLineItemMoneyFields, EditConflictError, ServiceError } from "@/lib/services/construction-boq-service"
 // R85 Addendum 3 v4 Phase 6 (gates 6-01/6-03a/6-03c): the response below
 // echoes the same dual-view fields GET /api/v1/construction/boq/[id]
 // redacts -- a write response is exactly as reachable a surface as a read
@@ -37,6 +37,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       materialAmount: body.materialAmount,
       manpowerAmount: body.manpowerAmount,
       category: body.category,
+      // G-14: only when the caller sent it (a laptop's queued edit does); absent = unchanged behaviour for every other caller
+      ...("expectedCategory" in body ? { expectedCategory: body.expectedCategory } : {}),
     })
 
     // R85 Addendum 3 v4, Phase 2 (gates 2-01/2-02/2-04): the grid's own four
@@ -64,6 +66,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const responseBody = await applyCostVisibility({ orgId: ctx.orgId }, role, updated)
     return NextResponse.json(responseBody)
   } catch (error) {
+    if (error instanceof EditConflictError) return NextResponse.json({ error: error.message, code: error.code, current: error.current }, { status: 409 })
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 construction BOQ line-item update error:", error)
     return NextResponse.json({ error: "Failed to update line item" }, { status: 500 })

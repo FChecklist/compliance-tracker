@@ -20,6 +20,8 @@
 // (503) -> the work.
 import { cleanDeep, errorBody } from "../_shared/ai-link/core.ts"
 import { functionDef } from "./api-definition.ts"
+import { personCard } from "./explain.ts"
+import { plainSentence, receiptOf, riskOf, tickTextOf } from "./risk.ts"
 import { readConfirmBody, personGate, sessionGate, type ConfirmDeps } from "./confirm.ts"
 import { availabilityOf, callRpc, checkChange, directLevelOk, fail, projectArg, readIntent, requireScope, type ExecOutcome, type ReadEnv } from "./reads.ts"
 
@@ -257,6 +259,8 @@ export async function draftPreview(req: Request, draftId: string, deps: ConfirmD
   const total = boqTotalOf(d.function_id, params)
   const impact = IMPACT_FUNCTIONS.has(d.function_id) ? await impactOf(deps, draftId, person.value, confirmToken) : null
   const writes = d.writes_enabled === true
+  const risk = riskOf(d.function_id)
+  const who = await personCard(deps.rpc, person.value)
   return {
     status: 200,
     body: {
@@ -267,6 +271,10 @@ export async function draftPreview(req: Request, draftId: string, deps: ConfirmD
       params: cleanDeep(params),
       ...(total ? { total } : {}),
       ...(impact ? { impact } : {}),
+      plain: plainSentence(d.function_id),
+      risk: { ...risk, ...(risk.needs_tick ? { tick_text: tickTextOf(risk) } : {}) },
+      acting_for: who,
+      receipt: receiptOf(draftId),
       state: d.state,
       can_confirm: d.state === "awaiting_confirmation",
       writes_enabled: writes,
@@ -322,7 +330,7 @@ export async function actionCreate(env: ReadEnv, body: Record<string, unknown>):
   if (env.ctx.authority_level < 1) {
     throw fail(403, "This link was made at level 0: it can propose and draft changes, and the person confirms each one.", "POST /drafts records a draft.", { code: "LEVEL_NOT_ALLOWED" })
   }
-  // lf-b2-ai-crud: a level-2 function too, when the PERSON switched "let my AI act without asking" on (the SQL holds the same rule, now)
+  // drizzle/0693: a level-2 function (a delete) is direct too, for every person: no confirmation gate on top of the role (the SQL holds the same rule, now)
   if (!directLevelOk(def, env.ctx)) {
     throw fail(403, "This function needs the person's confirmation: use /drafts.", undefined, { code: "LEVEL_NOT_ALLOWED" })
   }

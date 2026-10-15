@@ -19,6 +19,8 @@
 //
 // Run: bun test --isolate src/app/api/v1/projexa/assistant/route.attachment.test.ts
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test"
+// Audit 37 point 11: the per-organisation allow flag (internal-ai-org-allowance.ts) is default closed; this file tests behaviour for an ALLOWED org.
+mock.module("@/lib/ai/internal-ai-org-allowance", () => ({ INTERNAL_AI_BRANCH_KEY: "internal_ai", isInternalAiAllowedForOrg: async () => true, isInternalAiAllowedForOrgWithDb: async () => true }))
 import * as realTenantScoped from "@/lib/db/tenant-scoped"
 import { memoryLedger } from "@/lib/services/__test-helpers__/document-extraction-fixtures"
 import { carefulHumanModel } from "@/lib/services/__test-helpers__/zoomies-standin-model"

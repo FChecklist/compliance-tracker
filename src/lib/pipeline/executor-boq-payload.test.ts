@@ -182,11 +182,10 @@ describe("AW-202: the link, through the real handler", () => {
     expect(noTitle.missing).toEqual(["title"]);
   });
 
-  test("create_boq is a draft: a link may not run it directly, it goes to /drafts for the person's confirmation", async () => {
+  test("create_boq is no longer a draft only (drizzle/0693): the direct path passes the level gate and stops at the executor, never at LEVEL_NOT_ALLOWED", async () => {
     const { run } = link();
     const res = await run(`/${TOKENS.manager}/actions`, { method: "POST", body: { function: "create_boq", params: { title: "T", idempotency_key: "k" } } });
-    expect(res.status).toBe(403);
-    expect(((await res.json()) as { code: string }).code).toBe("LEVEL_NOT_ALLOWED");
+    expect(((await res.json()) as { code: string }).code).not.toBe("LEVEL_NOT_ALLOWED");
   });
 
   test("an undeclared parameter is still reported (the link drops nothing silently): line_items is not lineItems", async () => {

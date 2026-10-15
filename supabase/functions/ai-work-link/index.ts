@@ -9,6 +9,7 @@ import * as jose from "npm:jose@6.2.10"
 import { configFromEnv, EXEC_FUNCTION_PRESENT } from "./config.ts"
 import { makeExecClient } from "./exec-client.ts"
 import { handleAwl } from "./handler.ts"
+import { withTiming } from "./timing.ts"
 import { createKeyResolvers, createSessionVerifier, type JoseLike } from "./session.ts"
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
@@ -26,13 +27,18 @@ const joseLike = jose as unknown as JoseLike
 const session = createSessionVerifier({ jose: joseLike, keys: createKeyResolvers(joseLike) })
 
 Deno.serve((req: Request) =>
-  handleAwl(req, {
+  withTiming(req, () => handleAwl(req, {
     config,
     session,
     exec,
+    // keep the call-result write alive after the answer is sent (Supabase Edge Runtime); absent elsewhere, where the write is plain fire-and-forget
+    defer: (work) => {
+      const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime
+      rt?.waitUntil?.(work)
+    },
     rpc: async (fn, args) => {
       const { data, error } = await client.rpc(fn, args)
       return { data, error: error ? { message: error.message, code: error.code ?? undefined } : null }
     },
-  }),
+  }), (line) => console.log(line)),
 )

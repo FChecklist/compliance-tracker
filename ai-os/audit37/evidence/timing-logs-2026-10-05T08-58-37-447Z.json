@@ -1,0 +1,248 @@
+{
+  "measured_at": "2026-10-05T08:58:37.447Z",
+  "marker": "awlprobe.81trpzao",
+  "probe": {
+    "status": 404,
+    "client_ms": 355
+  },
+  "found_after_s": 12,
+  "found": [
+    {
+      "timestamp": "2026-10-05T08:59:00.536000",
+      "line": {
+        "route": "/awlprobe.81trpzao",
+        "method": "GET",
+        "status": 404,
+        "ms": 1,
+        "slow": false,
+        "failed": false
+      }
+    }
+  ],
+  "last_24h": {
+    "calls": 52,
+    "unparsed": 0,
+    "slow": 45,
+    "failed": 45,
+    "ms": {
+      "p50": 4003,
+      "p95": 4006,
+      "max": 5742
+    },
+    "by_route": {
+      "GET /awlprobe.81trpzao": {
+        "calls": 1,
+        "slow": 0,
+        "failed": 0,
+        "max_ms": 1
+      },
+      "GET /:token": {
+        "calls": 47,
+        "slow": 45,
+        "failed": 45,
+        "max_ms": 5742
+      },
+      "GET /awlprobe.lbp4zp7l": {
+        "calls": 1,
+        "slow": 0,
+        "failed": 0,
+        "max_ms": 1
+      },
+      "GET /awlprobe.ovlklw3z": {
+        "calls": 1,
+        "slow": 0,
+        "failed": 0,
+        "max_ms": 1
+      },
+      "POST /user-link": {
+        "calls": 2,
+        "slow": 0,
+        "failed": 0,
+        "max_ms": 3
+      }
+    },
+    "newest_bad": [
+      {
+        "at": "2026-10-05T08:57:52.651000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4004,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:55:47.698000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4004,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:55:17.299000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4003,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:54:46.906000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4003,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:54:42.559000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4004,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:54:16.286000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4003,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:54:09.553000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4002,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:53:46.511000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4004,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:53:39.691000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4005,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:52:29.176000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4004,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:52:23.019000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4002,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:51:59.437000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4004,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:51:53.486000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4003,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:51:29.823000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4004,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:51:23.935000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4004,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:50:53.434000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4012,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:50:44.842000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4003,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:50:23.898000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4004,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:50:15.217000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4003,
+        "slow": true,
+        "failed": true
+      },
+      {
+        "at": "2026-10-05T08:49:08.998000",
+        "route": "/:token",
+        "method": "GET",
+        "status": 503,
+        "ms": 4005,
+        "slow": true,
+        "failed": true
+      }
+    ],
+    "bad_query_rows": 45
+  }
+}

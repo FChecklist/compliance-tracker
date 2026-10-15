@@ -30,7 +30,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ checks })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error("v1 projexa exceptions report error:", error)
-    return NextResponse.json({ error: "Failed to generate the exceptions report" }, { status: 500 })
+    // Surface the real failure class (Postgres SQLSTATE such as 57014 statement
+    // timeout, or the error name) -- never the message/stack, which can carry SQL
+    // or connection details. Previously a generic string hid the cause (QA D6).
+    const e = error as { code?: unknown; name?: unknown; message?: unknown }
+    const code = typeof e?.code === "string" ? e.code : typeof e?.name === "string" ? e.name : "UNKNOWN"
+    console.error("v1 projexa exceptions report error:", code, e?.message ?? error)
+    return NextResponse.json({ error: "Failed to generate the exceptions report", code }, { status: 500 })
   }
 }

@@ -17,6 +17,21 @@ import { sql } from "drizzle-orm"
 import { LLMHttpError, type CallLLMOptions, type LLMUsage } from "@/lib/llm-client"
 
 export const BRIDGE_MAX_WAIT_MS = 45_000
+/** platform.ai_bridge_request expires an unanswered request after 2 minutes (ai_bridge_purge, drizzle/0670): never wait longer than that. */
+export const BRIDGE_MAX_WAIT_CEILING_MS = 110_000
+
+/**
+ * How long the app waits for the laptop's answer. 45 s by default (the Vercel cost shape above). Audit 100 A4/A14 (2026-10-05): headless
+ * Claude Code on the 8 GB owner laptop was measured answering a Level 1 classification in 16-60 s, so with a fixed 45 s the app often gave
+ * up and turned a real answer into "Level 1 unavailable" while the worker was still writing it. AI_BRIDGE_MAX_WAIT_MS raises it for a
+ * laptop-served app (not a Vercel function); a value that is not a whole number of ms from 5 s up to the 110 s ceiling is ignored.
+ */
+export function bridgeMaxWaitMs(): number {
+  const raw = process.env.AI_BRIDGE_MAX_WAIT_MS
+  if (!raw || !/^\d+$/.test(raw.trim())) return BRIDGE_MAX_WAIT_MS
+  const n = Number(raw.trim())
+  return n >= 5_000 && n <= BRIDGE_MAX_WAIT_CEILING_MS ? n : BRIDGE_MAX_WAIT_MS
+}
 export const BRIDGE_POLL_MS = 1_500
 
 export type BridgeAnswer = { status: string; response?: { content?: unknown } | null; error?: string | null }
@@ -61,7 +76,7 @@ export async function callViaBridge(
     throw new LLMHttpError("The test AI is offline: the owner's laptop worker is not running. Start it, or switch AI_BRIDGE off.", 424)
   }
 
-  const deadline = deps.now() + BRIDGE_MAX_WAIT_MS
+  const deadline = deps.now() + bridgeMaxWaitMs()
   for (;;) {
     await deps.sleep(BRIDGE_POLL_MS)
     const answer = await deps.get(queued.id)

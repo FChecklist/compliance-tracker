@@ -54,7 +54,7 @@ From 13 May 2027, a person can take an unresolved grievance to the Data Protecti
 
 ## What done looks like
 
-The job "Write down where recordings are kept and for how long" is marked Yes in the school's VERIDIAN file by the person responsible for CCTV, with the date, within the 12-day window — and the log line that records it is in the file's record, which cannot be edited afterwards.
+The job "Write down where recordings are kept and for how long" is marked Yes in the school's VERIDIAN file by the person responsible for CCTV, with the date, within the 12-day window — and the log line that records it is in the file's record, which is added to, not edited.
 
 **[Track this with VERIDIAN](https://app.veridian-aios.com/)**
 

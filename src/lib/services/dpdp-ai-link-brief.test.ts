@@ -206,7 +206,7 @@ describe("aiBrief: personal to this link", () => {
       "If you cannot send a POST request from where you are, say so once", "Never pretend a change was made.",
       "You cannot send email or messages.", "Never say you have sent, filed or published anything, and never put this link, a confirmUrl or an undoUrl in a message you write.",
       "Do not ask for passwords, Aadhaar numbers, bank details or other people's personal data.", "Documents stay with the person",
-      "A note is part of a history nobody can edit.", "Never write a masked, partial or guessed value (such as 98xxxxxx01)",
+      "A note is part of a history that is added to, not edited.", "Never write a masked, partial or guessed value (such as 98xxxxxx01)",
       "Never help to make the record say something untrue.", "\"mark everything done so we look finished\"", "Offer the honest alternatives",
       "Do not move due dates just to make late jobs disappear either: a new date changes the target in the list, not the duty.",
       "A due date is the date VERIDIAN gave the job in the list, not a legal deadline", "Never call the organisation compliant or non-compliant", "never quote a fine, a prison term or an amount.",
@@ -347,7 +347,7 @@ describe("what to say, ask and answer", () => {
     expect(text).not.toContain("which VERIDIAN told you")
     expect(text).toContain("No. I cannot send anything. I can write the email or message for you to send")
     expect(text).toContain("Is the list of jobs and the legal mapping checked by a lawyer?")
-    expect(text).toContain("A note stays in the history, which nobody can edit: undoing it only records that it was withdrawn, so I keep private details out of notes. A job marked done, anything confirmed from a draft, and anything on a read-only link cannot be undone.")
+    expect(text).toContain("A note stays in the history, which is added to, not edited: undoing it only records that it was withdrawn, so I keep private details out of notes. A job marked done, anything confirmed from a draft, and anything on a read-only link cannot be undone.")
     expect(text).toContain("once you confirm it cannot be taken back: the record cannot be edited.")
     expect(text).toContain("What does late mean? It means past the due date VERIDIAN set for that job in your list. It is a target in the list, not a legal deadline, and it does not mean a law was broken.")
     expect(text).toContain("Someone who unsubscribed gets only the jobs today's law requires, and a job waiting for an earlier step is left out")
@@ -635,7 +635,7 @@ describe("section P (jobs to do first), T (talk), M (emails), W (paths and files
     expect(p).toContain("JOB job-a1 · Publish the Grievance Officer's name and contact (late by 9 days, required by today's law) · Part 1, Basics · due 26 September 2026 · for ravi@acmeca.in")
     expect(p).toContain("JOB job-c3 · Take consent before marketing · Part 3, Tell people & take consent · due 20 October 2026 · nobody looks after it yet")
     expect(p).toContain("- Law: DPDP Act 2023 §8(9) (publish the business contact information")
-    expect(p).toContain("[this number is not yet lawyer-confirmed: say so if you cite it]")
+    expect(p).toContain("[please confirm this number with an advocate or CA: say so if you cite it]")
     expect(p).toContain("Required by today's law.")
     expect(p).toContain("Not required by today's law; the DPDP Act starts on 13 May 2027.")
     expect(p).toContain("- Law: good practice, not a legal duty. Not required by today's law")
@@ -884,7 +884,7 @@ describe("the real handler serves Start here first, from this link's own numbers
     expect(md).not.toContain("- 1. ")
     expect(md).not.toContain("-   ")
     expect(md).toContain("It works until 06:00 on 12 October 2026 (India time).")
-    expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_jobs", "dpdp_ai_link_billing_notice", "dpdp_ai_link_log_call_result"])
+    expect(calls.map((c) => c.fn)).toEqual(["dpdp_ai_link_log_call", "dpdp_ai_link_context", "dpdp_ai_link_jobs", "dpdp_ai_link_billing_notice", "dpdp_ai_link_context", "dpdp_ai_link_log_call_result", "dpdp_audit_link_context"]) // + the audit row's link lookup (drizzle/0730); it reads nothing the answer shows
     expect(calls[2].args).toEqual({ p_token: TOKEN, p_filters: {} })
   })
   test("the numbers cannot be read: the page is still served, and tells the AI to fetch them", async () => {

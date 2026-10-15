@@ -5,6 +5,8 @@
 //
 // Run: bun test --isolate src/lib/projexa-internal-ai.test.ts
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test"
+// Audit 37 point 11: the per-organisation allow flag (internal-ai-org-allowance.ts) is default closed; this file tests behaviour for an ALLOWED org.
+mock.module("@/lib/ai/internal-ai-org-allowance", () => ({ INTERNAL_AI_BRANCH_KEY: "internal_ai", isInternalAiAllowedForOrg: async () => true, isInternalAiAllowedForOrgWithDb: async () => true }))
 
 const realAdapter = await import("@/lib/ai/adapter")
 const classifySpy = mock(async (segments: string[]) => segments.map(() => ({ functionId: null, params: {}, missingParams: [], confidence: 0, unmappedIntent: null })))

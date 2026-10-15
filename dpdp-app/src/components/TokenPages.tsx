@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import { createDpdpClient, type DpdpClient } from "@/lib/client"
-import { applyEmailAction, parentConsent, previewEmailAction, previewParentConsent, readFragmentToken, unsubscribe } from "@/lib/api"
+import { applyEmailAction, parentConsent, parentConsentAnswers, previewEmailAction, previewParentConsent, readFragmentToken, unsubscribe, withdrawConsent } from "@/lib/api"
 import type { EmailActionPreview, ParentConsentPreview } from "@/lib/rpc-types"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
+import { answersToSend, answerWords, canSave, guardianProblem, isSimpleConsent, purposesOf, unanswered, withdrawable, type Guardian } from "@/lib/consent-page"
 import { Card } from "./Screens"
 
 // WO-DPDP-011 Step 5: the three pages a person reaches from an EMAIL, with
@@ -192,10 +193,11 @@ export function UnsubscribePage() {
 
 // -------------------------------------------------------------------- /p/
 // The parent / data-principal consent page: the port of
-// src/app/dpdp/p/[token]/page.tsx. Copy is that page's, verbatim, for the
-// notice step and the saved step; the answer step is WO-011 §4's "Yes/No;
-// No is a valid answer" -- two buttons, both recorded, in place of the
-// Next.js page's per-purpose ticks (dpdp_parent_consent takes one answer).
+// src/app/dpdp/p/[token]/page.tsx. The simple case keeps its original copy and its single Yes/No
+// (dpdp_parent_consent): "No is a perfectly good answer", both recorded. When the link asks about
+// several items, or the person is a child, the page (drizzle/0725) shows the notice text, one
+// Yes/No per item and, for a child, the parent's or guardian's name and relationship. After
+// answering, the same page and the same link can withdraw a Yes with one tap: no new link.
 export function ParentConsentPage() {
   const { client, token, bootError } = useTokenClient()
   const [ctx, setCtx] = useState<ParentConsentPreview | null>(() => (token ? null : { ok: false, reason: "This link is not valid or has expired" }))
@@ -203,6 +205,16 @@ export function ParentConsentPage() {
   const [error, setError] = useState<string | null>(bootError)
   const [pending, setPending] = useState(false)
   const [refused, setRefused] = useState<string | null>(null)
+  const [answers, setAnswers] = useState<Record<string, "yes" | "no" | undefined>>({})
+  const [guardian, setGuardian] = useState<Guardian>({ name: "", relation: "" })
+  const [problem, setProblem] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    if (!client || !token) return
+    const p = await previewParentConsent(client, token)
+    setCtx(p)
+    if (p.ok && p.alreadyAnswered) setStep("done")
+  }, [client, token])
 
   useEffect(() => {
     if (!client || !token) return
@@ -223,8 +235,40 @@ export function ParentConsentPage() {
     setPending(true)
     try {
       const r = await parentConsent(client, token, a)
-      if (r.ok) setStep("done")
+      if (r.ok) { await load(); setStep("done") }
       else setRefused(r.reason)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function saveAll(c: Extract<ParentConsentPreview, { ok: true }>) {
+    if (!client || !token) return
+    const g = guardianProblem(!!c.principalIsChild, guardian)
+    if (g) { setProblem(g); return }
+    if (unanswered(purposesOf(c), answers).length > 0) { setProblem("Please answer Yes or No for each item."); return }
+    setProblem(null)
+    setPending(true)
+    try {
+      const r = await parentConsentAnswers(client, token, answersToSend(purposesOf(c), answers), c.principalIsChild ? { name: guardian.name.trim(), relation: guardian.relation as "parent" | "legal_guardian" } : null)
+      if (r.ok) { await load(); setStep("done") }
+      else setRefused(r.reason)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function withdraw(key: string) {
+    if (!client || !token) return
+    setPending(true)
+    try {
+      const r = await withdrawConsent(client, token, key)
+      if (r.ok) await load()
+      else setProblem(r.reason)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -237,19 +281,21 @@ export function ParentConsentPage() {
   if (!ctx.ok) return <Refused reason={ctx.reason} />
   if (refused) return <Refused reason={refused} />
 
+  const simple = isSimpleConsent(ctx)
   const version = ctx.notice ? `${ctx.notice.docKind} v${ctx.notice.version}` : ""
   if (step === "notice") {
     return (
       <Card icon="🔏" title="What we hold about you">
         <p style={lead}>Written plainly. {version}</p>
         {ctx.orgName && <p style={{ ...quiet, marginBottom: 18 }}>From <b>{ctx.orgName}</b>.</p>}
+        {ctx.noticeText && <p style={{ ...quiet, marginBottom: 18, textAlign: "left", whiteSpace: "pre-line" }}>{ctx.noticeText}</p>}
         <button type="button" onClick={() => setStep("consent")} className="font-bold text-white" style={primaryButton}>
           Now tell us what you agree to →
         </button>
       </Card>
     )
   }
-  if (step === "consent") {
+  if (step === "consent" && simple) {
     return (
       <Card icon="👪" title="Now tell us what you agree to">
         <p style={lead}>Press Yes or No. <b>No is a perfectly good answer</b> — either way, your answer is recorded with today&rsquo;s date.</p>
@@ -266,10 +312,75 @@ export function ParentConsentPage() {
       </Card>
     )
   }
+  if (step === "consent") {
+    const items = purposesOf(ctx)
+    return (
+      <Card icon="👪" title="Now tell us what you agree to">
+        <p style={lead}>Answer each item. <b>No is a perfectly good answer</b> — either way, your answers are recorded with today&rsquo;s date.</p>
+        <Busy pending={pending}>
+          <div style={{ textAlign: "left", display: "grid", gap: 14, marginTop: 8 }}>
+            {items.map((p) => (
+              <fieldset key={p.key} style={{ border: "1.6px solid var(--dpdp-line)", borderRadius: 12, padding: 12 }}>
+                <legend style={{ fontWeight: 700, padding: "0 6px" }}>{p.label}</legend>
+                <div className="flex gap-2.5 items-center flex-wrap">
+                  <button type="button" disabled={pending} aria-pressed={answers[p.key] === "yes"} onClick={() => setAnswers((a) => ({ ...a, [p.key]: "yes" }))} className="font-bold" style={{ ...primaryButton, background: answers[p.key] === "yes" ? "var(--dpdp-g)" : "#fff", color: answers[p.key] === "yes" ? "#fff" : "var(--dpdp-ink)", border: "1.6px solid var(--dpdp-line)" }}>Yes</button>
+                  <button type="button" disabled={pending} aria-pressed={answers[p.key] === "no"} onClick={() => setAnswers((a) => ({ ...a, [p.key]: "no" }))} className="font-bold" style={{ ...primaryButton, background: answers[p.key] === "no" ? "var(--dpdp-ink)" : "#fff", color: answers[p.key] === "no" ? "#fff" : "var(--dpdp-ink)", border: "1.6px solid var(--dpdp-line)" }}>No</button>
+                </div>
+              </fieldset>
+            ))}
+            {ctx.principalIsChild && (
+              <fieldset style={{ border: "1.6px solid var(--dpdp-line)", borderRadius: 12, padding: 12 }}>
+                <legend style={{ fontWeight: 700, padding: "0 6px" }}>The parent or legal guardian answering for the child</legend>
+                <label style={{ display: "block", marginBottom: 8 }}>Your name
+                  <input value={guardian.name} onChange={(e) => setGuardian((g) => ({ ...g, name: e.target.value }))} maxLength={80} autoComplete="name" style={{ display: "block", width: "100%", padding: 8, border: "1.6px solid var(--dpdp-line)", borderRadius: 8 }} />
+                </label>
+                <label style={{ display: "block" }}>You are the
+                  <select value={guardian.relation} onChange={(e) => setGuardian((g) => ({ ...g, relation: e.target.value as Guardian["relation"] }))} style={{ display: "block", width: "100%", padding: 8, border: "1.6px solid var(--dpdp-line)", borderRadius: 8 }}>
+                    <option value="">Choose</option>
+                    <option value="parent">Parent</option>
+                    <option value="legal_guardian">Legal guardian</option>
+                  </select>
+                </label>
+              </fieldset>
+            )}
+            {problem && <p role="alert" style={{ color: "#b3261e" }}>{problem}</p>}
+            <button type="button" disabled={pending || !canSave(ctx, answers, guardian)} onClick={() => saveAll(ctx)} className="font-bold text-white" style={primaryButton}>
+              Save my answers
+            </button>
+          </div>
+        </Busy>
+      </Card>
+    )
+  }
+  const items = purposesOf(ctx)
+  const canWithdraw = withdrawable(ctx)
   return (
     <Card icon="✅" title="Saved, thank you">
       <p style={lead}>Your answer is recorded with today&rsquo;s date.</p>
-      <p style={quiet}>This link has done its job. If you change your mind, ask {ctx.orgName ?? "the organisation"} for a fresh one.</p>
+      {!simple && (
+        <ul style={{ textAlign: "left", margin: "8px 0 12px", paddingLeft: 18 }}>
+          {items.map((p) => <li key={p.key}><b>{p.label}</b>: {answerWords(p.answer)}</li>)}
+        </ul>
+      )}
+      {simple && items[0].answer === "withdrawn" && <p style={quiet}>You withdrew your consent.</p>}
+      {ctx.guardian && <p style={quiet}>Answered by {ctx.guardian.name}, {ctx.guardian.relation === "parent" ? "parent" : "legal guardian"}.</p>}
+      {canWithdraw.length > 0 ? (
+        <>
+          <p style={quiet}>You can withdraw a Yes at any time with this same link. Nothing else will change.</p>
+          <Busy pending={pending}>
+            <div className="flex gap-2.5 items-center justify-center flex-wrap" style={{ marginTop: 8 }}>
+              {canWithdraw.map((p) => (
+                <button key={p.key} type="button" disabled={pending} onClick={() => withdraw(p.key)} className="font-bold" style={{ ...primaryButton, background: "#fff", color: "var(--dpdp-ink)", border: "1.6px solid var(--dpdp-line)" }}>
+                  {simple ? "Withdraw my consent" : `Withdraw: ${p.label}`}
+                </button>
+              ))}
+            </div>
+          </Busy>
+        </>
+      ) : (
+        <p style={quiet}>This link has done its job. If you change your mind, ask {ctx.orgName ?? "the organisation"} for a fresh one.</p>
+      )}
+      {problem && <p role="alert" style={{ color: "#b3261e" }}>{problem}</p>}
     </Card>
   )
 }

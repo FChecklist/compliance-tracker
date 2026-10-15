@@ -43,7 +43,7 @@ async function seed(page: Page, scenario: string) {
 // mock's 1.5 s "the human opened the email" timer runs.
 async function signIn(page: Page, email: string) {
   await page.goto("/app/")
-  await expect(page.getByRole("heading", { level: 1, name: "VERIDIAN DPDP", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
   await page.getByLabel("Your email", { exact: true }).fill(email)
   await page.getByRole("button", { name: "Email me a sign-in link", exact: true }).click()
   await expect(page.getByRole("heading", { level: 1, name: "Check your email", exact: true })).toBeVisible()
@@ -52,7 +52,7 @@ async function signIn(page: Page, email: string) {
 
 async function signOut(page: Page) {
   await page.getByRole("button", { name: "Sign out", exact: true }).click()
-  await expect(page.getByRole("heading", { level: 1, name: "VERIDIAN DPDP", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
 }
 
 // The invited person's welcome, acknowledged.
@@ -548,17 +548,17 @@ test.describe("tfirst -- first visits", () => {
     // email click stays with the human (agent-by-role.spec.ts).
     await page.clock.install()
     await page.goto("/app/")
-    await expect(page.getByRole("heading", { level: 1, name: "VERIDIAN DPDP", exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
     await page.clock.pauseAt(Date.now() + 60_000)
     await page.getByLabel("Your email", { exact: true }).fill(OWNER)
     await page.getByRole("button", { name: "Email me a sign-in link", exact: true }).click()
     await expect(page.getByRole("heading", { level: 1, name: "Check your email", exact: true })).toBeVisible()
-    await expect(page.getByText(`We sent a sign-in link to ${OWNER}. Open it on this device and you’ll land straight on your page.`, { exact: true })).toBeVisible()
-    await page.getByRole("button", { name: "Send me a new link", exact: true }).click()
+    await expect(page.getByText(`We sent an email to ${OWNER}. Tap a button in it, or type the passcode here.`, { exact: true })).toBeVisible()
+    await page.getByRole("button", { name: "Send me a new code", exact: true }).click()
     await expect(page.getByRole("status")).toHaveText("Sent — check your email again.")
     await expect(page.getByText("Signed in as")).toHaveCount(0)
     await page.getByRole("button", { name: "Use a different email", exact: true }).click()
-    await expect(page.getByRole("heading", { level: 1, name: "VERIDIAN DPDP", exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
     await expect(page.getByLabel("Your email", { exact: true })).toHaveValue("")
   })
 

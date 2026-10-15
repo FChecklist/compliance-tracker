@@ -691,7 +691,8 @@ export const notifications = complianceSchemaDB.table('notifications', {
 // `client_entities.id` -- client_entities is a detail/enrichment layer
 // under a client, not the primary scoping key. Matching precedent, not
 // introducing a second one.
-export const auditLogs = complianceSchemaDB.table('audit_logs', {
+function auditLogBaseColumns() {
+  return {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   action: text('action').notNull(),
   entityType: text('entity_type').notNull(),
@@ -765,6 +766,34 @@ export const auditLogs = complianceSchemaDB.table('audit_logs', {
   // value is given) and every whole-row select reads it.
   surface: text('surface'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  }
+}
+
+export const auditLogs = complianceSchemaDB.table('audit_logs', auditLogBaseColumns())
+
+// AUDIT TRAIL slice 1 (drizzle/0730_audit_trail_stamp_columns.sql, ai-os/audit37/AUDIT_TRAIL_DESIGN_2026-10-06.md): the 17 internal-only stamp
+// columns. They are declared ONLY on this insert-side table object, never on `auditLogs` above: 0730 revokes table-level SELECT from app_runtime
+// and re-grants only the 19 pre-existing columns, so a whole-row select through a table object that names a stamp column would fail with
+// permission denied. Same physical table, two Drizzle views of it. Read the stamp columns only as service_role / staff, with raw SQL.
+export const auditLogsStamped = complianceSchemaDB.table('audit_logs', {
+  ...auditLogBaseColumns(),
+  product: text('product'),
+  channel: text('channel'),
+  source: text('source'),
+  actionClass: text('action_class'),
+  deviceId: text('device_id'),
+  aiName: text('ai_name'),
+  aiLinkId: text('ai_link_id'),
+  aiCallId: text('ai_call_id'),
+  clientAt: timestamp('client_at', { withTimezone: true, mode: 'date' }),
+  serverAt: timestamp('server_at', { withTimezone: true, mode: 'date' }),
+  clockSkewMs: integer('clock_skew_ms'),
+  ipPrefix: text('ip_prefix'),
+  uaFamily: text('ua_family'),
+  internetId: text('internet_id'),
+  correlationId: text('correlation_id'),
+  relayDeviceId: text('relay_device_id'),
+  diff: jsonb('diff'),
 })
 
 // ─── API Keys (M-03: Open API) ──────────────────────────────────────────
@@ -2991,6 +3020,32 @@ export const orchestraLayersRelations = relations(orchestraLayers, ({ many }) =>
 export const orchestraExecutionsRelations = relations(orchestraExecutions, ({ one }) => ({
   layer: one(orchestraLayers, { fields: [orchestraExecutions.orchestraLayerId], references: [orchestraLayers.id] }),
   task: one(tasks, { fields: [orchestraExecutions.taskId], references: [tasks.id] }),
+}))
+
+// "Connect your AI" for a PERSON (drizzle/0746): a person's own AI connection and the teammates they let use it. The organisation's own
+// connection stays in customerModelConfig. Key is encrypted (ai-config-crypto.ts) and selected only to answer the owner's/teammate's request.
+export const userAiConnections = complianceSchemaDB.table('user_ai_connections', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ownerUserId: text('owner_user_id').notNull(),
+  provider: text('provider').notNull(),
+  modelName: text('model_name').notNull(),
+  encryptedApiKey: text('encrypted_api_key').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  orgOwnerUnique: unique('user_ai_connections_org_owner_unique').on(t.orgId, t.ownerUserId),
+}))
+
+export const userAiConnectionShares = complianceSchemaDB.table('user_ai_connection_shares', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  connectionId: text('connection_id').notNull().references(() => userAiConnections.id, { onDelete: 'cascade' }),
+  sharedWithUserId: text('shared_with_user_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  connectionUserUnique: unique('user_ai_connection_shares_unique').on(t.connectionId, t.sharedWithUserId),
 }))
 
 export const customerModelConfigRelations = relations(customerModelConfig, ({ one, many }) => ({
@@ -11619,6 +11674,26 @@ export const constructionMaterialIssues = complianceSchemaDB.table('construction
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// create_material_order (M-ORDER, drizzle/0742): the purchase-order side of the ledger. An order is what was asked for and when it is due;
+// receipts are what arrived. Kept apart from receipts on purpose, so on-hand (receipts minus issues) is never changed by an order that has not
+// arrived. boq_line_item_id is nullable and un-referenced like it is on issues: an order with no BOQ line is the "ordered without scope" exception
+// (EXC-ITEM-18), which has to be recordable to be reportable.
+export const constructionMaterialOrders = complianceSchemaDB.table('construction_material_orders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
+  quantity: numeric('quantity').notNull(),
+  orderedDate: date('ordered_date', { mode: 'string' }).notNull(),
+  expectedDate: date('expected_date', { mode: 'string' }).notNull(),
+  status: text('status').notNull().default('ordered'),
+  boqLineItemId: text('boq_line_item_id'),
+  reference: text('reference'),
+  notes: text('notes'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const constructionMaterialsRelations = relations(constructionMaterials, ({ many }) => ({
   receipts: many(constructionMaterialReceipts),
   issues: many(constructionMaterialIssues),
@@ -14996,6 +15071,8 @@ export const dpdpConsentCampaign = dpdpSchemaDB.table('consent_campaign', {
   noticeVersionId: text('notice_version_id').notNull(),
   sentAt: timestamp('sent_at'),
   channel: text('channel').notNull().default('email'),
+  purposes: jsonb('purposes'), // drizzle/0725: [{key,label}]; null = the one legacy purpose 'consent'
+  principalIsChild: boolean('principal_is_child').notNull().default(false), // drizzle/0725
 })
 
 // contact_hash + the org's own reference is deliberate: never store a
@@ -15009,6 +15086,9 @@ export const dpdpConsentToken = dpdpSchemaDB.table('consent_token', {
   openedAt: timestamp('opened_at'),
   actedAt: timestamp('acted_at'),
   expiresAt: timestamp('expires_at').notNull(),
+  guardianName: text('guardian_name'), // drizzle/0725: the parent or legal guardian answering for a child
+  guardianRelation: text('guardian_relation'),
+  guardianRecordedAt: timestamp('guardian_recorded_at'),
 })
 
 // Withdrawal must be one tap on the same page as granting (S.6) -- a new
@@ -15135,6 +15215,7 @@ export const dpdpNoticeVersion = dpdpSchemaDB.table('notice_version', {
   languages: text('languages').array(),
   approvedBy: text('approved_by'),
   state: text('state').notNull().default('draft'), // 'draft'|'live'|'superseded'
+  bodyText: text('body_text'), // drizzle/0725: the notice's own text, when the organisation has stored it
 }, (t) => ({
   orgDocVersionUnique: unique('dpdp_notice_version_org_kind_version_key').on(t.orgId, t.docKind, t.version),
 }))
@@ -15148,6 +15229,29 @@ export const dpdpBreach = dpdpSchemaDB.table('breach', {
   boardNotifiedAt: timestamp('board_notified_at'),
   individualsNotifiedAt: timestamp('individuals_notified_at'),
   state: text('state').notNull().default('open'),
+  // drizzle/0726: DPDP Rules 2025 rule 7 facts and the CERT-In (6 h) / customer (24 h) clocks
+  description: text('description'),
+  nature: text('nature'),
+  extent: text('extent'),
+  occurredAt: timestamp('occurred_at'),
+  location: text('location'),
+  likelyImpact: text('likely_impact'),
+  boardDetailedAt: timestamp('board_detailed_at'),
+  boardBroadFacts: text('board_broad_facts'),
+  boardCircumstances: text('board_circumstances'),
+  boardMitigation: text('board_mitigation'),
+  boardCauseFindings: text('board_cause_findings'),
+  boardRemedialSteps: text('board_remedial_steps'),
+  boardReportOnNotices: text('board_report_on_notices'),
+  individualConsequences: text('individual_consequences'),
+  individualMitigation: text('individual_mitigation'),
+  individualSafetyMeasures: text('individual_safety_measures'),
+  individualContact: text('individual_contact'),
+  certInDueAt: timestamp('cert_in_due_at'),
+  certInReportedAt: timestamp('cert_in_reported_at'),
+  certInReference: text('cert_in_reference'),
+  customerNoticeDueAt: timestamp('customer_notice_due_at'),
+  processorNotifiedCustomerAt: timestamp('processor_notified_customer_at'),
 })
 
 // ─── DPDP 4.7: the record ───────────────────────────────────────────────
@@ -15531,7 +15635,7 @@ export const dpdpAiLink = dpdpSchemaDB.table('ai_link', {
   // roles instead of their emails on every endpoint. lastUsedAt/callCount
   // are maintained by public.dpdp_ai_link_log_call on EVERY API call.
   authorityLevel: smallint('authority_level').notNull().default(0),
-  hideEmails: boolean('hide_emails').notNull().default(false),
+  hideEmails: boolean('hide_emails').notNull().default(true),
   createdByMembershipId: text('created_by_membership_id'),
   label: text('label'),
   lastUsedAt: timestamp('last_used_at'),

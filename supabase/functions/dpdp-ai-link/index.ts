@@ -34,16 +34,27 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
 import {
   LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodsFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
-  maskEmails, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
+  maskEmails, maskPersonal, methodOverride, playbookItems, renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderPlaybookMarkdown, renderReportCsv, renderReportMarkdown, summariseJobs,
   type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
 } from "./router.ts"
 import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "./manual.ts"
-import { MAX_BODY_BYTES, RATE_LIMIT, type Format } from "./api-definition.ts"
+import { MAX_BODY_BYTES, RATE_LIMIT, REGISTER_KINDS, type Format } from "./api-definition.ts"
 import { aiPasteText } from "../_shared/ai-link/prompt.ts"
 import { playbookFor } from "./playbook.ts"
 import { paymentPendingNotice, type BillingNotice } from "./brief.ts"
+import { alertEmail, clientPrefix, uaFamily, type UseAlert } from "./unfamiliar.ts"
+import { buildOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
+import { mailGate } from "../_shared/mail-gate.ts"
+// Audit trail (drizzle/0731): one audit row per call, joined to the call log above by ai_call_id. Never blocks or fails a call.
+import { GUIDE_ROUTES, auditAiLinkCall, sha256HexOfBytes } from "../_shared/audit/ai-call.ts"
+import { parseVendorRanges } from "../_shared/audit/provenance.ts"
+import { type KeyRing, keyRingFrom } from "../_shared/audit/seal.ts"
+import { type Rpc, makeWriter } from "../_shared/audit/writer.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
+let auditRingPromise: Promise<KeyRing> | null = null
+const auditRing = (): Promise<KeyRing> => (auditRingPromise ??= keyRingFrom((n) => Deno.env.get(n)))
+const AUDIT_VENDOR_RANGES = parseVendorRanges(Deno.env.get("DPDP_AUDIT_VENDOR_IP_RANGES"))
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 // Defaults to the production static-app origin so the function works with
@@ -57,7 +68,7 @@ function privateHeaders(contentType: string, extra?: Record<string, string>): He
     // The *.supabase.co gateway serves HTML as text/plain; the Pages proxy
     // restores the intended type from this header (see dpdp-app/functions/ai/_proxy.ts).
     "x-dpdp-content-type": contentType,
-    "x-robots-tag": "noindex, nofollow, noarchive, nosnippet",
+    "x-robots-tag": "noindex, nofollow, noarchive",
     "referrer-policy": "no-referrer",
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
@@ -106,6 +117,37 @@ function mapDbError(e: DbError, notFoundIs404 = false): Response {
   if (code === "22023" || code === "P0001" || code === "22007" || code === "22008" || code === "22P02") return fail(400, e.message)
   console.error(`${FUNCTION_NAME}: database error (${code || "?"})`)
   return fail(500, "Something failed on our side. Try again in a minute.")
+}
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? ""
+const EMAIL_FROM = resolveFrom(Deno.env.get("DPDP_EMAIL_FROM"))
+
+/**
+ * The unfamiliar-use alert (drizzle/0695). The database decides (first use never alerts; a new network prefix or tool family does; one alert a
+ * day per link); this only reads the caller's network prefix (forwarded by the Pages proxy as x-dpdp-client-ip, from CF-Connecting-IP) and tool
+ * family, asks, and sends the one plain e-mail, which contains no link. It never fails or slows the request: errors are logged without detail.
+ */
+async function noteUse(token: string, req: Request): Promise<void> {
+  try {
+    const prefix = clientPrefix(req.headers.get("x-dpdp-client-ip"))
+    const family = uaFamily(req.headers.get("user-agent"))
+    if (!prefix && family === "unknown") return
+    const r = await rpc<{ alert: boolean } & Partial<UseAlert>>("dpdp_ai_link_note_use", { p_token: token, p_ip_prefix: prefix ?? "", p_ua_family: family })
+    if (r.error || !r.data.alert || !r.data.to || !RESEND_API_KEY) return
+    const a = r.data as UseAlert
+    const mail = alertEmail(a)
+    if (!(await mailGate(a.to, "dpdp-ai-link")).send) return // Test mode: not on the allowlist (drizzle/0735)
+    const out = buildOutbound("support", mail.subject, { from: EMAIL_FROM })
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(resendPayload(a.to, out, mail)),
+      signal: AbortSignal.timeout(4000),
+    })
+    if (!res.ok) console.error(`${FUNCTION_NAME}: unfamiliar-use alert not sent (${res.status})`)
+  } catch {
+    console.error(`${FUNCTION_NAME}: unfamiliar-use alert failed`)
+  }
 }
 
 function dbClient() {
@@ -260,6 +302,13 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
         next: "Done, under the person's own authority. Tell them what changed and give them undoUrl -- it undoes this one change for 24 hours, in their own browser.",
       })
     }
+    case "register": {
+      if (route.register === null) return json(200, { registers: REGISTER_KINDS, next: "GET /register/{kind}. Read-only; owner, coordinator, Grievance Officer and CA links only." })
+      if (!(REGISTER_KINDS as ReadonlyArray<{ kind: string }>).some((r) => r.kind === route.register)) return fail(404, `No such register. Use one of: ${REGISTER_KINDS.map((r) => r.kind).join(", ")}.`)
+      const r = await rpc<{ kind: string; data: unknown }>("dpdp_ai_link_register", { p_token: token, p_kind: route.register })
+      if (r.error) return mapDbError(r.error)
+      return json(200, r.data)
+    }
     case "suggestions": {
       if (req.method === "POST") {
         const raw = await req.text()
@@ -304,6 +353,23 @@ async function handle(req: Request, token: string, route: Route, url: URL): Prom
   }
 }
 
+/**
+ * A link that hides other people's details (the default): whatever route answered, every address but the link's own person's (and the product's own
+ * support address) and every phone number in the finished body is replaced before it leaves. The database already does this for most fields; this is the
+ * net under the rest (free text in a note, a reason, an evidence label). Links that were switched to show addresses are served as they are.
+ */
+async function guardHiddenLink(res: Response, token: string): Promise<Response> {
+  if (res.status >= 300) return res
+  const ct = res.headers.get("content-type") ?? ""
+  if (!/json|text|csv|markdown|html/i.test(ct)) return res
+  const ctx = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+  if (ctx.error || !ctx.data.link.hideEmails) return res
+  const body = maskPersonal(await res.text(), ctx.data.viewer.email)
+  return new Response(body, { status: res.status, headers: res.headers })
+}
+
+const auditWriter = makeWriter(rpc as unknown as Rpc, auditRing)
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     console.error(`${FUNCTION_NAME}: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing`)
@@ -313,8 +379,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const parsed = parseRoute(url.pathname)
   if ("error" in parsed) return parsed.error === 401 ? fail(401, parsed.message) : fail(404, parsed.message)
   const { token, route } = parsed
-  const method = req.method === "HEAD" ? "GET" : req.method
+  let method = req.method === "HEAD" ? "GET" : req.method
   const relativePath = relativePathOf(url.pathname)
+  // The GET-only fallback (?_method=POST&_body=...): served exactly as the POST it stands for, so every check below applies to it unchanged.
+  let request = req
+  const override = methodOverride(method, route, url.searchParams)
+  let overrideError: Response | null = null
+  if ("error" in override) overrideError = fail(override.status, override.error)
+  else if (override.method === "POST" && method === "GET") {
+    method = "POST"
+    request = new Request(url.toString(), { method: "POST", headers: { "content-type": "application/json", accept: req.headers.get("accept") ?? "application/json" }, body: override.body ?? "{}" })
+  }
 
   // Every call logged, before it is served; the rate limit is decided from
   // this link's own count in the last minute. A bad token is logged with
@@ -326,9 +401,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const bytes = Number(res.headers.get("content-length")) || (res.body ? undefined : 0)
       await rpc("dpdp_ai_link_log_call_result", { p_call_id: callId, p_status: res.status, p_bytes: bytes ?? null })
     }
+    // The audit row (spec item 9). Started before the response is returned (the clone is taken now, while the body is unread), finished in the background where
+    // the platform allows it, awaited otherwise. A failure is logged without detail and never changes what the caller gets.
+    // The person's own browser fetching the paste (/prompt) is not "the link being used" (same rule as noteUse below): not audited.
+    const audited = route.kind === "prompt" ? Promise.resolve() : (async () => {
+      try {
+        const guideHash = GUIDE_ROUTES.includes(route.kind) && res.status < 300 ? await sha256HexOfBytes(await res.clone().arrayBuffer()) : null
+        const out = await auditAiLinkCall({
+          rpc: rpc as unknown as Rpc, writer: auditWriter, headers: req.headers, url, method, relativePath, routeKind: route.kind, status: res.status,
+          callId, linkId: begun.error ? null : begun.data.linkId, guideHash, vendorRanges: AUDIT_VENDOR_RANGES,
+        })
+        if (!out.written && out.reason && out.reason !== "unknown_link") console.error(`${FUNCTION_NAME}: audit row not written (${out.reason})`)
+      } catch {
+        console.error(`${FUNCTION_NAME}: audit row failed`)
+      }
+    })()
+    const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime
+    if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(audited)
+    else await audited
     return res
   }
 
+  if (overrideError) return finish(overrideError)
   if (!begun.error && isRateLimited(begun.data.callsLastMinute)) {
     return finish(fail(429, `Over the rate limit (${RATE_LIMIT.perMinute} calls per minute per link). Wait a minute.`))
   }
@@ -338,8 +432,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return finish(new Response(JSON.stringify(errorBody(405, `Use ${allow} for this path.`)), { status: 405, headers: privateHeaders("application/json; charset=utf-8", { allow }) }))
   }
 
+  // The person's own browser fetching the paste (/prompt) is not "the link being used"; counting it would make the first real AI call look unfamiliar.
+  const noted = route.kind === "prompt" ? Promise.resolve() : noteUse(token, req)
   try {
-    const res = await handle(req, token, route, url)
+    const handled = await handle(request, token, route, url)
+    // The two pasted lines (/prompt) hold no personal detail by construction; every other route passes through the net.
+    const res = route.kind === "prompt" ? handled : await guardHiddenLink(handled, token)
+    await noted
     const body = await res.clone().arrayBuffer()
     const withLength = new Response(body, { status: res.status, headers: res.headers })
     withLength.headers.set("content-length", String(body.byteLength))

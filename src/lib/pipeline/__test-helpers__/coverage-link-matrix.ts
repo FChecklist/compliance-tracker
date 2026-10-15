@@ -158,7 +158,7 @@ export function registerLinkMatrix(wave: string, rows: readonly PolicyRow[]): vo
           }
         })
 
-        test("level: " + (row.level === 2 ? "a draft only: refused on /actions, a valid proposal on /propose" : row.level === 1 ? "a direct action: will_execute_directly, and /actions reaches the executor gate" : "a read: refused on /actions, reaches the executor gate on /functions/{fn}"), async () => {
+        test("level: " + (row.level === 2 ? "direct like level 1 (drizzle/0693: no confirmation gate): /actions reaches the executor gate, and a valid proposal on /propose" : row.level === 1 ? "a direct action: will_execute_directly, and /actions reaches the executor gate" : "a read: refused on /actions, reaches the executor gate on /functions/{fn}"), async () => {
           const { run, check } = link()
           const token = TOKEN_OF_RANK[row.rank]
           const res = await jsonOf(await check(token, row.id, row.valid))
@@ -168,10 +168,10 @@ export function registerLinkMatrix(wave: string, rows: readonly PolicyRow[]): vo
           // with the executor present a level-1 function runs directly and no other level does
           const withExec = link({ execPresent: true })
           const direct = await jsonOf(await withExec.check(token, row.id, row.valid))
-          expect({ id: row.id, level: direct.level, direct: direct.will_execute_directly }).toEqual({ id: row.id, level: row.level, direct: row.level === 1 })
+          expect({ id: row.id, level: direct.level, direct: direct.will_execute_directly }).toEqual({ id: row.id, level: row.level, direct: row.level >= 1 })
           const actions = await run(`/${token}/actions`, { method: "POST", body: { function: row.id, params: row.valid } })
           if (row.level === 2) {
-            expect({ status: actions.status, code: (await jsonOf(actions)).code }).toEqual({ status: 403, code: "LEVEL_NOT_ALLOWED" })
+            expect({ id: row.id, status: actions.status }).toEqual({ id: row.id, status: 503 })
             const query = new URLSearchParams({ fn: row.id, ...Object.fromEntries(Object.entries(row.valid).map(([k, v]) => [`p.${k}`, String(v)])) })
             const proposed = await run(`/${token}/propose?${query.toString()}`, { headers: { accept: "application/json" } })
             expect(proposed.status).toBe(200)

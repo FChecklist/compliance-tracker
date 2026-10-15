@@ -107,8 +107,8 @@ export function loadFacts() {
   need(isStr(f.storage.stored_in_india_wording), "storage.stored_in_india_wording missing")
 
   need(f.company && typeof f.company === "object", "company block missing")
-  for (const k of ["legal_name", "cin", "registered_office", "gstin"]) need(k in f.company, `company.${k} must be present (a string or null)`)
-  for (const k of ["legal_name", "cin", "registered_office", "gstin"]) need(f.company[k] === null || isStr(f.company[k]), `company.${k} must be a string or null`)
+  for (const k of ["legal_name", "proprietor", "form", "address", "email", "phone", "gst_note", "policies_url"]) need(isStr(f.company[k]), `company.${k} must be a non-empty string`)
+  need(!("cin" in f.company) && !("gstin" in f.company), "company.cin / company.gstin are retired -- the seller is a sole proprietorship, not registered for GST")
   need(isStr(f.company.website) && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(f.company.website), "company.website must be a bare host name (it is the footer's company link)")
   need(Number.isInteger(f.company.copyright_year), "company.copyright_year must be a year (the footer's copyright line)")
   need(f.company.owner_required === true || Object.values(f.company).every((v) => v !== null), "company.owner_required must be true while any company field is null")
@@ -153,8 +153,8 @@ export function subjectTopicsClause(facts) {
 /**
  * The company ownership line at the very end of every public page's footer
  * (owner/coordinator, 2026-10-02): ONE short line -- who owns and operates the
- * site, linked to the company's own website (which carries the CIN, GSTIN and
- * registered office), and the copyright. Every word comes from facts.company --
+ * site, linked to the seller's own website (which carries the seller's details
+ * and policies), and the copyright. Every word comes from facts.company --
  * nothing is typed anywhere else -- so the generator, the hand-kept legal pages'
  * footers, the post-build check and the tests all read ONE source. The company
  * name in the first sentence is the link; no other detail is in this line.

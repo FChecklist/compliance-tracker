@@ -25,11 +25,11 @@ describe('hostile organisation names in the five reminders and the receipt', () 
     for (const kind of REMINDER_KINDS) {
       test(`${kind}: ${name.slice(0, 28)}`, () => {
         const r = renderReminder({ ...base, kind, orgName: name })
-        // the HTML body never contains a live tag from the name: every < > " & of it is escaped
+        // the HTML body never contains a live tag from the name: every < > " & of it is escaped (span and a are the fixed brand header/footer markup)
         const html = r.html
         expect(html).not.toContain('<script')
         expect(html).not.toContain('<img')
-        expect(html.match(/<(?!\/?(div|p|br)\b)[a-z!]/gi)).toBeNull()
+        expect(html.match(/<(?!\/?(div|p|br|span|a)\b)[a-z!]/gi)).toBeNull()
         // the plain-text body keeps the name exactly (it is text, not markup)
         expect(r.text).toContain(name)
         // the subject is one line
@@ -80,7 +80,7 @@ describe('days-left wording at every boundary the SQL can produce (0, 1, 2, 3, 1
       expect(r.subject).toBe(`Your free trial ends in ${sing(n)} -- Acme`)
     })
   }
-  test('the day-30 message (trial ended) and the renewals never promise a lock-out, and say access is unchanged', () => {
+  test('the day-30 message (trial ended) and the renewals stay calm: no lock-out vocabulary, and they say the data is safe / it still works for a few days', () => {
     for (const kind of ['trial0', 'renew30', 'renew7'] as ReminderKind[]) {
       const t = renderReminder({ ...base, kind, orgName: 'Acme', daysLeft: 0 }).text.toLowerCase()
       expect(t).not.toMatch(/locked|suspend|disabled|deactivat|terminate|lose access|will be removed|deleted/)

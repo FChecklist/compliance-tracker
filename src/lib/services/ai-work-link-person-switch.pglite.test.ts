@@ -1,12 +1,13 @@
 /// <reference types="bun-types" />
-// lf-b2-ai-crud GROUP 2 (owner order 2026-10-02): "let my AI act without asking", a switch that belongs to ONE PERSON (drizzle/0685, its GROUP 2 section),
-// on PGlite (real Postgres as WASM) over 0621 to 0669 as the live database has them. It holds the SQL rules:
-//   * switch off (the default): a level-2 function is a draft only; POST /actions of it is LEVEL_NOT_ALLOWED; a level-1 function runs directly as before
-//   * switch on: the person's level-2 function is recorded as a direct action and claimed; switching it off again before the claim refuses it (ROLE_CHANGED)
+// lf-b2-ai-crud GROUP 2 (owner order 2026-10-02) and AI FULL RIGHTS (owner decision 2026-10-04, drizzle/0693): "let my AI act without asking" is a switch that
+// belongs to ONE PERSON (drizzle/0685, its GROUP 2 section), on PGlite (real Postgres as WASM) over 0621 to 0669, 0685 and 0693 as the live database has them.
+// Since 0693 the switch is KEPT (readable, settable) but BLOCKS NOTHING. It holds the SQL rules:
+//   * switch off (the default): a level-2 function (a delete) is recorded as a direct action and claimed at once, exactly as a level-1 function; a draft is still possible
+//   * switch on: the same; switching it off between the record and the claim changes nothing (the claim runs)
 //   * the kill switch stays in force: with writes off nothing runs directly and the claim answers not_enabled, whatever the person's switch says
-//   * another person's switch has no effect on this person's links; a switch kept under another organisation has none either; a level-0 link stays drafts-only
+//   * the real limits stay: a level-0 link stays drafts-only; a member's link has no manager-rank function (FUNCTION_NOT_ON_LINK)
 //   * the setter: an inactive person is refused, a null value is refused, the default is off; only service_role may call it; the table has RLS forced and no grant
-//   * the down file turns every switch off and removes the setter, after which a level-2 action is refused again
+//   * the down file of 0685 turns every switch off and removes the setter
 // Run: bun test --isolate src/lib/services/ai-work-link-person-switch.pglite.test.ts
 import { describe, test, expect, beforeAll, afterAll, setDefaultTimeout } from "bun:test"
 import type { PGlite } from "@electric-sql/pglite"
@@ -36,6 +37,7 @@ const ctxOf = (token: string) => call(db, "ai_work_link__resolve", [token])
 beforeAll(async () => {
   db = await createUserLinkDb()
   await db.exec(forwardSql("0685_awl_ai_crud"))
+  await db.exec(forwardSql("0693_awl_full_rights"))
   await setWrites(db, true)
   mgrLink = await mintProject(db, "u-mgr", "proj-a", { level: 1 })
   memLink = await mintProject(db, "u-mem", "proj-a", { level: 1 })
@@ -56,14 +58,27 @@ describe("the new functions are on a freshly minted link", () => {
   })
 })
 
-describe("switch off (the default)", () => {
-  test("the context says act_without_asking false; a level-2 function is LEVEL_NOT_ALLOWED as an action and a draft as a draft; a level-1 one runs directly", async () => {
+describe("switch off (the default): NO confirmation gate (0693)", () => {
+  test("the context says act_without_asking false, and a level-2 function (a delete) is STILL recorded as a direct action and claimed at once; a draft is still possible; a level-1 one runs as before", async () => {
     expect(await call(db, "ai_work_link_person_setting", ["u-mgr"])).toEqual({ act_without_asking: false, updated_at: null })
     expect((await ctxOf(mgrLink.token)).act_without_asking).toBe(false)
-    const r = await refusedAction(mgrLink.token, LEVEL_2, params())
-    expect(r?.message).toContain("LEVEL_NOT_ALLOWED")
+    const rec = await action(mgrLink.token, LEVEL_2, params())
+    expect(rec).toMatchObject({ status: "recorded", kind: "action", function_id: LEVEL_2 })
+    expect(await claim(rec.intent_id)).toMatchObject({ status: "ok", intent: { kind: "action", function_id: LEVEL_2 } })
     expect(await draft(mgrLink.token, LEVEL_2, params())).toMatchObject({ status: "awaiting_confirmation", kind: "draft" })
     expect(await action(mgrLink.token, LEVEL_1, { meetingId: `m${++n}`, title: "x" })).toMatchObject({ status: "recorded", kind: "action" })
+  })
+
+  test("every level-2 function the manager's rank allows is a direct action with the switch off (deletes, removals, archives)", async () => {
+    const fns = (await one<{ f: string[] }>(db, "select array_agg(function_id order by function_id) f from platform.ai_work_link_functions where link_level = 2 and kind = 'write' and function_id <> 'create_project' and min_role_rank <= 3")).f
+    // an admin's own link, so the 30-an-hour write cap of the managers' link used by the other tests is not what this test meets
+    const adm = await mintProject(db, "u-adm", "proj-a", { level: 1 })
+    const eff: string[] = (await ctxOf(adm.token)).effective_functions
+    const mine = fns.filter((f) => eff.includes(f)).slice(0, 25) // 25 of them: the write cap is 30 an hour per link
+    expect(mine.length).toBeGreaterThan(10)
+    for (const fn of mine) {
+      expect({ fn, kind: (await action(adm.token, fn, { entryId: `x${++n}` })).kind }).toEqual({ fn, kind: "action" })
+    }
   })
 })
 
@@ -76,12 +91,11 @@ describe("switch on", () => {
     expect(await claim(rec.intent_id)).toMatchObject({ status: "ok", intent: { kind: "action", function_id: LEVEL_2 } })
   })
 
-  test("switching it off between the record and the claim refuses the claim (ROLE_CHANGED): the switch is read again at claim time", async () => {
+  test("switching it off between the record and the claim changes nothing: the claim runs (the switch no longer gates)", async () => {
     await setSwitch("u-mgr", true)
     const rec = await action(mgrLink.token, LEVEL_2, params())
     await setSwitch("u-mgr", false)
-    expect(await claim(rec.intent_id)).toEqual({ status: "refused", reason: "ROLE_CHANGED" })
-    expect((await one<J>(db, "select status from platform.ai_work_link_intent where id = $1", [rec.intent_id])).status).toBe("refused")
+    expect(await claim(rec.intent_id)).toMatchObject({ status: "ok", intent: { kind: "action", function_id: LEVEL_2 } })
   })
 
   test("a level-0 link stays drafts-only with the switch on (the link's own ceiling)", async () => {
@@ -109,23 +123,22 @@ describe("the kill switch stays in force", () => {
   })
 })
 
-describe("one person's switch is that person's alone", () => {
-  test("the member's switch on gives the manager's link nothing, and the manager's switch on gives the member's link nothing", async () => {
-    await setSwitch("u-mem", true)
-    await setSwitch("u-mgr", false)
-    expect((await refusedAction(mgrLink.token, LEVEL_2, params()))?.message).toContain("LEVEL_NOT_ALLOWED")
-    expect(await action(memLink.token, LEVEL_2, params())).toMatchObject({ status: "recorded" })
+describe("the ROLE is the limit, not the switch", () => {
+  test("the member's link deletes what a member may with the switch off, and a manager-rank function (delete_boq) is not on it at all: FUNCTION_NOT_ON_LINK, switch on or off", async () => {
+    for (const on of [false, true]) {
+      await setSwitch("u-mem", on)
+      expect(await action(memLink.token, LEVEL_2, params())).toMatchObject({ status: "recorded" })
+      const why = (await refusedAction(memLink.token, "delete_boq", { boqId: "b1" }))?.message
+      expect({ on, why }).toEqual({ on, why: expect.stringContaining("FUNCTION_NOT_ON_LINK") })
+    }
     await setSwitch("u-mem", false)
-    await setSwitch("u-mgr", true)
-    expect((await refusedAction(memLink.token, LEVEL_2, params()))?.message).toContain("LEVEL_NOT_ALLOWED")
-    await setSwitch("u-mgr", false)
   })
 
-  test("a switch kept under another organisation has no effect: the row must name the person's organisation now", async () => {
+  test("a switch kept under another organisation has no effect on the context (it reads false) and none on what the link may do", async () => {
     await setSwitch("u-mgr", true)
     await db.exec("update platform.ai_work_link_person_settings set org_id = 'org-b' where user_id = 'u-mgr'")
     expect((await ctxOf(mgrLink.token)).act_without_asking).toBe(false)
-    expect((await refusedAction(mgrLink.token, LEVEL_2, params()))?.message).toContain("LEVEL_NOT_ALLOWED")
+    expect(await action(mgrLink.token, LEVEL_2, params())).toMatchObject({ status: "recorded" })
     expect(await call(db, "ai_work_link_person_setting", ["u-mgr"])).toMatchObject({ act_without_asking: false })
     // setting it again writes the person's organisation now
     expect(await setSwitch("u-mgr", false)).toMatchObject({ act_without_asking: false })
@@ -168,7 +181,7 @@ describe("the setter and the table", () => {
 })
 
 describe("the down file", () => {
-  test("turns every switch off and removes the setter; a level-2 action is refused again; applying 0685 again brings the setter back", async () => {
+  test("0685's down file turns every switch off and removes the setter; applying 0685 and 0693 again brings the setter and the open path back", async () => {
     await setSwitch("u-mgr", true)
     await db.exec(downSql("0685_awl_ai_crud"))
     expect((await one<J>(db, "select act_without_asking from platform.ai_work_link_person_settings where user_id = 'u-mgr'")).act_without_asking).toBe(false)
@@ -176,6 +189,7 @@ describe("the down file", () => {
     // the 24 functions are off the registry, so the link no longer carries delete_progress_entry at all
     expect((await refusedAction(mgrLink.token, LEVEL_2, params()))?.message).toMatch(/FUNCTION_NOT_ON_LINK|LEVEL_NOT_ALLOWED/)
     await db.exec(forwardSql("0685_awl_ai_crud"))
+    await db.exec(forwardSql("0693_awl_full_rights"))
     expect(await setSwitch("u-mgr", false)).toMatchObject({ act_without_asking: false })
   })
 })

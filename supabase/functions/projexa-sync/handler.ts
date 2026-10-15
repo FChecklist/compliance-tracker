@@ -30,6 +30,8 @@ export type SyncDeps = {
   publicKeys?: () => Promise<PublicKeyInfo[]>
   /** per-person organisation (and view class) memory for signing a pull (one manifest call a minute at most) */
   orgCache?: Map<string, { org: string; exp: number; view?: string; orgView?: string }>
+  /** PX_RELEASE_ORIGIN: where release bytes are served from (see releaseOriginOf). Absent = RELEASE_ORIGIN. */
+  releaseOrigin?: string
   /** fetch used to read the owner-published release manifest (tests inject a fake); defaults to the global fetch */
   fetchImpl?: typeof fetch
   /** five-minute memory of the registry's current release, shared by every request of the isolate */
@@ -58,7 +60,8 @@ function logLine(deps: SyncDeps, line: string) {
 export type ExecRunBody = { op_id: string; function_id: string; params: Record<string, unknown>; ctx: { org_id: string; user_id: string; project_id: string | null; live_role: string; device_id: string } }
 export type ExecOutcome =
   | { kind: "done"; record: { id: string | null; route: string | null }; submission_id: string | null }
-  | { kind: "failed"; code: string; missing: string[] }
+  /** `reason`: a service's own business refusal in words (REQUEST_REJECTED only; checklist 2.19 / R-90). Answered to the laptop, never stored. */
+  | { kind: "failed"; code: string; missing: string[]; reason?: string }
   | { kind: "unavailable" }
   | { kind: "uncertain" }
 
@@ -95,6 +98,24 @@ export const JOB_BODY_MAX_BYTES_BY_ACTION: Readonly<Record<string, number>> = { 
 export const PULL_BODY_MAX_BYTES = 16_384
 export const RELEASE_ORIGIN = "https://projexa-ai.com"
 export const RELEASE_MANIFEST_URL = `${RELEASE_ORIGIN}/_release/release.json`
+/**
+ * Where the release BYTES are served from (RELEASE_DISTRIBUTION_2026-10-06.md, P4): the owner's choice, set as the PX_RELEASE_ORIGIN secret of this function
+ * (for example the public Supabase Storage bucket `projexa-release`). Absent or not a plain https URL = the default above. The registry reads the manifest
+ * from here and tells every laptop the same base in /release/current (`origin`), so one setting moves both. The origin is only ever WHERE bytes come from:
+ * a laptop still checks the manifest digest, the release signature (pinned keys) and every file hash, so a wrong origin can withhold an update, never
+ * change what is installed.
+ */
+export function releaseOriginOf(configured: string | null | undefined): string {
+  const raw = typeof configured === "string" ? configured.trim().replace(/\/+$/, "") : ""
+  if (!raw) return RELEASE_ORIGIN
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash) return RELEASE_ORIGIN
+    return `${u.origin}${u.pathname.replace(/\/+$/, "")}`
+  } catch {
+    return RELEASE_ORIGIN
+  }
+}
 export const RELEASE_MANIFEST_MAX_BYTES = 2_000_000
 // the gate and the manifest need only version and floor; each refresh reads the release row from the database, so five minutes, not one (review D1 F7)
 export const RELEASE_TTL_MS = 300_000
@@ -157,6 +178,12 @@ export function decodeCursor(cursor: string): { ts: string; id: string } | null 
 export const CORS_ALLOW_HEADERS = "authorization, content-type, x-px-client"
 export const CORS_EXPOSE_HEADERS = "Retry-After"
 export const CORS_MAX_AGE_SECONDS = 7200
+// Every user's laptop is its own server (owner aim 2026-10-06), on whatever port is free: any loopback origin is the laptop itself. Safe because the
+// answer carries no credentials (no cookies; auth is the Bearer token), so only a page running ON that laptop can read it.
+const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/
+export function isAllowedOrigin(origin: string, allowed: readonly string[]): boolean {
+  return allowed.includes(origin) || LOOPBACK_ORIGIN.test(origin)
+}
 function corsHeaders(req: Request, deps: SyncDeps): Record<string, string> {
   const origin = req.headers.get("origin")
   const allowed = deps.allowedOrigins ?? ALLOWED_ORIGINS
@@ -167,7 +194,7 @@ function corsHeaders(req: Request, deps: SyncDeps): Record<string, string> {
     "Access-Control-Expose-Headers": CORS_EXPOSE_HEADERS,
     "Access-Control-Max-Age": String(CORS_MAX_AGE_SECONDS),
   }
-  if (origin && allowed.includes(origin)) h["Access-Control-Allow-Origin"] = origin
+  if (origin && isAllowedOrigin(origin, allowed)) h["Access-Control-Allow-Origin"] = origin
   return h
 }
 
@@ -294,6 +321,8 @@ async function manifest(req: Request, deps: SyncDeps, who: Who, now: Date): Prom
     view_class: typeof r.data.view_class === "string" ? r.data.view_class : null,
     org_kinds: Array.isArray(r.data.org_kinds) ? (r.data.org_kinds as Array<Record<string, unknown>>).filter((k) => isOrgKind(k.kind)) : [],
     org_view_class: typeof r.data.org_view_class === "string" ? r.data.org_view_class : null,
+    // the per-organisation internal-AI allow flag (drizzle/0739): passed through only as a real boolean, absent otherwise (the laptop treats absent as off)
+    ...(typeof r.data.internal_ai === "boolean" ? { internal_ai: r.data.internal_ai } : {}),
     release: { current: (rel?.current?.release_version as string | undefined) ?? null, min_compatible: rel?.min_compatible || null, protocol: SERVER_PROTOCOL },
     server_time: now.toISOString(),
   })
@@ -711,7 +740,7 @@ async function releaseCurrent(req: Request, deps: SyncDeps, now: Date): Promise<
   const reportsRelease = clientRelease !== null && /^\d{4}\.\d{2}\.\d{2}-\d{3}$/.test(clientRelease)
   const currentVersion = current && typeof (current as Record<string, unknown>).release_version === "string" ? ((current as Record<string, unknown>).release_version as string) : null
   const registered = rel.registered && (!reportsRelease || clientRelease === currentVersion)
-  return respond(req, deps, 200, { registered, current, min_compatible: rel.min_compatible || null, protocol: SERVER_PROTOCOL, server_time: now.toISOString() })
+  return respond(req, deps, 200, { registered, current, min_compatible: rel.min_compatible || null, protocol: SERVER_PROTOCOL, origin: releaseOriginOf(deps.releaseOrigin), server_time: now.toISOString() })
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -802,7 +831,7 @@ async function releaseRegisterOnce(deps: SyncDeps, now: Date): Promise<{ status:
   const doFetch = deps.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   let text: string | null
   try {
-    const res = await doFetch(RELEASE_MANIFEST_URL, { redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000), headers: { accept: "application/json" } })
+    const res = await doFetch(`${releaseOriginOf(deps.releaseOrigin)}/_release/release.json`, { redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000), headers: { accept: "application/json" } })
     if (!res.ok) {
       await res.body?.cancel().catch(() => {})
       return answer(502, { error: "The release manifest could not be read.", code: "MANIFEST_UNREACHABLE" })
@@ -937,7 +966,7 @@ export const PUSH_FAILURE_CLASS: Readonly<Record<string, FailureClass>> = {
   QUANTITY_REQUIRED: "rejected", CATEGORY_REQUIRED: "rejected", LINK_REQUIRED: "rejected", BOQ_VERSION_REQUIRED: "rejected",
   BOQ_LINE_NOT_FOUND: "rejected", BOQ_LINE_IS_PARENT: "rejected", PROJECT_NOT_REACHABLE: "rejected", VALUE_OUT_OF_RANGE: "rejected",
   RECORD_NOT_FOUND: "rejected", ALREADY_RECORDED: "rejected", REQUEST_REJECTED: "rejected",
-  TOTAL_MISMATCH: "rejected", BOQ_SEALED: "rejected", DUPLICATE_ITEM_CODE: "rejected",
+  TOTAL_MISMATCH: "rejected", BOQ_SEALED: "rejected", DUPLICATE_ITEM_CODE: "rejected", SCOPE_REDUCTION_BLOCKED: "rejected",
   NOT_PERMITTED: "rejected", READ_AS_QUESTION: "rejected",
   // a previous step of the same submission failed; for a one-op push that step may have been transient, so it may run again
   DEPENDENCY_FAILED: "failed",
@@ -1022,7 +1051,11 @@ export function execOutcomeOf(status: number, body: unknown): ExecOutcome {
   const j = (body ?? null) as { status?: string; record?: { id?: string | null; route?: string | null }; submission_id?: string | null; code?: string; missing?: unknown } | null
   if (!j || typeof j !== "object") return { kind: "uncertain" }
   if (j.status === "done") return { kind: "done", record: { id: j.record?.id ?? null, route: j.record?.route ?? null }, submission_id: j.submission_id ?? null }
-  if (j.status === "failed" && typeof j.code === "string") return { kind: "failed", code: j.code, missing: Array.isArray(j.missing) ? (j.missing as unknown[]).filter((m): m is string => typeof m === "string") : [] }
+  if (j.status === "failed" && typeof j.code === "string") {
+    // checklist 2.19 / R-90: a service's own words for a REQUEST_REJECTED travel to the laptop (bounded again here; never stored, see push())
+    const reason = j.code === "REQUEST_REJECTED" && typeof j.reason === "string" && j.reason.trim() !== "" ? j.reason.slice(0, 300) : undefined
+    return { kind: "failed", code: j.code, missing: Array.isArray(j.missing) ? (j.missing as unknown[]).filter((m): m is string => typeof m === "string") : [], ...(reason ? { reason } : {}) }
+  }
   // the batch route's "this op was not started" (the exec function's own time budget ran out before it): nothing ran
   if (j.status === "not_run") return { kind: "unavailable" }
   return { kind: "uncertain" }
@@ -1184,7 +1217,8 @@ async function push(req: Request, deps: SyncDeps, who: Who, now: Date): Promise<
         const cls = classifyFailure(outcome.code)
         await finish(p, cls, { missing: outcome.missing }, outcome.code, null, null)
         if (cls !== "rejected") holdKey(p.recKey)
-        results[p.i] = { op_id: p.opId, status: cls, error: { code: outcome.code, missing: outcome.missing } }
+        // `message` is the service's own reason for this one answer only: finish() above stored the code and the missing names, never the words
+        results[p.i] = { op_id: p.opId, status: cls, error: { code: outcome.code, missing: outcome.missing, ...(outcome.reason ? { message: outcome.reason } : {}) } }
         continue
       }
       if (outcome.kind === "unavailable") {

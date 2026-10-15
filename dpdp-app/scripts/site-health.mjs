@@ -12,7 +12,7 @@ import tls from "node:tls"
 const ORIGIN = (process.argv[2] ?? "https://veridian-aios.com").replace(/\/$/, "")
 const TIMEOUT_MS = 15000
 const SLOW_MS = 5000
-const PAGES = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/partner/terms/", "/ai-assistant/", "/terms/", "/privacy/", "/disclaimer/", "/pricing/", "/refund/", "/shipping/", "/contact/"]
+const PAGES = ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/partner/terms/", "/ai-assistant/", "/terms/", "/privacy/", "/disclaimer/", "/pricing/", "/refund/", "/shipping/", "/contact/", "/subprocessors/"]
 const rows = []
 const problems = []
 
@@ -43,6 +43,7 @@ for (const path of PAGES) {
 }
 for (const [path, opts, label] of [
   ["/rum.js", { expectText: "/api/telemetry" }, "monitoring script"],
+  ["/visit.js", { expectText: "/api/visit" }, "visit-journey script"],
   ["/sitemap.xml", { expectText: "<urlset" }, "sitemap"],
   ["/robots.txt", { expectText: "Sitemap:" }, "robots.txt"],
   ["/definitely-not-a-page-" + Date.now() + "/", { expectText: "", expectStatus: 404 }, "unknown address is a real 404"],

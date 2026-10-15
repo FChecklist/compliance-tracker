@@ -2,7 +2,7 @@
 // PROJEXA test-mode AI bridge: the queue client (claude-code-bridge.ts) and the laptop worker's pure core (scripts/ai-bridge-worker.mjs).
 // No database, no real clock, no real Claude Code: every dependency is injected.
 import { describe, expect, test } from "bun:test"
-import { BRIDGE_MAX_WAIT_MS, BRIDGE_POLL_MS, callViaBridge, isBridgeEnabled, type BridgeAnswer, type BridgeDeps } from "./claude-code-bridge"
+import { BRIDGE_MAX_WAIT_MS, BRIDGE_MAX_WAIT_CEILING_MS, BRIDGE_POLL_MS, bridgeMaxWaitMs, callViaBridge, isBridgeEnabled, type BridgeAnswer, type BridgeDeps } from "./claude-code-bridge"
 import { LLMHttpError } from "@/lib/llm-client"
 // @ts-ignore -- plain .mjs script, no type declarations
 import { buildClaudeArgs, cleanJsonAnswer, answerOne } from "../../../scripts/ai-bridge-worker.mjs"
@@ -82,6 +82,46 @@ describe("callViaBridge", () => {
   })
 })
 
+// Audit 100 A4/A14 (2026-10-05): a laptop-served app may wait longer than 45 s for the laptop's Claude Code, never past the 2-minute expiry.
+describe("bridgeMaxWaitMs (AI_BRIDGE_MAX_WAIT_MS)", () => {
+  const withEnv = async (v: string | undefined, fn: () => void | Promise<void>) => {
+    const saved = process.env.AI_BRIDGE_MAX_WAIT_MS
+    if (v === undefined) delete process.env.AI_BRIDGE_MAX_WAIT_MS
+    else process.env.AI_BRIDGE_MAX_WAIT_MS = v
+    try {
+      await fn()
+    } finally {
+      if (saved === undefined) delete process.env.AI_BRIDGE_MAX_WAIT_MS
+      else process.env.AI_BRIDGE_MAX_WAIT_MS = saved
+    }
+  }
+
+  test("unset or malformed keeps the 45 s default; a value in range is used; out of range is ignored", async () => {
+    for (const v of [undefined, "", "abc", "-1", "4999", "110001", "1e5", "90000.5"]) await withEnv(v, () => expect(bridgeMaxWaitMs()).toBe(BRIDGE_MAX_WAIT_MS))
+    await withEnv("90000", () => expect(bridgeMaxWaitMs()).toBe(90_000))
+    await withEnv(String(BRIDGE_MAX_WAIT_CEILING_MS), () => expect(bridgeMaxWaitMs()).toBe(BRIDGE_MAX_WAIT_CEILING_MS))
+  })
+
+  test("callViaBridge waits for an answer that arrives after 45 s when the wait is raised", async () => {
+    await withEnv("100000", async () => {
+      const slow: BridgeAnswer[] = Array.from({ length: 40 }, () => ({ status: "claimed" }))
+      const d = deps({ answers: [...slow, { status: "done", response: { content: "slow but real" } }] })
+      expect((await callViaBridge({ model: "m", systemPrompt: "", userMessage: "q" }, d)).content).toBe("slow but real")
+      expect(d.clock.t).toBeGreaterThan(BRIDGE_MAX_WAIT_MS)
+    })
+  })
+
+  test("and still gives up at the raised cap, never later", async () => {
+    await withEnv("60000", async () => {
+      const d = deps({ answers: [{ status: "claimed" }] })
+      const err = await callViaBridge({ model: "m", systemPrompt: "", userMessage: "q" }, d).catch((e) => e)
+      expect(err.status).toBe(408)
+      expect(d.clock.t).toBeGreaterThanOrEqual(60_000)
+      expect(d.clock.t).toBeLessThan(60_000 + 2 * BRIDGE_POLL_MS)
+    })
+  })
+})
+
 describe("isBridgeEnabled", () => {
   test("is on only when AI_BRIDGE is exactly 'queue'", () => {
     const saved = process.env.AI_BRIDGE
@@ -109,6 +149,36 @@ describe("the laptop worker's core", () => {
     expect(args).toContain("--disable-slash-commands")
     expect(args).toContain("-p")
     expect(args[args.indexOf("--system-prompt") + 1]).toBe("be brief")
+  })
+
+  // Audit 37 #12 (proof test #5): not just the arg builder -- the argv the worker ACTUALLY hands to the process, with no shell.
+  test("runClaude spawns with tools disabled and shell:false (the real spawn call, via a fake child process)", async () => {
+    const calls: Array<{ bin: string; args: string[]; opts: Record<string, unknown> }> = []
+    const handlers: Record<string, (...a: unknown[]) => void> = {}
+    const fakeSpawn = (bin: string, args: string[], opts: Record<string, unknown>) => {
+      calls.push({ bin, args, opts })
+      return {
+        stdout: { on: (_e: string, cb: (d: string) => void) => setTimeout(() => cb("hello"), 0) },
+        stderr: { on: () => {} },
+        stdin: { end: () => setTimeout(() => handlers.close?.(0), 5) },
+        on: (e: string, cb: (...a: unknown[]) => void) => { handlers[e] = cb },
+        kill: () => {},
+      }
+    }
+    const saved = process.env.AI_BRIDGE_CLAUDE_BIN
+    process.env.AI_BRIDGE_CLAUDE_BIN = "claude-test-bin"
+    try {
+      const { runClaude } = await import("../../../scripts/ai-bridge-worker.mjs")
+      const out = await runClaude({ system: "s", user: "u", model: "sonnet", timeoutMs: 2000, cwd: ".", spawnImpl: fakeSpawn })
+      expect(out).toBe("hello")
+    } finally {
+      if (saved === undefined) delete process.env.AI_BRIDGE_CLAUDE_BIN
+      else process.env.AI_BRIDGE_CLAUDE_BIN = saved
+    }
+    expect(calls).toHaveLength(1)
+    const { args, opts } = calls[0]
+    expect(args[args.indexOf("--tools") + 1]).toBe("")
+    expect(opts.shell).toBe(false)
   })
 
   test("no --system-prompt is passed when there is no system text", () => {

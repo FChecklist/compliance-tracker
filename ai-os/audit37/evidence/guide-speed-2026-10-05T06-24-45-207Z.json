@@ -1,0 +1,331 @@
+{
+  "measured_at": "2026-10-05T06:24:45.207Z",
+  "what": "ai-work-link guide GET, user link of a manager of the e2e organisation, curl timing fields, sequential",
+  "n": 40,
+  "warmup": {
+    "code": 503,
+    "connect": 0.072704,
+    "server": 4.348583,
+    "total": 4.545951,
+    "bytes": 133,
+    "curl_exit": 0
+  },
+  "ok": 5,
+  "net_stall": 3,
+  "server_stall": 32,
+  "guide_bytes": 33223,
+  "server_first_byte_s": {
+    "min": 0.814501,
+    "p50": 4.205049,
+    "p95": 7.380529,
+    "max": 21.31621179999999
+  },
+  "server_first_byte_s_answered_only": {
+    "min": 0.814501,
+    "p50": 0.9469210000000001,
+    "p95": 0.9647600000000001,
+    "max": 0.9647600000000001
+  },
+  "total_s": {
+    "min": 0.955348,
+    "p50": 4.329365,
+    "p95": 11.399812,
+    "max": 21.31621179999999
+  },
+  "connect_s": {
+    "min": 0.039184,
+    "p50": 0.05772,
+    "p95": 0.226233,
+    "max": 7.075475
+  },
+  "control_host_connect_s": {
+    "host": "www.cloudflare.com",
+    "min": 0.035636,
+    "p50": 0.057675,
+    "p95": 0.164708,
+    "max": 0.298125,
+    "stalls_over_5s": 0
+  },
+  "stalled_calls": [
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.052721,
+      "server_s": 4.198233,
+      "total_s": 4.32085
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.226233,
+      "server_s": 7.380529,
+      "total_s": 7.687898
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.054995,
+      "server_s": 4.288938,
+      "total_s": 4.44259
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.046138,
+      "server_s": 4.215516,
+      "total_s": 4.333301
+    },
+    {
+      "kind": "net_stall",
+      "code": 0,
+      "curl_exit": 28,
+      "connect_s": 0,
+      "server_s": 21.31621179999999,
+      "total_s": 21.31621179999999
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.045254,
+      "server_s": 4.204393,
+      "total_s": 4.316786
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.052312,
+      "server_s": 4.200407,
+      "total_s": 4.317692
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.052758,
+      "server_s": 4.204901,
+      "total_s": 4.329365
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.063569,
+      "server_s": 4.186022,
+      "total_s": 4.307764
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.061742,
+      "server_s": 4.180909,
+      "total_s": 4.323329
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.051613,
+      "server_s": 4.196006,
+      "total_s": 4.311434
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.07299,
+      "server_s": 4.240107,
+      "total_s": 4.385544
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.091124,
+      "server_s": 4.198732,
+      "total_s": 4.365765
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.057048,
+      "server_s": 4.219748,
+      "total_s": 4.34122
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.063878,
+      "server_s": 4.279136,
+      "total_s": 4.402108
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.055853,
+      "server_s": 4.215208,
+      "total_s": 4.319492
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.058522,
+      "server_s": 4.248806,
+      "total_s": 4.36908
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.053218,
+      "server_s": 4.202802999999999,
+      "total_s": 4.303168
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.05772,
+      "server_s": 4.179623,
+      "total_s": 4.293974
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.060169,
+      "server_s": 4.226109,
+      "total_s": 4.335885
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.061384,
+      "server_s": 4.205049,
+      "total_s": 4.320416
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.163643,
+      "server_s": 4.369474,
+      "total_s": 4.594247
+    },
+    {
+      "kind": "net_stall",
+      "code": 0,
+      "curl_exit": 28,
+      "connect_s": 0,
+      "server_s": 21.300697900000028,
+      "total_s": 21.300697900000028
+    },
+    {
+      "kind": "net_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 7.075475,
+      "server_s": 4.251924000000001,
+      "total_s": 11.399812
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.065223,
+      "server_s": 4.2035089999999995,
+      "total_s": 4.328868
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.049742,
+      "server_s": 4.254171,
+      "total_s": 4.364067
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.065872,
+      "server_s": 4.193058,
+      "total_s": 4.318746
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.091918,
+      "server_s": 4.221318,
+      "total_s": 4.382166
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.052132,
+      "server_s": 4.200273,
+      "total_s": 4.307689
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.047943,
+      "server_s": 4.220708,
+      "total_s": 4.337127
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.047247,
+      "server_s": 4.304276,
+      "total_s": 4.404611
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.07528,
+      "server_s": 4.1977780000000005,
+      "total_s": 4.363995
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.074477,
+      "server_s": 4.219765,
+      "total_s": 4.367219
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.052569,
+      "server_s": 4.321255,
+      "total_s": 4.424181
+    },
+    {
+      "kind": "server_stall",
+      "code": 503,
+      "curl_exit": 0,
+      "connect_s": 0.039184,
+      "server_s": 4.225537,
+      "total_s": 4.31338
+    }
+  ]
+}

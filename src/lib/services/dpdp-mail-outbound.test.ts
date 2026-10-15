@@ -273,6 +273,8 @@ beforeAll(async () => {
   }
   mock.module("npm:@supabase/supabase-js@2", () => ({ createClient: () => fakeClient() }))
   globalThis.fetch = (async (input: unknown, init?: { body?: string }) => {
+    // the Test/Live mail gate (drizzle/0735): LIVE, so every send goes on; it is not a Resend call
+    if (String(input).includes("dpdp_mail_gate")) return new Response(JSON.stringify({ send: true, reason: "live", mode: "LIVE" }), { status: 200 })
     fetchCalls.push({ url: String(input), body: JSON.parse(String(init?.body ?? "{}")) })
     return new Response(JSON.stringify(resendResponse.body), { status: resendResponse.status, headers: { "Content-Type": "application/json" } })
   }) as typeof fetch
@@ -661,12 +663,12 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
     const html = fetchCalls[0].body.html as string
     expect(text).toContain(`https://dpdp.veridian-aios.com/ai/${TOKEN}`)
     // the paste is two lines: "open this link and follow the page", then the link; the instructions live on the page it opens
-    expect(text).toContain(`Please open this link and follow the instructions on that page exactly.`)
+    expect(text).toContain(`my personal access link to its API`)
     expect(text).not.toContain("You are my DPDP compliance assistant")
     expect(text).toContain("BEFORE YOU PASTE.")
     expect(text.indexOf("BEFORE YOU PASTE.")).toBeLessThan(text.indexOf(`https://dpdp.veridian-aios.com/ai/${TOKEN}`))
     expect(html).toContain("Before you paste.")
-    expect(callsTo("dpdp_timer_mint_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_level: 1, p_days: 7 })
+    expect(callsTo("dpdp_timer_mint_email_ai_link")[0].args).toEqual({ p_membership_id: MEMBERSHIP_ID, p_level: 0, p_days: 2 }) // read-only unless DPDP_EMAIL_AI_LINK_LEVEL is exactly "1" (owner, 2026-10-06)
     // order: made before the send; retired after the row is marked sent
     expect(order("dpdp_timer_mint_email_ai_link")).toBeLessThan(order("dpdp_mail_log_outbound"))
     expect(order("dpdp_mail_log_outbound")).toBeLessThan(order("dpdp_timer_mark_email_send_result"))
@@ -710,7 +712,7 @@ describe("dpdp-monday-email: the AI work link in the email, through its real han
       const summary = await res.json()
       expect(summary).toMatchObject({ sent: 1, failed: 0, ai: { minted: 0, mintFailed: 1 } })
       const text = fetchCalls[0].body.text as string
-      expect(text).toContain("Open your page below, copy your AI Work link")
+      expect(text).toContain("Open your page below, copy your AI work link")
       expect(text).not.toContain("BEFORE YOU PASTE")
       expect(text).not.toMatch(/\/ai\/[0-9a-f]{64}/)
       expect(callsTo("dpdp_timer_finish_email_ai_link")).toHaveLength(0)

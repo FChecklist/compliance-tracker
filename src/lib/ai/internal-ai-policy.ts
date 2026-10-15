@@ -30,6 +30,7 @@ export const CLAUDE_CLI_OWNER_FLAG = "INTERNAL_AI_ALLOW_CLAUDE_CLI"
 
 export type InternalAiRefusalReason =
   | "projexa_internal_ai_off"
+  | "org_not_allowed"
   | "actor_unresolved"
   | "claude_cli_flag_off"
   | "owner_not_configured"
@@ -68,12 +69,16 @@ export function claudeCliPermission(personId: string | null): ClaudeCliPermissio
 /**
  * The route for one request of the internal AI. `personId` is the acting PERSON's compliance.users id (never an API key's id); null
  * means no person resolved, and the request is refused, because a metered call is re-billed to someone and a subscription call to
- * no one.
+ * no one. `opts.orgAllowed` is the organisation's per-org allow flag (isInternalAiAllowedForOrg); absent or false refuses.
  */
-export function resolveInternalAiRoute(personId: string | null): InternalAiRoute {
+export function resolveInternalAiRoute(personId: string | null, opts: { orgAllowed?: boolean } = {}): InternalAiRoute {
   // lf-b3-ai-off: PROJEXA does not run its own AI unless PROJEXA_INTERNAL_AI_ENABLED is exactly "1" (projexa-internal-ai.ts). First,
   // before the person or any provider is looked at: off is a property of the deployment, not of the caller.
   if (!projexaInternalAiEnabled()) return { allowed: false, reason: "projexa_internal_ai_off" }
+  // Audit 37 point 11: the master switch being on is necessary, not sufficient. The organisation must also have been ALLOWED our AI
+  // (internal-ai-org-allowance.ts, default closed). The caller reads that flag (it is a database read) and passes the answer; anything
+  // other than an explicit `true` is a refusal, so a caller that forgets to pass it fails closed.
+  if (opts.orgAllowed !== true) return { allowed: false, reason: "org_not_allowed" }
   if (!personId) return { allowed: false, reason: "actor_unresolved" }
 
   let configured: AiProviderName

@@ -344,6 +344,14 @@ describe("the gates run before the file is read and before any model call", () =
     untouched(r)
   })
 
+  test("Audit 37 point 11: the real policy with an organisation that has not been allowed our AI refuses, and nothing is read or called", async () => {
+    const r = rig(carefulHumanModel, ZOOMIES)
+    const { resolveRoute: _stub, ...realPolicy } = r.deps
+    const reply = await runChatAttachment(input(), { ...realPolicy, orgAllowed: async (orgId) => { expect(orgId).toBe(ORG); return false } })
+    expect(reply).toMatchObject({ status: "refused", billing: null, failure: { code: "NOT_PERMITTED", context: { reason: "org_not_allowed" } } })
+    untouched(r)
+  })
+
   test("the sha256 the sender saw must be the stored file's: a swapped document reads nothing and starts no job", async () => {
     const r = rig(carefulHumanModel, ZOOMIES)
     const reply = await runChatAttachment(input({ attachment: { documentId: DOC, sha256: "0".repeat(64) } }), r.deps)

@@ -7,6 +7,8 @@
 //
 // Run: bun test --isolate src/lib/projexa-internal-ai.transports.test.ts
 import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
+// Audit 37 point 11: the per-organisation allow flag (internal-ai-org-allowance.ts) is default closed; this file tests behaviour for an ALLOWED org.
+mock.module("@/lib/ai/internal-ai-org-allowance", () => ({ INTERNAL_AI_BRANCH_KEY: "internal_ai", isInternalAiAllowedForOrg: async () => true, isInternalAiAllowedForOrgWithDb: async () => true }))
 import { EventEmitter } from "node:events"
 
 // --- node:child_process: spawn is a spy (spread the real module: llm-client.ts also imports execFile from it) ---------------------------
@@ -217,11 +219,11 @@ describe("document extraction: the Edge caller and the internal gateway", () => 
   })
 
   test("the internal-AI route policy refuses first, in plain words, while the switch is off", () => {
-    expect(resolveInternalAiRoute("person-1")).toEqual({ allowed: false, reason: "projexa_internal_ai_off" })
+    expect(resolveInternalAiRoute("person-1", { orgAllowed: true })).toEqual({ allowed: false, reason: "projexa_internal_ai_off" })
     expect(resolveInternalAiRoute(null)).toEqual({ allowed: false, reason: "projexa_internal_ai_off" })
     expect(refusalSentence("projexa_internal_ai_off")).toBe(USE_YOUR_OWN_AI)
     on()
-    expect(resolveInternalAiRoute(null)).toEqual({ allowed: false, reason: "actor_unresolved" })
+    expect(resolveInternalAiRoute(null, { orgAllowed: true })).toEqual({ allowed: false, reason: "actor_unresolved" })
   })
 
   test("the Edge Function's own model choice: none unless its environment says exactly '1', whatever keys it holds", () => {

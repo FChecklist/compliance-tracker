@@ -33,6 +33,7 @@
 //   never returned  the confirm token, the session token, the draft's parameters (a money figure), any organisation, link or person id
 //
 // Run: bun test --isolate src/lib/services/ai-work-link-confirm.test.ts
+import { receiptOf } from "../../../supabase/functions/ai-work-link/risk"
 import { describe, test, expect, beforeAll, afterAll, beforeEach, setDefaultTimeout } from "bun:test"
 import type { PGlite } from "@electric-sql/pglite"
 import * as jose from "jose"
@@ -144,10 +145,13 @@ function makeRpc(over: Over): Rpc {
   }
 }
 
-async function confirm(draftId: string, opts: { token?: string | null; body?: unknown; rawBody?: string; over?: Over; headers?: Record<string, string> } = {}): Promise<{ res: Response; json: J; text: string }> {
+async function confirm(draftId: string, opts: { noAck?: boolean; token?: string | null; body?: unknown; rawBody?: string; over?: Over; headers?: Record<string, string> } = {}): Promise<{ res: Response; json: J; text: string }> {
   const headers: Record<string, string> = { "content-type": "application/json", ...(opts.headers ?? {}) }
   if (opts.token) headers.authorization = `Bearer ${opts.token}`
-  const rawBody = opts.rawBody ?? JSON.stringify(opts.body ?? {})
+  // AUDIT-100 item 4: a draft that deletes or touches money needs the person's tick (`acknowledged: true`); the tests of everything else tick it, the tick tests do not
+  const b0 = opts.body && typeof opts.body === "object" && !Array.isArray(opts.body) ? (opts.body as Record<string, unknown>) : null
+  const body = b0 && "confirmToken" in b0 && !("acknowledged" in b0) && !opts.noAck ? { ...b0, acknowledged: true } : opts.body
+  const rawBody = opts.rawBody ?? JSON.stringify(body ?? {})
   const res = await handleAwl(new Request(`${F}/drafts/${draftId}/confirm`, { method: "POST", headers, body: rawBody }), {
     config,
     rpc: makeRpc(opts.over ?? {}),
@@ -317,7 +321,7 @@ describe("200: the draft's own person with the right token", () => {
     const d = await draftFor("u-mgr")
     const r = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token } })
     expect(r.res.status).toBe(200)
-    expect(r.json).toEqual({ draft_id: d.id, status: "confirmed", function_id: "add_roster_entry", message: "Confirmed. The change is queued for the executor." })
+    expect(r.json).toEqual({ draft_id: d.id, status: "confirmed", function_id: "add_roster_entry", message: "Confirmed. The change is queued for the executor.", receipt: receiptOf(d.id) })
     expect(sqlCalls).toEqual(["projexa_read_resolve_user", "ai_work_link_draft_confirm"])
     const row = await rowOf(d.id)
     expect(row).toMatchObject({ status: "confirmed", confirmed_by: "u-mgr" })
@@ -336,7 +340,7 @@ describe("200: the draft's own person with the right token", () => {
     const session = await sign({ sub: AUTH.mgr })
     const r = await confirm(d.id, { token: session, body: { confirmToken: d.token } })
     expect(r.res.status).toBe(200)
-    expect(Object.keys(r.json).sort()).toEqual(["draft_id", "function_id", "message", "status"])
+    expect(Object.keys(r.json).sort()).toEqual(["draft_id", "function_id", "message", "receipt", "status"])
     for (const leak of [d.token, session, d.linkToken, "48123", "999777", "5551", "dailyRate", "amount", "org-a", "u-mgr", "proj-a", "params"]) expect(r.text).not.toContain(leak)
     // and no log line of a successful confirm holds a secret either
     expect(logs.some((l) => l.includes("confirmed -> 200"))).toBe(true)
@@ -485,7 +489,7 @@ describe("the preview route: the owner sees the change before confirming", () =>
       can_confirm: true, writes_enabled: true,
     })
     expect(r.json.message).toContain("type the code and confirm")
-    expect(sqlCalls).toEqual(["projexa_read_resolve_user", "ai_work_link_draft_state"])
+    expect(sqlCalls).toEqual(["projexa_read_resolve_user", "ai_work_link_draft_state", "ai_work_link_person_card"])
     expect(await rowOf(d.id)).toMatchObject({ status: "awaiting_confirmation", confirmed_at: null })
     // never the code, the session, an organisation, link or person id
     for (const leak of [d.token, d.linkToken, "org-a", "u-mgr", "proj-a", "confirm_token_hash"]) expect(r.text).not.toContain(leak)
@@ -742,5 +746,53 @@ describe("the settings match projexa-read, and nothing the route ever said held 
       expect(b).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\./)
       expect(b).not.toMatch(/dailyRate|"amount"|"rate"|password/i)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------------------------- the extra tick (AUDIT-100 item 4)
+describe("the extra tick: a draft that deletes or touches money is confirmed only with acknowledged: true", () => {
+  test("without the tick it is 409 ACK_REQUIRED, nothing is consumed and the SQL confirm is never called; with it the same code confirms", async () => {
+    const d = await draftFor("u-mgr")
+    sqlCalls = []
+    const r = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token }, noAck: true, over: { ai_work_link_draft_confirm: async () => ({ data: null, error: { message: "must not run" } }) } })
+    expect(r.res.status).toBe(409)
+    expect(r.json.code).toBe("ACK_REQUIRED")
+    expect(sqlCalls).not.toContain("ai_work_link_draft_confirm")
+    expect(await rowOf(d.id)).toMatchObject({ status: "awaiting_confirmation", confirmed_at: null })
+    // a tick that is not exactly true does not count
+    for (const bad of ["true", 1, "yes"]) {
+      const x = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token, acknowledged: bad } })
+      expect(`${String(bad)} ${x.res.status} ${x.json.code}`).toBe(`${String(bad)} 409 ACK_REQUIRED`)
+    }
+    const ok = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token, acknowledged: true } })
+    expect(ok.res.status).toBe(200)
+    expect(ok.json.receipt).toBe(receiptOf(d.id))
+  })
+
+  test("a draft that cannot be read for the tick check is not confirmed (503, fail closed)", async () => {
+    const d = await draftFor("u-mgr")
+    for (const over of [
+      { ai_work_link_draft_state: async () => ({ data: null, error: { message: "boom", code: "XX000" } }) },
+      { ai_work_link_draft_state: async () => { throw new Error("connection reset") } },
+      { ai_work_link_draft_state: async () => ({ data: { status: "maybe" }, error: null }) },
+    ] as Over[]) {
+      const r = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token }, noAck: true, over })
+      expect(`${r.res.status} ${r.json.code}`).toBe("503 CONFIRM_UNAVAILABLE")
+    }
+    expect(await rowOf(d.id)).toMatchObject({ status: "awaiting_confirmation" })
+  })
+
+  test("another person is still 403 NOT_YOUR_DRAFT before any tick talk, and a wrong code is still 409 CONFIRM_TOKEN_INVALID", async () => {
+    const d = await draftFor("u-mgr")
+    const other = await confirm(d.id, { token: await sign({ sub: AUTH.mem }), body: { confirmToken: d.token }, noAck: true })
+    expect(`${other.res.status} ${other.json.code}`).toBe("403 NOT_YOUR_DRAFT")
+    const wrong = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: "0".repeat(64) }, noAck: true })
+    expect(`${wrong.res.status} ${wrong.json.code}`).toBe("409 CONFIRM_TOKEN_INVALID")
+  })
+
+  test("a plain change (no delete, no money) confirms without the tick", async () => {
+    const d = await draftFor("u-mgr", "proj-a", { itemCode: "EX-01", percent: 40 }, "record_work_progress")
+    const r = await confirm(d.id, { token: await sign({ sub: AUTH.mgr }), body: { confirmToken: d.token }, noAck: true })
+    expect(r.res.status).toBe(200)
   })
 })

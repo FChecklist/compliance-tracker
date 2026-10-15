@@ -36,6 +36,7 @@ export type Route =
   | { kind: "actions" }
   | { kind: "drafts" }
   | { kind: "suggestions" }
+  | { kind: "register"; register: string | null }
 
 export type Parsed = { token: string; route: Route } | { error: 401 | 404; message: string }
 
@@ -77,11 +78,13 @@ export function parseRoute(pathname: string): Parsed {
       case "drafts": return { token, route: { kind: "drafts" } }
       case "draft": return { token, route: { kind: "drafts" } }
       case "suggestions": return { token, route: { kind: "suggestions" } }
+      case "register": return { token, route: { kind: "register", register: null } }
       default: return { error: 404, message: "No such path" }
     }
   }
   if (a === "jobs" && b.length > 0 && b.length <= 128) return { token, route: { kind: "job", id: b } }
   if (a === "law" && b.length > 0 && b.length <= 64) return { token, route: { kind: "law", code: b } }
+  if (a === "register" && /^[a-z-]{1,32}$/.test(b)) return { token, route: { kind: "register", register: b } }
   if (a === "report" && (b === "summary" || b === "by-person" || b === "by-law" || b === "by-part")) return { token, route: { kind: "report", report: b } }
   return { error: 404, message: "No such path" }
 }
@@ -101,6 +104,28 @@ export function relativePathOf(pathname: string): string {
 /** The method each route accepts. */
 export function methodFor(route: Route): "GET" | "POST" {
   return route.kind === "actions" || route.kind === "drafts" ? "POST" : "GET"
+}
+
+/** The most the GET-only fallback's `_body` may carry once decoded (a little under the 8 KB a POST may carry, because it travels in a URL). */
+export const MAX_GET_BODY_BYTES = 6 * 1024
+
+export type MethodOverride = { method: "GET" | "POST"; body: string | null } | { error: string; status: 400 | 403 | 413 }
+
+/**
+ * The GET-only fallback. Chat assistants that can open a web address but cannot send a POST may write by GET:
+ * `/actions?_method=POST&_body=<url-encoded JSON>` (also on /drafts and POST /suggestions). Only a real GET, only the three paths that take a
+ * POST, only a JSON body of at most MAX_GET_BODY_BYTES; the very same level and role checks, rate limit and call log apply, because the request
+ * is then served exactly as the POST it stands for. `_method` and `_body` are removed from the query before the log path is made.
+ */
+export function methodOverride(method: string, route: Route, params: URLSearchParams): MethodOverride {
+  const wanted = (params.get("_method") ?? "").trim().toUpperCase()
+  if (!wanted && !params.has("_body")) return { method: method === "POST" ? "POST" : "GET", body: null }
+  if (method !== "GET") return { error: "_method and _body are only for a plain GET. Send a real POST, or a GET with ?_method=POST&_body=<url-encoded JSON>.", status: 400 }
+  if (wanted !== "POST") return { error: "_method may only be POST.", status: 400 }
+  if (route.kind !== "actions" && route.kind !== "drafts" && route.kind !== "suggestions") return { error: "?_method=POST works only on /actions, /drafts and /suggestions.", status: 403 }
+  const body = params.get("_body") ?? ""
+  if (new TextEncoder().encode(body).length > MAX_GET_BODY_BYTES) return { error: `_body is too large (${MAX_GET_BODY_BYTES / 1024} KB at most when sent in a web address).`, status: 413 }
+  return { method: "POST", body: body || "{}" }
 }
 
 /** The methods a route accepts: one, except /suggestions, which is read (GET) and written (POST). */
@@ -385,6 +410,22 @@ export function maskEmails(text: string, keepEmail: string): string {
   return text.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, (m) => (m.toLowerCase() === keep ? m : "[email hidden]"))
 }
 
+/**
+ * Ten-digit phone numbers (with or without +91 / 91) become "[number hidden]". A digit run is only matched when it stands alone: a neighbouring
+ * letter or digit (a link token, an id, a longer number) means it is part of something else and it is left alone.
+ */
+export function maskPhoneNumbers(text: string): string {
+  return text.replace(/(?<![0-9A-Za-z])(?:\+?91[ -]?)?\d{10}(?![0-9A-Za-z])/g, "[number hidden]")
+}
+
+/** The last line of defence on a link that hides other people's details: every other address and every phone number in the finished body. */
+export function maskPersonal(text: string, keepEmail: string): string {
+  const keep = keepEmail.trim().toLowerCase()
+  // The link's own person and the product's own support address stay; every other address goes.
+  const emails = text.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, (m) => (m.toLowerCase() === keep || m.toLowerCase().endsWith("@veridian-aios.com") ? m : "[email hidden]"))
+  return maskPhoneNumbers(emails)
+}
+
 export type HistoryEntry = { id: string; kind: string; summary: string; detail: string | null; actorLabel: string; occurredAt: string }
 
 export function renderHistoryMarkdown(page: Page<HistoryEntry>, orgName: string): string {
@@ -420,7 +461,7 @@ export function renderLawMarkdown(p: ReturnType<typeof lawWithWords>): string {
   lines.push(`In force: ${p.inForce ?? (p.inForceToday ? "today" : "from 13 May 2027")}`)
   lines.push(`Legal duty: ${p.legalDuty ? "yes" : "no -- good practice"}`)
   if (p.topic) lines.push("", `What it provides: ${p.topic}`)
-  if (p.verify) lines.push("", `Not yet lawyer-confirmed: ${p.verify}. Say so if you cite it.`)
+  if (p.verify) lines.push("", `Please confirm with an advocate or CA: ${p.verify}. Say so if you cite it.`)
   lines.push("", `## Jobs in this view that cite ${p.code}`, "")
   if (!p.jobs.length) lines.push("(none)")
   for (const j of p.jobs) lines.push(`- \`${oneLine(j.id, 80)}\` ${oneLine(j.what, 160)} -- Part ${j.part}, ${oneLine(j.status, 40)}, ${oneLine(j.by ?? "nobody yet", 80)}, due ${oneLine(j.due, 20)}`)
