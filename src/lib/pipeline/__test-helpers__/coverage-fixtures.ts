@@ -28,10 +28,14 @@ export const API_KEY = "apikey_1";
 
 export function makeStore(): BoqStore {
   const s = makeBoqStore();
+  // updatedAt is pinned in the past: a seeded row would otherwise default to "now", and a service that stamps `updatedAt: new Date()` in the same
+  // millisecond (archive_task's project rollup, whose percentage does not move) would serialise identically and read as "not written" -- an
+  // intermittent failure of the "writes only these tables" checks (CI run 37337013803).
+  const seededAt = new Date("2026-01-01T00:00:00.000Z");
   seedRows(s, "projects", [
-    { id: PROJECT_A, orgId: ORG, name: "Zoomies Dubai", status: "active", leadUserId: MEMBER },
-    { id: PROJECT_B, orgId: ORG, name: "Oakwood", status: "active" },
-    { id: PROJECT_X, orgId: OTHER_ORG, name: "Elsewhere", status: "active" },
+    { id: PROJECT_A, orgId: ORG, name: "Zoomies Dubai", status: "active", leadUserId: MEMBER, updatedAt: seededAt },
+    { id: PROJECT_B, orgId: ORG, name: "Oakwood", status: "active", updatedAt: seededAt },
+    { id: PROJECT_X, orgId: OTHER_ORG, name: "Elsewhere", status: "active", updatedAt: seededAt },
   ]);
   seedRows(s, "users", [
     { id: MANAGER, orgId: ORG, isActive: true, role: "manager", name: "Asha Manager", email: "asha@example.com" },
