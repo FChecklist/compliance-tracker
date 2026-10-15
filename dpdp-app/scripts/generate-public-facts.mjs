@@ -216,7 +216,9 @@ function socialLines(facts, { title, description }) {
     `<meta name="twitter:description" content="${esc(description)}" />`,
     `<meta name="twitter:image" content="${esc(image)}" />`,
     `<meta name="twitter:image:alt" content="${esc(OG_IMAGE.alt)}" />`,
+    `<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />`,
     `<link rel="icon" type="image/png" sizes="48x48" href="${ICON_PATH}" />`,
+    `<link rel="apple-touch-icon" href="/apple-touch-icon.png" />`,
   ]
 }
 
@@ -301,7 +303,7 @@ function nav(facts, current) {
   return [
     `<header class="nav">`,
     `  <div class="nav-inner">`,
-    `    <a class="wordmark" href="/">VERIDIAN<span class="wordmark-sub">VERy INDIAN</span></a>`,
+    `    <a class="wordmark" href="/"><img class="wordmark-logo" src="/logo-mark.svg" alt="" width="34" height="34">VERIDIAN<span class="wordmark-sub">VERy INDIAN</span></a>`,
     `    <nav class="nav-links" aria-label="Pages">`,
     ...links.map(([href, label]) => `      <a${href === current ? ' aria-current="page"' : ""} href="${href}">${esc(label)}</a>`),
     `    </nav>`,
@@ -602,7 +604,7 @@ export function applyToLanding(facts, html, path, file) {
   out = replaceOne(out, /<meta property="og:description" content="[^"]*" \/>/i, `<meta property="og:description" content="${esc(description)}" />`, file, "og:description")
   // Open Graph image, Twitter card and favicon: drop any earlier copy, then
   // write them right after og:description (idempotent, byte-stable).
-  out = out.replace(/^[ \t]*<(?:meta (?:property="og:image[^"]*"|name="twitter:[^"]*")|link rel="icon")[^>]*\/>\r?\n/gm, "")
+  out = out.replace(/^[ \t]*<(?:meta (?:property="og:image[^"]*"|name="twitter:[^"]*")|link rel="(?:icon|apple-touch-icon)")[^>]*\/>\r?\n/gm, "")
   out = replaceOne(
     out,
     /^([ \t]*)(<meta property="og:description" content="[^"]*" \/>)\r?\n/m,

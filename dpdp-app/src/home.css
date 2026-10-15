@@ -626,3 +626,7 @@ body.hm {
     gap: 10px;
   }
 }
+
+/* logo 2026-10-15 */
+.hm .nav .wordmark { padding-left: 50px; min-height: 40px; }
+.hm .nav .wordmark-logo { width: 40px; height: 40px; }
