@@ -31,6 +31,18 @@ footer{max-width:860px;margin:0 auto;padding:0 20px 40px;font-size:14px;color:#5
 footer hr{border:0;border-top:1px solid var(--line);margin:0 0 14px}
 footer .company{margin:14px 0 0;font-size:13.5px;line-height:1.6;color:#55524a}
 footer .company a{color:inherit;text-decoration:underline;display:inline-block;padding:14px 2px;margin:-14px 0}
+footer .foot-links{margin:0 0 6px;font-size:14px;line-height:1.5}
+footer .foot-links a{display:inline-flex;align-items:center;min-height:44px;padding:0 4px}
+footer .uf-family{max-width:44rem;margin:20px auto 0;padding:16px 16px 14px;background:#fffdf9;color:#1c2b3a;border:1px solid #d9d4c7;border-radius:14px;text-align:left}
+.uf-family .uf-title{margin:0 0 4px;font-size:14px;line-height:1.4;font-weight:700;color:#1c2b3a}
+.uf-family .uf-title+.uf-text{margin-top:0}
+.uf-family .uf-text{margin:0 0 10px;font-size:14px;line-height:1.5;color:#1c2b3a}
+.uf-family .uf-pay{margin:0 0 16px}
+.uf-family .uf-pay-link{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;background:#3b3fb6;color:#fff;font-size:14px;font-weight:700;text-decoration:none}
+.uf-family .uf-links{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.uf-family .uf-links li{margin:0;padding:0}
+.uf-family .uf-links a{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;background:#eceaff;color:#2b2e8f;font-size:14px;font-weight:600;text-decoration:none}
+.uf-family a:focus-visible{outline:3px solid #f5820a;outline-offset:2px}
 @media (max-width:560px){h1{font-size:23px}table{font-size:14px}}
 /* Phones: a table is read one row at a time, so the page never scrolls sideways (checked at 320, 375 and 430 px). */
 @media (max-width:640px){table,tbody,thead,tr,th,td{display:block;width:100%;box-sizing:border-box}tr{margin:0 0 12px;border:1px solid var(--line)}th,td{border:0;border-bottom:1px solid var(--line)}tr>:last-child{border-bottom:0}td,th{overflow-wrap:anywhere}}

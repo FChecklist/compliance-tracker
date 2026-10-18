@@ -17,6 +17,9 @@
   --pink: #db2777;
   --dark: #160f2e;
   --dark-muted: #9d94c4;
+  /* The footer is bright (2026-10-18, family check C12: no large very-dark area): the brand indigo with near-white text, 8.2:1 / 6.9:1. Each home theme overrides both. */
+  --footer-bg: #3b3fb6;
+  --footer-ink: #ecebff;
   --green-bg: #dcfce7;
   --green: #059669;
   --green-ink: #065f46;
@@ -678,7 +681,7 @@ b {
 
 /* ---- landing: footer ---- */
 .footer {
-  background: var(--dark);
+  background: var(--footer-bg);
   color: #fff;
   padding: 32px 20px;
   text-align: center;
@@ -690,12 +693,12 @@ b {
   max-width: 28rem;
   margin: 8px auto 0;
   font-size: 0.75rem;
-  color: var(--dark-muted);
+  color: var(--footer-ink);
 }
 .footer-line {
   margin-top: 16px;
   font-size: 0.75rem;
-  color: var(--dark-muted);
+  color: var(--footer-ink);
 }
 .footer-line + .footer-line {
   margin-top: 8px;
@@ -711,7 +714,7 @@ b {
      opacity). site-css-contrast.test.ts pins the size and the 4.5:1 contrast. */
   font-size: 12px;
   line-height: 1.5;
-  color: var(--dark-muted);
+  color: var(--footer-ink);
 }
 /* The company ownership line, last thing in every public footer (2026-10-02): readable
    type (13.5px, the footer's own muted colour -- the same contrast as .footer-line, which
@@ -720,10 +723,10 @@ b {
   max-width: 44rem;
   margin: 24px auto 0;
   padding-top: 16px;
-  border-top: 1px solid rgba(157, 148, 196, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
   font-size: 13.5px;
   line-height: 1.6;
-  color: var(--dark-muted);
+  color: var(--footer-ink);
 }
 .footer-company a {
   color: inherit;
@@ -797,3 +800,21 @@ b {
 .wordmark { display: inline-block; position: relative; padding-left: 42px; min-height: 34px; }
 .wordmark-logo { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 22%; display: block; }
 .chooser .wordmark { padding-left: 42px; }
+
+/* ---- the shared family footer block (2026-10-18) ----
+   The Rs 1 payment test and the links to the other things we make. The same HTML on every public page (written by one function in
+   src/lib/public-surface.mjs); a bright card inside the footer, text 14px, every link at least 40px tall. A copy of these rules sits in
+   public/legal/legal.css for the hand-kept legal pages; src/lib/company-footer.test.ts pins that the two stay the same. */
+.uf-family{max-width:44rem;margin:20px auto 0;padding:16px 16px 14px;background:#fffdf9;color:#1c2b3a;border:1px solid #d9d4c7;border-radius:14px;text-align:left}
+.uf-family .uf-title{margin:0 0 4px;font-size:14px;line-height:1.4;font-weight:700;color:#1c2b3a}
+.uf-family .uf-title+.uf-text{margin-top:0}
+.uf-family .uf-text{margin:0 0 10px;font-size:14px;line-height:1.5;color:#1c2b3a}
+.uf-family .uf-pay{margin:0 0 16px}
+.uf-family .uf-pay-link{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;background:#3b3fb6;color:#fff;font-size:14px;font-weight:700;text-decoration:none}
+.uf-family .uf-links{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.uf-family .uf-links li{margin:0;padding:0}
+.uf-family .uf-links a{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;background:#eceaff;color:#2b2e8f;font-size:14px;font-weight:600;text-decoration:none}
+.uf-family a:focus-visible{outline:3px solid #f5820a;outline-offset:2px}
+
+/* The line each edition landing closes on, set on the page itself (it used to sit inside the dark footer). */
+.closing-tag{max-width:40rem;margin:32px auto;padding:0 20px;text-align:center;font-size:0.95rem;line-height:1.6;color:var(--ink2)}

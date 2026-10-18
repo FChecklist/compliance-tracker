@@ -24,13 +24,18 @@ import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
   COMPANY_FOOTER_COPY,
+  FAMILY_BLOCK,
+  FAMILY_LINKS,
   HIDDEN_PAGES,
   LEGAL_PAGES,
   OG_IMAGE,
   PRIVATE_PAGES,
   PUBLIC_ORIGIN,
   PUBLIC_PAGES,
+  PAYTEST_URL,
   PUBLIC_SCRIPT_OPENS,
+  PWA,
+  PWA_SCRIPT,
   scriptOpensFor,
   THEME_SCRIPT,
   REF_SCRIPT,
@@ -153,6 +158,35 @@ function checkCrossOrigin(label, html) {
   }
 }
 
+// ------------------------------------------------- installable app + the family footer
+// Every public, hidden and legal page links the manifest and carries the theme colour; every one of them has a footer with class "uf"
+// that holds working Terms / Privacy / Refund / Contact links and the ONE shared family block (byte-identical apart from indentation), with
+// the company ownership line still the very last thing before </footer>. (2026-10-18: the family web-quality check C04/C07/C08/C14.)
+const trimLines = (s) => s.split("\n").map((l) => l.trim()).filter(Boolean).join("\n")
+function checkInstallable(label, html) {
+  const manifest = linkHref(html, "manifest")
+  expect(manifest === PWA.manifestPath, `${label}: <link rel="manifest" href="${PWA.manifestPath}"> missing (found ${manifest})`)
+  expect(meta(html, "name", "theme-color") === PWA.themeColor, `${label}: <meta name="theme-color" content="${PWA.themeColor}"> missing`)
+}
+function checkFamilyFooter(label, html) {
+  const footerTag = /<footer\b[^>]*>/i.exec(html)?.[0] ?? ""
+  const footerHtml = /<footer\b[\s\S]*<\/footer>/i.exec(html)?.[0] ?? ""
+  expect(/\sclass="[^"]*\buf\b[^"]*"/.test(footerTag), `${label}: the <footer> lacks class "uf" (${footerTag})`)
+  expect(tagsOf(html, /<footer\b/gi).length === 1, `${label}: expected exactly one <footer>`)
+  for (const [word, href] of [["Terms", "/terms/"], ["Privacy", "/privacy/"], ["Refund", "/refund/"], ["Contact", "/contact/"]]) {
+    expect(new RegExp(`<a href="${href}">[^<]*${word}[^<]*</a>`, "i").test(footerHtml), `${label}: footer lacks a working ${word} link to ${href}`)
+  }
+  const block = /<div class="uf-family">[\s\S]*?<\/ul>\s*<\/div>/.exec(footerHtml)?.[0]
+  expect(!!block && trimLines(block) === trimLines(FAMILY_BLOCK), `${label}: footer's family block is missing or differs from the one in public-surface.mjs`)
+  expect(footerHtml.includes(`href="${PAYTEST_URL}"`) && /Test a payment/i.test(footerHtml), `${label}: footer lacks the "Test a payment" link to ${PAYTEST_URL}`)
+  for (const [, href] of FAMILY_LINKS) expect(footerHtml.includes(`href="${href}"`), `${label}: footer lacks the family link ${href}`)
+  // The company ownership line is the last line before </footer>, and the family block sits before it.
+  const lines = footerHtml.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("<!--") && l !== "</footer>")
+  const last = lines[lines.length - 1] ?? ""
+  for (const part of COMPANY_FOOTER_COPY) expect(last.includes(part), `${label}: the company ownership line is not the last line of the footer (lacks "${part.slice(0, 50)}")`)
+  expect(footerHtml.indexOf("uf-family") < footerHtml.indexOf(lines[lines.length - 1] ?? "\u0000"), `${label}: the family block must sit before the company line`)
+}
+
 // ---------------------------------------------------------------- public pages
 for (const page of PUBLIC_PAGES) {
   const label = page.path
@@ -267,6 +301,9 @@ for (const page of PUBLIC_PAGES) {
   expect(has(REF_SCRIPT.src.slice(1)), `dist${REF_SCRIPT.src} missing`)
   expect(has(RUM_SCRIPT.src.slice(1)), `dist${RUM_SCRIPT.src} missing`)
   expect(has(VISIT_SCRIPT.src.slice(1)), `dist${VISIT_SCRIPT.src} missing`)
+  expect(has(PWA_SCRIPT.src.slice(1)), `dist${PWA_SCRIPT.src} missing`)
+  checkInstallable(label, html)
+  checkFamilyFooter(label, html)
   if (page.path === "/") expect(has(THEME_SCRIPT.src.slice(1)), `dist${THEME_SCRIPT.src} missing`)
   checkCrossOrigin(label, html)
 
@@ -298,6 +335,8 @@ for (const priv of PRIVATE_PAGES) {
   expect(linkHref(html, "canonical") === null, `${label}: a private page must not declare a canonical`)
   expect(!html.includes(RUM_SCRIPT.src), `${label}: a private page must never load ${RUM_SCRIPT.src} -- private pages are not measured`)
   expect(!html.includes(VISIT_SCRIPT.src), `${label}: a private page must never load ${VISIT_SCRIPT.src} -- the signed-in and private pages carry no visit tracking`)
+  expect(!html.includes(PWA_SCRIPT.src), `${label}: a private page must never load ${PWA_SCRIPT.src} -- the public site's service worker is not for private pages`)
+  expect(!html.includes(`href="${PWA.manifestPath}"`) && linkHref(html, "manifest") !== PWA.manifestPath, `${label}: a private page must not link the public manifest`)
   checkCrossOrigin(label, html)
 }
 
@@ -326,7 +365,9 @@ for (const page of LEGAL_PAGES) {
   const h1s = tagsOf(html, /<h1\b[^>]*>[\s\S]*?<\/h1>/gi)
   expect(h1s.length === 1 && textOf(h1s[0]) === page.h1, `${label}: expected exactly one <h1> reading "${page.h1}"`)
   const scripts = tagsOf(html, /<script\b[^>]*>/gi)
-  expect(JSON.stringify(scripts) === JSON.stringify(LEGAL_SCRIPT_OPENS), `${label}: legal page must have exactly the scripts ${RUM_SCRIPT.tag} ${VISIT_SCRIPT.tag}, found ${JSON.stringify(scripts)}`)
+  expect(JSON.stringify(scripts) === JSON.stringify(LEGAL_SCRIPT_OPENS), `${label}: legal page must have exactly the scripts ${RUM_SCRIPT.tag} ${VISIT_SCRIPT.tag} ${PWA_SCRIPT.tag}, found ${JSON.stringify(scripts)}`)
+  checkInstallable(label, html)
+  checkFamilyFooter(label, html)
   const icon = linkHref(html, "icon")
   expect(!!icon && has(icon.slice(1)), `${label}: <link rel="icon"> ${icon} is not a file in dist/`)
   const footerHtml = /<footer[\s\S]*<\/footer>/i.exec(html)?.[0] ?? ""
@@ -351,7 +392,9 @@ for (const hidden of HIDDEN_PAGES) {
   expect(linkHref(html, "canonical") === null, `${label}: a hidden page must not declare a canonical`)
   expect(meta(html, "property", "og:url") === null, `${label}: a hidden page must not carry Open Graph tags`)
   const scripts = tagsOf(html, /<script\b[^>]*>/gi).filter((t) => !/type="application\/ld\+json"/i.test(t))
-  expect(JSON.stringify(scripts) === JSON.stringify(PUBLIC_SCRIPT_OPENS), `${label}: hidden page must have exactly the scripts ${REF_SCRIPT.tag} ${RUM_SCRIPT.tag} ${VISIT_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
+  expect(JSON.stringify(scripts) === JSON.stringify(PUBLIC_SCRIPT_OPENS), `${label}: hidden page must have exactly the scripts ${REF_SCRIPT.tag} ${RUM_SCRIPT.tag} ${VISIT_SCRIPT.tag} ${PWA_SCRIPT.tag} besides JSON-LD, found ${JSON.stringify(scripts)}`)
+  checkInstallable(label, html)
+  checkFamilyFooter(label, html)
   checkCrossOrigin(label, html)
 }
 
@@ -537,6 +580,75 @@ if (has("visit.js")) {
   expect(v.includes("globalPrivacyControl") && v.includes("doNotTrack"), "visit.js does not check Global Privacy Control / Do Not Track")
   for (const prefix of PRIVATE_PAGES) expect(v.includes(`"${prefix.prefix}"`), `visit.js does not refuse the private prefix ${prefix.prefix}`)
 }
+// ------------------------------------------------------- installable app (2026-10-18)
+// The public site's manifest, service worker, offline page and registration script. The signed-in /app/ keeps its own manifest and its own /app/sw.js.
+expect(has("manifest.webmanifest"), "dist/manifest.webmanifest missing")
+if (has("manifest.webmanifest")) {
+  let man = null
+  try { man = JSON.parse(read("manifest.webmanifest")) } catch (e) { expect(false, `manifest.webmanifest does not parse: ${e.message}`) }
+  if (man) {
+    expect(man.name === "VERIDIAN DPDP" && man.short_name === "VERIDIAN", "manifest.webmanifest: name / short_name wrong")
+    expect(man.start_url === "/" && man.scope === "/" && man.id === "/", "manifest.webmanifest: id, start_url and scope must all be /")
+    expect(man.display === "standalone" && man.theme_color === PWA.themeColor && man.lang === "en-IN" && !!man.background_color, "manifest.webmanifest: display / theme_color / lang / background_color wrong")
+    const icons = Array.isArray(man.icons) ? man.icons : []
+    for (const size of ["192x192", "512x512"]) {
+      expect(icons.some((i) => i.sizes === size && i.type === "image/png" && (i.purpose ?? "any").includes("any")), `manifest.webmanifest: no ${size} PNG icon`)
+      expect(icons.some((i) => i.sizes === size && i.purpose === "maskable"), `manifest.webmanifest: no ${size} maskable icon`)
+    }
+    for (const i of icons) {
+      expect(typeof i.src === "string" && i.src.startsWith("/") && has(i.src.replace(/^\//, "").split("?")[0]), `manifest.webmanifest: icon ${i.src} is not a file in dist/`)
+      const f = i.src.replace(/^\//, "").split("?")[0]
+      if (has(f)) {
+        const png = readFileSync(join(dist, f))
+        const [w, h] = i.sizes.split("x").map(Number)
+        expect(png.length > 24 && png.subarray(1, 4).toString("latin1") === "PNG" && png.readUInt32BE(16) === w && png.readUInt32BE(20) === h, `manifest.webmanifest: ${i.src} is not a real ${i.sizes} PNG`)
+      }
+    }
+  }
+}
+expect(has("sw.js"), "dist/sw.js missing")
+if (has("sw.js")) {
+  const sw = read("sw.js")
+  for (const priv of PRIVATE_PAGES) expect(sw.includes(`"${priv.prefix}"`), `sw.js does not name the private prefix ${priv.prefix} (it must pass it through untouched)`)
+  expect(sw.includes("isPrivate(url.pathname)") && /if \(isPrivate\(url\.pathname\)\) return/.test(sw), "sw.js must return before respondWith for a private path")
+  expect((sw.match(/cache\.add\(/g) ?? []).length === 1 && sw.includes('const OFFLINE = "/offline.html"'), "sw.js must precache exactly one file, /offline.html")
+  for (const bad of ["addAll(", "cache.put(", ".put(", "XMLHttpRequest", "sendBeacon", "indexedDB", "localStorage", "document.cookie", "http://", "https://"]) {
+    expect(!sw.includes(bad), `sw.js uses ${bad} -- the public worker keeps only the offline page and stores nothing else`)
+  }
+  expect(!/respondWith\(\s*caches\.match\(\s*req/.test(sw), "sw.js must not answer a request from the cache (offline page only, after a failed fetch)")
+}
+expect(has("offline.html"), "dist/offline.html missing")
+if (has("offline.html")) {
+  const html = read("offline.html")
+  expect(meta(html, "name", "robots") === "noindex, nofollow", "offline.html: <meta name=\"robots\" content=\"noindex, nofollow\"> missing")
+  expect(linkHref(html, "canonical") === null, "offline.html: must not declare a canonical")
+  expect(tagsOf(html, /<script\b[^>]*>/gi).length === 0, "offline.html: must carry no script")
+  expect(!/(?:src|href)="(?!\/favicon-48\.png|https:\/\/itservices-rajat-agarwal\.pages\.dev\/|\/")[^"]*"/.test(html.replace(/<link rel="icon"[^>]*>/, "")), "offline.html: must not depend on any file or address other than the icon, the home link and the seller link (it is shown with no network)")
+  expect(!/<link\b[^>]*rel="stylesheet"/i.test(html), "offline.html: must use inline styles only (it is shown with no network)")
+  const footerHtml = /<footer\b[\s\S]*<\/footer>/i.exec(html)?.[0] ?? ""
+  for (const part of COMPANY_FOOTER_COPY) expect(footerHtml.includes(part), `offline.html: footer lacks the company line part "${part.slice(0, 60)}"`)
+  expect(!read("sitemap.xml").includes("offline"), "sitemap.xml names the offline page")
+}
+expect(has("pwa.js"), "dist/pwa.js missing")
+if (has("pwa.js")) {
+  const p = read("pwa.js")
+  for (const bad of ["document.cookie", "localStorage", "sessionStorage", "indexedDB", "fetch(", "XMLHttpRequest", "sendBeacon", "new Image", "http://", "https://"]) {
+    expect(!p.includes(bad), `pwa.js uses ${bad} -- the registration script must stay first-party, with no network call, cookie or storage`)
+  }
+  expect(p.includes('register("/sw.js", { scope: "/" })'), "pwa.js must register /sw.js with scope /")
+  expect(p.includes('"serviceWorker" in navigator'), "pwa.js must check for service-worker support")
+  for (const prefix of PRIVATE_PAGES) expect(p.includes(`"${prefix.prefix}"`), `pwa.js does not refuse the private prefix ${prefix.prefix}`)
+}
+if (has("_headers")) {
+  const rules = parseHeadersFile(read("_headers"))
+  expect(resolveHeaders(rules, "/sw.js")["cache-control"] === "no-cache", `_headers: /sw.js gets Cache-Control "${resolveHeaders(rules, "/sw.js")["cache-control"]}", expected no-cache`)
+  expect(/^public, max-age=\d{1,5}$/.test(resolveHeaders(rules, "/manifest.webmanifest")["cache-control"] ?? "") && Number((resolveHeaders(rules, "/manifest.webmanifest")["cache-control"] ?? "").split("=")[1]) <= 86400, "_headers: /manifest.webmanifest must get a short public Cache-Control (one day at most)")
+  expect(resolveHeaders(rules, "/offline.html")["x-robots-tag"] === "noindex, nofollow", "_headers: /offline.html must be noindex")
+  for (const path of ["/sw.js", "/manifest.webmanifest", "/pwa.js", "/offline.html"]) {
+    expect(!PRIVATE_PAGES.some((p) => path.startsWith(p.prefix)), `${path} must not sit under a private prefix`)
+  }
+}
+
 // --------------------------------------------------------------------- summary
 if (failures.length) {
   console.error(`check-public-surface: FAIL -- ${failures.length} of ${checks} checks failed`)

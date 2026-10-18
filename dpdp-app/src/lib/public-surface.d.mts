@@ -42,6 +42,12 @@ export declare const OG_IMAGE: { readonly path: string; readonly width: number; 
 export declare const FOOTER_LINKS: readonly (readonly [string, string])[]
 export declare const RUM_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
 export declare const VISIT_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
+export declare const PWA_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
+export declare const PWA: { readonly manifestPath: string; readonly swPath: string; readonly offlinePath: string; readonly themeColor: string; headLines(close?: string): string[] }
+export declare const PAYTEST_URL: string
+export declare const FAMILY_LINKS: readonly (readonly [string, string])[]
+export declare const FAMILY_BLOCK_LINES: readonly string[]
+export declare const FAMILY_BLOCK: string
 export declare const LEGAL_SCRIPT_OPENS: readonly string[]
 export declare const PUBLIC_SCRIPT_OPENS: readonly string[]
 export declare const HOME_SCRIPT_OPENS: readonly string[]
