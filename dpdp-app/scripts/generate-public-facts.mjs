@@ -29,7 +29,7 @@
 //   index.html, dpdp-firm/index.html, dpdp-institution/index.html
 //                             ONLY between the marker comments
 //                             <!-- BEGIN generated: X --> ... <!-- END generated: X -->
-//                             (X = brand-line, facts, footer-links, company-line, and on the home
+//                             (X = brand-line, facts, footer, and on the home
 //                             page ai-assistant), plus <title>, the meta
 //                             description, og:title / og:description and the
 //                             Organization + WebSite + SoftwareApplication +
@@ -55,7 +55,7 @@ import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, companyFooterHtml, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
-import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, REF_SCRIPT, RUM_SCRIPT, VISIT_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
+import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, FAMILY_BLOCK, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, PWA, PWA_SCRIPT, REF_SCRIPT, RUM_SCRIPT, VISIT_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
 
@@ -251,6 +251,7 @@ function head(facts, { path, title, description, nodes, hidden = false }) {
     `<meta name="viewport" content="width=device-width, initial-scale=1" />`,
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(description)}" />`,
+    ...PWA.headLines(" />"),
   ]
   if (hidden) {
     // Built and hidden (WO-013 §2.1): no canonical, noindex, no Open Graph.
@@ -274,6 +275,7 @@ function head(facts, { path, title, description, nodes, hidden = false }) {
     REF_SCRIPT.tag,
     RUM_SCRIPT.tag,
     VISIT_SCRIPT.tag,
+    PWA_SCRIPT.tag,
     jsonLdScript(nodes),
   )
   return lines.map((l) => "    " + l).join("\n")
@@ -325,19 +327,25 @@ function footerLinks() {
   return `<p class="footer-legal footer-legal-links">${FOOTER_LINKS.map(([href, label]) => `<a href="${esc(href)}">${esc(label)}</a>`).join(" · ")}</p>`
 }
 
-function footer(facts) {
+/** The inside of every public footer, in one place (2026-10-18): the generated pages write it into their `<footer class="footer uf">`, and the three landings carry it between
+ * `<!-- BEGIN generated: footer -->` markers, so the footer text is identical on every page (the family web-quality check compares it). Order: the page's own lines, the legal
+ * links, the shared family block (Rs 1 payment test + more from us), then the company ownership line, which stays the LAST line. */
+function footerInner(facts) {
   return [
-    `<footer class="footer">`,
-    `  <b class="font-heading footer-brand">VERIDIAN · VERy INDIAN</b>`,
-    `  <p class="footer-line">${EMAIL_OFF(`Write to <b class="white">${esc(facts.contact.contact_email)}</b> ${esc(subjectTopicsClause(facts))}`)}</p>`,
-    `  <p class="footer-line">${EMAIL_OFF(`Grievance Officer: <b class="white">${esc(facts.contact.contact_email)}</b> (subject: Grievance)`)}</p>`,
-    `  <p class="footer-line">${esc(facts.storage.stored_in_india_wording)}</p>`,
-    `  <p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>`,
-    `  ${footerLinks()}`,
-    `  <p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a> · <a href="/pricing/">Pricing</a> · <a href="/refund/">Cancellation &amp; Refund</a> · <a href="/shipping/">Delivery</a> · <a href="/contact/">Contact</a> · <a href="/subprocessors/">Sub-processors</a></p>`,
-    `  ${companyFooterHtml(facts)}`,
-    `</footer>`,
+    `<b class="font-heading footer-brand">VERIDIAN · VERy INDIAN</b>`,
+    `<p class="footer-line">${EMAIL_OFF(`Write to <b class="white">${esc(facts.contact.contact_email)}</b> ${esc(subjectTopicsClause(facts))}`)}</p>`,
+    `<p class="footer-line">${EMAIL_OFF(`Grievance Officer: <b class="white">${esc(facts.contact.contact_email)}</b> (subject: Grievance)`)}</p>`,
+    `<p class="footer-line">${esc(facts.storage.stored_in_india_wording)}</p>`,
+    `<p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.</p>`,
+    footerLinks(),
+    `<p class="footer-legal footer-legal-links"><a href="/terms/">Terms of Service</a> · <a href="/privacy/">Privacy Notice</a> · <a href="/disclaimer/">Disclaimer</a> · <a href="/pricing/">Pricing</a> · <a href="/refund/">Cancellation &amp; Refund</a> · <a href="/shipping/">Delivery</a> · <a href="/contact/">Contact</a> · <a href="/subprocessors/">Sub-processors</a></p>`,
+    FAMILY_BLOCK,
+    companyFooterHtml(facts),
   ].join("\n")
+}
+
+function footer(facts) {
+  return [`<footer class="footer uf">`, indent(footerInner(facts), 2), `</footer>`].join("\n")
 }
 
 /** The Contact section's bullets, everywhere it appears (/about/,
@@ -616,11 +624,15 @@ export function applyToLanding(facts, html, path, file) {
   // The two allowed scripts besides JSON-LD: /ref.js then /rum.js then /visit.js, right after the stylesheet link (idempotent).
   out = replaceOne(
     out,
-    /^([ \t]*)(<link rel="stylesheet" href="\/src\/site\.css" \/>)\r?\n(?:[ \t]*<script defer src="\/ref\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/rum\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/visit\.js"><\/script>\r?\n)?/m,
-    (m) => `${m[1]}${m[2]}\n${m[1]}${REF_SCRIPT.tag}\n${m[1]}${RUM_SCRIPT.tag}\n${m[1]}${VISIT_SCRIPT.tag}\n`,
+    /^([ \t]*)(<link rel="stylesheet" href="\/src\/site\.css" \/>)\r?\n(?:[ \t]*<script defer src="\/ref\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/rum\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/visit\.js"><\/script>\r?\n)?(?:[ \t]*<script defer src="\/pwa\.js"><\/script>\r?\n)?/m,
+    (m) => `${m[1]}${m[2]}\n${m[1]}${REF_SCRIPT.tag}\n${m[1]}${RUM_SCRIPT.tag}\n${m[1]}${VISIT_SCRIPT.tag}\n${m[1]}${PWA_SCRIPT.tag}\n`,
     file,
-    "the stylesheet link (to attach /ref.js, /rum.js and /visit.js)",
+    "the stylesheet link (to attach /ref.js, /rum.js, /visit.js and /pwa.js)",
   )
+
+  // The installable-app head lines (manifest link + theme colour), right after the meta description (idempotent).
+  out = out.replace(/^[ \t]*<(?:link rel="manifest"|meta name="theme-color")[^>]*\/>\r?\n/gm, "")
+  out = replaceOne(out, /^([ \t]*)(<meta name="description" content="[^"]*" \/>)\r?\n/m, (m) => `${m[1]}${m[2]}\n${PWA.headLines(" />").map((l) => m[1] + l).join("\n")}\n`, file, "the meta description (to attach the manifest link and theme colour)")
 
   const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/i.exec(out)
   if (!block) throw new Error(`${file}: no JSON-LD block`)
@@ -637,8 +649,8 @@ export function applyToLanding(facts, html, path, file) {
   out = replaceBetween(out, "brand-line", brandLine(facts, { shareAsk: true }), file)
   if (path === "/") out = replaceBetween(out, "ai-assistant", homeAiSection(facts), file)
   out = replaceBetween(out, "facts", factBlock(facts, { compact: path === "/" }), file)
-  out = replaceBetween(out, "footer-links", footerLinks(), file)
-  out = replaceBetween(out, "company-line", companyFooterHtml(facts), file)
+  out = replaceOne(out, /<footer class="footer(?: uf)?">/, '<footer class="footer uf">', file, "the page's <footer>")
+  out = replaceBetween(out, "footer", footerInner(facts), file)
   return out
 }
 
@@ -682,7 +694,7 @@ function llmsFullTxt(facts, pagesHtml) {
   const out = [`# ${facts.product} — full text`, ``, `> ${facts.one_line}`, ``, `This is the visible text of every public page of ${facts.site}.`, ``]
   for (const p of PUBLIC_PAGES) {
     out.push(`## ${facts.pages[p.path].name} — ${pageUrl(p.path)}`, ``)
-    for (const line of visibleLines(pagesHtml.get(p.source))) out.push(line.startsWith("# ") ? `### ${line.slice(2)}` : line.startsWith("## ") ? `### ${line.slice(3)}` : line)
+    for (const line of visibleLines(pagesHtml.get(p.source).replace(/<div class="uf-family">[\s\S]*?<\/ul>\s*<\/div>/, ""))) out.push(line.startsWith("# ") ? `### ${line.slice(2)}` : line.startsWith("## ") ? `### ${line.slice(3)}` : line)
     out.push(``)
   }
   out.push(`## Contact`, ``, ...contactBullets(facts).map((b) => `- ${b}`), ``, `We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.`, ``)

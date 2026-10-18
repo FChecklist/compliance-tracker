@@ -108,13 +108,59 @@ export const THEME_SCRIPT = { src: "/theme.js", tag: '<script src="/theme.js"></
  * where it ended), posted with sendBeacon to this site's own /api/visit -> the dpdp-track Edge Function. A random visitor id (cookie + local storage, one year); with Global
  * Privacy Control / Do Not Track it stores no id and sends one count-only ping. Never on the private prefixes. */
 export const VISIT_SCRIPT = { src: "/visit.js", tag: '<script defer src="/visit.js"></script>', open: '<script defer src="/visit.js">' }
-export const PUBLIC_SCRIPT_OPENS = [REF_SCRIPT.open, RUM_SCRIPT.open, VISIT_SCRIPT.open]
-export const HOME_SCRIPT_OPENS = [THEME_SCRIPT.open, REF_SCRIPT.open, RUM_SCRIPT.open, VISIT_SCRIPT.open]
-/** The hand-kept legal pages carry rum.js then visit.js and nothing else. */
-export const LEGAL_SCRIPT_OPENS = [RUM_SCRIPT.open, VISIT_SCRIPT.open]
+/** The FIFTH script (2026-10-18): public/pwa.js, same origin, deferred, right after visit.js. It registers the public site's service worker (/sw.js, scope "/") so the
+ * site can be installed and shows a friendly offline page when a public page cannot load. No network call of its own, no cookie, no storage. It is on the public, hidden
+ * and legal pages only; no private page carries it, and the worker itself never touches a private prefix. */
+export const PWA_SCRIPT = { src: "/pwa.js", tag: '<script defer src="/pwa.js"></script>', open: '<script defer src="/pwa.js">' }
+export const PUBLIC_SCRIPT_OPENS = [REF_SCRIPT.open, RUM_SCRIPT.open, VISIT_SCRIPT.open, PWA_SCRIPT.open]
+export const HOME_SCRIPT_OPENS = [THEME_SCRIPT.open, REF_SCRIPT.open, RUM_SCRIPT.open, VISIT_SCRIPT.open, PWA_SCRIPT.open]
+/** The hand-kept legal pages carry rum.js, visit.js, then pwa.js and nothing else. */
+export const LEGAL_SCRIPT_OPENS = [RUM_SCRIPT.open, VISIT_SCRIPT.open, PWA_SCRIPT.open]
 export const scriptOpensFor = (path) => (path === "/" ? HOME_SCRIPT_OPENS : PUBLIC_SCRIPT_OPENS)
 FACT_COPY.push(RUM_SCRIPT.tag)
 FACT_COPY.push(VISIT_SCRIPT.tag)
+FACT_COPY.push(PWA_SCRIPT.tag)
+
+/** The public site's installable-app pieces (2026-10-18). The manifest is /manifest.webmanifest (scope "/"); the signed-in /app/ keeps its own manifest and /app/sw.js. Every
+ * public, hidden and legal page links the manifest and carries the theme colour; no private page does. */
+export const PWA = {
+  manifestPath: "/manifest.webmanifest",
+  swPath: "/sw.js",
+  offlinePath: "/offline.html",
+  themeColor: "#3B3FB6",
+  /** The two <head> lines, in one place: generated pages and the three landings write them as XHTML-style (" />"), the hand-kept legal pages as plain HTML (">"). */
+  headLines: (close = " />") => [`<link rel="manifest" href="/manifest.webmanifest"${close}`, `<meta name="theme-color" content="#3B3FB6"${close}`],
+}
+FACT_COPY.push('rel="manifest" href="/manifest.webmanifest"', 'name="theme-color" content="#3B3FB6"')
+
+/** The shared family block in every public footer (owner order 2026-10-18): the Rs 1 payment test and the links to the other things we make. ONE function writes it, so the
+ * generated pages, the three landings (between BEGIN/END markers) and the eight hand-kept legal pages (inserted with the same text) are byte-identical; src/lib/company-footer.test.ts
+ * and scripts/check-public-surface.mjs pin that. It sits in the footer after the legal links and before the company ownership line, which stays the last line. */
+export const PAYTEST_URL = "https://itservices-rajat-agarwal.pages.dev/paytest/?from=DPD"
+export const FAMILY_LINKS = [
+  ["All games", "https://corporate-games.pages.dev"],
+  ["Tambola", "https://corporate-tambola.pages.dev"],
+  ["Bingo", "https://corporate-bingo.pages.dev"],
+  ["Tic Tac Toe", "https://corporate-tic-tac-toe.pages.dev"],
+  ["Snakes and Ladders", "https://corporate-snakes-and-ladders.pages.dev"],
+  ["Luck by Chance", "https://corporate-luck-by-chance.pages.dev"],
+  ["Startup Coach", "https://rajat-agarwal-startup-coach.pages.dev"],
+  ["IT Services by Rajat Agarwal", "https://itservices-rajat-agarwal.pages.dev"],
+]
+export const FAMILY_BLOCK_LINES = [
+  `<div class="uf-family">`,
+  `  <p class="uf-title">Payments</p>`,
+  `  <p class="uf-text">Safe online payment through Razorpay.</p>`,
+  `  <p class="uf-pay"><a class="uf-pay-link" href="${PAYTEST_URL}" rel="noopener">Test a payment (Rs 1)</a></p>`,
+  `  <p class="uf-title">More from us</p>`,
+  `  <ul class="uf-links">`,
+  ...FAMILY_LINKS.map(([label, href]) => `    <li><a href="${href}" rel="noopener">${label}</a></li>`),
+  `  </ul>`,
+  `</div>`,
+]
+/** The block as one string (no indentation); callers indent it to the page. */
+export const FAMILY_BLOCK = FAMILY_BLOCK_LINES.join("\n")
+FACT_COPY.push(...FAMILY_BLOCK_LINES.map((l) => l.trim()))
 
 /** The ownership line at the end of every public footer (coordinator, 2026-10-02), from facts.company. */
 const COMPANY_FOOTER = companyFooterParts(FACTS)

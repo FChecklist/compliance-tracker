@@ -61,6 +61,20 @@
 /favicon-48.png
   Cache-Control: public, max-age=86400
 
+# The public site's installable-app files (2026-10-18). The service worker must be re-checked on every
+# load or a fixed worker never reaches people (no-cache = revalidate, a cheap 304); the manifest changes
+# rarely, so an hour. The offline page is never indexed (it is a fallback, not a page). None of these paths
+# is a private prefix, so nothing below overlaps the private rules.
+/sw.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=3600
+
+/offline.html
+  X-Robots-Tag: noindex, nofollow
+
 /app/*
   ! Referrer-Policy
 

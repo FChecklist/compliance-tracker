@@ -205,7 +205,7 @@ describe("the generator (scripts/generate-public-facts.mjs)", () => {
     for (const path of ["/", "/dpdp-firm/", "/dpdp-institution/"]) {
       const page = PUBLIC_PAGES.find((p) => p.path === path)!
       const html = read(page.source)
-      for (const name of ["brand-line", "facts", "footer-links"]) {
+      for (const name of ["brand-line", "facts", "footer"]) {
         const i = html.indexOf(`<!-- BEGIN generated: ${name} -->`)
         const j = html.indexOf(`<!-- END generated: ${name} -->`)
         expect(i, `${page.source}: ${name} BEGIN`).toBeGreaterThan(-1)
@@ -401,7 +401,7 @@ describe("no internal-process wording on any public surface", () => {
 // in the code. The percentages written on the page must be the ones in the database function.
 describe("/partner/ (Sales Partner): the page says what the database does", () => {
   const sql = readFileSync(join(APP, "..", "drizzle", "0655_dpdp_wo016_refer_and_earn.sql"), "utf8")
-  const html = read("partner/index.html")
+  const html = read("partner/index.html").replace(/<div class="uf-family">[\s\S]*?<\/ul>\s*<\/div>/, " ") // the shared footer block (the Rs 1 payment test) is not this page's own wording
   const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ")
 
   test("the yearly percentage on the page equals v_rate in dpdp_record_confirmed_payment; the monthly rule is not on the page (monthly is not sold today)", () => {
@@ -472,7 +472,7 @@ describe("/partner/terms/ (the Sales Partner agreement): the agreement says what
   const sql655 = readFileSync(join(APP, "..", "drizzle", "0655_dpdp_wo016_refer_and_earn.sql"), "utf8")
   const sql674 = readFileSync(join(APP, "..", "drizzle", "0674_dpdp_sales_partner_lifecycle.sql"), "utf8")
   const facts = loadFacts()
-  const html = read("partner/terms/index.html")
+  const html = read("partner/terms/index.html").replace(/<div class="uf-family">[\s\S]*?<\/ul>\s*<\/div>/, " ") // the shared footer block (the Rs 1 payment test) is not this page's own wording
   const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/\s+/g, " ")
 
   test("the version on the page is the version the database asks partners to accept", () => {

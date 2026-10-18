@@ -21,6 +21,7 @@ import {
   PUBLIC_ORIGIN,
   PUBLIC_PAGES,
   SITEMAP_PAGES,
+  PWA_SCRIPT,
   RUM_SCRIPT,
   VISIT_SCRIPT,
   THEME_SCRIPT,
@@ -515,7 +516,7 @@ describe("page sources", () => {
       expect(html).toContain(`<link rel="canonical" href="${pageUrl(pub.path)}" />`)
       expect(html).not.toMatch(/<meta\s+name="robots"[^>]*no(index|follow)/i)
       const scripts = html.match(/<script\b[^>]*>/g) ?? []
-      for (const s of scripts) expect(s === REF_SCRIPT.open || s === RUM_SCRIPT.open || s === VISIT_SCRIPT.open || s === THEME_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
+      for (const s of scripts) expect(s === REF_SCRIPT.open || s === RUM_SCRIPT.open || s === VISIT_SCRIPT.open || s === PWA_SCRIPT.open || s === THEME_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
       expect(html).not.toMatch(/https?:\/\/fonts\.(googleapis|gstatic)\.com/)
     }
   })

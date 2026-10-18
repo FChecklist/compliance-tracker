@@ -98,6 +98,13 @@ for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/
 const visitJs = await get("/visit.js")
 check(visitJs.status === 200 && /javascript/i.test(visitJs.type) && visitJs.body.includes("/api/visit"), "/visit.js is served as JavaScript and posts to /api/visit", `${visitJs.status} ${visitJs.type}`)
 for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/", "/privacy/", "/terms/"]) check((await get(p)).body.includes('<script defer src="/visit.js"></script>'), `${p} loads /visit.js`)
+const pwaJs = await get("/pwa.js")
+check(pwaJs.status === 200 && /javascript/i.test(pwaJs.type) && pwaJs.body.includes("/sw.js"), "/pwa.js is served as JavaScript and registers /sw.js", `${pwaJs.status} ${pwaJs.type}`)
+const swJs = await get("/sw.js")
+check(swJs.status === 200 && /javascript/i.test(swJs.type) && swJs.body.includes("/offline.html") && /no-cache/i.test(swJs.headers.get("cache-control") || ""), "/sw.js is served as JavaScript, names /offline.html and is sent no-cache", `${swJs.status} ${swJs.type} ${swJs.headers.get("cache-control")}`)
+const manifestJson = await get("/manifest.webmanifest")
+check(manifestJson.status === 200 && manifestJson.body.includes('"start_url": "/"') && manifestJson.body.includes("icon-512.png"), "/manifest.webmanifest opens and names the 512 icon", String(manifestJson.status))
+for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/", "/ai-assistant/", "/privacy/", "/terms/"]) check((await get(p)).body.includes('<script defer src="/pwa.js"></script>'), `${p} loads /pwa.js`)
 const visitBeacon = await get("/api/visit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ off: 1, p: "/", d: "desktop" }) })
 check(visitBeacon.status === 204, "POST /api/visit (a count-only ping) answers 204", String(visitBeacon.status))
 for (const body of [{ e: [] }, { e: [{ k: "pv", p: "/app/", d: "|desktop" }] }]) {

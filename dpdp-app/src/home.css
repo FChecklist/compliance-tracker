@@ -3,7 +3,7 @@
    html[data-theme] (set by public/theme.js before first paint, three dots at the top centre): the page's own
    look is the default ("violet"), then "studio" (deep navy / studio blue) and "emerald" (deep green / teal).
    A theme only re-points the colour tokens below and the shared tokens in site.css (--bg, --ink, --ink2, --line,
-   --violet, --pink, --dark, --dark-muted, --grad), so the brand line, the fact block and the footer follow it.
+   --violet, --pink, --dark, --dark-muted, --footer-bg, --footer-ink, --grad), so the brand line, the fact block and the footer follow it.
    src/lib/home-themes.test.ts reads this file and pins WCAG AA contrast (4.5:1) for every text pair in all three. */
 
 :root {
@@ -23,6 +23,8 @@ html[data-theme="studio"] {
   --pink: #0e7490;
   --dark: #0a1a3a;
   --dark-muted: #9db4e6;
+  --footer-bg: #1d4ed8;
+  --footer-ink: #eaf1ff;
   --grad: linear-gradient(90deg, #1d4ed8, #0e7490);
   --hero1: #0a1a3a;
   --hero2: #12306b;
@@ -39,6 +41,8 @@ html[data-theme="emerald"] {
   --pink: #15803d;
   --dark: #052e2b;
   --dark-muted: #8fd0c4;
+  --footer-bg: #0f766e;
+  --footer-ink: #e9fbf7;
   --grad: linear-gradient(90deg, #0f766e, #15803d);
   --hero1: #052e2b;
   --hero2: #093b37;

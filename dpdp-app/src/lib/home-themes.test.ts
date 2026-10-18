@@ -55,7 +55,7 @@ describe("three themes, each meeting WCAG AA for every text pair on the home pag
     expect(Object.keys(THEMES)).toEqual(["violet", "studio", "emerald"])
     expect(THEMES.violet!.violet).toBe("#6d28d9")
     expect(homeCss.match(/html\[data-theme="[a-z]+"\]\s*\{/g)).toEqual(['html[data-theme="studio"] {', 'html[data-theme="emerald"] {'])
-    for (const t of ["studio", "emerald"]) for (const token of ["bg", "ink", "ink2", "line", "violet", "pink", "dark", "dark-muted", "grad", "hero1", "hero2", "glow", "soft"]) expect(THEMES[t]![token], `${t} --${token}`).not.toBe(THEMES.violet![token])
+    for (const t of ["studio", "emerald"]) for (const token of ["bg", "ink", "ink2", "line", "violet", "pink", "dark", "dark-muted", "footer-bg", "footer-ink", "grad", "hero1", "hero2", "glow", "soft"]) expect(THEMES[t]![token], `${t} --${token}`).not.toBe(THEMES.violet![token])
   })
 
   for (const [name, t] of Object.entries(THEMES)) {
@@ -81,8 +81,9 @@ describe("three themes, each meeting WCAG AA for every text pair on the home pag
         ["hero small caps #ffd9a8 on --hero2", "#ffd9a8", hexOf("hero2")],
         ["hero eyebrow --a on --hero1", t.a!, hexOf("hero1")],
         ["hero eyebrow --a on --hero2", t.a!, hexOf("hero2")],
-        ["footer --dark-muted on --dark", hexOf("dark-muted"), hexOf("dark")],
-        ["footer company line --dark-muted on --dark", hexOf("dark-muted"), hexOf("dark")],
+        ["footer text --footer-ink on --footer-bg", hexOf("footer-ink"), hexOf("footer-bg")],
+        ["white footer lines on --footer-bg", "#ffffff", hexOf("footer-bg")],
+        ["footer company line --footer-ink on --footer-bg", hexOf("footer-ink"), hexOf("footer-bg")],
         ["float badge #1b1000 on --a", "#1b1000", t.a!],
       ]
       for (const [label, fg, bg] of pairs) {
