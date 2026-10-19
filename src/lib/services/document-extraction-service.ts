@@ -1555,7 +1555,8 @@ export type CreateFromDocumentInput = {
   orgId: string
   /** A real compliance.users id (the acting person), recorded as the project lead and the BOQ creator. */
   actorId: string
-  productId: string
+  /** Optional: absent, createProject files the project under the org's PROJEXA product. */
+  productId?: string
   fileName: string
   bytes: Uint8Array
   /** Replaces the project name the model found. */
