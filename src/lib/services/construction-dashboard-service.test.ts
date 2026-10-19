@@ -1592,8 +1592,11 @@ describe("createProject default product", () => {
   test("productId is optional and falls back to the org's PROJEXA product, created if missing", () => {
     const body = rawFunctionBody("createProject")
     expect(body).not.toContain("productId is required")
-    expect(body).toContain('eq(products.slug, "projexa")')
-    expect(body).toContain('name: "PROJEXA"')
+    // the default itself lives in the shared helper (used by createProject and the from-document path)
+    expect(body).toContain("resolveProjectProduct(db, ctx.orgId, input.productId)")
     expect(body).toContain("productId: product.id")
+    const helper = rawFunctionBody("resolveProjectProduct")
+    expect(helper).toContain('eq(products.slug, "projexa")')
+    expect(helper).toContain('name: "PROJEXA"')
   })
 })
