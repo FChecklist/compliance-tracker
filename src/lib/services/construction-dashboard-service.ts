@@ -47,7 +47,7 @@ import { ServiceError } from "./compliance-service"
 // project's budget" -- the dashboard tile, the Project Status report and the
 // Cost Variance screen all read it, so the three can no longer disagree. Same
 // call-time-only circular-import safety as computeEarnedValue above.
-import { computeEarnedValue, sumRootLineBudgets, computeCategoryProgress, type EvLineItem, type CategoryProgressRow } from "./construction-reports-service"
+import { computeEarnedValue, sumRootLineBudgets, computeCategoryProgress, foldProgressAcrossRevisions, loadProgressSourceRows, type EvLineItem, type CategoryProgressRow, type ProgressSourceRow, type RevisionLineRef } from "./construction-reports-service"
 import { isConstructionEnabledForOrgWithDb } from "./construction-enablement-service"
 // R67 F-27 (R-243): a 60 s per-project cache, busted by the write paths through
 // one helper. It lives in its own dependency-free module because the writers
@@ -475,8 +475,10 @@ type EvItemRow = {
    *  so the budget and the contract value on one card can never come from two
    *  different BOQs. */
   budgetPercentage: string | number | null
-  qty: number | null
-  percent: number | null
+  /** R-51: carried so progress logged on an earlier revision can be matched by code. */
+  itemCode?: string | null
+  qty?: number | null
+  percent?: number | null
 }
 
 type DashboardSqlRow = {
@@ -498,6 +500,8 @@ type DashboardSqlRow = {
   project_value: string | number | null
   po_total: string | number | null
   ev_items: EvItemRow[] | null
+  /** R-51: per-source-line progress across the active AND superseded revisions. null/absent = fall back to the qty/percent on ev_items. */
+  ev_progress?: ProgressSourceRow[] | null
   // R67 F-14's three inputs and its one payload, as json_agg'd by the CTEs
   // above. null (not []) is what a LEFT JOIN with no matching group returns.
   category_rows: { id: string; name: string }[] | null
@@ -548,13 +552,21 @@ const NO_EARNED_VALUE: EarnedValueFigures = { earnedValue: null, percentByValue:
 
 /** The SHARED computeEarnedValue(), run over the aggregates the statement
  *  returned. One summation path -- never a second one in SQL. */
-function resolveEarnedValue(items: EvItemRow[], constructionEnabled: boolean): EarnedValueFigures {
+function resolveEarnedValue(items: EvItemRow[], constructionEnabled: boolean, progress?: ProgressSourceRow[] | null): EarnedValueFigures {
   if (!constructionEnabled || items.length === 0) return NO_EARNED_VALUE
-  const qtyByItem = new Map<string, number>()
-  const latestPercentByItem = new Map<string, number>()
-  for (const item of items) {
-    if (item.qty !== null && item.qty !== undefined) qtyByItem.set(item.id, Number(item.qty))
-    if (item.percent !== null && item.percent !== undefined) latestPercentByItem.set(item.id, Number(item.percent))
+  let qtyByItem = new Map<string, number>()
+  let latestPercentByItem = new Map<string, number>()
+  if (progress) {
+    // R-51: fold progress logged on ANY revision onto the active lines by item code.
+    ;({ qtyByItem, latestPercentByItem } = foldProgressAcrossRevisions(
+      items.map((i) => ({ id: i.id, boqId: i.boqId, itemCode: i.itemCode ?? null })),
+      progress
+    ))
+  } else {
+    for (const item of items) {
+      if (item.qty !== null && item.qty !== undefined) qtyByItem.set(item.id, Number(item.qty))
+      if (item.percent !== null && item.percent !== undefined) latestPercentByItem.set(item.id, Number(item.percent))
+    }
   }
   const ev = computeEarnedValue(items as EvLineItem[], qtyByItem, latestPercentByItem)
   // contractValue 0 means "no scope priced yet", a real not-applicable state --
@@ -582,7 +594,7 @@ function resolveBoqBudget(items: EvItemRow[], constructionEnabled: boolean): num
 }
 
 export function toProjectDashboard(row: DashboardSqlRow, constructionEnabled: boolean): ProjectDashboard {
-  const ev = resolveEarnedValue(row.ev_items ?? [], constructionEnabled)
+  const ev = resolveEarnedValue(row.ev_items ?? [], constructionEnabled, row.ev_progress)
   // R67 D-62: the batch reads its two money sources out of the row and hands
   // them to the ONE shared helper -- the same call /dashboard/project and the
   // Project Status report make, so the three screens cannot disagree.
@@ -845,42 +857,67 @@ export async function getProjectDashboardsWithDb(db: TenantDb, ctx: { orgId: str
         ORDER BY project_id, version DESC, created_at DESC
       ),
       ev_line AS (
-        SELECT ab.project_id, li.id, li.boq_id, li.parent_line_item_id, li.rate, li.amount, li.breakdown_percentage, li.budget_percentage
+        SELECT ab.project_id, li.id, li.boq_id, li.item_code, li.parent_line_item_id, li.rate, li.amount, li.breakdown_percentage, li.budget_percentage
         FROM active_boq ab
         JOIN compliance.construction_boq_line_items li ON li.boq_id = ab.boq_id
         WHERE li.org_id = ${ctx.orgId}
       ),
-      -- Both progress aggregates are JOINED to ev_line, so neither ever scans
-      -- more of the progress table than the active BOQs' own lines.
+      -- R-51: the lines progress may have been logged against -- the active
+      -- BOQ's own lines PLUS the same project's SUPERSEDED revisions' lines.
+      -- A revision creates new line rows and entries keep pointing at the old
+      -- ids, so progress is aggregated per source line here and folded onto the
+      -- active lines by item code in TypeScript (foldProgressAcrossRevisions).
+      ev_src AS (
+        SELECT ab.project_id, li.id, li.boq_id, li.item_code
+        FROM active_boq ab
+        JOIN compliance.construction_boqs b
+          ON b.project_id = ab.project_id AND b.org_id = ${ctx.orgId} AND (b.id = ab.boq_id OR b.status = 'superseded')
+        JOIN compliance.construction_boq_line_items li ON li.boq_id = b.id AND li.org_id = ${ctx.orgId}
+      ),
+      -- Both progress aggregates are JOINED to ev_src, so neither ever scans
+      -- more of the progress table than this project's own BOQ lines.
       ev_qty AS (
         SELECT e.boq_line_item_id AS boq_line_item_id, coalesce(sum(e.quantity_done), 0)::float AS total_qty
         FROM compliance.construction_work_progress_entries e
-        JOIN ev_line l ON l.id = e.boq_line_item_id
+        JOIN ev_src l ON l.id = e.boq_line_item_id
         WHERE e.entry_basis = 'DELTA'
         GROUP BY e.boq_line_item_id
       ),
       ev_pct AS (
-        SELECT DISTINCT ON (e.boq_line_item_id) e.boq_line_item_id AS boq_line_item_id, e.percent_complete
+        SELECT DISTINCT ON (e.boq_line_item_id) e.boq_line_item_id AS boq_line_item_id, e.percent_complete, e.entry_date::text AS entry_date
         FROM compliance.construction_work_progress_entries e
-        JOIN ev_line l ON l.id = e.boq_line_item_id
+        JOIN ev_src l ON l.id = e.boq_line_item_id
         ORDER BY e.boq_line_item_id, e.entry_date DESC
+      ),
+      ev_prog AS (
+        SELECT s.project_id,
+               json_agg(json_build_object(
+                 'lineId', s.id,
+                 'boqId', s.boq_id,
+                 'itemCode', s.item_code,
+                 'qty', coalesce(q.total_qty, 0),
+                 'percent', pc.percent_complete,
+                 'percentDate', pc.entry_date
+               )) AS items
+        FROM ev_src s
+        LEFT JOIN ev_qty q ON q.boq_line_item_id = s.id
+        LEFT JOIN ev_pct pc ON pc.boq_line_item_id = s.id
+        WHERE q.boq_line_item_id IS NOT NULL OR pc.boq_line_item_id IS NOT NULL
+        GROUP BY s.project_id
       ),
       ev AS (
         SELECT l.project_id,
                json_agg(json_build_object(
                  'id', l.id,
                  'boqId', l.boq_id,
+                 'itemCode', l.item_code,
                  'parentLineItemId', l.parent_line_item_id,
                  'rate', l.rate,
                  'amount', l.amount,
                  'breakdownPercentage', l.breakdown_percentage,
-                 'budgetPercentage', l.budget_percentage,
-                 'qty', coalesce(q.total_qty, 0),
-                 'percent', pc.percent_complete
+                 'budgetPercentage', l.budget_percentage
                )) AS items
         FROM ev_line l
-        LEFT JOIN ev_qty q ON q.boq_line_item_id = l.id
-        LEFT JOIN ev_pct pc ON pc.boq_line_item_id = l.id
         GROUP BY l.project_id
       )
       SELECT p.id AS project_id,
@@ -898,6 +935,7 @@ export async function getProjectDashboardsWithDb(db: TenantDb, ctx: { orgId: str
              p.project_value AS project_value,
              po.total AS po_total,
              ev.items AS ev_items,
+             ev_prog.items AS ev_progress,
              cat.items AS category_rows,
              act.items AS activity_rows,
              act_pct.items AS activity_percents,
@@ -912,6 +950,7 @@ export async function getProjectDashboardsWithDb(db: TenantDb, ctx: { orgId: str
       LEFT JOIN permit ON permit.project_id = p.id
       LEFT JOIN progress ON progress.project_id = p.id
       LEFT JOIN ev ON ev.project_id = p.id
+      LEFT JOIN ev_prog ON ev_prog.project_id = p.id
       LEFT JOIN cat ON cat.project_id = p.id
       LEFT JOIN act ON act.project_id = p.id
       LEFT JOIN act_pct ON act_pct.project_id = p.id
@@ -1494,70 +1533,54 @@ export async function getOrgDashboardWithDb(db: TenantDb, ctx: { orgId: string }
       if (activeBoqIds.length > 0 && constructionEnabled) {
         const allLineItems = await db.query.constructionBoqLineItems.findMany({
           where: inArray(constructionBoqLineItems.boqId, activeBoqIds),
-          columns: { id: true, boqId: true, parentLineItemId: true, rate: true, amount: true, breakdownPercentage: true },
+          columns: { id: true, boqId: true, parentLineItemId: true, rate: true, amount: true, breakdownPercentage: true, itemCode: true },
         })
-        const itemIds = allLineItems.map((i) => i.id)
 
-        let qtyByItem = new Map<string, number>()
-        let latestPercentByItem = new Map<string, number>()
-        let qtyByItemPrev = new Map<string, number>()
-        let latestPercentByItemPrev = new Map<string, number>()
-        if (itemIds.length > 0) {
-          // Same ARRAY[...] construction as latestBoqPerProject above (and
-          // earnedValueReport()'s own equivalent query) -- sql.join, not a
-          // bound JS array; see that query's comment for why a plain array
-          // parameter doesn't serialize as Postgres array syntax. Scoped to
-          // every item across every project's active BOQ at once, instead
-          // of one project's.
-          const evItemIdsSql = sql.join(itemIds.map((id) => sql`${id}`), sql`, `)
-          const qtyRows = (await db.execute(sql`
-            SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
-            FROM compliance.construction_work_progress_entries
-            WHERE boq_line_item_id = ANY(ARRAY[${evItemIdsSql}]) AND entry_basis = 'DELTA'
-            GROUP BY boq_line_item_id
-          `)) as { boq_line_item_id: string; total_qty: number }[]
-          qtyByItem = new Map(qtyRows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+        // R-51: progress logged on a project's SUPERSEDED revisions carries onto
+        // its active BOQ by item code. One extra read of the superseded BOQs
+        // and their lines, on the transaction already open.
+        const projectIdsWithBoq = [...boqIdByProject.keys()]
+        const supersededBoqs = await db.query.constructionBoqs.findMany({
+          where: and(inArray(constructionBoqs.projectId, projectIdsWithBoq), eq(constructionBoqs.status, "superseded")),
+          columns: { id: true, projectId: true },
+        })
+        const supersededLines = supersededBoqs.length > 0
+          ? await db.query.constructionBoqLineItems.findMany({
+              where: inArray(constructionBoqLineItems.boqId, supersededBoqs.map((b) => b.id)),
+              columns: { id: true, boqId: true, itemCode: true },
+            })
+          : []
+        const projectOfBoq = new Map<string, string>(supersededBoqs.map((b) => [b.id, b.projectId]))
 
-          const percentRows = (await db.execute(sql`
-            SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
-            FROM compliance.construction_work_progress_entries
-            WHERE boq_line_item_id = ANY(ARRAY[${evItemIdsSql}])
-            ORDER BY boq_line_item_id, entry_date DESC
-          `)) as { boq_line_item_id: string; percent_complete: number }[]
-          latestPercentByItem = new Map(percentRows.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
+        const toRef = (i: { id: string; boqId: string; itemCode: string | null }): RevisionLineRef => ({ id: i.id, boqId: i.boqId, itemCode: i.itemCode ?? null })
+        const progressLines = [...allLineItems.map(toRef), ...supersededLines.map(toRef)]
+        // Same two reads as before (current window, then the "vs last week"
+        // baseline closed at the baseline date) -- now keyed per source line,
+        // folded per project below.
+        const progressRows: ProgressSourceRow[] = await loadProgressSourceRows(db, progressLines)
+        const progressRowsPrev: ProgressSourceRow[] = await loadProgressSourceRows(db, progressLines, baselineDate)
 
-          // R67 E-21 (R-204): the "vs last week" baseline. The SAME two
-          // queries, with the window closed at the baseline date, so the
-          // comparison is earned value computed by one formula at two points
-          // in time -- never a second formula, and never a stored snapshot
-          // this codebase does not keep. Two extra reads on the transaction
-          // already open; no additional pool connection (C06-21).
-          const evQtyRowsPrev = (await db.execute(sql`
-            SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
-            FROM compliance.construction_work_progress_entries
-            WHERE boq_line_item_id = ANY(ARRAY[${evItemIdsSql}]) AND entry_basis = 'DELTA' AND entry_date < ${baselineDate}
-            GROUP BY boq_line_item_id
-          `)) as { boq_line_item_id: string; total_qty: number }[]
-          qtyByItemPrev = new Map(evQtyRowsPrev.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
-
-          const percentRowsPrev = (await db.execute(sql`
-            SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
-            FROM compliance.construction_work_progress_entries
-            WHERE boq_line_item_id = ANY(ARRAY[${evItemIdsSql}]) AND entry_date < ${baselineDate}
-            ORDER BY boq_line_item_id, entry_date DESC
-          `)) as { boq_line_item_id: string; percent_complete: number }[]
-          latestPercentByItemPrev = new Map(percentRowsPrev.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
-        }
-
-        const itemsByBoq = new Map<string, EvLineItem[]>()
+        const itemsByBoq = new Map<string, (EvLineItem & RevisionLineRef)[]>()
         for (const item of allLineItems) {
           const list = itemsByBoq.get(item.boqId) ?? []
-          list.push(item)
+          list.push({ ...item, itemCode: item.itemCode ?? null })
           itemsByBoq.set(item.boqId, list)
+        }
+        const boqsOfProject = (projectId: string): Set<string> => {
+          const ids = new Set<string>()
+          const active = boqIdByProject.get(projectId)
+          if (active) ids.add(active)
+          for (const [boqId, pid] of projectOfBoq) if (pid === projectId) ids.add(boqId)
+          return ids
         }
 
         for (const [projectId, boqId] of boqIdByProject) {
           const items = itemsByBoq.get(boqId) ?? []
+          const scope = boqsOfProject(projectId)
+          const mine = progressRows.filter((r) => scope.has(r.boqId))
+          const minePrev = progressRowsPrev.filter((r) => scope.has(r.boqId))
+          const { qtyByItem, latestPercentByItem } = foldProgressAcrossRevisions(items, mine)
+          const { qtyByItem: qtyByItemPrev, latestPercentByItem: latestPercentByItemPrev } = foldProgressAcrossRevisions(items, minePrev)
           const ev = computeEarnedValue(items, qtyByItem, latestPercentByItem)
           const evPrev = computeEarnedValue(items, qtyByItemPrev, latestPercentByItemPrev)
           evByProject.set(projectId, ev.contractValue > 0
