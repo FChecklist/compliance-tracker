@@ -17,7 +17,7 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 5. Documents: the Env-1 test "+ New Document opens /documents/upload" stayed on `/documents` (click did not navigate within the wait). Cause not established (slow first compile vs real); re-test pending.
 
 
-**Verdict counts:** BLOCKED-by-owner 1, N-A 12, NOT-DRIVEN 39, PARTIAL 36, WORKING 23
+**Verdict counts:** BLOCKED-by-owner 1, N-A 12, NOT-DRIVEN 25, PARTIAL 45, WORKING 28
 
 ## Per-requirement table
 
@@ -59,12 +59,12 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-03 | BOQ with title only and zero lines is allowed | - | - | - | - | NOT-DRIVEN | - |
 | R-04 | Missing title rejected naming the field | - | - | - | - | NOT-DRIVEN | - |
 | R-10 | Sub-task columns exist in production DB | DB columns | import above | parent_line_item_id and breakdown_percentage populated | yes | WORKING | live DB read |
-| R-100 | Profit and loss analysis for the project. Owner directive 20 | - | - | - | - | NOT-DRIVEN | - |
+| R-100 | Profit and loss analysis for the project. Owner directive 20 | /analysis/project-360 P&L card | open for Meridian Heights | Expected/Actual profit, margin and 'Vs quoted margin' all read 'Not yet baselined'; 'Confirm baseline' action offered | - | PARTIAL | figures not seen because this project has no confirmed baseline; confirming a baseline not driven |
 | R-11 | Sub-task enterable in create form (Item Code / Parent Item C | /scope/new (Item code, Parent code, Breakdown % columns) | filled sub-task line, saved | re-read shows parent and % (r11 spec passed) | yes | WORKING | form columns also seen in sweep |
 | R-12 | Sub-task amount = ROOT qty x ROOT rate x breakdown % | /scope/import preview + DB | children with blank qty/rate, 60% and 40% of a root 100 x 50 | 3,000 and 2,000 | yes (DB amounts 3000/2000) | WORKING | via import path; create-form path covered by r11 spec |
 | R-13 | Sub-task own QTY and RATE ignored | - | - | - | - | NOT-DRIVEN | - |
 | R-14 | Weights NOT forced to sum to 100 | - | - | - | - | NOT-DRIVEN | - |
-| R-15 | Running total of child percentages shown per parent | /scope/[id] | opened BOQ with children | running child-% total shown on root | n/a read | WORKING | CEO spec passed; Finance variant not run |
+| R-15 | Running total of child percentages shown per parent | /scope/[id] | open fresh BOQ | parent row shows '(children: 100%)' | yes | WORKING | create-form live total under Breakdown % is covered by the r11 spec |
 | R-16 | Child with parent but no percentage rejected | - | - | - | - | NOT-DRIVEN | - |
 | R-17 | Parent code matching nothing rejected | - | - | - | - | NOT-DRIVEN | - |
 | R-18 | Circular reference rejected without hanging | - | - | - | - | NOT-DRIVEN | - |
@@ -75,8 +75,8 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-23 | Reducing qty on a line WITH progress is BLOCKED | /scope/[id]/revise | reduce qty on a progressed line | refused | yes | WORKING | r23-c13 spec passed |
 | R-24 | Percentage-only change detected as variation | /scope/[id]/compare | child breakdown 30% to 50% only | pct child row 6 to 10 listed as changed | yes | WORKING | also asserted via API (rateChange 4, breakdownPercentageChange 20) |
 | R-30 | Sumeet can SEE line items of a BOQ | /scope/[id] | open BOQ | line items visible | n/a | WORKING | r15-r30-r31 CEO passed |
-| R-31 | Sub-task rows indented and labelled % of parent | /scope/[id] | open BOQ with sub-tasks | indented, labelled % of parent | n/a | WORKING | r15-r30-r31 CEO passed |
-| R-32 | BOQ total EXCLUDES sub-tasks (5000 not 6500) | - | - | - | - | NOT-DRIVEN | - |
+| R-31 | Sub-task rows indented and labelled % of parent | /scope/[id] | open fresh BOQ | sub-task rows labelled '60% of parent' / '40% of parent', code 1.1 / 1.2 under 1 | yes | WORKING | also passed r15-r30-r31 spec |
+| R-32 | BOQ total EXCLUDES sub-tasks (5000 not 6500) | /scope/[id] (fresh BOQ audit-good2) | imported BOQ with root 5,000 + 2,000 and two sub-tasks of 3,000 and 2,000 | 'Total (root lines only): AED 7,000.00' (not 12,000) | yes (reload) | WORKING | sub-task rows say 'sub-task - excluded from the money model' |
 | R-33 | BACKEND roll-up excludes sub-tasks | category roll-up (r33 spec) | BOQ with root and sub-task | roll-up counts root once | yes | WORKING | passed |
 | R-40 | Record partial progress against a weighted sub-task | - | - | - | - | NOT-DRIVEN | - |
 | R-41 | Previous % / Current % / Total % columns | /work-progress Report | CEO created setup and real progress entries | Previous/Current/Total % columns with real figures | yes | WORKING | r41-r42-r43 CEO spec passed; Finance variant not run |
@@ -87,7 +87,7 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-46 | Progress recorded twice keeps history and does not double co | - | - | - | - | NOT-DRIVEN | - |
 | R-47 | Progress above 100% rejected or capped | - | - | - | - | NOT-DRIVEN | - |
 | R-48 | Daily progress report with photos | - | - | - | - | NOT-DRIVEN | - |
-| R-50 | R-50 (EXPANDED per D91, claude_log id 375): the system maint | /dashboard/project dual-view grid | CEO spec | API refuses a contract-side edit (passed); grid UI test timed out twice on a 30 s cost-visibility call | - | PARTIAL | grid UI not observed |
+| R-50 | R-50 (EXPANDED per D91, claude_log id 375): the system maint | /scope/[id] Money model Internal / Customer preview | clicked Customer preview | 'This is exactly what the customer will see - no project-side cost or variance figures' with only Qty, Rate, Amount and Contract value AED 7,000.00; Internal view shows PROJECT (COST) and CONTRACT (CUSTOMER) columns, Variance, Variance % | n/a | WORKING | as CEO only; role-by-role cost visibility (client_viewer) not driven. The editor table below the grid still shows Budget % and Budget AED in preview mode. |
 | R-51 | Dashboard earned value matches progress | /dashboard/project | open | % complete by BOQ value 0%, Earned AED 0.00 of AED 5,000.00 | n/a | PARTIAL | card shown; not matched against entered progress |
 | R-52 | Only the LATEST revision is counted | /dashboard/project | open | label 'parent BOQ lines only, latest BOQ revision' | n/a | PARTIAL | label seen; figure vs older revisions not compared |
 | R-60 | BOQ amounts show AED not rupee | /scope list and detail | open real project | amounts in AED, no rupee | n/a | WORKING | r60 spec passed on 2nd run (1st run timed out cold) |
@@ -97,19 +97,19 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-70 | Load Sumeet real xlsx with sub-tasks and weights | /scope/import | 4-row xlsx (Category, Code, Description, Unit, Qty, Rate, Parent Item Code, Breakdown %) via the page's file input, then Save | preview '4 lines ready, 0 with errors' with sub-task amounts 3,000 and 2,000 under a 5,000 root; saved and redirected to /scope/<id> 'Imported BOQ audit-good2 · Rev0 · 4 lines' | yes: DB shows 4 lines, 2 children with 60/40 %, amounts 5000/3000/2000/2000 | WORKING | Sumeet's own real workbook not available; used a template-shaped file |
 | R-71 | Malformed row rejected readably | /scope/import | xlsx with a non-numeric Qty ('TBD') and a row with no description | '1 line ready, 1 with error. Row 3: Qty is not a number. Row 4: skipped (no description)'; Save reads 'Save (1 row with errors)' | nothing saved | WORKING | also a sheet with no usable columns gives 'Could not find a Description column in this spreadsheet' |
 | R-72 | Column mapping matches his headers | /scope/import | headers Item Code, Description, Category, Unit, Qty, Rate, Parent Item Code, Breakdown % | every column mapped into the preview table | yes | WORKING | gap: a sub-task row with only a dot-numbered code (1.1) and Breakdown % but NO Parent Item Code column is skipped as a 'category header' (observed: 'Imported 2 of 4 rows'); it warns, but a Breakdown % cell clearly marks a sub-task |
-| R-80 | ONE full pill path works end to end | - | - | - | - | NOT-DRIVEN | - |
+| R-80 | ONE full pill path works end to end | /copilot | open | quick-launch for 7 construction tools (Project Dashboard, Budget Status, KPI Status, AI Progress Summary, AI Budget/Schedule Risk, Delayed Activities, Over-Budget Projects) each with Run | - | PARTIAL | no tool run; pill path r80 spec timed out |
 | R-81 | NO visible pill may be unwired - hide the other 402 | - | - | - | - | NOT-DRIVEN | - |
 | R-82 | Assistant either reaches project data or is hidden | - | - | - | - | NOT-DRIVEN | - |
 | R-90 | Real backend message shown in the toast | - | - | - | - | NOT-DRIVEN | - |
 | R-91 | Cold start Failed to fetch on first submit | - | - | - | - | NOT-DRIVEN | - |
 | R-92 | Left rail and right pane must stay in sync both ways: (1) pr | - | - | - | - | NOT-DRIVEN | - |
-| R-93 | BOQ must track 4 variables: CONTRACT VALUE (unit numbers + u | /dashboard/project | open | Contract value AED 5,000.00; Project value 'Not set' | n/a | PARTIAL | two value cards seen; unit numbers x unit price per side not seen |
-| R-94 | A project must show TIMELINES and MILESTONES as two differen | - | - | - | - | NOT-DRIVEN | - |
-| R-95 | Billing milestones must be a real, usable feature -- not jus | - | - | - | - | NOT-DRIVEN | - |
+| R-93 | BOQ must track 4 variables: CONTRACT VALUE (unit numbers + u | /scope/[id] Money model | open fresh BOQ | Contract value (root lines) AED 7,000.00; Project value (cost) NOT_SET; columns PROJECT (COST) QTY/RATE and CONTRACT (CUSTOMER) QTY/RATE | yes | WORKING | entering project-side qty/rate not driven |
+| R-94 | A project must show TIMELINES and MILESTONES as two differen | /schedule | open | tabs Timeline, Milestones, Board, Phases, Time; 15 tasks, critical path, 'Capture Baseline', slippage '8 tasks behind, worst 18 days' | yes | PARTIAL | milestone create not driven; project has 0 milestones |
+| R-95 | Billing milestones must be a real, usable feature -- not jus | /billing-milestones | open list | milestones in Submitted / Rejected(with reason) / Client Approved / Milestone Achieved / Draft with Approve, Reject, Redraft, Invoice actions | yes | PARTIAL | create-submit-approve-invoice chain not driven (committed spec timed out) |
 | R-96 | Scope of work in a project must be a real, usable concept in | - | - | - | - | NOT-DRIVEN | - |
-| R-97 | Change of scope of work in a project must work end-to-end. O | - | - | - | - | NOT-DRIVEN | - |
+| R-97 | Change of scope of work in a project must work end-to-end. O | /change-orders | open list | 26 change orders with cost impact (AED), schedule impact (+5d), status and 'Send for Approval'; 'New Change Order' button | yes | PARTIAL | create / approve flow not driven by me (sumeet-boq-revision spec covers revision only) |
 | R-98 | BOQ must change/track when scope of work changes. Owner dire | - | - | - | - | NOT-DRIVEN | - |
-| R-99 | For a project: one combined analysis view over change of BOQ | - | - | - | - | NOT-DRIVEN | - |
+| R-99 | For a project: one combined analysis view over change of BOQ | /analysis/project-360 | open for Meridian Heights | one page with Profit & Loss, Change of BOQ, Cost vs baseline, Scope changes (26, 25 pending, AED 4,427,944), Milestones, Timeline (15 on critical path), Billing milestones (367, 120 overdue), Download CSV, Print/save as PDF | computed | WORKING | as CEO |
 | R-A1 | Demo admin password rotated before any prospect sees product | - | - | - | - | N-A (security/legal/test row) | - |
 | R-A2 | Live GitHub PAT in a clone remote URL rotated | - | - | - | - | N-A (security/legal/test row) | - |
 | R-A3 | compliance-tracker repo visibility decision | - | - | - | - | N-A (security/legal/test row) | - |
@@ -120,15 +120,15 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-B1 | ONE Playwright smoke test over the proven path | - | - | - | - | N-A (security/legal/test row) | targets production |
 | R-B2 | DEMO GATE - TC-01 TC-10 TC-11 TC-30 TC-40 TC-90 each pass TW | - | - | - | - | N-A (security/legal/test row) | rb2 spec failed 3 times on 45-60 s waits (POST /api/scope); not a product verdict |
 | R-C01 | Permits register - data entry, upload PDF, permit name, issu | /permits/new then /permits/<id> | permit name, number, issue 2026-10-01, end 2027-10-01, a PDF file, Save | first save wait 8 s showed nothing; within 90 s it redirected to /permits/<id> | yes: documents row category=permit with a storage file_url | WORKING | slow (about 2 min incl. cold compile); list re-read at the end of the test did not show it (cached list or too early), not re-checked |
-| R-C02 | Upload drawings and 3D walkthroughs | - | - | - | - | NOT-DRIVEN | - |
-| R-C03 | Document store - any email, permit-related etc | - | - | - | - | NOT-DRIVEN | - |
+| R-C02 | Upload drawings and 3D walkthroughs | /drawings | open | 2 drawings listed with Drawing No., Rev, Kind, Status 'For approval'; 'Floor plans (3D builder)' link; + New offers 3D Walkthrough | yes | PARTIAL | upload / walkthrough link not driven |
+| R-C03 | Document store - any email, permit-related etc | /documents | open | 7 documents with Category, Type, Size, Expiry, Added and 'Relates to' (Project / permit / RFI / meeting) | yes | PARTIAL | upload not driven; committed test said + New Document did not navigate to /documents/upload (unexplained) |
 | R-C04 | Live-create Minutes of Meeting, save as PDF, share to WhatsA | /moms/new then /moms/<id> | Title and Minutes, Save (first try showed 'The server did not answer in 10 s - nothing was saved. Try again', second try saved) | redirected to the meeting page 'Saved meeting ...' with Export PDF and Share draft controls | yes: veri_meetings row with the minutes text | PARTIAL | Export PDF / WhatsApp share buttons present but not clicked |
-| R-C07 | Manpower DB (ID, Name, Trade, Salary), daily attendance, tra | - | - | - | - | NOT-DRIVEN | - |
-| R-C08 | Material database, material inbound, spec, cost, qty | - | - | - | - | NOT-DRIVEN | - |
-| R-C09 | Budget % defaults to 25%, changeable per scope item; vendor  | - | - | - | - | NOT-DRIVEN | - |
-| R-C10 | Project schedule | - | - | - | - | NOT-DRIVEN | - |
-| R-C11 | Revenue / Budget / Actual, scope-wise and category-wise. ALL | - | - | - | - | NOT-DRIVEN | - |
-| R-C12 | Daily timesheets - designer enters daily work, manager valid | /design-studio/timesheets/new | opened form | 'Couldn't load your project list: The construction data service did not respond in time. Retry'; Save disabled 'project list unavailable' | - | PARTIAL | honest error state; entry not driven |
+| R-C07 | Manpower DB (ID, Name, Trade, Salary), daily attendance, tra | /labour | open | roster of 7 workers with Trade, Daily Rate (AED), status; tabs Attendance, Daily Summary; Export, New | yes | PARTIAL | add worker / mark attendance not driven (committed 08-labour spec timed out) |
+| R-C08 | Material database, material inbound, spec, cost, qty | /materials/new | name, spec, unit cost, Save | Save stays disabled until a Unit is chosen ('Save (Unit)'); list was still loading when captured | no row created | PARTIAL | honest required-field label; complete create not driven to the end |
+| R-C09 | Budget % defaults to 25%, changeable per scope item; vendor  | /scope/[id] Budget % column | changed Budget % of 'AUDIT2 Wall tiling' from 25 to 30 and left the field | first try: toast 'The construction data service did not respond in time' (cold compile) while the box still showed 30; retry: PATCH 200, reload shows 30; default shown 25 on every line, Budget AED 1,250 = 25% of 5,000 | yes (after reload) | WORKING | defect: on a failed save the box keeps showing the unsaved 30. Vendor name/amount, Material, Manpower inputs present but not driven; budget summary report not driven |
+| R-C10 | Project schedule | /schedule | open | task table with start/due/duration/planned %/% complete/slip/critical path; Import and New | yes | PARTIAL | task create not driven here |
+| R-C11 | Revenue / Budget / Actual, scope-wise and category-wise. ALL | /reports | open | Reports with 'Project Reports' and 'Full Catalog', Filter, Export PDF/XLSX/CSV, Share; 'Run the report first' | - | PARTIAL | report run + chart/interactive view not driven |
+| R-C12 | Daily timesheets - designer enters daily work, manager valid | /design-studio | open | My timesheet / Review / Cost analysis tabs, Day View, 'No tasks on this project - Add entry' | - | PARTIAL | entry not driven: form showed 'project list unavailable' after a timeout |
 | R-C13 | Negative variation must be checked against WPR in case work  | /scope/[id]/revise | same as R-23 | refused | yes | WORKING | r23-c13 spec passed |
 | R-C14 | Upload site instruction form | - | - | - | - | PARTIAL (no own screen) | only inside /scope/[id] |
 | R-C15 | Save reports as PDF and share to WhatsApp | - | - | - | - | NOT-DRIVEN | - |
