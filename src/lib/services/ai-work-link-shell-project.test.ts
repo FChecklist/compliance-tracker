@@ -212,7 +212,7 @@ describe("parity with the service behind POST /api/v1/projexa/projects", () => {
     const at = service.indexOf("export async function createProject")
     const body = service.slice(at, service.indexOf("\n}\n", at))
     expect(body).toContain("eq(products.orgId, ctx.orgId)")
-    expect(body).toMatch(/orgId: ctx\.orgId, productId: input\.productId, name: input\.name\.trim\(\)/)
+    expect(body).toMatch(/orgId: ctx\.orgId, productId: product\.id, name: input\.name\.trim\(\)/)
     expect(body).toContain("leadUserId: ctx.isRealUser ? ctx.userId : null")
     const sql = read("drizzle/0631_build001_awl_mint_for.sql")
     expect(sql).toContain("pr.org_id = v_u.org_id")

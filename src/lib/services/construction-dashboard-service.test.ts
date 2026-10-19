@@ -1585,3 +1585,15 @@ describe("construction-dashboard-service: getProjectDashboard payload (E-39)", (
     expect(stamped).toBeGreaterThanOrEqual(before - 1000)
   })
 })
+
+// PROJEXA has no product concept for users: a create with no productId files
+// the project under the org's own "PROJEXA" product (made on first use).
+describe("createProject default product", () => {
+  test("productId is optional and falls back to the org's PROJEXA product, created if missing", () => {
+    const body = rawFunctionBody("createProject")
+    expect(body).not.toContain("productId is required")
+    expect(body).toContain('eq(products.slug, "projexa")')
+    expect(body).toContain('name: "PROJEXA"')
+    expect(body).toContain("productId: product.id")
+  })
+})
