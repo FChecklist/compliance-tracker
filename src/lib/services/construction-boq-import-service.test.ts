@@ -286,6 +286,36 @@ describe("mapRowsToLineItems / parseBoqSpreadsheet -- Sumeet real-file shape (Sl
     expect(task1.parentItemCode).toBeUndefined() // NOT "1" -- the header was never a candidate
   })
 
+  // R-72 (SUMEET_111_UI_AUDIT defect 5): a row with only a dot-numbered code
+  // (1.1) and a Breakdown % and NO Parent Item Code column is a sub-task of
+  // "1", not a category header.
+  test("a dot-numbered row with a Breakdown % and blank Qty/Rate becomes a sub-task of its prefix parent (no Parent Item Code column)", () => {
+    const rows = [
+      { code: "1", desc: "Ceiling", qty: 50, rate: 100 },
+      { code: "1.1", desc: "Frame", qty: "", rate: "", pct: 60 },
+      { code: "1.2", desc: "Board", qty: "", rate: "", pct: 40 },
+      { code: "2.00", desc: "JOINERY", qty: "", rate: "", pct: "" }, // genuine header, still skipped
+    ]
+    const mapping = { itemCode: "code", description: "desc", quantity: "qty", rate: "rate", breakdownPercentage: "pct" } as const
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+    expect(lineItems.map((i) => i.itemCode)).toEqual(["1", "1.1", "1.2"])
+    expect(lineItems.find((i) => i.itemCode === "1.1")!.parentItemCode).toBe("1")
+    expect(lineItems.find((i) => i.itemCode === "1.2")!.breakdownPercentage).toBe(40)
+    expect(warnings.filter((w) => w.includes("category header"))).toHaveLength(1)
+    expect(warnings.some((w) => w.includes("JOINERY"))).toBe(true)
+  })
+
+  test("a Breakdown % row whose dot-prefix parent does not exist is still reported as a header", () => {
+    const rows = [
+      { code: "3.1", desc: "Orphan", qty: "", rate: "", pct: 60 },
+      { code: "1", desc: "Real", qty: 1, rate: 10 },
+    ]
+    const mapping = { itemCode: "code", description: "desc", quantity: "qty", rate: "rate", breakdownPercentage: "pct" } as const
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+    expect(lineItems).toHaveLength(1)
+    expect(warnings.some((w) => w.includes("category header"))).toBe(true)
+  })
+
   // Point 5: a blank-Sl-No task row ("Reception Counter") must keep its own
   // unlabeled sub-tasks -- they must not be misattributed to whichever
   // numbered item preceded it (here "5.01"), across an intervening skipped
