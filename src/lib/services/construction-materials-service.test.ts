@@ -176,9 +176,18 @@ const fakeDb = {
   //   { materialId, total }             -> listMaterials' quantity aggregates
   //   { total } with no groupBy         -> the single-material on-hand sums
   // Every path still runs the service's real predicates through the evaluator.
-  select: (shape: Record<string, unknown>) => ({
+  // createMaterial() takes a transaction-scoped advisory lock and runs a
+  // shape-less select() to look for a recent identical row (retry de-dup, Sumeet
+  // audit R-C08). This fake reports "none found"; the de-dup behaviour itself is
+  // exercised in construction-materials-service.create-dedupe.test.ts.
+  execute: async () => undefined,
+  select: (shape?: Record<string, unknown>) => ({
     from: (table: Table) => ({
       where: (where: SQL) => {
+        if (shape === undefined) {
+          const none = { orderBy: () => none, limit: async () => [] as Row[] }
+          return none
+        }
         const matching = () => rowsFor(table).filter((r) => evaluateCondition(where, r))
         return {
           then: (resolve: (rows: Row[]) => unknown) => {
