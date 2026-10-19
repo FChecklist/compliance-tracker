@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { mintSessionCookie } from "./support/mint-session";
 
 // R-32 ("BOQ total EXCLUDES sub-tasks, 5000 not 6500") -- one of the six
 // requirements previously citing e2e/demo-gate-smoke.spec.ts, per PM
@@ -17,36 +18,12 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 // NOT Env-2-dependent in substance -- proven against Env-1 already (see
 // demo-gate-smoke.spec.ts header, 3 runs 2026-09-09). Same Env-1 override
 // convention as every other spec in this batch.
-const SUPABASE_URL = "https://evpckeuxgvahguwsaeul.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2cGNrZXV4Z3ZhaGd1d3NhZXVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjM4MzIsImV4cCI6MjA5OTA5OTgzMn0.3vDtJ-XlsVse2jJ8XNozM-Szyt-Wb6FxX9ZoC2_q8pk";
 // 2026-09-30: MINT_SECRET was rotated server-side (see demo-gate-smoke-env1
 // .spec.ts's own comment on this same line for the full story) -- read the
 // real value from CI's env var, falling back to the pre-rotation literal
 // only for a local run with no env var configured.
-const MINT_SECRET = process.env.MINT_SECRET || "r33-mint-2026";
-const DEMO_EMAIL = "democeo@projexa-ai.com";
 const PROJEXA_ORIGIN = process.env.E2E_PROJEXA_ORIGIN || "https://projexa-ai.com";
 const PROJEXA_COOKIE_DOMAIN = new URL(PROJEXA_ORIGIN).hostname;
-
-async function mintSessionCookie(request: APIRequestContext) {
-  const mintRes = await request.get(`${SUPABASE_URL}/functions/v1/mint-session-r33`, {
-    headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-    params: { email: DEMO_EMAIL, secret: MINT_SECRET },
-  });
-  expect(mintRes.ok(), "mint-session-r33 Edge Function must be reachable and active").toBeTruthy();
-  const { token_hash } = await mintRes.json();
-  expect(token_hash, "a real token_hash must come back").toBeTruthy();
-
-  const verifyRes = await request.post(`${SUPABASE_URL}/auth/v1/verify`, {
-    headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
-    data: { type: "magiclink", token_hash },
-  });
-  expect(verifyRes.ok(), "GoTrue token_hash exchange must succeed").toBeTruthy();
-  const session = await verifyRes.json();
-  expect(session.access_token, "a real access_token must come back").toBeTruthy();
-  return `base64-${Buffer.from(JSON.stringify(session)).toString("base64")}`;
-}
 
 test("R-32: BOQ total excludes sub-tasks (root-only sum, not parent+children)", async ({ browser, request }) => {
   const isLocalTarget = /^https?:\/\/(localhost|127\.0\.0\.1)(:|$|\/)/.test(PROJEXA_ORIGIN);
