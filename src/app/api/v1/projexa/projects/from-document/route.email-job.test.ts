@@ -216,12 +216,13 @@ describe("AW-604: the person approves the emailed proposal by its job id; only t
     expect(await tableCounts()).toEqual({ projects: 0, boqs: 0, lines: 0 })
   })
 
-  test("neither a file nor a job id is still 400 no_file; a job id still needs a product", async () => {
+  test("neither a file nor a job id is still 400 no_file; a job id needs no product", async () => {
     const none = await POST(postJob({ productId: PRODUCT }))
     expect(none.status).toBe(400)
     expect(await none.json()).toMatchObject({ code: "no_file" })
+    // No product is not an error any more: PROJEXA has no product choice, so a job id alone reaches the job lookup (404 for an unknown one).
     const noProduct = await POST(postJob({ jobId: "x" }))
-    expect(noProduct.status).toBe(400)
-    expect(await noProduct.json()).toMatchObject({ code: "product_required" })
+    expect(noProduct.status).toBe(404)
+    expect(await noProduct.json()).toMatchObject({ code: "job_not_found" })
   })
 })

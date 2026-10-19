@@ -106,6 +106,23 @@ export type ProjectInput = {
   status?: "planning" | "active"
 }
 
+/**
+ * The product a new project belongs to. PROJEXA users never choose one: absent productId, it is the org's own "PROJEXA" product
+ * (created on first use). A supplied productId must belong to the org (404 otherwise). Shared by createProject and every
+ * path that ends in it (from-document), so the default lives in one place.
+ */
+export async function resolveProjectProduct(db: TenantDb, orgId: string, productId?: string | null) {
+  if (productId?.trim()) {
+    const product = await db.query.products.findFirst({ where: and(eq(products.id, productId), eq(products.orgId, orgId)) })
+    if (!product) throw new ServiceError("Product not found for this organisation", 404)
+    return product
+  }
+  const existing = await db.query.products.findFirst({ where: and(eq(products.orgId, orgId), eq(products.slug, "projexa")) })
+  if (existing) return existing
+  const [created] = await db.insert(products).values({ orgId, name: "PROJEXA", slug: "projexa" }).returning()
+  return created
+}
+
 // Closes the one real gap found in a 2026-07-18 production-readiness pass:
 // every other PROJEXA entity (RFIs, submittals, punch list, ...) has a real
 // create path, but Projects itself -- the entity everything else nests
@@ -128,15 +145,7 @@ export async function createProject(ctx: { orgId: string; userId: string; isReal
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    let product
-    if (input.productId?.trim()) {
-      product = await db.query.products.findFirst({ where: and(eq(products.id, input.productId), eq(products.orgId, ctx.orgId)) })
-      if (!product) throw new ServiceError("Product not found for this organisation", 404)
-    } else {
-      // PROJEXA users never choose a product: every project belongs to the org's "PROJEXA" product.
-      product = await db.query.products.findFirst({ where: and(eq(products.orgId, ctx.orgId), eq(products.slug, "projexa")) })
-      if (!product) [product] = await db.insert(products).values({ orgId: ctx.orgId, name: "PROJEXA", slug: "projexa" }).returning()
-    }
+    const product = await resolveProjectProduct(db, ctx.orgId, input.productId)
 
     const [row] = await db.insert(projects).values({
       orgId: ctx.orgId, productId: product.id, name: input.name.trim(),

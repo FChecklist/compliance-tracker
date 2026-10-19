@@ -330,13 +330,10 @@ describe("what the route refuses before or instead of creating anything", () => 
     expect((await POST(formRequest({}))).status).toBe(201)
   })
 
-  test("no file, no productId, a text file, a legacy .xls header and a file over 5 MB are each refused with a code", async () => {
+  test("no file, a text file, a legacy .xls header and a file over 5 MB are each refused with a code", async () => {
     const noFile = await POST(formRequest({ file: null }))
     expect(noFile.status).toBe(400)
     expect((await noFile.json()).code).toBe("no_file")
-    const noProduct = await POST(formRequest({ productId: "  " }))
-    expect(noProduct.status).toBe(400)
-    expect((await noProduct.json()).code).toBe("product_required")
     const text = await POST(formRequest({ file: { bytes: new TextEncoder().encode("Item,Description\n1.01,Excavation"), name: "boq.csv", type: "text/csv" } }))
     expect(text.status).toBe(400)
     expect((await text.json()).code).toBe("unsupported_file_type")
@@ -448,6 +445,21 @@ describe("the organisation's hourly limit", () => {
     const other = buildWorkbook([{ name: "Civil", rows: [["Item", "Description", "Unit", "Qty", "Rate"], ["1.01", "Another file", "m3", 5, 5]] }])
     expect((await POST(formRequest({ file: { bytes: other, name: "other.xlsx" } }))).status).toBe(429)
     expect((await tableCounts()).projects).toBe(1)
+  })
+
+  test("no product at all: the project is filed under the organisation's own PROJEXA product, created on first use", async () => {
+    await h.pg.query("delete from compliance.products where org_id = $1", [ORG])
+    const res = await POST(formRequest({ productId: "" }))
+    expect(res.status).toBe(201)
+    const rows = (await h.pg.query("select slug from compliance.products where org_id = $1", [ORG])).rows as { slug: string }[]
+    expect(rows.map((r) => r.slug)).toEqual(["projexa"])
+    const body = await res.json()
+    const proj = (await h.pg.query("select p.product_id, pr.slug from compliance.projects p join compliance.products pr on pr.id = p.product_id where p.id = $1", [body.projectId])).rows as { slug: string }[]
+    expect(proj[0].slug).toBe("projexa")
+    // Put the shared fixture back for the tests after this one.
+    await h.pg.exec("truncate compliance.projects, compliance.construction_boqs, compliance.construction_boq_line_items, compliance.source_object")
+    await h.pg.query("delete from compliance.products where org_id = $1", [ORG])
+    await insertProduct(h, { id: PRODUCT, org_id: ORG })
   })
 
   test("another organisation is not held back by this one's attempts", async () => {
