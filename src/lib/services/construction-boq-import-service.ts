@@ -143,6 +143,20 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
   // that did have an itemCode (see the positional-fallback comment below).
   const rawItems: { itemCode?: string; explicitParentCode?: string; description: string; unit: string; quantity: number; rate: number; breakdownPercentage?: number; isUnlabeledSubTask: boolean; category?: string; sheetRow: number }[] = []
 
+  // R-72: codes of real priced task rows (description + a Qty or Rate cell). A dot-numbered row that carries only
+  // a Breakdown % is a sub-task when its dot-prefix is one of these (1.1 under 1), even with no Parent Item Code
+  // column. Category headers (blank Qty/Rate) are never candidates, so a header can never be a false parent.
+  const pricedTaskCodes = new Set<string>()
+  if (mapping.itemCode) {
+    for (const r of rows) {
+      const c = String(r[mapping.itemCode] ?? "").trim()
+      const d = (mapping.description ? String(r[mapping.description] ?? "").trim() : "")
+      const q = mapping.quantity ? String(r[mapping.quantity] ?? "").trim() : ""
+      const rt = mapping.rate ? String(r[mapping.rate] ?? "").trim() : ""
+      if (c && d && (q !== "" || rt !== "")) pricedTaskCodes.add(c)
+    }
+  }
+
   rows.forEach((row, idx) => {
     const sheetRow = idx + 2
     const descriptionRaw = mapping.description ? String(row[mapping.description] ?? "").trim() : ""
@@ -170,7 +184,11 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     // derived-rate rule leaves them blank), so it must NOT be mistaken for a category header. Declared here, before
     // the header test, because the sub-task exemption further down comes too late to save it.
     const parentCodeRaw = mapping.parentItemCode ? String(row[mapping.parentItemCode] ?? "").trim() : ""
-    if (descriptionRaw && !subTaskRaw && !parentCodeRaw && quantityRaw === "" && rateRaw === "") {
+    const ownCodeRaw = mapping.itemCode ? String(row[mapping.itemCode] ?? "").trim() : ""
+    const ownDot = ownCodeRaw.lastIndexOf(".")
+    const breakdownCellRaw = mapping.breakdownPercentage ? String(row[mapping.breakdownPercentage] ?? "").trim() : ""
+    const isDotCodedSubTask = !parentCodeRaw && breakdownCellRaw !== "" && ownDot > 0 && pricedTaskCodes.has(ownCodeRaw.slice(0, ownDot))
+    if (descriptionRaw && !subTaskRaw && !parentCodeRaw && !isDotCodedSubTask && quantityRaw === "" && rateRaw === "") {
       warnings.push(`Row ${idx + 2}: skipped (category header: "${descriptionRaw}")`)
       issues.push({ row: sheetRow, message: `Row ${sheetRow}: skipped (category header: "${descriptionRaw}")`, blocking: false })
       return
@@ -211,7 +229,7 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     // explicit Parent code -- the same two signals the hierarchy resolution
     // below uses. The category-header branch above already catches a row where
     // BOTH cells are blank and neither signal is present.
-    const isSubTaskRow = !!subTaskRaw || !!parentCodeRaw
+    const isSubTaskRow = !!subTaskRaw || !!parentCodeRaw || isDotCodedSubTask
     if (!isSubTaskRow) {
       if (rateRaw === "") {
         warnings.push(`Row ${idx + 2}: Rate is blank`)
