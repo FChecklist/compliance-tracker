@@ -1,4 +1,6 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { mintSessionCookie } from "./support/mint-session";
+const DEMO_EMAIL = "democeo@projexa-ai.com";
 
 // R38/R-B1 (Master v5 WO-11): ONE Playwright script over the demo gate's own
 // TCs (TC-01, TC-10, TC-11, TC-30, TC-40) -- a real regression guard over a
@@ -43,9 +45,6 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 // browser context. No password is ever typed or stored. The anon/publishable
 // key below is Supabase's public, client-embeddable key (same one already
 // baked into projexa's own shipped JS bundle) -- not a secret.
-const SUPABASE_URL = "https://evpckeuxgvahguwsaeul.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2cGNrZXV4Z3ZhaGd1d3NhZXVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjM4MzIsImV4cCI6MjA5OTA5OTgzMn0.3vDtJ-XlsVse2jJ8XNozM-Szyt-Wb6FxX9ZoC2_q8pk";
 // 2026-09-30: mint-session-r33's own MINT_SECRET was rotated server-side in
 // the Supabase dashboard (closing the residual-risk gap its own header
 // comment flagged -- "the published literal below stops working immediately,
@@ -54,8 +53,6 @@ const SUPABASE_ANON_KEY =
 // gateway/JWT rejection). Reads the real value from CI's own MINT_SECRET env
 // var when set; the literal stays only as the pre-rotation fallback for a
 // local run where that env var isn't configured.
-const MINT_SECRET = process.env.MINT_SECRET || "r33-mint-2026";
-const DEMO_EMAIL = "democeo@projexa-ai.com";
 // R75 Part 4: E2E_PROJEXA_ORIGIN overrides both the base URL AND the
 // cookie's domain together -- a cookie scoped to "projexa-ai.com" is never
 // sent on a request to "localhost", so the two must change as a pair, not
@@ -195,29 +192,6 @@ test.afterEach(async () => {
     currentContext = null;
   }
 });
-
-async function mintSessionCookie(request: APIRequestContext) {
-  const mintRes = await request.get(
-    `${SUPABASE_URL}/functions/v1/mint-session-r33`,
-    {
-      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-      params: { email: DEMO_EMAIL, secret: MINT_SECRET },
-    }
-  );
-  expect(mintRes.ok(), "mint-session-r33 Edge Function must be reachable and active").toBeTruthy();
-  const { token_hash } = await mintRes.json();
-  expect(token_hash, "a real token_hash must come back").toBeTruthy();
-
-  const verifyRes = await request.post(`${SUPABASE_URL}/auth/v1/verify`, {
-    headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
-    data: { type: "magiclink", token_hash },
-  });
-  expect(verifyRes.ok(), "GoTrue token_hash exchange must succeed").toBeTruthy();
-  const session = await verifyRes.json();
-  expect(session.access_token, "a real access_token must come back").toBeTruthy();
-
-  return `base64-${Buffer.from(JSON.stringify(session)).toString("base64")}`;
-}
 
 test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real production", async ({
   browser,
