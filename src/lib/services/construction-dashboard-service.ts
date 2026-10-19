@@ -96,7 +96,8 @@ export async function listProjectsForSelection(ctx: { orgId: string }): Promise<
 // BUILD-002 WP-03: `status` lets the "New project with my AI" flow create the placeholder shell as
 // 'planning' (src/lib/project-shell.ts); absent, the column default ('active') applies exactly as before.
 export type ProjectInput = {
-  productId: string
+  /** Optional: PROJEXA has one product. Absent, the org's own "PROJEXA" product is used (created on first use). */
+  productId?: string
   name: string
   description?: string
   clientId?: string
@@ -124,15 +125,21 @@ export type ProjectInput = {
 // not by typecheck/lint). isRealUser lets the caller say whether ctx.userId
 // actually resolves to a `users` row.
 export async function createProject(ctx: { orgId: string; userId: string; isRealUser?: boolean }, input: ProjectInput) {
-  if (!input.productId?.trim()) throw new ServiceError("productId is required", 400)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    const product = await db.query.products.findFirst({ where: and(eq(products.id, input.productId), eq(products.orgId, ctx.orgId)) })
-    if (!product) throw new ServiceError("Product not found for this organisation", 404)
+    let product
+    if (input.productId?.trim()) {
+      product = await db.query.products.findFirst({ where: and(eq(products.id, input.productId), eq(products.orgId, ctx.orgId)) })
+      if (!product) throw new ServiceError("Product not found for this organisation", 404)
+    } else {
+      // PROJEXA users never choose a product: every project belongs to the org's "PROJEXA" product.
+      product = await db.query.products.findFirst({ where: and(eq(products.orgId, ctx.orgId), eq(products.slug, "projexa")) })
+      if (!product) [product] = await db.insert(products).values({ orgId: ctx.orgId, name: "PROJEXA", slug: "projexa" }).returning()
+    }
 
     const [row] = await db.insert(projects).values({
-      orgId: ctx.orgId, productId: input.productId, name: input.name.trim(),
+      orgId: ctx.orgId, productId: product.id, name: input.name.trim(),
       description: input.description?.trim() || null,
       clientId: input.clientId || null,
       startDate: input.startDate || null,
