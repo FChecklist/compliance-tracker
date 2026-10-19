@@ -66,3 +66,23 @@ tenant isolation tested). No hardening before launch.
 1. G-1 (dashboard 0%) — in progress. 2. G-2 duplicates/false message. 3. G-3 and G-4 (waiting on you).
 4. G-6 site-instruction screen, G-7 import, G-10 demo data so exceptions show. 5. G-5 performance on a
 big project. 6. Re-run PARTIAL rows with a second test user and the other roles, then freeze scope.
+
+---
+
+## 8. Status after the fix day (20 October 2026)
+
+Shipped and live (backend `bc22bfb0`, frontend `de64136e`): name-only New Project and file import (no Product);
+www to bare-domain redirect; R-51 dashboard carries progress across a revision (seen live); materials
+de-duplication and honest "may have been saved" wording; import treats dot-numbered Breakdown % rows as
+sub-tasks (seen live); site-instruction list/create/view screens; Disclaimer removed (404 live); client_viewer
+budget-overlay fields stripped from the API (seen live); demo project where all 28 exception checks flag
+(seen live); test-login helper fixed (CI path untested).
+
+Live count of the 111 (final re-check, partly hand-adjusted): WORKING 65, PARTIAL 29, N-A 12, BLOCKED (cold-start
+timeouts) 3, BLOCKED by owner 1 (R-C17), NOT DRIVEN 1 (R-C16).
+
+Still open: (1) site-instruction save takes over 10 s on a cold server so the form shows "may have been saved"
+instead of landing on the item; (2) the BOQ page still shows the PROJECT (COST)/VARIANCE/Cost coverage headers
+to client_viewer (confirm on a project with cost data); (3) BOQ and project create have no duplicate guard;
+(4) slow responses over 10 s and a 1-4 minute first-load wait on a fresh browser; (5) rows not yet driven:
+R-80, R-81, R-91, R-100, R-C03, R-C04, R-C12, R-62, R-94/R-95 invoice step; (6) R-C17 email engine (owner-only).
