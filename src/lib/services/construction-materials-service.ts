@@ -117,10 +117,40 @@ export async function createMaterial(ctx: { orgId: string }, input: MaterialInpu
   if (!input.projectId) throw new ServiceError("projectId is required", 400)
   if (!input.unit?.trim()) throw new ServiceError("unit is required", 400)
 
+  const spec = input.spec || null
+  const unit = input.unit.trim()
+
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    // 2026-10-19 (Sumeet UI audit R-C08, defect 9): PROJEXA's create screen
+    // gives up after 8-10 s on a cold start and offers "Try again", but this
+    // write usually completes anyway, so every retry inserted another identical
+    // row (three from one create). There is no idempotency-key table in this
+    // schema and adding an RLS table by hand is the riskier route, so the
+    // narrow, migration-free guard is content-based: the same org + project +
+    // name + spec + unit created within the last 2 minutes IS the same create,
+    // and the ORIGINAL row is returned instead of inserting again. A user who
+    // really wants a second identical material can do so after 2 minutes.
+    // The advisory lock serialises a retry that arrives while the first
+    // attempt's transaction is still open (the cold-start case), which a plain
+    // read-then-insert would race straight past.
+    const dedupeKey = [ctx.orgId, input.projectId, name, spec ?? "", unit].join("|")
+    await db.execute(sql`select pg_advisory_xact_lock(hashtext(${dedupeKey}))`)
+    const [existing] = await db.select().from(constructionMaterials)
+      .where(and(
+        eq(constructionMaterials.orgId, ctx.orgId),
+        eq(constructionMaterials.projectId, input.projectId),
+        eq(constructionMaterials.name, name),
+        spec === null ? isNull(constructionMaterials.spec) : eq(constructionMaterials.spec, spec),
+        eq(constructionMaterials.unit, unit),
+        sql`${constructionMaterials.createdAt} >= now() - interval '2 minutes'`
+      ))
+      .orderBy(sql`${constructionMaterials.createdAt} asc`)
+      .limit(1)
+    if (existing) return existing
+
     const [row] = await db.insert(constructionMaterials).values({
       orgId: ctx.orgId, projectId: input.projectId, name,
-      spec: input.spec || null, unit: input.unit.trim(),
+      spec, unit,
       unitCost: String(input.unitCost ?? 0),
       // R67 D-40: null and 0 are different facts here -- see the column's own
       // comment in schema.ts -- so an omitted threshold stores null.
