@@ -9,15 +9,20 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 - Node's `fetch` from the dev server to the Vercel backend timed out at 8 s repeatedly ("The construction data service did not respond in time") while curl/python got 0.3-2 s answers from the same backend. Starting the dev server with `--dns-result-order=ipv4first --no-network-family-autoselection` made `/dashboard` load (23 projects) but `/work-progress` still hit 503 timeouts in the same run. Not conclusive about production; the UI does show an honest error and a Retry button rather than hanging.
 - The E2E org is polluted by earlier test runs: the Scope screen reports 12,516 other BOQs for the default project, 23 projects total.
 
+## LIVE verification on production (https://projexa-ai.com), as the E2E Meridian test CEO (requested after compliance-tracker #2165 and projexa #457 deployed)
+- `/projects/new`: fields are Project Name, Description, Start Date, Target Date. **No Product field.** Typed 'LIVE-CHECK 1792418784489' in Project Name only, Save: redirected to `/dashboard/project?projectId=hgxjwf53vd5z7ui0z3hj2skz`.
+- After a fresh sign-in the new project is listed on `/projects` (25 records) and on `/dashboard`. Nothing was deleted.
+- `/projects/from-file`: reads 'Project file ... Project name (optional) ... Read the file'. **No Product picker** (was 'Product / Choose a product' on #456 head).
+
 ## Defects / gaps seen so far (with repro)
 1. **Billing milestones shows a false "This project has no approved BOQ" when the BOQ-analysis call times out.** Repro: open `/billing-milestones?projectId=dd486dad-9119-4d9a-a9d9-cf0ee0cc9e04` while `GET /api/reports/boq-analysis` returns 503 (seen at the 8 s upstream timeout); the same project's `/scope` page shows an approved BOQ. A failed call is presented as a business fact; it should say it could not load.
-2. **`/projects/from-file` still has a "Product / Choose a product" picker** (and the backend `projects/from-document` route still requires `productId`), although #456 / ct#2164 removed Product from New Project. The fix spans two repos (default the org's PROJEXA product server-side like ct#2164, then drop the picker); not done here.
+2. **`/projects/from-file` had a "Product / Choose a product" picker** on the #456 head (and `projects/from-document` required `productId`). Fixed by the other agent in ct#2165 / projexa#457; the live check above shows it gone on production.
 3. **Existing Env-1 spec `r21-r24` races the compare page**: it asserts "Total variation" at `networkidle` while the page still says "Loading…". The page itself is correct (observed `Total variation: AED +600.00` and the changed rows), so this is a test flake, not a product defect.
 4. **R-47**: the server cap for percent-only entries was fixed by compliance-tracker PR #2154 (merged); my earlier note that the branch was open was wrong. Not re-driven in the UI.
 5. Documents: the Env-1 test "+ New Document opens /documents/upload" stayed on `/documents` (click did not navigate within the wait). Cause not established (slow first compile vs real); re-test pending.
 
 
-**Verdict counts:** BLOCKED-by-owner 1, N-A 12, NOT-DRIVEN 25, PARTIAL 45, WORKING 28
+**Verdict counts:** BLOCKED-by-owner 1, N-A 12, NOT-DRIVEN 21, PARTIAL 46, WORKING 31
 
 ## Per-requirement table
 
@@ -78,14 +83,14 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-31 | Sub-task rows indented and labelled % of parent | /scope/[id] | open fresh BOQ | sub-task rows labelled '60% of parent' / '40% of parent', code 1.1 / 1.2 under 1 | yes | WORKING | also passed r15-r30-r31 spec |
 | R-32 | BOQ total EXCLUDES sub-tasks (5000 not 6500) | /scope/[id] (fresh BOQ audit-good2) | imported BOQ with root 5,000 + 2,000 and two sub-tasks of 3,000 and 2,000 | 'Total (root lines only): AED 7,000.00' (not 12,000) | yes (reload) | WORKING | sub-task rows say 'sub-task - excluded from the money model' |
 | R-33 | BACKEND roll-up excludes sub-tasks | category roll-up (r33 spec) | BOQ with root and sub-task | roll-up counts root once | yes | WORKING | passed |
-| R-40 | Record partial progress against a weighted sub-task | - | - | - | - | NOT-DRIVEN | - |
+| R-40 | Record partial progress against a weighted sub-task | /work-progress Daily Entry (fresh project) | added activity 'AUDIT Tiling', picked BOQ line '1.1 AUDIT2 tile supply' (a 60% sub-task), quantity 40, % 40, basis Delta, Log Entry | entry listed: 19-10-2026 | AUDIT Tiling | 1.1 - AUDIT2 tile supply | 40 | sqm | 40% | DELTA; header '1 record' | yes (list re-read after reload; API 201 with ids) | WORKING | the form needed 2 tries because the first cold call timed out; on a SUBMITTED (not approved) BOQ, entry is allowed |
 | R-41 | Previous % / Current % / Total % columns | /work-progress Report | CEO created setup and real progress entries | Previous/Current/Total % columns with real figures | yes | WORKING | r41-r42-r43 CEO spec passed; Finance variant not run |
 | R-42 | Previous Qty / Current Qty / Total Qty columns | /work-progress Report | same | Qty columns | yes | WORKING | same spec |
 | R-43 | Cum Amt / Current Amt / Balance Amt columns | /work-progress Report | same | Amt columns | yes | WORKING | same spec |
 | R-44 | Parent cum qty = SUM(child cum qty x breakdown %) | - | - | - | - | NOT-DRIVEN | - |
 | R-45 | Parent % complete = cum amount / total amount | - | - | - | - | NOT-DRIVEN | - |
-| R-46 | Progress recorded twice keeps history and does not double co | - | - | - | - | NOT-DRIVEN | - |
-| R-47 | Progress above 100% rejected or capped | - | - | - | - | NOT-DRIVEN | - |
+| R-46 | Progress recorded twice keeps history and does not double co | /work-progress Daily Entry | two Delta entries 40 and 30 on the same line | both kept as 2 records in the list | yes | PARTIAL | no double counting not yet checked in the Report tab (cumulative 70) |
+| R-47 | Progress above 100% rejected or capped | /work-progress Daily Entry | after 40 + 30 recorded on a 100 sqm line, entered 50 more (Delta) | refused (HTTP 422): 'Progress on 1.1 would reach 120 of 100 sqm (120%), more than 100%. Only 30 sqm remains on this line.' shown in the form as 'Could not save the progress entry' | not saved (list stays at 2 records) | WORKING | percent-only entries not retried here (server fix ct#2154 merged) |
 | R-48 | Daily progress report with photos | - | - | - | - | NOT-DRIVEN | - |
 | R-50 | R-50 (EXPANDED per D91, claude_log id 375): the system maint | /scope/[id] Money model Internal / Customer preview | clicked Customer preview | 'This is exactly what the customer will see - no project-side cost or variance figures' with only Qty, Rate, Amount and Contract value AED 7,000.00; Internal view shows PROJECT (COST) and CONTRACT (CUSTOMER) columns, Variance, Variance % | n/a | WORKING | as CEO only; role-by-role cost visibility (client_viewer) not driven. The editor table below the grid still shows Budget % and Budget AED in preview mode. |
 | R-51 | Dashboard earned value matches progress | /dashboard/project | open | % complete by BOQ value 0%, Earned AED 0.00 of AED 5,000.00 | n/a | PARTIAL | card shown; not matched against entered progress |
@@ -100,7 +105,7 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-80 | ONE full pill path works end to end | /copilot | open | quick-launch for 7 construction tools (Project Dashboard, Budget Status, KPI Status, AI Progress Summary, AI Budget/Schedule Risk, Delayed Activities, Over-Budget Projects) each with Run | - | PARTIAL | no tool run; pill path r80 spec timed out |
 | R-81 | NO visible pill may be unwired - hide the other 402 | - | - | - | - | NOT-DRIVEN | - |
 | R-82 | Assistant either reaches project data or is hidden | - | - | - | - | NOT-DRIVEN | - |
-| R-90 | Real backend message shown in the toast | - | - | - | - | NOT-DRIVEN | - |
+| R-90 | Real backend message shown in the toast | /scope/[id] Approve | clicked Approve on a BOQ I submitted myself | toast shows the real backend text: 'You cannot approve a BOQ you created yourself -- an independent approver is required' | status stays submitted | WORKING | the approval itself needs a second user, outside the authorised CEO-only scope |
 | R-91 | Cold start Failed to fetch on first submit | - | - | - | - | NOT-DRIVEN | - |
 | R-92 | Left rail and right pane must stay in sync both ways: (1) pr | - | - | - | - | NOT-DRIVEN | - |
 | R-93 | BOQ must track 4 variables: CONTRACT VALUE (unit numbers + u | /scope/[id] Money model | open fresh BOQ | Contract value (root lines) AED 7,000.00; Project value (cost) NOT_SET; columns PROJECT (COST) QTY/RATE and CONTRACT (CUSTOMER) QTY/RATE | yes | WORKING | entering project-side qty/rate not driven |
