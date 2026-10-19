@@ -1,137 +1,136 @@
-# SUMEET 111 UI AUDIT (2026-10-19)
+# SUMEET 111 UI AUDIT (2026-10-19, in progress)
 
-## Read this first: what this document is and is not
+Driven as the E2E test CEO (Arjun Mehta, "Meridian Construction Group (E2E Test Org)") in a real Chromium via Playwright, using the committed `e2e/support/sign-in.ts` helper with an admin-minted test code (user-authorised for that org/user only). PROJEXA = `FChecklist/projexa` PR #456 head `65f83d23` (name-only New Project form) on `next dev :3100`, pointed at the DEPLOYED backend `veridian-compliance-ai.vercel.app` (RAM did not allow a second dev server). No deploy, no DNS/Vercel setting change, only labelled test data in the E2E org. Other roles (finance, hr, site engineer, client_viewer) were NOT driven: the authorisation was CEO only, so the cost-visibility-by-role checks are open.
 
-The brief asked for every requirement to be proven by driving the real app in a browser. **That was not done.** Reasons, all environmental and recorded honestly:
+Verdicts: **WORKING** = observed in the browser (or by a real run of the committed Env-1 spec that logs in, enters input and re-reads the result) this session. **PARTIAL** = part observed, rest not, or a defect seen. **NOT-DRIVEN** = not reached yet; the recorded status in `platform.sumeet_requirements` is the earlier claim, not mine.
 
-- Free RAM on this 8GB laptop was 0.2-0.9 GB for the whole session (18 Claude processes, user Chrome, another session's `bun test`). The brief's own rule is one heavy process at a time and >1.2 GB free.
-- The coordinator then ordered ONE dev server only; the app needs two (compliance-tracker :3000 + PROJEXA :3100). The Tambola session also took `C:\ct\heavy.lock` after I released it on request.
-- I did get the backend (:3000, from this worktree at origin/main 00f52be1, which includes ct#2164) to start and answer `GET /api/v1/projexa/projects` with 200 using the E2E Meridian org key. No requirement was exercised beyond that. Frontend dev (:3100) crashed on the node_modules junction until `turbopack.root` was pinned to `C:/ct` (local-only edit, not committed); it was never re-started.
+## Environment caveats that affect every result
+- This laptop ran at 0.2-0.9 GB free RAM. Next dev compiles every route on first hit; many first hits took 30-70 s and failed Playwright's 30 s waits. I retried failures once (rule 3); ones that still failed are marked with the cause.
+- Node's `fetch` from the dev server to the Vercel backend timed out at 8 s repeatedly ("The construction data service did not respond in time") while curl/python got 0.3-2 s answers from the same backend. Starting the dev server with `--dns-result-order=ipv4first --no-network-family-autoselection` made `/dashboard` load (23 projects) but `/work-progress` still hit 503 timeouts in the same run. Not conclusive about production; the UI does show an honest error and a Retry button rather than hanging.
+- The E2E org is polluted by earlier test runs: the Scope screen reports 12,516 other BOQs for the default project, 23 projects total.
 
-Therefore **no requirement below is marked WORKING by this session** (rule 6: never from code alone). The verdict column is `NOT-DRIVEN` for everything, plus the extra flags that I could establish without a server: the screen file exists (checked in `C:\ct\projexa-wt-audit`, PR #456 head 65f83d23), and the recorded `platform.sumeet_requirements` status. Treat the recorded status as the earlier sessions' claim, not mine.
+## Defects / gaps seen so far (with repro)
+1. **Billing milestones shows a false "This project has no approved BOQ" when the BOQ-analysis call times out.** Repro: open `/billing-milestones?projectId=dd486dad-9119-4d9a-a9d9-cf0ee0cc9e04` while `GET /api/reports/boq-analysis` returns 503 (seen at the 8 s upstream timeout); the same project's `/scope` page shows an approved BOQ. A failed call is presented as a business fact; it should say it could not load.
+2. **`/projects/from-file` still has a "Product / Choose a product" picker** (and the backend `projects/from-document` route still requires `productId`), although #456 / ct#2164 removed Product from New Project. The fix spans two repos (default the org's PROJEXA product server-side like ct#2164, then drop the picker); not done here.
+3. **Existing Env-1 spec `r21-r24` races the compare page**: it asserts "Total variation" at `networkidle` while the page still says "Loading…". The page itself is correct (observed `Total variation: AED +600.00` and the changed rows), so this is a test flake, not a product defect.
+4. **R-47**: the server cap for percent-only entries was fixed by compliance-tracker PR #2154 (merged); my earlier note that the branch was open was wrong. Not re-driven in the UI.
+5. Documents: the Env-1 test "+ New Document opens /documents/upload" stayed on `/documents` (click did not navigate within the wait). Cause not established (slow first compile vs real); re-test pending.
 
-## Findings that do not need a browser
 
-1. **No site-instruction screen of its own (R-C14).** The only UI is inside `/scope/[id]` (ScopeObjectClient); no `/site-instructions` page exists. Schema is assumed industry-standard, not Sumeet's form.
-2. **R-47 percent entries are uncapped on the server** (known finding 2026-10-14: six 60% entries stored as 360%). A branch `fix/r47-percent-entries-cap` exists in the main compliance-tracker checkout (9f08a381); not merged.
-3. **R-C16 (CRR) has no screen**; closed only for capture+recall tests (R83-RC16-SCOPE-01). **R-C17 (email engine) is BLOCKED by owner**: needs Resend Inbound + MX for projexa-ai.com; only outbound send exists.
-4. **R-71 and R-15 are source-verified only** in their recorded status (no observed screen).
-5. **R-50 UI exists** (BoqDualViewGrid, DashboardHomeView) despite the older row text 'no route renders dual view'; recorded status was later CLOSED 2026-09-13.
-6. **R-A*/R-B* are security/legal/test rows**, not walked. Recorded: A1-A5, A7 done; A6 recorded done though the evidence text still says PR #7 open (inconsistent, check the kit repo); B1/B2 closed 2026-09-13/20 against production, which cannot be re-run locally.
-7. The New Project form is name-only on PR #456 (`projects/new/page.tsx` comment confirms no product picker); #456 is OPEN and BLOCKED (checks not green at last look). ct#2164 is merged.
+**Verdict counts:** BLOCKED-by-owner 1, N-A 12, NOT-DRIVEN 47, PARTIAL 34, WORKING 17
 
 ## Per-requirement table
 
-| id | screen/route | input tried | output observed | persisted? | verdict | note (recorded status, truncated) |
-|---|---|---|---|---|---|---|
-| EXC-ITEM-01 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Extra work is done, never captured - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-02 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Extra work is done, never billed - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-03 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Site builds from the drawing but not confirmed - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-04 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Site builds from the old drawing - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-05 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Approvals stuck - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-06 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Wrong approval given - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-07 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Work without approval happened - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-08 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Work happened not captured - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-09 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Work happened not billed - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-10 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Work disputed with vendor - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-11 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Work disputed by customer - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-12 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Customer complained - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-13 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | New SCOPE OF WORK decided - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-14 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | New BOQ decided - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-15 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Approval from customer on new SCOPE OF WORK - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-16 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Approval from customer on new BOQ - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-17 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Approvals given without comparing SCOPE OF WORK AND BOQ - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-18 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Material ordered WITHOUT SCOPE OF WORK AND BOQ - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-19 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Material ordered twice, or late - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-20 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | The daily report never arrives - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-21 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Manpower on paper, payroll disputes - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-22 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Multiple versions of the BOQ -- which one is final, which is worked up - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-23 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Subcontractor invoices don't match the work - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-24 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | Snags lost, retention held - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-25 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | The user decides from memory - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-26 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | The user forgets - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-27 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | The user doesn't remember - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-28 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | The user reports wrong but it should be caught by software - recorded: DONE - VERIFIED (2026-09-30, ct PR #2004 a274ff57 + projexa PR #331 6f |
-| EXC-ITEM-29 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | The software should do all above (META) - recorded: DONE - VERIFIED (2026-09-30, claude-code sumeet-exceptions-verify): ME |
-| EXC-ITEM-30 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | The software should have proper engine, wiring, logic, calculation for - recorded: DONE - VERIFIED (2026-09-30, claude-code sumeet-exceptions-verify): ME |
-| EXC-ITEM-31 | /analysis/exceptions (ExceptionsClient) <- GET /api/v1/projexa/exceptions | none | none | n/a | NOT-DRIVEN | PROJEXA-AI.COM should be able to capture, analyze, fix all of these as - recorded: DONE - VERIFIED (2026-09-30, claude-code sumeet-exceptions-verify): ME |
-| R-01 | /scope/new | none | none | n/a | NOT-DRIVEN | BOQ saves without server error - recorded: DONE - VERIFIED |
-| R-02 | /scope/new | none | none | n/a | NOT-DRIVEN | Line item amount = QTY x RATE - recorded: DONE - VERIFIED |
-| R-03 | /scope/new | none | none | n/a | NOT-DRIVEN | BOQ with title only and zero lines is allowed - recorded: DONE - VERIFIED |
-| R-04 | /scope/new | none | none | n/a | NOT-DRIVEN | Missing title rejected naming the field - recorded: DONE - VERIFIED |
-| R-10 | DB columns | none | none | n/a | NOT-DRIVEN | Sub-task columns exist in production DB - recorded: DONE - VERIFIED (production columns confirmed live 2026-09-11 by PM vi |
-| R-100 | /analysis/project-360 | none | none | n/a | NOT-DRIVEN | Profit and loss analysis for the project. Owner directive 2026-09-18,  - recorded: CLOSED 2026-09-18: same Project360Client.tsx screen as R-99, top card  |
-| R-11 | /scope/new | none | none | n/a | NOT-DRIVEN | Sub-task enterable in create form (Item Code / Parent Item Code / Brea - recorded: DONE - VERIFIED |
-| R-12 | /scope/new | none | none | n/a | NOT-DRIVEN | Sub-task amount = ROOT qty x ROOT rate x breakdown % - recorded: DONE - VERIFIED (break-restore OBSERVED, merged to main) |
-| R-13 | /scope/new | none | none | n/a | NOT-DRIVEN | Sub-task own QTY and RATE ignored - recorded: DONE - VERIFIED (break-restore OBSERVED, merged to main) |
-| R-14 | /scope/new | none | none | n/a | NOT-DRIVEN | Weights NOT forced to sum to 100 - recorded: DONE - VERIFIED (break-restore OBSERVED, merged to main) |
-| R-15 | /scope/new (ScopeClient) | none | none | n/a | NOT-DRIVEN | Running total of child percentages shown per parent - recorded: BUILT IN PROJEXA - CORRECTED BY CHAT 22 AUG (E-112), audited against t |
-| R-16 | /scope/new | none | none | n/a | NOT-DRIVEN | Child with parent but no percentage rejected - recorded: DONE - VERIFIED (R75 Phase 3, commit b67b853f, PR #1615). Prior status |
-| R-17 | /scope/new | none | none | n/a | NOT-DRIVEN | Parent code matching nothing rejected - recorded: DONE - VERIFIED (R75 Phase 3, commit b67b853f, PR #1615). Prior status |
-| R-18 | /scope/new | none | none | n/a | NOT-DRIVEN | Circular reference rejected without hanging - recorded: DONE - VERIFIED (R74 Phase 13, commit 2ffb521e, PR #1606, R74-RULING-0 |
-| R-19 | /scope/new | none | none | n/a | NOT-DRIVEN | Nested sub-task prices off the ROOT - recorded: DONE - VERIFIED (R74 Phase 13, commit 2ffb521e, PR #1606, R74-RULING-0 |
-| R-20 | /scope/[id]/revise | none | none | n/a | NOT-DRIVEN | Revision preserves parent links and breakdown % - recorded: DONE - VERIFIED |
-| R-21 | /scope/[id]/compare | none | none | n/a | NOT-DRIVEN | Revision variation vs prior shown - recorded: DONE - VERIFIED (2nd-audit re-confirmed 2026-09-11, wf_b788a77f-d5f: f |
-| R-22 | /scope/[id]/revise | none | none | n/a | NOT-DRIVEN | Removing a line WITH progress is BLOCKED - recorded: DONE - VERIFIED (2nd-audit re-confirmed 2026-09-11, wf_b788a77f-d5f: f |
-| R-23 | /scope/[id]/revise | none | none | n/a | NOT-DRIVEN | Reducing qty on a line WITH progress is BLOCKED - recorded: DONE - VERIFIED (2nd-audit re-confirmed 2026-09-11, wf_b788a77f-d5f: f |
-| R-24 | /scope/[id]/compare | none | none | n/a | NOT-DRIVEN | Percentage-only change detected as variation - recorded: DONE - VERIFIED (2nd-audit re-confirmed 2026-09-11, wf_b788a77f-d5f: f |
-| R-30 | /scope/[id] | none | none | n/a | NOT-DRIVEN | Sumeet can SEE line items of a BOQ - recorded: DONE - VERIFIED |
-| R-31 | /scope/[id] | none | none | n/a | NOT-DRIVEN | Sub-task rows indented and labelled % of parent - recorded: DONE - VERIFIED |
-| R-32 | /scope/[id] | none | none | n/a | NOT-DRIVEN | BOQ total EXCLUDES sub-tasks (5000 not 6500) - recorded: DONE - VERIFIED |
-| R-33 | dashboard + reports | none | none | n/a | NOT-DRIVEN | BACKEND roll-up excludes sub-tasks - recorded: CONFIRMED LIVE 2026-09-04 (R74 Phase 5) -- see platform.sumeet_uat R74 |
-| R-40 | /work-progress | none | none | n/a | NOT-DRIVEN | Record partial progress against a weighted sub-task - recorded: CLOSED ON PRIOR Env-1 EVIDENCE (R80/R81, 2026-09-08) -- 2026-09-30 RE- |
-| R-41 | /work-progress | none | none | n/a | NOT-DRIVEN | Previous % / Current % / Total % columns - recorded: BUILT - VERIFIED, all gating UAT tests PASS (R46, 25 Aug) |
-| R-42 | /work-progress | none | none | n/a | NOT-DRIVEN | Previous Qty / Current Qty / Total Qty columns - recorded: BUILT - VERIFIED, all gating UAT tests PASS (R46, 25 Aug) |
-| R-43 | /work-progress | none | none | n/a | NOT-DRIVEN | Cum Amt / Current Amt / Balance Amt columns - recorded: BUILT - VERIFIED, all gating UAT tests PASS (R46, 25 Aug) |
-| R-44 | /work-progress | none | none | n/a | NOT-DRIVEN | Parent cum qty = SUM(child cum qty x breakdown %) - recorded: BUILT - VERIFIED, all gating UAT tests PASS (R46, 25 Aug) |
-| R-45 | /work-progress | none | none | n/a | NOT-DRIVEN | Parent % complete = cum amount / total amount - recorded: BUILT - VERIFIED, all gating UAT tests PASS (R46, 25 Aug) |
-| R-46 | /work-progress | none | none | n/a | NOT-DRIVEN | Progress recorded twice keeps history and does not double count - recorded: DONE - VERIFIED (break-restore OBSERVED 2026-09-11, PM-recorded) |
-| R-47 | /work-progress | none | none | n/a | PARTIAL (known server gap) | Progress above 100% rejected or capped - recorded: BUILT SERVER-SIDE - CORRECTED BY CHAT 22 AUG. "CLIENT ONLY" was stale. |
-| R-48 | /work-progress | none | none | n/a | NOT-DRIVEN | Daily progress report with photos - recorded: DONE - VERIFIED (R75 Phase 3, projexa commit 2b6bfbb8, PR #245, closes |
-| R-50 | /dashboard/project (BoqDualViewGrid) | none | none | n/a | NOT-DRIVEN | R-50 (EXPANDED per D91, claude_log id 375): the system maintains an IN - recorded: CLOSED 2026-09-13 (R86, PM session): all 7 c1-c7 components TRUE. c2-c |
-| R-51 | /dashboard | none | none | n/a | NOT-DRIVEN | Dashboard earned value matches progress - recorded: DONE |
-| R-52 | /dashboard | none | none | n/a | NOT-DRIVEN | Only the LATEST revision is counted - recorded: CONFIRMED LIVE 2026-09-04 (R74 Phase 5) -- see platform.sumeet_uat R74 |
-| R-60 | /scope, /dashboard | none | none | n/a | NOT-DRIVEN | BOQ amounts show AED not rupee - recorded: DONE - VERIFIED |
-| R-61 | org currency row | none | none | n/a | NOT-DRIVEN | Currency is an ORG SETTING stored as data - recorded: DONE - VERIFIED |
-| R-62 | all money screens | none | none | n/a | NOT-DRIVEN | Dashboard and other screens show AED - recorded: CONFIRMED LIVE 2026-09-04 (R74 Phase 5) -- see platform.sumeet_uat R74 |
-| R-63 | provisioning | none | none | n/a | NOT-DRIVEN | projexa_demo_org has no currency row - would fall back to rupee - recorded: FIXED AT SOURCE - provisioning now persists currency |
-| R-70 | /scope/import, /projects/from-file | none | none | n/a | NOT-DRIVEN | Load Sumeet real xlsx with sub-tasks and weights - recorded: DONE - VERIFIED, REGRESSION RE-FIXED 2026-09-20/21 (see evidence: foun |
-| R-71 | /scope/import | none | none | n/a | NOT-DRIVEN | Malformed row rejected readably - recorded: BUILT - malformed-row handling verified in source 22 Aug |
-| R-72 | /scope/import | none | none | n/a | NOT-DRIVEN | Column mapping matches his headers - recorded: DONE - VERIFIED (break-restore OBSERVED 2026-09-11, PM-recorded) |
-| R-80 | VERI chat pills (/copilot) | none | none | n/a | NOT-DRIVEN | ONE full pill path works end to end - recorded: DONE - VERIFIED (PM, 2026-09-13, real CI run + independent break-resto |
-| R-81 | VERI chat pills | none | none | n/a | NOT-DRIVEN | NO visible pill may be unwired - hide the other 402 - recorded: DONE - VERIFIED (PM, 2026-09-13, real CI run 34768287839, all 7 compon |
-| R-82 | VERI chat assistant | none | none | n/a | NOT-DRIVEN | Assistant either reaches project data or is hidden - recorded: DONE - VERIFIED (PM, 2026-09-13, real CI run + independent break-resto |
-| R-90 | /scope toast | none | none | n/a | NOT-DRIVEN | Real backend message shown in the toast - recorded: DONE - VERIFIED (2026-09-30, claude-code sumeet-exceptions-verify): th |
-| R-91 | /scope | none | none | n/a | NOT-DRIVEN | Cold start Failed to fetch on first submit - recorded: DONE - VERIFIED (break-restore OBSERVED, cross-verified independently, |
-| R-92 | M24 shell left rail <-> right pane | none | none | n/a | NOT-DRIVEN | Left rail and right pane must stay in sync both ways: (1) pressing any - recorded: CLOSED |
-| R-93 | /dashboard/project + share report | none | none | n/a | NOT-DRIVEN | BOQ must track 4 variables: CONTRACT VALUE (unit numbers + unit price  - recorded: CLOSED 2026-09-18: already built, pre-dating this directive -- BoqDual |
-| R-94 | /workspace/[id] (MilestonesClient) | none | none | n/a | NOT-DRIVEN | A project must show TIMELINES and MILESTONES as two different things,  - recorded: CLOSED 2026-09-18: VERIDIAN already had a complete, tested milestone e |
-| R-95 | /billing-milestones | none | none | n/a | NOT-DRIVEN | Billing milestones must be a real, usable feature -- not just visible  - recorded: RE-CLOSED 2026-09-20 (PROJEXA-E2E-001 phantom-test audit, follow-throu |
-| R-96 | /scope | none | none | n/a | NOT-DRIVEN | Scope of work in a project must be a real, usable concept in PROJEXA.  - recorded: CLOSED 2026-09-18, WITH A NAMING CAVEAT recorded honestly rather than  |
-| R-97 | /change-orders | none | none | n/a | NOT-DRIVEN | Change of scope of work in a project must work end-to-end. Owner direc - recorded: CLOSED 2026-09-20 (correction to the 2026-09-18 close, PROJEXA-E2E-001 |
-| R-98 | /scope/[id]/revise | none | none | n/a | NOT-DRIVEN | BOQ must change/track when scope of work changes. Owner directive 2026 - recorded: CLOSED 2026-09-18, WITH A REAL CAVEAT recorded honestly: ScopeReviseCl |
-| R-99 | /analysis/project-360 | none | none | n/a | NOT-DRIVEN | For a project: one combined analysis view over change of BOQ, change o - recorded: CLOSED 2026-09-18: found boq-analysis-service.ts's getProjectAnalysis/ |
-| R-A1 | n/a | none | none | n/a | N-A (security/legal/test row) | Demo admin password rotated before any prospect sees product - recorded: DONE 2026-09-14 -- demo admin password rotated and verified via a real |
-| R-A2 | n/a | none | none | n/a | N-A (security/legal/test row) | Live GitHub PAT in a clone remote URL rotated - recorded: DONE - VERIFIED (2026-09-12, claude-desktop Super Boss) -- SCOPE-LIMIT |
-| R-A3 | n/a | none | none | n/a | N-A (security/legal/test row) | compliance-tracker repo visibility decision - recorded: DONE - VERIFIED (2026-09-12, claude-desktop Super Boss, live independe |
-| R-A4 | n/a | none | none | n/a | N-A (security/legal/test row) | Tenant isolation - org A cannot read org B BOQ - recorded: PASS |
-| R-A5 | n/a | none | none | n/a | N-A (security/legal/test row) | Review of GPLv3 ERPNext / scraped / reverse-engineered code - recorded: REVIEWED BY CHAT 22 AUG - NO GPL CODE FOUND. Not a blocker for Sumeet. |
-| R-A6 | n/a | none | none | n/a | N-A (security/legal/test row) | nanoid CVE-2026-67213 fix merged into veridian-ui-kit - recorded: DONE - VERIFIED, MERGED (R75 Part 2 Phase 1 W1-03 batch 1a, commit 40b |
-| R-A7 | n/a | none | none | n/a | N-A (security/legal/test row) | veridian-ui-kit repo visibility decision - recorded: DONE - VERIFIED (2026-09-12, claude-desktop Super Boss, live independe |
-| R-B1 | n/a | none | none | n/a | N-A (security/legal/test row) | ONE Playwright smoke test over the proven path - recorded: CLOSED 2026-09-13 (R86, PM session): all 7 c1-c7 components TRUE, re-v |
-| R-B2 | n/a | none | none | n/a | N-A (security/legal/test row) | DEMO GATE - TC-01 TC-10 TC-11 TC-30 TC-40 TC-90 each pass TWICE - recorded: CLOSED 2026-09-20 (PROJEXA-E2E-001 sub-task): content gap closed -- TC |
-| R-C01 | /permits/new | none | none | n/a | NOT-DRIVEN | Permits register - data entry, upload PDF, permit name, issue date, en - recorded: DONE |
-| R-C02 | /drawings/new, /floor-plans/[id]/walkthrough | none | none | n/a | NOT-DRIVEN | Upload drawings and 3D walkthroughs - recorded: DONE |
-| R-C03 | /documents/upload | none | none | n/a | NOT-DRIVEN | Document store - any email, permit-related etc - recorded: DONE (WIRED, no second table) |
-| R-C04 | /moms/new | none | none | n/a | NOT-DRIVEN | Live-create Minutes of Meeting, save as PDF, share to WhatsApp - recorded: DONE |
-| R-C07 | /labour, /labour/attendance | none | none | n/a | NOT-DRIVEN | Manpower DB (ID, Name, Trade, Salary), daily attendance, trade-wise su - recorded: DONE |
-| R-C08 | /materials | none | none | n/a | NOT-DRIVEN | Material database, material inbound, spec, cost, qty - recorded: DONE |
-| R-C09 | /scope/[id] (budget %) | none | none | n/a | NOT-DRIVEN | Budget % defaults to 25%, changeable per scope item; vendor name + ven - recorded: DONE - CAVEAT: vendor NAME resolution is a separate read-side join (co |
-| R-C10 | /schedule | none | none | n/a | NOT-DRIVEN | Project schedule - recorded: VERIFIED LIVE 24 AUG (R42 seq1) - task + baseline created via minted s |
-| R-C11 | /reports | none | none | n/a | NOT-DRIVEN | Revenue / Budget / Actual, scope-wise and category-wise. ALL REPORTS I - recorded: CLOSED 2026-09-11 (PM): all 7 components genuinely TRUE -- narrowed sc |
-| R-C12 | /design-studio/timesheets/new | none | none | n/a | NOT-DRIVEN | Daily timesheets - designer enters daily work, manager validates on re - recorded: VERIFIED LIVE 24 AUG (R42 seq2) -- correcting a stale "out of v1 scope |
-| R-C13 | /scope/[id]/revise | none | none | n/a | NOT-DRIVEN | Negative variation must be checked against WPR in case work is already - recorded: ALREADY IN BACKEND - CONFIRMS R-22/R-23 |
-| R-C14 | /scope/[id] (site instruction, no own page) | none | none | n/a | PARTIAL (no own screen) | Upload site instruction form - recorded: DONE (SCHEMA-ASSUMED-INDUSTRY-STANDARD) |
-| R-C15 | ExportShareActions / /share/report/[token] | none | none | n/a | NOT-DRIVEN | Save reports as PDF and share to WhatsApp - recorded: CLOSED 2026-09-11 (PM): all 7 components genuinely TRUE -- narrowed sc |
-| R-C16 | backend only (no screen) | none | none | n/a | NOT-DRIVEN (no screen) | CRR (Capture / Recall / Reuse): a generic backend capability. CAPTURE  - recorded: CLOSED 2026-09-12 (PM): scope narrowed per R83-RC16-SCOPE-01 to captur |
-| R-C17 | none (Resend Inbound + MX needed) | none | none | n/a | BLOCKED-by-owner | Owner-initiated 2026-09-13 (not from Sumeet's original spec -- tracked - recorded: SCOPED 2026-09-13: outbound send already exists (src/lib/email.ts, Res |
+| id | requirement | screen/route | input tried | output observed | persisted? | verdict | note |
+|---|---|---|---|---|---|---|---|
+| EXC-ITEM-01 | Extra work is done, never captured | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula (5.5 s cold, 1.9 s warm); page header '28 deterministic checks' seen | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-02 | Extra work is done, never billed | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula (5.5 s cold, 1.9 s warm); page header '28 deterministic checks' seen | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-03 | Site builds from the drawing but not confirmed | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula (5.5 s cold, 1.9 s warm); page header '28 deterministic checks' seen | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-04 | Site builds from the old drawing | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula (5.5 s cold, 1.9 s warm); page header '28 deterministic checks' seen | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-05 | Approvals stuck | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula (5.5 s cold, 1.9 s warm); page header '28 deterministic checks' seen | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-06 | Wrong approval given | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula (5.5 s cold, 1.9 s warm); page header '28 deterministic checks' seen | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-07 | Work without approval happened | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula (5.5 s cold, 1.9 s warm); page header '28 deterministic checks' seen | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-08 | Work happened not captured | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula (5.5 s cold, 1.9 s warm); page header '28 deterministic checks' seen | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-09 | Work happened not billed | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula (5.5 s cold, 1.9 s warm); page header '28 deterministic checks' seen | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-10 | Work disputed with vendor | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-11 | Work disputed by customer | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-12 | Customer complained | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-13 | New SCOPE OF WORK decided | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-14 | New BOQ decided | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-15 | Approval from customer on new SCOPE OF WORK | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-16 | Approval from customer on new BOQ | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-17 | Approvals given without comparing SCOPE OF WORK AND BOQ | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-18 | Material ordered WITHOUT SCOPE OF WORK AND BOQ | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-19 | Material ordered twice, or late | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-20 | The daily report never arrives | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-21 | Manpower on paper, payroll disputes | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-22 | Multiple versions of the BOQ -- which one is final, which is | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-23 | Subcontractor invoices don't match the work | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-24 | Snags lost, retention held | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-25 | The user decides from memory | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-26 | The user forgets | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-27 | The user doesn't remember | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-28 | The user reports wrong but it should be caught by software | /analysis/exceptions <- GET exceptions | project Meridian Heights | API: 28 checks, 15 flagged, each with a formula | computed | PARTIAL | per-item list not yet observed in the UI |
+| EXC-ITEM-29 | The software should do all above (META) | meta | - | - | - | N-A (meta statement) | follows from items 1-28 |
+| EXC-ITEM-30 | The software should have proper engine, wiring, logic, calcu | meta | - | - | - | N-A (meta statement) | follows from items 1-28 |
+| EXC-ITEM-31 | PROJEXA-AI.COM should be able to capture, analyze, fix all o | meta | - | - | - | N-A (meta statement) | follows from items 1-28 |
+| R-01 | BOQ saves without server error | /scope/new | CEO filled and saved a BOQ with a sub-task line (r11 spec) | saved; re-read on fresh page load and via API | yes (DB rows, parent link) | WORKING | some saves hit the 8 s upstream timeout then 503 under load |
+| R-02 | Line item amount = QTY x RATE | /scope/new, compare | qty x rate lines | amounts 1000/1400 on compare page; AED 5,000 contract card | yes | WORKING | seen in compare and dashboard figures |
+| R-03 | BOQ with title only and zero lines is allowed | - | - | - | - | NOT-DRIVEN | - |
+| R-04 | Missing title rejected naming the field | - | - | - | - | NOT-DRIVEN | - |
+| R-10 | Sub-task columns exist in production DB | - | - | - | - | NOT-DRIVEN | - |
+| R-100 | Profit and loss analysis for the project. Owner directive 20 | - | - | - | - | NOT-DRIVEN | - |
+| R-11 | Sub-task enterable in create form (Item Code / Parent Item C | /scope/new (Item code, Parent code, Breakdown % columns) | filled sub-task line, saved | re-read shows parent and % (r11 spec passed) | yes | WORKING | form columns also seen in sweep |
+| R-12 | Sub-task amount = ROOT qty x ROOT rate x breakdown % | - | - | - | - | NOT-DRIVEN | - |
+| R-13 | Sub-task own QTY and RATE ignored | - | - | - | - | NOT-DRIVEN | - |
+| R-14 | Weights NOT forced to sum to 100 | - | - | - | - | NOT-DRIVEN | - |
+| R-15 | Running total of child percentages shown per parent | /scope/[id] | opened BOQ with children | running child-% total shown on root | n/a read | WORKING | CEO spec passed; Finance variant not run |
+| R-16 | Child with parent but no percentage rejected | - | - | - | - | NOT-DRIVEN | - |
+| R-17 | Parent code matching nothing rejected | - | - | - | - | NOT-DRIVEN | - |
+| R-18 | Circular reference rejected without hanging | - | - | - | - | NOT-DRIVEN | - |
+| R-19 | Nested sub-task prices off the ROOT | - | - | - | - | NOT-DRIVEN | - |
+| R-20 | Revision preserves parent links and breakdown % | /scope/[id]/revise | revised a BOQ; tried to revise the revised one again | links and % preserved; second revision refused naming the existing one | yes | WORKING | each test passed in one of two runs; the other run failed at a 503 setup call |
+| R-21 | Revision variation vs prior shown | /scope/[id]/compare | v1 qty 100, v2 qty 140 | Total variation: AED +600.00; changed rows listed | yes | WORKING | observed in my own run; committed spec races the Loading state (defect 3) |
+| R-22 | Removing a line WITH progress is BLOCKED | /scope/[id]/revise | remove a line with progress | refused | yes | WORKING | r22 spec passed |
+| R-23 | Reducing qty on a line WITH progress is BLOCKED | /scope/[id]/revise | reduce qty on a progressed line | refused | yes | WORKING | r23-c13 spec passed |
+| R-24 | Percentage-only change detected as variation | /scope/[id]/compare | child breakdown 30% to 50% only | pct child row 6 to 10 listed as changed | yes | WORKING | also asserted via API (rateChange 4, breakdownPercentageChange 20) |
+| R-30 | Sumeet can SEE line items of a BOQ | /scope/[id] | open BOQ | line items visible | n/a | WORKING | r15-r30-r31 CEO passed |
+| R-31 | Sub-task rows indented and labelled % of parent | /scope/[id] | open BOQ with sub-tasks | indented, labelled % of parent | n/a | WORKING | r15-r30-r31 CEO passed |
+| R-32 | BOQ total EXCLUDES sub-tasks (5000 not 6500) | - | - | - | - | NOT-DRIVEN | - |
+| R-33 | BACKEND roll-up excludes sub-tasks | category roll-up (r33 spec) | BOQ with root and sub-task | roll-up counts root once | yes | WORKING | passed |
+| R-40 | Record partial progress against a weighted sub-task | - | - | - | - | NOT-DRIVEN | - |
+| R-41 | Previous % / Current % / Total % columns | /work-progress Report | CEO created setup and real progress entries | Previous/Current/Total % columns with real figures | yes | WORKING | r41-r42-r43 CEO spec passed; Finance variant not run |
+| R-42 | Previous Qty / Current Qty / Total Qty columns | /work-progress Report | same | Qty columns | yes | WORKING | same spec |
+| R-43 | Cum Amt / Current Amt / Balance Amt columns | /work-progress Report | same | Amt columns | yes | WORKING | same spec |
+| R-44 | Parent cum qty = SUM(child cum qty x breakdown %) | - | - | - | - | NOT-DRIVEN | - |
+| R-45 | Parent % complete = cum amount / total amount | - | - | - | - | NOT-DRIVEN | - |
+| R-46 | Progress recorded twice keeps history and does not double co | - | - | - | - | NOT-DRIVEN | - |
+| R-47 | Progress above 100% rejected or capped | - | - | - | - | NOT-DRIVEN | - |
+| R-48 | Daily progress report with photos | - | - | - | - | NOT-DRIVEN | - |
+| R-50 | R-50 (EXPANDED per D91, claude_log id 375): the system maint | /dashboard/project dual-view grid | CEO spec | API refuses a contract-side edit (passed); grid UI test timed out twice on a 30 s cost-visibility call | - | PARTIAL | grid UI not observed |
+| R-51 | Dashboard earned value matches progress | /dashboard/project | open | % complete by BOQ value 0%, Earned AED 0.00 of AED 5,000.00 | n/a | PARTIAL | card shown; not matched against entered progress |
+| R-52 | Only the LATEST revision is counted | /dashboard/project | open | label 'parent BOQ lines only, latest BOQ revision' | n/a | PARTIAL | label seen; figure vs older revisions not compared |
+| R-60 | BOQ amounts show AED not rupee | /scope list and detail | open real project | amounts in AED, no rupee | n/a | WORKING | r60 spec passed on 2nd run (1st run timed out cold) |
+| R-61 | Currency is an ORG SETTING stored as data | - | - | - | - | NOT-DRIVEN | - |
+| R-62 | Dashboard and other screens show AED | /dashboard/project, /scope, compare | open | AED 5,000.00 / AED 1,000.00 / AED +600.00 | n/a | PARTIAL | AED seen on 3 screens; other money screens not checked |
+| R-63 | projexa_demo_org has no currency row - would fall back to ru | - | - | - | - | NOT-DRIVEN | - |
+| R-70 | Load Sumeet real xlsx with sub-tasks and weights | - | - | - | - | NOT-DRIVEN | - |
+| R-71 | Malformed row rejected readably | - | - | - | - | NOT-DRIVEN | - |
+| R-72 | Column mapping matches his headers | - | - | - | - | NOT-DRIVEN | - |
+| R-80 | ONE full pill path works end to end | - | - | - | - | NOT-DRIVEN | - |
+| R-81 | NO visible pill may be unwired - hide the other 402 | - | - | - | - | NOT-DRIVEN | - |
+| R-82 | Assistant either reaches project data or is hidden | - | - | - | - | NOT-DRIVEN | - |
+| R-90 | Real backend message shown in the toast | - | - | - | - | NOT-DRIVEN | - |
+| R-91 | Cold start Failed to fetch on first submit | - | - | - | - | NOT-DRIVEN | - |
+| R-92 | Left rail and right pane must stay in sync both ways: (1) pr | - | - | - | - | NOT-DRIVEN | - |
+| R-93 | BOQ must track 4 variables: CONTRACT VALUE (unit numbers + u | /dashboard/project | open | Contract value AED 5,000.00; Project value 'Not set' | n/a | PARTIAL | two value cards seen; unit numbers x unit price per side not seen |
+| R-94 | A project must show TIMELINES and MILESTONES as two differen | - | - | - | - | NOT-DRIVEN | - |
+| R-95 | Billing milestones must be a real, usable feature -- not jus | - | - | - | - | NOT-DRIVEN | - |
+| R-96 | Scope of work in a project must be a real, usable concept in | - | - | - | - | NOT-DRIVEN | - |
+| R-97 | Change of scope of work in a project must work end-to-end. O | - | - | - | - | NOT-DRIVEN | - |
+| R-98 | BOQ must change/track when scope of work changes. Owner dire | - | - | - | - | NOT-DRIVEN | - |
+| R-99 | For a project: one combined analysis view over change of BOQ | - | - | - | - | NOT-DRIVEN | - |
+| R-A1 | Demo admin password rotated before any prospect sees product | - | - | - | - | N-A (security/legal/test row) | - |
+| R-A2 | Live GitHub PAT in a clone remote URL rotated | - | - | - | - | N-A (security/legal/test row) | - |
+| R-A3 | compliance-tracker repo visibility decision | - | - | - | - | N-A (security/legal/test row) | - |
+| R-A4 | Tenant isolation - org A cannot read org B BOQ | - | - | - | - | N-A (security/legal/test row) | recorded PASS; not re-run |
+| R-A5 | Review of GPLv3 ERPNext / scraped / reverse-engineered code | - | - | - | - | N-A (security/legal/test row) | - |
+| R-A6 | nanoid CVE-2026-67213 fix merged into veridian-ui-kit | - | - | - | - | N-A (security/legal/test row) | evidence text says PR open vs status done: inconsistent |
+| R-A7 | veridian-ui-kit repo visibility decision | - | - | - | - | N-A (security/legal/test row) | - |
+| R-B1 | ONE Playwright smoke test over the proven path | - | - | - | - | N-A (security/legal/test row) | targets production |
+| R-B2 | DEMO GATE - TC-01 TC-10 TC-11 TC-30 TC-40 TC-90 each pass TW | - | - | - | - | N-A (security/legal/test row) | rb2 spec failed 3 times on 45-60 s waits (POST /api/scope); not a product verdict |
+| R-C01 | Permits register - data entry, upload PDF, permit name, issu | - | - | - | - | NOT-DRIVEN | - |
+| R-C02 | Upload drawings and 3D walkthroughs | - | - | - | - | NOT-DRIVEN | - |
+| R-C03 | Document store - any email, permit-related etc | - | - | - | - | NOT-DRIVEN | - |
+| R-C04 | Live-create Minutes of Meeting, save as PDF, share to WhatsA | - | - | - | - | NOT-DRIVEN | - |
+| R-C07 | Manpower DB (ID, Name, Trade, Salary), daily attendance, tra | - | - | - | - | NOT-DRIVEN | - |
+| R-C08 | Material database, material inbound, spec, cost, qty | - | - | - | - | NOT-DRIVEN | - |
+| R-C09 | Budget % defaults to 25%, changeable per scope item; vendor  | - | - | - | - | NOT-DRIVEN | - |
+| R-C10 | Project schedule | - | - | - | - | NOT-DRIVEN | - |
+| R-C11 | Revenue / Budget / Actual, scope-wise and category-wise. ALL | - | - | - | - | NOT-DRIVEN | - |
+| R-C12 | Daily timesheets - designer enters daily work, manager valid | - | - | - | - | NOT-DRIVEN | - |
+| R-C13 | Negative variation must be checked against WPR in case work  | /scope/[id]/revise | same as R-23 | refused | yes | WORKING | r23-c13 spec passed |
+| R-C14 | Upload site instruction form | - | - | - | - | PARTIAL (no own screen) | only inside /scope/[id] |
+| R-C15 | Save reports as PDF and share to WhatsApp | - | - | - | - | NOT-DRIVEN | - |
+| R-C16 | CRR (Capture / Recall / Reuse): a generic backend capability | - | - | - | - | NOT-DRIVEN (no screen) | backend capability only |
+| R-C17 | Owner-initiated 2026-09-13 (not from Sumeet's original spec  | - | - | - | - | BLOCKED-by-owner | needs Resend Inbound + MX for projexa-ai.com |
