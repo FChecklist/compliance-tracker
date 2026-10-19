@@ -1097,6 +1097,8 @@ jobs:
           E2E_PROJEXA_ORIGIN: http://localhost:3100
           E2E_ENV1_JOB: "true"
           MINT_SECRET: ${{ secrets.MINT_SECRET }}
+          # PROJEXA project's PUBLIC publishable key (client-embeddable, not a secret); read by e2e/support/mint-session.ts
+          PROJEXA_SUPABASE_PUBLIC_KEY: sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8
 
       # --- Run projexa's own Env-1 spec(s) (R-60 today) under projexa's OWN
       # playwright config (auth.setup.ts + storageState, a different fixture
