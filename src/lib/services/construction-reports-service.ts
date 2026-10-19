@@ -829,6 +829,113 @@ export function computeEarnedValue(
   return { earnedValue: Math.round(earnedValue * 100) / 100, contractValue, percentByValue }
 }
 
+// R-51 / R-52 (UI audit 2026-10-19): a BOQ revision creates NEW line rows, and
+// progress entries keep pointing at the line id they were logged against. The
+// earned-value paths used to look progress up by the LATEST revision's line ids
+// only, so every entry logged on a superseded revision vanished and the
+// dashboard read 0% after any revision. A line's identity across revisions is
+// its item code (R-20: revisions preserve item codes and parent links) -- the
+// same rule listProgressEntries / getActivityCompletionProvenance already use.
+//
+// The fold below is the ONE place that rule lives; earnedValueReport, the
+// batched getOrgDashboard path and the single-project SQL path all feed it.
+// Only SUPERSEDED revisions of the same project contribute (never an
+// independent second BOQ), and a progress entry on the current revision's own
+// line id always counts directly, so a fresh BOQ computes exactly as before.
+export type RevisionLineRef = { id: string; boqId: string; itemCode: string | null }
+export type ProgressSourceRow = {
+  lineId: string
+  boqId: string
+  itemCode: string | null
+  /** Summed DELTA quantity logged against this exact line. */
+  qty: number
+  /** Latest percentComplete logged against this exact line, and its date. */
+  percent: number | null
+  percentDate: string | null
+}
+
+const normaliseItemCode = (code: string | null | undefined): string => (code ?? "").trim().toLowerCase()
+
+export function foldProgressAcrossRevisions(
+  currentItems: RevisionLineRef[],
+  progress: ProgressSourceRow[]
+): { qtyByItem: Map<string, number>; latestPercentByItem: Map<string, number> } {
+  const qtyByItem = new Map<string, number>()
+  const latestPercentByItem = new Map<string, number>()
+  const rowsByCode = new Map<string, ProgressSourceRow[]>()
+  const rowsByLine = new Map<string, ProgressSourceRow[]>()
+  for (const row of progress) {
+    const byLine = rowsByLine.get(row.lineId) ?? []
+    byLine.push(row)
+    rowsByLine.set(row.lineId, byLine)
+    const code = normaliseItemCode(row.itemCode)
+    if (code) {
+      const byCode = rowsByCode.get(code) ?? []
+      byCode.push(row)
+      rowsByCode.set(code, byCode)
+    }
+  }
+  for (const item of currentItems) {
+    const direct = rowsByLine.get(item.id) ?? []
+    const code = normaliseItemCode(item.itemCode)
+    const carried = code ? (rowsByCode.get(code) ?? []).filter((r) => r.boqId !== item.boqId) : []
+    const contributing = [...direct, ...carried]
+    if (contributing.length === 0) continue
+    qtyByItem.set(item.id, contributing.reduce((sum, r) => sum + Number(r.qty ?? 0), 0))
+    let best: ProgressSourceRow | null = null
+    for (const r of contributing) {
+      if (r.percent === null || r.percent === undefined) continue
+      // Latest reading by date; on a tie the current revision's own line wins.
+      if (!best || (r.percentDate ?? "") > (best.percentDate ?? "")) best = r
+    }
+    if (best) latestPercentByItem.set(item.id, Number(best.percent))
+  }
+  return { qtyByItem, latestPercentByItem }
+}
+
+/**
+ * Per-line progress aggregates (summed DELTA quantity, latest percent and its
+ * date) for the given lines, as the rows foldProgressAcrossRevisions() takes.
+ * Runs on a db handle the caller already holds -- never opens a transaction.
+ * `beforeDate` closes the window for the dashboard's "vs last week" baseline.
+ */
+export async function loadProgressSourceRows(
+  db: TenantDb,
+  lines: RevisionLineRef[],
+  beforeDate?: string
+): Promise<ProgressSourceRow[]> {
+  if (lines.length === 0) return []
+  const idsSql = sql.join(lines.map((l) => sql`${l.id}`), sql`, `)
+  const dateFilter = beforeDate ? sql` AND entry_date < ${beforeDate}` : sql``
+  const qtyRows = (await db.execute(sql`
+    SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
+    FROM compliance.construction_work_progress_entries
+    WHERE boq_line_item_id = ANY(ARRAY[${idsSql}]) AND entry_basis = 'DELTA'${dateFilter}
+    GROUP BY boq_line_item_id
+  `)) as { boq_line_item_id: string; total_qty: number }[]
+  const percentRows = (await db.execute(sql`
+    SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete, entry_date::text AS entry_date
+    FROM compliance.construction_work_progress_entries
+    WHERE boq_line_item_id = ANY(ARRAY[${idsSql}])${dateFilter}
+    ORDER BY boq_line_item_id, entry_date DESC
+  `)) as { boq_line_item_id: string; percent_complete: number; entry_date: string }[]
+  const qtyById = new Map(qtyRows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+  const pctById = new Map(percentRows.map((r) => [r.boq_line_item_id, r]))
+  return lines
+    .filter((l) => qtyById.has(l.id) || pctById.has(l.id))
+    .map((l) => {
+      const pct = pctById.get(l.id)
+      return {
+        lineId: l.id,
+        boqId: l.boqId,
+        itemCode: l.itemCode,
+        qty: qtyById.get(l.id) ?? 0,
+        percent: pct ? Number(pct.percent_complete) : null,
+        percentDate: pct ? String(pct.entry_date) : null,
+      }
+    })
+}
+
 export async function earnedValueReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -838,27 +945,18 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
 
     const allItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
 
-    const itemIds = allItems.map((i) => i.id)
-    let qtyByItem = new Map<string, number>()
-    let latestPercentByItem = new Map<string, number>()
-    if (itemIds.length > 0) {
-      const idsSql = sql.join(itemIds.map((id) => sql`${id}`), sql`, `)
-      const rows = (await db.execute(sql`
-        SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
-        FROM compliance.construction_work_progress_entries
-        WHERE boq_line_item_id = ANY(ARRAY[${idsSql}]) AND entry_basis = 'DELTA'
-        GROUP BY boq_line_item_id
-      `)) as { boq_line_item_id: string; total_qty: number }[]
-      qtyByItem = new Map(rows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+    // R-51: progress logged on a SUPERSEDED revision carries onto this one by item code.
+    const supersededIds = boqs.filter((b) => b.id !== latest.id && b.status === "superseded").map((b) => b.id)
+    const priorItems = supersededIds.length > 0
+      ? await db.query.constructionBoqLineItems.findMany({ where: inArray(constructionBoqLineItems.boqId, supersededIds) })
+      : []
 
-      const percentRows = (await db.execute(sql`
-        SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
-        FROM compliance.construction_work_progress_entries
-        WHERE boq_line_item_id = ANY(ARRAY[${idsSql}])
-        ORDER BY boq_line_item_id, entry_date DESC
-      `)) as { boq_line_item_id: string; percent_complete: number }[]
-      latestPercentByItem = new Map(percentRows.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
-    }
+    const refs: RevisionLineRef[] = [...allItems, ...priorItems].map((i) => ({ id: i.id, boqId: i.boqId, itemCode: i.itemCode ?? null }))
+    const progress = await loadProgressSourceRows(db, refs)
+    const { qtyByItem, latestPercentByItem } = foldProgressAcrossRevisions(
+      allItems.map((i) => ({ id: i.id, boqId: i.boqId, itemCode: i.itemCode ?? null })),
+      progress
+    )
 
     return computeEarnedValue(allItems, qtyByItem, latestPercentByItem)
   })
