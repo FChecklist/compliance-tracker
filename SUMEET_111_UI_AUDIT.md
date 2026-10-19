@@ -17,7 +17,7 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 5. Documents: the Env-1 test "+ New Document opens /documents/upload" stayed on `/documents` (click did not navigate within the wait). Cause not established (slow first compile vs real); re-test pending.
 
 
-**Verdict counts:** BLOCKED-by-owner 1, N-A 12, NOT-DRIVEN 47, PARTIAL 34, WORKING 17
+**Verdict counts:** BLOCKED-by-owner 1, N-A 12, NOT-DRIVEN 39, PARTIAL 36, WORKING 23
 
 ## Per-requirement table
 
@@ -58,10 +58,10 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-02 | Line item amount = QTY x RATE | /scope/new, compare | qty x rate lines | amounts 1000/1400 on compare page; AED 5,000 contract card | yes | WORKING | seen in compare and dashboard figures |
 | R-03 | BOQ with title only and zero lines is allowed | - | - | - | - | NOT-DRIVEN | - |
 | R-04 | Missing title rejected naming the field | - | - | - | - | NOT-DRIVEN | - |
-| R-10 | Sub-task columns exist in production DB | - | - | - | - | NOT-DRIVEN | - |
+| R-10 | Sub-task columns exist in production DB | DB columns | import above | parent_line_item_id and breakdown_percentage populated | yes | WORKING | live DB read |
 | R-100 | Profit and loss analysis for the project. Owner directive 20 | - | - | - | - | NOT-DRIVEN | - |
 | R-11 | Sub-task enterable in create form (Item Code / Parent Item C | /scope/new (Item code, Parent code, Breakdown % columns) | filled sub-task line, saved | re-read shows parent and % (r11 spec passed) | yes | WORKING | form columns also seen in sweep |
-| R-12 | Sub-task amount = ROOT qty x ROOT rate x breakdown % | - | - | - | - | NOT-DRIVEN | - |
+| R-12 | Sub-task amount = ROOT qty x ROOT rate x breakdown % | /scope/import preview + DB | children with blank qty/rate, 60% and 40% of a root 100 x 50 | 3,000 and 2,000 | yes (DB amounts 3000/2000) | WORKING | via import path; create-form path covered by r11 spec |
 | R-13 | Sub-task own QTY and RATE ignored | - | - | - | - | NOT-DRIVEN | - |
 | R-14 | Weights NOT forced to sum to 100 | - | - | - | - | NOT-DRIVEN | - |
 | R-15 | Running total of child percentages shown per parent | /scope/[id] | opened BOQ with children | running child-% total shown on root | n/a read | WORKING | CEO spec passed; Finance variant not run |
@@ -94,9 +94,9 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-61 | Currency is an ORG SETTING stored as data | - | - | - | - | NOT-DRIVEN | - |
 | R-62 | Dashboard and other screens show AED | /dashboard/project, /scope, compare | open | AED 5,000.00 / AED 1,000.00 / AED +600.00 | n/a | PARTIAL | AED seen on 3 screens; other money screens not checked |
 | R-63 | projexa_demo_org has no currency row - would fall back to ru | - | - | - | - | NOT-DRIVEN | - |
-| R-70 | Load Sumeet real xlsx with sub-tasks and weights | - | - | - | - | NOT-DRIVEN | - |
-| R-71 | Malformed row rejected readably | - | - | - | - | NOT-DRIVEN | - |
-| R-72 | Column mapping matches his headers | - | - | - | - | NOT-DRIVEN | - |
+| R-70 | Load Sumeet real xlsx with sub-tasks and weights | /scope/import | 4-row xlsx (Category, Code, Description, Unit, Qty, Rate, Parent Item Code, Breakdown %) via the page's file input, then Save | preview '4 lines ready, 0 with errors' with sub-task amounts 3,000 and 2,000 under a 5,000 root; saved and redirected to /scope/<id> 'Imported BOQ audit-good2 · Rev0 · 4 lines' | yes: DB shows 4 lines, 2 children with 60/40 %, amounts 5000/3000/2000/2000 | WORKING | Sumeet's own real workbook not available; used a template-shaped file |
+| R-71 | Malformed row rejected readably | /scope/import | xlsx with a non-numeric Qty ('TBD') and a row with no description | '1 line ready, 1 with error. Row 3: Qty is not a number. Row 4: skipped (no description)'; Save reads 'Save (1 row with errors)' | nothing saved | WORKING | also a sheet with no usable columns gives 'Could not find a Description column in this spreadsheet' |
+| R-72 | Column mapping matches his headers | /scope/import | headers Item Code, Description, Category, Unit, Qty, Rate, Parent Item Code, Breakdown % | every column mapped into the preview table | yes | WORKING | gap: a sub-task row with only a dot-numbered code (1.1) and Breakdown % but NO Parent Item Code column is skipped as a 'category header' (observed: 'Imported 2 of 4 rows'); it warns, but a Breakdown % cell clearly marks a sub-task |
 | R-80 | ONE full pill path works end to end | - | - | - | - | NOT-DRIVEN | - |
 | R-81 | NO visible pill may be unwired - hide the other 402 | - | - | - | - | NOT-DRIVEN | - |
 | R-82 | Assistant either reaches project data or is hidden | - | - | - | - | NOT-DRIVEN | - |
@@ -119,16 +119,16 @@ Verdicts: **WORKING** = observed in the browser (or by a real run of the committ
 | R-A7 | veridian-ui-kit repo visibility decision | - | - | - | - | N-A (security/legal/test row) | - |
 | R-B1 | ONE Playwright smoke test over the proven path | - | - | - | - | N-A (security/legal/test row) | targets production |
 | R-B2 | DEMO GATE - TC-01 TC-10 TC-11 TC-30 TC-40 TC-90 each pass TW | - | - | - | - | N-A (security/legal/test row) | rb2 spec failed 3 times on 45-60 s waits (POST /api/scope); not a product verdict |
-| R-C01 | Permits register - data entry, upload PDF, permit name, issu | - | - | - | - | NOT-DRIVEN | - |
+| R-C01 | Permits register - data entry, upload PDF, permit name, issu | /permits/new then /permits/<id> | permit name, number, issue 2026-10-01, end 2027-10-01, a PDF file, Save | first save wait 8 s showed nothing; within 90 s it redirected to /permits/<id> | yes: documents row category=permit with a storage file_url | WORKING | slow (about 2 min incl. cold compile); list re-read at the end of the test did not show it (cached list or too early), not re-checked |
 | R-C02 | Upload drawings and 3D walkthroughs | - | - | - | - | NOT-DRIVEN | - |
 | R-C03 | Document store - any email, permit-related etc | - | - | - | - | NOT-DRIVEN | - |
-| R-C04 | Live-create Minutes of Meeting, save as PDF, share to WhatsA | - | - | - | - | NOT-DRIVEN | - |
+| R-C04 | Live-create Minutes of Meeting, save as PDF, share to WhatsA | /moms/new then /moms/<id> | Title and Minutes, Save (first try showed 'The server did not answer in 10 s - nothing was saved. Try again', second try saved) | redirected to the meeting page 'Saved meeting ...' with Export PDF and Share draft controls | yes: veri_meetings row with the minutes text | PARTIAL | Export PDF / WhatsApp share buttons present but not clicked |
 | R-C07 | Manpower DB (ID, Name, Trade, Salary), daily attendance, tra | - | - | - | - | NOT-DRIVEN | - |
 | R-C08 | Material database, material inbound, spec, cost, qty | - | - | - | - | NOT-DRIVEN | - |
 | R-C09 | Budget % defaults to 25%, changeable per scope item; vendor  | - | - | - | - | NOT-DRIVEN | - |
 | R-C10 | Project schedule | - | - | - | - | NOT-DRIVEN | - |
 | R-C11 | Revenue / Budget / Actual, scope-wise and category-wise. ALL | - | - | - | - | NOT-DRIVEN | - |
-| R-C12 | Daily timesheets - designer enters daily work, manager valid | - | - | - | - | NOT-DRIVEN | - |
+| R-C12 | Daily timesheets - designer enters daily work, manager valid | /design-studio/timesheets/new | opened form | 'Couldn't load your project list: The construction data service did not respond in time. Retry'; Save disabled 'project list unavailable' | - | PARTIAL | honest error state; entry not driven |
 | R-C13 | Negative variation must be checked against WPR in case work  | /scope/[id]/revise | same as R-23 | refused | yes | WORKING | r23-c13 spec passed |
 | R-C14 | Upload site instruction form | - | - | - | - | PARTIAL (no own screen) | only inside /scope/[id] |
 | R-C15 | Save reports as PDF and share to WhatsApp | - | - | - | - | NOT-DRIVEN | - |
