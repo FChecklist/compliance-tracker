@@ -189,8 +189,7 @@ export async function setCostVisibilityForRole(
  * computeCostCoverage can produce. Deliberately does NOT include
  * qtyContract/rateContract/contractValue (the customer-facing, contract
  * side -- what a client is actually billed, always visible) or the
- * budget-overlay columns (budgetPercentage/computedBudget/vendorAmount/
- * materialAmount/manpowerAmount) -- these ARE redacted since 2026-10-20 (they are internal cost).
+ * budget-overlay columns (see BUDGET_OVERLAY_FIELDS below, redacted by route reads).
  */
 export const PROJECT_SIDE_COST_FIELDS: ReadonlySet<string> = new Set([
   "qtyProject",
@@ -206,9 +205,19 @@ export const PROJECT_SIDE_COST_FIELDS: ReadonlySet<string> = new Set([
   // named distinctly from the fields above but carrying the same
   // information -- redacted for the same reason.
   "projectValueDelta",
-  // Budget overlay (internal cost ceiling and its vendor/material/manpower split). Previously "out of scope"
-  // (Point 154), which let client_viewer read computedBudget/budgetPercentage on GET /api/scope/<id>
-  // (Sumeet UI audit 2026-10-19, R-50). A client must only ever see contract-side values.
+])
+
+/**
+ * The per-line BUDGET OVERLAY (Point 154): the internal cost ceiling and its
+ * vendor/material/manpower split. Internal cost, so a role without cost
+ * visibility (above all client_viewer) must never receive it from a BOQ READ
+ * route (Sumeet UI audit 2026-10-19, R-50). Kept SEPARATE from
+ * PROJECT_SIDE_COST_FIELDS on purpose: the AI work-link/pipeline layers redact
+ * with redactProjectSideFields() and apply their own manager-rank gate to the
+ * budget overlay, so widening that set would change their contract. Route
+ * reads go through applyCostVisibility()/redactCostSideFields(), which strip both.
+ */
+export const BUDGET_OVERLAY_FIELDS: ReadonlySet<string> = new Set([
   "computedBudget",
   "budgetPercentage",
   "vendorAmount",
@@ -236,14 +245,23 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * the same request cannot accidentally leak it back out.
  */
 export function redactProjectSideFields<T>(value: T): T {
+  return redactFields(value, PROJECT_SIDE_COST_FIELDS)
+}
+
+/** Strips project-side fields AND the budget overlay -- what a BOQ read route returns to a role without cost visibility. */
+export function redactCostSideFields<T>(value: T): T {
+  return redactFields(value, PROJECT_SIDE_COST_FIELDS, BUDGET_OVERLAY_FIELDS)
+}
+
+function redactFields<T>(value: T, ...sets: ReadonlySet<string>[]): T {
   if (Array.isArray(value)) {
-    return value.map((item) => redactProjectSideFields(item)) as unknown as T
+    return value.map((item) => redactFields(item, ...sets)) as unknown as T
   }
   if (isPlainObject(value)) {
     const out: Record<string, unknown> = {}
     for (const [key, v] of Object.entries(value)) {
-      if (PROJECT_SIDE_COST_FIELDS.has(key)) continue
-      out[key] = redactProjectSideFields(v)
+      if (sets.some((set) => set.has(key))) continue
+      out[key] = redactFields(v, ...sets)
     }
     return out as T
   }
@@ -257,7 +275,7 @@ export function redactProjectSideFields<T>(value: T): T {
  */
 export async function applyCostVisibility<T>(ctx: { orgId: string }, role: UserRole | null | undefined, data: T): Promise<T> {
   const canSeeCost = await canRoleSeeCost(ctx, role)
-  return canSeeCost ? data : redactProjectSideFields(data)
+  return canSeeCost ? data : redactCostSideFields(data)
 }
 
 /**

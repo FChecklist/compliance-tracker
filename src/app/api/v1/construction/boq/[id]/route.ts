@@ -11,7 +11,7 @@ import * as boqService from "@/lib/services/construction-boq-service"
 import { isBoqKeysetPaginationEnabled } from "@/lib/boq-line-keyset"
 // R85 Addendum 3 v4 Phase 6 (gates 6-01/6-03a): THE ONE GATE, see
 // cost-visibility-service.ts's own header.
-import { applyCostVisibility, redactProjectSideFields } from "@/lib/services/cost-visibility-service"
+import { applyCostVisibility, redactCostSideFields } from "@/lib/services/cost-visibility-service"
 import type { UserRole } from "@/lib/supabase/role-rank"
 
 /**
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // below, and a caller with no real role still only gets the customer
     // shape either way.
     if (new URL(request.url).searchParams.get("view") === "customer") {
-      return NextResponse.json(redactProjectSideFields(boq))
+      return NextResponse.json(redactCostSideFields(boq))
     }
 
     const role = await resolveRoleForCostVisibility(request, ctx)
