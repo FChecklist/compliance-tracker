@@ -189,9 +189,8 @@ export async function setCostVisibilityForRole(
  * computeCostCoverage can produce. Deliberately does NOT include
  * qtyContract/rateContract/contractValue (the customer-facing, contract
  * side -- what a client is actually billed, always visible) or the
- * pre-existing, separate budgetPercentage/vendorAmount/materialAmount/
- * manpowerAmount budget-overlay columns (Point 154, out of scope for this
- * phase -- see this phase's ACTIVE-CLAIMS.yaml entry).
+ * budget-overlay columns (budgetPercentage/computedBudget/vendorAmount/
+ * materialAmount/manpowerAmount) -- these ARE redacted since 2026-10-20 (they are internal cost).
  */
 export const PROJECT_SIDE_COST_FIELDS: ReadonlySet<string> = new Set([
   "qtyProject",
@@ -207,6 +206,14 @@ export const PROJECT_SIDE_COST_FIELDS: ReadonlySet<string> = new Set([
   // named distinctly from the fields above but carrying the same
   // information -- redacted for the same reason.
   "projectValueDelta",
+  // Budget overlay (internal cost ceiling and its vendor/material/manpower split). Previously "out of scope"
+  // (Point 154), which let client_viewer read computedBudget/budgetPercentage on GET /api/scope/<id>
+  // (Sumeet UI audit 2026-10-19, R-50). A client must only ever see contract-side values.
+  "computedBudget",
+  "budgetPercentage",
+  "vendorAmount",
+  "materialAmount",
+  "manpowerAmount",
 ])
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
