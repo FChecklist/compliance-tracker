@@ -277,7 +277,7 @@ export async function listIssuesWithDb(
 ): Promise<Record<string, unknown>[]> {
   const statusFilter = opts.status === "all" ? sql`TRUE` : sql`i.status = ${opts.status}`
   const projectFilter = opts.projectId ? sql`${opts.projectId} = ANY(i.project_ids)` : sql`TRUE`
-  return rowsOf(
+  const issues = rowsOf(
     await db.execute(sql`
       SELECT i.*, to_jsonb(e) AS sample_event
       FROM compliance.client_error_issues i
@@ -286,8 +286,22 @@ export async function listIssuesWithDb(
       ORDER BY i.last_seen_at DESC
       LIMIT ${opts.limit}`)
   )
+  if (issues.length === 0) return issues
+  // people + last_event_at for the whole page in ONE grouped query (never one query per issue).
+  const fingerprints = issues.map((r) => r.fingerprint as string)
+  const stats = rowsOf<{ fingerprint: string; people: number; last_event_at: unknown }>(
+    await db.execute(sql`
+      SELECT fingerprint, count(DISTINCT user_id)::int AS people, max(occurred_at) AS last_event_at
+      FROM compliance.client_log_events
+      WHERE org_id = ${orgId} AND fingerprint IN (${sql.join(fingerprints.map((f) => sql`${f}`), sql`, `)})
+      GROUP BY fingerprint`)
+  )
+  const byFingerprint = new Map(stats.map((s) => [s.fingerprint, s]))
+  return issues.map((r) => {
+    const s = byFingerprint.get(r.fingerprint as string)
+    return { ...r, people: s ? Number(s.people) : 0, last_event_at: s ? s.last_event_at : null }
+  })
 }
-
 export type IssueDetail = { issue: Record<string, unknown>; events: Record<string, unknown>[] }
 
 export async function getIssueWithDb(db: TenantDb, orgId: string, id: string): Promise<IssueDetail | null> {

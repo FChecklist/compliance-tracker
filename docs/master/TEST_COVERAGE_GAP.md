@@ -17,8 +17,8 @@ VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No s
 | 4 | `src/lib/services/workspace-memory-service.ts` | 446 |
 | 5 | `src/lib/services/construction-boq-payload-service.ts` | 443 |
 | 6 | `src/lib/services/gst-reconciliation-service.ts` | 406 |
-| 7 | `src/lib/services/sales-engine-service.ts` | 397 |
-| 8 | `src/lib/services/client-log-service.ts` | 388 |
+| 7 | `src/lib/services/client-log-service.ts` | 402 |
+| 8 | `src/lib/services/sales-engine-service.ts` | 397 |
 | 9 | `src/lib/services/erp-goods-receipt-service.ts` | 361 |
 | 10 | `src/lib/services/dpdp-organisation-service.ts` | 330 |
 | 11 | `src/lib/services/fm-register-digitization-service.ts` | 328 |
