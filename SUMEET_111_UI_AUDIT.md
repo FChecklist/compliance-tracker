@@ -179,3 +179,10 @@ Observed this session. Network from this laptop was flaky (connect time-outs on 
 - **R-C03** documents upload works (201, lands on the document). **R-C04** MoM create, action item, share link and publish work; PDF endpoint returns a real PDF (button click not observable headless). **R-62** no foreign currency mark on 10 money screens.
 - **Client_viewer (Karan) on /scope/<boq>:** page still renders the "PROJECT (COST) / VARIANCE / VARIANCE %" headers (values NOT_SET) and an editable-looking line grid (category pickers "Civil Gypsum Joinery ... + Add new") for a client_viewer; API payload has no cost fields. Not verified on a project with real cost numbers (the owner view did not render in the same run).
 
+## Complete-the-rest pass, part 2 (2026-10-20, live; tested against the production build at the time, commit not exposed in the UI)
+- **R-97** e-signature request sent to the test CEO address only: pending request + signer in DB, CO now pending_approval.
+- **R-94/95** invoice action is not on the PROJEXA screen (server-only), so not drivable here.
+- **R-C12** blocked by a project with no tasks and a task form that never rendered (4 tries).
+- **Not driven in this pass (time/flakiness, unchanged verdicts):** R-80, R-81, R-91, R-100, R-48, R-18/R-13/R-19 UI-level, R-C08/C09 leftovers. Reason: each fresh browser took 1-4 minutes to finish its first sync and several forms (task, project pickers) intermittently did not render; I stopped after 4 failed attempts on the task form rather than loop.
+- **New observations:** (a) the change-orders list shows duplicate rows (CO-1 and CO-3 each twice) for the AUDIT project, consistent with the earlier duplicate-on-retry defect; (b) the Export PDF button on a MoM does nothing observable in headless Chrome although the PDF endpoint returns a valid PDF; (c) the "choose project" dropdown stays open over the New Task form on the first load.
+
