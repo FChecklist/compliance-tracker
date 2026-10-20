@@ -3914,6 +3914,13 @@
       "when": 1790700033000,
       "tag": "0753_perf_boq_latest_partial_index",
       "breakpoints": true
+    },
+    {
+      "idx": 561,
+      "version": "7",
+      "when": 1790700034000,
+      "tag": "0754_client_log_events",
+      "breakpoints": true
     }
   ]
 }
