@@ -168,6 +168,16 @@ describe("construction AI (PROJEXA's Discuss pane and the assistant's AI actions
     expect(risk.recommendedAction.length).toBeGreaterThan(0)
   })
 
+  test("budget/schedule risk, on but the model is unreachable (test AI worker offline): the template, never an error (R-81)", async () => {
+    on()
+    callLLMJson.mockImplementationOnce(async () => { throw new Error("The test AI is offline: the owner's laptop worker is not running.") })
+    const risk = await ai.detectBudgetScheduleRisk(ctx, "p1")
+    expect(callLLMJson).toHaveBeenCalledTimes(1)
+    expect(risk.riskLevel).toBe(ai.classifyBudgetScheduleRisk({ budget: 100, actual: 150, variance: -50, delayedTaskCount: 6, totalTaskCount: 10 }))
+    expect(risk.budgetRiskReasoning).not.toBe("model prose")
+    expect(risk.recommendedAction.length).toBeGreaterThan(0)
+  })
+
   test("budget/schedule risk, on: the model writes the prose, as before", async () => {
     on()
     const risk = await ai.detectBudgetScheduleRisk(ctx, "p1")

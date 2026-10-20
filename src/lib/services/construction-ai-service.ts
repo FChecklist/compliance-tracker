@@ -277,31 +277,39 @@ export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: str
   // lf-b3-ai-off: the deterministic template, exactly as when no model is configured.
   if (!projexaInternalAiEnabled()) return templateBudgetScheduleRisk(factors, riskLevel)
 
-  const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
-  if (!modelConfig) return templateBudgetScheduleRisk(factors, riskLevel)
+  // R-81 (2026-10-20): the model only writes the prose; riskLevel is the formula's. A model that cannot answer (the test AI's laptop
+  // worker offline, a provider error, a timeout) must not turn a deterministic answer into an error, so every model step falls back
+  // to the same template as 'AI off'. Live repro: assistant_queries.error_message "The test AI is offline ..." on this codeReference.
+  try {
+    const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
+    if (!modelConfig) return templateBudgetScheduleRisk(factors, riskLevel)
 
-  const systemPrompt = await resolvePromptTemplate("construction.detect_budget_schedule_risk")
-  const userMessage = withholdBudget
-    ? `Real aggregated data (JSON): ${JSON.stringify({ delayedTaskCount: factors.delayedTaskCount, totalTaskCount: factors.totalTaskCount })}\nBudget figures are withheld from this reader; assess the schedule only.`
-    : `Real aggregated data (JSON): ${JSON.stringify(factors)}`
+    const systemPrompt = await resolvePromptTemplate("construction.detect_budget_schedule_risk")
+    const userMessage = withholdBudget
+      ? `Real aggregated data (JSON): ${JSON.stringify({ delayedTaskCount: factors.delayedTaskCount, totalTaskCount: factors.totalTaskCount })}\nBudget figures are withheld from this reader; assess the schedule only.`
+      : `Real aggregated data (JSON): ${JSON.stringify(factors)}`
 
-  const { data, usage } = await callLLMJson<BudgetScheduleRisk>(
-    modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
-    { temperature: 0.2, maxTokens: 500, expectedKeys: ["riskLevel"] }, modelConfig.fallback
-  )
-  // riskLevel is always the deterministic value above -- the LLM's own
-  // riskLevel output (whatever it decided) is discarded here, never
-  // surfaced to a caller. The LLM's real job on this call is the reasoning
-  // prose only.
-  const result: BudgetScheduleRisk = { ...data, riskLevel }
+    const { data, usage } = await callLLMJson<BudgetScheduleRisk>(
+      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
+      { temperature: 0.2, maxTokens: 500, expectedKeys: ["riskLevel"] }, modelConfig.fallback
+    )
+    // riskLevel is always the deterministic value above -- the LLM's own
+    // riskLevel output (whatever it decided) is discarded here, never
+    // surfaced to a caller. The LLM's real job on this call is the reasoning
+    // prose only.
+    const result: BudgetScheduleRisk = { ...data, riskLevel }
 
-  recordOrchestraExecution({
-    orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "construction.detect_budget_schedule_risk",
-    input: { projectId }, output: { riskLevel: result.riskLevel },
-    status: "completed", durationMs: Date.now() - startedAt,
-    provider: modelConfig.provider, model: modelConfig.model, usage,
-  }, existingDb)
-  return result
+    recordOrchestraExecution({
+      orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "construction.detect_budget_schedule_risk",
+      input: { projectId }, output: { riskLevel: result.riskLevel },
+      status: "completed", durationMs: Date.now() - startedAt,
+      provider: modelConfig.provider, model: modelConfig.model, usage,
+    }, existingDb)
+    return result
+  } catch (err) {
+    console.error("detectBudgetScheduleRisk: model step failed, answering from the template:", err)
+    return templateBudgetScheduleRisk(factors, riskLevel)
+  }
 }
 
 export type DrawingDescription = { drawingType: string | null; elements: string[]; dimensions: string[]; annotations: string[]; notes: string }
