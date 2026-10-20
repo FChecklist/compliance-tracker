@@ -231,4 +231,22 @@ describe("reads, fix write-back and tenancy", () => {
     await ingest([ev({}, new Date(Date.now() + 3_600_000))])
     expect((await svc.getIssueWithDb(db, "org-1", id))!.issue).toMatchObject({ status: "reopened", fix_summary: "Guard null x" })
   })
-})
+
+  test("12. issue list carries people (distinct non-null users) and last_event_at, per issue, from one grouped query", async () => {
+    const t0 = Date.now() - 3_600_000
+    await ingest([ev({ fingerprint: "fp-a" }, new Date(t0)), ev({ fingerprint: "fp-a" }, new Date(t0 + 5000)), ev({ fingerprint: "fp-b" }, new Date(t0 + 1000))], { orgId: "org-1", userId: "u1" })
+    await ingest([ev({ fingerprint: "fp-a" }, new Date(t0 + 9000)), ev({ fingerprint: "fp-a" }, new Date(t0 + 9500))], { orgId: "org-1", userId: "u2" })
+    await ingest([ev({ fingerprint: "fp-a" }, new Date(t0 + 9900))], { orgId: "org-1", userId: null as never })
+    await ingest([ev({ fingerprint: "fp-a" }, new Date(t0 + 20000))], { orgId: "org-2", userId: "u9" }) // other organisation: never counted
+    const calls: string[] = []
+    const spy = { execute: (q: unknown) => { calls.push("q"); return (db as never as { execute: (x: unknown) => unknown }).execute(q) } } as never
+    const list = await svc.listIssuesWithDb(spy, "org-1", { status: "all", limit: 10 })
+    expect(calls).toHaveLength(2) // the page query + ONE grouped stats query, regardless of issue count
+    const a = list.find((i) => i.fingerprint === "fp-a")!
+    const b = list.find((i) => i.fingerprint === "fp-b")!
+    expect(a.people).toBe(2)
+    expect(b.people).toBe(1)
+    expect(new Date(a.last_event_at as string).getTime()).toBe(t0 + 9900)
+    expect(new Date(b.last_event_at as string).getTime()).toBe(t0 + 1000)
+    expect(await svc.listIssuesWithDb(db, "org-1", { status: "fixed", limit: 10 })).toEqual([])
+  })})
