@@ -86,3 +86,24 @@ instead of landing on the item; (2) the BOQ page still shows the PROJECT (COST)/
 to client_viewer (confirm on a project with cost data); (3) BOQ and project create have no duplicate guard;
 (4) slow responses over 10 s and a 1-4 minute first-load wait on a fresh browser; (5) rows not yet driven:
 R-80, R-81, R-91, R-100, R-C03, R-C04, R-C12, R-62, R-94/R-95 invoice step; (6) R-C17 email engine (owner-only).
+
+---
+
+## 9. Slowness investigation (20 October 2026) - measured findings
+
+Method: live database read-only via Supabase (project pcrjmlpuqsbocqfwoxod): pg_stat_statements, EXPLAIN ANALYZE, and temp-table copies for index trials; test writes were rolled back. Not done: timing live HTTP calls. This session had no E2E Meridian API key or mint secret (not in the environment, and I did not take one), so the numbers are database-side. Fix PR: compliance-tracker #2172.
+
+**Root picture.** The database is small (largest table 26k rows, 224 MB cache, max 60 connections). Almost no query is slow because of its plan. The slowness comes from (1) the E2E org's polluted project holding 14,284 BOQs and 26k lines, (2) per-write overhead, (3) a 5-connection app pool that one heavy request can fill.
+
+| Symptom | Measured cause | Status |
+|---|---|---|
+| (d) Public share page 85 s | `resolveReportShareLink` called `getBoq()` for every revision of the project (14,284 on the polluted project, each its own transaction through a 5-connection pool), then used one. Now 1 list + 1 read. Test fails on old code. | FIXED in #2172 |
+| (a) data service >10 s cold, (e) BOQ-save "did not respond" | pg_stat_statements: a single-row BOQ insert has mean 2.8 s, max 87 s (1,385 calls); a line insert mean 0.63 s, max 38 s. In a rolled-back test, a one-row line insert costs 50 ms on average (max 228 ms) with the triggers and 0.3 ms with them off. Cause: the statement-level `projexa_track_change` sync-tracking trigger (dynamic SQL, joins and writes per statement) plus `auto_register_asset`. A BOQ save runs several statements, each paying it, and under load these queue behind the pool. | NOT fixed: sync subsystem, needs owner review |
+| (b) 1-4 minute first copy | `projexa_sync_pull` pages 200 rows per call, 28 kinds per project. The `boq_lines` page took 1.4 s on the live table (hash of 14k BOQs plus a scan of the org's 26k lines), about 130 pages for this project, so about 3 minutes. The same query on a temp copy takes 16 ms: the plan is fine, the live cost is cold and contended. A cursor index was tried and did not help (35 ms vs 16 ms). Manifest and pull are called 113k times each, mean 76-81 ms, max 29 s. | NOT fixed: needs client change in the PROJEXA repo (page size up to the 500 maximum, kinds in parallel) |
+| (c) Exceptions needs two tries, Project Status never finishes | The queries have no N+1 left (fixed 2026-09-21). Remaining cost: detectors #13/#14/#22/#23 read all 14k BOQs and send 14k then 24k ids as IN lists; and every query on `construction_boq_line_items` pays the RLS policy's per-row `EXISTS (select from construction_boqs ... org_id = current_org_id())`. Joining 3,442 progress rows to lines: 647 ms, of which about 390 ms is that sub-plan (24k buffer hits); `current_org_id()` has `SET search_path`, so it is not inlined. | NOT fixed: RLS change is a security setting; detector rewrite breaks fake-db tests, kept out of this low-risk pass |
+| (e) `ensureConstructionEnabled` cold 21 s then 500 | Its own queries are 3 trivial lookups (indexed, sub-millisecond plans). The wait is for a pooled connection while heavy requests (above) hold all 5. Not reproducible as a slow query. | Explained, no code fix |
+| Portfolio / dashboard | "Latest BOQ per project" query: 3,093 calls, mean 1.45 s, max 37 s, because it sorts 12.5k rows each time. Partial index 0753: 57.8 ms to 19.7 ms on a temp copy. | FIXED in #2172 (applied to live after merge) |
+
+Also seen: `construction_boqs` and `construction_boq_line_items` have never been autovacuumed (2.6k and 4.6k dead rows), and `construction_work_progress_entries` shows 6.9 million sequential scans over 3.5k rows (small each, but constant).
+
+**Recommended next, in order:** (1) PROJEXA client: sync page size 500 and parallel kinds; idempotency key on creates. (2) Owner review of the line-items RLS policy (use the row's own `org_id`) and a batch-friendly or deferred sync trigger. (3) Delete the E2E org's 14k test BOQs (test data, owner approval) - this alone removes most of (b), (c), (d). (4) Vacuum the two BOQ tables.
