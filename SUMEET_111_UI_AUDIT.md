@@ -174,3 +174,8 @@ Observed this session. Network from this laptop was flaky (connect time-outs on 
 9. **Timed-out write wording**: seen live on item 3 (see above). PASS.
 10. **Re-runs**: R-C02 now WORKING (drawing + PDF created, 201). R-C03: "+ New Document" click timed out twice (60 s), not verified. R-C04: the project has no minutes of meeting, so Export PDF could not be clicked. R-C12: Design Studio opens as a timesheet screen for the project; entry not driven. R-62: money pages did not render in my 25 s window, so no AED/other-currency count; unchanged. R-80, R-81, R-91, R-100: committed specs not run (they need a local rig); unchanged, still BLOCKED/PARTIAL.
 **Data-service rate this session:** about 100 API responses seen by my pages, 0 HTTP 503; the failure mode was slow responses (>10 s) and the "project not yet copied to this laptop" wait of 1-4 minutes on a fresh browser, not 503s.
+
+## Complete-the-rest pass (2026-10-20, live)
+- **R-C03** documents upload works (201, lands on the document). **R-C04** MoM create, action item, share link and publish work; PDF endpoint returns a real PDF (button click not observable headless). **R-62** no foreign currency mark on 10 money screens.
+- **Client_viewer (Karan) on /scope/<boq>:** page still renders the "PROJECT (COST) / VARIANCE / VARIANCE %" headers (values NOT_SET) and an editable-looking line grid (category pickers "Civil Gypsum Joinery ... + Add new") for a client_viewer; API payload has no cost fields. Not verified on a project with real cost numbers (the owner view did not render in the same run).
+
