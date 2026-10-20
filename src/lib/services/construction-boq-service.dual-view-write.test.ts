@@ -92,6 +92,8 @@ function mountFakeDb(opts: {
   let boqFindFirstCalls = 0
   let createdBoqHeader: { id: string; orgId: string; projectId: string; version: number; title: unknown; parentBoqId: string | null; status: string } | null = null
   const fakeDb = {
+    execute: async () => {}, // create-dedupe lock
+    select: () => ({ from: () => ({ where: () => { const c: any = { orderBy: () => c, limit: async () => [] }; return c } }) }), // no recent duplicate
     query: {
       projects: { findFirst: mock(async () => ({ id: "proj-1", orgId: ORG_ID })) },
       constructionBoqs: {

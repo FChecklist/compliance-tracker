@@ -196,7 +196,7 @@ function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) =
     if (peek() === "lower") {
       i++;
       expect("(");
-      const trimmed = peek() === "trim";
+      const trimmed = peek() === "trim" || peek() === "btrim";
       if (trimmed) {
         i++;
         expect("(");
@@ -205,10 +205,14 @@ function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) =
       expect(")");
       if (trimmed) expect(")");
       expect("=");
-      expect("lower");
-      expect("(");
+      // create-dedupe (2026-10-20): `lower(btrim(col)) = $n`, the value already lower-cased by the caller; the older form is `= lower($n)`
+      const wrapped = peek() === "lower";
+      if (wrapped) {
+        i++;
+        expect("(");
+      }
       const value = param();
-      expect(")");
+      if (wrapped) expect(")");
       const norm = (v: string) => (trimmed ? v.trim() : v).toLowerCase();
       return (r) => typeof r[lowerKey] === "string" && typeof value === "string" && norm(r[lowerKey] as string) === value.toLowerCase();
     }
@@ -225,6 +229,18 @@ function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) =
     if (op === "=") {
       const value = param();
       return (r) => read(r) === value;
+    }
+    // create-dedupe (2026-10-20): `col >= now() - interval 'N minutes'`, the retry window of createProject/createBoq
+    if (op === ">") {
+      expect("=");
+      expect("now");
+      expect("(");
+      expect(")");
+      expect("-");
+      expect("interval");
+      const literal = tokens[i++] ?? "";
+      const minutes = Number(/^'(\d+) minutes'$/.exec(literal)?.[1] ?? fail());
+      return (r) => r[key] instanceof Date && Date.now() - (r[key] as Date).getTime() <= minutes * 60_000;
     }
     // lf-b5-ai-crud: `col <> $n` (tokenised as "<" ">"); NULL <> x is not true in SQL, so a missing value does not match
     if (op === "<") {

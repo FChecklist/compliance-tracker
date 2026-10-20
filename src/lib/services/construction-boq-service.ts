@@ -21,6 +21,7 @@ import {
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { lockCreateDedupeKey, createdWithinDedupeWindow } from "./create-dedupe"
 import { isSelfApproval } from "./approval-workflow-service"
 // R67 F-27 (R-243): a BOQ write moves contract value, earned value and
 // "% Complete by BOQ Value" on the project dashboard, which now holds a 60 s
@@ -1760,6 +1761,31 @@ export async function createBoq(ctx: BoqContext, input: BoqInput, hooks?: Create
 
     const existingId = hooks?.findExisting ? await hooks.findExisting(db) : null
     if (existingId) return getBoqRow(db, existingId)
+
+    // 2026-10-20 (Sumeet UI audit, defect 3): a create that outlives PROJEXA's wait is retried by the user and stored a second
+    // identical BOQ. Same org + project + title + creating user inside the last 2 minutes, where that BOQ is STILL a draft, is not
+    // a revision, and holds exactly as many lines as this request, IS the same create: the original is returned. Any difference
+    // (another status, another line count) means the content moved on, so a new BOQ is made. See create-dedupe.ts.
+    const requestedLines = (input.lineItems || []).length
+    await lockCreateDedupeKey(db, ["boq", ctx.orgId, input.projectId, ctx.userId, title])
+    const [recent] = await db.select().from(constructionBoqs)
+      .where(and(
+        eq(constructionBoqs.orgId, ctx.orgId),
+        eq(constructionBoqs.projectId, input.projectId),
+        eq(constructionBoqs.title, title),
+        eq(constructionBoqs.createdById, ctx.userId),
+        eq(constructionBoqs.status, "draft"),
+        isNull(constructionBoqs.parentBoqId),
+        createdWithinDedupeWindow(constructionBoqs.createdAt),
+      ))
+      .orderBy(sql`${constructionBoqs.createdAt} desc`)
+      .limit(1)
+    if (recent) {
+      // Ids rather than count(): this branch only runs for a probable retry, and it keeps the read a plain select.
+      const savedLines = await db.select({ id: constructionBoqLineItems.id }).from(constructionBoqLineItems)
+        .where(eq(constructionBoqLineItems.boqId, recent.id))
+      if (savedLines.length === requestedLines) return getBoqRow(db, recent.id)
+    }
 
     const [boq] = await db.insert(constructionBoqs).values({
       orgId: ctx.orgId, projectId: input.projectId, version: 1, title, createdById: ctx.userId,
