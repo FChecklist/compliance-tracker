@@ -31,9 +31,14 @@ export async function createSiteInstruction(ctx: { orgId: string; userId: string
   if (!input.description?.trim()) throw new ServiceError("description is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    await assertProject(db, ctx.orgId, input.projectId)
-    const [{ value: existing }] = await db.select({ value: count() }).from(constructionSiteInstructions)
-      .where(and(eq(constructionSiteInstructions.orgId, ctx.orgId), eq(constructionSiteInstructions.projectId, input.projectId)))
+    // 2026-10-20 (Sumeet UI audit, defect 1): the project check and the SI-number count do not depend on each other, so they are
+    // sent together (one round trip on the transaction's connection instead of two in sequence). The insert still waits for
+    // both, so an unknown project is still a 404 with nothing written. One transaction, no nested withTenantContext.
+    const [, [{ value: existing }]] = await Promise.all([
+      assertProject(db, ctx.orgId, input.projectId),
+      db.select({ value: count() }).from(constructionSiteInstructions)
+        .where(and(eq(constructionSiteInstructions.orgId, ctx.orgId), eq(constructionSiteInstructions.projectId, input.projectId))),
+    ])
 
     const [row] = await db.insert(constructionSiteInstructions).values({
       orgId: ctx.orgId, projectId: input.projectId, siNumber: existing + 1,

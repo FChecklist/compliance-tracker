@@ -41,6 +41,8 @@ function makeTransactionalDb(store: ReturnType<typeof makeFakeStore>) {
   const visibleLineItems = () => [...store.committedLineItems, ...stagedLineItems]
 
   const db = {
+    execute: async () => {}, // create-dedupe lock
+    select: () => ({ from: () => ({ where: () => { const c: any = { orderBy: () => c, limit: async () => [] }; return c } }) }), // no recent duplicate
     query: {
       projects: {
         findFirst: async () => ({ id: PROJECT_ID, orgId: ORG_ID, name: "Fake Project" }),

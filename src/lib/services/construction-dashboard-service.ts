@@ -30,6 +30,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 // isNull dropped alongside the BOQ chain's old isNull(constructionBoqLineItems.parentLineItemId) -- now `cbli.parent_line_item_id IS NULL` in raw SQL.
 import { and, eq, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { lockCreateDedupeKey, createdWithinDedupeWindow } from "./create-dedupe"
 // R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
 // service.ts exposes as the "earned-value" named report -- NOT a second
 // summation path. This is a real circular import (construction-reports-
@@ -141,11 +142,31 @@ export async function resolveProjectProduct(db: TenantDb, orgId: string, product
 // API-key-authenticated create (caught live while verifying this endpoint,
 // not by typecheck/lint). isRealUser lets the caller say whether ctx.userId
 // actually resolves to a `users` row.
-export async function createProject(ctx: { orgId: string; userId: string; isRealUser?: boolean }, input: ProjectInput) {
+/** skipDuplicateGuard: for a caller that already has its own retry key (from-document claims the file); see the guard below. */
+export async function createProject(ctx: { orgId: string; userId: string; isRealUser?: boolean; skipDuplicateGuard?: boolean }, input: ProjectInput) {
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    // The product is resolved FIRST so a productId that is not this organisation's is refused (404) whether or not a duplicate exists.
     const product = await resolveProjectProduct(db, ctx.orgId, input.productId)
+    // 2026-10-20 (Sumeet UI audit, defect 3): a create that outlives PROJEXA's wait is retried by the user and stored a second
+    // identical project. Same org + same name (trimmed, case-insensitive) + same creating user inside the last 2 minutes IS the
+    // same create: the ORIGINAL row is returned. Only when the caller is a real user row (leadUserId is what identifies "same
+    // user"); an API-key caller with no user is never de-duplicated. See create-dedupe.ts for the lock and window.
+    if (ctx.isRealUser && !ctx.skipDuplicateGuard) {
+      const nameKey = input.name.trim().toLowerCase()
+      await lockCreateDedupeKey(db, ["project", ctx.orgId, ctx.userId, nameKey])
+      const [existing] = await db.select().from(projects)
+        .where(and(
+          eq(projects.orgId, ctx.orgId),
+          eq(projects.leadUserId, ctx.userId),
+          sql`lower(btrim(${projects.name})) = ${nameKey}`,
+          createdWithinDedupeWindow(projects.createdAt),
+        ))
+        .orderBy(sql`${projects.createdAt} asc`)
+        .limit(1)
+      if (existing) return existing
+    }
 
     const [row] = await db.insert(projects).values({
       orgId: ctx.orgId, productId: product.id, name: input.name.trim(),
