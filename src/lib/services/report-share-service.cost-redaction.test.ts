@@ -247,4 +247,25 @@ describe("resolveReportShareLink -- public share links can never carry cost (D91
     expect(r.lineItems[0].qtyContract).toBe("100")
     expect(r.lineItems[0].rateContract).toBe("42")
   })
+
+  test("work_progress: reads ONE BOQ in full (the latest non-superseded), not every revision (perf: 85 s share page)", async () => {
+    await mockModules({ link: { ...BASE_LINK, reportType: "work_progress" } })
+    const fullReads: string[] = []
+    const headers = [
+      { id: "boq-new", title: "Latest", status: "approved" },
+      ...Array.from({ length: 500 }, (_, i) => ({ id: `boq-old-${i}`, title: "Old", status: "superseded" })),
+    ].sort((a, b) => (a.status === "superseded" ? 1 : 0) - (b.status === "superseded" ? 1 : 0))
+    await mock.module("./construction-boq-service", () => ({
+      listBoqs: async () => [headers[headers.length - 1], ...headers.slice(0, -1)].sort((a, b) => (a.status === "superseded" ? 1 : 0) - (b.status === "superseded" ? 1 : 0)),
+      getBoq: async (_c: unknown, id: string) => { fullReads.push(id); return { id, title: id === "boq-new" ? "Latest" : "Old", status: "approved", lineItems: [] } },
+    }))
+    await mock.module("./construction-progress-service", () => ({
+      listActivities: async () => [], listCategories: async () => [], listProgressEntries: async () => [],
+    }))
+    const { resolveReportShareLink } = await import("./report-share-service")
+
+    const result = (await resolveReportShareLink("tok-1")) as { boqTitle: string }
+    expect(fullReads).toEqual(["boq-new"])
+    expect(result.boqTitle).toBe("Latest")
+  })
 })

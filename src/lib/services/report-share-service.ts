@@ -375,8 +375,14 @@ export async function resolveReportShareLink(token: string) {
   }
 
   const boqs = await listBoqs({ orgId: link.orgId }, ref.projectId)
-  const boqsWithLineItems = await Promise.all(boqs.map((boq) => getBoq({ orgId: link.orgId }, boq.id)))
-  const latestBoq = boqsWithLineItems.find((b) => b.status !== "superseded") ?? boqsWithLineItems[0]
+  // Perf (2026-10-20): only ONE BOQ is ever used below, so only one is read
+  // in full. This used to getBoq() EVERY revision of the project in a
+  // Promise.all just to pick the first non-superseded one; on a project with
+  // thousands of BOQs that was thousands of transactions through a 5-connection
+  // pool (the 85 s public share page). The header rows already carry `status`
+  // and keep the same order, so the pick is identical.
+  const latestHeader = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+  const latestBoq = latestHeader ? await getBoq({ orgId: link.orgId }, latestHeader.id) : undefined
 
   const [activities, categories, entries] = await Promise.all([
     listActivities({ orgId: link.orgId }, { projectId: ref.projectId }),
