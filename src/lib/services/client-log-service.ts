@@ -100,9 +100,29 @@ export function serverFingerprint(e: Pick<CleanEvent, "kind" | "message" | "rout
   return `srv:${h.slice(0, 16)}`
 }
 
+// The browser (PROJEXA src/lib/client-log) sends camelCase (occurredAt, projectId ...); the contract and the stored columns are
+// snake_case. Both spellings are accepted for every field; camelCase wins when both are present; unknown keys are ignored.
+const CAMEL_TO_SNAKE: Record<string, string> = {
+  occurredAt: "occurred_at",
+  projectId: "project_id",
+  sessionId: "session_id",
+  apiPath: "api_path",
+  httpMethod: "http_method",
+  httpStatus: "http_status",
+  requestId: "request_id",
+  durationMs: "duration_ms",
+  actionName: "action_name",
+}
+export function normaliseEventKeys(raw: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...raw }
+  for (const [camel, snake] of Object.entries(CAMEL_TO_SNAKE)) {
+    if (raw[camel] !== undefined && raw[camel] !== null) out[snake] = raw[camel]
+  }
+  return out
+}
 export function validateEvent(raw: unknown, now: Date = new Date()): { ok: true; event: CleanEvent } | { ok: false; reason: string } {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, reason: "event must be an object" }
-  const r = raw as Record<string, unknown>
+  const r = normaliseEventKeys(raw as Record<string, unknown>)
   if (typeof r.id !== "string" || r.id.length < 8 || r.id.length > 100) return { ok: false, reason: "id must be a string of 8-100 characters (a uuid)" }
   if (typeof r.kind !== "string" || !(EVENT_KINDS as readonly string[]).includes(r.kind)) return { ok: false, reason: `kind must be one of ${EVENT_KINDS.join(", ")}` }
   const kind = r.kind as ClientLogKind

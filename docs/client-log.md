@@ -43,3 +43,4 @@ Code: `src/lib/services/client-log-service.ts` and `src/app/api/v1/projexa/clien
   per server instance, so it costs no database work.
 - **Who sent it.** `user_id` comes from the session, or from `X-Acting-User` for PROJEXA's API key; it is never read from the body.
 - **Offline-safe.** Event ids are the idempotency key and issue counts only grow for newly stored events, so a retried batch is harmless.
+- **Field spelling.** Events may use camelCase (what the browser sends: `occurredAt`, `projectId`, `sessionId`, `apiPath`, `httpMethod`, `httpStatus`, `requestId`, `durationMs`, `actionName`) or snake_case (`occurred_at` ...). camelCase wins if both are present; unknown keys are ignored. Reads always return snake_case.
