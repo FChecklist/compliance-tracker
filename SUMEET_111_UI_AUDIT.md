@@ -43,7 +43,7 @@ Method: committed `signInByCode` with admin-minted test codes (E2E domain only),
 - Vercel/DNS: nothing touched; the production check used only the existing live site.
 
 
-**Verdict counts:** BLOCKED 3, BLOCKED-by-owner 1, MISSING 0, N-A 12, NOT-DRIVEN 1, PARTIAL 29, WORKING 65 (after the 2026-10-20 final live re-check)
+**Verdict counts (counted by script from the table, 2026-10-20):** WORKING 64, PARTIAL 30, N-A 12, BLOCKED 3, NOT-DRIVEN 1, BLOCKED-by-owner 1 (total 111)
 
 ## Per-requirement table
 
@@ -185,4 +185,12 @@ Observed this session. Network from this laptop was flaky (connect time-outs on 
 - **R-C12** blocked by a project with no tasks and a task form that never rendered (4 tries).
 - **Not driven in this pass (time/flakiness, unchanged verdicts):** R-80, R-81, R-91, R-100, R-48, R-18/R-13/R-19 UI-level, R-C08/C09 leftovers. Reason: each fresh browser took 1-4 minutes to finish its first sync and several forms (task, project pickers) intermittently did not render; I stopped after 4 failed attempts on the task form rather than loop.
 - **New observations:** (a) the change-orders list shows duplicate rows (CO-1 and CO-3 each twice) for the AUDIT project, consistent with the earlier duplicate-on-retry defect; (b) the Export PDF button on a MoM does nothing observable in headless Chrome although the PDF endpoint returns a valid PDF; (c) the "choose project" dropdown stays open over the New Task form on the first load.
+
+## Re-verification and leftovers (2026-10-20; frontend #463 era, backend 06270ddf per the coordinator, not visible in the UI)
+Method note: one persistent Chromium profile (C:\ctudit-profile, remote-debugging port, attached by later scripts) signed in once as the test CEO; the first project copy took 3 s there, so the "1-4 minute first sync" was not the cause of most stalls. The real causes found: (1) deep-linking to a "/new" URL serves a different, offline-first form from the one reached by clicking "+ New" from the list; (2) two UIs exist: Traditional View (rich pages with Contract value, PROJECT (COST), Budget % columns; only in a fresh browser) and the laptop-first pages ("Saved on this laptop", read-only BOQ table, Line budgets on /scope/<id>/budget) that the long-lived profile serves; (3) native project selects dump all project names into body text, which made it look like a dropdown "stays open" over /schedule/tasks/new. That earlier "dropdown open" defect is therefore NOT a defect (artifact of reading innerText).
+- (a) Site instruction: see R-C14 row (creates; does not land on item; no PDF at create).
+- (b) Project double-create: double-clicked Save on /projects/new, DB has exactly 1 row (AUDIT-DBL-1792479913189). PASS.
+- (c)/(d) Cost data set on audit rev2 (Budget % 60 and Vendor amount 1000 on two lines, DB confirmed). Owner view (fresh browser, Traditional View) shows headers PROJECT (COST), VARIANCE, VARIANCE %, Budget %, Budget, Vendor, Vendor Amt, Material, Manpower and API fields computedBudget/budgetPercentage/vendorAmount/materialAmount/manpowerAmount. client_viewer (Karan) could NOT be verified: his scope list for this project is empty because the only non-draft BOQ is superseded and the draft needs a manager approval; Deepak's Approve button did not appear within 280 s. Still open.
+- R-C04 Export PDF button: not found on the page within 200 s this time (page did not finish rendering); PDF endpoint verified earlier (200 application/pdf).
+- **Not driven (reason: environment, see method note):** R-80, R-81, R-91, R-100, R-48, R-18/13/19 UI cases, R-C08/C09 leftovers, R-C12 (no task exists on the audit project and the /schedule/tasks/new form only renders after a click-through, not on deep link), R-94/R-95 invoice step (billing milestones screen on PROJEXA is read-only: "Drafting, submitting, approving, rejecting or invoicing a milestone is done on the server ... Open it from the server"; /invoices exists and lists invoices with AED amounts but I did not find a path from a billing claim to it).
 
