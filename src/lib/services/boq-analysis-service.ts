@@ -151,6 +151,12 @@ export type ProjectAnalysisRow = {
    * caller distinguish "every baseline figure below is NOT_SET because
    * nothing has been confirmed yet" from a genuine zero (X-04). */
   hasBaseline: boolean
+  /** R-100: a baseline can exist yet carry NO cost figures (it snapshots the BOQ lines as they were when
+   * confirmed; a BOQ confirmed before its cost rate/qty were entered gives NOT_SET totals for ever).
+   * false here with hasBaseline true means "confirm a fresh baseline now that the cost figures exist". */
+  baselineHasFigures: boolean
+  /** How many baseline versions this BOQ has. */
+  baselineCount: number
 
   // ── 9-01/9-04: contract at first confirmation vs contract now ─────────
   contractAtFirstConfirmation: MoneyFigure
@@ -228,7 +234,14 @@ export async function getProjectAnalysis(ctx: AnalysisContext, projectId: string
 
   const approvedVariationCount = boqs.filter((b) => b.status === "approved" && b.parentBoqId !== null).length
 
-  const firstBaseline = baselines.find((b) => b.version === 1) ?? null
+  // R-100: "first confirmation" is the first baseline that actually carries figures. A version 1 taken before any
+  // cost data existed reads NOT_SET for ever, which used to pin the whole P&L at "Not yet baselined" even after a
+  // later version (with real figures) was confirmed. Falls back to version 1 when no version has figures.
+  const hasFigures = (b: BoqBaseline) => {
+    const t = getEstimatedCostFromBaseline(b)
+    return t.contractValue !== NOT_SET && t.variance !== NOT_SET
+  }
+  const firstBaseline = baselines.find(hasFigures) ?? baselines.find((b) => b.version === 1) ?? null
   const latestBaseline = baselines.length > 0 ? baselines[baselines.length - 1]! : null
 
   const firstTotals = firstBaseline ? getEstimatedCostFromBaseline(firstBaseline) : null
@@ -255,6 +268,8 @@ export async function getProjectAnalysis(ctx: AnalysisContext, projectId: string
     boqId: effective.boqId,
     boqVersion: effective.boqVersion,
     hasBaseline: baselines.length > 0,
+    baselineHasFigures: latestTotals ? latestTotals.projectValue !== NOT_SET : false,
+    baselineCount: baselines.length,
 
     contractAtFirstConfirmation,
     contractValueNow,

@@ -180,6 +180,31 @@ describe("getProjectAnalysis -- 9-01 per-project figures", () => {
     expect(row.hasBaseline).toBe(true)
   })
 
+  // R-100 (2026-10-22): a baseline taken before any cost data existed (all NOT_SET totals) pinned the P&L at
+  // "Not yet baselined" for ever, even with hasBaseline true and a later version carrying real figures.
+  test("R-100: a figure-less v1 followed by a v2 with figures -> expected profit/contract-at-first read the first baseline WITH figures; baselineHasFigures true", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    fakeBaselines = [
+      baseline(1, [lineSnapshot({ qtyProject: null, rateProject: null, qtyContract: null, rateContract: null })]),
+      baseline(2, [lineSnapshot({ qtyProject: 100, rateProject: 400, qtyContract: 100, rateContract: 500 })]),
+    ]
+    const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(row.hasBaseline).toBe(true)
+    expect(row.baselineHasFigures).toBe(true)
+    expect(row.baselineCount).toBe(2)
+    expect(row.contractAtFirstConfirmation).toBe(50000)
+    expect(row.expectedProfitGross).toBe(10000)
+  })
+
+  test("R-100: ONLY a figure-less baseline -> hasBaseline true but baselineHasFigures false (the screen must offer a fresh confirmation, not hide the control)", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    fakeBaselines = [baseline(1, [lineSnapshot({ qtyProject: null, rateProject: null, qtyContract: null, rateContract: null })])]
+    const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(row.hasBaseline).toBe(true)
+    expect(row.baselineHasFigures).toBe(false)
+    expect(row.expectedProfitGross).toBe(NOT_SET)
+  })
+
   test("9-04: contract variance is contractValueNow - contractAtFirstConfirmation; approved variation count excludes the root BOQ and any non-approved revision", async () => {
     const { getProjectAnalysis } = await import("./boq-analysis-service")
     const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
