@@ -45,7 +45,7 @@ import { computeBoqLineMoneyView, rollUpRootLines, computeCostCoverage, validate
 // a second way keeps this file from becoming a second, drifting definition
 // of what confirmation means (the same X-27 single-producer discipline this
 // file already applies to the money math itself).
-import { listBaselineVersionsWithDb } from "./boq-baseline-service"
+import { listBaselineVersionsWithDb, latestBaselineWithFigures } from "./boq-baseline-service"
 // PROJEXA-BUILD-001 U-27: the pure half of the (boq_id, id) keyset pagination below (flag, cursor codec, page size,
 // revision chain). See that file's header for why it is a separate module with no imports.
 import {
@@ -1623,6 +1623,17 @@ export async function updateLineItemBudget(
   })
 }
 
+/** 409: the contract side is locked by a baseline that carries figures. Carries what the screen needs to guide the person to a revision. */
+export class ContractSideLockedError extends ServiceError {
+  constructor(public readonly boqId: string, public readonly baselineVersion: number, confirmedAt: Date) {
+    super(
+      `Contract values are locked by baseline v${baselineVersion} (confirmed ${confirmedAt.toISOString()}). To change them, create a revision of this BOQ and confirm a baseline there.`,
+      409
+    )
+    this.code = "CONTRACT_SIDE_LOCKED"
+  }
+}
+
 /** 409: the field was changed by someone else since the caller read it. `current` is what is stored now, for the person to choose from. */
 export class EditConflictError extends ServiceError {
   constructor(public readonly current: { category: string | null }) {
@@ -1675,12 +1686,12 @@ export async function updateLineItemMoneyFields(
     const editingContractSide = input.qtyContract !== undefined || input.rateContract !== undefined
     if (editingContractSide) {
       const baselines = await listBaselineVersionsWithDb(db, boq.id)
-      if (baselines.length > 0) {
-        const latest = baselines[baselines.length - 1]
-        throw new ServiceError(
-          `The contract side is locked -- this BOQ was confirmed (baseline v${latest.version}, ${latest.confirmedAt.toISOString()}). A post-confirmation contract change needs a cited evidence artefact and creates the next baseline version -- it cannot be edited directly here.`,
-          409
-        )
+      // R-100: only a baseline WITH figures (cost AND contract side priced, the same rule as the first-baseline
+      // pick in boq-analysis-service, PR #2179) locks the contract side. A baseline taken before the contract side
+      // was entered carries nothing to protect, and locking on it left the person with no way to ever enter it.
+      const locking = latestBaselineWithFigures(baselines)
+      if (locking) {
+        throw new ContractSideLockedError(boq.id, locking.version, locking.confirmedAt)
       }
     }
 

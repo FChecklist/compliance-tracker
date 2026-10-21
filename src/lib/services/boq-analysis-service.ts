@@ -107,7 +107,7 @@ import {
   computeProfitAtBothLevels,
   type ProfitAtBothLevels,
 } from "./boq-dual-view-service"
-import { listBaselineVersionsWithDb, getEstimatedCostFromBaseline, type BoqBaseline } from "./boq-baseline-service"
+import { listBaselineVersionsWithDb, getEstimatedCostFromBaseline, describeBaselineFigures, latestBaselineWithFigures, type BoqBaseline, type BaselineFigureStatus } from "./boq-baseline-service"
 import { getEffectiveContractValueForProject, effectiveFromBoqsWithDb } from "./boq-contract-value-service"
 import { computeCostActuals, computeCostActualsWithDb, computeCostVariance, isCommittedOverBaseline, type CostVarianceResult } from "./boq-cost-actuals-service"
 
@@ -155,6 +155,12 @@ export type ProjectAnalysisRow = {
    * confirmed; a BOQ confirmed before its cost rate/qty were entered gives NOT_SET totals for ever).
    * false here with hasBaseline true means "confirm a fresh baseline now that the cost figures exist". */
   baselineHasFigures: boolean
+  /** R-100: which side of the latest baseline is empty (counts + the line ids to jump to). Null when no baseline. */
+  baselineFigureStatus: BaselineFigureStatus | null
+  /** R-100: true once a baseline WITH figures exists -- the contract side then refuses direct edits (create a revision). */
+  contractSideLocked: boolean
+  /** The version of the baseline that locks the contract side, else null. */
+  contractLockedByVersion: number | null
   /** How many baseline versions this BOQ has. */
   baselineCount: number
 
@@ -244,6 +250,7 @@ export async function getProjectAnalysis(ctx: AnalysisContext, projectId: string
   const firstBaseline = baselines.find(hasFigures) ?? baselines.find((b) => b.version === 1) ?? null
   const latestBaseline = baselines.length > 0 ? baselines[baselines.length - 1]! : null
 
+  const lockingBaseline = latestBaselineWithFigures(baselines)
   const firstTotals = firstBaseline ? getEstimatedCostFromBaseline(firstBaseline) : null
   const latestTotals = latestBaseline ? getEstimatedCostFromBaseline(latestBaseline) : null
 
@@ -268,7 +275,11 @@ export async function getProjectAnalysis(ctx: AnalysisContext, projectId: string
     boqId: effective.boqId,
     boqVersion: effective.boqVersion,
     hasBaseline: baselines.length > 0,
-    baselineHasFigures: latestTotals ? latestTotals.projectValue !== NOT_SET : false,
+    // Both sides priced -- a cost-only snapshot gives no P&L, so it must not read as "has figures".
+    baselineHasFigures: latestBaseline ? describeBaselineFigures(latestBaseline).hasFigures : false,
+    baselineFigureStatus: latestBaseline ? describeBaselineFigures(latestBaseline) : null,
+    contractSideLocked: lockingBaseline !== null,
+    contractLockedByVersion: lockingBaseline?.version ?? null,
     baselineCount: baselines.length,
 
     contractAtFirstConfirmation,
