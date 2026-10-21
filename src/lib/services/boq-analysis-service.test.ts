@@ -102,6 +102,7 @@ function makeFakeDb() {
 }
 
 const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+  currentOrgId = ctx.orgId
   capturedWithTenantContextOrgIds.push(
     // PLANT THE DEFECT: flips the captured/used orgId to a wrong constant,
     // simulating exactly the class of bug (a hardcoded or swapped orgId)
@@ -111,23 +112,31 @@ const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unkno
   return fn(makeFakeDb())
 })
 
-const mockGetEffective = mock(async (ctx: { orgId: string }, projectId: string) => {
+// R-100 fix: getProjectAnalysis now runs ONE transaction and calls the *WithDb forms
+// (the db handle is the first argument; the org comes from the tenant context that opened it).
+let currentOrgId = ""
+const mockGetEffective = mock(async (_db: unknown, ctx: { orgId: string }, projectId: string) => {
   capturedGetEffectiveArgs.push({ orgId: ctx.orgId, projectId })
   return fakeEffective
 })
-const mockComputeCostActuals = mock(async (ctx: { orgId: string }, projectId: string) => {
+// getProjectAnalysis hands its already-read BOQ rows to this (the project id is not an argument).
+const mockEffectiveFromBoqs = mock(async (_db: unknown, _boqs: unknown) => {
+  capturedGetEffectiveArgs.push({ orgId: currentOrgId, projectId: "p1" })
+  return fakeEffective
+})
+const mockComputeCostActuals = mock(async (_db: unknown, ctx: { orgId: string }, projectId: string) => {
   capturedComputeCostActualsArgs.push({ orgId: ctx.orgId, projectId })
   return fakeActuals
 })
-const mockListBaselineVersions = mock(async (ctx: { orgId: string }, boqId: string) => {
-  capturedListBaselineArgs.push({ orgId: ctx.orgId, boqId })
+const mockListBaselineVersions = mock(async (_db: unknown, boqId: string) => {
+  capturedListBaselineArgs.push({ orgId: currentOrgId, boqId })
   return fakeBaselines
 })
 
 await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mockWithTenantContext }))
-await mock.module("./boq-contract-value-service", () => ({ ...realContractValueService, getEffectiveContractValueForProject: mockGetEffective }))
-await mock.module("./boq-cost-actuals-service", () => ({ ...realCostActualsService, computeCostActuals: mockComputeCostActuals }))
-await mock.module("./boq-baseline-service", () => ({ ...realBaselineService, listBaselineVersions: mockListBaselineVersions }))
+await mock.module("./boq-contract-value-service", () => ({ ...realContractValueService, effectiveFromBoqsWithDb: mockEffectiveFromBoqs, getEffectiveContractValueForProjectWithDb: mockGetEffective, getEffectiveContractValueForProject: mockGetEffective }))
+await mock.module("./boq-cost-actuals-service", () => ({ ...realCostActualsService, computeCostActualsWithDb: mockComputeCostActuals, computeCostActuals: mockComputeCostActuals }))
+await mock.module("./boq-baseline-service", () => ({ ...realBaselineService, listBaselineVersionsWithDb: mockListBaselineVersions, listBaselineVersions: mockListBaselineVersions }))
 
 function resetFixtures() {
   capturedWithTenantContextOrgIds = []
@@ -374,6 +383,14 @@ describe("sortAnalysisRows / compareAnalysisRowsBySortKey -- 9-02 sortable by pr
 // already-tested responsibility (X-27: this file is not the producer of
 // that guarantee, so it is not this file's test to re-prove).
 // ─────────────────────────────────────────────────────────────────────────
+describe("getProjectAnalysis -- R-100 one connection, not six", () => {
+  test("opens exactly ONE tenant transaction for the whole per-project analysis (the old fan-out held 4 pool connections at once and starved the Project 360 page)", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(capturedWithTenantContextOrgIds).toEqual([ORG_A])
+  })
+})
+
 describe("tenant isolation (9-06)", () => {
   test("getProjectAnalysis calls every downstream dependency, and both of its own direct DB queries, with the CALLER'S orgId -- proven both directions (ORG_A and ORG_B)", async () => {
     const { getProjectAnalysis } = await import("./boq-analysis-service")
@@ -383,7 +400,7 @@ describe("tenant isolation (9-06)", () => {
     expect(capturedComputeCostActualsArgs).toEqual([{ orgId: ORG_A, projectId: "p1" }])
     expect(capturedListBaselineArgs).toEqual([{ orgId: ORG_A, boqId: "boq-1" }])
     expect(capturedWithTenantContextOrgIds.every((id) => id === ORG_A)).toBe(true)
-    expect(capturedWithTenantContextOrgIds.length).toBeGreaterThanOrEqual(2) // projects.findFirst + constructionBoqs.findMany
+    expect(capturedWithTenantContextOrgIds.length).toBe(1) // one transaction carries every read
 
     resetFixtures()
     await getProjectAnalysis({ orgId: ORG_B }, "p1")

@@ -107,9 +107,9 @@ import {
   computeProfitAtBothLevels,
   type ProfitAtBothLevels,
 } from "./boq-dual-view-service"
-import { listBaselineVersions, getEstimatedCostFromBaseline, type BoqBaseline } from "./boq-baseline-service"
-import { getEffectiveContractValueForProject } from "./boq-contract-value-service"
-import { computeCostActuals, computeCostVariance, isCommittedOverBaseline, type CostVarianceResult } from "./boq-cost-actuals-service"
+import { listBaselineVersionsWithDb, getEstimatedCostFromBaseline, type BoqBaseline } from "./boq-baseline-service"
+import { getEffectiveContractValueForProject, effectiveFromBoqsWithDb } from "./boq-contract-value-service"
+import { computeCostActuals, computeCostActualsWithDb, computeCostVariance, isCommittedOverBaseline, type CostVarianceResult } from "./boq-cost-actuals-service"
 
 export type AnalysisContext = { orgId: string }
 
@@ -213,25 +213,20 @@ async function fetchProjectBoqsWithDb(db: TenantDb, orgId: string, projectId: st
  * production.
  */
 export async function getProjectAnalysis(ctx: AnalysisContext, projectId: string): Promise<ProjectAnalysisRow> {
-  const [effective, actuals, projectRow, boqs] = await Promise.all([
-    getEffectiveContractValueForProject({ orgId: ctx.orgId }, projectId),
-    computeCostActuals({ orgId: ctx.orgId }, projectId),
-    withTenantContext({ orgId: ctx.orgId }, (db) =>
-      db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
-    ),
-    withTenantContext({ orgId: ctx.orgId }, (db) => fetchProjectBoqsWithDb(db, ctx.orgId, projectId)),
-  ])
+  // R-100: ONE transaction (one pooled connection), reading the project's BOQ rows ONCE.
+  // The old shape opened four top-level transactions at once (plus a fifth for baselines),
+  // which on a 5-15 connection pool starved the other four requests the Project 360 page
+  // fires in parallel, and read a 14k-revision project's rows twice.
+  const { effective, actuals, projectRow, boqs, baselines } = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await fetchProjectBoqsWithDb(db, ctx.orgId, projectId)
+    const effective = await effectiveFromBoqsWithDb(db, boqs)
+    const actuals = await computeCostActualsWithDb(db, { orgId: ctx.orgId }, projectId)
+    const projectRow = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+    const baselines: BoqBaseline[] = effective.boqId ? await listBaselineVersionsWithDb(db, effective.boqId) : []
+    return { effective, actuals, projectRow, boqs, baselines }
+  })
 
   const approvedVariationCount = boqs.filter((b) => b.status === "approved" && b.parentBoqId !== null).length
-
-  // Baselines are read as a SEPARATE, later top-level call (not part of the
-  // Promise.all above) because it depends on `effective.boqId`, which that
-  // same batch produces -- see this function's own header on why none of
-  // these calls nest inside one another.
-  let baselines: BoqBaseline[] = []
-  if (effective.boqId) {
-    baselines = await listBaselineVersions({ orgId: ctx.orgId }, effective.boqId)
-  }
 
   const firstBaseline = baselines.find((b) => b.version === 1) ?? null
   const latestBaseline = baselines.length > 0 ? baselines[baselines.length - 1]! : null
