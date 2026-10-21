@@ -16,8 +16,9 @@ import {
   constructionInterimBills, constructionInterimBillLineItems, erpTaxTemplates, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { foldProgressAcrossRevisions, loadProgressSourceRows } from "./construction-reports-service"
 import { createSalesInvoice } from "./erp-invoicing-service"
 import { auditActorOf } from "@/lib/audit"
 export { ServiceError }
@@ -49,15 +50,30 @@ export type InterimBillLine = {
 export function computeInterimBillLines(
   lineItems: BillableLineItem[],
   percentCompleteByActivity: Map<string, number>,
-  previousBilledByLineItem: Map<string, number>
+  previousBilledByLineItem: Map<string, number>,
+  // R-95 (2026-10-22): progress logged through Work Progress is recorded against
+  // the BOQ LINE (boq_line_item_id, carried across revisions by item code) and
+  // its activity_id is only a placeholder, so the activity-keyed lookup alone
+  // never saw it and Invoice said "No new progress to bill" with real progress
+  // on file. When a line has such measured progress it wins; the activity path
+  // stays the fallback so every pre-existing caller computes exactly as before.
+  measuredByLineItem?: Map<string, { cumulativeAmount: number; percentComplete: number }>
 ): InterimBillLine[] {
   const lines: InterimBillLine[] = []
   for (const item of lineItems) {
-    if (!item.activityId) continue
-    const percentComplete = percentCompleteByActivity.get(item.activityId)
-    if (percentComplete == null) continue
-
-    const cumulativeAmount = Number(item.amount) * (percentComplete / 100)
+    const measured = measuredByLineItem?.get(item.id)
+    let percentComplete: number
+    let cumulativeAmount: number
+    if (measured) {
+      percentComplete = measured.percentComplete
+      cumulativeAmount = measured.cumulativeAmount
+    } else {
+      if (!item.activityId) continue
+      const pc = percentCompleteByActivity.get(item.activityId)
+      if (pc == null) continue
+      percentComplete = pc
+      cumulativeAmount = Number(item.amount) * (percentComplete / 100)
+    }
     const previousBilledAmount = previousBilledByLineItem.get(item.id) ?? 0
     const currentBillAmount = Math.max(0, Math.round((cumulativeAmount - previousBilledAmount) * 100) / 100)
 
@@ -91,6 +107,57 @@ export function buildInterimBillInvoiceItems(
   taxTemplateId: string
 ): { description: string; quantity: number; rate: number; taxTemplateId: string }[] {
   return billableLines.map((l) => ({ description: l.description, quantity: 1, rate: l.currentBillAmount, taxTemplateId }))
+}
+
+export type MeasurableLine = {
+  id: string
+  parentLineItemId: string | null
+  rate: string | number
+  amount: string | number
+  breakdownPercentage: string | number | null
+}
+
+/**
+ * Pure. Cumulative value of work done per BOQ line from line-level progress
+ * (summed DELTA quantity x rate, else latest percent x line value) -- the same
+ * per-line rule as computeEarnedValue (construction-reports-service.ts), so the
+ * bill and the dashboard's earned value can never disagree. A weighted child's
+ * rate/value come from its root (rootRate x breakdown %), as there.
+ */
+export function computeMeasuredLineCumulatives(
+  items: MeasurableLine[],
+  qtyByItem: Map<string, number>,
+  latestPercentByItem: Map<string, number>
+): Map<string, { cumulativeAmount: number; percentComplete: number }> {
+  const byId = new Map(items.map((i) => [i.id, i]))
+  const out = new Map<string, { cumulativeAmount: number; percentComplete: number }>()
+  for (const item of items) {
+    const parent = item.parentLineItemId ? byId.get(item.parentLineItemId) : undefined
+    const rate = parent ? Number(parent.rate) * (Number(item.breakdownPercentage ?? 0) / 100) : Number(item.rate)
+    const lineValue = Number(item.amount)
+    const qty = qtyByItem.get(item.id) ?? 0
+    const pct = latestPercentByItem.get(item.id)
+    let amount: number | null = null
+    if (qty > 0) amount = qty * rate
+    else if (pct) amount = (pct / 100) * lineValue
+    if (amount == null) continue
+    out.set(item.id, { cumulativeAmount: amount, percentComplete: lineValue > 0 ? Math.round((amount / lineValue) * 10000) / 100 : (pct ?? 0) })
+  }
+  return out
+}
+
+async function loadMeasuredLineCumulatives(
+  db: TenantDb, orgId: string, projectId: string, boqId: string,
+  lineItems: (MeasurableLine & { boqId: string; itemCode: string | null })[]
+) {
+  const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, orgId), eq(constructionBoqs.projectId, projectId)) })
+  const otherIds = boqs.filter((b) => b.id !== boqId && b.status === "superseded").map((b) => b.id)
+  const prior = otherIds.length > 0 ? await db.query.constructionBoqLineItems.findMany({ where: inArray(constructionBoqLineItems.boqId, otherIds) }) : []
+  const refs = [...lineItems, ...prior].map((i) => ({ id: i.id, boqId: i.boqId, itemCode: i.itemCode ?? null }))
+  const rows = await loadProgressSourceRows(db, refs)
+  const { qtyByItem, latestPercentByItem } = foldProgressAcrossRevisions(lineItems.map((i) => ({ id: i.id, boqId: i.boqId, itemCode: i.itemCode ?? null })), rows)
+  const latestDate = rows.reduce<string | null>((m, r) => (r.percentDate && (!m || r.percentDate > m) ? r.percentDate : m), null)
+  return { measured: computeMeasuredLineCumulatives(lineItems, qtyByItem, latestPercentByItem), latestDate, prior }
 }
 
 async function latestPercentCompleteByActivity(db: TenantDb, orgId: string, projectId: string): Promise<Map<string, number>> {
@@ -173,11 +240,31 @@ export async function generateInterimBill(
     const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, input.boqId) })
     const percentByActivity = await latestPercentCompleteByActivity(db, ctx.orgId, input.projectId)
     const previousBilled = await previousBilledAmountsByLineItem(db, input.boqId)
+    // Bills raised on an earlier revision of the same project count against the
+    // same item code here, so carrying progress across revisions never re-bills it.
+    const carried = (await db.execute(sql`
+      SELECT lower(trim(li.item_code)) AS code, coalesce(sum(bl.current_bill_amount), 0)::float AS total
+      FROM compliance.construction_interim_bill_line_items bl
+      JOIN compliance.construction_interim_bills b ON b.id = bl.interim_bill_id
+      JOIN compliance.construction_boq_line_items li ON li.id = bl.boq_line_item_id
+      WHERE b.project_id = ${input.projectId} AND b.org_id = ${ctx.orgId} AND b.boq_id <> ${input.boqId} AND li.item_code IS NOT NULL
+      GROUP BY 1
+    `)) as { code: string; total: number }[]
+    const carriedByCode = new Map(carried.map((r) => [r.code, Number(r.total)]))
+    for (const li of lineItems) {
+      const code = (li.itemCode ?? "").trim().toLowerCase()
+      if (code && carriedByCode.has(code)) previousBilled.set(li.id, (previousBilled.get(li.id) ?? 0) + (carriedByCode.get(code) ?? 0))
+    }
+    const { measured, latestDate } = await loadMeasuredLineCumulatives(db, ctx.orgId, input.projectId, input.boqId, lineItems)
 
-    const lines = computeInterimBillLines(lineItems, percentByActivity, previousBilled)
+    const lines = computeInterimBillLines(lineItems, percentByActivity, previousBilled, measured)
     const billableLines = lines.filter((l) => l.currentBillAmount > 0)
     if (billableLines.length === 0) {
-      throw new ServiceError("No new progress to bill -- every tracked line item is already billed up to its current percent complete", 400)
+      throw new ServiceError(
+        `No new progress to bill -- progress counts when it is logged in Work Progress against a line of this BOQ (or the same item code on an earlier revision), and only the part above what earlier bills already claimed is billed. ` +
+        `${lines.length} line(s) have progress on file${latestDate ? `, latest entry dated ${latestDate}` : ""}; every one is already billed up to that point. Log new progress in Work Progress, then invoice again.`,
+        400
+      )
     }
 
     const grossAmount = Math.round(billableLines.reduce((sum, l) => sum + l.currentBillAmount, 0) * 100) / 100
