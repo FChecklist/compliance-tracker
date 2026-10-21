@@ -1363,11 +1363,13 @@ async function loadBaselineInfoWithDb(db: TenantDb, boqId: string) {
     const latest = baselines[baselines.length - 1]
     return {
       hasConfirmedBaseline: baselines.length > 0,
+      // R-100: only a baseline WITH figures locks the contract side; the grid should lock on this, not on hasConfirmedBaseline.
+      contractSideLocked: latestBaselineWithFigures(baselines) !== null,
       latestBaselineVersion: latest?.version ?? null,
       latestBaselineConfirmedAt: latest?.confirmedAt ?? null,
     }
   } catch {
-    return { hasConfirmedBaseline: false, latestBaselineVersion: null, latestBaselineConfirmedAt: null }
+    return { hasConfirmedBaseline: false, contractSideLocked: false, latestBaselineVersion: null, latestBaselineConfirmedAt: null }
   }
 }
 
