@@ -3,6 +3,7 @@ import type { DpdpClient } from "@/lib/client"
 import { amIPlatformAdmin, ownerApprovePayment, ownerPendingClaims, ownerRejectPayment, sendInvoiceEmail } from "@/lib/api"
 import type { PendingClaimWire } from "@/lib/rpc-types"
 import { parseDbTimestamp } from "@/lib/db-time"
+import { GuidedError } from "@/components/GuidedError"
 
 // Payment confirmation flow (drizzle/0658) -- VERIDIAN's own review
 // screen, not any one organisation's. Renders nothing for anyone who
@@ -122,7 +123,7 @@ export function OwnerPaymentAdmin({ client }: { client: DpdpClient }) {
             </div>
           ))}
           {notice && <p style={{ margin: "6px 0 0", color: "var(--dpdp-v)", fontWeight: 600, fontSize: 12.5 }}>{notice}</p>}
-          {error && <p role="alert" style={{ margin: "6px 0 0", color: "var(--dpdp-r)", fontWeight: 600, fontSize: 12.5 }}>{error}</p>}
+          {error && <GuidedError message={error} />}
           <button type="button" onClick={() => setOpen(false)} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", fontSize: 12, marginTop: 10, display: "block" }}>Close</button>
         </div>
       )}

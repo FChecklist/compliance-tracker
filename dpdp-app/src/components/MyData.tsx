@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import type { DpdpClient } from "../lib/client"
 import { clearMyNominee, myData, requestMyRight, setMyNominee } from "../lib/api"
 import type { MyDataPayload, RightKind } from "../lib/rpc-types"
+import { GuidedError } from "@/components/GuidedError"
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
 const KIND_LABEL: Record<RightKind, string> = { access: "A copy of my data", correction: "Correct my data", erasure: "Erase my data" }
@@ -69,7 +70,7 @@ export function MyData({ client, onClose }: { client: DpdpClient; onClose: () =>
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Your data and rights</h2>
           <button type="button" onClick={onClose} style={{ ...btn, background: "transparent", color: "var(--dpdp-ink3, #55524a)", textDecoration: "underline" }}>Close</button>
         </div>
-        {error && <p role="alert" style={{ marginTop: 12 }}>{error}</p>}
+        {error && <GuidedError message={error} />}
         {!data && !error && <p style={{ marginTop: 12 }}>Loading…</p>}
         {data && (
           <>

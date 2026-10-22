@@ -4,6 +4,7 @@ import { amIPlatformAdmin, fetchPlatformMode, ownerDeclaredFirms, ownerDowngrade
 import type { DeclaredFirmWire, PlatformModePayload } from "@/lib/rpc-types"
 import { forgetCachedMode } from "@/lib/platform-mode"
 import { parseDbTimestamp } from "@/lib/db-time"
+import { GuidedError } from "@/components/GuidedError"
 
 // The platform owner's account screen (drizzle/0734, 0735): the firms that declared themselves practitioners (with an audited downgrade to paid), "mark paid",
 // and the Test / Live switch with its e-mail allowlist and purge. Nobody verifies a firm in advance. Renders nothing for
@@ -178,7 +179,7 @@ export function OwnerAccountsAdmin({ client }: { client: DpdpClient }) {
             {busy === "pay" ? "Working…" : "Mark paid"}
           </button>
           {notice && <p style={{ margin: "8px 0 0", color: "var(--dpdp-v)", fontWeight: 600, fontSize: 12.5 }}>{notice}</p>}
-          {error && <p role="alert" style={{ margin: "8px 0 0", color: "var(--dpdp-r)", fontWeight: 600, fontSize: 12.5 }}>{error}</p>}
+          {error && <GuidedError message={error} />}
           <button type="button" onClick={() => setOpen(false)} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", fontSize: 12, marginTop: 10, display: "block" }}>Close</button>
         </div>
       )}

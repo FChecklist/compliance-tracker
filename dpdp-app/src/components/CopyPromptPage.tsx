@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { copyToClipboard, fetchPrompt, promptTokenFromHash } from "@/lib/copy-prompt"
 import { browserClipboard } from "@/lib/browser-clipboard"
 import { Card } from "./Screens"
+import { GuidedError } from "./GuidedError"
 
 // The one-tap Copy page behind the "Copy" button in the Monday email's prompt box (owner, 2026-09-30: "a simple copy icon on the upper
 // right ... the moment the user comes to the prompt, it gets copied ... make user life easy"). An email cannot run a script, so the
@@ -65,7 +66,7 @@ export function CopyPromptPage() {
   if (state.kind === "gone") {
     return (
       <Card icon="🙈" title="This link has stopped working">
-        <p role="alert" style={lead}>It has expired or was turned off, so nothing was copied.</p>
+        <GuidedError message="This link has expired or was revoked" inline />
         <p style={quiet}>When there is something for you to do, next Monday's email brings a fresh one. Or open your page and make a new AI Work link there.</p>
       </Card>
     )
@@ -73,7 +74,7 @@ export function CopyPromptPage() {
   if (state.kind === "error") {
     return (
       <Card icon="⚠️" title="Could not get your prompt">
-        <p role="alert" style={{ fontSize: 14, color: "var(--dpdp-r)", margin: "0 auto 18px", maxWidth: "48ch", fontWeight: 600 }}>Something went wrong on our side. Nothing was copied.</p>
+        <GuidedError message="Something went wrong on our side" inline />
         <p style={quiet}>Go back to your email and tap Copy again in a moment.</p>
       </Card>
     )

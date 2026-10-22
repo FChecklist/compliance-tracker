@@ -674,6 +674,9 @@ export function createMockClient(scenario?: string): DpdpClient {
       return state.signedInAs ? "mock-access-token" : null
     },
     async rpc(fn, args) {
+      // Tests only: window.__dpdpMockFail = "Failed to fetch" makes every action (not the page load) fail with that message, to prove the guide for a dropped connection or a server fault.
+      const injected = typeof window !== "undefined" ? (window as unknown as { __dpdpMockFail?: string }).__dpdpMockFail : undefined
+      if (injected && fn !== "dpdp_my_page") return fail(injected)
       const viaToken = tokenRpc(fn, args)
       if (viaToken) return viaToken
       if (!state.signedInAs) return fail("Not a member of this organisation")

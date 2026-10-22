@@ -112,6 +112,6 @@ test.describe("WO-DPDP-013 Part 1 -- the Copy-AI-link screen", () => {
     await page.goto("/app/#undo=mock-action.mock-undo")
     await expect(page.getByRole("heading", { name: "Undo the change your AI assistant made?", exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Undo", exact: true }).click()
-    await expect(page.getByRole("alert")).toContainText("This has already been undone")
+    await expect(page.getByRole("alert")).toContainText("That change was already undone")
   })
 })

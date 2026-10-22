@@ -40,6 +40,10 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (DPDP guided errors; branch claude/quirky-jackson-4ffac4)"
+    claimed_at: "2026-10-22 (this session)"
+    claim: |
+      Scope: dpdp-app/src/lib/guide/** (new catalog + helper), dpdp-app/src/components/GuidedError.tsx (new), every role=alert error site under dpdp-app/src/components + App.tsx (swap to the shared component), dpdp-app/e2e/guided-errors.spec.ts + unit lint test. No deploy of its own, no live-DB writes, no Vercel.
   - session_label: "claude-code (DPDP Terms boxes + security header + readable text; worktree agent-aaf5b6f203e929954, branch fix/dpdp-terms-boxes-and-ui)"
     claimed_at: "2026-10-13 (this session)"
     claim: |

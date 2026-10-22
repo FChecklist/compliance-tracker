@@ -6,6 +6,7 @@ import type { DpdpClient } from "@/lib/client"
 import { fetchPrompt } from "@/lib/copy-prompt"
 import { AiPasteOptions } from "./AiPasteOptions"
 import type { AiLinkListItem, AiLinkWarning, AiWorkLinkCreated } from "@/lib/rpc-types"
+import { GuidedError } from "@/components/GuidedError"
 
 // WO-DPDP-013 v2 §4 item 6: "The Copy-AI-link screen with the data warning".
 // Replaces AiLinkButton.tsx (the single read-only 0607 link, shown once)
@@ -17,7 +18,6 @@ import type { AiLinkListItem, AiLinkWarning, AiWorkLinkCreated } from "@/lib/rpc
 // navigates away -- src/lib/api.ts's createAiWorkLink is the only place it
 // is ever read from the wire.
 const card = { background: "var(--dpdp-card)", borderColor: "var(--dpdp-line)" } as const
-const alertStyle = { background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 } as const
 const fieldLabel = { fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)", display: "block", marginBottom: 4 } as const
 const fieldInput = { padding: "11px 13px", border: "1px solid var(--dpdp-line)", borderRadius: 12, fontSize: 14, background: "#fff" } as const
 
@@ -150,8 +150,8 @@ export function AiWorkLink({ client, orgId, onMade }: { client: DpdpClient; orgI
       <div className="max-w-[1240px] mx-auto px-5 pb-6">
         <div className="rounded-[22px] border p-6" style={card}>
           <h2 style={{ fontFamily: "Sora, sans-serif", fontSize: 20, fontWeight: 700, margin: "0 0 6px", color: "var(--dpdp-ink)" }}>🤖 AI work link</h2>
-          {warningError && <div role="alert" className="rounded-xl px-3.5 py-2.5 mb-3" style={alertStyle}>{warningError}</div>}
-          {error && <div role="alert" className="rounded-xl px-3.5 py-2.5 mb-3" style={alertStyle}>{error}</div>}
+          {warningError && <GuidedError message={warningError} />}
+          {error && <GuidedError message={error} />}
           {!created ? (
             <>
               {warning ? (
@@ -254,8 +254,8 @@ function AiLinksList({ links, error, onRevoke }: { links: AiLinkListItem[] | nul
   return (
     <div className="max-w-[1240px] mx-auto px-5 pb-14">
       <h3 style={{ fontFamily: "Sora, sans-serif", fontSize: 17, fontWeight: 700, margin: "0 0 10px", color: "var(--dpdp-ink)" }}>Your AI links</h3>
-      {error && <div role="alert" className="rounded-xl px-3.5 py-2.5 mb-3" style={alertStyle}>{error}</div>}
-      {rowError && <div role="alert" className="rounded-xl px-3.5 py-2.5 mb-3" style={alertStyle}>{rowError}</div>}
+      {error && <GuidedError message={error} />}
+      {rowError && <GuidedError message={rowError} />}
       {!links ? (
         <p style={{ fontSize: 13, color: "var(--dpdp-ink3)" }}>Loading…</p>
       ) : links.length === 0 ? (

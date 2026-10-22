@@ -538,7 +538,7 @@ test.describe("tfirst -- first visits", () => {
   test("FIRST-26 parent: a link that is not valid or has expired is refused, and nothing has changed", async ({ page }) => {
     await page.goto("/p/#not-a-token")
     await expect(page.getByRole("heading", { level: 1, name: "This link can't be used", exact: true })).toBeVisible()
-    await expect(page.getByRole("alert")).toHaveText("This link is not valid or has expired")
+    await expect(page.getByRole("alert")).toContainText("This link is not valid or has expired")
     await expect(page.getByText("Nothing has changed. If you need a fresh link, ask the person who sent you this one.", { exact: true })).toBeVisible()
     await expect(page.getByRole("button")).toHaveCount(0)
   })
@@ -768,7 +768,7 @@ test.describe("troles2 -- roles", () => {
     await page.getByLabel("Client name", { exact: true }).fill("Joshi Motors")
     await page.getByLabel("Owner’s email", { exact: true }).fill("not-an-address")
     await page.getByRole("button", { name: "Add a client", exact: true }).click()
-    await expect(page.getByRole("alert")).toHaveText("That does not look like an email address — fix it or untick “Set it up for them”.")
+    await expect(page.getByRole("alert")).toContainText("That does not look like an email address — fix it or untick “Set it up for them”.")
     await expect(page.getByText("Joshi Motors")).toHaveCount(0) // not added
     await page.getByRole("button", { name: "Never mind", exact: true }).click()
     await expect(page.getByLabel("Client name", { exact: true })).toHaveCount(0)
@@ -911,7 +911,7 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Recorded, thank you", exact: true })).toBeVisible()
     await page.reload()
     await expect(page.getByRole("heading", { level: 1, name: "This link can't be used", exact: true })).toBeVisible()
-    await expect(page.getByRole("alert")).toHaveText("This link has already been used. Nothing has changed.")
+    await expect(page.getByRole("alert")).toContainText("This link has already been used. Nothing has changed.")
     await page.goto("/act/#mock-cannot")
     await page.getByRole("button", { name: `Yes — record "I can't"`, exact: true }).click()
     await expect(page.getByRole("heading", { level: 1, name: "Recorded, thank you", exact: true })).toBeVisible()

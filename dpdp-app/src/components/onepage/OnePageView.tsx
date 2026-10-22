@@ -10,6 +10,7 @@ import {
   applyFilter, filterCounts, heroStats, partsForRows, vNow,
   type FilterKey, type GroupAnswerKind, type ObligationRow, type ViewerContext,
 } from "@/lib/dpdp-onepage/view-model"
+import { GuidedError } from "@/components/GuidedError"
 
 // WO-DPDP-010 §3 "THE ONE PAGE, FOR EVERY ROLE": composes Hero (Seal + Do
 // this now + stat cards) + Parts track + Filter chips + The table, exactly
@@ -130,9 +131,7 @@ export function OnePageView({
         )}
 
         {actionError && (
-          <div role="alert" className="mb-2.5 rounded-xl px-3.5 py-2.5" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>
-            {actionError}
-          </div>
+          <GuidedError message={actionError} />
         )}
 
         {/* What was just done, in words, kept on screen while the person works down a long list. A staff member has no History on their page, so this is
