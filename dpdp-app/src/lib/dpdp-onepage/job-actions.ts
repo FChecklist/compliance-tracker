@@ -95,7 +95,7 @@ export function checkEmail(email: string): Check {
   const t = email.trim().toLowerCase()
   // name@domain.tld: no spaces, brackets or quotes; the domain is dot-separated labels of letters, digits and hyphens; no empty label, no trailing dot.
   const ok = /^[^\s@<>()[\],;:"\\]+@([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(t) && !t.includes("..") && !t.startsWith(".") && !t.split("@")[0].endsWith(".")
-  if (!ok) return { ok: false, message: "Enter a full email address, like name@company.com." }
+  if (!ok) return { ok: false, message: "Enter the full e-mail address: the part before the @ sign, the @ sign, and the part after it." }
   return { ok: true, value: t }
 }
 

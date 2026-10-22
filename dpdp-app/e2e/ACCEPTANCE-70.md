@@ -108,7 +108,7 @@ app does render them -- as each tag's `title`.
 | FIRST-02 | owner | 572 "Nothing is sent to anybody yet." → `data-w1` 893-896 | the line; "✓ Create the list" moves to "Who looks after what?", step 1's marker becomes ✓ |
 | FIRST-03 | owner | step 2, 575-584: "An email next to each", `AREAHELP` 368-378, "N jobs: … — and n more" 582 | 11 labelled fields; two help lines verbatim; "4 jobs: … — and 1 more"; "1 job: …" |
 | FIRST-04 | owner | `PREFILL` 379, pill 578 "your email — change if someone else", counter 587 | GO and coordinator prefilled with the owner's address; two pills; "2 of 11 answered. Empty ones stay amber — that is fine." |
-| FIRST-05 | owner | 580-581: textarea "paste every email, separated by commas" for a group, `type=email` "name@example.com" otherwise | those attributes on "All staff" and "Customer data" |
+| FIRST-05 | owner | 580-581: textarea "paste every email, separated by commas" for a group, `type=email` placeholder "your e-mail" otherwise | those attributes on "All staff" and "Customer data" |
 | FIRST-06 | owner | `CANNA` 380, 583 "We don't have this", `.isna` 194 | 4 checkboxes only; ticking Payroll firm disables its box and moves the counter to 3 of 11 |
 | FIRST-07 | owner | `data-w2` 898-901: "These do not look like email addresses — fix them or clear the box" | the message names the area and value; nothing saved -- `/app/` is still step 1 |
 | FIRST-08 | owner | `data-w2` 902-910: `fromArea` → owner + yes 905; group 906; n/a 904/908; history "Named … as …" | wizard gone; GO job YES; Customer data → staff; group "All staff"; Payroll "Doesn't apply"; four History lines; still gone after `/app/` |

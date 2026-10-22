@@ -149,7 +149,7 @@ function AssignForm({ row, onSubmit, onDone, onBusy }: FormProps) {
   return (
     <form onSubmit={submit} noValidate>
       <label htmlFor={`assign-${row.id}`} style={label}>Their email address</label>
-      <input id={`assign-${row.id}`} type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} readOnly={busy} placeholder="name@company.com" style={field} />
+      <input id={`assign-${row.id}`} type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} readOnly={busy} placeholder="their e-mail" style={field} />
       <div style={help}>
         {row.by ? <>It is with <b>{row.by}</b> now. </> : <>Nobody has it yet. </>}
         The person you name can sign in with this address and see the job. It goes into their Monday email once it is their turn to do it.
