@@ -312,7 +312,7 @@ test.describe("tfirst -- first visits", () => {
     await seed(page, "owner")
     await page.getByRole("button", { name: "✓ Create the list", exact: true }).click()
     await expect(page.getByLabel("Customer data", { exact: true })).toHaveAttribute("type", "email")
-    await expect(page.getByLabel("Customer data", { exact: true })).toHaveAttribute("placeholder", "name@example.com")
+    await expect(page.getByLabel("Customer data", { exact: true })).toHaveAttribute("placeholder", "your e-mail")
     await expect(page.getByLabel("All staff", { exact: true })).toHaveAttribute("placeholder", "paste every email, separated by commas")
     await expect(page.getByLabel("All staff", { exact: true })).toHaveJSProperty("tagName", "TEXTAREA")
   })

@@ -578,7 +578,7 @@ function vWizard(o,byCA){
    return '<div class="arow'+(isna?' isna':v.trim()?' got':'')+'"><div><b>'+esc(a.a)+'</b>'+(PREFILL[a.a]&&v===o.owner?'<span class="pre">your email — change if someone else</span>':'')+
    '<div class="ask">'+esc(AREAHELP[a.a]||'')+'</div></div><div>'+
    (a.grp?'<textarea rows="2" data-wa="'+esc(a.a)+'" placeholder="paste every email, separated by commas">'+esc(v)+'</textarea>':
-    '<input type="email" data-wa="'+esc(a.a)+'" value="'+esc(v)+'" placeholder="name@example.com">')+
+    '<input type="email" data-wa="'+esc(a.a)+'" value="'+esc(v)+'" placeholder="your e-mail">')+
    '<div class="sm">'+a.jobs.length+' job'+(a.jobs.length>1?'s':'')+': '+a.jobs.slice(0,3).map(esc).join(' · ')+(a.jobs.length>3?' — and '+(a.jobs.length-3)+' more':'')+'</div>'+
    (CANNA[a.a]?'<label class="nachk"><input type="checkbox" data-wna="'+esc(a.a)+'"'+(isna?' checked':'')+'> We don\u2019t have this</label>':'')+
    '</div></div>'}).join('')+
