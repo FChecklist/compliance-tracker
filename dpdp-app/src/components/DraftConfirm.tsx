@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { aiDraftPreview, confirmAiDraft, type DraftFragment } from "@/lib/api"
 import type { DpdpClient } from "@/lib/client"
 import type { AiDraftPreviewPayload } from "@/lib/rpc-types"
+import { GuidedError } from "@/components/GuidedError"
 
 // WO-DPDP-012 §7: `/app/#draft=<draftId>.<confirmToken>` -- the URL the AI
 // link's reader hands back after drafting one of the five verbs. The
@@ -73,7 +74,7 @@ export function DraftConfirm({ client, draft, onDone, onDismiss }: { client: Dpd
       <div className="max-w-[1240px] mx-auto px-5 pt-4">
         <section aria-label="An AI drafted something for you to confirm" className="rounded-[22px] border p-6" style={{ background: "var(--dpdp-card)", borderColor: "var(--dpdp-v)" }}>
           <h2 style={{ fontFamily: "Sora, sans-serif", fontSize: 20, fontWeight: 700, margin: "0 0 6px", color: "var(--dpdp-ink)" }}>🤖 An AI drafted something for you to confirm</h2>
-          {error && <div role="alert" className="rounded-xl px-3.5 py-2.5 mb-3" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+          {error && <GuidedError message={error} />}
           {!preview && !error && <p style={{ fontSize: 14, color: "var(--dpdp-ink3)", margin: 0 }}>Loading the draft…</p>}
           {preview && (
             <>
@@ -90,11 +91,9 @@ export function DraftConfirm({ client, draft, onDone, onDismiss }: { client: Dpd
               {done ? (
                 <p role="status" style={{ fontSize: 14, fontWeight: 600, color: "var(--dpdp-g)", margin: "0 0 10px" }}>Confirmed — History records &ldquo;drafted by AI, confirmed by you&rdquo;.</p>
               ) : preview.expired ? (
-                <p role="alert" style={{ fontSize: 14, fontWeight: 600, color: "var(--dpdp-r)", margin: "0 0 10px" }}>This draft has expired — ask the AI for a fresh one. Nothing has changed.</p>
+                <GuidedError message="This draft has expired -- ask the AI for a fresh one" />
               ) : !executable ? (
-                <p role="alert" style={{ fontSize: 14, fontWeight: 600, color: "var(--dpdp-ink2)", margin: "0 0 10px", maxWidth: "72ch" }}>
-                  This kind of draft cannot be confirmed here yet — do it on your page. It is recorded so you know the AI asked. Nothing has changed.
-                </p>
+                <GuidedError message="A draft cannot be confirmed here yet -- do it on your page" />
               ) : (
                 <p style={{ fontSize: 13.5, color: "var(--dpdp-ink2)", margin: "0 0 14px", maxWidth: "72ch" }}>
                   Nothing has changed yet. It only happens if you press Confirm — under your name, not the AI&rsquo;s.

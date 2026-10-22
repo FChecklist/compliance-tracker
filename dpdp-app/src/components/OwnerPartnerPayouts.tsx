@@ -6,6 +6,7 @@ import {
 } from "@/lib/api"
 import type { AdminPartnerRow, AdminPartnerSettings, AdminPayoutRun } from "@/lib/rpc-types"
 import { downloadText, payoutRunCsv, recentPeriods, rupees } from "@/lib/partner"
+import { GuidedError } from "@/components/GuidedError"
 
 // The Owner's monthly partner payout run (drizzle/0674). Renders nothing for anyone who is not on
 // dpdp.platform_admin (every RPC here checks that itself; amIPlatformAdmin only stops the button from
@@ -183,7 +184,7 @@ export function OwnerPartnerPayouts({ client }: { client: DpdpClient }) {
           </div>
 
           {notice && <p style={{ margin: "6px 0 0", color: "var(--dpdp-v)", fontWeight: 600, fontSize: 12.5 }}>{notice}</p>}
-          {error && <p role="alert" style={{ margin: "6px 0 0", color: "var(--dpdp-r)", fontWeight: 600, fontSize: 12.5 }}>{error}</p>}
+          {error && <GuidedError message={error} />}
           <button type="button" onClick={() => setOpen(false)} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", fontSize: 12, marginTop: 10, display: "block" }}>Close</button>
         </div>
       )}

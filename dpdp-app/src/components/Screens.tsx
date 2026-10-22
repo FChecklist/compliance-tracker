@@ -6,6 +6,7 @@ import { EarningsCalculator } from "./EarningsCalculator"
 import { TermsCheckbox, TermsWhy } from "./TermsBox"
 import { BOX_K2 } from "@/lib/terms"
 import type { PlanWirePayload, ProfessionalBody } from "@/lib/rpc-types"
+import { GuidedError } from "@/components/GuidedError"
 
 export function Card({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
   return (
@@ -27,7 +28,7 @@ const lead = { fontSize: 15, color: "var(--dpdp-ink2)", margin: "0 auto 18px", m
 
 function InlineError({ message }: { message: string | null }) {
   if (!message) return null
-  return <p role="alert" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--dpdp-r)" }}>{message}</p>
+  return <GuidedError message={message} />
 }
 
 // One email field + one button. The sign-in screen and the expired-link
@@ -35,23 +36,29 @@ function InlineError({ message }: { message: string | null }) {
 // with different words around it.
 function EmailForm({ buttonLabel, busy, error, onSubmit }: { buttonLabel: string; busy: boolean; error: string | null; onSubmit: (email: string) => void }) {
   const [email, setEmail] = useState("")
+  const [slip, setSlip] = useState<string | null>(null)
   function submit(e: FormEvent) {
     e.preventDefault()
-    onSubmit(email.trim())
+    const v = email.trim()
+    // Checked here, not by the browser's own pop-up, so the person gets the same guide as everywhere else.
+    if (!v) { setSlip("An email address is required"); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) { setSlip("That does not look like an email address"); return }
+    setSlip(null)
+    onSubmit(v)
   }
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 items-stretch text-left">
+    <form onSubmit={submit} noValidate className="flex flex-col gap-3 items-stretch text-left">
       <label htmlFor="email" style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)" }}>Your email</label>
       <input
         id="email" name="email" type="email" required autoComplete="email" autoFocus
-        value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy}
+        value={email} onChange={(e) => { setEmail(e.target.value); setSlip(null) }} disabled={busy}
         className="rounded-xl border px-3.5 py-3"
         style={{ borderColor: "var(--dpdp-line)", fontSize: 15, color: "var(--dpdp-ink)", background: "#fff" }}
       />
       <button type="submit" disabled={busy} className="font-bold text-white" style={{ ...primaryButton, opacity: busy ? 0.6 : 1 }}>
         {busy ? "Sending…" : buttonLabel}
       </button>
-      <InlineError message={error} />
+      <InlineError message={slip ?? error} />
     </form>
   )
 }
@@ -247,9 +254,12 @@ export function OpenOrganisation({
   const [declared, setDeclared] = useState(false)
   const [more, setMore] = useState<Record<string, string>>({})
   const [terms, setTerms] = useState(false) // K2: never pre-ticked
+  const [slip, setSlip] = useState<string | null>(null)
   function submit(e: FormEvent) {
     e.preventDefault()
     if (!product || !terms) return
+    if (!name.trim()) { setSlip("An organisation name is required"); return }
+    setSlip(null)
     const isFirm = product === "firm"
     const profile: Record<string, string> = {}
     for (const [k, v] of Object.entries(more)) if (v.trim() !== "") profile[k] = v.trim()
@@ -266,11 +276,11 @@ export function OpenOrganisation({
         {email ? <><b>{email}</b> isn&rsquo;t on any DPDP job yet. </> : null}
         Tell us who you are and your file of DPDP jobs opens straight away, with you as its owner.
       </p>
-      <form onSubmit={submit} className="flex flex-col gap-3 items-stretch text-left">
+      <form onSubmit={submit} noValidate className="flex flex-col gap-3 items-stretch text-left">
         <label htmlFor="org-name" style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)" }}>Organisation name</label>
         <input
           id="org-name" name="org-name" type="text" required maxLength={120} autoComplete="organization" autoFocus
-          value={name} onChange={(e) => setName(e.target.value)} disabled={busy}
+          value={name} onChange={(e) => { setName(e.target.value); setSlip(null) }} disabled={busy}
           className="rounded-xl border px-3.5 py-3"
           style={{ borderColor: "var(--dpdp-line)", fontSize: 15, color: "var(--dpdp-ink)", background: "#fff" }}
         />
@@ -333,7 +343,7 @@ export function OpenOrganisation({
           {busy ? "Opening…" : "Open my organisation"}
         </button>
         <TermsWhy id="terms-why-k2" ticked={terms} />
-        <InlineError message={error} />
+        <InlineError message={slip ?? error} />
       </form>
       <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "18px auto 4px", maxWidth: "44ch" }}>
         Invited by someone else? Ask the owner of your organisation to name this email on a job, then open the link they send.
@@ -351,8 +361,8 @@ export function OpenOrganisation({
 
 export function ErrorScreen({ message, onRetry, onSignOut }: { message: string; onRetry: () => void; onSignOut: () => void }) {
   return (
-    <Card icon="⚠️" title="Something went wrong">
-      <p role="alert" style={{ fontSize: 14, color: "var(--dpdp-r)", margin: "0 auto 18px", maxWidth: "48ch", fontWeight: 600 }}>{message}</p>
+    <Card icon="⚠️" title="We could not open this">
+      <GuidedError message={message} inline />
       <div className="flex gap-2.5 items-center justify-center flex-wrap">
         <button type="button" onClick={onRetry} className="font-bold text-white" style={primaryButton}>Try again</button>
         <button type="button" onClick={onSignOut} style={linkButton}>Sign out</button>

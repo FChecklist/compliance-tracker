@@ -56,7 +56,8 @@ test.describe("job controls on the person's own page -- by accessible names", ()
 
     // An empty note is refused on the page itself, in words.
     await page.getByRole("button", { name: "Save note", exact: true }).click()
-    await expect(page.getByRole("alert")).toContainText("Write a few words first.")
+    await expect(page.getByRole("alert")).toContainText("Please check your note")
+    await expect(page.getByRole("alert")).toContainText("Write a few words")
 
     const note = "The signed copy is with the CA; we chase again on Friday."
     await page.getByLabel("Your note", { exact: true }).fill(note)

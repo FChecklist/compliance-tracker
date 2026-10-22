@@ -5,6 +5,7 @@ import type { MyAccountPayload } from "@/lib/rpc-types"
 import { dueLine, formatRupees } from "@/lib/billing-state"
 import { BillingPanel } from "./BillingPanel"
 import { Card } from "./Screens"
+import { GuidedError } from "@/components/GuidedError"
 
 // The "Payment due" screen (drizzle/0734). Shown instead of the working screens when the account is LOCKED. It is calm on purpose: the data is
 // safe, nothing is deleted, and the person can do the four things the law or common sense says must stay open:
@@ -139,7 +140,7 @@ export function PaymentDue({ client, email, onSignOut, onRetry }: { client: Dpdp
       </div>
 
       {msg && <p role="status" style={{ margin: "12px 0 0", color: "var(--dpdp-v)", fontWeight: 600, fontSize: 13.5 }}>{msg}</p>}
-      {err && <p role="alert" style={{ margin: "12px 0 0", color: "var(--dpdp-r)", fontWeight: 600, fontSize: 13.5 }}>{err}</p>}
+      {err && <GuidedError message={err} />}
 
       <div className="flex gap-2.5 items-center justify-center flex-wrap" style={{ marginTop: 18 }}>
         <button type="button" onClick={onRetry} style={quiet}>I have paid: check again</button>

@@ -1,6 +1,7 @@
 import "./onepage/dpdp-onepage-tokens.css"
 import { useState, useTransition } from "react"
 import { PARTS, partsForRows, type ObligationRow } from "@/lib/dpdp-onepage/view-model"
+import { GuidedError } from "@/components/GuidedError"
 
 // WO-DPDP-010 §2/§4: the OWNER's first visit when a CA "set it up for them"
 // (organisation.set_up_by_membership_id set, owner_confirmed_at null). The
@@ -79,7 +80,7 @@ export function OwnerReview({
                 )}
               </ul>
             )}
-            {error && <div role="alert" className="rounded-2xl p-3.5 mb-4" style={{ background: "var(--dpdp-rL)", border: "1px solid #FBC5CF", fontSize: 13.5 }}>{error}</div>}
+            {error && <GuidedError message={error} />}
             <div className="flex gap-2.5 items-center flex-wrap mt-4.5">
               <button type="button" disabled={pending} onClick={confirm} className="font-bold text-white" style={{ background: "var(--dpdp-g)", fontSize: 15, padding: "13px 22px", borderRadius: 14, opacity: pending ? 0.6 : 1 }}>
                 Looks right — confirm

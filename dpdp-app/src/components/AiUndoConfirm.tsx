@@ -3,6 +3,7 @@ import { useState } from "react"
 import { undoAiAction, type UndoFragment } from "@/lib/api"
 import type { DpdpClient } from "@/lib/client"
 import type { AiActionUndoPayload } from "@/lib/rpc-types"
+import { GuidedError } from "@/components/GuidedError"
 
 // WO-DPDP-013 v2 §1.2 / §4 item 6: `/app/#undo=<actionId>.<undoToken>` --
 // the link a Level 1 change's undoUrl points at (POST /actions' response,
@@ -41,7 +42,7 @@ export function AiUndoConfirm({ client, undo, onDone, onDismiss }: { client: Dpd
       <div className="max-w-[1240px] mx-auto px-5 pt-4">
         <section aria-label="Undo an AI assistant's change" className="rounded-[22px] border p-6" style={{ background: "var(--dpdp-card)", borderColor: "var(--dpdp-v)" }}>
           <h2 style={{ fontFamily: "Sora, sans-serif", fontSize: 20, fontWeight: 700, margin: "0 0 6px", color: "var(--dpdp-ink)" }}>Undo the change your AI assistant made?</h2>
-          {error && <div role="alert" className="rounded-xl px-3.5 py-2.5 mb-3" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+          {error && <GuidedError message={error} />}
           {result ? (
             <p role="status" style={{ fontSize: 14, fontWeight: 600, color: "var(--dpdp-g)", margin: "0 0 14px" }}>
               Undone — it reversed {VERB_LABEL[result.verb] ?? result.verb} (job {result.jobId}).

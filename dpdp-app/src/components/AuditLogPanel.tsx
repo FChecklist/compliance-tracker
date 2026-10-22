@@ -2,12 +2,12 @@ import "./onepage/dpdp-onepage-tokens.css"
 import { useEffect, useState } from "react"
 import { downloadAuditLog, getAuditOrgs, saveTextFile, verifyAuditChain, type AuditOrgs } from "@/lib/audit-api"
 import type { DpdpClient } from "@/lib/client"
+import { GuidedError } from "@/components/GuidedError"
 
 // The audit log, for the people it is about (owner spec 2026-10-06, item 4). A signed-in person downloads their own log; the owner or a head of department can also
 // download the organisation's whole log and verify its chain. Every value in the file is masked on the server; the log is never e-mailed; each download needs a code
 // confirmed just now (the same e-mailed code used to sign in, asked for again here), is limited to a few an hour, and is itself recorded.
 const card = { background: "var(--dpdp-card)", borderColor: "var(--dpdp-line)" } as const
-const alertStyle = { background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 } as const
 const btn = { background: "var(--dpdp-v)", fontSize: 14, padding: "10px 16px" } as const
 const fieldInput = { padding: "11px 13px", border: "1px solid var(--dpdp-line)", borderRadius: 12, fontSize: 14, background: "#fff", width: 160 } as const
 
@@ -107,7 +107,7 @@ export function AuditLogPanel({ client, orgId, email }: { client: DpdpClient; or
           )}
         </>
       )}
-      {error && <p role="alert" className="rounded-xl px-3.5 py-2.5 mt-2" style={alertStyle}>{error}</p>}
+      {error && <GuidedError message={error} />}
       {message && <p role="status" style={{ fontSize: 13, fontWeight: 600, marginTop: 8, wordBreak: "break-all" }}>{message}</p>}
     </section>
   )

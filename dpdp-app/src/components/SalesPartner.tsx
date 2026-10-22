@@ -5,6 +5,7 @@ import type { PartnerDashboardPayload, PartnerDetailsInput } from "@/lib/rpc-typ
 import { PUBLIC_SITE } from "@/lib/brand"
 import { STATUS_TEXT, downloadText, recentPeriods, rupees, statementCsv } from "@/lib/partner"
 import "./onepage/dpdp-onepage-tokens.css"
+import { GuidedError } from "@/components/GuidedError"
 
 // Sales Partner (drizzle/0674): the partner's own screen. Reached from the Share box, the top bar of the
 // page, and the "open your organisation" screen, so a signed-in person with no organisation can use it.
@@ -29,7 +30,7 @@ function Stat({ label, value, note }: { label: string; value: string | number; n
 }
 
 function Err({ message }: { message: string | null }) {
-  return message ? <p role="alert" style={{ margin: "8px 0 0", fontSize: 13, fontWeight: 600, color: "var(--dpdp-r)" }}>{message}</p> : null
+  return message ? <GuidedError message={message} /> : null
 }
 
 function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {

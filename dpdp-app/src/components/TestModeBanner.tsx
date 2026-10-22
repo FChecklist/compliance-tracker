@@ -3,6 +3,7 @@ import type { DpdpClient } from "@/lib/client"
 import { fetchMyAccount, fetchPlatformMode, testPayment } from "@/lib/api"
 import type { MyAccountPayload, PlatformModePayload } from "@/lib/rpc-types"
 import { readModeCached, showTestBanner, testPaymentAvailable, TEST_BANNER, TEST_PAYMENT_LABEL, TEST_PAYMENT_NOTE } from "@/lib/platform-mode"
+import { GuidedError } from "@/components/GuidedError"
 
 // Test / Live mode, inside the signed-in app only (it is rendered by the Page shell, never by a public page or an e-mail).
 // A calm strip, and -- on a test account, in Test mode -- the labelled practice payment.
@@ -52,7 +53,7 @@ export function TestModeBanner({ client, orgId, isOwner }: { client: DpdpClient;
             {busy ? "Recording..." : TEST_PAYMENT_LABEL}
           </button>
           {done && <span style={{ marginLeft: 8 }}>{done}</span>}
-          {error && <span role="alert" style={{ marginLeft: 8, color: "var(--dpdp-r)" }}>{error}</span>}
+          {error && <GuidedError message={error} />}
         </span>
       )}
     </div>

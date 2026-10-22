@@ -2,6 +2,7 @@ import "./onepage/dpdp-onepage-tokens.css"
 import { useState, useTransition } from "react"
 import type { CaClient } from "@/lib/api"
 import { AddClientForm, type NewClient } from "./CaClients"
+import { GuidedError } from "@/components/GuidedError"
 
 // WO-DPDP-010 §4 "First visit, for every role" -- the CA PARTNER's three
 // steps, which WO-010 left unbuilt ("STILL TO BUILD: CA partner's 3-step")
@@ -78,7 +79,7 @@ export function CaPartnerFirstVisit({
                   <b>{orgName}</b> named you as their <b>CA partner</b>
                   {jobCount > 0 ? <> — you have <b>{jobCount} job{jobCount === 1 ? "" : "s"}</b> of your own here, and you sign the file once the CA manager has checked it.</> : <>. You sign the file once the CA manager has checked it.</>}
                 </p>
-                {error && <div role="alert" className="rounded-xl px-3.5 py-2.5 mb-3" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+                {error && <GuidedError message={error} />}
                 {!confirmingNotMe ? (
                   <div className="flex gap-2.5 items-center flex-wrap mt-4.5">
                     <button type="button" onClick={() => setStep(2)} className="font-bold text-white" style={{ background: "var(--dpdp-v)", fontSize: 15, padding: "13px 22px", borderRadius: 14 }}>
@@ -149,7 +150,7 @@ export function CaPartnerFirstVisit({
                 <p style={{ fontSize: 15, color: "var(--dpdp-ink2)", margin: "0 0 18px", maxWidth: "72ch" }}>
                   The file closes in a chain: the owner confirms, the CA manager checks the proof, and <b>you sign</b>. Your signing job stays &ldquo;Waiting&rdquo; until the step before it is done — nothing is asked of you before then.
                 </p>
-                {error && <div role="alert" className="rounded-xl px-3.5 py-2.5 mb-3" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+                {error && <GuidedError message={error} />}
                 <div className="flex gap-2.5 items-center flex-wrap mt-4.5">
                   <button type="button" disabled={pending} onClick={() => runAndRefresh(onAcknowledge)} className="font-bold text-white" style={{ background: "var(--dpdp-g)", fontSize: 15, padding: "13px 22px", borderRadius: 14, opacity: pending ? 0.6 : 1 }}>
                     Got it — show me my jobs

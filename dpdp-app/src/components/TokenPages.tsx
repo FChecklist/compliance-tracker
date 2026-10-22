@@ -5,6 +5,7 @@ import type { EmailActionPreview, ParentConsentPreview } from "@/lib/rpc-types"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
 import { answersToSend, answerWords, canSave, guardianProblem, isSimpleConsent, purposesOf, unanswered, withdrawable, type Guardian } from "@/lib/consent-page"
 import { Card } from "./Screens"
+import { GuidedError } from "@/components/GuidedError"
 
 // WO-DPDP-011 Step 5: the three pages a person reaches from an EMAIL, with
 // no account and no session -- the opaque token in the URL fragment is the
@@ -43,7 +44,7 @@ function useTokenClient(): { client: DpdpClient | null; token: string | null; bo
 function Refused({ reason }: { reason: string }) {
   return (
     <Card icon="🙈" title="This link can't be used">
-      <p role="alert" style={lead}>{reason}</p>
+      <GuidedError message={reason} />
       <p style={quiet}>Nothing has changed. If you need a fresh link, ask the person who sent you this one.</p>
     </Card>
   )
@@ -59,8 +60,8 @@ function Checking() {
 
 function Problem({ message }: { message: string }) {
   return (
-    <Card icon="⚠️" title="Something went wrong">
-      <p role="alert" style={{ fontSize: 14, color: "var(--dpdp-r)", margin: "0 auto 18px", maxWidth: "48ch", fontWeight: 600 }}>{message}</p>
+    <Card icon="⚠️" title="We could not open this">
+      <GuidedError message={message} inline />
       <p style={quiet}>Nothing has changed. Try the link again in a moment.</p>
     </Card>
   )
@@ -343,7 +344,7 @@ export function ParentConsentPage() {
                 </label>
               </fieldset>
             )}
-            {problem && <p role="alert" style={{ color: "#b3261e" }}>{problem}</p>}
+            {problem && <GuidedError message={problem} />}
             <button type="button" disabled={pending || !canSave(ctx, answers, guardian)} onClick={() => saveAll(ctx)} className="font-bold text-white" style={primaryButton}>
               Save my answers
             </button>
@@ -380,7 +381,7 @@ export function ParentConsentPage() {
       ) : (
         <p style={quiet}>This link has done its job. If you change your mind, ask {ctx.orgName ?? "the organisation"} for a fresh one.</p>
       )}
-      {problem && <p role="alert" style={{ color: "#b3261e" }}>{problem}</p>}
+      {problem && <GuidedError message={problem} />}
     </Card>
   )
 }
