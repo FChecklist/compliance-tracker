@@ -23,6 +23,10 @@ afterEach(async () => {
 const ORG_ID = "org-1"
 const LINE_ID = "line-1"
 const BOQ_ID = "boq-1"
+const line = (o: Record<string, unknown>) => ({ lineItemId: "l1", parentLineItemId: null, qtyProject: null, rateProject: null, qtyContract: null, rateContract: null, ...o })
+const FIGURED = [line({ qtyProject: 10, rateProject: 40, qtyContract: 10, rateContract: 50 })]
+// R-100 live case: cost side entered, contract side never entered
+const COST_ONLY = [line({ qtyProject: 10, rateProject: 40 }), line({ lineItemId: "l2" })]
 
 type FakeBaselineRow = {
   id: string
@@ -115,7 +119,7 @@ describe("updateLineItemMoneyFields -- 2-02: contract side locks once a baseline
   test("qtyContract/rateContract are refused (409, real reason naming the baseline) once a baseline exists", async () => {
     const confirmedAt = new Date("2026-08-14T00:00:00Z")
     const { svc, updateCalls } = await mountAndImport({
-      baselines: [{ id: "b1", boqId: BOQ_ID, version: 1, confirmedById: "u1", confirmedAt, evidenceArtefactRef: "PO-1", lineSnapshot: [], createdAt: confirmedAt }],
+      baselines: [{ id: "b1", boqId: BOQ_ID, version: 1, confirmedById: "u1", confirmedAt, evidenceArtefactRef: "PO-1", lineSnapshot: FIGURED, createdAt: confirmedAt }],
     })
     await expect(svc.updateLineItemMoneyFields({ orgId: ORG_ID }, LINE_ID, { qtyContract: 90 })).rejects.toMatchObject({
       status: 409,
@@ -263,5 +267,29 @@ describe("updateLineItemBudget -- an all-undefined patch is a no-op read, never 
     expect(setCalls.length).toBe(1)
     expect(setCalls[0]!.budgetPercentage).toBe("40")
     expect(result.budgetPercentage).toBe("40")
+  })
+})
+
+describe("updateLineItemMoneyFields -- R-100: only a baseline WITH figures locks the contract side", () => {
+  const at = new Date("2026-08-14T00:00:00Z")
+  const row = (version: number, lineSnapshot: unknown[]) => ({ id: `b${version}`, boqId: BOQ_ID, version, confirmedById: "u1", confirmedAt: at, evidenceArtefactRef: "PO-1", lineSnapshot, createdAt: at })
+
+  test("a baseline with cost figures but NO contract figures does not lock: the contract edit goes through", async () => {
+    const { svc, updateCalls } = await mountAndImport({ baselines: [row(1, COST_ONLY), row(2, COST_ONLY), row(3, COST_ONLY)] })
+    await svc.updateLineItemMoneyFields({ orgId: ORG_ID }, LINE_ID, { qtyContract: 10, rateContract: 50 })
+    expect(updateCalls.length).toBe(1)
+    expect(updateCalls[0]!.rateContract).toBe("50")
+  })
+
+  test("a baseline with figures on both sides refuses the edit with the guided revision path (code, boq id, version)", async () => {
+    const { svc, updateCalls } = await mountAndImport({ baselines: [row(1, COST_ONLY), row(2, FIGURED)] })
+    await expect(svc.updateLineItemMoneyFields({ orgId: ORG_ID }, LINE_ID, { rateContract: 60 })).rejects.toMatchObject({
+      status: 409,
+      code: "CONTRACT_SIDE_LOCKED",
+      boqId: BOQ_ID,
+      baselineVersion: 2,
+      message: expect.stringContaining("create a revision of this BOQ"),
+    })
+    expect(updateCalls.length).toBe(0)
   })
 })

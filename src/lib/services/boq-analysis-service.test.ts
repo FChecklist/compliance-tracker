@@ -205,6 +205,29 @@ describe("getProjectAnalysis -- 9-01 per-project figures", () => {
     expect(row.expectedProfitGross).toBe(NOT_SET)
   })
 
+  // R-100 (live AUDIT BOQ): baseline v3 stored the cost side but the contract side null.
+  test("R-100: cost side priced, contract side missing -> no figures, says which side is missing and where, and does NOT lock", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    fakeBaselines = [baseline(3, [
+      lineSnapshot({ lineItemId: "a", qtyContract: null, rateContract: null }),
+      lineSnapshot({ lineItemId: "b", qtyContract: null, rateContract: 5 }),
+      lineSnapshot({ lineItemId: "c", qtyProject: null, rateProject: null, qtyContract: null, rateContract: null }),
+    ])]
+    const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(row.baselineHasFigures).toBe(false)
+    expect(row.baselineFigureStatus).toMatchObject({ contractMissingLines: 3, costMissingLines: 1, contractMissingLineIds: ["a", "b", "c"], costMissingLineIds: ["c"] })
+    expect(row.contractSideLocked).toBe(false)
+    expect(row.contractLockedByVersion).toBeNull()
+  })
+
+  test("R-100: a baseline with figures on both sides locks the contract side and names the version", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(row.contractSideLocked).toBe(true)
+    expect(row.contractLockedByVersion).toBe(2)
+    expect(row.baselineFigureStatus).toMatchObject({ contractMissingLines: 0, costMissingLines: 0 })
+  })
+
   test("9-04: contract variance is contractValueNow - contractAtFirstConfirmation; approved variation count excludes the root BOQ and any non-approved revision", async () => {
     const { getProjectAnalysis } = await import("./boq-analysis-service")
     const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
