@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { COPIED_LINE, DO_NOT_FORWARD_NOTE, THIRD_PARTY_NOTE, chatOptions } from "@/lib/ai-chat-options"
-import { GuidedError } from "@/components/GuidedError"
 
 // The short paste (two lines and the link) in a box, a plain Copy button, and the buttons that take it to an AI chat (src/lib/ai-chat-options.ts).
 // The page that renders this already requires a signed-in session.
@@ -19,7 +18,7 @@ export function AiPasteOptions({ paste, onReplace, replacing }: { paste: string;
   }
   return (
     <div>
-      <GuidedError message={DO_NOT_FORWARD_NOTE} />
+      <p role="alert" className="rounded-xl px-3.5 py-2.5 mb-3" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 700 }}>{DO_NOT_FORWARD_NOTE}</p>
       <div data-testid="ai-paste" className="rounded-xl border px-3.5 py-3 mb-2 break-words" style={{ borderColor: "var(--dpdp-line)", background: "#fff", fontSize: 13, color: "var(--dpdp-ink)", whiteSpace: "pre-wrap", userSelect: "all" }}>{paste}</div>
       <div className="flex gap-2.5 items-center flex-wrap mb-2">
         <button type="button" onClick={copy} className="font-bold text-white rounded-lg" style={btn}>{copied ? "✓ Copied" : "📋 Copy"}</button>
