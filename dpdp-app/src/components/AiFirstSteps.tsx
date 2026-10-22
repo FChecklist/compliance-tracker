@@ -6,6 +6,7 @@ import { copyToClipboard, fetchPrompt } from "@/lib/copy-prompt"
 import type { DpdpClient } from "@/lib/client"
 import type { AiLinkWarning } from "@/lib/rpc-types"
 import { browserClipboard } from "@/lib/browser-clipboard"
+import { GuidedError } from "@/components/GuidedError"
 
 // The top of /app/: three numbered steps, Option 1 first and biggest. Step 1 is one tap -- it makes the person's AI work link and puts the SAME
 // two-line paste the Monday email carries on the clipboard (the server's own GET /ai/<token>/prompt text, so the page and the email can never
@@ -77,7 +78,7 @@ export function AiFirstSteps({ client, orgId, offline, onMade }: { client: DpdpC
                 {busy ? "Making your link…" : copied ? "✓ Copied" : prompt ? "Copy a new link" : "📋 Copy my AI work link"}
               </button>
               {offline && <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: "8px 0 0" }}>This one step needs internet, because the link is made on our side. Everything else here works from your device.</p>}
-              {error && <div role="alert" className="rounded-xl px-3.5 py-2.5 mt-3" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+              {error && <GuidedError message={error} />}
               {prompt && (
                 <div className="mt-3">
                   <pre

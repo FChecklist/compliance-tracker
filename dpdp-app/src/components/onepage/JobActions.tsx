@@ -4,6 +4,7 @@ import {
   ACTION_LABEL, NOTE_MAX, charCount, checkDue, checkEmail, checkNote, checkReason, dayOf, dueBounds, moreButtonId, notApplicableCautions, offeredActions, requiredTodayWarning,
   type JobActionHandlers, type JobActionKind,
 } from "@/lib/dpdp-onepage/job-actions"
+import { GuidedError } from "@/components/GuidedError"
 
 // The four things a person can do to one job besides saying Yes: add a note, give it to someone, change its date, say it doesn't apply.
 // (owner, 2026-09-30). The database decides who may (drizzle/0605 + 0666); this only offers what it will accept, checks in plain words before
@@ -112,7 +113,7 @@ function useSubmit(check: () => Check, run: (value: string) => Promise<void>, on
 function Actions({ busy, doing, done, error, tone }: { busy: boolean; doing: string; done: string; error: string | null; tone?: "danger" }) {
   return (
     <>
-      {error && <div role="alert" className="rounded-xl px-3 py-2 mt-3" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+      {error && <GuidedError message={error} />}
       <div className="mt-3">
         <button
           type="submit" aria-disabled={busy} className="font-bold text-white"

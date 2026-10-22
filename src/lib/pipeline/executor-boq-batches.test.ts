@@ -66,8 +66,10 @@ const snapshot = () => JSON.stringify(store.tables);
 const linesOf = (boqId: unknown) => rowsOf(store, "construction_boq_line_items").filter((l) => l.boqId === boqId);
 const batchRows = () => rowsOf(store, "audit_logs").filter((r) => r.action === "construction_boq.lines_batch_added");
 
+// Titles differ: an identical title by the same person inside 2 minutes is a retry and returns the first BOQ (create-dedupe.ts).
+let boqSeq = 0;
 async function emptyBoq(): Promise<string> {
-  const made = await run("create_boq", { title: "Zoomies BOQ" });
+  const made = await run("create_boq", { title: `Zoomies BOQ ${++boqSeq}` });
   return (made as { result: { id: string } }).result.id;
 }
 const add = (boqId: string, batchNo: unknown, lines: unknown, overrides: Partial<Task> = {}) => run("add_boq_lines", { boqId, batchNo, lines }, overrides);

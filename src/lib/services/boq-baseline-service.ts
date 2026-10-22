@@ -229,6 +229,54 @@ export function getEstimatedCostFromBaseline(baseline: Pick<BoqBaseline, "lineSn
   return rollUpRootLines(baseline.lineSnapshot)
 }
 
+/**
+ * R-100: what a baseline snapshot actually carries. A baseline "has figures" only when BOTH the cost side
+ * (qtyProject/rateProject) and the contract side (qtyContract/rateContract) priced at least one root line -- the
+ * same rule the analysis screen uses to pick the "first baseline" (PR #2179). Counts and line ids say WHICH side
+ * is missing, so a screen can tell the person exactly what to fill in instead of a generic "no figures yet".
+ * Root lines only, like the roll-up itself (a weighted sub-task never feeds the total).
+ */
+export type BaselineFigureStatus = {
+  hasFigures: boolean
+  rootLineCount: number
+  /** Root lines with no contract quantity or no contract rate. */
+  contractMissingLines: number
+  /** Root lines with no cost quantity or no cost rate. */
+  costMissingLines: number
+  /** Up to 25 ids of those lines, for a "show me the lines" link. */
+  contractMissingLineIds: string[]
+  costMissingLineIds: string[]
+}
+
+const FIGURE_ID_CAP = 25
+
+export function describeBaselineFigures(baseline: Pick<BoqBaseline, "lineSnapshot">): BaselineFigureStatus {
+  const totals = rollUpRootLines(baseline.lineSnapshot)
+  const roots = baseline.lineSnapshot.filter((l) => l.parentLineItemId === null)
+  const missing = (v: number | string | null | undefined) => {
+    if (v === null || v === undefined || v === "") return true
+    return !Number.isFinite(typeof v === "number" ? v : Number(v))
+  }
+  const contractMissing = roots.filter((l) => missing(l.qtyContract) || missing(l.rateContract))
+  const costMissing = roots.filter((l) => missing(l.qtyProject) || missing(l.rateProject))
+  return {
+    hasFigures: totals.contractValue !== NOT_SET && totals.projectValue !== NOT_SET,
+    rootLineCount: roots.length,
+    contractMissingLines: contractMissing.length,
+    costMissingLines: costMissing.length,
+    contractMissingLineIds: contractMissing.slice(0, FIGURE_ID_CAP).map((l) => l.lineItemId),
+    costMissingLineIds: costMissing.slice(0, FIGURE_ID_CAP).map((l) => l.lineItemId),
+  }
+}
+
+/** The latest baseline that carries figures on both sides, or null. This is what locks the contract side. */
+export function latestBaselineWithFigures(baselines: BoqBaseline[]): BoqBaseline | null {
+  for (let i = baselines.length - 1; i >= 0; i--) {
+    if (describeBaselineFigures(baselines[i]!).hasFigures) return baselines[i]!
+  }
+  return null
+}
+
 export type BoqBaselineLineDelta = {
   lineItemId: string
   a: BoqLineMoneyView

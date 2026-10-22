@@ -40,6 +40,7 @@ import { createCopyStore } from "./lib/device-copy/copy-store"
 import { idbKv } from "./lib/device-copy/kv"
 import { isNetworkError } from "./lib/device-copy/network"
 import { loadWithCopy } from "./lib/device-copy/page-copy"
+import { GuidedError } from "@/components/GuidedError"
 
 // WO-DPDP-011 Step 2 spike: one role, the whole loop -- sign in, own jobs
 // load, Mark Yes, reload shows it. Step 3 added the owner: first-visit
@@ -590,7 +591,7 @@ function History({ client, page }: { client: DpdpClient; page: MyPage }) {
       <div className="max-w-[1240px] mx-auto px-5 pb-14">
         <div className="mb-3" style={{ fontFamily: "Sora, sans-serif", fontSize: 20, fontWeight: 700, color: "var(--dpdp-ink)" }}>🕘 History</div>
         {error ? (
-          <div role="alert" className="rounded-xl px-3.5 py-2.5" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>
+          <GuidedError message={error} />
         ) : entries === null ? (
           <div className="p-4" style={{ color: "var(--dpdp-ink3)" }}>Loading…</div>
         ) : (

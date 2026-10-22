@@ -7,6 +7,7 @@ import { parseDbTimestamp } from "@/lib/db-time"
 import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
 import { BOX_K3 } from "@/lib/terms"
 import { TermsCheckbox, TermsWhy } from "./TermsBox"
+import { GuidedError } from "@/components/GuidedError"
 
 // Where to actually send the money -- swap these for the real values the
 // moment the Owner shares them (bank/UPI details + a QR code image at
@@ -366,7 +367,7 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
               </p>
             </>
           )}
-          {error && <p role="alert" style={{ margin: "10px 0 0", color: "var(--dpdp-r)", fontWeight: 600 }}>{error}</p>}
+          {error && <GuidedError message={error} />}
           <button type="button" onClick={() => setOpen(false)} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", fontSize: 12, marginTop: 10, display: "block" }}>Close</button>
         </div>
       )}

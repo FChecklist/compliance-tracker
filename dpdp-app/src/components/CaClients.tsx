@@ -1,6 +1,7 @@
 import "./onepage/dpdp-onepage-tokens.css"
 import { useState, useTransition, type FormEvent } from "react"
 import type { CaClient } from "@/lib/api"
+import { GuidedError } from "@/components/GuidedError"
 
 // WO-DPDP-010 §3 "CA firm view", ported from src/app/dpdp/(app)/ca-clients/
 // page.tsx (copy verbatim) onto dpdp_my_clients, plus the two things WO-011
@@ -76,7 +77,7 @@ export function AddClientForm({ onCreate, onCancel, refetch }: { onCreate: (c: N
           <div style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", marginTop: 4 }}>They get the list you set up and a &ldquo;looks right — confirm&rdquo; screen on their first visit.</div>
         </div>
       )}
-      {error && <div role="alert" className="rounded-xl px-3.5 py-2.5" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+      {error && <GuidedError message={error} />}
       <div className="flex gap-2.5 items-center flex-wrap">
         <button type="submit" disabled={pending} className="font-bold text-white" style={{ background: "var(--dpdp-v)", fontSize: 14, padding: "11px 18px", borderRadius: 12, opacity: pending ? 0.6 : 1 }}>
           {pending ? "Adding…" : "Add a client"}

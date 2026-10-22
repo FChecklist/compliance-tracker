@@ -21,6 +21,7 @@ import {
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { lockCreateDedupeKey, createdWithinDedupeWindow } from "./create-dedupe"
 import { isSelfApproval } from "./approval-workflow-service"
 // R67 F-27 (R-243): a BOQ write moves contract value, earned value and
 // "% Complete by BOQ Value" on the project dashboard, which now holds a 60 s
@@ -44,7 +45,7 @@ import { computeBoqLineMoneyView, rollUpRootLines, computeCostCoverage, validate
 // a second way keeps this file from becoming a second, drifting definition
 // of what confirmation means (the same X-27 single-producer discipline this
 // file already applies to the money math itself).
-import { listBaselineVersionsWithDb } from "./boq-baseline-service"
+import { listBaselineVersionsWithDb, latestBaselineWithFigures } from "./boq-baseline-service"
 // PROJEXA-BUILD-001 U-27: the pure half of the (boq_id, id) keyset pagination below (flag, cursor codec, page size,
 // revision chain). See that file's header for why it is a separate module with no imports.
 import {
@@ -1362,11 +1363,13 @@ async function loadBaselineInfoWithDb(db: TenantDb, boqId: string) {
     const latest = baselines[baselines.length - 1]
     return {
       hasConfirmedBaseline: baselines.length > 0,
+      // R-100: only a baseline WITH figures locks the contract side; the grid should lock on this, not on hasConfirmedBaseline.
+      contractSideLocked: latestBaselineWithFigures(baselines) !== null,
       latestBaselineVersion: latest?.version ?? null,
       latestBaselineConfirmedAt: latest?.confirmedAt ?? null,
     }
   } catch {
-    return { hasConfirmedBaseline: false, latestBaselineVersion: null, latestBaselineConfirmedAt: null }
+    return { hasConfirmedBaseline: false, contractSideLocked: false, latestBaselineVersion: null, latestBaselineConfirmedAt: null }
   }
 }
 
@@ -1622,6 +1625,17 @@ export async function updateLineItemBudget(
   })
 }
 
+/** 409: the contract side is locked by a baseline that carries figures. Carries what the screen needs to guide the person to a revision. */
+export class ContractSideLockedError extends ServiceError {
+  constructor(public readonly boqId: string, public readonly baselineVersion: number, confirmedAt: Date) {
+    super(
+      `Contract values are locked by baseline v${baselineVersion} (confirmed ${confirmedAt.toISOString()}). To change them, create a revision of this BOQ and confirm a baseline there.`,
+      409
+    )
+    this.code = "CONTRACT_SIDE_LOCKED"
+  }
+}
+
 /** 409: the field was changed by someone else since the caller read it. `current` is what is stored now, for the person to choose from. */
 export class EditConflictError extends ServiceError {
   constructor(public readonly current: { category: string | null }) {
@@ -1674,12 +1688,12 @@ export async function updateLineItemMoneyFields(
     const editingContractSide = input.qtyContract !== undefined || input.rateContract !== undefined
     if (editingContractSide) {
       const baselines = await listBaselineVersionsWithDb(db, boq.id)
-      if (baselines.length > 0) {
-        const latest = baselines[baselines.length - 1]
-        throw new ServiceError(
-          `The contract side is locked -- this BOQ was confirmed (baseline v${latest.version}, ${latest.confirmedAt.toISOString()}). A post-confirmation contract change needs a cited evidence artefact and creates the next baseline version -- it cannot be edited directly here.`,
-          409
-        )
+      // R-100: only a baseline WITH figures (cost AND contract side priced, the same rule as the first-baseline
+      // pick in boq-analysis-service, PR #2179) locks the contract side. A baseline taken before the contract side
+      // was entered carries nothing to protect, and locking on it left the person with no way to ever enter it.
+      const locking = latestBaselineWithFigures(baselines)
+      if (locking) {
+        throw new ContractSideLockedError(boq.id, locking.version, locking.confirmedAt)
       }
     }
 
@@ -1760,6 +1774,31 @@ export async function createBoq(ctx: BoqContext, input: BoqInput, hooks?: Create
 
     const existingId = hooks?.findExisting ? await hooks.findExisting(db) : null
     if (existingId) return getBoqRow(db, existingId)
+
+    // 2026-10-20 (Sumeet UI audit, defect 3): a create that outlives PROJEXA's wait is retried by the user and stored a second
+    // identical BOQ. Same org + project + title + creating user inside the last 2 minutes, where that BOQ is STILL a draft, is not
+    // a revision, and holds exactly as many lines as this request, IS the same create: the original is returned. Any difference
+    // (another status, another line count) means the content moved on, so a new BOQ is made. See create-dedupe.ts.
+    const requestedLines = (input.lineItems || []).length
+    await lockCreateDedupeKey(db, ["boq", ctx.orgId, input.projectId, ctx.userId, title])
+    const [recent] = await db.select().from(constructionBoqs)
+      .where(and(
+        eq(constructionBoqs.orgId, ctx.orgId),
+        eq(constructionBoqs.projectId, input.projectId),
+        eq(constructionBoqs.title, title),
+        eq(constructionBoqs.createdById, ctx.userId),
+        eq(constructionBoqs.status, "draft"),
+        isNull(constructionBoqs.parentBoqId),
+        createdWithinDedupeWindow(constructionBoqs.createdAt),
+      ))
+      .orderBy(sql`${constructionBoqs.createdAt} desc`)
+      .limit(1)
+    if (recent) {
+      // Ids rather than count(): this branch only runs for a probable retry, and it keeps the read a plain select.
+      const savedLines = await db.select({ id: constructionBoqLineItems.id }).from(constructionBoqLineItems)
+        .where(eq(constructionBoqLineItems.boqId, recent.id))
+      if (savedLines.length === requestedLines) return getBoqRow(db, recent.id)
+    }
 
     const [boq] = await db.insert(constructionBoqs).values({
       orgId: ctx.orgId, projectId: input.projectId, version: 1, title, createdById: ctx.userId,

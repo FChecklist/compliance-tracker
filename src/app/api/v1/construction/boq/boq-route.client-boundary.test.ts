@@ -56,6 +56,12 @@ const RAW_LINE_ITEM = {
   qtyContract: "100",
   rateContract: "50",
   description: "Excavation",
+  // Budget overlay (internal cost side) -- Sumeet audit 2026-10-19 / R-50: client_viewer saw these on GET /api/scope/<id>.
+  budgetPercentage: "25",
+  computedBudget: 1250,
+  vendorAmount: "900",
+  materialAmount: "600",
+  manpowerAmount: "300",
 }
 
 function mockAuth(opts: { role?: string; apiKeyOnly?: boolean } = {}) {
@@ -115,7 +121,7 @@ beforeEach(() => {
 })
 
 function bodyNeverContains(bodyText: string) {
-  for (const forbidden of ["rateProject", "qtyProject", "projectValue", "variance", "quantityVariance", "rateVariance", "coverageRatio"]) {
+  for (const forbidden of ["rateProject", "qtyProject", "projectValue", "variance", "quantityVariance", "rateVariance", "coverageRatio", "computedBudget", "budgetPercentage", "vendorAmount", "materialAmount", "manpowerAmount"]) {
     expect(bodyText).not.toContain(forbidden)
   }
 }
@@ -146,6 +152,8 @@ describe("GET /api/v1/construction/boq -- 6-03a client boundary", () => {
     expect(res.status).toBe(200)
     expect(body.boqs[0].lineItems[0].rateProject).toBe("40")
     expect(body.boqs[0].lineItems[0].qtyProject).toBe("100")
+    expect(body.boqs[0].lineItems[0].computedBudget).toBe(1250)
+    expect(body.boqs[0].lineItems[0].budgetPercentage).toBe("25")
   })
 
   test("admin with NO configured grant defaults to redacted (fail-closed -- a role is never cost-visible just by being admin)", async () => {

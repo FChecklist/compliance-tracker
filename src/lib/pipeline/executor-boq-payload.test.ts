@@ -258,9 +258,10 @@ describe("AW-202: the executor's create_boq", () => {
     expect(linesOf(idOf(first))).toHaveLength(5);
     expect(keyRows()).toHaveLength(1);
     expect(snapshot()).toBe(stored);
-    // without a key, a repeated call is two BOQs: this is what the key is for
+    // without a key, a repeated call is two BOQs when the content differs: this is what the key is for. (An IDENTICAL call by the
+    // same person inside 2 minutes is a retry and returns the first BOQ -- create-dedupe.ts -- so the titles differ here.)
     await create({ title: "No key" });
-    await create({ title: "No key" });
+    await create({ title: "No key 2" });
     expect(boqs()).toHaveLength(3);
   });
 

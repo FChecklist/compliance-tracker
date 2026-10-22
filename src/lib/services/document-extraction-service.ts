@@ -1555,7 +1555,8 @@ export type CreateFromDocumentInput = {
   orgId: string
   /** A real compliance.users id (the acting person), recorded as the project lead and the BOQ creator. */
   actorId: string
-  productId: string
+  /** Optional: absent, createProject files the project under the org's PROJEXA product. */
+  productId?: string
   fileName: string
   bytes: Uint8Array
   /** Replaces the project name the model found. */
@@ -1572,7 +1573,7 @@ export type CreateFromDocumentDeps<P extends { id: string }, B extends { id: str
   callEdge: EdgeCaller
   ledger: ProjectSourceLedger
   /** construction-dashboard-service.ts createProject(): the one project-create path. */
-  createProject: (ctx: { orgId: string; userId: string; isRealUser?: boolean }, input: ProjectInput) => Promise<P>
+  createProject: (ctx: { orgId: string; userId: string; isRealUser?: boolean; skipDuplicateGuard?: boolean }, input: ProjectInput) => Promise<P>
   /** construction-boq-service.ts createBoq(): the one BOQ-create path. */
   createBoq: (ctx: { orgId: string; userId: string }, input: { projectId: string; title: string; lineItems: BoqLineItemInput[] }) => Promise<B>
 }
@@ -1731,7 +1732,7 @@ export async function runExtractionJob<P extends { id: string }, B extends { id:
   let project: P
   try {
     project = await deps.createProject(
-      { orgId: input.orgId, userId: input.actorId, isRealUser: true },
+      { orgId: input.orgId, userId: input.actorId, isRealUser: true, skipDuplicateGuard: true /* this path has its own per-file retry claim; two different files may share a project name */ },
       {
         productId: input.productId,
         name: input.projectName?.trim() || extracted.project.name,

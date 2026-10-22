@@ -6,7 +6,7 @@
 // .test.ts convention.
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { computeInterimBillLines, applyRetention, buildInterimBillInvoiceItems, type BillableLineItem, type InterimBillLine } from "./construction-valuation-service"
+import { computeInterimBillLines, computeMeasuredLineCumulatives, applyRetention, buildInterimBillInvoiceItems, type BillableLineItem, type InterimBillLine } from "./construction-valuation-service"
 
 describe("applyRetention", () => {
   test("10% retention on a 5000 gross bill", () => {
@@ -117,5 +117,44 @@ describe("buildInterimBillInvoiceItems -- retention is a holdback, never a taxab
     expect(items.every((i) => i.taxTemplateId === "tax-template-gst-18")).toBe(true) // real tax, not the zero-tax default
     expect(items.every((i) => i.rate > 0)).toBe(true) // never a negative-rate line
     expect(items.reduce((sum, i) => sum + i.rate, 0)).toBe(3500) // full gross (2000 + 1500), unreduced by retention
+  })
+})
+
+// R-95 (2026-10-22): Invoice on an approved claim refused "No new progress to
+// bill" although progress was logged on the claim's BOQ line. Work Progress
+// writes boq_line_item_id (activity_id is a placeholder), and the bill only
+// ever looked progress up by activity_id on lines that carry one.
+describe("R-95 line-level progress is billable (same rule as earned value)", () => {
+  const line = { id: "li-1", parentLineItemId: null, rate: 100, amount: 1000, breakdownPercentage: null }
+  const bl: BillableLineItem = { id: "li-1", amount: 1000, activityId: null, description: "Gypsum" }
+
+  test("percent-only progress on a line with NO activityId is billed (this returned [] before the fix)", () => {
+    const measured = computeMeasuredLineCumulatives([line], new Map(), new Map([["li-1", 40]]))
+    const [l] = computeInterimBillLines([bl], new Map(), new Map(), measured)
+    expect(l.currentBillAmount).toBe(400)
+    expect(l.cumulativePercentComplete).toBe(40)
+  })
+
+  test("measured DELTA quantity wins over percent (qty x rate)", () => {
+    const measured = computeMeasuredLineCumulatives([line], new Map([["li-1", 3]]), new Map([["li-1", 90]]))
+    expect(measured.get("li-1")?.cumulativeAmount).toBe(300)
+  })
+
+  test("only the increment over earlier bills is billed; nothing new gives 0", () => {
+    const measured = computeMeasuredLineCumulatives([line], new Map(), new Map([["li-1", 40]]))
+    expect(computeInterimBillLines([bl], new Map(), new Map([["li-1", 400]]), measured)[0].currentBillAmount).toBe(0)
+    expect(computeInterimBillLines([bl], new Map(), new Map([["li-1", 100]]), measured)[0].currentBillAmount).toBe(300)
+  })
+
+  test("a weighted child is valued off its root: rootRate x breakdown %", () => {
+    const root = { id: "r", parentLineItemId: null, rate: 200, amount: 2000, breakdownPercentage: null }
+    const child = { id: "c", parentLineItemId: "r", rate: 0, amount: 800, breakdownPercentage: 40 }
+    const m = computeMeasuredLineCumulatives([root, child], new Map([["c", 5]]), new Map())
+    expect(m.get("c")?.cumulativeAmount).toBe(400) // 5 x (200 x 40%)
+  })
+
+  test("without line-level progress the activity path is unchanged", () => {
+    const withAct: BillableLineItem = { id: "li-1", amount: 1000, activityId: "a", description: "x" }
+    expect(computeInterimBillLines([withAct], new Map([["a", 50]]), new Map(), new Map())[0].currentBillAmount).toBe(500)
   })
 })

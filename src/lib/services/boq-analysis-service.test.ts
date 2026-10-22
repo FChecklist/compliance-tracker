@@ -102,6 +102,7 @@ function makeFakeDb() {
 }
 
 const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+  currentOrgId = ctx.orgId
   capturedWithTenantContextOrgIds.push(
     // PLANT THE DEFECT: flips the captured/used orgId to a wrong constant,
     // simulating exactly the class of bug (a hardcoded or swapped orgId)
@@ -111,23 +112,31 @@ const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unkno
   return fn(makeFakeDb())
 })
 
-const mockGetEffective = mock(async (ctx: { orgId: string }, projectId: string) => {
+// R-100 fix: getProjectAnalysis now runs ONE transaction and calls the *WithDb forms
+// (the db handle is the first argument; the org comes from the tenant context that opened it).
+let currentOrgId = ""
+const mockGetEffective = mock(async (_db: unknown, ctx: { orgId: string }, projectId: string) => {
   capturedGetEffectiveArgs.push({ orgId: ctx.orgId, projectId })
   return fakeEffective
 })
-const mockComputeCostActuals = mock(async (ctx: { orgId: string }, projectId: string) => {
+// getProjectAnalysis hands its already-read BOQ rows to this (the project id is not an argument).
+const mockEffectiveFromBoqs = mock(async (_db: unknown, _boqs: unknown) => {
+  capturedGetEffectiveArgs.push({ orgId: currentOrgId, projectId: "p1" })
+  return fakeEffective
+})
+const mockComputeCostActuals = mock(async (_db: unknown, ctx: { orgId: string }, projectId: string) => {
   capturedComputeCostActualsArgs.push({ orgId: ctx.orgId, projectId })
   return fakeActuals
 })
-const mockListBaselineVersions = mock(async (ctx: { orgId: string }, boqId: string) => {
-  capturedListBaselineArgs.push({ orgId: ctx.orgId, boqId })
+const mockListBaselineVersions = mock(async (_db: unknown, boqId: string) => {
+  capturedListBaselineArgs.push({ orgId: currentOrgId, boqId })
   return fakeBaselines
 })
 
 await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mockWithTenantContext }))
-await mock.module("./boq-contract-value-service", () => ({ ...realContractValueService, getEffectiveContractValueForProject: mockGetEffective }))
-await mock.module("./boq-cost-actuals-service", () => ({ ...realCostActualsService, computeCostActuals: mockComputeCostActuals }))
-await mock.module("./boq-baseline-service", () => ({ ...realBaselineService, listBaselineVersions: mockListBaselineVersions }))
+await mock.module("./boq-contract-value-service", () => ({ ...realContractValueService, effectiveFromBoqsWithDb: mockEffectiveFromBoqs, getEffectiveContractValueForProjectWithDb: mockGetEffective, getEffectiveContractValueForProject: mockGetEffective }))
+await mock.module("./boq-cost-actuals-service", () => ({ ...realCostActualsService, computeCostActualsWithDb: mockComputeCostActuals, computeCostActuals: mockComputeCostActuals }))
+await mock.module("./boq-baseline-service", () => ({ ...realBaselineService, listBaselineVersionsWithDb: mockListBaselineVersions, listBaselineVersions: mockListBaselineVersions }))
 
 function resetFixtures() {
   capturedWithTenantContextOrgIds = []
@@ -169,6 +178,54 @@ describe("getProjectAnalysis -- 9-01 per-project figures", () => {
     expect(row.contractValueNow).toBe(100000) // live effective value, NOT a baseline snapshot
     expect(row.contractValueSource).toBe("computed")
     expect(row.hasBaseline).toBe(true)
+  })
+
+  // R-100 (2026-10-22): a baseline taken before any cost data existed (all NOT_SET totals) pinned the P&L at
+  // "Not yet baselined" for ever, even with hasBaseline true and a later version carrying real figures.
+  test("R-100: a figure-less v1 followed by a v2 with figures -> expected profit/contract-at-first read the first baseline WITH figures; baselineHasFigures true", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    fakeBaselines = [
+      baseline(1, [lineSnapshot({ qtyProject: null, rateProject: null, qtyContract: null, rateContract: null })]),
+      baseline(2, [lineSnapshot({ qtyProject: 100, rateProject: 400, qtyContract: 100, rateContract: 500 })]),
+    ]
+    const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(row.hasBaseline).toBe(true)
+    expect(row.baselineHasFigures).toBe(true)
+    expect(row.baselineCount).toBe(2)
+    expect(row.contractAtFirstConfirmation).toBe(50000)
+    expect(row.expectedProfitGross).toBe(10000)
+  })
+
+  test("R-100: ONLY a figure-less baseline -> hasBaseline true but baselineHasFigures false (the screen must offer a fresh confirmation, not hide the control)", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    fakeBaselines = [baseline(1, [lineSnapshot({ qtyProject: null, rateProject: null, qtyContract: null, rateContract: null })])]
+    const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(row.hasBaseline).toBe(true)
+    expect(row.baselineHasFigures).toBe(false)
+    expect(row.expectedProfitGross).toBe(NOT_SET)
+  })
+
+  // R-100 (live AUDIT BOQ): baseline v3 stored the cost side but the contract side null.
+  test("R-100: cost side priced, contract side missing -> no figures, says which side is missing and where, and does NOT lock", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    fakeBaselines = [baseline(3, [
+      lineSnapshot({ lineItemId: "a", qtyContract: null, rateContract: null }),
+      lineSnapshot({ lineItemId: "b", qtyContract: null, rateContract: 5 }),
+      lineSnapshot({ lineItemId: "c", qtyProject: null, rateProject: null, qtyContract: null, rateContract: null }),
+    ])]
+    const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(row.baselineHasFigures).toBe(false)
+    expect(row.baselineFigureStatus).toMatchObject({ contractMissingLines: 3, costMissingLines: 1, contractMissingLineIds: ["a", "b", "c"], costMissingLineIds: ["c"] })
+    expect(row.contractSideLocked).toBe(false)
+    expect(row.contractLockedByVersion).toBeNull()
+  })
+
+  test("R-100: a baseline with figures on both sides locks the contract side and names the version", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    const row = await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(row.contractSideLocked).toBe(true)
+    expect(row.contractLockedByVersion).toBe(2)
+    expect(row.baselineFigureStatus).toMatchObject({ contractMissingLines: 0, costMissingLines: 0 })
   })
 
   test("9-04: contract variance is contractValueNow - contractAtFirstConfirmation; approved variation count excludes the root BOQ and any non-approved revision", async () => {
@@ -374,6 +431,14 @@ describe("sortAnalysisRows / compareAnalysisRowsBySortKey -- 9-02 sortable by pr
 // already-tested responsibility (X-27: this file is not the producer of
 // that guarantee, so it is not this file's test to re-prove).
 // ─────────────────────────────────────────────────────────────────────────
+describe("getProjectAnalysis -- R-100 one connection, not six", () => {
+  test("opens exactly ONE tenant transaction for the whole per-project analysis (the old fan-out held 4 pool connections at once and starved the Project 360 page)", async () => {
+    const { getProjectAnalysis } = await import("./boq-analysis-service")
+    await getProjectAnalysis({ orgId: ORG_A }, "p1")
+    expect(capturedWithTenantContextOrgIds).toEqual([ORG_A])
+  })
+})
+
 describe("tenant isolation (9-06)", () => {
   test("getProjectAnalysis calls every downstream dependency, and both of its own direct DB queries, with the CALLER'S orgId -- proven both directions (ORG_A and ORG_B)", async () => {
     const { getProjectAnalysis } = await import("./boq-analysis-service")
@@ -383,7 +448,7 @@ describe("tenant isolation (9-06)", () => {
     expect(capturedComputeCostActualsArgs).toEqual([{ orgId: ORG_A, projectId: "p1" }])
     expect(capturedListBaselineArgs).toEqual([{ orgId: ORG_A, boqId: "boq-1" }])
     expect(capturedWithTenantContextOrgIds.every((id) => id === ORG_A)).toBe(true)
-    expect(capturedWithTenantContextOrgIds.length).toBeGreaterThanOrEqual(2) // projects.findFirst + constructionBoqs.findMany
+    expect(capturedWithTenantContextOrgIds.length).toBe(1) // one transaction carries every read
 
     resetFixtures()
     await getProjectAnalysis({ orgId: ORG_B }, "p1")

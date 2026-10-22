@@ -53,6 +53,21 @@ function predicate(table: Table, where: SQL | undefined, unparsed: string[]): (r
   const body = sql.startsWith("(") && sql.endsWith(")") ? sql.slice(1, -1) : sql;
   const checks: ((r: Row) => boolean)[] = [];
   for (const term of body.split(" and ")) {
+    // create-dedupe (2026-10-20), createProject: `lower(btrim(col)) = $n` (value already lower-cased) and `col >= now() - interval 'N minutes'`
+    const lowered = /^lower\(btrim\((?:"\w+"\.)?"\w+"\."(\w+)"\)\) = \$(\d+)$/.exec(term);
+    if (lowered && keyOf[lowered[1]]) {
+      const key = keyOf[lowered[1]];
+      const value = params[Number(lowered[2]) - 1];
+      checks.push((r) => typeof r[key] === "string" && (r[key] as string).trim().toLowerCase() === value);
+      continue;
+    }
+    const windowed = /^(?:"\w+"\.)?"\w+"\."(\w+)" >= now\(\) - interval '(\d+) minutes'$/.exec(term);
+    if (windowed && keyOf[windowed[1]]) {
+      const key = keyOf[windowed[1]];
+      const minutes = Number(windowed[2]);
+      checks.push((r) => r[key] instanceof Date && Date.now() - (r[key] as Date).getTime() <= minutes * 60_000);
+      continue;
+    }
     const m = /^(?:"\w+"\.)?"\w+"\."(\w+)" = \$(\d+)$/.exec(term);
     if (!m || !keyOf[m[1]]) {
       unparsed.push(sql);
@@ -145,7 +160,7 @@ function makeTransaction(store: FakeStore) {
           return {
             limit: async (n: number) => matching().slice(0, n),
             // BUILD-002 WP-09b: the BOQ facts read (chain-options-service latestBoqLines) ends in .orderBy(); the rows come back in fixture order
-            orderBy: (..._order: unknown[]) => thenable(matching),
+            orderBy: (..._order: unknown[]) => ({ limit: async (n: number) => matching().slice(0, n), ...thenable(matching) }),
             ...thenable(matching),
           };
         },

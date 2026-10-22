@@ -530,7 +530,15 @@ describe("getOrgDashboard: lastProgressAt rides the query that already runs (R67
     // progressPercent-per-project query (landed on main after this guard was
     // written; folded in, not fanned out -- see the "batched, not per-project"
     // describe block above).
-    expect(progressReads.length).toBe(6)
+    //
+    // R-51 (2026-10-19): the earned-value quantity/percent reads (and the
+    // baseline pair) moved into loadProgressSourceRows() in
+    // construction-reports-service.ts -- ONE helper that now also covers a
+    // project's superseded revisions, called twice here (now, and closed at
+    // the baseline date). So this body names the table only twice again: the
+    // activity percentages and F-01's grouped progressPercent.
+    expect(progressReads.length).toBe(2)
+    expect(body.match(/loadProgressSourceRows\(/g)?.length).toBe(2)
   })
 
   test("it is folded per project by a plain string comparison, so no time zone can reorder it", () => {
@@ -1286,7 +1294,8 @@ describe("construction-dashboard-service: getOrgDashboard row shape (E-21)", () 
   })
 
   test("earnedValuePrevWeek reuses computeEarnedValue over a date-windowed read, never a second formula", () => {
-    expect(body).toMatch(/entry_date < \$\{baselineDate\}/)
+    // R-51: the windowed read is loadProgressSourceRows(..., baselineDate).
+    expect(body).toMatch(/loadProgressSourceRows\(db, progressLines, baselineDate\)/)
     // computeEarnedValue is called twice in this function: now, and at the baseline.
     expect(body.match(/computeEarnedValue\(/g)?.length).toBe(2)
   })
@@ -1583,5 +1592,51 @@ describe("construction-dashboard-service: getProjectDashboard payload (E-39)", (
     const stamped = Date.parse(d.generatedAt)
     expect(Number.isNaN(stamped)).toBe(false)
     expect(stamped).toBeGreaterThanOrEqual(before - 1000)
+  })
+})
+
+// PROJEXA has no product concept for users: a create with no productId files
+// the project under the org's own "PROJEXA" product (made on first use).
+describe("createProject default product", () => {
+  test("productId is optional and falls back to the org's PROJEXA product, created if missing", () => {
+    const body = rawFunctionBody("createProject")
+    expect(body).not.toContain("productId is required")
+    // the default itself lives in the shared helper (used by createProject and the from-document path)
+    expect(body).toContain("resolveProjectProduct(db, ctx.orgId, input.productId)")
+    expect(body).toContain("productId: product.id")
+    const helper = rawFunctionBody("resolveProjectProduct")
+    expect(helper).toContain('eq(products.slug, "projexa")')
+    expect(helper).toContain('name: "PROJEXA"')
+  })
+})
+
+// R-51 / R-52 (UI audit 2026-10-19): after a BOQ revision the dashboard read
+// "0% - Earned AED 0.00" because progress was matched on the LATEST revision's
+// line ids only. The statement now also returns per-source-line progress across
+// the active AND superseded revisions (ev_progress); toProjectDashboard folds it
+// onto the active lines by item code.
+describe("toProjectDashboard -- R-51/R-52 earned value across a BOQ revision", () => {
+  const REVISED_ITEMS = [
+    { id: "v2-1", boqId: "boq-v2", itemCode: "1", parentLineItemId: null, rate: "90", amount: "9000", breakdownPercentage: null, budgetPercentage: "25" },
+    { id: "v2-11", boqId: "boq-v2", itemCode: "1.1", parentLineItemId: "v2-1", rate: "90", amount: "4500", breakdownPercentage: "50", budgetPercentage: null },
+    { id: "v2-12", boqId: "boq-v2", itemCode: "1.2", parentLineItemId: "v2-1", rate: "90", amount: "4500", breakdownPercentage: "50", budgetPercentage: null },
+  ]
+  const PROGRESS_ON_V1 = [{ lineId: "v1-11", boqId: "boq-v1", itemCode: "1.1", qty: 30, percent: 60, percentDate: "2026-10-03" }]
+
+  test("progress logged on the superseded revision still counts on the active one (was 0%)", async () => {
+    const { toProjectDashboard } = await loadService()
+    const d = toProjectDashboard({ ...SQL_ROW, ev_items: REVISED_ITEMS, ev_progress: PROGRESS_ON_V1 } as never, true)
+    expect(d.contractValue).toBe(9000)
+    expect(d.earnedValue).toBe(1350) // 30 x 90 x 50/100
+    expect(d.percentByValue).toBe(15)
+  })
+
+  test("a revision with no progress stays at 0, and a fresh BOQ (no revision) is unchanged", async () => {
+    const { toProjectDashboard } = await loadService()
+    const none = toProjectDashboard({ ...SQL_ROW, ev_items: REVISED_ITEMS, ev_progress: null } as never, true)
+    expect(none.earnedValue).toBe(0)
+    expect(none.percentByValue).toBe(0)
+    // No ev_progress at all: the pre-existing qty/percent on ev_items still drive it.
+    expect(toProjectDashboard({ ...SQL_ROW } as never, true).earnedValue).toBe(20 * 50)
   })
 })

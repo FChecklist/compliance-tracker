@@ -184,8 +184,8 @@ export async function POST(request: NextRequest) {
     const file = form.get("file")
     const emailJobId = String(form.get("jobId") ?? "").trim()
     if (!(file instanceof File) && !emailJobId) return NextResponse.json({ error: "No file provided", code: "no_file" }, { status: 400 })
-    const productId = String(form.get("productId") ?? "").trim()
-    if (!productId) return NextResponse.json({ error: "productId is required", code: "product_required" }, { status: 400 })
+    // Optional: PROJEXA has no product choice; createProject files the project under the org's PROJEXA product when this is empty.
+    const productId = String(form.get("productId") ?? "").trim() || undefined
     if (file instanceof File && file.size > WORKBOOK_LIMITS.maxBytes) {
       return NextResponse.json({ error: "The file is larger than 5 MB", code: "workbook_too_large" }, { status: 413 })
     }
@@ -263,7 +263,7 @@ export async function GET(request: NextRequest) {
           count: jobs.length,
           jobs: jobs.map((job) => ({
             ...job,
-            approve: { method: "POST", path: "/api/v1/projexa/projects/from-document", form: { jobId: job.jobId, productId: "<the product of the new project>" } },
+            approve: { method: "POST", path: "/api/v1/projexa/projects/from-document", form: { jobId: job.jobId, productId: "<optional: omit it>" } },
           })),
         },
         { status: 200 },

@@ -102,26 +102,39 @@ export function resolveBoqEffectiveContractValue(
  * genuinely-absent convention (X-04) rather than treating "not confirmed
  * yet" as an error.
  */
+export async function getEffectiveContractValueForProjectWithDb(
+  db: TenantDb,
+  ctx: { orgId: string },
+  projectId: string
+): Promise<EffectiveContractValue & { boqId: string | null; boqVersion: number | null }> {
+  const boqs = await db.query.constructionBoqs.findMany({
+    where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
+  })
+  return effectiveFromBoqsWithDb(db, boqs)
+}
+
+/** Same as above for a caller that has ALREADY read the project's BOQ rows in its own transaction (R-100: a project can carry thousands of revisions; reading them once, not twice, matters). */
+export async function effectiveFromBoqsWithDb(
+  db: TenantDb,
+  boqs: (BoqOverrideRow & { status: string; version: number })[]
+): Promise<EffectiveContractValue & { boqId: string | null; boqVersion: number | null }> {
+  const approved = resolveApprovedBoq(boqs)
+  if (!approved) {
+    return { value: NOT_SET, source: "computed" as const, computedTotal: NOT_SET, boqId: null, boqVersion: null }
+  }
+  const lineItems = await db.query.constructionBoqLineItems.findMany({
+    where: eq(constructionBoqLineItems.boqId, approved.id),
+  })
+  const rollup = rollUpRootLines(lineItems as unknown as BoqLineForRollup[])
+  const effective = resolveBoqEffectiveContractValue(rollup.contractValue, approved)
+  return { ...effective, boqId: approved.id, boqVersion: approved.version }
+}
+
 export async function getEffectiveContractValueForProject(
   ctx: { orgId: string },
   projectId: string
 ): Promise<EffectiveContractValue & { boqId: string | null; boqVersion: number | null }> {
-  return withTenantContext({ orgId: ctx.orgId }, async (db: TenantDb) => {
-    const boqs = await db.query.constructionBoqs.findMany({
-      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
-    })
-    const approved = resolveApprovedBoq(boqs)
-    if (!approved) {
-      return { value: NOT_SET, source: "computed" as const, computedTotal: NOT_SET, boqId: null, boqVersion: null }
-    }
-
-    const lineItems = await db.query.constructionBoqLineItems.findMany({
-      where: eq(constructionBoqLineItems.boqId, approved.id),
-    })
-    const rollup = rollUpRootLines(lineItems as unknown as BoqLineForRollup[])
-    const effective = resolveBoqEffectiveContractValue(rollup.contractValue, approved)
-    return { ...effective, boqId: approved.id, boqVersion: approved.version }
-  })
+  return withTenantContext({ orgId: ctx.orgId }, (db: TenantDb) => getEffectiveContractValueForProjectWithDb(db, ctx, projectId))
 }
 
 /**
