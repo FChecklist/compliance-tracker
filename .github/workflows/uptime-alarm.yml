@@ -34,7 +34,7 @@ jobs:
           for u in $URLS; do
             ok=0
             for try in 1 2 3; do
-              code=$(curl -sL -o /dev/null -m 20 -w '%{http_code}' "$u" || true)
+              code=$(curl -sL -A 'Mozilla/5.0 (compatible; UptimeAlarm/1.0; +https://corporatetambola.com)' -o /dev/null -m 20 -w '%{http_code}' "$u" || true)
               if [ "$code" = "200" ]; then ok=1; break; fi
               sleep 10
             done
