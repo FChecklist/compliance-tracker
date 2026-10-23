@@ -1,6 +1,8 @@
 # Uptime alarm for every public site. Runs every 15 minutes (free: this repo is public).
-# A site that does not answer 200 within 20 s (checked 3 times, 10 s apart) fails the run, and GitHub e-mails the account that owns this workflow.
-# To add a site, add its address to URLS. Read-only: it only does GET requests.
+# STRICT list: must answer 200 within 20 s (3 tries, 10 s apart). EDGE list: the game sites (corporatetambola.com and their pages.dev
+# addresses) refuse datacenter bots with 403 (the owner's bot policy). A 200 or 403 there proves the site is answering; a dead app or
+# domain gives a 5xx, 52x or a timeout instead, which fails the run. Any failure fails the run and GitHub e-mails the account
+# that owns this workflow. To add a site, add its address to a list. Read-only: GET requests only.
 name: Uptime alarm
 on:
   schedule:
@@ -15,14 +17,7 @@ jobs:
     steps:
       - name: Check every site
         run: |
-          URLS="
-          https://corporatetambola.com/
-          https://corporatetambola.com/zc.html?demo=1
-          https://bingo.corporatetambola.com/
-          https://snakes.corporatetambola.com/
-          https://luck.corporatetambola.com/
-          https://tictactoe.corporatetambola.com/
-          https://games.corporatetambola.com/
+          STRICT="
           https://app.veridian-aios.com/
           https://veridian-aios.com/
           https://rajatsir.com/
@@ -30,14 +25,29 @@ jobs:
           https://itservices-rajat-agarwal.pages.dev/
           https://shobhakamalsolutions.pages.dev/
           "
+          EDGE="
+          https://corporate-tambola.pages.dev/
+          https://corporate-bingo.pages.dev/
+          https://corporate-snakes-and-ladders.pages.dev/
+          https://corporate-luck-by-chance.pages.dev/
+          https://corporate-tic-tac-toe.pages.dev/
+          https://corporate-games.pages.dev/
+          https://corporatetambola.com/
+          https://bingo.corporatetambola.com/
+          https://snakes.corporatetambola.com/
+          https://luck.corporatetambola.com/
+          https://tictactoe.corporatetambola.com/
+          https://games.corporatetambola.com/
+          "
           bad=""
-          for u in $URLS; do
-            ok=0
+          probe() { # $1 = address, $2 = accepted codes
             for try in 1 2 3; do
-              code=$(curl -sL -o /dev/null -m 20 -w '%{http_code}' "$u" || true)
-              if [ "$code" = "200" ]; then ok=1; break; fi
+              code=$(curl -sL -o /dev/null -m 20 -w '%{http_code}' "$1" || true)
+              case " $2 " in *" $code "*) echo "UP   $1 ($code)"; return 0;; esac
               sleep 10
             done
-            if [ "$ok" = "1" ]; then echo "UP   $u"; else echo "DOWN $u (last answer: $code)"; bad="$bad $u"; fi
-          done
+            echo "DOWN $1 (last answer: $code)"; return 1
+          }
+          for u in $STRICT; do probe "$u" "200" || bad="$bad $u"; done
+          for u in $EDGE; do probe "$u" "200 403" || bad="$bad $u"; done
           if [ -n "$bad" ]; then echo "::error::DOWN:$bad"; exit 1; fi
