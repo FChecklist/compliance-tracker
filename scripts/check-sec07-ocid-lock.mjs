@@ -27,7 +27,7 @@
 // Exit code: 0 if not blocked, 1 if blocked.
 import { readFile } from "node:fs/promises"
 import { execSync } from "node:child_process"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 
 export const LOCKED_OCID_LABELS = {
   ocid_038: "OCID-038",

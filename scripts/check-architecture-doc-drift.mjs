@@ -19,7 +19,7 @@
 // due, not a guarantee one happens.
 import { readFile, readdir } from "node:fs/promises"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 
 const REPO_ROOT = process.cwd()
 const BASELINE_PATH = "ai-os/system-tree/DRIFT-BASELINE.yaml"

@@ -39,7 +39,7 @@
 // tracker, and the closed-work log all depend on these files parsing.
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 
 const REPO_ROOT = process.cwd()
 
