@@ -1,0 +1,43 @@
+# Uptime alarm for every public site. Runs every 15 minutes (free: this repo is public).
+# A site that does not answer 200 within 20 s (checked 3 times, 10 s apart) fails the run, and GitHub e-mails the account that owns this workflow.
+# To add a site, add its address to URLS. Read-only: it only does GET requests.
+name: Uptime alarm
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check every site
+        run: |
+          URLS="
+          https://corporatetambola.com/
+          https://corporatetambola.com/zc.html?demo=1
+          https://bingo.corporatetambola.com/
+          https://snakes.corporatetambola.com/
+          https://luck.corporatetambola.com/
+          https://tictactoe.corporatetambola.com/
+          https://games.corporatetambola.com/
+          https://app.veridian-aios.com/
+          https://veridian-aios.com/
+          https://rajatsir.com/
+          https://rajat-agarwal-startup-coach.pages.dev/
+          https://itservices-rajat-agarwal.pages.dev/
+          https://shobhakamalsolutions.pages.dev/
+          "
+          bad=""
+          for u in $URLS; do
+            ok=0
+            for try in 1 2 3; do
+              code=$(curl -sL -o /dev/null -m 20 -w '%{http_code}' "$u" || true)
+              if [ "$code" = "200" ]; then ok=1; break; fi
+              sleep 10
+            done
+            if [ "$ok" = "1" ]; then echo "UP   $u"; else echo "DOWN $u (last answer: $code)"; bad="$bad $u"; fi
+          done
+          if [ -n "$bad" ]; then echo "::error::DOWN:$bad"; exit 1; fi
