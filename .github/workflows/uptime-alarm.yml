@@ -1,7 +1,7 @@
 # Uptime alarm for every public site. Runs every 15 minutes (free: this repo is public).
-# STRICT list: must answer 200 within 20 s (3 tries, 10 s apart). EDGE list: the corporatetambola.com domains refuse
-# datacenter bots with 403 (the owner's bot policy), so a 200 or 403 there proves the domain and Cloudflare are up; the app behind
-# them is checked through its own pages.dev address in the STRICT list. Any failure fails the run and GitHub e-mails the account
+# STRICT list: must answer 200 within 20 s (3 tries, 10 s apart). EDGE list: the game sites (corporatetambola.com and their pages.dev
+# addresses) refuse datacenter bots with 403 (the owner's bot policy). A 200 or 403 there proves the site is answering; a dead app or
+# domain gives a 5xx, 52x or a timeout instead, which fails the run. Any failure fails the run and GitHub e-mails the account
 # that owns this workflow. To add a site, add its address to a list. Read-only: GET requests only.
 name: Uptime alarm
 on:
@@ -18,12 +18,6 @@ jobs:
       - name: Check every site
         run: |
           STRICT="
-          https://corporate-tambola.pages.dev/
-          https://corporate-bingo.pages.dev/
-          https://corporate-snakes-and-ladders.pages.dev/
-          https://corporate-luck-by-chance.pages.dev/
-          https://corporate-tic-tac-toe.pages.dev/
-          https://corporate-games.pages.dev/
           https://app.veridian-aios.com/
           https://veridian-aios.com/
           https://rajatsir.com/
@@ -32,6 +26,12 @@ jobs:
           https://shobhakamalsolutions.pages.dev/
           "
           EDGE="
+          https://corporate-tambola.pages.dev/
+          https://corporate-bingo.pages.dev/
+          https://corporate-snakes-and-ladders.pages.dev/
+          https://corporate-luck-by-chance.pages.dev/
+          https://corporate-tic-tac-toe.pages.dev/
+          https://corporate-games.pages.dev/
           https://corporatetambola.com/
           https://bingo.corporatetambola.com/
           https://snakes.corporatetambola.com/
