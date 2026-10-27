@@ -7,7 +7,7 @@ import {
 } from "./lib/api"
 import type { OrgSetupPayload, PlanWirePayload } from "./lib/rpc-types"
 import { isPaymentDueError } from "./lib/billing-state"
-import { clearJoin, firstSeenAt, readLanding, recallEdition, recallEmail, recallJoin, recallPartner, recallReferral, recallSourceTag, rememberEmail, type Landing } from "./lib/landing"
+import { clearJoin, firstSeenAt, readLanding, recallEmail, recallJoin, recallPartner, recallReferral, recallSourceTag, rememberEmail, type Landing } from "./lib/landing"
 import { PaymentDue } from "./components/PaymentDue"
 import { OwnerAccountsAdmin } from "./components/OwnerAccountsAdmin"
 import { TestModeBanner } from "./components/TestModeBanner"
@@ -301,7 +301,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   // drizzle/0734: the same sign-up, now as an ACCOUNT (type, plan, price, firm details, where the visitor came from). dpdp_open_account calls
   // dpdp_create_my_org itself, so the referral code still ends there. A partner code outranks a referral code, the first link wins for 30 days,
   // and nothing is paid now.
-  async function openMyOrg(name: string, product: "firm" | "institution", extra: OpenAccountExtra) {
+  async function openMyOrg(name: string, product: "firm", extra: OpenAccountExtra) {
     setPhase({ name: "no-membership", busy: true, error: null })
     try {
       await openAccount(client, {
@@ -358,7 +358,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       screen = <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} onVerify={(code) => verifyCode(phase.email, code)} />
       break
     case "no-membership":
-      screen = <OpenOrganisation email={email} initialEdition={landing.edition ?? recallEdition()} busy={phase.busy} error={phase.error} onCreate={openMyOrg} onSignOut={signOut} onOpenPartner={() => setPartnerOpen(true)} plans={plans} />
+      screen = <OpenOrganisation email={email} busy={phase.busy} error={phase.error} onCreate={openMyOrg} onSignOut={signOut} onOpenPartner={() => setPartnerOpen(true)} plans={plans} />
       break
     case "payment-due":
       screen = <PaymentDue client={client} email={email} onSignOut={signOut} onRetry={load} />

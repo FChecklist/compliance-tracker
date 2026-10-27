@@ -95,12 +95,12 @@ test.describe("one simulated year -- fake people, clock fast-forwarded", () => {
     expect(closedTotal).toBeGreaterThan(15)
   })
 
-  test("a school: opens its organisation, the parent answers, a year passes, the consent can be withdrawn", async ({ page }) => {
+  test("a new organisation: opens from the sign-up screen, the parent answers, a year passes, the consent can be withdrawn", async ({ page }) => {
     await page.clock.install({ time: START })
     await page.goto("/app/?mock=visitor")
     await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
     await page.getByLabel("Organisation name", { exact: true }).fill("St Anne's High School")
-    await page.getByLabel("A school or institution", { exact: true }).check()
+    // No school / institution choice any more (owner, 2026-10-27): the name and the K2 box are all that is asked.
     await page.getByRole("checkbox").last().check()
     await page.getByRole("button", { name: "Open my organisation", exact: true }).click()
     await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toHaveCount(0)

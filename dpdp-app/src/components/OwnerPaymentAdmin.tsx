@@ -100,7 +100,7 @@ export function OwnerPaymentAdmin({ client }: { client: DpdpClient }) {
           {claims.map((c) => (
             <div key={c.orgId} style={{ border: "1px solid var(--dpdp-line)", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
               <p style={{ margin: "0 0 2px", fontWeight: 600, color: "var(--dpdp-ink)" }}>{c.orgName}</p>
-              <p style={{ margin: "0 0 2px", fontSize: 12 }}>{c.product === "institution" ? "Institution" : "Firm"} edition -- {c.ownerEmail ?? "(no owner email on file)"}</p>
+              <p style={{ margin: "0 0 2px", fontSize: 12 }}>{c.product === "institution" ? "Own-use" : "Firm"} edition -- {c.ownerEmail ?? "(no owner email on file)"}</p>
               <p style={{ margin: "0 0 2px", fontSize: 12 }}>{formatRupees(c.amountPaise)} ({c.interval === "year" ? "yearly" : "monthly"})</p>
               {c.reference && <p style={{ margin: "0 0 2px", fontSize: 12 }}>Reference: {c.reference}</p>}
               {c.proofPath && (
