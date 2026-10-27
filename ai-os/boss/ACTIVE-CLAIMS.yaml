@@ -40,6 +40,10 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (DPDP: hide the institution option + CA/CS-focused public site; worktree event-sequence-png-3af33c, branch claude/jovial-faraday-61f171) -- owner order 2026-10-27"
+    claimed_at: "2026-10-27 (this session)"
+    claim: |
+      Scope: (1) dpdp-app sign-up screen (src/components/Screens.tsx), CA client form (CaClients.tsx), src/lib/landing.ts, guide catalog (src/lib/guide/catalog.ts), and the e2e/unit tests that used the school/institution choice. (2) AFTER the owner approves a mockup: dpdp-app home + edition landing pages, public-surface.mjs, facts yaml, the two-doors wall and their tests. No deploy, no Vercel, no live-DB writes, no spend. Does not touch Tambola or other games.
   - session_label: "claude-code (DPDP guided errors; branch claude/quirky-jackson-4ffac4)"
     claimed_at: "2026-10-22 (this session)"
     claim: |
