@@ -1,13 +1,13 @@
-/* Colour theme for the home page: three dots at the top centre switch between three looks (violet, studio blue, emerald).
+/* Colour theme for the home page: three dots at the top centre switch between three looks (teal, blue, saffron).
    The choice is a display preference kept in this browser only (localStorage, key "veridian-theme"); nothing is sent anywhere,
    no cookie. It runs in the <head> so the saved theme is on <html data-theme> before the first paint (no flash), then builds
    the three buttons -- position: absolute, so they move nothing and cause no layout shift. If storage is blocked the page
-   simply opens in violet. */
+   simply opens in teal. */
 (function () {
   var THEMES = [
-    ["violet", "#6d28d9", "Violet"],
-    ["studio", "#1d4ed8", "Studio blue"],
-    ["emerald", "#0f766e", "Emerald"],
+    ["teal", "#0e7c6e", "Teal"],
+    ["blue", "#1d4ed8", "Blue"],
+    ["saffron", "#92400e", "Saffron"],
   ]
   var KEY = "veridian-theme"
   function known(v) {
@@ -17,9 +17,9 @@
   function saved() {
     try {
       var v = window.localStorage.getItem(KEY)
-      return known(v) ? v : "violet"
+      return known(v) ? v : "teal"
     } catch (e) {
-      return "violet"
+      return "teal"
     }
   }
   var root = document.documentElement

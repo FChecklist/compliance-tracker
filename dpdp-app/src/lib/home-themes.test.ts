@@ -22,9 +22,9 @@ function vars(css: string, selector: RegExp): Record<string, string> {
 }
 const base = { ...vars(siteCss, /:root\s*\{([^}]*)\}/), ...vars(homeCss, /:root\s*\{([^}]*)\}/) }
 const THEMES: Record<string, Record<string, string>> = {
-  violet: base,
-  studio: { ...base, ...vars(homeCss, /html\[data-theme="studio"\]\s*\{([^}]*)\}/) },
-  emerald: { ...base, ...vars(homeCss, /html\[data-theme="emerald"\]\s*\{([^}]*)\}/) },
+  teal: base,
+  blue: { ...base, ...vars(homeCss, /html\[data-theme="blue"\]\s*\{([^}]*)\}/) },
+  saffron: { ...base, ...vars(homeCss, /html\[data-theme="saffron"\]\s*\{([^}]*)\}/) },
 }
 
 function hex(v: string): [number, number, number] {
@@ -52,10 +52,10 @@ describe("three themes, each meeting WCAG AA for every text pair on the home pag
   })
 
   test("there are exactly three themes, violet is the default (no html[data-theme] needed), and the others override the shared tokens", () => {
-    expect(Object.keys(THEMES)).toEqual(["violet", "studio", "emerald"])
-    expect(THEMES.violet!.violet).toBe("#6d28d9")
-    expect(homeCss.match(/html\[data-theme="[a-z]+"\]\s*\{/g)).toEqual(['html[data-theme="studio"] {', 'html[data-theme="emerald"] {'])
-    for (const t of ["studio", "emerald"]) for (const token of ["bg", "ink", "ink2", "line", "violet", "pink", "dark", "dark-muted", "footer-bg", "footer-ink", "grad", "hero1", "hero2", "glow", "soft"]) expect(THEMES[t]![token], `${t} --${token}`).not.toBe(THEMES.violet![token])
+    expect(Object.keys(THEMES)).toEqual(["teal", "blue", "saffron"])
+    expect(THEMES.teal!.violet).toBe("#0e7c6e")
+    expect(homeCss.match(/html\[data-theme="[a-z]+"\]\s*\{/g)).toEqual(['html[data-theme="blue"] {', 'html[data-theme="saffron"] {'])
+    for (const t of ["blue", "saffron"]) for (const token of ["bg", "ink", "ink2", "line", "violet", "pink", "dark", "dark-muted", "footer-bg", "footer-ink", "grad", "hero1", "hero2", "glow", "soft"]) expect(THEMES[t]![token], `${t} --${token}`).not.toBe(THEMES.teal![token])
   })
 
   for (const [name, t] of Object.entries(THEMES)) {
@@ -76,11 +76,15 @@ describe("three themes, each meeting WCAG AA for every text pair on the home pag
         ["brand line share ask: --a accent on --ink", t.a!, hexOf("ink")],
         ["hero lead --hero-text on --hero1", t["hero-text"]!, hexOf("hero1")],
         ["hero lead --hero-text on --hero2", t["hero-text"]!, hexOf("hero2")],
-        ["hero white text on --hero2", "#ffffff", hexOf("hero2")],
-        ["hero small caps #ffd9a8 on --hero1", "#ffd9a8", hexOf("hero1")],
-        ["hero small caps #ffd9a8 on --hero2", "#ffd9a8", hexOf("hero2")],
-        ["hero eyebrow --a on --hero1", t.a!, hexOf("hero1")],
-        ["hero eyebrow --a on --hero2", t.a!, hexOf("hero2")],
+        ["hero text --ink on --hero1", hexOf("ink"), hexOf("hero1")],
+        ["hero text --ink on --hero2", hexOf("ink"), hexOf("hero2")],
+        ["hero small caps #92400e on --hero1", "#92400e", hexOf("hero1")],
+        ["hero small caps #92400e on --hero2", "#92400e", hexOf("hero2")],
+        ["hero eyebrow / links --violet on --hero1", hexOf("violet"), hexOf("hero1")],
+        ["hero eyebrow / links --violet on --hero2", hexOf("violet"), hexOf("hero2")],
+        ["AI card text --dk-text on --dk1", t["dk-text"]!, hexOf("dk1")],
+        ["AI card text --dk-text on --dk2", t["dk-text"]!, hexOf("dk2")],
+        ["AI card white on --dk2", "#ffffff", hexOf("dk2")],
         ["footer text --footer-ink on --footer-bg", hexOf("footer-ink"), hexOf("footer-bg")],
         ["white footer lines on --footer-bg", "#ffffff", hexOf("footer-bg")],
         ["footer company line --footer-ink on --footer-bg", hexOf("footer-ink"), hexOf("footer-bg")],
@@ -139,23 +143,23 @@ describe("public/theme.js", () => {
   }
 
   test("applies the saved theme straight away, before any paint (it runs in <head>, synchronously)", () => {
-    expect(run({ stored: "emerald" }).html.getAttribute("data-theme")).toBe("emerald")
-    expect(run({ stored: "studio" }).html.getAttribute("data-theme")).toBe("studio")
+    expect(run({ stored: "saffron" }).html.getAttribute("data-theme")).toBe("saffron")
+    expect(run({ stored: "blue" }).html.getAttribute("data-theme")).toBe("blue")
   })
 
   test("nothing saved, rubbish saved, or storage blocked: violet, and no error", () => {
-    expect(run().html.getAttribute("data-theme")).toBe("violet")
-    expect(run({ stored: "<script>" }).html.getAttribute("data-theme")).toBe("violet")
-    expect(run({ storageThrows: true }).html.getAttribute("data-theme")).toBe("violet")
+    expect(run().html.getAttribute("data-theme")).toBe("teal")
+    expect(run({ stored: "<script>" }).html.getAttribute("data-theme")).toBe("teal")
+    expect(run({ storageThrows: true }).html.getAttribute("data-theme")).toBe("teal")
   })
 
   test("it builds a labelled group of exactly three real buttons, named, keyboard-focusable (button elements), aria-pressed on the current one", () => {
-    const r = run({ stored: "studio" })
+    const r = run({ stored: "blue" })
     expect(r.group.className).toBe("tdots")
     expect(r.group.getAttribute("role")).toBe("group")
     expect(r.group.getAttribute("aria-label")).toBe("Colour theme")
-    expect(r.buttons.map((b) => b.getAttribute("data-theme"))).toEqual(["violet", "studio", "emerald"])
-    expect(r.buttons.map((b) => b.getAttribute("aria-label"))).toEqual(["Violet theme", "Studio blue theme", "Emerald theme"])
+    expect(r.buttons.map((b) => b.getAttribute("data-theme"))).toEqual(["teal", "blue", "saffron"])
+    expect(r.buttons.map((b) => b.getAttribute("aria-label"))).toEqual(["Teal theme", "Blue theme", "Saffron theme"])
     expect(r.buttons.map((b) => b.getAttribute("type"))).toEqual(["button", "button", "button"])
     expect(r.buttons.map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "true", "false"])
   })
@@ -164,8 +168,8 @@ describe("public/theme.js", () => {
     const r = run()
     expect(r.buttons.map((b) => b.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"])
     r.buttons[1]!.click()
-    expect(r.html.getAttribute("data-theme")).toBe("studio")
-    expect(r.written).toEqual([["veridian-theme", "studio"]])
+    expect(r.html.getAttribute("data-theme")).toBe("blue")
+    expect(r.written).toEqual([["veridian-theme", "blue"]])
     expect(r.buttons.map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "true", "false"])
     r.buttons[2]!.click()
     expect(r.buttons.map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "false", "true"])
@@ -174,12 +178,12 @@ describe("public/theme.js", () => {
   test("a click still works when storage is blocked (it lasts until the page is closed)", () => {
     const r = run({ storageThrows: true })
     r.buttons[2]!.click()
-    expect(r.html.getAttribute("data-theme")).toBe("emerald")
+    expect(r.html.getAttribute("data-theme")).toBe("saffron")
   })
 
   test("the three dot colours match the themes' own --violet tokens", () => {
     const r = run()
-    expect(r.buttons.map((b) => /--dot: (#[0-9a-f]{6})/.exec(b.getAttribute("style")!)![1])).toEqual([THEMES.violet!.violet, THEMES.studio!.violet, THEMES.emerald!.violet])
+    expect(r.buttons.map((b) => /--dot: (#[0-9a-f]{6})/.exec(b.getAttribute("style")!)![1])).toEqual([THEMES.teal!.violet, THEMES.blue!.violet, THEMES.saffron!.violet])
   })
 
   test("no cookie, no network, no third party: localStorage only", () => {

@@ -8,22 +8,22 @@
 @import "./home.css";
 
 :root {
-  --bg: #fcfbff;
-  --ink: #1f1b3a;
-  --ink2: #564d77;
-  --ink3: #8e86ad;
-  --line: #e6e2f5;
-  --violet: #6d28d9;
-  --pink: #db2777;
-  --dark: #160f2e;
-  --dark-muted: #9d94c4;
+  --bg: #fffdf9;
+  --ink: #1c2b3a;
+  --ink2: #4a5a6a;
+  --ink3: #7a8794;
+  --line: #eadfcf;
+  --violet: #0e7c6e;
+  --pink: #0b5f56;
+  --dark: #1c2b3a;
+  --dark-muted: #9fb0c0;
   /* The footer is bright (2026-10-18, family check C12: no large very-dark area): the brand indigo with near-white text, 8.2:1 / 6.9:1. Each home theme overrides both. */
-  --footer-bg: #3b3fb6;
-  --footer-ink: #ecebff;
+  --footer-bg: #0b5f56;
+  --footer-ink: #eafaf6;
   --green-bg: #dcfce7;
   --green: #059669;
   --green-ink: #065f46;
-  --grad: linear-gradient(90deg, #6d28d9, #db2777);
+  --grad: linear-gradient(90deg, #0e7c6e, #0b5f56);
   /* WO-DPDP-014 §2: the brand line's one small accent. The brand saffron
      (marigold); 6.3:1 on --ink, pinned by src/lib/site-css-contrast.test.ts.
      --green (#059669) is 4.4:1 on --ink and would fail AA, so it is not
