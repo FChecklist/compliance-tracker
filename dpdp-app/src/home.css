@@ -634,3 +634,16 @@ body.hm {
 /* logo 2026-10-15 */
 .hm .nav .wordmark { padding-left: 50px; min-height: 40px; }
 .hm .nav .wordmark-logo { width: 40px; height: 40px; }
+
+/* ---- ready to start (same plain closing band as the games home) ---- */
+.hm-start {
+  text-align: center;
+}
+.hm-start p {
+  max-width: 560px;
+  margin: 8px auto 0;
+  color: var(--ink2);
+}
+.hm-start-talk b {
+  color: var(--ink);
+}
