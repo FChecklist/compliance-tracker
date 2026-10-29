@@ -9,7 +9,7 @@ export type Edition = "firm" | "institution"
 
 export type Landing = {
   emailHint: string | null
-  /** ?edition=firm|institution from a landing page's "Start free": which organisation the visitor is here to open. */
+  /** ?edition=firm|institution from a landing page's "Start free". Both now mean "firm": the institution choice is hidden. */
   edition: Edition | null
   /** ?ref=<code> from someone's share link (WO-DPDP-016): which referral this visitor arrived through, if any. */
   referralCode: string | null
@@ -37,7 +37,8 @@ function parse(): Landing {
   const query = url.searchParams
   const emailHint = query.get("email")?.trim().toLowerCase() || null
   const editionParam = query.get("edition")
-  const edition: Edition | null = editionParam === "firm" || editionParam === "institution" ? editionParam : null
+  // The institution choice is hidden (owner, 2026-10-27): an older link or a value saved on this device that says "institution" is read as "firm".
+  const edition: Edition | null = editionParam === "firm" || editionParam === "institution" ? "firm" : null
   // ?ref=<code>: same unambiguous 8-char alphabet dpdp_my_referral_code
   // generates (ABCDEFGHJKLMNPQRSTUVWXYZ23456789) -- loosely bounded here
   // (4-16 alphanumerics) since the RPC that actually resolves it is the
@@ -160,7 +161,7 @@ export function rememberEdition(edition: Edition): void {
 export function recallEdition(): Edition | null {
   try {
     const v = localStorage.getItem(EDITION_KEY)
-    return v === "firm" || v === "institution" ? v : null
+    return v === "firm" || v === "institution" ? "firm" : null
   } catch {
     return null
   }

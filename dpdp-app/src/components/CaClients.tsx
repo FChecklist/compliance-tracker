@@ -18,7 +18,6 @@ const label = { fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)", displa
 
 export function AddClientForm({ onCreate, onCancel, refetch }: { onCreate: (c: NewClient) => Promise<void>; onCancel?: () => void; refetch: () => Promise<void> }) {
   const [name, setName] = useState("")
-  const [product, setProduct] = useState<"firm" | "institution">("firm")
   const [setUp, setSetUp] = useState(false)
   const [ownerEmail, setOwnerEmail] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -38,7 +37,8 @@ export function AddClientForm({ onCreate, onCancel, refetch }: { onCreate: (c: N
     }
     startTransition(async () => {
       try {
-        await onCreate({ name: name.trim(), product, ownerEmail: owner || undefined })
+        // The school / institution choice is hidden (owner, 2026-10-27): every client the firm adds opens as the firm edition.
+        await onCreate({ name: name.trim(), product: "firm", ownerEmail: owner || undefined })
         await refetch()
         setName("")
         setOwnerEmail("")
@@ -56,17 +56,6 @@ export function AddClientForm({ onCreate, onCancel, refetch }: { onCreate: (c: N
         <label htmlFor="client-name" style={label}>Client name</label>
         <input id="client-name" name="client-name" type="text" required value={name} onChange={(e) => setName(e.target.value)} disabled={pending} placeholder="e.g. Mehta Traders" style={input} />
       </div>
-      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend style={label}>What kind of organisation</legend>
-        <div className="flex gap-4 flex-wrap" style={{ fontSize: 14, color: "var(--dpdp-ink)" }}>
-          <label className="inline-flex gap-1.5 items-center cursor-pointer">
-            <input type="radio" name="product" value="firm" checked={product === "firm"} onChange={() => setProduct("firm")} disabled={pending} /> A company, NGO or firm
-          </label>
-          <label className="inline-flex gap-1.5 items-center cursor-pointer">
-            <input type="radio" name="product" value="institution" checked={product === "institution"} onChange={() => setProduct("institution")} disabled={pending} /> A school
-          </label>
-        </div>
-      </fieldset>
       <label className="inline-flex gap-1.5 items-center cursor-pointer" style={{ fontSize: 14, color: "var(--dpdp-ink)" }}>
         <input type="checkbox" checked={setUp} onChange={(e) => setSetUp(e.target.checked)} disabled={pending} /> Set it up for them — name the owner now
       </label>
@@ -137,7 +126,7 @@ export function CaClients({
                     <tr key={c.org.id}>
                       <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>
                         <b style={{ fontFamily: "Sora, sans-serif", fontSize: 15, color: "var(--dpdp-ink)" }}>{c.org.name}</b>
-                        <div style={{ fontSize: 12, color: "var(--dpdp-ink3)", marginTop: 2 }}>{c.org.product === "institution" ? "School" : "Company or firm"}{c.setUpByMe ? " · you set it up" : ""}</div>
+                        <div style={{ fontSize: 12, color: "var(--dpdp-ink3)", marginTop: 2 }}>{c.org.product === "institution" ? "Organisation" : "Company or firm"}{c.setUpByMe ? " · you set it up" : ""}</div>
                       </td>
                       <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)", fontSize: 13, color: "var(--dpdp-ink2)", whiteSpace: "nowrap" }}>{c.caSub === "partner" ? "CA partner" : "CA manager"}</td>
                       <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)", fontSize: 13, color: "var(--dpdp-ink2)", whiteSpace: "nowrap" }}>{c.done} of {c.total} done ({pct}%)</td>

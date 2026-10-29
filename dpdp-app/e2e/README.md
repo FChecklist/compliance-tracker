@@ -56,7 +56,8 @@ the last step of the public journey.
 Two honest limits:
 
 - The landings' "Start free →" links now open `/app/?edition=firm|institution`
-  (WO-DPDP-015; `editions-signup.spec.ts` follows them). This spec still
+  (WO-DPDP-015; `editions-signup.spec.ts` follows them; since 2026-10-27 both
+  open the firm edition, the institution choice being hidden). This spec still
   navigates to `/app/` directly, which is the same page.
 - Rate limiting (the WO's alternative to CAPTCHA) is Supabase Auth's own OTP
   limit, server-side. This spec proves the absence of a CAPTCHA, not the

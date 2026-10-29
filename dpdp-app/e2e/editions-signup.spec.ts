@@ -5,17 +5,24 @@ import { test, expect, type Page } from "@playwright/test"
 // agent-by-role.spec.ts). "Start free" on /dpdp-firm/ and /dpdp-institution/
 // used to point at the Next.js login (Vercel, off), so a new firm or school
 // could not get in at all. Now: landing -> Start free -> sign in by email ->
-// "Open your organisation" (the edition already chosen) -> the owner's own
-// first visit. The other roles' screens are proved by acceptance-70 and
+// "Open your organisation" -> the owner's own first visit.
+//
+// 2026-10-27 (owner): the school / institution choice is hidden. There is no
+// "what kind of organisation" question any more; every new account opens as the
+// firm edition, including one that arrives through an old ?edition=institution
+// link. The institution landing page is still served until the site rebuild
+// retires it, so it stays in this loop and must now behave exactly like the firm
+// one. Accounts already saved as "institution" are proved by mock-client.test.ts. The other roles' screens are proved by acceptance-70 and
 // step5-by-role; the live-database version of every role is
 // src/lib/services/dpdp-editions-roles.test.ts.
 
 const BOX_K2 = "I have read and agree to the Terms & Conditions and the Privacy Policy."
 
-type Edition = { slug: "firm" | "institution"; path: string; radio: string; otherRadio: string; email: string; area: string }
+type Edition = { slug: "firm" | "institution"; path: string; email: string; area: string }
 const EDITIONS: Edition[] = [
-  { slug: "firm", path: "/dpdp-firm/", radio: "A company, firm or NGO", otherRadio: "A school or institution", email: "new-firm-owner@example.test", area: "All staff" },
-  { slug: "institution", path: "/dpdp-institution/", radio: "A school or institution", otherRadio: "A company, firm or NGO", email: "new-school-principal@example.test", area: "Teachers" },
+  { slug: "firm", path: "/dpdp-firm/", email: "new-firm-owner@example.test", area: "All staff" },
+  // The old school door: its link still says edition=institution, and the account it opens is the firm edition ("All staff", not "Teachers").
+  { slug: "institution", path: "/dpdp-institution/", email: "new-school-principal@example.test", area: "All staff" },
 ]
 
 async function signInFrom(page: Page, email: string) {
@@ -29,7 +36,7 @@ async function signInFrom(page: Page, email: string) {
 
 for (const ed of EDITIONS) {
   test.describe(`${ed.path} -- a new ${ed.slug} owner, start to finish`, () => {
-    test("Start free -> email -> Open your organisation (edition chosen) -> the owner's first visit -> the list", async ({ page }) => {
+    test("Start free -> email -> Open your organisation (no type to choose) -> the owner's first visit -> the list", async ({ page }) => {
       await page.goto(ed.path)
       // Every "Start free" on the page opens the app, not the old Next.js login.
       const starts = page.getByRole("link", { name: "Start free →", exact: true })
@@ -42,10 +49,10 @@ for (const ed of EDITIONS) {
 
       await signInFrom(page, ed.email)
 
-      // A person no organisation knows is asked to open theirs; the edition they came from is already chosen.
+      // A person no organisation knows is asked to open theirs. There is nothing to choose about its type: no radio at all, and no school or institution wording.
       await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
-      await expect(page.getByLabel(ed.radio, { exact: true })).toBeChecked()
-      await expect(page.getByLabel(ed.otherRadio, { exact: true })).not.toBeChecked()
+      await expect(page.getByRole("radio")).toHaveCount(0)
+      await expect(page.getByText(/institution/i)).toHaveCount(0)
       await expect(page.getByText(ed.email)).toBeVisible()
       await expect(page.getByText("Invited by someone else?", { exact: false })).toBeVisible()
 
@@ -89,16 +96,15 @@ for (const ed of EDITIONS) {
 }
 
 test.describe("a visitor with no organisation", () => {
-  test("must choose the kind of organisation and name it; a double click makes one; the invited are told what to ask for", async ({ page }) => {
+  test("has no kind of organisation to choose, only a name; a double click makes one; the invited are told what to ask for", async ({ page }) => {
     await page.goto("/app/?mock=visitor")
     await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
-    // No edition was chosen on a landing page, so none is pre-selected and the button waits.
-    await expect(page.getByLabel("A company, firm or NGO", { exact: true })).not.toBeChecked()
-    await expect(page.getByLabel("A school or institution", { exact: true })).not.toBeChecked()
+    // The school / institution choice is hidden: no radio, no such wording, and the button waits for the name and the K2 box.
+    await expect(page.getByRole("radio")).toHaveCount(0)
+    await expect(page.getByText(/institution|school/i)).toHaveCount(0)
     await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeDisabled()
 
     await page.getByLabel("Organisation name", { exact: true }).fill("St Anne's High School")
-    await page.getByLabel("A school or institution", { exact: true }).check()
     await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeDisabled() // the K2 box is still unticked
     await expect(page.getByText("Please tick the box to continue.", { exact: true })).toBeVisible()
     await page.getByRole("checkbox", { name: BOX_K2 }).check()
@@ -107,8 +113,9 @@ test.describe("a visitor with no organisation", () => {
 
     await expect(page.getByRole("heading", { name: "First, here is your DPDP list", exact: true })).toBeVisible()
     await page.getByRole("button", { name: "✓ Create the list", exact: true }).click()
-    // The school's library, not the firm's: the group area is "Teachers".
-    await expect(page.getByLabel("Teachers", { exact: true })).toBeVisible()
+    // Always the firm's library now: the group area is "All staff", never "Teachers".
+    await expect(page.getByLabel("All staff", { exact: true })).toBeVisible()
+    await expect(page.getByLabel("Teachers", { exact: true })).toHaveCount(0)
   })
 
   test("sign out from the screen gives the sign-in page back", async ({ page }) => {

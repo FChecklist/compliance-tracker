@@ -183,10 +183,9 @@ test.describe("guided errors -- every role, real browser", () => {
     await expectGuide(page, "That has already been done")
   })
 
-  test("school: a person opening their organisation without a name is guided to the name box", async ({ page }) => {
+  test("a person opening their organisation without a name is guided to the name box", async ({ page }) => {
     await page.goto("/app/?mock=visitor")
     await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
-    await page.getByLabel("A school or institution", { exact: true }).check()
     await page.getByRole("checkbox").last().check()
     await page.getByRole("button", { name: "Open my organisation", exact: true }).click()
     await expectGuide(page, "Please give the organisation’s name")

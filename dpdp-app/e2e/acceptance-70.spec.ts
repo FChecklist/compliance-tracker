@@ -752,14 +752,15 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByText("CA partner", { exact: true })).toHaveCount(0)
   })
 
-  test("ROLES-14 '+ Add a client': a name, what kind, and 'Set it up for them — name the owner now'; a bad owner address is refused; nothing emailed", async ({ page }) => {
+  test("ROLES-14 '+ Add a client': a name, no kind to choose, and 'Set it up for them — name the owner now'; a bad owner address is refused; nothing emailed", async ({ page }) => {
     await seed(page, "partner")
     await partnerThreeSteps(page)
     await page.getByRole("button", { name: "🧾 My clients (1)", exact: true }).click()
     await page.getByRole("button", { name: "+ Add a client", exact: true }).click()
     await expect(page.getByLabel("Client name", { exact: true })).toBeVisible()
-    await expect(page.getByRole("radio", { name: "A company, NGO or firm", exact: true })).toBeChecked()
-    await expect(page.getByRole("radio", { name: "A school", exact: true })).not.toBeChecked()
+    // The school / institution choice is hidden (owner, 2026-10-27): the form asks for a name, and a client is always opened as the firm edition.
+    await expect(page.getByRole("radio")).toHaveCount(0)
+    await expect(page.getByText("What kind of organisation", { exact: true })).toHaveCount(0)
     await expect(page.getByLabel("Owner’s email", { exact: true })).toHaveCount(0)
     await page.getByRole("checkbox", { name: "Set it up for them — name the owner now", exact: true }).check()
     await expect(page.getByLabel("Owner’s email", { exact: true })).toBeVisible()

@@ -84,7 +84,7 @@ describe("the boxes on the screen", () => {
   })
 
   test("sign-up (K2): the box is there, NOT pre-ticked, and the 'Open my organisation' button is disabled with the reason beside it", () => {
-    const out = html(createElement(OpenOrganisation, { email: "a@b.test", initialEdition: "firm", busy: false, error: null, onCreate: () => {}, onSignOut: () => {} }))
+    const out = html(createElement(OpenOrganisation, { email: "a@b.test", busy: false, error: null, onCreate: () => {}, onSignOut: () => {} }))
     expect(out).toContain('data-terms-kind="K2"')
     expect(out).toContain("Terms &amp; Conditions")
     expect(out).toContain('href="/terms/"')
@@ -101,8 +101,8 @@ describe("the boxes on the screen", () => {
   test("the sign-up source: the button waits for the box, submit() refuses without it, and onCreate is told the box was ticked", () => {
     const src = readApp("src/components/Screens.tsx")
     expect(src).toContain("const [terms, setTerms] = useState(false)")
-    expect(src).toContain("disabled={busy || !product || !terms}")
-    expect(src).toContain("if (!product || !terms) return")
+    expect(src).toContain("disabled={busy || !terms}")
+    expect(src).toContain("if (!terms) return")
     expect(src).toContain("termsAccepted: true")
     expect(readApp("src/App.tsx")).toContain("termsAccepted: extra.termsAccepted")
   })
