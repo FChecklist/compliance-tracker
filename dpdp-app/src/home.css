@@ -6,49 +6,53 @@
    --violet, --pink, --dark, --dark-muted, --footer-bg, --footer-ink, --grad), so the brand line, the fact block and the footer follow it.
    src/lib/home-themes.test.ts reads this file and pins WCAG AA contrast (4.5:1) for every text pair in all three. */
 
+/* 2026-10-29 redesign: a light, warm look like the games home. Cream page, deep navy text, teal for actions,
+   saffron for small accents. Three themes: teal (default), blue, saffron. --dk1/--dk2/--dk-text are the one dark card
+   (the free AI assistant) and stay the same in every theme. */
 :root {
-  --hero1: #16122e;
-  --hero2: #241d4d;
-  --glow: rgba(109, 40, 217, 0.65);
-  --glow2: rgba(245, 130, 10, 0.22);
-  --soft: #efe9ff;
-  --hero-text: #e3defa;
+  --hero1: #fff7ea;
+  --hero2: #fff1dc;
+  --glow: rgba(14, 124, 110, 0.16);
+  --glow2: rgba(245, 130, 10, 0.2);
+  --soft: #e6f5f1;
+  --hero-text: #3b4b5b;
+  --dk1: #1c2b3a;
+  --dk2: #12404a;
+  --dk-text: #dbe7ee;
 }
-html[data-theme="studio"] {
+html[data-theme="blue"] {
   --bg: #fbfdff;
-  --ink: #0a1a3a;
+  --ink: #0f2447;
   --ink2: #44557a;
   --line: #d6e2fb;
   --violet: #1d4ed8;
-  --pink: #0e7490;
-  --dark: #0a1a3a;
+  --pink: #1e3a8a;
+  --dark: #0f2447;
   --dark-muted: #9db4e6;
   --footer-bg: #1d4ed8;
   --footer-ink: #eaf1ff;
-  --grad: linear-gradient(90deg, #1d4ed8, #0e7490);
-  --hero1: #0a1a3a;
-  --hero2: #12306b;
-  --glow: rgba(37, 99, 235, 0.6);
-  --glow2: rgba(245, 130, 10, 0.2);
+  --grad: linear-gradient(90deg, #1d4ed8, #1e3a8a);
+  --hero1: #eef4ff;
+  --hero2: #dbe7ff;
+  --glow: rgba(37, 99, 235, 0.16);
   --soft: #e8f0ff;
 }
-html[data-theme="emerald"] {
-  --bg: #fafefd;
-  --ink: #06302c;
-  --ink2: #3f605b;
-  --line: #cfe9e3;
-  --violet: #0f766e;
-  --pink: #15803d;
-  --dark: #052e2b;
-  --dark-muted: #8fd0c4;
-  --footer-bg: #0f766e;
-  --footer-ink: #e9fbf7;
-  --grad: linear-gradient(90deg, #0f766e, #15803d);
-  --hero1: #052e2b;
-  --hero2: #093b37;
-  --glow: rgba(20, 184, 166, 0.5);
-  --glow2: rgba(245, 130, 10, 0.2);
-  --soft: #e2f6f2;
+html[data-theme="saffron"] {
+  --bg: #fffcf7;
+  --ink: #3a1f0a;
+  --ink2: #6b4a30;
+  --line: #f0dcc4;
+  --violet: #92400e;
+  --pink: #7c3410;
+  --dark: #3a1f0a;
+  --dark-muted: #e0b98e;
+  --footer-bg: #92400e;
+  --footer-ink: #fff3e6;
+  --grad: linear-gradient(90deg, #92400e, #7c3410);
+  --hero1: #fff4e0;
+  --hero2: #ffecc8;
+  --glow: rgba(180, 83, 9, 0.16);
+  --soft: #fff0dc;
 }
 
 /* ---- the three dots (top centre): built by public/theme.js, absolutely positioned so they move nothing ---- */
@@ -130,7 +134,7 @@ body.hm {
   padding: 40px 20px 0;
 }
 .hm .nav .wordmark {
-  color: #fff;
+  color: var(--ink);
   font-size: 1.375rem;
   letter-spacing: 0.08em;
 }
@@ -139,7 +143,7 @@ body.hm {
   margin-top: 4px;
   font-size: 11px;
   letter-spacing: 0.14em;
-  color: #ffd9a8;
+  color: #92400e;
 }
 .hm .nav-signin,
 .hm .nav-partner {
@@ -147,11 +151,11 @@ body.hm {
 }
 .hm .nav-signin:hover,
 .hm .nav-partner:hover {
-  color: #fff;
+  color: var(--violet);
 }
 .hm .nav-ai {
-  background: #fff;
-  color: var(--violet);
+  background: var(--violet);
+  color: #fff;
 }
 @media (min-width: 1000px) {
   .hm .nav {
@@ -166,7 +170,7 @@ body.hm {
 .hm-hero {
   position: relative;
   overflow: hidden;
-  color: #fff;
+  color: var(--ink);
   padding: 120px 0 84px;
   background:
     radial-gradient(900px 520px at 85% -10%, var(--glow), transparent 60%),
@@ -177,7 +181,7 @@ body.hm {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(28, 43, 58, 0.07) 1px, transparent 1px);
   background-size: 26px 26px;
   mask-image: linear-gradient(180deg, #000, transparent 85%);
   pointer-events: none;
@@ -196,7 +200,7 @@ body.hm {
   font: 600 12px Sora, sans-serif;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--a);
+  color: var(--violet);
 }
 .hm-eyebrow::before {
   content: "";
@@ -213,10 +217,7 @@ body.hm {
 }
 .hm h1 em {
   font-style: normal;
-  background: linear-gradient(90deg, #f5820a, #ffc46b);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #92400e;
 }
 .hm-lead {
   max-width: 34rem;
@@ -237,19 +238,21 @@ body.hm {
   gap: 3px;
   padding: 16px 18px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.09);
-  color: #fff;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 6px 18px rgba(28, 43, 58, 0.07);
 }
 .hm .choice:hover,
 .hm .choice:focus-visible {
-  background: rgba(255, 255, 255, 0.17);
+  background: var(--soft);
+  border-color: var(--violet);
 }
 .hm .choice span {
   font: 600 12px Sora, sans-serif;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #ffd9a8;
+  color: #92400e;
 }
 .hm .choice strong {
   font: 700 1rem/1.3 Sora, sans-serif;
@@ -270,14 +273,14 @@ body.hm {
 .hm-under span::before {
   content: "✓";
   margin-right: 7px;
-  color: #ffc46b;
+  color: var(--violet);
 }
 .hm-signin {
   margin-top: 18px;
   font-size: 0.875rem;
 }
 .hm-signin a {
-  color: #fff;
+  color: var(--violet);
   text-decoration: underline;
 }
 
@@ -290,7 +293,8 @@ body.hm {
   background: #fff;
   color: var(--ink);
   padding: 20px;
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 24px 50px rgba(28, 43, 58, 0.18);
+  border: 1px solid var(--line);
 }
 .hm-card-h {
   display: flex;
@@ -498,7 +502,7 @@ body.hm {
   align-items: center;
   padding: 36px;
   border-radius: 28px;
-  background: linear-gradient(135deg, var(--hero1), var(--hero2));
+  background: linear-gradient(135deg, var(--dk1), var(--dk2));
   color: #fff;
 }
 .hm-ai .ai-highlight {
@@ -517,7 +521,7 @@ body.hm {
   color: #ffd9a8;
 }
 .hm-ai .ai-highlight-line {
-  color: var(--hero-text);
+  color: var(--dk-text);
 }
 .hm-ai .ai-highlight .btn {
   background: #fff;
@@ -552,7 +556,7 @@ body.hm {
   display: block;
   font-size: 0.75rem;
   margin-top: 4px;
-  color: var(--hero-text);
+  color: var(--dk-text);
 }
 .hm-chat .ok {
   display: inline-block;
@@ -646,4 +650,44 @@ body.hm {
 }
 .hm-start-talk b {
   color: var(--ink);
+}
+
+/* ---- for CA, CS, legal and audit firms ---- */
+.hm-firms {
+  background: var(--soft);
+  border-block: 1px solid var(--line);
+}
+.hm-firms-lead {
+  max-width: 44rem;
+  margin-top: 12px;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--ink2);
+}
+.hm-firms-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 28px;
+}
+.hm-firms-grid div {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--a);
+  border-radius: 16px;
+  background: #fff;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink2);
+}
+.hm-firms-grid b {
+  display: block;
+  margin-bottom: 6px;
+  font: 700 1.0625rem Sora, sans-serif;
+  color: var(--ink);
+}
+@media (max-width: 899px) {
+  .hm-firms-grid {
+    grid-template-columns: 1fr;
+  }
 }

@@ -402,11 +402,11 @@ describe("the header of every public page: Sales Partner next to Sign in, top ri
     const group = [...css.matchAll(/\.nav-actions\s*\{([^}]*)\}/g)].map((m) => m[1]).join("\n")
     expect(group).toMatch(/flex-wrap:\s*wrap/)
     expect(group).toMatch(/margin-left:\s*auto/)
-    // white on --violet (#6d28d9): relative luminance contrast, computed here
+    // white on --violet (#0e7c6e): relative luminance contrast, computed here
     const lin = (h: string) => [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)) as [number, number, number]
     const lum = (h: string) => { const [r, g, b] = lin(h); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
-    expect(/--violet:\s*#6d28d9/.test(css)).toBe(true)
-    expect((1 + 0.05) / (lum("6d28d9") + 0.05)).toBeGreaterThanOrEqual(4.5)
+    expect(/--violet:\s*#0e7c6e/.test(css)).toBe(true)
+    expect((1 + 0.05) / (lum("0e7c6e") + 0.05)).toBeGreaterThanOrEqual(4.5)
   })
 
   test("the stylesheet keeps the group on the right (space-between row, flex group)", () => {
