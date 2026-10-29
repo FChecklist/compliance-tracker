@@ -77,7 +77,7 @@
 import { readFile, access } from "node:fs/promises"
 import { execSync } from "node:child_process"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 
 const REPO_ROOT = process.cwd()
 const EXEMPTIONS_FILE = "ai-os/registry/terminology-guardrail-exemptions.yaml"

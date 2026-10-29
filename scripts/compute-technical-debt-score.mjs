@@ -44,7 +44,7 @@
 // metrics).
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 
 const REPO_ROOT = process.cwd()
 const TRACKER_FILE = "ai-os/MASTER-TRACKER.yaml"
