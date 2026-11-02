@@ -32,15 +32,15 @@
 // APP_ORIGIN (where the customer returns to after paying; default https://dpdp.veridian-aios.com).
 //
 // WHEN KEYS ARE MISSING the function answers 503 {"error":"Online payment is not switched on
-// yet","code":"not_enabled"} and the app falls back to the bank-transfer / "I have paid" path,
-// which is unchanged. Nothing breaks before the Owner adds the keys.
+// yet","code":"not_enabled"} and the app shows one calm line ("Online payment is not available right now. Please try again in a few minutes, or write to
+// dpdp@veridian-aios.com and we will help.") and offers no other way to pay: Razorpay is the only way (Owner decision, 2026-11-02). Nothing breaks before the Owner adds the keys.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import { isDeliverableAddress, renderReceipt, sendViaResend } from "../_shared/billing-mail.ts"
 import { CONSENT_REQUIRED_CODE } from "../_shared/terms.ts"
 import { type Deps as LedgerDeps, type LedgerEvent, attemptStatusOfEntity, buildAttemptRow, ledgerCsv, ledgerTick, parseLedgerEvent, recordLedgerEvent } from "./ledger.ts"
 import {
-  type AttemptFacts, type CapturedPayment, CONSENT_REQUIRED_BODY, RAZORPAY_API, basicAuthHeader, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
+  type AttemptFacts, type CapturedPayment, type Interval, CONSENT_REQUIRED_BODY, RAZORPAY_API, basicAuthHeader, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
   httpStatusFor, parseCreateRequest, parseOrderResponse, parseVerifyRequest, parseWebhookEvent, razorpayConfigured, readTermsConsent, receiptFor, txnIdOf, verifyCheckoutSignature,
   verifyWebhookSignature, CENTRAL_SITE,
 } from "./logic.ts"
@@ -137,7 +137,7 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
     const status = error.code === "42501" ? 403 : error.code === "22023" ? 400 : 500
     return json({ error: status === 500 ? "Could not start the payment" : error.message }, status, cors)
   }
-  const a = data as { attemptId: string; orgId: string; orgName: string; plan?: string; variation?: string; interval: "year"; amountPaise: number; currency: string; ownerEmail: string | null }
+  const a = data as { attemptId: string; orgId: string; orgName: string; plan?: string; variation?: string; interval: Interval; amountPaise: number; currency: string; ownerEmail: string | null }
   const plan = a.plan === "institution" ? "institution" : "firm"
 
   const sb = serviceClient()
@@ -169,7 +169,7 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
   }
   if (!order) {
     await sb.rpc("dpdp_pay_attempt_cancel", { p_attempt_id: a.attemptId })
-    return json({ error: "Razorpay did not accept the request. Try again in a minute, or pay by bank transfer and press \"I have paid\"." }, 502, cors)
+    return json({ error: "Razorpay did not accept the request. Please try again in a few minutes, or write to dpdp@veridian-aios.com and we will help." }, 502, cors)
   }
   const { error: linkErr } = await sb.rpc("dpdp_pay_attempt_order", { p_attempt_id: a.attemptId, p_order_id: order.id, p_receipt: receiptFor(a.attemptId) })
   if (linkErr) {
@@ -319,7 +319,7 @@ async function sendReceipt(sb: SupabaseClient, paymentId: string, razorpayPaymen
   try {
     const { data: details } = await sb.rpc("dpdp_timer_invoice_details", { p_payment_id: paymentId })
     const d = details as {
-      orgId: string; orgName: string; plan: "firm" | "institution"; interval: "month" | "year"; amountPaise: number; periodStart: string; confirmedAt: string
+      orgId: string; orgName: string; plan: "firm" | "institution"; interval: Interval; amountPaise: number; periodStart: string; confirmedAt: string
       ownerMembershipId: string | null; ownerIdentityId: string | null; ownerEmail: string | null
     } | null
     if (!d || !d.ownerEmail || !d.ownerMembershipId || !d.ownerIdentityId || !isDeliverableAddress(d.ownerEmail)) return
@@ -328,7 +328,7 @@ async function sendReceipt(sb: SupabaseClient, paymentId: string, razorpayPaymen
     const dryRun = !RESEND_API_KEY
     const { data: rec, error: recErr } = await sb.rpc("dpdp_timer_record_email_send", {
       p_org_id: d.orgId, p_membership_id: d.ownerMembershipId, p_identity_id: d.ownerIdentityId, p_obligation_ids: [],
-      p_kind: "invoice", p_period_key: paymentId, p_to_email: d.ownerEmail, p_subject: out.subject, p_status: dryRun ? "dry_run" : "queued", p_body_text: rendered.text,
+      p_kind: "invoice", p_period_key: paymentId, p_to_email: d.ownerEmail, p_subject: out.subject, p_status: dryRun ? "dry_run" : "queued", // metadata only: the body of an e-mail is never stored (drizzle/0762)
     })
     if (recErr) return
     const row = rec as { id: string | null; duplicate?: boolean } | null

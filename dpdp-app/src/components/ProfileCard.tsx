@@ -74,7 +74,7 @@ export function ProfileCard({ client, orgId }: { client: DpdpClient; orgId: stri
             {isFirm && (
               <label style={{ display: "block", marginBottom: 8 }}>
                 <input type="checkbox" checked={declared ?? isDeclared} onChange={(e) => setDeclared(e.target.checked)} /> I am a practising CA / CS / cost accountant
-                <span style={{ display: "block", fontSize: 12, color: "var(--dpdp-ink3)" }}>This puts your own firm&rsquo;s file on the free plan (no client organisations). The membership number is optional.</span>
+                <span style={{ display: "block", fontSize: 12, color: "var(--dpdp-ink3)" }}>This puts it on your account&rsquo;s record. It does not change the price. The membership number is optional.</span>
               </label>
             )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>

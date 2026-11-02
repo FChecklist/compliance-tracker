@@ -3921,6 +3921,20 @@
       "when": 1790700034000,
       "tag": "0754_client_log_events",
       "breakpoints": true
+    },
+    {
+      "idx": 562,
+      "version": "7",
+      "when": 1790700035000,
+      "tag": "0755_dpdp_pricing_trial_pack_and_per_client",
+      "breakpoints": true
+    },
+    {
+      "idx": 563,
+      "version": "7",
+      "when": 1790700036000,
+      "tag": "0756_dpdp_extra_client_price_rs50",
+      "breakpoints": true
     }
   ]
 }

@@ -214,7 +214,17 @@ export type PlanWirePayload = {
   monthlyPaise: number
   offerLabel: string | null
   yearlyMonthsCharged: number
+  /** Clients the monthly price covers (a Professional: 10) and what each client beyond adds a month (drizzle/0755 sends them; the database is updated before this screen ships). */
+  includedClients: number
+  extraClientMonthlyPaise: number
+  /** The trial pack: a flat price, once, for packDays days, covering at most packMaxClients clients. */
+  packPricePaise: number
+  packDays: number
+  packMaxClients: number
 }
+
+/** How a payment is made. The trial pack is once, for an account that has paid nothing; after it only month and year remain. */
+export type PayInterval = "pack" | "month" | "year"
 
 /** dpdp_my_account: any member sees the state; only the owner of the paying account sees money. hasAccount=false is an older organisation: never locked. */
 export type MyAccountPayload =
@@ -234,7 +244,8 @@ export type MyAccountPayload =
       finalDownloadOn: string
       retentionEndsOn: string
       dueLine: string | null
-      clients: { used: number; cap: number }
+      /** cap is null for a firm on a monthly or yearly plan (no limit: the price follows the count); on the trial pack it is the pack's client limit. */
+      clients: { used: number; cap: number | null; included: number; unlimited: boolean }
       verification: { status: VerificationStatus; declared: boolean; body: ProfessionalBody | null; registrationNo?: string | null }
       /** How much of the optional account information is filled; `fields` (the values) only for the owner. */
       profile: ProfileProgress | null
@@ -242,12 +253,18 @@ export type MyAccountPayload =
       isTest: boolean
       money: null | {
         interval: "month" | "year"
+        /** The monthly total for this account today: the base price plus the extra-client price for every client beyond the included ones. */
         monthlyPaise: number
+        /** The base monthly price this account was opened at (before any extra-client price). */
+        baseMonthlyPaise: number
         listMonthlyPaise: number
         offerLabel: string | null
         monthPaise: number
         yearPaise: number
         paidUntil: string | null
+        perClient: { includedClients: number; extraMonthlyPaise: number; clientsCounted: number; extraClients: number }
+        pack: { available: boolean; pricePaise: number; days: number; maxClients: number; onPack: boolean }
+        yearlyMonthsCharged: number
       }
     }
 
@@ -285,9 +302,9 @@ export type BillingStatusPayload = {
   product: "firm" | "institution"
   state: "trial" | "awaiting_confirmation" | "active"
   trialEndsAt: string | null
-  interval: "month" | "year" | null
+  interval: PayInterval | null
   selfDeclaredAt: string | null
-  selfDeclaredInterval: "month" | "year" | null
+  selfDeclaredInterval: PayInterval | null
   selfDeclaredAmountPaise: number | null
   selfDeclaredReference: string | null
   selfDeclaredProofPath: string | null
@@ -303,7 +320,7 @@ export type PendingClaimWire = {
   orgId: string
   orgName: string
   product: "firm" | "institution"
-  interval: "month" | "year" | null
+  interval: PayInterval | null
   amountPaise: number | null
   reference: string | null
   proofPath: string | null

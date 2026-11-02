@@ -41,10 +41,10 @@ describe("payment proof by email goes to the one public mailbox", () => {
     }
   })
 
-  test("the panel builds its link and its visible address from the helper, with no mailto: of its own", () => {
+  test("the panel takes its visible address from the helper, with no mailto: of its own, and no longer offers a payment proof by e-mail (Razorpay is the only way to pay, 2026-11-02)", () => {
     expect(panel).toContain(`from "@/lib/payment-proof-mail"`)
-    expect(panel).toContain("paymentProofMailto(")
     expect(panel).toContain("{PAY_EMAIL}")
+    expect(panel).not.toContain("paymentProofMailto")
     expect(panel).not.toMatch(/mailto:/)
   })
 

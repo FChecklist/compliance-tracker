@@ -25,6 +25,7 @@ import { AuditLogPanel } from "./components/AuditLogPanel"
 import { forgetLoginReport, reportFailedLogin, reportLogin } from "./lib/audit-api"
 import { linkVisitToPerson, noteSignInStart } from "./lib/visit-link"
 import { BillingPanel } from "./components/BillingPanel"
+import { PackNudge } from "./components/PackNudge"
 import { OwnerPaymentAdmin } from "./components/OwnerPaymentAdmin"
 import { OwnerPartnerPayouts } from "./components/OwnerPartnerPayouts"
 import { MyData } from "./components/MyData"
@@ -552,6 +553,7 @@ function OwnerFirstVisit({ client, page, refetch, onSignOut }: { client: DpdpCli
     <FirstVisitWizard
       orgName={org.name} rows={rows} areas={areas} ownerEmail={v.email} refetch={refetch}
       onComplete={async (assignments) => { await completeOwnerFirstVisit(client, org.id, assignments) }}
+      payNote={<PackNudge client={client} orgId={org.id} />}
     />
   )
 }

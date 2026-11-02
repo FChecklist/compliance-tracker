@@ -113,7 +113,7 @@ describe("the boxes on the screen", () => {
     expect(src.match(/<TermsCheckbox box=\{BOX_K3\}/g)?.length).toBe(2)
     expect(src.match(/disabled=\{busy \|\| !terms\}/g)?.length).toBe(2)
     expect(src).toContain("if (!billing || !terms) return")
-    expect(src).toContain("startOnlinePayment(client, orgId, terms)")
+    expect(src).toContain("startOnlinePayment(client, orgId, terms, interval)")
     expect(`${readApp("src/components/TermsBox.tsx")}\n${src}`).not.toMatch(/no[- ]refund|non-?refundable/i)
   })
 })
@@ -141,11 +141,15 @@ describe("what the app sends, and how a refusal reads", () => {
     const bodies: unknown[] = []
     globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => { bodies.push(JSON.parse(init?.body ?? "{}")); return new Response(JSON.stringify({ error: AGREED_REFUSAL, code: "consent-required" }), { status: 400 }) }) as typeof fetch
     try {
-      const r = await startOnlinePayment(client, "org1", true)
+      const r = await startOnlinePayment(client, "org1", true, "year")
       expect(bodies[0]).toEqual({ interval: "year", orgId: "org1", termsVersion: "2026-10-13", termsAccepted: true })
       expect(r).toEqual({ ok: false, notEnabled: false, error: AGREED_REFUSAL })
-      await startOnlinePayment(client, null, false)
+      await startOnlinePayment(client, null, false, "year")
       expect(bodies[1]).toEqual({ interval: "year", termsVersion: "2026-10-13", termsAccepted: false })
+      // the trial pack and a month travel the same way (drizzle/0755; the edge function must be redeployed to accept them)
+      await startOnlinePayment(client, "org1", true, "pack")
+      await startOnlinePayment(client, "org1", true, "month")
+      expect([bodies[2], bodies[3]].map((b) => (b as { interval: string }).interval)).toEqual(["pack", "month"])
     } finally {
       globalThis.fetch = real
     }

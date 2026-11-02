@@ -32,6 +32,12 @@ const TRIAL_DATE_READERS: Record<string, string> = {
   '0676_dpdp_claim_reject_and_ai_link_billing_notice.sql': 'dpdp_ai_link_billing_notice only READS the trial end to return a flag the AI link prints as a notice',
   '0694_dpdp_ai_link_register.sql': 'dpdp_ai_link_register(plan) only READS the plan band and trial end for a read-only register',
   '0720_dpdp_ai_link_hide_emails_default.sql': 'copy of the 0694 dpdp_ai_link_register body; it still only READS the plan band and trial end',
+  '0755_dpdp_pricing_trial_pack_and_per_client.sql': 'only WRITES the trial end on a new subscription row (sign-up now opens the account, a payment or a declaration with no row yet); it grants time, it refuses nothing',
+}
+
+/** Later migrations that re-write one of the three callers of the lock (the caller keeps calling the one lock function; the lock itself is never copied). */
+const CALLER_REDEFINITIONS: Record<string, string[]> = {
+  '0755_dpdp_pricing_trial_pack_and_per_client.sql': ['public.dpdp_create_client_org'], // the per-client price: the firm client cap keeps the lock and adds the trial-pack cap
 }
 
 /** The "I have paid" claim flow refuses an approve/reject when the org is not awaiting confirmation: the state machine of a payment CLAIM, not a gate on using the product. */
@@ -81,7 +87,16 @@ describe('the lock policy (drizzle/0734 reverses the 0655 never-lock rule, Owner
     for (const f of sqlFiles) {
       const text = sql(f)
       if (f !== LOCK_FILE) {
-        expect(text, `${f}: calls the lock outside ${LOCK_FILE}`).not.toContain('assert_not_locked')
+        // a later migration may re-write one of the three callers, but only those, and the lock itself and its refusal text stay in LOCK_FILE
+        const allowedHere = new Set(CALLER_REDEFINITIONS[f] ?? [])
+        let rest = text
+        for (const fn of functionBodies(text)) {
+          if (!fn.body.includes('assert_not_locked')) continue
+          expect(allowedHere.has(fn.name), `${f}: ${fn.name} calls the lock outside ${LOCK_FILE} and is not one of the three known callers`).toBe(true)
+          callers.add(fn.name)
+          rest = rest.replace(fn.body, '')
+        }
+        expect(rest, `${f}: calls the lock outside ${LOCK_FILE}`).not.toContain('assert_not_locked')
         expect(text, `${f}: raises the payment-due refusal outside ${LOCK_FILE}`).not.toContain('Payment is due for this account')
       }
     }

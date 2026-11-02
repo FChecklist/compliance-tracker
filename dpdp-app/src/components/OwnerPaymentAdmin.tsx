@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
 import { amIPlatformAdmin, ownerApprovePayment, ownerPendingClaims, ownerRejectPayment, sendInvoiceEmail } from "@/lib/api"
 import type { PendingClaimWire } from "@/lib/rpc-types"
+import { intervalWord } from "@/lib/billing-state"
 import { parseDbTimestamp } from "@/lib/db-time"
 import { GuidedError } from "@/components/GuidedError"
 
@@ -101,7 +102,7 @@ export function OwnerPaymentAdmin({ client }: { client: DpdpClient }) {
             <div key={c.orgId} style={{ border: "1px solid var(--dpdp-line)", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
               <p style={{ margin: "0 0 2px", fontWeight: 600, color: "var(--dpdp-ink)" }}>{c.orgName}</p>
               <p style={{ margin: "0 0 2px", fontSize: 12 }}>{c.product === "institution" ? "Institution" : "Firm"} edition -- {c.ownerEmail ?? "(no owner email on file)"}</p>
-              <p style={{ margin: "0 0 2px", fontSize: 12 }}>{formatRupees(c.amountPaise)} ({c.interval === "year" ? "yearly" : "monthly"})</p>
+              <p style={{ margin: "0 0 2px", fontSize: 12 }}>{formatRupees(c.amountPaise)} ({intervalWord(c.interval)})</p>
               {c.reference && <p style={{ margin: "0 0 2px", fontSize: 12 }}>Reference: {c.reference}</p>}
               {c.proofPath && (
                 <p style={{ margin: "0 0 2px", fontSize: 12 }}>

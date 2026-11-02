@@ -238,10 +238,12 @@ describe("creating the payment link", () => {
     expect(parsePaymentLinkResponse(null)).toBeNull()
     expect(parsePaymentLinkResponse({ error: { description: "bad" } })).toBeNull()
   })
-  test("the request: yearly only, no amount accepted from the browser", () => {
+  test("the request: the trial pack, a month or a year (a year when it says nothing), no amount accepted from the browser", () => {
     expect(parseCreateRequest({})).toEqual({ ok: true, interval: "year", orgId: null })
     expect(parseCreateRequest({ interval: "year", orgId: "org1" })).toEqual({ ok: true, interval: "year", orgId: "org1" })
-    expect(parseCreateRequest({ interval: "month" }).ok).toBe(false)
+    expect(parseCreateRequest({ interval: "month" })).toEqual({ ok: true, interval: "month", orgId: null })
+    expect(parseCreateRequest({ interval: "pack", orgId: "org1" })).toEqual({ ok: true, interval: "pack", orgId: "org1" })
+    for (const bad of ["week", "", "Year", 12, true]) expect(parseCreateRequest({ interval: bad }).ok, JSON.stringify(bad)).toBe(false)
     expect(parseCreateRequest(null).ok).toBe(false)
     const withAmount = parseCreateRequest({ interval: "year", amountPaise: 1 })
     expect(withAmount.ok && Object.keys(withAmount)).not.toContain("amountPaise")
@@ -282,15 +284,23 @@ describe("the migration and the app agree", () => {
   test("the first line is the DDL-authorization citation CI requires", () => {
     expect(sql.split("\n")[0]).toMatch(/^-- PRE-APPROVED-LIVE-DDL: Owner instruction in chat, 2026-10-01 -- "NEED TO INTEGRATE RAZORPAY/)
   })
-  test("the server-side price equals the constants BillingPanel shows (one number, two places, kept equal by this test)", () => {
+  test("the fallback prices BillingPanel shows equal what the server charges: the plan table (drizzle/0755: Rs 999 a month, six months for a year), not a typed number", () => {
     const panel = readFileSync("dpdp-app/src/components/BillingPanel.tsx", "utf8")
     const year = Number(/YEARLY_PAISE\s*=\s*([\d_]+)/.exec(panel)?.[1]?.replace(/_/g, ""))
     const month = Number(/MONTHLY_PAISE\s*=\s*([\d_]+)/.exec(panel)?.[1]?.replace(/_/g, ""))
-    expect(year).toBe(999900)
-    expect(month).toBe(199900)
-    expect(sql).toContain(`when p_plan in ('firm', 'institution') and p_interval = 'year' then ${year}`)
-    expect(sql).toContain(`when p_plan in ('firm', 'institution') and p_interval = 'month' then ${month}`)
-    expect(sql).toContain(`'yearPaise', ${year}`)
+    expect(year).toBe(599400)
+    expect(month).toBe(99900)
+    const s755 = readFileSync("drizzle/0755_dpdp_pricing_trial_pack_and_per_client.sql", "utf8")
+    expect(s755).toMatch(/list_monthly_paise = 99900/)
+    expect(s755).toMatch(/yearly_months_charged = 6/)
+    expect(month * 6).toBe(year)
+    // the flat price an organisation with no account pays follows the plan table, and the reminder e-mails quote the same numbers
+    expect(s755).toContain("create or replace function public.dpdp_plan_price_paise(")
+    expect(s755).toContain("dpdp.charge_paise(dpdp.plan_monthly_paise(p_plan,")
+    expect(s755).toContain("create or replace function public.dpdp_billing_prices(")
+    expect(s755).toContain("'packPaise'")
+    // the typed numbers of 0673 are gone from the function 0755 replaces it with
+    expect(s755).not.toMatch(/then 999900|then 199900/)
   })
   test("every function the Edge Functions call exists in the migration under that exact name", () => {
     const calls = ["dpdp_pay_begin", "dpdp_pay_attempt_cancel", "dpdp_pay_attempt_lookup", "dpdp_pay_confirm", "dpdp_pay_log_event",

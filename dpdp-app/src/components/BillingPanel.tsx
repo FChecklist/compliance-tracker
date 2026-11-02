@@ -1,30 +1,23 @@
 import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
-import { confirmOnlinePayment, declarePayment, fetchMyAccount, myBilling, startOnlinePayment, uploadPaymentProof } from "@/lib/api"
+import { confirmOnlinePayment, fetchMyAccount, myBilling, startOnlinePayment } from "@/lib/api"
 import { PayFrameError, payViaFrame } from "@/lib/pay-frame"
-import type { BillingStatusPayload, MyAccountPayload } from "@/lib/rpc-types"
+import type { BillingStatusPayload, MyAccountPayload, PayInterval } from "@/lib/rpc-types"
+import { clientsLine, formatRupees, intervalWord, ladderLine, packLength, yearAsMonthlyPhrase, yearlyPerClientLine, yearOffLabel } from "@/lib/billing-state"
 import { parseDbTimestamp } from "@/lib/db-time"
-import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
+import { PAY_EMAIL } from "@/lib/payment-proof-mail"
 import { BOX_K3 } from "@/lib/terms"
 import { TermsCheckbox, TermsWhy } from "./TermsBox"
 import { GuidedError } from "@/components/GuidedError"
 
-// Where to actually send the money -- swap these for the real values the
-// moment the Owner shares them (bank/UPI details + a QR code image at
-// public/payment-qr.png; WhatsApp number). Until then the email address is
-// real and already works -- that channel needs nothing to swap. It is the
-// one public DPDP mailbox (PAY_EMAIL, src/lib/payment-proof-mail.ts), not a
-// personal address: a proof mailed there is filed as an invoice ticket.
-const PAY_UPI_ID = "veridian@upi (ask the Owner for the real UPI ID)"
-const PAY_BANK = { accountName: "VERIDIAN (bank details pending)", accountNumber: "-- pending --", ifsc: "-- pending --" }
-const PAY_QR_IMAGE = "/payment-qr.png"
-const PAY_WHATSAPP_NUMBER = "" // e.g. "919999999999" -- wa.me link is hidden until this is set
-
 // WO-DPDP-016 §7-8: the billing widget, lower-left of the owner's own page
 // (Owner instruction, this session). Owner-only -- App.tsx only renders
-// this for viewer.kind === "owner". "I've paid" is a claim, not a fact --
-// the Owner's own manual confirmation (outside this app) is what actually
-// moves an org to active.
+// this for viewer.kind === "owner".
+//
+// ONE WAY TO PAY (Owner decision, 2026-11-02): the same flow as Corporate Tambola -- choose the trial pack, a month or a year, press pay, Razorpay's
+// window opens, the person pays, and Razorpay tells us (the browser's signed result through /dpdp-pay/verify, and the webhook as the backstop); the
+// account is then made paid and active. Nothing else is offered here: no manual transfer details and no payment-claim button. The only address the
+// panel names is the one public DPDP mailbox (PAY_EMAIL, src/lib/payment-proof-mail.ts), for a person who needs help.
 //
 // POLICY CHANGE 2026-10-06 (drizzle/0734, Owner decision in chat): an
 // account that stays unpaid past its trial, the due day and a short grace
@@ -33,14 +26,15 @@ const PAY_WHATSAPP_NUMBER = "" // e.g. "919999999999" -- wa.me link is hidden un
 // everything works. The state and the price come from dpdp_my_account.
 //
 // The prices below are ONLY the fallback for an older organisation that has
-// no account row yet (the old flat Rs 1999/mo, Rs 9999/yr). A real account's
-// price is the plan's price from the dpdp.plan table, read through
-// dpdp_my_account; it is never typed into a screen.
-const MONTHLY_PAISE = 199_900
-const YEARLY_PAISE = 999_900
+// no account row yet (the plan table's Organisation price, Rs 999 a month and
+// half of twelve months for a year). A real account's price is read through
+// dpdp_my_account (the plan table, the trial pack, and for a Professional the
+// number of clients); it is never typed into a screen.
+const MONTHLY_PAISE = 99_900
+const YEARLY_PAISE = 599_400
 
-// Online payment (Razorpay, supabase/functions/dpdp-pay). The yearly price below must equal the server's own (dpdp_plan_price_paise in
-// drizzle/0673): the server charges ITS number, this one is only what is shown, and src/lib/services/dpdp-pay-logic.test.ts fails if they differ.
+// Online payment (Razorpay, supabase/functions/dpdp-pay). The fallback prices above must equal the server's own (dpdp_plan_price_paise in
+// drizzle/0755): the server charges ITS number, these are only what is shown, and src/lib/services/dpdp-pay-logic.test.ts fails if they differ.
 const PENDING_KEY = (orgId: string) => `dpdp-pay-pending:${orgId}`
 const POLL_TRIES = 15
 const POLL_EVERY_MS = 4000
@@ -65,10 +59,6 @@ function clearPending(orgId: string) {
   try { sessionStorage.removeItem(PENDING_KEY(orgId)) } catch { /* nothing to clear */ }
 }
 
-function formatRupees(paise: number): string {
-  return `Rs ${(paise / 100).toLocaleString("en-IN")}`
-}
-
 /** A yearly plan is up for renewal from 45 days before its anniversary (latest confirmed payment + 1 year). */
 function renewalDue(lastConfirmedAt: string | null): boolean {
   if (!lastConfirmedAt) return false
@@ -89,14 +79,12 @@ function daysLeft(iso: string | null): number | null {
   return Math.max(0, Math.ceil(ms / 86_400_000))
 }
 
-export function BillingPanel({ client, orgId, inline = false }: { client: DpdpClient; orgId: string; inline?: boolean }) {
+/** onPaid: told once, right after the server has confirmed a payment made in this panel (the Payment due screen uses it to open the working screens again). */
+export function BillingPanel({ client, orgId, inline = false, onPaid }: { client: DpdpClient; orgId: string; inline?: boolean; onPaid?: () => void }) {
   const [open, setOpen] = useState(inline)
   const [account, setAccount] = useState<MyAccountPayload | null>(null)
   const [billing, setBilling] = useState<BillingStatusPayload | null | undefined>(undefined)
-  const [chosen, setChosen] = useState<"month" | "year">("year")
-  const [reference, setReference] = useState("")
-  const [note, setNote] = useState("")
-  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [chosen, setChosen] = useState<PayInterval | null>(null) // null = the default for this account (the pack if it is still on offer, else a year)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [onlineOff, setOnlineOff] = useState(false)
@@ -136,6 +124,8 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
           setBilling(b)
           if (b.state === "active" && (b.lastConfirmedAt ?? "none") !== baseline) {
             clearPending(orgId)
+            const a = await fetchMyAccount(client, orgId).catch(() => null) // the plan, the state and the price move with the payment
+            if (!cancelled && a) setAccount(a)
             setPayStatus("received")
             return
           }
@@ -152,11 +142,18 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
 
   if (billing === undefined || billing === null) return null
 
-  async function payOnline() {
+  /** Reads the billing state AND the account again, so the pill, the plan line and the price show the payment without a page reload. A read that fails changes nothing. */
+  async function reread(): Promise<void> {
+    const [b, a] = await Promise.allSettled([myBilling(client, orgId), fetchMyAccount(client, orgId)])
+    if (b.status === "fulfilled") setBilling(b.value)
+    if (a.status === "fulfilled" && a.value) setAccount(a.value)
+  }
+
+  async function payOnline(interval: PayInterval) {
     if (!billing || !terms) return
     setBusy(true)
     setError(null)
-    const r = await startOnlinePayment(client, orgId, terms)
+    const r = await startOnlinePayment(client, orgId, terms, interval)
     if (!r.ok) {
       if (r.notEnabled) setOnlineOff(true)
       else setError(r.error)
@@ -174,8 +171,9 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
         setPayStatus("idle")
         setError(c.error)
       } else {
-        setBilling(await myBilling(client, orgId))
+        await reread()
         setPayStatus("received")
+        onPaid?.()
       }
     } catch (e) {
       clearPending(orgId)
@@ -184,38 +182,46 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
     setBusy(false)
   }
 
-  async function pay() {
-    setBusy(true)
-    setError(null)
-    try {
-      const amount = amountDue
-      const proofPath = proofFile ? (await uploadPaymentProof(client, orgId, proofFile)) ?? undefined : undefined
-      await declarePayment(client, chosen, amount, orgId, { reference: reference.trim(), note: note.trim(), proofPath })
-      setBilling(await myBilling(client, orgId))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const price = account?.hasAccount && account.money ? account.money : null
   const monthPaise = price ? price.monthPaise : MONTHLY_PAISE
   const yearPaise = price ? price.yearPaise : YEARLY_PAISE
-  const amountDue = chosen === "year" ? yearPaise : monthPaise
-  const waMessage = encodeURIComponent(`VERIDIAN payment -- org ${orgId}, ${formatRupees(amountDue)} (${chosen}ly). Reference: ${reference || "(see attached)"}`)
-  const proofMailto = paymentProofMailto({ orgId, amountLabel: formatRupees(amountDue), interval: chosen, reference })
+  const pack = price ? price.pack : null
+  const packOffered = pack?.available === true
+  const yearlyMonths = price ? price.yearlyMonthsCharged : YEARLY_PAISE / MONTHLY_PAISE
+  const yearOff = yearOffLabel(yearlyMonths)
+  // What was chosen; if nothing yet, the trial pack while it is on offer (it is the gentle first step), else a year.
+  const choice: PayInterval = chosen === "pack" && !packOffered ? "year" : chosen ?? (packOffered ? "pack" : "year")
+  const amountDue = choice === "pack" ? (pack?.pricePaise ?? 0) : choice === "year" ? yearPaise : monthPaise
+  /** The whole ladder in one calm line, shown before anyone pays the pack so what comes after it is no surprise; built from the account's own numbers. */
+  const ladder = pack && packOffered ? ladderLine({ monthlyPaise: monthPaise, yearlyMonthsCharged: yearlyMonths, packPricePaise: pack.pricePaise, packDays: pack.days }) : null
+  const perClient = price && price.perClient.includedClients > 0 ? clientsLine({ includedClients: price.perClient.includedClients, extraClientMonthlyPaise: price.perClient.extraMonthlyPaise, yearlyMonthsCharged: yearlyMonths }) : null
+  /** The "per client per month" line for the YEARLY plan only (never claimed for monthly); computed from the base price, not the account's total. */
+  const yearlyPerClient = price && price.perClient.includedClients > 0 ? yearlyPerClientLine({ monthlyPaise: price.baseMonthlyPaise, yearlyMonthsCharged: yearlyMonths, includedClients: price.perClient.includedClients }) : null
+  /** "effectively about ... a month" beside the yearly figure, said for the account's own yearly total. */
+  const yearEffective = yearAsMonthlyPhrase(monthPaise, yearlyMonths)
 
-  // Online payment charges the account's own price (drizzle/0747 dpdp__pay_begin_core). Only a client covered by its firm has nothing to pay itself.
-  const onlineUnavailable = onlineOff || (account?.hasAccount === true && account.coveredByFirm)
+  // Online payment charges the account's own price (drizzle/0755 dpdp__pay_begin_core). Only a client covered by its firm has nothing to pay itself.
+  // An organisation with no account row (made before billing) can pay online for a year only; the server refuses a month or the pack for it.
+  const noAccount = !(account?.hasAccount === true)
+  const coveredByFirm = account?.hasAccount === true && account.coveredByFirm
+  const yearOnly = noAccount && choice !== "year"
+  /** What the person sees when the Razorpay window cannot be opened (the service is switched off, or the connection dropped). There is nothing else to pay with; "Try again" clears the sticky flag. */
+  const onlineOffNote = (
+    <div role="status">
+      <p style={{ margin: "0 0 6px", fontSize: 12.5 }}>Online payment is not available right now. Please try again in a few minutes, or write to {PAY_EMAIL} and we will help.</p>
+      <button type="button" onClick={() => setOnlineOff(false)} style={{ background: "transparent", color: "var(--dpdp-v)", textDecoration: "underline", fontSize: 12.5 }}>Try again</button>
+    </div>
+  )
   const state = account?.hasAccount ? account.state : null
+  const needsPayment = state === "DUE" || state === "GRACE" || state === "LOCKED"
+  const onPack = pack?.onPack === true
   const trialDays = billing.state === "trial" ? daysLeft(billing.trialEndsAt) : null
   const pillLabel = payStatus === "waiting"
     ? "Billing: checking your payment…"
     : payStatus === "received"
     ? "Billing: payment received"
     : billing.state === "active"
-    ? `Billing: active (${billing.interval === "year" ? "yearly" : "monthly"})`
+    ? `Billing: active (${intervalWord(billing.interval)})`
     : billing.state === "awaiting_confirmation"
     ? "Billing: confirming your payment…"
     : trialDays === null
@@ -257,19 +263,19 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
               If nothing arrives within a day, write to {PAY_EMAIL}.
             </p>
           )}
-          {billing.state === "active" ? (
+          {billing.state === "active" && !needsPayment && !onPack ? (
             <>
-              <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--dpdp-ink)" }}>You're on the {billing.interval === "year" ? "yearly" : "monthly"} plan</p>
+              <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--dpdp-ink)" }}>You're on the {intervalWord(billing.interval)} plan</p>
               {billing.lastConfirmedAt && <p style={{ margin: 0 }}>Confirmed {parseDbTimestamp(billing.lastConfirmedAt).toLocaleDateString("en-IN")}.</p>}
               {billing.interval === "year" && renewalDue(billing.lastConfirmedAt) && (
                 <div style={{ marginTop: 10 }}>
                   <p style={{ margin: "0 0 6px" }}>Your yearly plan comes up for renewal on {renewalDate(billing.lastConfirmedAt)}.</p>
                   {onlineOff
-                    ? <p style={{ margin: 0 }}>Online payment is not switched on yet. Please pay by bank transfer and email {PAY_EMAIL} with the reference.</p>
+                    ? onlineOffNote
                     : (
                       <>
                         <TermsCheckbox box={BOX_K3} checked={terms} onChange={setTerms} disabled={busy} />
-                        <button type="button" onClick={payOnline} disabled={busy || !terms} aria-describedby={terms ? undefined : "terms-why-k3"} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5, opacity: busy || !terms ? 0.6 : 1 }}>
+                        <button type="button" onClick={() => void payOnline("year")} disabled={busy || !terms} aria-describedby={terms ? undefined : "terms-why-k3"} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5, opacity: busy || !terms ? 0.6 : 1 }}>
                           {busy ? "Opening…" : `Renew online -- ${formatRupees(yearPaise)}`}
                         </button>
                         <TermsWhy id="terms-why-k3" ticked={terms} />
@@ -282,7 +288,7 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
             <>
               <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--dpdp-ink)" }}>Thanks -- we've noted your payment</p>
               <p style={{ margin: 0 }}>
-                {billing.selfDeclaredAmountPaise != null && `${formatRupees(billing.selfDeclaredAmountPaise)} (${billing.selfDeclaredInterval === "year" ? "yearly" : "monthly"}), `}
+                {billing.selfDeclaredAmountPaise != null && `${formatRupees(billing.selfDeclaredAmountPaise)} (${intervalWord(billing.selfDeclaredInterval)}), `}
                 We usually confirm within 48 hours once we've seen the payment.
               </p>
               {billing.selfDeclaredReference && <p style={{ margin: "6px 0 0", fontSize: 12 }}>Reference: {billing.selfDeclaredReference}</p>}
@@ -291,80 +297,58 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
           ) : (
             <>
               <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--dpdp-ink)" }}>
-                {state === "DUE" || state === "GRACE" || state === "LOCKED" || trialDays === 0
+                {needsPayment || trialDays === 0
                   ? "Payment is due for this account"
+                  : onPack ? `You're on the trial pack${price?.paidUntil ? `, to ${price.paidUntil}` : ""}`
                   : trialDays === null ? "Choose a plan" : `${trialDays} day${trialDays === 1 ? "" : "s"} left in your free trial`}
               </p>
               <p style={{ margin: "0 0 10px" }}>
                 {state === "LOCKED"
                   ? "Your data is safe. Everything opens again as soon as we have seen the payment."
-                  : state === "DUE" || state === "GRACE" || trialDays === 0
+                  : needsPayment || trialDays === 0
                   ? "Everything still works for now, and your data is safe. Please pay when you can so it stays that way."
+                  : onPack
+                  ? "Everything works. To carry on after the pack, or to add more clients than it covers, start a month or a year now: the time is added after the pack ends."
                   : "Everything works during the trial. Paying before it ends keeps it that way."}
               </p>
-              {price?.offerLabel && <p style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--dpdp-v)" }}>{price.offerLabel}</p>}
-              <div className="flex gap-2 mb-3" role="radiogroup" aria-label="Plan">
-                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <input type="radio" name="dpdp-plan" checked={chosen === "year"} onChange={() => setChosen("year")} /> Yearly -- {formatRupees(yearPaise)}
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <input type="radio" name="dpdp-plan" checked={chosen === "month"} onChange={() => setChosen("month")} /> Monthly -- {formatRupees(monthPaise)}
-                </label>
-              </div>
-              {chosen === "year" && (
-                <div style={{ margin: "0 0 10px" }}>
-                  {onlineUnavailable ? (
-                    <p style={{ margin: 0, fontSize: 12.5 }}>Online payment is not switched on yet. Please pay by bank transfer below.</p>
-                  ) : (
-                    <>
-                      <TermsCheckbox box={BOX_K3} checked={terms} onChange={setTerms} disabled={busy} />
-                      <button type="button" onClick={payOnline} disabled={busy || !terms} aria-describedby={terms ? undefined : "terms-why-k3"} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5, opacity: busy || !terms ? 0.6 : 1 }}>
-                        {busy ? "Opening…" : `Pay online -- ${formatRupees(yearPaise)} a year`}
-                      </button>
-                      <TermsWhy id="terms-why-k3" ticked={terms} />
-                      <p style={{ margin: "6px 0 0", fontSize: 12 }}>
-                        You go to Razorpay's own page to pay. Your card or UPI details are entered there, not on this site. We email a receipt once the payment is confirmed.
-                      </p>
-                    </>
-                  )}
-                </div>
+              {ladder && (
+                <p style={{ margin: "0 0 10px", fontWeight: 600, color: "var(--dpdp-ink)" }}>
+                  The whole price, up front: {ladder}{perClient ? ` ${perClient}` : ""}{yearlyPerClient ? ` ${yearlyPerClient}` : ""}{pack && account?.hasAccount && account.accountType === "firm" ? ` The trial pack covers up to ${pack.maxClients} clients.` : ""}
+                </p>
               )}
-              <div style={{ background: "var(--dpdp-bg2, #f6f5fb)", borderRadius: 10, padding: "10px 12px", margin: "0 0 10px", fontSize: 12.5 }}>
-                <p style={{ margin: "0 0 6px", fontWeight: 600, color: "var(--dpdp-ink)" }}>{chosen === "year" ? "Or pay by UPI or bank transfer" : "Pay by UPI or bank transfer"}</p>
-                <img src={PAY_QR_IMAGE} alt="UPI QR code" style={{ width: 96, height: 96, borderRadius: 8, marginBottom: 6 }}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }} />
-                <p style={{ margin: "0 0 2px" }}>UPI: <strong>{PAY_UPI_ID}</strong></p>
-                <p style={{ margin: 0 }}>Bank: {PAY_BANK.accountName}, A/C {PAY_BANK.accountNumber}, IFSC {PAY_BANK.ifsc}</p>
+              {!ladder && perClient && <p style={{ margin: "0 0 10px" }}>{perClient}{yearlyPerClient ? ` ${yearlyPerClient}` : ""}</p>}
+              {price?.offerLabel && <p style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--dpdp-v)" }}>{price.offerLabel}</p>}
+              <div className="flex gap-3 mb-3 flex-wrap" role="radiogroup" aria-label="Plan">
+                {packOffered && pack && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <input type="radio" name="dpdp-plan" checked={choice === "pack"} onChange={() => setChosen("pack")} /> Trial pack -- {formatRupees(pack.pricePaise)} for {packLength(pack.days)}
+                  </label>
+                )}
+                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <input type="radio" name="dpdp-plan" checked={choice === "month"} onChange={() => setChosen("month")} /> Monthly -- {formatRupees(monthPaise)}
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <input type="radio" name="dpdp-plan" checked={choice === "year"} onChange={() => setChosen("year")} /> Yearly -- {formatRupees(yearPaise)}{yearOff ? ` (${yearOff}${yearEffective ? `, ${yearEffective}` : ""})` : ""}
+                </label>
               </div>
-              <label style={{ display: "block", margin: "0 0 6px" }}>
-                Reference / UTR number (optional, helps us match it faster)
-                <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. 12-digit UTR"
-                  style={{ display: "block", width: "100%", marginTop: 3, padding: "6px 8px", borderRadius: 8, border: "1px solid var(--dpdp-line)", fontSize: 13 }} />
-              </label>
-              <label style={{ display: "block", margin: "0 0 6px" }}>
-                Screenshot of the payment (optional)
-                <input type="file" accept="image/*" onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
-                  style={{ display: "block", width: "100%", marginTop: 3, fontSize: 12.5 }} />
-              </label>
-              <label style={{ display: "block", margin: "0 0 10px" }}>
-                Anything else we should know? (optional)
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
-                  style={{ display: "block", width: "100%", marginTop: 3, padding: "6px 8px", borderRadius: 8, border: "1px solid var(--dpdp-line)", fontSize: 13, resize: "vertical" }} />
-              </label>
-              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                <button type="button" onClick={pay} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
-                  {busy ? "Saving…" : "I have paid by bank transfer"}
-                </button>
-                {PAY_WHATSAPP_NUMBER && (
-                  <a href={`https://wa.me/${PAY_WHATSAPP_NUMBER}?text=${waMessage}`} target="_blank" rel="noreferrer"
-                    style={{ alignSelf: "center", fontSize: 12.5, color: "var(--dpdp-v)", textDecoration: "underline" }}>
-                    or send on WhatsApp
-                  </a>
+              <div style={{ margin: "0 0 10px" }}>
+                {onlineOff ? onlineOffNote : coveredByFirm ? (
+                  <p style={{ margin: 0, fontSize: 12.5 }}>Your firm covers this organisation, so there is nothing for you to pay here.</p>
+                ) : yearOnly ? (
+                  <p style={{ margin: 0, fontSize: 12.5 }}>For this organisation, online payment is for the yearly plan. Please choose Yearly.</p>
+                ) : (
+                  <>
+                    <TermsCheckbox box={BOX_K3} checked={terms} onChange={setTerms} disabled={busy} />
+                    <button type="button" onClick={() => void payOnline(choice)} disabled={busy || !terms} aria-describedby={terms ? undefined : "terms-why-k3"} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5, opacity: busy || !terms ? 0.6 : 1 }}>
+                      {busy ? "Opening…" : `Pay online -- ${formatRupees(amountDue)} ${choice === "pack" ? `for ${packLength(pack?.days ?? 0)}` : choice === "year" ? "a year" : "a month"}`}
+                    </button>
+                    <TermsWhy id="terms-why-k3" ticked={terms} />
+                    <p style={{ margin: "6px 0 0", fontSize: 12 }}>
+                      You go to Razorpay's own page to pay. Your card or UPI details are entered there, not on this site. We email a receipt once the payment is confirmed.
+                    </p>
+                  </>
                 )}
               </div>
-              <p style={{ margin: 0, fontSize: 12 }}>
-                Prefer email? <a href={proofMailto} style={{ color: "var(--dpdp-v)" }}>{PAY_EMAIL}</a> -- attach your screenshot there.
-              </p>
             </>
           )}
           {error && <GuidedError message={error} />}
