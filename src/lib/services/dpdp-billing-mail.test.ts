@@ -9,7 +9,9 @@ import { isDeliverableAddress as mondayDeliverable } from "../../../supabase/fun
 import { REMINDER_KINDS, type ReminderKind, dateLabel, isDeliverableAddress, SELLER, renderBillingDue, renderReceipt, renderReminder, rupees } from "../../../supabase/functions/_shared/billing-mail"
 import { buildOutbound } from "../../../supabase/functions/_shared/mail-outbound"
 
-const base = { orgName: "Acme Associates", daysLeft: 10, dueDate: "2026-10-31T00:00:00Z", priceLabel: rupees(999900), appUrl: "https://dpdp.veridian-aios.com/app/" }
+const base = { orgName: "Acme Associates", daysLeft: 10, dueDate: "2026-10-31T00:00:00Z", priceLabel: rupees(599400), appUrl: "https://dpdp.veridian-aios.com/app/" }
+/** Manual payment is gone (PR #2193): no e-mail may tell anyone to pay by bank transfer or UPI, quote a UTR or press "I have paid". */
+const NO_MANUAL_PAYMENT = /bank|UPI|UTR|I have paid/i
 const render = (kind: ReminderKind, daysLeft = 10) => renderReminder({ ...base, kind, daysLeft })
 
 describe("reminders", () => {
@@ -24,7 +26,14 @@ describe("reminders", () => {
       expect(r.subject).toBe(`Your free trial ends in ${days} days -- Acme Associates`)
       expect(r.text).toContain(`ends on 31 Oct 2026, ${days} days from now`)
       expect(r.text).toContain("Everything keeps working through the end of the trial and for a few days after it")
-      expect(r.text).toContain("Rs 9,999 a year")
+      expect(r.text).toContain("Rs 5,994 a year")
+    }
+  })
+  test("the trial reminders quote the live prices: Rs 99 trial pack for 3 months, Rs 999 a month, the yearly price, and Rs 50 a month or Rs 300 a year per extra client beyond 10", () => {
+    for (const kind of ["trial10", "trial3", "trial0"] as const) {
+      const r = render(kind, kind === "trial0" ? 0 : 3)
+      expect(r.text).toContain("the Rs 99 trial pack for 3 months, Rs 999 a month, or the yearly plan at Rs 5,994 a year")
+      expect(r.text).toContain("more than 10 clients adds Rs 50 a month, or Rs 300 a year, for each extra client")
     }
   })
   test("singular day", () => {
@@ -43,17 +52,32 @@ describe("reminders", () => {
       const r = render(kind, days)
       expect(r.subject).toBe("Your yearly plan renews on 31 Oct 2026 -- Acme Associates")
       expect(r.text).toContain(`${days} days from now`)
-      expect(r.text).toContain("Rs 9,999 for the year")
+      expect(r.text).toContain("Rs 5,994 for the year")
       expect(r.text).toContain("everything still works for a few days first")
+      expect(r.text).toContain("adds Rs 300 a year for each extra client")
     }
   })
-  test("every reminder says the card is entered on Razorpay's page or that payment is online-or-bank, and links the app", () => {
+  test("every reminder describes the one online way to pay: Billing, then Pay online, on Razorpay's own page, and links the app", () => {
     for (const kind of REMINDER_KINDS) {
       const r = render(kind)
       expect(r.text).toContain("https://dpdp.veridian-aios.com/app/")
-      expect(r.text).toMatch(/Razorpay/)
-      expect(r.text).toMatch(/bank transfer/)
+      expect(r.text).toContain("press Billing (bottom left), and then Pay online")
+      expect(r.text).toContain("Razorpay's own page opens and you pay there")
+      expect(r.text).toContain("your payment details are entered on Razorpay's page, never on ours")
+      expect(r.text).toContain("We email you a receipt once the payment is confirmed")
       expect(r.text).toContain("-- VERIDIAN AI DPDP")
+    }
+  })
+  test("no reminder or payment note tells anyone to pay by bank transfer or UPI, quotes a UTR, or presses 'I have paid'", () => {
+    for (const kind of REMINDER_KINDS) {
+      const r = render(kind)
+      expect(r.subject + "\n" + r.text).not.toMatch(NO_MANUAL_PAYMENT)
+    }
+    for (const role of ["owner", "head of department", "billing contact"] as const) {
+      for (const finalDownload of [false, true]) {
+        const r = renderBillingDue({ orgName: "Acme Associates", state: "DUE", line: "A gentle note.", role, payUrl: "https://dpdp.veridian-aios.com/app/", unsubscribeUrl: "https://dpdp.veridian-aios.com/unsubscribe/#bn_abc", finalDownload, downloadUrl: "https://dpdp.veridian-aios.com/app/" })
+        expect(r.subject + "\n" + r.text).not.toMatch(NO_MANUAL_PAYMENT)
+      }
     }
   })
   test("no claim we cannot back: no 'instant', 'secure', 'guarantee', '100%', 'unlimited'", () => {
@@ -90,6 +114,12 @@ describe("the weekly 'payment is due' note to an account's own contacts (drizzle
     expect(r.text).toContain("-- VERIDIAN AI DPDP")
     expect((r.subject + r.text).toLowerCase()).not.toMatch(/urgent|immediately|final warning|suspend|terminat|penalt|legal action|instant|secure|guarantee/)
   })
+  test("it says the payment is online, on Razorpay's own page, and that a receipt follows", () => {
+    const r = renderBillingDue(due)
+    expect(r.text).toContain("You can pay online on that page -- Razorpay's own page opens and you pay there")
+    expect(r.text).toContain("your payment details are entered on Razorpay's page, never on ours")
+    expect(r.text).toContain("We email a receipt once the payment is confirmed.")
+  })
   test("a head of department is asked to tell the owner; a billing contact gets the pay link", () => {
     expect(renderBillingDue({ ...due, role: "head of department" }).text).toContain("The owner of Acme Associates can pay here, so please let them know:")
     expect(renderBillingDue({ ...due, role: "billing contact" }).text).toContain("To pay for Acme Associates, open:")
@@ -116,7 +146,7 @@ describe("receipt", () => {
     expect(r.text).toContain("Payment reference: pay_Abc123")
     expect(r.text).toContain("Billing period start: 1 Oct 2026")
   })
-  test("a bank-transfer receipt (no Razorpay id) has no online line", () => {
+  test("a receipt with no Razorpay id (an older payment the Owner confirmed by hand) has no online line", () => {
     expect(renderReceipt(rec).text).not.toContain("Razorpay")
   })
 })

@@ -102,10 +102,15 @@ export type ReminderInput = {
   appUrl: string
 }
 
+// ONE WAY TO PAY (Owner decision, 2026-11-02, PR #2193): online, on Razorpay's own page -- no bank transfer, no UPI/UTR steps, no "I have paid" button.
+// The prices below are the live pricing page's (drizzle/0755, 0756): Rs 99 trial pack for 3 months, Rs 999 a month, the yearly plan (priceLabel, read from
+// the database by the caller), and Rs 50 a month / Rs 300 a year for each Professional client beyond 10. A test pins them, so a change of price cannot leave
+// an old number in an e-mail unnoticed.
 const PAY_LINES = (priceLabel: string, appUrl: string): string[] => [
-  `To continue on the yearly plan (${priceLabel} a year), open your owner page and press Billing, bottom left:`,
+  `To continue, open your owner page, press Billing (bottom left), and then Pay online:`,
   appUrl,
-  `You can pay online -- the card, UPI or net-banking details are entered on Razorpay's own page, never on ours -- or by bank transfer and press "I have paid". Either way we email you a receipt once the payment is confirmed.`,
+  `You can choose the Rs 99 trial pack for 3 months, Rs 999 a month, or the yearly plan at ${priceLabel} a year. A Professional firm with more than 10 clients adds Rs 50 a month, or Rs 300 a year, for each extra client.`,
+  `Razorpay's own page opens and you pay there -- your payment details are entered on Razorpay's page, never on ours. We email you a receipt once the payment is confirmed.`,
 ]
 
 const DAYS = (n: number) => `${n} day${n === 1 ? "" : "s"}`
@@ -142,9 +147,9 @@ export function renderReminder(r: ReminderInput): Rendered {
       lines = [
         `Your yearly plan for ${r.orgName} comes up for renewal on ${due}, ${DAYS(r.daysLeft)} from now.`,
         ``,
-        `To renew (${r.priceLabel} for the year), open your owner page and press Billing, bottom left:`,
+        `To renew (${r.priceLabel} for the year), open your owner page, press Billing (bottom left), and then Pay online:`,
         r.appUrl,
-        `You can pay online through Razorpay or by bank transfer. We email you a receipt once the payment is confirmed. If you pay a little late, everything still works for a few days first.`,
+        `Razorpay's own page opens and you pay there -- your payment details are entered on Razorpay's page, never on ours. A Professional firm with more than 10 clients adds Rs 300 a year for each extra client. We email you a receipt once the payment is confirmed. If you pay a little late, everything still works for a few days first.`,
       ]
       break
   }
@@ -184,7 +189,7 @@ export function renderBillingDue(d: BillingDueInput): Rendered {
       : `The owner of ${d.orgName} can pay here, so please let them know:`,
     d.finalDownload ? d.downloadUrl : d.payUrl,
     ``,
-    `You can pay by bank transfer or UPI and tell us on that page. We email a receipt once the payment is confirmed.`,
+    `You can pay online on that page -- Razorpay's own page opens and you pay there, and your payment details are entered on Razorpay's page, never on ours. We email a receipt once the payment is confirmed.`,
     ``,
     `You get this note because you are a contact for the account (${d.role}). To stop these notes, one click:`,
     d.unsubscribeUrl,
