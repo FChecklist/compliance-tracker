@@ -177,16 +177,16 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 
 - **Done by:** Staff records  ·  **Data set:** Job applicants
 - **Law cited:** `d:§4`, `d:§8(4)`
-- **Why (as shown):** CVs arrive by email, WhatsApp and control sites and pile up unnoticed. Knowing where they are lets you protect them and delete old ones.
+- **Why (as shown):** CVs arrive by email, WhatsApp and job sites and pile up unnoticed. Knowing where they are lets you protect them and delete old ones.
 - **Who (as shown):** HR or whoever hires, with the office manager; IT helps with mailboxes and shared drives.
 - **Steps (as shown):**
-  1. Check where CVs land: HR mailbox, managers' inboxes, WhatsApp, control portals, recruiter emails, printouts.
+  1. Check where CVs land: HR mailbox, managers' inboxes, WhatsApp, job portals, recruiter emails, printouts.
   2. Write why you keep them: the current opening only, or a talent pool the applicant agreed to.
   3. List the roles that can open the CV folders, and remove access that is not needed.
   4. Ask how long unsuccessful CVs should be kept; if unsure, suggest a short period, but the person decides.
   5. Save the record in your own folder or drive.
 - **Evidence of "done":** A one-page record of where CVs sit, why, who can open them and how long unsuccessful ones stay. Keep it in your own folder or drive.
-- **"Doesn't apply" is honest when:** You never receive CVs or control applications from anyone, including by email or WhatsApp.
+- **"Doesn't apply" is honest when:** You never receive CVs or job applications from anyone, including by email or WhatsApp.
 - **Watch for:** CVs forwarded to managers' personal email or WhatsApp are easy to forget.
 - **Counsel:**  [ ] law text correct   [ ] guidance safe   [ ] "doesn't apply" wording right   [ ] change needed --  ____________________________
 
