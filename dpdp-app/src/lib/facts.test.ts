@@ -57,9 +57,9 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
   // Owner, 2026-10-01: the home page asks for FOUR things, and says four.
   test("the three points are three numbered lines, the third is 'Prove it'", () => {
     expect(facts.three_things).toEqual([
-      "People change. When they leave, what they knew about your data leaves with them.",
+      "People change, but your liability does not. When people leave, what they knew about your data leaves with them.",
       "Know what data you hold, and who else holds it for you.",
-      "Prove it — with a record that outlasts the person who set it up.",
+      "Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up.",
     ])
   })
 

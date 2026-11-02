@@ -325,7 +325,7 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
     expect(main).toContain("<h2>Three things to know about DPDP compliance</h2>")
     const list = /<ol class="lead-list hm-three">([\s\S]*?)<\/ol>/.exec(main)![1]
     const items = [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])
-    expect(items).toEqual(["People change. When they leave, what they knew about your data leaves with them.", "Know what data you hold, and who else holds it for you.", "Prove it — with a record that outlasts the person who set it up."])
+    expect(items).toEqual(["People change, but your liability does not. When people leave, what they knew about your data leaves with them.", "Know what data you hold, and who else holds it for you.", "Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up."])
     expect(items).toEqual([...FACTS.three_things])
   })
 
@@ -336,7 +336,7 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
       expect(body, `${rel} still has the three things on one line`).not.toContain("Know what data you hold. Tell people about it. Keep it safe.")
       expect(body, `${rel} still has the old four things`).not.toContain("Tell people about it.")
     }
-    expect(read("public/llms-full.txt")).toContain("1. People change. When they leave, what they knew about your data leaves with them.\n2. Know what data you hold, and who else holds it for you.\n3. Prove it — with a record that outlasts the person who set it up.")
+    expect(read("public/llms-full.txt")).toContain("1. People change, but your liability does not. When people leave, what they knew about your data leaves with them.\n2. Know what data you hold, and who else holds it for you.\n3. Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up.")
   })
 })
 
