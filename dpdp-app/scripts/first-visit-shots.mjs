@@ -20,7 +20,10 @@ const APP = [
 // For these worlds every button on the page is pressed in turn (page reloaded between presses) so each panel gets a picture.
 const CRAWL = new Set(["owner-live", "partner"])
 const SKIP = /sign out|log out|delete|remove|revoke|unsubscribe|not me|undo|close|dismiss/i
-const NEXT = /^(next|continue|start|get started|let'?s go|looks right|yes|done|finish)\b/i
+const NEXT = /^\W*(next|continue|create the list|start|get started|let'?s go|looks right|save|finish|done)\b/i
+// The plan chip (trial, plan, pack) opens the billing panel: the screen with the trial pack, monthly and yearly choices.
+const BILLING = /free trial|trial|billing|plan|pack|pay/i
+const BILLING_WORLDS = new Set(["owner", "owner-live", "client-owner", "partner"])
 const SIZES = [["phone", 360, 740], ["laptop", 1280, 800]]
 const manifest = []
 
@@ -67,6 +70,17 @@ try {
       try {
         await open(page, url)
         await shot(page, `${label}__${id}`, url)
+
+        if (BILLING_WORLDS.has(scenario)) {
+          const chip = (await visibleButtonNames(page)).find((n) => BILLING.test(n) && !SKIP.test(n))
+          if (chip) {
+            try {
+              await page.getByRole("button", { name: chip, exact: true }).first().click({ timeout: 3000 })
+              await shot(page, `${label}__${id}--billing`, `after pressing "${chip}"`)
+            } catch (e) { manifest.push({ file: `${label}__${id}--billing`, error: `could not press "${chip}": ${String(e).slice(0, 120)}` }) }
+            await open(page, url)
+          } else manifest.push({ file: `${label}__${id}--billing`, error: "no plan or trial button found" })
+        }
 
         // First-visit guide: press the forward button step by step, a picture of each step.
         if (scenario === "owner") {
