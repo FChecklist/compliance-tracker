@@ -1270,13 +1270,16 @@ export function createMockClient(scenario?: string): DpdpClient {
           }
           const made = await this.rpc("dpdp_create_my_org", { p_name: args?.p_org_name, p_product: args?.p_account_type, p_referral_code: args?.p_referral_code })
           if (made.error) return made
-          return ok({ ...(made.data as object), accountType: args?.p_account_type, planKey: args?.p_account_type === "institution" ? "institution" : "firm_starter", attribution: "none", verification: args?.p_professional_body ? "pending" : "none" })
+          return ok({ ...(made.data as object), accountType: args?.p_account_type, planKey: args?.p_account_type === "institution" ? "institution" : "firm", attribution: "none", verification: args?.p_professional_body ? "pending" : "none" })
         }
-        case "dpdp_public_plans":
+        case "dpdp_public_plans": {
+          // drizzle/0755: one Professional plan (ten clients included, a price for each client beyond) and one Organisation plan, both with the same trial pack.
+          const pack = { packPricePaise: 9900, packDays: 90, packMaxClients: 10 }
           return ok([
-            { key: "institution", accountType: "institution", name: "Institution", maxClients: 0, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
-            { key: "firm_starter", accountType: "firm", name: "Starter", maxClients: 10, requiresDeclaration: false, listMonthlyPaise: 80100, monthlyPaise: 39900, offerLabel: "Festive offer: 50% off", yearlyMonthsCharged: 10 },
+            { key: "institution", accountType: "institution", name: "Organisation", maxClients: 0, requiresDeclaration: false, listMonthlyPaise: 99900, monthlyPaise: 99900, offerLabel: null, yearlyMonthsCharged: 6, includedClients: 0, extraClientMonthlyPaise: 0, ...pack },
+            { key: "firm", accountType: "firm", name: "Professional", maxClients: 10, requiresDeclaration: false, listMonthlyPaise: 99900, monthlyPaise: 99900, offerLabel: null, yearlyMonthsCharged: 6, includedClients: 10, extraClientMonthlyPaise: 2000, ...pack },
           ])
+        }
         case "dpdp_my_account":
           return ok({ orgId: String(args?.p_org_id ?? HOME_ORG), hasAccount: false, state: "ACTIVE" })
         default:

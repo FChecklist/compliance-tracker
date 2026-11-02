@@ -32,7 +32,13 @@ export const RAZORPAY_API = "https://api.razorpay.com/v1"
 export const SUPPORTED_EVENTS = ["payment.captured", "payment_link.paid", "order.paid"] as const
 export type SupportedEvent = (typeof SUPPORTED_EVENTS)[number]
 
-export type Interval = "month" | "year"
+/** The three ways to pay (drizzle/0755): the trial pack (once, a flat price for three months), a month, a year. */
+export type Interval = "pack" | "month" | "year"
+
+/** The interval in the words a person reads on Razorpay's page and in the payment link. */
+export function intervalPhrase(interval: Interval): string {
+  return interval === "pack" ? "trial pack" : interval === "year" ? "yearly plan" : "monthly plan"
+}
 
 // ---------------------------------------------------------------------
 // Signature
@@ -235,7 +241,7 @@ export function buildPaymentLinkBody(r: LinkRequest): Record<string, unknown> {
     currency: r.currency,
     accept_partial: false,
     reference_id: r.attemptId,
-    description: `VERIDIAN DPDP ${r.interval === "year" ? "yearly" : "monthly"} plan -- ${r.orgName}`.slice(0, 2000),
+    description: `VERIDIAN DPDP ${intervalPhrase(r.interval)} -- ${r.orgName}`.slice(0, 2000),
     notify: { sms: false, email: false },
     reminder_enable: false,
     notes: { org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval },
@@ -310,14 +316,14 @@ export function parseOrderResponse(body: unknown): { id: string } | null {
 
 /** What the browser's Razorpay window needs. UPI first, as on the other products. */
 export function buildCheckoutOptions(o: { keyId: string; orderId: string; amountPaise: number; currency: string; orgName: string; plan: string; variation?: string; interval: Interval; ownerEmail: string | null }): Record<string, unknown> {
-  const edition = o.plan === "institution" ? "Institution" : "Firm"
+  const edition = o.plan === "institution" ? "Organisation" : "Professional"
   return {
     key: o.keyId,
     order_id: o.orderId,
     amount: o.amountPaise,
     currency: o.currency,
     name: "VERIDIAN DPDP",
-    description: `${edition} plan, yearly | IT Services by Rajat Agarwal`,
+    description: `${edition} ${intervalPhrase(o.interval)} | IT Services by Rajat Agarwal`,
     prefill: o.ownerEmail ? { email: o.ownerEmail } : {},
     notes: { ...productNotes(o.plan, o.interval, o.variation) },
     theme: { color: "#0E7C6E" },
@@ -383,13 +389,17 @@ export function parsePaymentLinkResponse(body: unknown): { id: string; shortUrl:
   return { id, shortUrl, orderId: str(body.order_id) }
 }
 
-/** What the caller may ask for. Online payment is the yearly plan only (the one plan actually sold). */
+/**
+ * What the caller may ask for: the trial pack, a month or a year (no interval = a year, as before). The amount is never read from here: the
+ * database charges its own price for the interval (dpdp.account_charge_paise) and refuses what the account may not buy (the pack twice, a month
+ * for an organisation that has no account).
+ */
 export function parseCreateRequest(body: unknown): { ok: true; interval: Interval; orgId: string | null } | { ok: false; error: string } {
   if (!isObj(body)) return { ok: false, error: "Send a JSON body" }
   const interval = body.interval ?? "year"
-  if (interval !== "year") return { ok: false, error: "Online payment is for the yearly plan" }
+  if (interval !== "pack" && interval !== "month" && interval !== "year") return { ok: false, error: "Choose the trial pack, a month or a year" }
   const orgId = str(body.orgId)
-  return { ok: true, interval: "year", orgId }
+  return { ok: true, interval, orgId }
 }
 
 /**

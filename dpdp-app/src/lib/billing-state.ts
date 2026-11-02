@@ -2,7 +2,11 @@
 // the same rules as plain functions so the screens can word things, so the earnings calculator can run on a static page, and so a test can
 // hold the two to each other at every boundary (src/lib/services/dpdp-account-billing.pglite.test.ts runs both over the same dates).
 //
-// Prices are NOT here. They live in the dpdp.plan table (editable) and reach the screens through dpdp_public_plans / dpdp_my_account.
+// Prices are NOT here. They live in the dpdp.plan table and dpdp.billing_setting (editable) and reach the screens through dpdp_public_plans /
+// dpdp_my_account. The rules below are the ones the database applies (drizzle/0755, the owner's pricing of 2026-11-02):
+//   a new account chooses the trial pack | monthly | yearly; after the trial pack only monthly | yearly remain;
+//   a Professional's monthly price includes ten clients and adds a fixed price for each client beyond (counted on the real number, no tiers);
+//   a year is charged as 6 months of the monthly price (half price); nobody is free.
 
 export type BillingState = "TRIAL" | "ACTIVE" | "DUE" | "GRACE" | "LOCKED"
 
@@ -14,8 +18,6 @@ export const DEFAULT_BILLING_SETTINGS: BillingSettings = { trialDays: 30, dueDay
 const DAY_MS = 86_400_000
 
 export type BillingInput = {
-  /** A verified firm on the free plan: always ACTIVE. */
-  free?: boolean
   openedAt: Date
   paidUntil: Date | null
   now: Date
@@ -28,7 +30,6 @@ export function periodEnd(openedAt: Date, paidUntil: Date | null, s: BillingSett
 }
 
 export function billingState(i: BillingInput, s: BillingSettings = DEFAULT_BILLING_SETTINGS): BillingState {
-  if (i.free) return "ACTIVE"
   const e = periodEnd(i.openedAt, i.paidUntil, s).getTime()
   const t = i.now.getTime()
   if (t < e) return i.paidUntil ? "ACTIVE" : "TRIAL"
@@ -39,7 +40,6 @@ export function billingState(i: BillingInput, s: BillingSettings = DEFAULT_BILLI
 
 /** True once the account is 90+ days past its period end (default): the final data-download notice is due. */
 export function finalDownloadDue(i: BillingInput, s: BillingSettings = DEFAULT_BILLING_SETTINGS): boolean {
-  if (i.free) return false
   return i.now.getTime() >= periodEnd(i.openedAt, i.paidUntil, s).getTime() + s.finalDownloadAfterDays * DAY_MS
 }
 
@@ -93,11 +93,77 @@ export type PlanWire = {
   monthlyPaise: number
   offerLabel: string | null
   yearlyMonthsCharged: number
+  /** Clients the monthly price already covers (a Professional: 10; an Organisation has no clients). */
+  includedClients: number
+  /** What each client beyond `includedClients` adds to the monthly price. */
+  extraClientMonthlyPaise: number
+  /** The trial pack: a flat price, once, for this many days, covering at most packMaxClients clients. */
+  packPricePaise: number
+  packDays: number
+  packMaxClients: number
 }
 
-/** A year costs yearlyMonthsCharged (10) months of the monthly price. */
-export function yearlyChargePaise(monthlyPaise: number, yearlyMonthsCharged = 10): number {
+/** A year costs yearlyMonthsCharged (6) months of the monthly price: half price. */
+export function yearlyChargePaise(monthlyPaise: number, yearlyMonthsCharged: number): number {
   return monthlyPaise * yearlyMonthsCharged
+}
+
+/** "50% off" for a year charged as 6 months; null when the year saves nothing. */
+export function yearOffLabel(yearlyMonthsCharged: number): string | null {
+  const off = Math.round((1 - yearlyMonthsCharged / 12) * 100)
+  return off > 0 && off < 100 ? `${off}% off` : null
+}
+
+/**
+ * What an account pays a month: the plan's monthly price plus the extra-client price for every client beyond the included ones, counted on the
+ * real number of clients (no tiers). Must equal dpdp.account_monthly_total_paise (a test compares them).
+ */
+export function monthlyTotalPaise(basePaise: number, includedClients: number, extraClientMonthlyPaise: number, clients: number): number {
+  const used = Math.max(0, Math.floor(Number.isFinite(clients) ? clients : 0))
+  return basePaise + Math.max(used - includedClients, 0) * extraClientMonthlyPaise
+}
+
+/** The way a payment was made, in the words a person uses: the trial pack, monthly, yearly. */
+export function intervalWord(interval: "pack" | "month" | "year" | null | undefined): string {
+  return interval === "pack" ? "trial pack" : interval === "year" ? "yearly" : "monthly"
+}
+
+/** The trial pack's length in the words a person uses: 90 days is "3 months". */
+export function packLength(days: number): string {
+  if (days === 30) return "1 month"
+  return days > 0 && days % 30 === 0 ? `${days / 30} months` : `${days} days`
+}
+
+/**
+ * The whole ladder in one calm line, shown BEFORE anyone pays the trial pack so that what follows it is no surprise:
+ * "Rs 99 for 3 months, then Rs 999 a month or Rs 5,994 a year (50% off)." The numbers come from the plan the database sent.
+ */
+export function ladderLine(p: Pick<PlanWire, "monthlyPaise" | "yearlyMonthsCharged" | "packPricePaise" | "packDays">): string {
+  const off = yearOffLabel(p.yearlyMonthsCharged)
+  return `${formatRupees(p.packPricePaise)} for ${packLength(p.packDays)}, then ${formatRupees(p.monthlyPaise)} a month or ${formatRupees(yearlyChargePaise(p.monthlyPaise, p.yearlyMonthsCharged))} a year${off ? ` (${off})` : ""}.`
+}
+
+/**
+ * The soft ask at the step where the first e-mails go out: the whole ladder in plain lines, from the account's own numbers, or null when the
+ * trial pack is not on offer (it was bought, or the account has paid). Nothing is blocked by it; it only says what the pack is and what follows it.
+ */
+export function packNudgeLines(
+  m: { monthPaise: number; yearlyMonthsCharged: number; pack: { available: boolean; pricePaise: number; days: number; maxClients: number }; perClient: { includedClients: number; extraMonthlyPaise: number } },
+  accountType: "firm" | "institution",
+): string[] | null {
+  if (!m.pack.available) return null
+  const lines = [ladderLine({ monthlyPaise: m.monthPaise, yearlyMonthsCharged: m.yearlyMonthsCharged, packPricePaise: m.pack.pricePaise, packDays: m.pack.days })]
+  if (accountType === "firm") {
+    const c = clientsLine({ includedClients: m.perClient.includedClients, extraClientMonthlyPaise: m.perClient.extraMonthlyPaise })
+    if (c) lines.push(c)
+    lines.push(`The trial pack covers up to ${m.pack.maxClients} clients.`)
+  }
+  return lines
+}
+
+/** For a Professional: what the monthly price includes and what each further client adds. Null for a plan with no clients. */
+export function clientsLine(p: Pick<PlanWire, "includedClients" | "extraClientMonthlyPaise">): string | null {
+  return p.includedClients > 0 ? `Includes ${p.includedClients} clients, then ${formatRupees(p.extraClientMonthlyPaise)} a month for each further client.` : null
 }
 
 /** The wording for a running offer. Never "discount applied": the offer is simply the price. */
@@ -106,15 +172,14 @@ export function offerLabel(listPaise: number, offerPaise: number): string | null
   return `Festive offer: ${Math.round((1 - offerPaise / listPaise) * 100)}% off`
 }
 
-/** A firm may add one more client only while used < cap. Cap 0 (the free plan) means none. */
-export function canAddClient(used: number, cap: number): boolean {
-  return used < cap
+/** A firm may add one more client only while used < cap. A null cap (a firm that pays monthly or yearly) means no limit: the price follows the count. */
+export function canAddClient(used: number, cap: number | null): boolean {
+  return cap === null || used < cap
 }
 
-export function capMessage(cap: number): string {
-  return cap === 0
-    ? "Your plan is for your own firm's file. To add client organisations, choose a plan that includes clients."
-    : `Your plan covers up to ${cap} client organisations. To add more, choose a bigger plan.`
+/** The words for the one limit left: the trial pack covers a few clients. Must equal the refusal in dpdp_create_client_org (drizzle/0755). */
+export function capMessage(cap: number, includedClients: number, extraClientMonthlyPaise: number): string {
+  return `Your trial pack covers up to ${cap} client organisations. To add more, start the monthly or yearly plan: it covers any number of clients (${formatRupees(extraClientMonthlyPaise)} a month for each client beyond ${includedClients}).`
 }
 
 export function formatRupees(paise: number): string {
@@ -136,9 +201,7 @@ export function earningsExample(clients: number, feePerClientRupees: number, pla
 
 export const EARNINGS_DISCLAIMER = "Example, not a guarantee."
 
-/** The cheapest ladder plan whose cap covers this many clients (undefined above the largest). */
-export function planForClients(plans: PlanWire[], clients: number): PlanWire | undefined {
-  return plans
-    .filter((p) => p.accountType === "firm" && !p.requiresDeclaration && p.maxClients >= Math.max(1, clients))
-    .sort((a, b) => a.maxClients - b.maxClients)[0]
+/** The one Professional plan (there are no tiers any more); undefined only if the plans have not arrived. */
+export function firmPlan(plans: PlanWire[]): PlanWire | undefined {
+  return plans.find((p) => p.accountType === "firm")
 }

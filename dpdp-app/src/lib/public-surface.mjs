@@ -290,7 +290,7 @@ export const PUBLIC_PAGES = [
     mustContain: [
       "For CA, CS, audit and legal firms",
       "Give each client a set of controls. Chase the answers by email. Keep a dated record that is added to, not edited.",
-      "Your own firm's file is free. No licence fee. You pay per client file, after you have billed the client.",
+      "Start free and build your list. Rs 99 for your first 3 months (up to 10 clients), then Rs 999 a month with 10 clients included and Rs 20 for each further client, or half price by the year.",
       "Add each client",
       "Every client has its own file",
       "Checks and sign-off",
@@ -310,7 +310,7 @@ export const PUBLIC_PAGES = [
     mustContain: [
       "For companies, institutions, schools and NGOs",
       "Get a set of controls. Give each control to a person. Keep a dated record that is added to, not edited.",
-      "Pricing after a short conversation, because the right number depends on what you hold.",
+      "Start free and build your list. Rs 99 for your first 3 months, then Rs 999 a month, or Rs 5,994 a year (half price).",
       "Open your organisation",
       "Parents' consent, on a link",
       "Start with what you hold",

@@ -59,7 +59,7 @@ export const SELLER = {
 export type ReceiptInput = {
   orgName: string
   plan: "firm" | "institution"
-  interval: "month" | "year"
+  interval: "pack" | "month" | "year"
   amountPaise: number
   periodStart: string
   confirmedAt: string
@@ -69,7 +69,7 @@ export type ReceiptInput = {
 
 export function renderReceipt(d: ReceiptInput): Rendered {
   const planLabel = d.plan === "institution" ? "Institution edition" : "Firm edition"
-  const intervalLabel = d.interval === "year" ? "Yearly" : "Monthly"
+  const intervalLabel = d.interval === "pack" ? "Trial pack" : d.interval === "year" ? "Yearly" : "Monthly"
   const subject = `Your VERIDIAN receipt -- ${oneLine(d.orgName)} (${rupees(d.amountPaise)})`
   const lines = [
     `Thank you -- your payment for ${d.orgName} is confirmed.`,

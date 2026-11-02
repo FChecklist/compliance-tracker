@@ -1,18 +1,21 @@
 /// <reference types="bun-types" />
-// DPDP account opening, plans, firm verification and the billing state machine (drizzle/0734_dpdp_account_opening_plans_billing.sql).
-// Offline proof on PGlite (real Postgres as WASM): the live database is never touched. The WHOLE migration file is executed, not copies of its
-// functions, on top of stand-in base tables. The older functions it builds on (caller identity/membership, the event writer, the money function,
-// the owner check, the partner notice) are copied out of their own migration files at run time, so a change to them is seen here.
+// DPDP account opening, plans, the declaration and the billing state machine (drizzle/0734_dpdp_account_opening_plans_billing.sql) AS THEY ARE
+// AFTER the new pricing (drizzle/0755: a Rs 99 three-month trial pack, Rs 999 a month with yearly at half price, and Rs 20 a month per client beyond
+// ten for a Professional). The new price rules themselves are pinned in dpdp-pricing-pack.pglite.test.ts; this file keeps the state machine, the
+// lock, mark-paid, the partner commission and the e-mail worklist honest on the post-0755 database.
+// Offline proof on PGlite (real Postgres as WASM): the live database is never touched. The WHOLE migration files are executed (0734, 0735, 0748, 0755),
+// not copies of their functions, on top of stand-in base tables. The older functions they build on (caller identity/membership, the event writer, the
+// money function, the owner check, the partner notice) are copied out of their own migration files at run time, so a change to them is seen here.
 //
 // Four things are stand-ins and say so: dpdp_create_my_org and the original dpdp_create_client_org (their own tests live elsewhere; here they
-// create just enough and record the referral code they were handed), and the three money RPCs' originals (they call the gate, which is what the
-// allow flag has to get past).
+// create just enough and record the referral code they were handed), the three money RPCs' originals (they call the gate, which is what the
+// allow flag has to get past), and dpdp.payment_attempt (only the columns the pay RPC writes).
 //
 // What this pins: the state machine at every boundary and against the browser's copy (dpdp-app/src/lib/billing-state.ts); the plan price an
-// account signs up at and keeps (offer window, partner code, no price below the offer without the owner); the client cap; firm verification
-// (owner-only, audited, free only when verified); the lock (working screens and the AI link refuse, the always-open actions work, a payment
-// unlocks); the partner commission (50% of the price actually paid, first 12 months); the billing e-mail worklist (opt-outs, weekly, final
-// download); and that none of the events this flow writes carries an e-mail address.
+// account signs up at and keeps (offer window, partner code, no price below the offer without the owner); the client cap; the practitioner
+// declaration (a record only: nobody is free); the lock (working screens and the AI link refuse, the always-open actions work, a payment
+// unlocks); the partner commission (50% of the price actually paid, first 12 months, never on the pack); the billing e-mail worklist (opt-outs,
+// weekly, final download); and that none of the events this flow writes carries an e-mail address.
 //
 // Run: bun test --isolate src/lib/services/dpdp-account-billing.pglite.test.ts
 import { beforeAll, describe, expect, test } from 'bun:test'
@@ -23,6 +26,17 @@ import { billingState, dueLine, finalDownloadDue, periodEnd, DEFAULT_BILLING_SET
 const F0733 = 'drizzle/0733_dpdp_visitor_journey.sql'
 const F0734 = 'drizzle/0734_dpdp_account_opening_plans_billing.sql'
 const F0735 = 'drizzle/0735_dpdp_test_live_mode_profile_capture.sql'
+const F0748 = 'drizzle/0748_dpdp_terms_acceptance.sql'
+const F0755 = 'drizzle/0755_dpdp_pricing_trial_pack_and_per_client.sql'
+/** The two ticks the live sign-up and pay doors now demand (0748). */
+const TICK = `dpdp.terms_current_version(), true`
+/** dpdp.payment_attempt as 0673 + 0747 leave it, cut down to the columns the pay RPC writes (the interval check is the one 0755 widens). */
+const PAYMENT_ATTEMPT_SQL = `create table dpdp.payment_attempt (
+  id text primary key, org_id text not null references dpdp.organisation (id), plan text not null check (plan in ('firm', 'institution')),
+  "interval" text not null constraint payment_attempt_interval_check check ("interval" in ('month', 'year')), amount_paise integer not null check (amount_paise > 0),
+  created_by_identity_id text, product text, variation text, status text not null default 'created',
+  created_at timestamp not null default (clock_timestamp() at time zone 'UTC')
+)`
 
 let db: PGlite
 const as = (email: string) => db.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify(email ? { email } : {})])
@@ -33,15 +47,19 @@ const iso = (d: Date) => d.toISOString().slice(0, 19).replace('T', ' ')
 const DAY = 86_400_000
 const ago = (days: number) => iso(new Date(Date.now() - days * DAY))
 let n = 0
-/** The offer on the institution plan ends yesterday (new sign-ups pay the list price); restoreOffer puts it back to a long window. */
-const endOffer = () => db.query(`update dpdp.plan set offer_starts_on = date '2020-01-01', offer_ends_on = current_date - 1 where key = 'institution'`)
-const restoreOffer = () => db.query(`update dpdp.plan set offer_starts_on = date '2026-10-06', offer_ends_on = date '2099-12-31' where key = 'institution'`)
+/**
+ * The festive-offer MECHANICS (0734) still work and are still tested, on a fixture: list Rs 801, offer Rs 399. The real plan row after 0755 is Rs 999 with
+ * no offer. festiveOffer starts the fixture, endOffer lets its window lapse (new sign-ups pay the fixture's list price), restoreOffer puts the real row back.
+ */
+const festiveOffer = () => db.query(`update dpdp.plan set list_monthly_paise = 80100, offer_monthly_paise = 39900, offer_starts_on = date '2026-10-06', offer_ends_on = date '2099-12-31' where key = 'institution'`)
+const endOffer = () => db.query(`update dpdp.plan set list_monthly_paise = 80100, offer_monthly_paise = 39900, offer_starts_on = date '2020-01-01', offer_ends_on = current_date - 1 where key = 'institution'`)
+const restoreOffer = () => db.query(`update dpdp.plan set list_monthly_paise = 99900, offer_monthly_paise = 99900, offer_starts_on = null, offer_ends_on = null where key = 'institution'`)
 
 /** A fresh owner (identity, e-mail) with an account opened through the real dpdp_open_account. Returns the org id. */
 async function openAccount(kind: 'firm' | 'institution', extra: Partial<{ body: string; reg: string; ref: string; sp: string; tag: string; seen: string; billing: string }> = {}) {
   const email = `owner${++n}@acct.test`
   await as(email)
-  const r = await one<J>(`select public.dpdp_open_account($1, $2, $3, $4, $5, $6, $7, $8, $9) as r`, [kind, `Org ${n}`, extra.body ?? null, extra.reg ?? null, extra.ref ?? null, extra.sp ?? null, extra.tag ?? null, extra.seen ?? null, extra.billing ?? null])
+  const r = await one<J>(`select public.dpdp_open_account($1, $2, $3, $4, $5, $6, $7, $8, $9, ${TICK}) as r`, [kind, `Org ${n}`, extra.body ?? null, extra.reg ?? null, extra.ref ?? null, extra.sp ?? null, extra.tag ?? null, extra.seen ?? null, extra.billing ?? null])
   return { email, orgId: r.orgId as string, r }
 }
 const account = async (orgId: string) => (await rows<J>(`select * from dpdp.account where org_id = $1`, [orgId]))[0]
@@ -63,44 +81,48 @@ beforeAll(async () => {
   await db.exec(read(F0733))
   await db.exec(read(F0734))
   await db.exec(read(F0735))
+  await db.exec(read(F0748))
+  await db.exec(PAYMENT_ATTEMPT_SQL)
+  await db.exec(read(F0755))
   await db.query(`insert into dpdp.platform_admin (email) values ('admin@veridian.test')`)
   await db.query(`insert into dpdp.identity (id, primary_email) values ('i_admin', 'admin@veridian.test')`)
   await db.query(`insert into dpdp.identity_email (id, identity_id, email, is_primary) values ('ie_admin', 'i_admin', 'admin@veridian.test', true)`)
 }, 180_000)
 
-describe('the migration file itself', () => {
-  test('runs a second time without error (every statement is re-runnable, and the renames are guarded)', async () => {
-    await db.exec(read(F0734))
-    await db.exec(read(F0735))
+describe('the migration files themselves', () => {
+  test('0755 runs a second time without error and leaves the prices where the owner set them (it only moves a price that still holds the old value)', async () => {
+    // (0734 is not re-run here on purpose: after 0748 renamed its sign-up function away, running it again would put the old name back.)
+    await db.exec(read(F0755))
     expect((await rows(`select to_regprocedure('public.dpdp__my_billing_core(text)') is not null as ok`))[0].ok).toBe(true)
     expect((await rows(`select to_regprocedure('public.dpdp__create_client_org_core(text, text, text)') is not null as ok`))[0].ok).toBe(true)
     // the wrapper is still the public name (a re-run did not rename it onto the core)
     expect((await rows(`select prosrc like '%allow_locked%' as ok from pg_proc where proname = 'dpdp_my_billing'`))[0].ok).toBe(true)
+    const p = await rows<J>(`select key, list_monthly_paise, active from dpdp.plan where key in ('institution', 'firm') order by key`)
+    expect(p).toEqual([{ key: 'firm', list_monthly_paise: 99900, active: true }, { key: 'institution', list_monthly_paise: 99900, active: true }])
+    expect((await rows<J>(`select yearly_months_charged as y from dpdp.billing_setting`))[0].y).toBe(6)
   })
 
-  test('seeds the plans exactly as the Owner gave them (list and offer, per month, paise)', async () => {
-    const plans = await rows<J>(`select key, account_type, max_clients, list_monthly_paise, offer_monthly_paise, requires_verified from dpdp.plan order by sort_order`)
-    expect(plans.map((p) => [p.key, p.account_type, p.max_clients, p.list_monthly_paise, p.offer_monthly_paise, p.requires_verified])).toEqual([
-      ['institution', 'institution', 0, 80100, 39900, false],
-      ['firm_free', 'firm', 0, 0, 0, true],
-      ['firm_starter', 'firm', 10, 80100, 39900, false],
-      ['firm_growth', 'firm', 100, 200100, 99900, false],
-      ['firm_practice', 'firm', 500, 400100, 199900, false],
-      ['firm_large', 'firm', 1000, 600100, 299900, false],
+  test('the plans after 0755: one Professional plan (Rs 999, ten clients included, Rs 20 each beyond), one Organisation plan (Rs 999); the old tiers and the free plan are off but not deleted', async () => {
+    const plans = await rows<J>(`select key, account_type, name, active, list_monthly_paise, offer_monthly_paise, included_clients, extra_client_monthly_paise, requires_verified from dpdp.plan order by sort_order`)
+    expect(plans.filter((p) => p.active).map((p) => [p.key, p.account_type, p.name, p.list_monthly_paise, p.offer_monthly_paise, p.included_clients, p.extra_client_monthly_paise])).toEqual([
+      ['institution', 'institution', 'Organisation', 99900, 99900, 0, 0],
+      ['firm', 'firm', 'Professional', 99900, 99900, 10, 2000],
     ])
+    expect(plans.filter((p) => !p.active).map((p) => p.key)).toEqual(['firm_free', 'firm_starter', 'firm_growth', 'firm_practice', 'firm_large'])
     const s = (await rows<J>(`select * from dpdp.billing_setting`))[0]
-    expect([s.trial_days, s.due_days, s.grace_days, s.yearly_months_charged, Number(s.commission_percent), s.commission_months, s.attribution_window_days]).toEqual([30, 1, 7, 10, 50, 12, 30])
+    expect([s.trial_days, s.due_days, s.grace_days, s.yearly_months_charged, Number(s.commission_percent), s.commission_months, s.attribution_window_days, s.pack_price_paise, s.pack_days, s.pack_max_clients])
+      .toEqual([30, 1, 7, 6, 50, 12, 30, 9900, 90, 10])
   })
 
-  test('the plans are public: dpdp_public_plans answers anon and shows the offer wording, never "discount applied"', async () => {
+  test('the plans are public: dpdp_public_plans answers anon with the two live plans, the new keys beside the old ones, never "discount applied"', async () => {
     const plans = await one<J[]>(`select public.dpdp_public_plans() as r`)
-    expect(plans.length).toBe(6)
+    expect(plans.map((p) => p.key)).toEqual(['institution', 'firm'])
     const inst = plans.find((p) => p.key === 'institution')!
-    expect(inst.monthlyPaise).toBe(39900)
-    expect(inst.listMonthlyPaise).toBe(80100)
-    expect(inst.offerLabel).toBe('Festive offer: 50% off')
+    expect(inst).toMatchObject({ monthlyPaise: 99900, listMonthlyPaise: 99900, offerLabel: null, yearlyMonthsCharged: 6, packPricePaise: 9900, packDays: 90, packMaxClients: 10 })
+    const firm = plans.find((p) => p.key === 'firm')!
+    expect(firm).toMatchObject({ monthlyPaise: 99900, includedClients: 10, extraClientMonthlyPaise: 2000, maxClients: 10 })
     expect(JSON.stringify(plans).toLowerCase()).not.toContain('discount')
-    expect(plans.find((p) => p.key === 'firm_free')!.offerLabel).toBeNull()
+    expect(plans.some((p) => p.key === 'firm_free')).toBe(false)
   })
 })
 
@@ -167,19 +189,26 @@ describe('the state machine, at every boundary', () => {
 })
 
 describe('opening an account', () => {
-  test('an institution: owner membership, the account row, the offer price locked in, nothing paid, no payment row', async () => {
+  test('an institution: owner membership, the account row, the Rs 999 price locked in, nothing paid, no payment row', async () => {
     const { orgId, r } = await openAccount('institution')
-    expect(r).toMatchObject({ ok: true, accountType: 'institution', planKey: 'institution', monthlyPaise: 39900, listMonthlyPaise: 80100, offerActive: true, attribution: 'none', verification: 'none' })
+    expect(r).toMatchObject({ ok: true, accountType: 'institution', planKey: 'institution', monthlyPaise: 99900, listMonthlyPaise: 99900, offerActive: false, attribution: 'none', verification: 'none' })
     const a = await account(orgId)
-    expect(a).toMatchObject({ account_type: 'institution', plan_key: 'institution', locked_monthly_paise: 39900, verification_status: 'none', paid_until: null })
+    expect(a).toMatchObject({ account_type: 'institution', plan_key: 'institution', locked_monthly_paise: 99900, verification_status: 'none', paid_until: null, pack_paid_at: null, first_paid_at: null })
     expect((await rows(`select 1 from dpdp.payment where org_id = $1`, [orgId])).length).toBe(0)
     expect(await stateOf(orgId)).toBe('TRIAL')
   })
 
-  test('a firm opens on Starter (up to 10 clients) at the offer price, NOT free, whatever it says about itself', async () => {
+  test('a firm opens on the one Professional plan at Rs 999 (ten clients included), NOT free, whatever it says about itself', async () => {
     const { orgId, r } = await openAccount('firm')
-    expect(r.planKey).toBe('firm_starter')
-    expect((await account(orgId)).locked_monthly_paise).toBe(39900)
+    expect(r.planKey).toBe('firm')
+    expect((await account(orgId)).locked_monthly_paise).toBe(99900)
+  })
+
+  test('opening an account without ticking the Terms box is refused (0748), and nothing is created', async () => {
+    await as('untick@acct.test')
+    const before = (await rows(`select count(*)::int as c from dpdp.account`))[0].c
+    await expect(db.query(`select public.dpdp_open_account('institution', 'No tick')`)).rejects.toThrow(/Please tick the box to continue/)
+    expect((await rows(`select count(*)::int as c from dpdp.account`))[0].c).toBe(before)
   })
 
   test('professional details at opening are optional and never block: stored when they fit, left out when they do not, never "pending", never an event about checking', async () => {
@@ -188,7 +217,7 @@ describe('opening an account', () => {
     expect(await account(orgId)).toMatchObject({ professional_body: 'ICAI', registration_no: '123456/W100', verification_status: 'none' })
     await as('bad@acct.test')
     for (const args of ["'ICAI', null", "'BAR', '123456'", "'ICSI', 'a;drop table'"] as const) {
-      const out = await one<J>(`select public.dpdp_open_account('firm', 'X', ${args}) as r`)
+      const out = await one<J>(`select public.dpdp_open_account('firm', 'X', ${args}, p_terms_version => dpdp.terms_current_version(), p_terms_accepted => true) as r`)
       expect(out.ok).toBe(true)
       await db.query(`delete from dpdp.account where org_id = $1`, [out.orgId])
       await db.query(`delete from dpdp.membership where org_id = $1`, [out.orgId])
@@ -199,27 +228,45 @@ describe('opening an account', () => {
     const inst = await openAccount('institution', { body: 'ICSI', reg: '123456' })
     expect(await account(inst.orgId)).toMatchObject({ professional_body: null, registration_no: null })
     await as('bad2@acct.test')
-    await expect(db.query(`select public.dpdp_open_account('hospital', 'X')`)).rejects.toThrow(/Choose whether/)
+    await expect(db.query(`select public.dpdp_open_account('hospital', 'X', p_terms_version => dpdp.terms_current_version(), p_terms_accepted => true)`)).rejects.toThrow(/Choose whether/)
   })
 
-  test('once the offer window has ended a NEW sign-up pays the list price; an account that signed up earlier keeps what it signed up at', async () => {
-    const early = await openAccount('institution')
-    await endOffer()
-    const late = await openAccount('institution')
-    expect((await account(late.orgId)).locked_monthly_paise).toBe(80100)
-    expect(late.r.offerActive).toBe(false)
-    expect((await account(early.orgId)).locked_monthly_paise).toBe(39900)
-    await as(early.email)
-    const mine = await one<J>(`select public.dpdp_my_account($1) as r`, [early.orgId])
-    expect(mine.money.monthlyPaise).toBe(39900) // what the account shows the owner is what it signed up at, not today's list price
-    await restoreOffer()
+  test('the offer MECHANICS (a fixture of Rs 801 list, Rs 399 offer): once the window has ended a NEW sign-up pays the list price; an earlier account keeps what it signed up at', async () => {
+    try {
+      await festiveOffer()
+      const early = await openAccount('institution')
+      expect(early.r).toMatchObject({ monthlyPaise: 39900, listMonthlyPaise: 80100, offerActive: true })
+      await endOffer()
+      const late = await openAccount('institution')
+      expect((await account(late.orgId)).locked_monthly_paise).toBe(80100)
+      expect(late.r.offerActive).toBe(false)
+      expect((await account(early.orgId)).locked_monthly_paise).toBe(39900)
+      await as(early.email)
+      const mine = await one<J>(`select public.dpdp_my_account($1) as r`, [early.orgId])
+      expect(mine.money.monthlyPaise).toBe(39900) // what the account shows the owner is what it signed up at, not today's list price
+    } finally {
+      await restoreOffer()
+    }
   })
 
-  test('the yearly price is ten months of the monthly price actually signed up at', async () => {
+  test('the yearly price is six months (half price) of the monthly price actually signed up at, and the monthly is shown beside it', async () => {
     const { email, orgId } = await openAccount('institution')
     await as(email)
     const mine = await one<J>(`select public.dpdp_my_account($1) as r`, [orgId])
-    expect(mine.money).toMatchObject({ monthPaise: 39900, yearPaise: 399000, offerLabel: 'Festive offer: 50% off' })
+    expect(mine.money).toMatchObject({ monthPaise: 99900, yearPaise: 599400, monthlyPaise: 99900, offerLabel: null, yearlyMonthsCharged: 6 })
+  })
+
+  test('an offer fixture still shows its wording on the account: "Festive offer: 50% off", never "discount applied"', async () => {
+    try {
+      await festiveOffer()
+      const { email, orgId } = await openAccount('institution')
+      await as(email)
+      const mine = await one<J>(`select public.dpdp_my_account($1) as r`, [orgId])
+      expect(mine.money).toMatchObject({ monthPaise: 39900, yearPaise: 239400, offerLabel: 'Festive offer: 50% off' })
+      expect(JSON.stringify(mine).toLowerCase()).not.toContain('discount')
+    } finally {
+      await restoreOffer()
+    }
   })
 
   test('a double click returns the same account and does not open a second one', async () => {
@@ -227,10 +274,11 @@ describe('opening an account', () => {
     await as(email)
     const before = (await rows(`select count(*)::int as c from dpdp.account`))[0].c
     // the stand-in sign-up never answers "existing"; make it do so for this one call, as the real function does for a repeat within 10 minutes
-    const stub = BASE_SQL.match(/create function public\.dpdp_create_my_org[\s\S]*?end \$f\$;/)![0].replace('create function', 'create or replace function')
+    // (after 0748 the stand-in lives under the core's name; the public dpdp_create_my_org is the wrapper that checks the tick)
+    const stub = BASE_SQL.match(/create function public\.dpdp_create_my_org[\s\S]*?end \$f\$;/)![0].replace('create function public.dpdp_create_my_org', 'create or replace function public.dpdp__create_my_org_core')
     try {
-      await db.query(`create or replace function public.dpdp_create_my_org(p_name text, p_product text, p_referral_code text default null) returns jsonb language sql as $f$ select jsonb_build_object('ok', true, 'orgId', '${orgId}', 'existing', true) $f$`)
-      const again = await one<J>(`select public.dpdp_open_account('institution', 'Org', null, null, null, null, null, null, null) as r`)
+      await db.query(`create or replace function public.dpdp__create_my_org_core(p_name text, p_product text, p_referral_code text default null) returns jsonb language sql as $f$ select jsonb_build_object('ok', true, 'orgId', '${orgId}', 'existing', true) $f$`)
+      const again = await one<J>(`select public.dpdp_open_account('institution', 'Org', null, null, null, null, null, null, null, ${TICK}) as r`)
       expect(again.accountExisting).toBe(true)
       expect((await rows(`select count(*)::int as c from dpdp.account`))[0].c).toBe(before)
     } finally {
@@ -283,17 +331,17 @@ describe('where the sale came from (attribution) and the partner code', () => {
   test('nobody earns on their own account: a partner opening an account with their own code gets no attribution', async () => {
     const partner = await addPartner('p3', 'PARTNER3')
     await as('p3@partner.test')
-    const r = await one<J>(`select public.dpdp_open_account('institution', 'Own', null, null, null, 'PARTNER3') as r`)
+    const r = await one<J>(`select public.dpdp_open_account('institution', 'Own', null, null, null, 'PARTNER3', p_terms_version => dpdp.terms_current_version(), p_terms_accepted => true) as r`)
     expect((await account(r.orgId)).attributed_identity_id).toBeNull()
     expect(partner).toBeTruthy()
   })
 
-  test('a partner code applies the active offer and tags the sale; it never goes below the offer without the Owner (extra percent needs approval)', async () => {
+  test('a partner code applies the plan price and tags the sale; it never goes below it without the Owner (extra percent needs approval)', async () => {
     const partner = await addPartner('p4', 'PARTNER4')
     await as('admin@veridian.test')
     await db.query(`select public.dpdp_owner_set_partner_code($1, 'FEST4', 0, true)`, [partner])
     const plain = await openAccount('institution', { sp: 'FEST4' })
-    expect((await account(plain.orgId)).locked_monthly_paise).toBe(39900) // exactly the offer, no lower
+    expect((await account(plain.orgId)).locked_monthly_paise).toBe(99900) // exactly the plan price, no lower
     expect(await account(plain.orgId)).toMatchObject({ source_kind: 'partner', partner_code: 'FEST4', attributed_identity_id: partner })
     // the table itself refuses an extra percentage that nobody approved
     await expect(db.query(`insert into dpdp.partner_offer_code (code, partner_identity_id, extra_percent_off) values ('SNEAK4', $1, 10)`, [partner])).rejects.toThrow()
@@ -304,12 +352,12 @@ describe('where the sale came from (attribution) and the partner code', () => {
     await as('admin@veridian.test')
     await db.query(`select public.dpdp_owner_set_partner_code($1, 'FEST4', 10, true)`, [partner])
     const approved = await openAccount('institution', { sp: 'FEST4' })
-    expect((await account(approved.orgId)).locked_monthly_paise).toBe(Math.round(39900 * 0.9))
+    expect((await account(approved.orgId)).locked_monthly_paise).toBe(Math.round(99900 * 0.9))
     const other = await openAccount('institution')
-    expect((await account(other.orgId)).locked_monthly_paise).toBe(39900)
+    expect((await account(other.orgId)).locked_monthly_paise).toBe(99900)
   })
 
-  test('a partner code that is not active, or whose partner is not active, is ignored (the sign-up still works, at the offer)', async () => {
+  test('a partner code that is not active, or whose partner is not active, is ignored (the sign-up still works, at the plan price)', async () => {
     const partner = await addPartner('p5', 'PARTNER5')
     await as('admin@veridian.test')
     await db.query(`select public.dpdp_owner_set_partner_code($1, 'OFF555', 0, false)`, [partner])
@@ -332,7 +380,7 @@ describe('where the sale came from (attribution) and the partner code', () => {
   })
 })
 
-describe('self-declared firms: no owner verification, free is the practitioner declaration, the owner may downgrade', () => {
+describe('the practitioner declaration is a record only: nobody is free, a firm opens on Professional and is billed like any other', () => {
   const declare = (v: boolean) => db.query(`select public.dpdp_account_save_profile($1::jsonb)`, [JSON.stringify({ practitionerDeclared: v })])
 
   test('the owner-verifies gate is gone: its three functions no longer exist', async () => {
@@ -341,29 +389,29 @@ describe('self-declared firms: no owner verification, free is the practitioner d
     }
   })
 
-  test('a firm that gives a professional body and number at opening is NOT on the free plan until it ticks the declaration', async () => {
+  test('a firm that gives a professional body and number at opening is on the Professional plan at Rs 999, status "none" until it ticks the declaration', async () => {
     const { orgId, r } = await openAccount('firm', { body: 'ICAI', reg: '123456/W100' })
     expect(r.verification).toBe('none')
-    expect(await account(orgId)).toMatchObject({ professional_body: 'ICAI', registration_no: '123456/W100', verification_status: 'none', plan_key: 'firm_starter', locked_monthly_paise: 39900 })
+    expect(await account(orgId)).toMatchObject({ professional_body: 'ICAI', registration_no: '123456/W100', verification_status: 'none', plan_key: 'firm', locked_monthly_paise: 99900 })
     expect((await rows(`select 1 from dpdp.event where org_id = $1 and kind like 'firm_verification%'`, [orgId])).length).toBe(0)
   })
 
-  test('the declaration is the free own-use plan at once: audited without the number or any e-mail, free for ever, and it can be withdrawn', async () => {
+  test('the declaration changes NOTHING about the price: audited without the number or any e-mail, the firm stays on Professional, still in its trial, and it can be withdrawn', async () => {
     const { email, orgId } = await openAccount('firm', { body: 'ICMAI', reg: 'CMA-99887' })
     await as(email)
-    await expect(db.query(`select public.dpdp_account_choose_plan('firm_free')`)).rejects.toThrow(/practising CA, CS and cost accountants/)
+    await expect(db.query(`select public.dpdp_account_choose_plan('firm_free')`)).rejects.toThrow(/not available for this kind of account/) // the free plan is switched off
     const r = await one<J>(`select public.dpdp_account_save_profile('{"practitionerDeclared": true}'::jsonb) as r`)
-    expect(r).toMatchObject({ ok: true, status: 'declared', planKey: 'firm_free' })
-    expect(await account(orgId)).toMatchObject({ verification_status: 'declared', plan_key: 'firm_free', locked_monthly_paise: 0 })
+    expect(r).toMatchObject({ ok: true, status: 'declared', planKey: 'firm', note: null })
+    expect(await account(orgId)).toMatchObject({ verification_status: 'declared', plan_key: 'firm', locked_monthly_paise: 99900 })
     const ev = await rows<J>(`select kind, summary, detail from dpdp.event where org_id = $1 and kind in ('firm_self_declared', 'plan_chosen')`, [orgId])
-    expect(ev.map((e) => e.kind).sort()).toEqual(['firm_self_declared', 'plan_chosen'])
+    expect(ev.map((e) => e.kind)).toEqual(['firm_self_declared']) // no "plan_chosen": nothing was chosen
     expect(JSON.stringify(ev)).not.toMatch(/CMA-99887|@/)
-    expect(await stateOf(orgId)).toBe('ACTIVE')
-    await setClock(orgId, 400, null) // active for ever, even with the clock far past the trial
-    expect(await stateOf(orgId)).toBe('ACTIVE')
-    await db.query(`select public.t_work()`) // and its working screens open
+    expect(await stateOf(orgId)).toBe('TRIAL') // not ACTIVE: a declared practitioner is billed like everyone else
+    await setClock(orgId, 400, null) // and when the trial is long over, working screens close
+    expect(await stateOf(orgId)).toBe('LOCKED')
+    await expect(db.query(`select public.t_work()`)).rejects.toThrow(/Payment is due/)
     await declare(false)
-    expect(await account(orgId)).toMatchObject({ verification_status: 'none', plan_key: 'firm_starter', locked_monthly_paise: 39900 })
+    expect(await account(orgId)).toMatchObject({ verification_status: 'none', plan_key: 'firm', locked_monthly_paise: 99900 })
   })
 
   test('the membership number is optional (declaring without one works) and its format is only checked, per body, for information', async () => {
@@ -387,7 +435,7 @@ describe('self-declared firms: no owner verification, free is the practitioner d
     expect(await account(a.orgId)).toMatchObject({ professional_body: 'ICAI', registration_no: '123456', registration_format_ok: true })
   })
 
-  test('a declaration needs a firm account, and a firm with clients keeps its plan', async () => {
+  test('a declaration needs a firm account; a firm with clients declares just the same and keeps its plan (no "own file, no clients" note any more)', async () => {
     const inst = await openAccount('institution')
     await as(inst.email)
     const r = await one<J>(`select public.dpdp_account_save_profile('{"practitionerDeclared": true}'::jsonb) as r`)
@@ -397,8 +445,7 @@ describe('self-declared firms: no owner verification, free is the practitioner d
     await as(f.email)
     await db.query(`select public.dpdp_create_client_org('A client', 'dpdp')`)
     const r2 = await one<J>(`select public.dpdp_account_save_profile('{"practitionerDeclared": true}'::jsonb, $1) as r`, [f.orgId])
-    expect(r2).toMatchObject({ status: 'declared', planKey: 'firm_starter' })
-    expect(r2.note).toMatch(/own file, with no clients/)
+    expect(r2).toMatchObject({ status: 'declared', planKey: 'firm', note: null })
   })
 
   test('only the platform owner sees the declared firms and may downgrade one; an ordinary owner and an anonymous caller are refused', async () => {
@@ -412,17 +459,17 @@ describe('self-declared firms: no owner verification, free is the practitioner d
     }
     await as('admin@veridian.test')
     const list = await one<J[]>(`select public.dpdp_owner_declared_firms() as r`)
-    expect(list.find((x) => x.orgId === orgId)).toMatchObject({ status: 'declared', professionalBody: 'ICAI', registrationNo: '445566', formatOk: true, planKey: 'firm_free', isTest: false })
+    expect(list.find((x) => x.orgId === orgId)).toMatchObject({ status: 'declared', professionalBody: 'ICAI', registrationNo: '445566', formatOk: true, planKey: 'firm', isTest: false })
   })
 
-  test('downgrade to paid: audited, back on Starter at today\'s price, and the firm cannot declare itself free again', async () => {
+  test('the owner\'s downgrade: audited, the firm stays on Professional at its signed-up price, and it cannot declare itself again', async () => {
     const { email, orgId } = await openAccount('firm', { body: 'ICAI', reg: '000111' })
     await as(email)
     await declare(true)
     await as('admin@veridian.test')
     const r = await one<J>(`select public.dpdp_owner_downgrade_firm($1, 'abuse review') as r`, [orgId])
-    expect(r).toMatchObject({ ok: true, status: 'downgraded', planKey: 'firm_starter' })
-    expect(await account(orgId)).toMatchObject({ verification_status: 'downgraded', plan_key: 'firm_starter', locked_monthly_paise: 39900 })
+    expect(r).toMatchObject({ ok: true, status: 'downgraded', planKey: 'firm' })
+    expect(await account(orgId)).toMatchObject({ verification_status: 'downgraded', plan_key: 'firm', locked_monthly_paise: 99900 })
     const ev = await rows<J>(`select kind, detail from dpdp.event where org_id = $1 and kind = 'firm_downgraded'`, [orgId])
     expect(ev.length).toBe(1)
     expect(JSON.stringify(ev)).not.toMatch(/000111|@/)
@@ -437,57 +484,60 @@ describe('self-declared firms: no owner verification, free is the practitioner d
     await expect(db.query(`select public.dpdp_owner_downgrade_firm($1)`, [inst.orgId])).rejects.toThrow(/No such firm account/)
   })
 
-  test('"free" is decided by the declaration plus a free plan, not by the plan name alone', async () => {
+  test('nobody is free: even an old row forced onto the retired free plan with a declaration on it is billed (dpdp.account_is_free is always false)', async () => {
     const { orgId } = await openAccount('firm')
-    await db.query(`update dpdp.account set plan_key = 'firm_free', locked_monthly_paise = 0 where org_id = $1`, [orgId]) // forced: no declaration
+    await db.query(`update dpdp.account set plan_key = 'firm_free', locked_monthly_paise = 0, verification_status = 'declared' where org_id = $1`, [orgId])
     await setClock(orgId, 100, null)
     expect(await stateOf(orgId)).toBe('LOCKED')
-    await db.query(`update dpdp.account set verification_status = 'declared' where org_id = $1`, [orgId])
-    expect(await stateOf(orgId)).toBe('ACTIVE')
-    await db.query(`update dpdp.account set verification_status = 'downgraded' where org_id = $1`, [orgId])
-    expect(await stateOf(orgId)).toBe('LOCKED')
+    expect((await one<J>(`select dpdp.account_is_free(a) as r from dpdp.account a where a.org_id = $1`, [orgId])) as unknown as boolean).toBe(false)
   })
 })
 
-describe('the client cap, enforced on the server when a firm adds a client organisation', () => {
+describe('the client cap: ten until the first monthly or yearly payment, then none (the price follows the number of clients)', () => {
   const addClient = (name = 'Client') => db.query(`select public.dpdp_create_client_org($1, 'institution')`, [name])
   const used = async (firm: string) => (await rows<J>(`select count(*)::int as c from dpdp.account_client where firm_org_id = $1`, [firm]))[0].c as number
 
-  test('Starter covers 10: the 11th is refused in calm words, and nothing is created for it', async () => {
+  test('on the free 30 days the 11th client is refused in calm words about the trial pack, and nothing is created for it', async () => {
     const { email, orgId } = await openAccount('firm')
     await as(email)
     for (let i = 1; i <= 10; i++) await addClient(`C${i}`)
     expect(await used(orgId)).toBe(10)
     const before = (await rows<J>(`select count(*)::int as c from public.t_core_client_calls`))[0].c
-    await expect(addClient('C11')).rejects.toThrow(/Your plan covers up to 10 client organisations\. To add more, choose a bigger plan\./)
+    await expect(addClient('C11')).rejects.toThrow(/Your trial pack covers up to 10 client organisations\. To add more, start the monthly or yearly plan: it covers any number of clients \(Rs 20 a month for each client beyond 10\)\./)
     expect((await rows<J>(`select count(*)::int as c from public.t_core_client_calls`))[0].c).toBe(before) // the real creator was never reached
     expect(await used(orgId)).toBe(10)
   })
 
-  test('a bigger plan lifts it; a plan smaller than the clients already managed is refused', async () => {
+  test('the trial PACK does not lift the cap; the first MONTHLY payment does, and from then on the price follows the count', async () => {
     const { email, orgId } = await openAccount('firm')
     await as(email)
     for (let i = 1; i <= 10; i++) await addClient(`D${i}`)
-    await db.query(`select public.dpdp_account_choose_plan('firm_growth', 'month', $1)`, [orgId])
-    await addClient('D11')
-    expect(await used(orgId)).toBe(11)
-    await expect(db.query(`select public.dpdp_account_choose_plan('firm_starter', 'month', $1)`, [orgId])).rejects.toThrow(/You manage 11 client organisations, and this plan covers up to 10/)
-    await expect(db.query(`select public.dpdp_account_choose_plan('institution', 'month', $1)`, [orgId])).rejects.toThrow(/not available for this kind of account/)
-    await expect(db.query(`select public.dpdp_account_choose_plan('nope', 'month', $1)`, [orgId])).rejects.toThrow(/not available/)
-  })
-
-  test('the cap of every rung is the one in the table (10, 100, 500, 1000) and Free is zero', async () => {
-    const caps = await rows<J>(`select key, max_clients from dpdp.plan where account_type = 'firm' order by max_clients`)
-    expect(caps.map((c) => [c.key, c.max_clients])).toEqual([['firm_free', 0], ['firm_starter', 10], ['firm_growth', 100], ['firm_practice', 500], ['firm_large', 1000]])
-  })
-
-  test('Free means zero clients, even for a declared practitioner', async () => {
-    const { email, orgId } = await openAccount('firm', { body: 'ICAI', reg: '135790' })
+    await as('admin@veridian.test')
+    await db.query(`select public.dpdp_owner_mark_paid($1, 'pack')`, [orgId])
     await as(email)
-    await db.query(`select public.dpdp_account_save_profile('{"practitionerDeclared": true}'::jsonb)`)
-    expect((await account(orgId)).plan_key).toBe('firm_free')
-    await expect(addClient()).rejects.toThrow(/Your plan is for your own firm's file/)
-    expect(await used(orgId)).toBe(0)
+    await expect(addClient('D11')).rejects.toThrow(/Your trial pack covers up to 10 client organisations/)
+    let mine = await one<J>(`select public.dpdp_my_account($1) as r`, [orgId])
+    expect(mine.clients).toEqual({ used: 10, cap: 10, included: 10, unlimited: false })
+    await as('admin@veridian.test')
+    await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [orgId])
+    await as(email)
+    await addClient('D11')
+    await addClient('D12')
+    expect(await used(orgId)).toBe(12)
+    mine = await one<J>(`select public.dpdp_my_account($1) as r`, [orgId])
+    expect(mine.clients).toEqual({ used: 12, cap: null, included: 10, unlimited: true })
+    expect(mine.money).toMatchObject({ monthPaise: 99900 + 2 * 2000, yearPaise: (99900 + 2 * 2000) * 6, baseMonthlyPaise: 99900, perClient: { includedClients: 10, extraMonthlyPaise: 2000, clientsCounted: 12, extraClients: 2 } })
+  })
+
+  test('the only plan a firm can choose is Professional; the retired tiers, the free plan and an institution plan are refused', async () => {
+    const { email, orgId } = await openAccount('firm')
+    await as(email)
+    for (const key of ['firm_free', 'firm_starter', 'firm_growth', 'firm_practice', 'firm_large', 'institution', 'nope']) {
+      await expect(db.query(`select public.dpdp_account_choose_plan($1, 'month', $2)`, [key, orgId]), key).rejects.toThrow(/not available/)
+    }
+    const ok = await one<J>(`select public.dpdp_account_choose_plan('firm', 'year', $1) as r`, [orgId])
+    expect(ok).toMatchObject({ ok: true, planKey: 'firm', monthlyPaise: 99900 })
+    expect((await account(orgId)).billing_interval).toBe('year')
   })
 
   test('a client is an organisation, not a user: adding more people to a client does not count', async () => {
@@ -578,9 +628,9 @@ describe('the lock: what refuses, what stays open, and what unlocks', () => {
     await as(email)
     expect((await one<J>(`select public.dpdp_my_billing() as r`)).orgId).toBe(orgId)
     expect((await one<J>(`select public.dpdp_declare_payment('month', 39900, null, 'UTR1', null, null) as r`)).ok).toBe(true)
-    expect((await one<J>(`select public.dpdp_pay_begin('year') as r`)).orgId).toBe(orgId)
+    expect((await one<J>(`select public.dpdp_pay_begin('year', null, ${TICK}) as r`)).orgId).toBe(orgId)
     const mine = await one<J>(`select public.dpdp_my_account() as r`)
-    expect(mine).toMatchObject({ state: 'LOCKED', money: { monthPaise: 39900 } })
+    expect(mine).toMatchObject({ state: 'LOCKED', money: { monthPaise: 99900 } })
     const dl = await one<J>(`select public.dpdp_locked_download() as r`)
     expect(dl.organisation.id).toBe(orgId)
     expect(dl.jobs.map((j: J) => j.job)).toEqual(['Name a Grievance Officer'])
@@ -672,23 +722,22 @@ describe('mark paid (owner only) and what a payment does', () => {
     expect(await stateOf(orgId)).toBe('LOCKED')
   })
 
-  test('marking paid unlocks, books exactly one payment at the price the account signed up at, and is audited without a figure or an address', async () => {
-    const { email, orgId } = await openAccount('institution')
+  test('marking paid unlocks, books exactly one payment at the price the account signed up at, and is audited without a figure or an address', async () => {    const { email, orgId } = await openAccount('institution')
     await setClock(orgId, 100, null)
     await as('admin@veridian.test')
     const r = await one<J>(`select public.dpdp_owner_mark_paid($1, 'month', null, null, 'UTR 998877', 'bank transfer') as r`, [orgId])
     expect(r.ok).toBe(true)
     const pay = await rows<J>(`select plan, "interval", amount_paise, confirmed_note from dpdp.payment where org_id = $1`, [orgId])
-    expect(pay).toEqual([{ plan: 'institution', interval: 'month', amount_paise: 39900, confirmed_note: 'Ref UTR 998877. bank transfer' }])
+    expect(pay).toEqual([{ plan: 'institution', interval: 'month', amount_paise: 99900, confirmed_note: 'Ref UTR 998877. bank transfer' }])
     expect(await stateOf(orgId)).toBe('ACTIVE')
     await as(email)
     await db.query(`select public.t_work()`)
     const ev = await rows<J>(`select kind, summary, detail, actor_label from dpdp.event where org_id = $1 and kind = 'account_marked_paid'`, [orgId])
     expect(ev.length).toBe(1)
-    expect(JSON.stringify(ev)).not.toMatch(/@|39900|UTR/)
+    expect(JSON.stringify(ev)).not.toMatch(/@|99900|UTR/)
   })
 
-  test('paid-until: a month from now when it had lapsed; from the END of the trial when paid during the trial; a year is twelve months for ten months\' price', async () => {
+  test('paid-until: a month from now when it had lapsed; from the END of the trial when paid during the trial; a year is twelve months for six months\' price (half)', async () => {
     const a = await openAccount('institution')
     await setClock(a.orgId, 100, null)
     await as('admin@veridian.test')
@@ -707,7 +756,7 @@ describe('mark paid (owner only) and what a payment does', () => {
     const c = await openAccount('institution')
     await as('admin@veridian.test')
     await db.query(`select public.dpdp_owner_mark_paid($1, 'year')`, [c.orgId])
-    expect((await rows<J>(`select amount_paise from dpdp.payment where org_id = $1`, [c.orgId]))[0].amount_paise).toBe(399000)
+    expect((await rows<J>(`select amount_paise from dpdp.payment where org_id = $1`, [c.orgId]))[0].amount_paise).toBe(599400)
     expect(days(new Date((await account(c.orgId)).paid_until + 'Z'))).toBeGreaterThan(30 + 364)
   })
 
@@ -718,29 +767,33 @@ describe('mark paid (owner only) and what a payment does', () => {
     expect((await rows<J>(`select to_char(paid_until, 'YYYY-MM-DD') as d from dpdp.account where org_id = $1`, [orgId]))[0].d).toBe('2031-06-30')
   })
 
-  test('refusals: a bad interval, an unknown account, a free account with nothing to pay', async () => {
+  test('refusals: a bad interval, an unknown account, and a second trial pack (the pack is once only)', async () => {
     const { orgId } = await openAccount('institution')
     await as('admin@veridian.test')
     await expect(db.query(`select public.dpdp_owner_mark_paid($1, 'week')`, [orgId])).rejects.toThrow(/interval must be/)
     await expect(db.query(`select public.dpdp_owner_mark_paid('nope', 'month')`)).rejects.toThrow(/No such account/)
-    await db.query(`update dpdp.account set plan_key = 'firm_free', account_type = 'firm', locked_monthly_paise = 0 where org_id = $1`, [orgId])
-    await expect(db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [orgId])).rejects.toThrow(/nothing to pay/)
+    await db.query(`select public.dpdp_owner_mark_paid($1, 'pack')`, [orgId])
+    await expect(db.query(`select public.dpdp_owner_mark_paid($1, 'pack')`, [orgId])).rejects.toThrow(/only for an account that has not paid yet/)
   })
 
-  test('a payment that arrives while LOCKED re-prices the account to today\'s plan price; one that arrives while active keeps the price it signed up at', async () => {
-    const a = await openAccount('institution')
-    await endOffer()
-    await as('admin@veridian.test')
-    await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [a.orgId]) // still in its trial: keeps 399
-    expect((await account(a.orgId)).locked_monthly_paise).toBe(39900)
-    const b = await openAccount('institution') // signs up at the LIST price now
-    expect((await account(b.orgId)).locked_monthly_paise).toBe(80100)
-    await setClock(a.orgId, 400, null)
-    await db.query(`update dpdp.account set paid_until = null where org_id = $1`, [a.orgId])
-    await as('admin@veridian.test')
-    await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [a.orgId]) // came back from LOCKED: today's price
-    expect((await account(a.orgId)).locked_monthly_paise).toBe(80100)
-    await restoreOffer()
+  test('a payment that arrives while LOCKED re-prices the account to today\'s plan price; one that arrives while active keeps the price it signed up at (offer fixture)', async () => {
+    try {
+      await festiveOffer()
+      const a = await openAccount('institution')
+      await endOffer()
+      await as('admin@veridian.test')
+      await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [a.orgId]) // still in its trial: keeps 399
+      expect((await account(a.orgId)).locked_monthly_paise).toBe(39900)
+      const b = await openAccount('institution') // signs up at the LIST price now
+      expect((await account(b.orgId)).locked_monthly_paise).toBe(80100)
+      await setClock(a.orgId, 400, null)
+      await db.query(`update dpdp.account set paid_until = null where org_id = $1`, [a.orgId])
+      await as('admin@veridian.test')
+      await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [a.orgId]) // came back from LOCKED: today's price
+      expect((await account(a.orgId)).locked_monthly_paise).toBe(80100)
+    } finally {
+      await restoreOffer()
+    }
   })
 
   test('a claim approved through the existing owner flow (dpdp_record_confirmed_payment, which a Razorpay webhook also reaches) moves paid-until the same way', async () => {
@@ -763,23 +816,37 @@ describe('mark paid (owner only) and what a payment does', () => {
 describe('the partner commission: 50% of what was actually paid, first 12 months, partner-attributed accounts only', () => {
   const commissions = async (orgId: string) => rows<J>(`select base_paise, amount_paise, rate_percent from dpdp.account_commission where org_id = $1 order by created_at`, [orgId])
 
-  test('a first payment earns 50% of the price actually paid (the offer price, not the list price)', async () => {
+  test('a first payment earns 50% of the price actually paid', async () => {
     const partner = await addPartner('c1', 'COMM0001')
     const { orgId } = await openAccount('institution', { sp: 'COMM0001' })
     await as('admin@veridian.test')
     await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [orgId])
-    expect(await commissions(orgId)).toEqual([{ base_paise: 39900, amount_paise: 19950, rate_percent: '50.00' }])
+    expect(await commissions(orgId)).toEqual([{ base_paise: 99900, amount_paise: 49950, rate_percent: '50.00' }])
     const notices = await rows<J>(`select kind, payload from dpdp.partner_notice where identity_id = $1 and kind = 'commission_earned'`, [partner])
     expect(notices.length).toBe(1)
-    expect(notices[0].payload).toEqual({ amountPaise: 19950, basis: 'monthly_first_year' })
+    expect(notices[0].payload).toEqual({ amountPaise: 49950, basis: 'monthly_first_year' })
   })
 
-  test('a yearly payment earns 50% of the ten-month price', async () => {
+  test('a yearly payment earns 50% of the half-price year (six months of the monthly price)', async () => {
     await addPartner('c2', 'COMM0002')
     const { orgId } = await openAccount('institution', { sp: 'COMM0002' })
     await as('admin@veridian.test')
     await db.query(`select public.dpdp_owner_mark_paid($1, 'year')`, [orgId])
-    expect(await commissions(orgId)).toEqual([{ base_paise: 399000, amount_paise: 199500, rate_percent: '50.00' }])
+    expect(await commissions(orgId)).toEqual([{ base_paise: 599400, amount_paise: 299700, rate_percent: '50.00' }])
+  })
+
+  test('the Rs 99 trial pack earns the partner NOTHING; the first monthly payment after it does, and starts the 12 months', async () => {
+    const partner = await addPartner('c5', 'COMM0005')
+    const { orgId } = await openAccount('institution', { sp: 'COMM0005' })
+    await as('admin@veridian.test')
+    await db.query(`select public.dpdp_owner_mark_paid($1, 'pack')`, [orgId])
+    expect(await commissions(orgId)).toEqual([])
+    expect((await rows<J>(`select 1 from dpdp.partner_notice where identity_id = $1 and kind = 'commission_earned'`, [partner])).length).toBe(0)
+    expect(await account(orgId)).toMatchObject({ first_paid_at: null })
+    expect((await account(orgId)).pack_paid_at).not.toBeNull()
+    await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [orgId])
+    expect(await commissions(orgId)).toEqual([{ base_paise: 99900, amount_paise: 49950, rate_percent: '50.00' }])
+    expect((await account(orgId)).first_paid_at).not.toBeNull()
   })
 
   test('payments inside the 12 months keep earning; the first one after 12 months earns nothing; an account with no partner never creates one', async () => {
@@ -798,15 +865,30 @@ describe('the partner commission: 50% of what was actually paid, first 12 months
     expect((await commissions(none.orgId)).length).toBe(0)
   })
 
-  test('commission follows the price that was charged: an owner-approved partner code that went below the offer earns on the lower price', async () => {
+  test('commission follows the price that was charged: an owner-approved partner code that went below the plan price earns on the lower price', async () => {
     const partner = await addPartner('c4', 'COMM0004')
     await as('admin@veridian.test')
     await db.query(`select public.dpdp_owner_set_partner_code($1, 'LOW0004', 20, true)`, [partner])
     const { orgId } = await openAccount('institution', { sp: 'LOW0004' })
-    expect((await account(orgId)).locked_monthly_paise).toBe(31920)
+    expect((await account(orgId)).locked_monthly_paise).toBe(79920)
     await as('admin@veridian.test')
     await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [orgId])
-    expect((await commissions(orgId))[0]).toMatchObject({ base_paise: 31920, amount_paise: 15960 })
+    expect((await commissions(orgId))[0]).toMatchObject({ base_paise: 79920, amount_paise: 39960 })
+  })
+
+  test('a firm\'s commission is on the whole payment, per-client part included', async () => {
+    await addPartner('c6', 'COMM0006')
+    const f = await openAccount('firm', { sp: 'COMM0006' })
+    await as('admin@veridian.test')
+    await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [f.orgId]) // no clients yet: Rs 999; this payment also lifts the ten-client cap
+    await as(f.email)
+    for (let i = 1; i <= 12; i++) await db.query(`select public.dpdp_create_client_org($1, 'institution')`, [`CM${i}`])
+    await as('admin@veridian.test')
+    await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [f.orgId])
+    expect(await commissions(f.orgId)).toEqual([
+      { base_paise: 99900, amount_paise: 49950, rate_percent: '50.00' },
+      { base_paise: 103900, amount_paise: 51950, rate_percent: '50.00' }, // 999 + 2 x 20 = 1,039
+    ])
   })
 })
 
@@ -938,6 +1020,32 @@ describe('the roll-back file (drizzle/down/0734)', () => {
   }, 120_000)
 })
 
+describe('the roll-back file (drizzle/down/0755)', () => {
+  const DOWN = 'drizzle/down/0755_dpdp_pricing_trial_pack_and_per_client.down.sql'
+
+  test('it refuses while a trial-pack payment exists; with none, it puts the plans, the institution price and the ten-month year back and removes the new columns and helpers', async () => {
+    const fresh = new PGlite()
+    await fresh.exec(BASE_SQL)
+    for (const f of [F0733, F0734, F0735, F0748]) await fresh.exec(read(f))
+    await fresh.exec(PAYMENT_ATTEMPT_SQL)
+    await fresh.exec(read(F0755))
+    const q = async <T = J>(sql: string) => (await fresh.query<T>(sql)).rows
+    await fresh.exec(`insert into dpdp.organisation (id, name, slug, product) values ('o_pk', 'Pack org', 'o_pk', 'institution')`)
+    await fresh.exec(`insert into dpdp.payment (id, org_id, plan, "interval", amount_paise) values ('p_pk', 'o_pk', 'institution', 'pack', 9900)`)
+    await expect(fresh.exec(read(DOWN))).rejects.toThrow() // the constraint re-add fails on purpose: refund or re-label the pack first
+    await fresh.exec('rollback')
+    await fresh.exec(`delete from dpdp.payment where id = 'p_pk'`)
+    await fresh.exec(read(DOWN))
+    expect((await q<{ key: string }>(`select key from dpdp.plan where active order by sort_order`)).map((p) => p.key)).toEqual(['institution', 'firm_free', 'firm_starter', 'firm_growth', 'firm_practice', 'firm_large'])
+    expect((await q<J>(`select name, list_monthly_paise, offer_monthly_paise from dpdp.plan where key = 'institution'`))[0]).toEqual({ name: 'Institution', list_monthly_paise: 80100, offer_monthly_paise: 39900 })
+    expect((await q<J>(`select yearly_months_charged as y from dpdp.billing_setting`))[0].y).toBe(10)
+    expect((await q<J>(`select count(*)::int as c from information_schema.columns where table_schema = 'dpdp' and ((table_name = 'billing_setting' and column_name like 'pack_%') or (table_name = 'account' and column_name = 'pack_paid_at') or (table_name = 'plan' and column_name in ('included_clients', 'extra_client_monthly_paise')))`))[0].c).toBe(0)
+    expect((await q<J>(`select count(*)::int as c from pg_proc where proname in ('ensure_account', 'account_charge_paise', 'account_monthly_total_paise', 'account_pack_available', 'account_client_cap')`))[0].c).toBe(0)
+    await expect(fresh.exec(`insert into dpdp.payment (id, org_id, plan, "interval", amount_paise) values ('p_pk2', 'o_pk', 'institution', 'pack', 9900)`)).rejects.toThrow()
+    await fresh.close()
+  }, 180_000)
+})
+
 describe('who can reach what (grants), and the audit trail never carries a person', () => {
   test('the browser roles cannot read or write any of the new tables, and cannot call the internal functions or the cores', async () => {
     const tables = ['billing_setting', 'plan', 'partner_offer_code', 'account', 'account_client', 'account_commission', 'billing_email_optout', 'billing_notice_token', 'billing_notice_sent']
@@ -952,9 +1060,14 @@ describe('who can reach what (grants), and the audit trail never carries a perso
     const internal = ['dpdp.billing_state_calc(boolean, timestamp, timestamp, timestamp, integer, integer, integer)', 'dpdp.assert_not_locked(text)', 'dpdp.account_on_payment()', 'public.dpdp__my_billing_core(text)',
       'public.dpdp__create_client_org_core(text, text, text)', 'public.dpdp__caller_membership_open(text)', 'public.dpdp_billing_due_worklist(timestamptz, integer, boolean)', 'public.dpdp_timer_billing_due_line(text)']
     for (const f of internal) for (const role of ['anon', 'authenticated']) expect((await rows<J>(`select has_function_privilege($1, $2, 'execute') as ok`, [role, f]))[0].ok, `${role} on ${f}`).toBe(false)
-    for (const f of ['public.dpdp_open_account(text, text, text, text, text, text, text, timestamptz, text)', 'public.dpdp_my_account(text)', 'public.dpdp_locked_download(text)', 'public.dpdp_my_billing(text)', 'public.dpdp_create_client_org(text, text, text, text)'])
+    for (const f of ['public.dpdp_open_account(text, text, text, text, text, text, text, timestamptz, text, text, boolean)', 'public.dpdp_my_account(text)', 'public.dpdp_locked_download(text)', 'public.dpdp_my_billing(text)', 'public.dpdp_create_client_org(text, text, text, text)',
+      'public.dpdp_create_my_org(text, text, text, text, boolean)', 'public.dpdp_pay_begin(text, text, text, boolean)'])
       expect((await rows<J>(`select has_function_privilege('authenticated', $1, 'execute') as ok`, [f]))[0].ok, f).toBe(true)
-    expect((await rows<J>(`select has_function_privilege('anon', 'public.dpdp_open_account(text, text, text, text, text, text, text, timestamptz, text)', 'execute') as ok`))[0].ok).toBe(false)
+    expect((await rows<J>(`select has_function_privilege('anon', 'public.dpdp_open_account(text, text, text, text, text, text, text, timestamptz, text, text, boolean)', 'execute') as ok`))[0].ok).toBe(false)
+    // the new helpers and the cores 0755 rewrote are not doors: no browser role can run them
+    for (const f of ['dpdp.ensure_account(text, text)', 'dpdp.account_charge_paise(dpdp.account, text, integer)', 'dpdp.account_monthly_total_paise(dpdp.account, integer)', 'dpdp.account_pack_available(dpdp.account)',
+      'dpdp.account_client_cap(dpdp.account)', 'public.dpdp__open_account_core(text, text, text, text, text, text, text, timestamptz, text)', 'public.dpdp__pay_begin_core(text, text)', 'public.dpdp__declare_payment_core(text, integer, text, text, text, text)'])
+      for (const role of ['anon', 'authenticated']) expect((await rows<J>(`select has_function_privilege($1, $2, 'execute') as ok`, [role, f]))[0].ok, `${role} on ${f}`).toBe(false)
     expect((await rows<J>(`select has_function_privilege('anon', 'public.dpdp_public_plans()', 'execute') as ok`))[0].ok).toBe(true)
     expect((await rows<J>(`select has_function_privilege('anon', 'public.dpdp_unsubscribe(text)', 'execute') as ok`))[0].ok).toBe(true)
   })
@@ -979,9 +1092,9 @@ describe('who can reach what (grants), and the audit trail never carries a perso
     await as('admin@veridian.test')
     await expect(db.query(`select public.dpdp_owner_update_plan('institution', 100, 200)`)).rejects.toThrow() // offer above list: the table refuses
     await expect(db.query(`select public.dpdp_owner_update_plan('nope', 1)`)).rejects.toThrow(/No such plan/)
-    await db.query(`select public.dpdp_owner_update_plan('institution', 85100)`)
-    expect((await rows<J>(`select list_monthly_paise from dpdp.plan where key = 'institution'`))[0].list_monthly_paise).toBe(85100)
+    await db.query(`select public.dpdp_owner_update_plan('institution', 109900, 109900)`)
+    expect((await rows<J>(`select list_monthly_paise from dpdp.plan where key = 'institution'`))[0].list_monthly_paise).toBe(109900)
     expect((await rows<J>(`select 1 from dpdp.partner_event where kind = 'plan_updated' and detail = 'institution'`)).length).toBe(1)
-    await db.query(`select public.dpdp_owner_update_plan('institution', 80100)`)
+    await db.query(`select public.dpdp_owner_update_plan('institution', 99900, 99900)`)
   })
 })

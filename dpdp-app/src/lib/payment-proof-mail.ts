@@ -31,7 +31,7 @@ export type PaymentProofMail = {
   orgId: string
   /** Already formatted for a person, e.g. "Rs 9,999". */
   amountLabel: string
-  interval: "month" | "year"
+  interval: "pack" | "month" | "year"
   /** Whatever the customer typed in the UTR / reference box; may be empty. */
   reference: string
 }
@@ -41,7 +41,8 @@ export function paymentProofSubject(orgId: string): string {
 }
 
 export function paymentProofBody(m: PaymentProofMail): string {
-  return `Org: ${m.orgId}\nAmount: ${m.amountLabel} (${m.interval}ly)\nReference: ${m.reference.trim() || "(attached separately)"}\n\n(attach your payment screenshot to this email)`
+  const word = m.interval === "pack" ? "trial pack" : `${m.interval}ly`
+  return `Org: ${m.orgId}\nAmount: ${m.amountLabel} (${word})\nReference: ${m.reference.trim() || "(attached separately)"}\n\n(attach your payment screenshot to this email)`
 }
 
 /** The mailto: URL behind "Prefer email?". */

@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import "./onepage/dpdp-onepage-tokens.css"
 import { SIGNIN_BENEFITS } from "@/lib/signin-benefits"
-import { formatRupees } from "@/lib/billing-state"
+import { clientsLine, firmPlan, formatRupees, ladderLine } from "@/lib/billing-state"
 import { EarningsCalculator } from "./EarningsCalculator"
 import { TermsCheckbox, TermsWhy } from "./TermsBox"
 import { BOX_K2 } from "@/lib/terms"
@@ -222,16 +222,18 @@ export type OpenAccountExtra = {
 const OPENING_FIRM_FIELDS: Array<[string, string]> = [["firmName", "Firm name"], ["city", "City"], ["gstin", "GSTIN"], ["clientsEstimate", "About how many clients"], ["contactPerson", "Contact person"], ["phone", "Phone"]]
 const OPENING_INSTITUTION_FIELDS: Array<[string, string]> = [["legalName", "Legal name"], ["city", "City"], ["gstin", "GSTIN"], ["contactPerson", "Contact person"], ["phone", "Phone"], ["dpoName", "DPO or Grievance Officer name"], ["dpoEmail", "DPO or Grievance Officer e-mail"]]
 
-/** The one calm line about money on the opening screen: no payment now; what it is after the trial. Prices come from dpdp_public_plans, never from here. */
+/**
+ * The one calm line about money on the opening screen: no payment now; then the whole ladder, so the step after the trial pack is no surprise
+ * (the trial pack, then a month or a year at half price). Prices come from dpdp_public_plans, never from here.
+ */
 function priceLine(plans: PlanWirePayload[] | undefined, product: "firm" | "institution" | null): string | null {
   if (!plans || !product) return null
-  const plan = plans.find((p) => (product === "institution" ? p.key === "institution" : p.key === "firm_starter"))
+  const plan = product === "institution" ? plans.find((p) => p.key === "institution") : firmPlan(plans)
   if (!plan) return null
-  const now = formatRupees(plan.monthlyPaise)
   const offer = plan.offerLabel
-  return offer
-    ? `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month, the whole amount (GST is not charged). ${offer} (normally ${formatRupees(plan.listMonthlyPaise)}).`
-    : `After the 30 days: ${product === "firm" ? "from " : ""}${now} a month, the whole amount (GST is not charged).`
+  const ladder = ladderLine(plan)
+  const clients = clientsLine(plan)
+  return `After the 30 days: ${ladder} The whole amount; GST is not charged.${clients ? ` ${clients}` : ""}${offer ? ` ${offer} (normally ${formatRupees(plan.listMonthlyPaise)} a month).` : ""}`
 }
 
 export function OpenOrganisation({
@@ -305,7 +307,7 @@ export function OpenOrganisation({
               <input type="checkbox" checked={declared} onChange={(e) => setDeclared(e.target.checked)} disabled={busy} />
               I am a practising CA / CS / cost accountant
             </label>
-            <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: 0 }}>Tick it and your own firm&rsquo;s file is free (no client organisations). Nobody checks it first. The membership number below is optional.</p>
+            <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: 0 }}>Tick it to put this on your account&rsquo;s record. It does not change the price, and nobody checks it first. The membership number below is optional.</p>
             <select id="pro-body" aria-label="Professional body" value={body} onChange={(e) => setBody(e.target.value as ProfessionalBody | "")} disabled={busy}
               className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }}>
               <option value="">Professional body</option>

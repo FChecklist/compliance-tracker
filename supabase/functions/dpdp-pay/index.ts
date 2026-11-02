@@ -40,7 +40,7 @@ import { isDeliverableAddress, renderReceipt, sendViaResend } from "../_shared/b
 import { CONSENT_REQUIRED_CODE } from "../_shared/terms.ts"
 import { type Deps as LedgerDeps, type LedgerEvent, attemptStatusOfEntity, buildAttemptRow, ledgerCsv, ledgerTick, parseLedgerEvent, recordLedgerEvent } from "./ledger.ts"
 import {
-  type AttemptFacts, type CapturedPayment, CONSENT_REQUIRED_BODY, RAZORPAY_API, basicAuthHeader, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
+  type AttemptFacts, type CapturedPayment, type Interval, CONSENT_REQUIRED_BODY, RAZORPAY_API, basicAuthHeader, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
   httpStatusFor, parseCreateRequest, parseOrderResponse, parseVerifyRequest, parseWebhookEvent, razorpayConfigured, readTermsConsent, receiptFor, txnIdOf, verifyCheckoutSignature,
   verifyWebhookSignature, CENTRAL_SITE,
 } from "./logic.ts"
@@ -137,7 +137,7 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
     const status = error.code === "42501" ? 403 : error.code === "22023" ? 400 : 500
     return json({ error: status === 500 ? "Could not start the payment" : error.message }, status, cors)
   }
-  const a = data as { attemptId: string; orgId: string; orgName: string; plan?: string; variation?: string; interval: "year"; amountPaise: number; currency: string; ownerEmail: string | null }
+  const a = data as { attemptId: string; orgId: string; orgName: string; plan?: string; variation?: string; interval: Interval; amountPaise: number; currency: string; ownerEmail: string | null }
   const plan = a.plan === "institution" ? "institution" : "firm"
 
   const sb = serviceClient()
@@ -319,7 +319,7 @@ async function sendReceipt(sb: SupabaseClient, paymentId: string, razorpayPaymen
   try {
     const { data: details } = await sb.rpc("dpdp_timer_invoice_details", { p_payment_id: paymentId })
     const d = details as {
-      orgId: string; orgName: string; plan: "firm" | "institution"; interval: "month" | "year"; amountPaise: number; periodStart: string; confirmedAt: string
+      orgId: string; orgName: string; plan: "firm" | "institution"; interval: Interval; amountPaise: number; periodStart: string; confirmedAt: string
       ownerMembershipId: string | null; ownerIdentityId: string | null; ownerEmail: string | null
     } | null
     if (!d || !d.ownerEmail || !d.ownerMembershipId || !d.ownerIdentityId || !isDeliverableAddress(d.ownerEmail)) return

@@ -1,5 +1,5 @@
 import "./dpdp-onepage-tokens.css"
-import { useState, useTransition } from "react"
+import { useState, useTransition, type ReactNode } from "react"
 import { AREA_CAN_MARK_NA, AREA_HELP, AREA_PREFILL_WITH_OWNER, PARTS, partsForRows, type ObligationRow } from "@/lib/dpdp-onepage/view-model"
 
 export type Area = { area: string; jobs: string[]; isGroup: boolean }
@@ -15,7 +15,7 @@ export type AreaAnswer = { emails: string; na: boolean }
 // error box instead of bubbling out of a server action. Copy is verbatim
 // from the Next.js version.
 export function FirstVisitWizard({
-  orgName, rows, areas, ownerEmail, refetch, onComplete,
+  orgName, rows, areas, ownerEmail, refetch, onComplete, payNote,
 }: {
   orgName: string
   rows: ObligationRow[]
@@ -23,6 +23,8 @@ export function FirstVisitWizard({
   ownerEmail: string
   refetch: () => Promise<void>
   onComplete: (assignments: Array<{ area: string; emails: string[]; na: boolean }>) => Promise<void>
+  /** Shown above the "send the first emails" button: the soft ask for the trial pack (PackNudge). Building the list stays free; nothing here blocks the button. */
+  payNote?: ReactNode
 }) {
   const [step, setStep] = useState<1 | 2>(1)
   const [pending, startTransition] = useTransition()
@@ -158,6 +160,7 @@ export function FirstVisitWizard({
                   )
                 })}
                 {error && <div className="rounded-2xl p-3.5 mt-4" style={{ background: "var(--dpdp-rL)", border: "1px solid #FBC5CF", fontSize: 13.5 }}>{error}</div>}
+                {payNote}
                 <div className="flex gap-2.5 items-center flex-wrap mt-4.5">
                   <button type="button" disabled={pending} onClick={handleSave} className="font-bold text-white" style={{ background: "var(--dpdp-g)", fontSize: 15, padding: "13px 22px", borderRadius: 14, opacity: pending ? 0.6 : 1 }}>
                     ✓ Save and send the first emails

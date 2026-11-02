@@ -6,7 +6,7 @@ import type {
   CreateClientPayload, CreateMyOrgPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
   ConsentAnswersResult, ConsentWithdrawResult, JoinOrgResult, MyDataPayload, RightKind, RightResult, OrgInviteLinkPayload, OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, ReferralSummaryPayload, SharePressPayload, UnsubscribeResult,
   ApprovePaymentResult, PendingClaimWire, RejectPaymentResult,
-  DataExportPayload, MyAccountPayload, OpenAccountPayload, DeclaredFirmWire, PlatformModePayload, SaveProfilePayload, PlanWirePayload, ProfessionalBody,
+  DataExportPayload, MyAccountPayload, OpenAccountPayload, DeclaredFirmWire, PlatformModePayload, SaveProfilePayload, PlanWirePayload, PayInterval, ProfessionalBody,
   AdminMarkPaidResult, AdminPartnerRow, AdminPartnerSettings, AdminPayoutRun, PartnerDashboardPayload, PartnerDetailsInput, PartnerStatementPayload, PartnerStatus,
 } from "./rpc-types"
 import { SITE_ORIGIN } from "./site-origin.mjs"
@@ -217,7 +217,7 @@ export async function ownerSetMode(client: DpdpClient, mode: "TEST" | "LIVE", re
 }
 
 /** A labelled test payment on a test account, only while the platform is in Test mode. Never touches Razorpay. */
-export async function testPayment(client: DpdpClient, interval: "month" | "year", orgId?: string | null): Promise<void> {
+export async function testPayment(client: DpdpClient, interval: PayInterval, orgId?: string | null): Promise<void> {
   const { error } = await client.rpc("dpdp_test_payment", { p_interval: interval, ...(orgId ? { p_org_id: orgId } : {}) })
   if (error) throw new RpcFailure(error)
 }
@@ -275,7 +275,7 @@ export async function ownerDowngradeFirm(client: DpdpClient, orgId: string, note
 }
 
 /** Platform owner only: the money was seen. Sets paid-until (the date is optional: the server computes it). */
-export async function ownerMarkPaid(client: DpdpClient, orgId: string, interval: "month" | "year", opts?: { amountPaise?: number | null; paidUntil?: string | null; reference?: string; note?: string }): Promise<void> {
+export async function ownerMarkPaid(client: DpdpClient, orgId: string, interval: PayInterval, opts?: { amountPaise?: number | null; paidUntil?: string | null; reference?: string; note?: string }): Promise<void> {
   const { error } = await client.rpc("dpdp_owner_mark_paid", {
     p_org_id: orgId, p_interval: interval, p_amount_paise: opts?.amountPaise ?? null, p_paid_until: opts?.paidUntil ?? null,
     p_reference: opts?.reference?.trim() || null, p_note: opts?.note?.trim() || null,
@@ -493,7 +493,7 @@ export async function myBilling(client: DpdpClient, orgId?: string | null): Prom
 
 /** "I've paid": a claim, not a fact -- moves the org to awaiting_confirmation. Changes no access anywhere; the Owner still has to confirm the money was actually seen. reference/proofPath/note are all optional (drizzle/0658). */
 export async function declarePayment(
-  client: DpdpClient, interval: "month" | "year", amountPaise: number, orgId?: string | null,
+  client: DpdpClient, interval: PayInterval, amountPaise: number, orgId?: string | null,
   proof?: { reference?: string; proofPath?: string; note?: string },
 ): Promise<{ ok: true; state: "awaiting_confirmation" }> {
   const { data, error } = await client.rpc("dpdp_declare_payment", {
@@ -544,12 +544,12 @@ export type OnlinePaymentStart =
   | { ok: false; notEnabled: boolean; error: string }
 
 /**
- * "Pay online": asks supabase/functions/dpdp-pay for a Razorpay ORDER for the YEARLY plan -- the same method Corporate Tambola uses. The browser then
- * runs Razorpay's window inside the registered IT Services pay frame (lib/pay-frame.ts), so no card field and no Razorpay script ever exists on our
- * site. The amount is never sent from here: the server charges its own price (dpdp_plan_price_paise), so a tampered browser cannot choose what it
- * pays. Owner-only (the database refuses anyone else).
+ * "Pay online": asks supabase/functions/dpdp-pay for a Razorpay ORDER for the chosen way to pay (the trial pack, a month or a year) -- the same method
+ * Corporate Tambola uses. The browser then runs Razorpay's window inside the registered IT Services pay frame (lib/pay-frame.ts), so no card field and
+ * no Razorpay script ever exists on our site. The amount is never sent from here: the server charges its own price (dpdp.account_charge_paise, or
+ * dpdp_plan_price_paise for an organisation with no account), so a tampered browser cannot choose what it pays. Owner-only (the database refuses anyone else).
  */
-export async function startOnlinePayment(client: DpdpClient, orgId: string | null | undefined, termsAccepted: boolean): Promise<OnlinePaymentStart> {
+export async function startOnlinePayment(client: DpdpClient, orgId: string | null | undefined, termsAccepted: boolean, interval: PayInterval): Promise<OnlinePaymentStart> {
   const token = await client.accessToken()
   if (!token) return { ok: false, notEnabled: false, error: "Sign in first" }
   try {
@@ -557,7 +557,7 @@ export async function startOnlinePayment(client: DpdpClient, orgId: string | nul
     const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/dpdp-pay`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ interval: "year", ...(orgId ? { orgId } : {}), termsVersion: TERMS_VERSION, termsAccepted: termsAccepted === true }),
+      body: JSON.stringify({ interval, ...(orgId ? { orgId } : {}), termsVersion: TERMS_VERSION, termsAccepted: termsAccepted === true }),
     })
     const body = (await res.json().catch(() => ({}))) as { hop?: string; razorpay?: Record<string, unknown>; amountPaise?: number; error?: string; code?: string }
     if (res.ok && typeof body.hop === "string" && body.hop.startsWith("https://") && body.razorpay && typeof body.razorpay.order_id === "string") {

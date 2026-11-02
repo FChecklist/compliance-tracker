@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
 import { amIPlatformAdmin, fetchPlatformMode, ownerDeclaredFirms, ownerDowngradeFirm, ownerMailAllowlist, ownerMarkPaid, ownerPurgeTestData, ownerSetMode } from "@/lib/api"
-import type { DeclaredFirmWire, PlatformModePayload } from "@/lib/rpc-types"
+import type { DeclaredFirmWire, PayInterval, PlatformModePayload } from "@/lib/rpc-types"
 import { forgetCachedMode } from "@/lib/platform-mode"
 import { parseDbTimestamp } from "@/lib/db-time"
 import { GuidedError } from "@/components/GuidedError"
@@ -20,7 +20,7 @@ export function OwnerAccountsAdmin({ client }: { client: DpdpClient }) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [payOrg, setPayOrg] = useState("")
-  const [payInterval, setPayInterval] = useState<"month" | "year">("month")
+  const [payInterval, setPayInterval] = useState<PayInterval>("month")
   const [payRef, setPayRef] = useState("")
   const [payUntil, setPayUntil] = useState("")
 
@@ -53,7 +53,7 @@ export function OwnerAccountsAdmin({ client }: { client: DpdpClient }) {
     setNotice(null)
     try {
       await ownerDowngradeFirm(client, orgId, "abuse review")
-      setNotice("Moved to a paid plan. It is in the audit trail.")
+      setNotice("Marked as reviewed. It is in the audit trail.")
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -148,15 +148,15 @@ export function OwnerAccountsAdmin({ client }: { client: DpdpClient }) {
           </div>
           <button type="button" disabled={busy === "purge"} onClick={() => void purge()} style={{ background: "transparent", color: "var(--dpdp-r)", border: "1px solid var(--dpdp-r)", borderRadius: 8, padding: "6px 12px", fontWeight: 600, fontSize: 12.5 }}>Delete all test accounts</button>
 
-          <p style={{ margin: "14px 0 10px", fontWeight: 700, color: "var(--dpdp-ink)" }}>Firms that declared themselves practitioners</p>
+          <p style={{ margin: "14px 0 10px", fontWeight: 700, color: "var(--dpdp-ink)" }}>Firms that declared themselves practitioners (a record only: every account pays, nobody is on a free plan)</p>
           {firms.length === 0 && <p style={{ margin: 0, fontSize: 12.5 }}>None yet.</p>}
           {firms.map((p) => (
             <div key={p.orgId} style={{ border: "1px solid var(--dpdp-line)", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
-              <p style={{ margin: "0 0 2px", fontWeight: 600, color: "var(--dpdp-ink)" }}>{p.orgName}{p.status === "downgraded" ? " (on a paid plan)" : ""}</p>
+              <p style={{ margin: "0 0 2px", fontWeight: 600, color: "var(--dpdp-ink)" }}>{p.orgName}{p.status === "downgraded" ? " (marked after review)" : ""}</p>
               <p style={{ margin: "0 0 2px", fontSize: 12 }}>{p.professionalBody ? `${p.professionalBody}: ${p.registrationNo ?? "no number given"}` : "No number given"}{p.registrationNo ? (p.formatOk === false ? " (format looks unusual)" : p.formatOk ? " (format ok)" : "") : ""}</p>
               {p.declaredAt && <p style={{ margin: "0 0 6px", fontSize: 11, color: "var(--dpdp-ink3)" }}>Declared {parseDbTimestamp(p.declaredAt).toLocaleDateString("en-IN")}</p>}
               {p.status === "declared" && (
-                <button type="button" disabled={busy === p.orgId} onClick={() => void downgrade(p.orgId)} style={{ background: "transparent", color: "var(--dpdp-r)", border: "1px solid var(--dpdp-r)", borderRadius: 8, padding: "6px 12px", fontWeight: 600, fontSize: 12.5 }}>Move to a paid plan</button>
+                <button type="button" disabled={busy === p.orgId} onClick={() => void downgrade(p.orgId)} style={{ background: "transparent", color: "var(--dpdp-r)", border: "1px solid var(--dpdp-r)", borderRadius: 8, padding: "6px 12px", fontWeight: 600, fontSize: 12.5 }}>Mark as reviewed</button>
               )}
             </div>
           ))}          <p style={{ margin: "14px 0 6px", fontWeight: 700, color: "var(--dpdp-ink)" }}>Mark an account paid</p>
@@ -164,7 +164,8 @@ export function OwnerAccountsAdmin({ client }: { client: DpdpClient }) {
             <input style={field} value={payOrg} onChange={(e) => setPayOrg(e.target.value)} autoComplete="off" />
           </label>
           <label style={{ display: "block", marginBottom: 6 }}>Paid for
-            <select style={field} value={payInterval} onChange={(e) => setPayInterval(e.target.value as "month" | "year")}>
+            <select style={field} value={payInterval} onChange={(e) => setPayInterval(e.target.value as PayInterval)}>
+              <option value="pack">The trial pack</option>
               <option value="month">One month</option>
               <option value="year">One year</option>
             </select>
