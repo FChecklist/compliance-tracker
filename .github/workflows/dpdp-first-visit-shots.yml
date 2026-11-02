@@ -1,0 +1,40 @@
+name: dpdp-first-visit-shots
+
+# Pictures of the DPDP first-visit screens (mock build, sample data only) for the owner's preview, taken in the cloud so the
+# owner's laptop does no work. Runs only on its own branch or by hand; never on a pull request or on main.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/dpdp-first-visit-shots]
+
+permissions:
+  contents: read
+
+jobs:
+  shots:
+    name: dpdp-app first-visit pictures (mock mode)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: dpdp-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Install Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+      - name: Build in mock mode
+        env:
+          VITE_MOCK: "1"
+        run: bunx vite build
+      - name: Serve the build and take the pictures
+        run: |
+          bunx vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/ > /dev/null && break; sleep 1; done
+          node scripts/first-visit-shots.mjs http://127.0.0.1:4173 shots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dpdp-first-visit-shots
+          path: dpdp-app/shots
+          retention-days: 7
