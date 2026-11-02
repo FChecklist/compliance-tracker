@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react"
 import type { DpdpClient } from "@/lib/client"
 import { fetchMyAccount, lockedAnswerGrievance, lockedDownload, lockedRecordBreach } from "@/lib/api"
 import type { MyAccountPayload } from "@/lib/rpc-types"
-import { dueLine, formatRupees, PAYMENT_PENDING_FOR_STAFF, yearOffLabel } from "@/lib/billing-state"
+import { dueLine, formatRupees, PAYMENT_PENDING_FOR_STAFF, yearAsMonthlyPhrase, yearOffLabel } from "@/lib/billing-state"
 import { BillingPanel } from "./BillingPanel"
 import { Card } from "./Screens"
 import { GuidedError } from "@/components/GuidedError"
@@ -84,7 +84,7 @@ export function PaymentDue({ client, email, onSignOut, onRetry }: { client: Dpdp
         {isOwner ? (
           <>
             <p style={{ margin: "6px 0 10px", fontSize: 13.5 }}>
-              {amount ? <>Your plan is {formatRupees(amount.monthPaise)} a month, or {formatRupees(amount.yearPaise)} for a year{yearOffLabel(amount.yearlyMonthsCharged) ? ` (${yearOffLabel(amount.yearlyMonthsCharged)})` : ""}. That is the whole amount; GST is not charged.{amount.offerLabel ? ` ${amount.offerLabel}.` : ""} </> : null}
+              {amount ? <>Your plan is {formatRupees(amount.monthPaise)} a month, or {formatRupees(amount.yearPaise)} for a year{yearOffLabel(amount.yearlyMonthsCharged) ? ` (${yearOffLabel(amount.yearlyMonthsCharged)}${yearAsMonthlyPhrase(amount.monthPaise, amount.yearlyMonthsCharged) ? `, ${yearAsMonthlyPhrase(amount.monthPaise, amount.yearlyMonthsCharged)}` : ""})` : ""}. That is the whole amount; GST is not charged.{amount.offerLabel ? ` ${amount.offerLabel}.` : ""} </> : null}
               Pay by bank transfer or UPI, then tell us here. Everything opens again once we have seen the payment.
             </p>
             <button type="button" style={primary} onClick={() => setShowPay(true)} aria-expanded={showPay}>Pay now</button>

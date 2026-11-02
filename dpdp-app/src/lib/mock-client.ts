@@ -1277,7 +1277,7 @@ export function createMockClient(scenario?: string): DpdpClient {
           const pack = { packPricePaise: 9900, packDays: 90, packMaxClients: 10 }
           return ok([
             { key: "institution", accountType: "institution", name: "Organisation", maxClients: 0, requiresDeclaration: false, listMonthlyPaise: 99900, monthlyPaise: 99900, offerLabel: null, yearlyMonthsCharged: 6, includedClients: 0, extraClientMonthlyPaise: 0, ...pack },
-            { key: "firm", accountType: "firm", name: "Professional", maxClients: 10, requiresDeclaration: false, listMonthlyPaise: 99900, monthlyPaise: 99900, offerLabel: null, yearlyMonthsCharged: 6, includedClients: 10, extraClientMonthlyPaise: 2000, ...pack },
+            { key: "firm", accountType: "firm", name: "Professional", maxClients: 10, requiresDeclaration: false, listMonthlyPaise: 99900, monthlyPaise: 99900, offerLabel: null, yearlyMonthsCharged: 6, includedClients: 10, extraClientMonthlyPaise: 5000, ...pack },
           ])
         }
         case "dpdp_my_account":

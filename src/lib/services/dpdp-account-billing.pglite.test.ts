@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 // DPDP account opening, plans, the declaration and the billing state machine (drizzle/0734_dpdp_account_opening_plans_billing.sql) AS THEY ARE
-// AFTER the new pricing (drizzle/0755: a Rs 99 three-month trial pack, Rs 999 a month with yearly at half price, and Rs 20 a month per client beyond
+// AFTER the new pricing (drizzle/0755: a Rs 99 three-month trial pack, Rs 999 a month with yearly at half price, and Rs 20 (from 0756: Rs 50) a month per client beyond
 // ten for a Professional). The new price rules themselves are pinned in dpdp-pricing-pack.pglite.test.ts; this file keeps the state machine, the
 // lock, mark-paid, the partner commission and the e-mail worklist honest on the post-0755 database.
 // Offline proof on PGlite (real Postgres as WASM): the live database is never touched. The WHOLE migration files are executed (0734, 0735, 0748, 0755),
@@ -28,6 +28,8 @@ const F0734 = 'drizzle/0734_dpdp_account_opening_plans_billing.sql'
 const F0735 = 'drizzle/0735_dpdp_test_live_mode_profile_capture.sql'
 const F0748 = 'drizzle/0748_dpdp_terms_acceptance.sql'
 const F0755 = 'drizzle/0755_dpdp_pricing_trial_pack_and_per_client.sql'
+/** Data only: the Professional extra-client price Rs 20 -> Rs 50 a month (the live database got 0755 and then 0756, so the tests run both). */
+const F0756 = 'drizzle/0756_dpdp_extra_client_price_rs50.sql'
 /** The two ticks the live sign-up and pay doors now demand (0748). */
 const TICK = `dpdp.terms_current_version(), true`
 /** dpdp.payment_attempt as 0673 + 0747 leave it, cut down to the columns the pay RPC writes (the interval check is the one 0755 widens). */
@@ -84,6 +86,7 @@ beforeAll(async () => {
   await db.exec(read(F0748))
   await db.exec(PAYMENT_ATTEMPT_SQL)
   await db.exec(read(F0755))
+  await db.exec(read(F0756))
   await db.query(`insert into dpdp.platform_admin (email) values ('admin@veridian.test')`)
   await db.query(`insert into dpdp.identity (id, primary_email) values ('i_admin', 'admin@veridian.test')`)
   await db.query(`insert into dpdp.identity_email (id, identity_id, email, is_primary) values ('ie_admin', 'i_admin', 'admin@veridian.test', true)`)
@@ -100,13 +103,15 @@ describe('the migration files themselves', () => {
     const p = await rows<J>(`select key, list_monthly_paise, active from dpdp.plan where key in ('institution', 'firm') order by key`)
     expect(p).toEqual([{ key: 'firm', list_monthly_paise: 99900, active: true }, { key: 'institution', list_monthly_paise: 99900, active: true }])
     expect((await rows<J>(`select yearly_months_charged as y from dpdp.billing_setting`))[0].y).toBe(6)
+    // a re-run of 0755 after 0756 does not put the old Rs 20 back (the plan row is inserted "on conflict do nothing")
+    expect((await rows<J>(`select extra_client_monthly_paise as p from dpdp.plan where key = 'firm'`))[0].p).toBe(5000)
   })
 
-  test('the plans after 0755: one Professional plan (Rs 999, ten clients included, Rs 20 each beyond), one Organisation plan (Rs 999); the old tiers and the free plan are off but not deleted', async () => {
+  test('the plans after 0755 and 0756: one Professional plan (Rs 999, ten clients included, Rs 50 each beyond), one Organisation plan (Rs 999); the old tiers and the free plan are off but not deleted', async () => {
     const plans = await rows<J>(`select key, account_type, name, active, list_monthly_paise, offer_monthly_paise, included_clients, extra_client_monthly_paise, requires_verified from dpdp.plan order by sort_order`)
     expect(plans.filter((p) => p.active).map((p) => [p.key, p.account_type, p.name, p.list_monthly_paise, p.offer_monthly_paise, p.included_clients, p.extra_client_monthly_paise])).toEqual([
       ['institution', 'institution', 'Organisation', 99900, 99900, 0, 0],
-      ['firm', 'firm', 'Professional', 99900, 99900, 10, 2000],
+      ['firm', 'firm', 'Professional', 99900, 99900, 10, 5000],
     ])
     expect(plans.filter((p) => !p.active).map((p) => p.key)).toEqual(['firm_free', 'firm_starter', 'firm_growth', 'firm_practice', 'firm_large'])
     const s = (await rows<J>(`select * from dpdp.billing_setting`))[0]
@@ -120,7 +125,7 @@ describe('the migration files themselves', () => {
     const inst = plans.find((p) => p.key === 'institution')!
     expect(inst).toMatchObject({ monthlyPaise: 99900, listMonthlyPaise: 99900, offerLabel: null, yearlyMonthsCharged: 6, packPricePaise: 9900, packDays: 90, packMaxClients: 10 })
     const firm = plans.find((p) => p.key === 'firm')!
-    expect(firm).toMatchObject({ monthlyPaise: 99900, includedClients: 10, extraClientMonthlyPaise: 2000, maxClients: 10 })
+    expect(firm).toMatchObject({ monthlyPaise: 99900, includedClients: 10, extraClientMonthlyPaise: 5000, maxClients: 10 })
     expect(JSON.stringify(plans).toLowerCase()).not.toContain('discount')
     expect(plans.some((p) => p.key === 'firm_free')).toBe(false)
   })
@@ -503,7 +508,7 @@ describe('the client cap: ten until the first monthly or yearly payment, then no
     for (let i = 1; i <= 10; i++) await addClient(`C${i}`)
     expect(await used(orgId)).toBe(10)
     const before = (await rows<J>(`select count(*)::int as c from public.t_core_client_calls`))[0].c
-    await expect(addClient('C11')).rejects.toThrow(/Your trial pack covers up to 10 client organisations\. To add more, start the monthly or yearly plan: it covers any number of clients \(Rs 20 a month for each client beyond 10\)\./)
+    await expect(addClient('C11')).rejects.toThrow(/Your trial pack covers up to 10 client organisations\. To add more, start the monthly or yearly plan: it covers any number of clients \(Rs 50 a month for each client beyond 10\)\./)
     expect((await rows<J>(`select count(*)::int as c from public.t_core_client_calls`))[0].c).toBe(before) // the real creator was never reached
     expect(await used(orgId)).toBe(10)
   })
@@ -526,7 +531,7 @@ describe('the client cap: ten until the first monthly or yearly payment, then no
     expect(await used(orgId)).toBe(12)
     mine = await one<J>(`select public.dpdp_my_account($1) as r`, [orgId])
     expect(mine.clients).toEqual({ used: 12, cap: null, included: 10, unlimited: true })
-    expect(mine.money).toMatchObject({ monthPaise: 99900 + 2 * 2000, yearPaise: (99900 + 2 * 2000) * 6, baseMonthlyPaise: 99900, perClient: { includedClients: 10, extraMonthlyPaise: 2000, clientsCounted: 12, extraClients: 2 } })
+    expect(mine.money).toMatchObject({ monthPaise: 99900 + 2 * 5000, yearPaise: (99900 + 2 * 5000) * 6, baseMonthlyPaise: 99900, perClient: { includedClients: 10, extraMonthlyPaise: 5000, clientsCounted: 12, extraClients: 2 } })
   })
 
   test('the only plan a firm can choose is Professional; the retired tiers, the free plan and an institution plan are refused', async () => {
@@ -887,7 +892,7 @@ describe('the partner commission: 50% of what was actually paid, first 12 months
     await db.query(`select public.dpdp_owner_mark_paid($1, 'month')`, [f.orgId])
     expect(await commissions(f.orgId)).toEqual([
       { base_paise: 99900, amount_paise: 49950, rate_percent: '50.00' },
-      { base_paise: 103900, amount_paise: 51950, rate_percent: '50.00' }, // 999 + 2 x 20 = 1,039
+      { base_paise: 109900, amount_paise: 54950, rate_percent: '50.00' }, // 999 + 2 x 50 = 1,099
     ])
   })
 })

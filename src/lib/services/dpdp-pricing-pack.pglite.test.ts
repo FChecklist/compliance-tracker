@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 // The new DPDP pricing (drizzle/0755_dpdp_pricing_trial_pack_and_per_client.sql), the owner's decisions of 2026-11-02, pinned to the paisa:
 //   a Rs 99 three-month trial pack, once, for an account that has paid nothing; then Rs 999 a month or Rs 5,994 a year (half price);
-//   a Professional's Rs 999 includes 10 clients and adds Rs 20 a month for every client beyond ten, counted on the real number (no tiers);
+//   a Professional's Rs 999 includes 10 clients and adds Rs 50 a month (Rs 300 a year) for every client beyond ten, counted on the real number (no tiers).
+//   The extra-client price was Rs 20 in 0755 and became Rs 50 in drizzle/0756 (owner, later the same day); the tests below run both files, as the live database did;
 //   the pack earns no commission; nobody is free; and the sign-up trap: an organisation made through dpdp_create_my_org alone now gets an account.
 // Offline proof on PGlite (real Postgres as WASM): the live database is never touched. The migration files are executed whole, on the same stand-in
 // base the billing test uses (src/lib/services/dpdp-pglite-base.ts). Stand-ins say so: the sign-up and client-creation originals, the three money
@@ -19,6 +20,8 @@ const CHAIN = [
   'drizzle/0748_dpdp_terms_acceptance.sql',
 ]
 const F0755 = 'drizzle/0755_dpdp_pricing_trial_pack_and_per_client.sql'
+const F0756 = 'drizzle/0756_dpdp_extra_client_price_rs50.sql'
+const D0756 = 'drizzle/down/0756_dpdp_extra_client_price_rs50.down.sql'
 const TICK = `dpdp.terms_current_version(), true`
 const PAYMENT_ATTEMPT_SQL = `create table dpdp.payment_attempt (
   id text primary key, org_id text not null references dpdp.organisation (id), plan text not null check (plan in ('firm', 'institution')),
@@ -67,6 +70,7 @@ beforeAll(async () => {
   await db.exec(PAYMENT_ATTEMPT_SQL)
   await db.exec(fnFrom('drizzle/0673_dpdp_razorpay_sales_lifecycle.sql', 'dpdp_plan_price_paise'))
   await db.exec(read(F0755))
+  await db.exec(read(F0756))
   await db.query(`insert into dpdp.platform_admin (email) values ('admin@veridian.test')`)
   await db.query(`insert into dpdp.identity (id, primary_email) values ('i_admin', 'admin@veridian.test')`)
   await db.query(`insert into dpdp.identity_email (id, identity_id, email, is_primary) values ('ie_admin', 'i_admin', 'admin@veridian.test', true)`)
@@ -75,10 +79,10 @@ beforeAll(async () => {
 describe('the owner\'s price examples, to the paisa (monthly / yearly = 6 x monthly)', () => {
   const examples: Array<[number, number, number]> = [
     [10, 99_900, 599_400], // Rs 999 / Rs 5,994
-    [50, 179_900, 1_079_400], // Rs 1,799 / Rs 10,794
-    [100, 279_900, 1_679_400], // Rs 2,799 / Rs 16,794
-    [500, 1_079_900, 6_479_400], // Rs 10,799 / Rs 64,794
-    [1000, 2_079_900, 12_479_400], // Rs 20,799 / Rs 124,794
+    [50, 299_900, 1_799_400], // Rs 2,999 / Rs 17,994
+    [100, 549_900, 3_299_400], // Rs 5,499 / Rs 32,994
+    [500, 2_549_900, 15_299_400], // Rs 25,499 / Rs 1,52,994
+    [1000, 5_049_900, 30_299_400], // Rs 50,499 / Rs 3,02,994
   ]
   for (const [clients, month, year] of examples) {
     test(`a Professional with ${clients} clients: Rs ${month / 100} a month, Rs ${year / 100} a year, in the account screen and at the pay door`, async () => {
@@ -87,7 +91,7 @@ describe('the owner\'s price examples, to the paisa (monthly / yearly = 6 x mont
       await as(f.email)
       const mine = await one<J>(`select public.dpdp_my_account($1) as r`, [f.orgId])
       expect(mine.money).toMatchObject({ monthPaise: month, yearPaise: year, monthlyPaise: month, baseMonthlyPaise: 99_900 })
-      expect(mine.money.perClient).toEqual({ includedClients: 10, extraMonthlyPaise: 2000, clientsCounted: clients, extraClients: Math.max(clients - 10, 0) })
+      expect(mine.money.perClient).toEqual({ includedClients: 10, extraMonthlyPaise: 5000, clientsCounted: clients, extraClients: Math.max(clients - 10, 0) })
       const m = await one<J>(`select public.dpdp_pay_begin('month', $1, ${TICK}) as r`, [f.orgId])
       const y = await one<J>(`select public.dpdp_pay_begin('year', $1, ${TICK}) as r`, [f.orgId])
       expect([m.amountPaise, y.amountPaise]).toEqual([month, year])
@@ -104,7 +108,7 @@ describe('the owner\'s price examples, to the paisa (monthly / yearly = 6 x mont
     expect([y.amountPaise, y.variation]).toEqual([599_400, 'institution_year'])
   })
 
-  test('the count is on the ACTUAL number of clients, not tiers: 0, 1, 10 and 11 clients, and one more client is exactly Rs 20 more', async () => {
+  test('the count is on the ACTUAL number of clients, not tiers: 0, 1, 10 and 11 clients, and one more client is exactly Rs 50 more a month (Rs 300 more a year)', async () => {
     const f = await openAccount('firm')
     const monthly = async () => ((await rows<J>(`select dpdp.account_charge_paise(a, 'month') as p from dpdp.account a where a.org_id = $1`, [f.orgId]))[0].p as number)
     expect(await monthly()).toBe(99_900)
@@ -113,22 +117,90 @@ describe('the owner\'s price examples, to the paisa (monthly / yearly = 6 x mont
     await giveClients(f.orgId, 9, 'cnt9x')
     expect(await monthly()).toBe(99_900) // ten
     await giveClients(f.orgId, 1, 'cnt11x')
-    expect(await monthly()).toBe(101_900) // eleven: +Rs 20
+    expect(await monthly()).toBe(104_900) // eleven: +Rs 50
+    const yearly = async () => ((await rows<J>(`select dpdp.account_charge_paise(a, 'year') as p from dpdp.account a where a.org_id = $1`, [f.orgId]))[0].p as number)
+    expect(await yearly()).toBe(629_400) // eleven, a year: Rs 5,994 + Rs 300
     await giveClients(f.orgId, 1, 'cnt12x')
-    expect(await monthly()).toBe(103_900)
+    expect(await monthly()).toBe(109_900)
+    expect(await yearly()).toBe(659_400) // twelve, a year: Rs 5,994 + 2 x Rs 300
   })
 
-  test('the price an account signed up at is the base; a Rs 20 change in the plan row does not reach an account that already has its base locked', async () => {
+  test('the price an account signed up at is the base; a change of the plan row\'s base price does not reach an account that already has its base locked', async () => {
     const f = await openAccount('firm')
     await giveClients(f.orgId, 12, 'lk12x')
     await db.query(`update dpdp.plan set list_monthly_paise = 119900, offer_monthly_paise = 119900 where key = 'firm'`)
     try {
       expect((await account(f.orgId)).locked_monthly_paise).toBe(99_900)
       const total = (await rows<J>(`select dpdp.account_monthly_total_paise(a) as p from dpdp.account a where a.org_id = $1`, [f.orgId]))[0].p
-      expect(total).toBe(99_900 + 2 * 2000)
+      expect(total).toBe(99_900 + 2 * 5000)
     } finally {
       await db.query(`update dpdp.plan set list_monthly_paise = 99900, offer_monthly_paise = 99900 where key = 'firm'`)
     }
+  })
+})
+
+describe('the extra-client price: Rs 20 in 0755, Rs 50 a month (Rs 300 a year) from 0756', () => {
+  const extra = async () => Number((await rows<J>(`select extra_client_monthly_paise as p from dpdp.plan where key = 'firm'`))[0].p)
+
+  test('after 0755 and 0756 the Professional plan row holds 5000 paise, and nothing else about any plan moved', async () => {
+    expect(await extra()).toBe(5000)
+    const plans = await rows<J>(`select key, list_monthly_paise, offer_monthly_paise, included_clients, extra_client_monthly_paise, active from dpdp.plan order by key`)
+    const by = Object.fromEntries(plans.map((p) => [p.key, p]))
+    expect(by.firm).toMatchObject({ list_monthly_paise: 99900, offer_monthly_paise: 99900, included_clients: 10, extra_client_monthly_paise: 5000, active: true })
+    expect(by.institution).toMatchObject({ list_monthly_paise: 99900, included_clients: 0, extra_client_monthly_paise: 0, active: true })
+    for (const old of ['firm_free', 'firm_starter', 'firm_growth', 'firm_practice', 'firm_large']) expect(by[old]).toMatchObject({ active: false, extra_client_monthly_paise: 0 })
+    const s = (await rows<J>(`select pack_price_paise, pack_days, pack_max_clients, yearly_months_charged from dpdp.billing_setting where id = 1`))[0]
+    expect(s).toEqual({ pack_price_paise: 9900, pack_days: 90, pack_max_clients: 10, yearly_months_charged: 6 })
+  })
+
+  test('the plan list the screens read carries the new price (the same key the deployed screens already read)', async () => {
+    const plans = await one<J[]>(`select public.dpdp_public_plans() as r`)
+    expect(plans.find((p) => p.key === 'firm')).toMatchObject({ includedClients: 10, extraClientMonthlyPaise: 5000, yearlyMonthsCharged: 6 })
+  })
+
+  test('0756 moves only a price that still holds the old value: run again it changes nothing, and an owner edit made after it survives a re-run', async () => {
+    await db.exec(read(F0756))
+    expect(await extra()).toBe(5000)
+    await db.query(`update dpdp.plan set extra_client_monthly_paise = 7000 where key = 'firm'`)
+    try {
+      await db.exec(read(F0756))
+      expect(await extra()).toBe(7000)
+    } finally {
+      await db.query(`update dpdp.plan set extra_client_monthly_paise = 5000 where key = 'firm'`)
+    }
+  })
+
+  test('on a database that still holds the 0755 value (2000), 0756 moves it to 5000 and stamps the change', async () => {
+    await db.query(`update dpdp.plan set extra_client_monthly_paise = 2000, updated_at = '2000-01-01' where key = 'firm'`)
+    try {
+      await db.exec(read(F0756))
+      const r = (await rows<J>(`select extra_client_monthly_paise as p, updated_at > '2020-01-01' as stamped from dpdp.plan where key = 'firm'`))[0]
+      expect(r).toEqual({ p: 5000, stamped: true })
+    } finally {
+      await db.query(`update dpdp.plan set extra_client_monthly_paise = 5000 where key = 'firm'`)
+    }
+  })
+
+  test('the roll-back file puts 2000 back (only while the row still holds 5000) and 0756 can be applied again after it', async () => {
+    await db.exec(read(D0756))
+    expect(await extra()).toBe(2000)
+    await db.exec(read(D0756))
+    expect(await extra()).toBe(2000)
+    await db.exec(read(F0756))
+    expect(await extra()).toBe(5000)
+    await db.query(`update dpdp.plan set extra_client_monthly_paise = 7000 where key = 'firm'`)
+    try {
+      await db.exec(read(D0756))
+      expect(await extra()).toBe(7000) // an owner edit is not undone by the roll-back
+    } finally {
+      await db.query(`update dpdp.plan set extra_client_monthly_paise = 5000 where key = 'firm'`)
+    }
+  })
+
+  test('0756 changes data only: no function, no grant, no table; the function bodies come from 0755 untouched', () => {
+    const sql = read(F0756).replace(/--[^\n]*/g, '')
+    expect(sql).not.toMatch(/create\s+(or\s+replace\s+)?function|alter\s+table|drop\s|grant\s|revoke\s|security\s+definer/i)
+    expect(sql).toMatch(/update\s+dpdp\.plan/i)
   })
 })
 

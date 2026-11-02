@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import "./onepage/dpdp-onepage-tokens.css"
 import { SIGNIN_BENEFITS } from "@/lib/signin-benefits"
-import { clientsLine, firmPlan, formatRupees, ladderLine } from "@/lib/billing-state"
+import { clientsLine, firmPlan, formatRupees, ladderLine, yearlyPerClientLine } from "@/lib/billing-state"
 import { EarningsCalculator } from "./EarningsCalculator"
 import { TermsCheckbox, TermsWhy } from "./TermsBox"
 import { BOX_K2 } from "@/lib/terms"
@@ -233,7 +233,8 @@ function priceLine(plans: PlanWirePayload[] | undefined, product: "firm" | "inst
   const offer = plan.offerLabel
   const ladder = ladderLine(plan)
   const clients = clientsLine(plan)
-  return `After the 30 days: ${ladder} The whole amount; GST is not charged.${clients ? ` ${clients}` : ""}${offer ? ` ${offer} (normally ${formatRupees(plan.listMonthlyPaise)} a month).` : ""}`
+  const yearlyPerClient = yearlyPerClientLine(plan)
+  return `After the 30 days: ${ladder} The whole amount; GST is not charged.${clients ? ` ${clients}` : ""}${yearlyPerClient ? ` ${yearlyPerClient}` : ""}${offer ? ` ${offer} (normally ${formatRupees(plan.listMonthlyPaise)} a month).` : ""}`
 }
 
 export function OpenOrganisation({

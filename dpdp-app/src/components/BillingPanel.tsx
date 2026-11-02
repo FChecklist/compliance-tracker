@@ -3,7 +3,7 @@ import type { DpdpClient } from "@/lib/client"
 import { confirmOnlinePayment, declarePayment, fetchMyAccount, myBilling, startOnlinePayment, uploadPaymentProof } from "@/lib/api"
 import { PayFrameError, payViaFrame } from "@/lib/pay-frame"
 import type { BillingStatusPayload, MyAccountPayload, PayInterval } from "@/lib/rpc-types"
-import { clientsLine, formatRupees, intervalWord, ladderLine, packLength, yearOffLabel } from "@/lib/billing-state"
+import { clientsLine, formatRupees, intervalWord, ladderLine, packLength, yearAsMonthlyPhrase, yearlyPerClientLine, yearOffLabel } from "@/lib/billing-state"
 import { parseDbTimestamp } from "@/lib/db-time"
 import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
 import { BOX_K3 } from "@/lib/terms"
@@ -212,7 +212,11 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
   const proofMailto = paymentProofMailto({ orgId, amountLabel: formatRupees(amountDue), interval: choice, reference })
   /** The whole ladder in one calm line, shown before anyone pays the pack so what comes after it is no surprise; built from the account's own numbers. */
   const ladder = pack && packOffered ? ladderLine({ monthlyPaise: monthPaise, yearlyMonthsCharged: yearlyMonths, packPricePaise: pack.pricePaise, packDays: pack.days }) : null
-  const perClient = price && price.perClient.includedClients > 0 ? clientsLine({ includedClients: price.perClient.includedClients, extraClientMonthlyPaise: price.perClient.extraMonthlyPaise }) : null
+  const perClient = price && price.perClient.includedClients > 0 ? clientsLine({ includedClients: price.perClient.includedClients, extraClientMonthlyPaise: price.perClient.extraMonthlyPaise, yearlyMonthsCharged: yearlyMonths }) : null
+  /** The "per client per month" line for the YEARLY plan only (never claimed for monthly); computed from the base price, not the account's total. */
+  const yearlyPerClient = price && price.perClient.includedClients > 0 ? yearlyPerClientLine({ monthlyPaise: price.baseMonthlyPaise, yearlyMonthsCharged: yearlyMonths, includedClients: price.perClient.includedClients }) : null
+  /** "effectively about ... a month" beside the yearly figure, said for the account's own yearly total. */
+  const yearEffective = yearAsMonthlyPhrase(monthPaise, yearlyMonths)
 
   // Online payment charges the account's own price (drizzle/0755 dpdp__pay_begin_core). Only a client covered by its firm has nothing to pay itself.
   // An organisation with no account row (made before billing) can pay online for a year only; the server refuses a month or the pack for it.
@@ -319,10 +323,10 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
               </p>
               {ladder && (
                 <p style={{ margin: "0 0 10px", fontWeight: 600, color: "var(--dpdp-ink)" }}>
-                  The whole price, up front: {ladder}{perClient ? ` ${perClient}` : ""}{pack && account?.hasAccount && account.accountType === "firm" ? ` The trial pack covers up to ${pack.maxClients} clients.` : ""}
+                  The whole price, up front: {ladder}{perClient ? ` ${perClient}` : ""}{yearlyPerClient ? ` ${yearlyPerClient}` : ""}{pack && account?.hasAccount && account.accountType === "firm" ? ` The trial pack covers up to ${pack.maxClients} clients.` : ""}
                 </p>
               )}
-              {!ladder && perClient && <p style={{ margin: "0 0 10px" }}>{perClient}</p>}
+              {!ladder && perClient && <p style={{ margin: "0 0 10px" }}>{perClient}{yearlyPerClient ? ` ${yearlyPerClient}` : ""}</p>}
               {price?.offerLabel && <p style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--dpdp-v)" }}>{price.offerLabel}</p>}
               <div className="flex gap-3 mb-3 flex-wrap" role="radiogroup" aria-label="Plan">
                 {packOffered && pack && (
@@ -334,7 +338,7 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
                   <input type="radio" name="dpdp-plan" checked={choice === "month"} onChange={() => setChosen("month")} /> Monthly -- {formatRupees(monthPaise)}
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <input type="radio" name="dpdp-plan" checked={choice === "year"} onChange={() => setChosen("year")} /> Yearly -- {formatRupees(yearPaise)}{yearOff ? ` (${yearOff})` : ""}
+                  <input type="radio" name="dpdp-plan" checked={choice === "year"} onChange={() => setChosen("year")} /> Yearly -- {formatRupees(yearPaise)}{yearOff ? ` (${yearOff}${yearEffective ? `, ${yearEffective}` : ""})` : ""}
                 </label>
               </div>
               <div style={{ margin: "0 0 10px" }}>

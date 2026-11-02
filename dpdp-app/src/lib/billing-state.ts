@@ -135,12 +135,45 @@ export function packLength(days: number): string {
 }
 
 /**
+ * What a year comes to a month, in the owner's words: Rs 5,994 a year is Rs 499.50 a month, said "effectively about Rs 499 a month" (the whole rupees
+ * below it, with "about", because the exact figure has paise). Says "effectively Rs 500 a month" with no "about" when the figure is exact. Null when
+ * the year saves nothing (nothing to say).
+ */
+export function yearAsMonthlyPhrase(monthlyPaise: number, yearlyMonthsCharged: number): string | null {
+  if (!(yearOffLabel(yearlyMonthsCharged))) return null
+  const yearly = yearlyChargePaise(monthlyPaise, yearlyMonthsCharged)
+  const exact = yearly % 1200 === 0
+  return `effectively ${exact ? "" : "about "}${formatRupees(Math.floor(yearly / 1200) * 100)} a month`
+}
+
+/**
+ * For a Professional: what each of the included clients costs a month on the YEARLY plan, said "under Rs 50 per client per month" (Rs 5,994 / 10 clients
+ * / 12 months = Rs 49.95, so "under Rs 50", never "Rs 49"). Says it only for the yearly plan: on the monthly plan the same ten clients are Rs 99.90 each.
+ * Null for a plan with no included clients.
+ */
+export function yearlyPerClientPhrase(p: Pick<PlanWire, "monthlyPaise" | "yearlyMonthsCharged" | "includedClients">): string | null {
+  if (!(p.includedClients > 0)) return null
+  const divisor = p.includedClients * 12
+  const yearly = yearlyChargePaise(p.monthlyPaise, p.yearlyMonthsCharged)
+  const rupees = Math.ceil(yearly / divisor / 100)
+  const exact = yearly % (divisor * 100) === 0
+  return `${exact ? "" : "under "}${formatRupees(rupees * 100)} per client per month`
+}
+
+/** The yearly-plan line for a Professional: "On the yearly plan, 10 clients come to under Rs 50 per client per month." Null when there are no included clients. */
+export function yearlyPerClientLine(p: Pick<PlanWire, "monthlyPaise" | "yearlyMonthsCharged" | "includedClients">): string | null {
+  const phrase = yearlyPerClientPhrase(p)
+  return phrase ? `On the yearly plan, ${p.includedClients} clients come to ${phrase}.` : null
+}
+
+/**
  * The whole ladder in one calm line, shown BEFORE anyone pays the trial pack so that what follows it is no surprise:
- * "Rs 99 for 3 months, then Rs 999 a month or Rs 5,994 a year (50% off)." The numbers come from the plan the database sent.
+ * "Rs 99 for 3 months, then Rs 999 a month or Rs 5,994 a year (50% off, effectively about Rs 499 a month)." The numbers come from the plan the database sent.
  */
 export function ladderLine(p: Pick<PlanWire, "monthlyPaise" | "yearlyMonthsCharged" | "packPricePaise" | "packDays">): string {
   const off = yearOffLabel(p.yearlyMonthsCharged)
-  return `${formatRupees(p.packPricePaise)} for ${packLength(p.packDays)}, then ${formatRupees(p.monthlyPaise)} a month or ${formatRupees(yearlyChargePaise(p.monthlyPaise, p.yearlyMonthsCharged))} a year${off ? ` (${off})` : ""}.`
+  const effective = yearAsMonthlyPhrase(p.monthlyPaise, p.yearlyMonthsCharged)
+  return `${formatRupees(p.packPricePaise)} for ${packLength(p.packDays)}, then ${formatRupees(p.monthlyPaise)} a month or ${formatRupees(yearlyChargePaise(p.monthlyPaise, p.yearlyMonthsCharged))} a year${off ? ` (${off}${effective ? `, ${effective}` : ""})` : ""}.`
 }
 
 /**
@@ -154,16 +187,23 @@ export function packNudgeLines(
   if (!m.pack.available) return null
   const lines = [ladderLine({ monthlyPaise: m.monthPaise, yearlyMonthsCharged: m.yearlyMonthsCharged, packPricePaise: m.pack.pricePaise, packDays: m.pack.days })]
   if (accountType === "firm") {
-    const c = clientsLine({ includedClients: m.perClient.includedClients, extraClientMonthlyPaise: m.perClient.extraMonthlyPaise })
+    const c = clientsLine({ includedClients: m.perClient.includedClients, extraClientMonthlyPaise: m.perClient.extraMonthlyPaise, yearlyMonthsCharged: m.yearlyMonthsCharged })
     if (c) lines.push(c)
+    const y = yearlyPerClientLine({ monthlyPaise: m.monthPaise, yearlyMonthsCharged: m.yearlyMonthsCharged, includedClients: m.perClient.includedClients })
+    if (y) lines.push(y)
     lines.push(`The trial pack covers up to ${m.pack.maxClients} clients.`)
   }
   return lines
 }
 
-/** For a Professional: what the monthly price includes and what each further client adds. Null for a plan with no clients. */
-export function clientsLine(p: Pick<PlanWire, "includedClients" | "extraClientMonthlyPaise">): string | null {
-  return p.includedClients > 0 ? `Includes ${p.includedClients} clients, then ${formatRupees(p.extraClientMonthlyPaise)} a month for each further client.` : null
+/**
+ * For a Professional: what the monthly price includes and what each further client adds, by the month and (when the year's months are known) by the
+ * year: "Includes 10 clients, then Rs 50 a month (Rs 300 a year) for each further client." Null for a plan with no clients.
+ */
+export function clientsLine(p: Pick<PlanWire, "includedClients" | "extraClientMonthlyPaise"> & { yearlyMonthsCharged?: number }): string | null {
+  if (!(p.includedClients > 0)) return null
+  const year = p.yearlyMonthsCharged !== undefined && p.yearlyMonthsCharged > 0 ? ` (${formatRupees(yearlyChargePaise(p.extraClientMonthlyPaise, p.yearlyMonthsCharged))} a year)` : ""
+  return `Includes ${p.includedClients} clients, then ${formatRupees(p.extraClientMonthlyPaise)} a month${year} for each further client.`
 }
 
 /** The wording for a running offer. Never "discount applied": the offer is simply the price. */
