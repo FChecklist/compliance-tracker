@@ -50,16 +50,16 @@ export function countDue(page, email, now) {
   return { overdue, soon }
 }
 
-const jobs = (n) => `${n} job${n === 1 ? "" : "s"}`
+const jobs = (n) => `${n} control${n === 1 ? "" : "s"}`
 
 /**
  * The notification text, or null when there is nothing to say. Deliberately generic (counts only, no job names, no organisation name): a
  * notification can light up a locked screen or a shared laptop, and a count tells a bystander nothing.
  */
 export function reminderText({ overdue, soon }) {
-  if (overdue > 0 && soon > 0) return { title: "DPDP jobs need you", body: `${jobs(overdue)} overdue and ${jobs(soon)} due in the next ${SOON_DAYS} days.` }
-  if (overdue > 0) return { title: "DPDP jobs are overdue", body: `${jobs(overdue)} overdue. Open the app to see which.` }
-  if (soon > 0) return { title: "DPDP jobs due soon", body: `${jobs(soon)} due in the next ${SOON_DAYS} days.` }
+  if (overdue > 0 && soon > 0) return { title: "DPDP controls need you", body: `${jobs(overdue)} overdue and ${jobs(soon)} due in the next ${SOON_DAYS} days.` }
+  if (overdue > 0) return { title: "DPDP controls are overdue", body: `${jobs(overdue)} overdue. Open the app to see which.` }
+  if (soon > 0) return { title: "DPDP controls due soon", body: `${jobs(soon)} due in the next ${SOON_DAYS} days.` }
   return null
 }
 

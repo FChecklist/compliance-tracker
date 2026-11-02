@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react"
 import type { DpdpClient } from "@/lib/client"
 import { fetchMyAccount, lockedAnswerGrievance, lockedDownload, lockedRecordBreach } from "@/lib/api"
 import type { MyAccountPayload } from "@/lib/rpc-types"
-import { dueLine, formatRupees } from "@/lib/billing-state"
+import { dueLine, formatRupees, PAYMENT_PENDING_FOR_STAFF } from "@/lib/billing-state"
 import { BillingPanel } from "./BillingPanel"
 import { Card } from "./Screens"
 import { GuidedError } from "@/components/GuidedError"
@@ -71,7 +71,7 @@ export function PaymentDue({ client, email, onSignOut, onRetry }: { client: Dpdp
     <Card icon="🕊️" title="Payment due">
       <p style={{ fontSize: 15, color: "var(--dpdp-ink2)", margin: "0 auto 8px", maxWidth: "46ch" }}>
         {email ? <>Signed in as <b>{email}</b>. </> : null}
-        {dueLine("LOCKED")}
+        {account !== undefined && !isOwner ? PAYMENT_PENDING_FOR_STAFF : dueLine("LOCKED")}
       </p>
       {account && account.hasAccount && (
         <p style={{ fontSize: 13, color: "var(--dpdp-ink3)", margin: "0 auto", maxWidth: "46ch" }}>
@@ -92,14 +92,14 @@ export function PaymentDue({ client, email, onSignOut, onRetry }: { client: Dpdp
           </>
         ) : (
           <p style={{ margin: "6px 0 0", fontSize: 13.5 }}>
-            {account === undefined ? "One moment…" : "Please ask the owner of your organisation to complete the payment. Everything opens again once it is seen."}
+            {account === undefined ? "One moment…" : `${PAYMENT_PENDING_FOR_STAFF} Everything opens again once the payment is seen. Your data is safe.`}
           </p>
         )}
       </div>
 
       <div style={box}>
         <b style={{ color: "var(--dpdp-ink)" }}>Download my data</b>
-        <p style={{ margin: "6px 0 10px", fontSize: 13.5 }}>Your jobs and the dated record, as one file. We keep a fingerprint of your documents, not the documents, so keep your own originals.</p>
+        <p style={{ margin: "6px 0 10px", fontSize: 13.5 }}>Your controls and the dated record, as one file. We keep a fingerprint of your documents, not the documents, so keep your own originals.</p>
         <button type="button" style={quiet} disabled={busy || !isOwner} onClick={() => void run(async () => {
           const data = await lockedDownload(client, orgId)
           downloadJson(`dpdp-data-${new Date().toISOString().slice(0, 10)}.json`, data)

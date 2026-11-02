@@ -137,6 +137,9 @@ export type AiLinkInfo = {
 /** The do-not-forward warning, red, for the top and the bottom of an e-mail that carries an AI work link. */
 export const DO_NOT_FORWARD = "DO NOT FORWARD this email or your AI work link: anyone with it can act as you."
 
+/** Owner (2026-11-02): only an owner can pay, so everyone else is told this and given no pay link. Same words as the app's locked screen. */
+export const PAYMENT_PENDING_FOR_STAFF = "Payment pending. Please check with your admin."
+
 function roleLabel(d: { level: string; roleKind: string; caSub?: string | null }): string {
   if (d.caSub === "partner") return "the CA partner"
   if (d.caSub === "manager") return "the CA manager"
@@ -282,17 +285,17 @@ export function subjectFor(digest: Digest, kind: EmailKind = "monday_digest"): s
   const late = digest.jobs.filter((j) => j.late)
   const escalated = digest.escalatedToMe.length
   if (kind === "statutory") {
-    return `${digest.orgName}: ${plural(digest.jobs.length, "job")} required by today's law${late.length ? ` (${late.length} late)` : ""}`
+    return `${digest.orgName}: ${plural(digest.jobs.length, "control")} required by today's law${late.length ? ` (${late.length} late)` : ""}`
   }
   if (digest.aiChangesOnly) return `${digest.orgName}: what your AI changed for you this week`
   if (digest.level === "owner") {
     const open = digest.jobs.length
-    return `${digest.orgName}: DPDP this week — ${plural(open, "open job")}${late.length ? `, ${late.length} late` : ""}${escalated ? `, ${escalated} escalated to you` : ""}`
+    return `${digest.orgName}: DPDP this week — ${plural(open, "open control")}${late.length ? `, ${late.length} late` : ""}${escalated ? `, ${escalated} escalated to you` : ""}`
   }
   if (mine.length === 0 && escalated) {
-    return `${digest.orgName}: ${plural(escalated, "job")} escalated to you as DPDP coordinator`
+    return `${digest.orgName}: ${plural(escalated, "control")} escalated to you as DPDP coordinator`
   }
-  return `Your DPDP jobs this week — ${plural(mine.length, "job")} to do${late.length ? ` (${late.length} late)` : ""}`
+  return `Your DPDP controls this week — ${plural(mine.length, "control")} to do${late.length ? ` (${late.length} late)` : ""}`
 }
 
 /** The escalation sentences for one job, in the order they appear under it. */
@@ -301,7 +304,7 @@ export function escalationLines(job: DigestJob, digest: Digest): string[] {
   const lines: string[] = []
   const coordinator = digest.coordinators[0]?.email
   const owner = digest.owners[0]?.email
-  const fast = job.requiredToday ? " This job is required by today's law (SPDI Rules 2011 / Aadhaar Act), so it escalates twice as fast." : ""
+  const fast = job.requiredToday ? " This control is required by today's law (SPDI Rules 2011 / Aadhaar Act), so it escalates twice as fast." : ""
   if (job.stuck && e.coordinatorNow) {
     lines.push(job.isGroup
       ? `Someone in ${job.groupLabel ?? "the group"} said they can't do this — ${coordinator ? `your DPDP coordinator (${coordinator})` : "the DPDP coordinator"} has been told.`
@@ -317,7 +320,7 @@ export function escalationLines(job: DigestJob, digest: Digest): string[] {
     lines.push(`Late ${e.ownerThresholdDays} days or more — ${owner ? `${digest.orgName}'s owner, ${owner},` : "the owner"} has been told.`)
   }
   if (e.relationshipOwner) {
-    lines.push(`This is an outside firm's job and they have gone quiet — ${owner ? `${owner}, who looks after that relationship,` : "the owner of that relationship"} has been told.`)
+    lines.push(`This is an outside firm's control and they have gone quiet — ${owner ? `${owner}, who looks after that relationship,` : "the owner of that relationship"} has been told.`)
   }
   return lines
 }
@@ -367,7 +370,7 @@ function jobHtml(job: DigestJob, digest: Digest, links: RenderLinks, withButtons
     : ""
   return `<div style="border:1px solid ${border};border-left:4px solid ${e.red ? "#B91C1C" : "#0E7C6E"};border-radius:8px;padding:12px 14px;margin:0 0 10px;">
   <div style="color:${colour};font-weight:600;font-size:15px;">${badge}${esc(job.what)}${who}</div>
-  <div style="color:#64748B;font-size:13px;margin-top:2px;">Due ${esc(longDate(job.dueOn))}${job.isGroup ? ` · ${esc(job.groupLabel ?? "group job")}` : ""}${job.requiredToday ? " · required by today's law" : ""}</div>
+  <div style="color:#64748B;font-size:13px;margin-top:2px;">Due ${esc(longDate(job.dueOn))}${job.isGroup ? ` · ${esc(job.groupLabel ?? "group control")}` : ""}${job.requiredToday ? " · required by today's law" : ""}</div>
   ${lines}${buttons}
 </div>`
 }
@@ -375,7 +378,7 @@ function jobHtml(job: DigestJob, digest: Digest, links: RenderLinks, withButtons
 function jobText(job: DigestJob, digest: Digest, links: RenderLinks, withButtons: boolean): string {
   const e = escalationOf(job)
   const head = `${e.red ? "[LATE] " : ""}${job.what}${job.isMine ? "" : ` — ${job.assigneeEmail ?? job.groupLabel ?? "nobody yet"}`}`
-  const meta = `  Due ${longDate(job.dueOn)}${job.isGroup ? ` · ${job.groupLabel ?? "group job"}` : ""}${job.requiredToday ? " · required by today's law" : ""}`
+  const meta = `  Due ${longDate(job.dueOn)}${job.isGroup ? ` · ${job.groupLabel ?? "group control"}` : ""}${job.requiredToday ? " · required by today's law" : ""}`
   const lines = escalationLines(job, digest).map((l) => `  ${l}`)
   const a = links.actions?.[job.obligationId]
   const buttons = withButtons && job.isMine
@@ -478,7 +481,7 @@ const AI_NAMES = "ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai"
  * src/lib/services/dpdp-email-ai-link.test.ts -- change both or neither.
  */
 export function aiLinkWarningSentence(jobs: number, people: number): string {
-  return `This link lets an AI assistant read your VERIDIAN view: ${jobs} jobs and the names and emails of ${people} people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.`
+  return `This link lets an AI assistant read your VERIDIAN view: ${jobs} controls and the names and emails of ${people} people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.`
 }
 
 // The paste itself lives in _shared/ai-link/prompt.ts (also served by dpdp-ai-link at /prompt for the one-tap Copy page). The instructions do
@@ -505,14 +508,14 @@ function aiOptions(digest: Digest, links: RenderLinks, hasButtons = true): { htm
   const opt = (label: string, rest: string, last = false) =>
     `<p style="margin:0 0 ${last ? 0 : 6}px;"><strong>${esc(label)}</strong> ${esc(rest)}</p>`
   const o2: Array<[string, string]> = hasButtons
-    ? [["Option 2 — Do it right here.", "Tap the button under a job when it is done."]]
+    ? [["Option 2 — Do it right here.", "Tap the button under a control when it is done."]]
     : []
   const o3: [string, string] = [`Option ${o2.length + 2} — Do it yourself.`, "Open your page and do it by hand."]
   if (!ai) {
     // No link could be made (or none was asked for): point at the page.
     const rows: Array<[string, string]> = [
       ["Option 1 — Relax, let an AI do it for you.", `Open your page below, copy your AI work link and paste it into ${AI_NAMES} or any AI chat.`],
-      ...o2.map(([l, r]) => [l, hasButtons ? "Use the buttons under your jobs below, in this email." : r] as [string, string]),
+      ...o2.map(([l, r]) => [l, hasButtons ? "Use the buttons under your controls below, in this email." : r] as [string, string]),
       [o3[0], "Open your page below and do it by hand."],
     ]
     return {
@@ -579,7 +582,7 @@ const oneLine = (v: unknown, max = 120): string => {
 
 /** "Added a note to “Write down where…”: “called the vendor”" -- one plain sentence per change. */
 export function aiChangeSentence(c: AiChange): string {
-  const job = c.what ? `“${clean(c.what, 80)}”` : "a job"
+  const job = c.what ? `“${clean(c.what, 80)}”` : "a control"
   const v = c.value ?? {}
   switch (c.verb) {
     case "NOTE": return `Added a note to ${job}: “${clean(v.text)}”`
@@ -639,8 +642,8 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
     : digest.aiChangesOnly
       ? `Nothing needs you at ${digest.orgName} this week. Your AI assistant made some changes for you since your last email, and they are listed below so nothing is a surprise.`
     : digest.level === "owner"
-      ? `${urgency} Here is where ${digest.orgName} stands on DPDP for the week of ${weekOf}. Late jobs are at the top, in red. Everyone with a job has had their own email; nothing here needs you unless it is escalated to you below.`
-      : `${urgency} Here are your DPDP jobs at ${digest.orgName} for the week of ${weekOf}. Late ones are at the top, in red. When a job is done, press the green button — that is all.`
+      ? `${urgency} Here is where ${digest.orgName} stands on DPDP for the week of ${weekOf}. Late controls are at the top, in red. Everyone with a control has had their own email; nothing here needs you unless it is escalated to you below.`
+      : `${urgency} Here are your DPDP controls at ${digest.orgName} for the week of ${weekOf}. Late ones are at the top, in red. When a control is done, press the green button — that is all.`
 
   const htmlParts: string[] = []
   const textParts: string[] = []
@@ -657,10 +660,16 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   }
 
   // drizzle/0734: a calm "payment for this account is due" line with a pay link, for as long as the account is DUE / GRACE / LOCKED. A line, not a gate.
+  // Owner (2026-11-02): the owner gets the sentence and the pay link; anyone else gets "Payment pending. Please check with your admin." and no link.
   if (digest.billingDueLine) {
-    const payLink = "https://dpdp.veridian-aios.com/app/"
-    htmlParts.push(`<p style="background:#EEF2FF;color:#3730A3;font-size:14px;line-height:1.5;margin:0 0 16px;padding:10px 14px;border-radius:8px;">${esc(digest.billingDueLine)} <a href="${payLink}" style="color:#3730A3;font-weight:700;">Pay for this account</a></p>`)
-    textParts.push(digest.billingDueLine, `Pay for this account: ${payLink}`, "")
+    if (digest.level === "owner") {
+      const payLink = "https://dpdp.veridian-aios.com/app/"
+      htmlParts.push(`<p style="background:#EEF2FF;color:#3730A3;font-size:14px;line-height:1.5;margin:0 0 16px;padding:10px 14px;border-radius:8px;">${esc(digest.billingDueLine)} <a href="${payLink}" style="color:#3730A3;font-weight:700;">Pay for this account</a></p>`)
+      textParts.push(digest.billingDueLine, `Pay for this account: ${payLink}`, "")
+    } else {
+      htmlParts.push(`<p style="background:#EEF2FF;color:#3730A3;font-size:14px;line-height:1.5;margin:0 0 16px;padding:10px 14px;border-radius:8px;">${esc(PAYMENT_PENDING_FOR_STAFF)}</p>`)
+      textParts.push(PAYMENT_PENDING_FOR_STAFF, "")
+    }
   }
 
   const carriesAiLink = kind !== "statutory" && !digest.aiChangesOnly && !!links.aiLink
@@ -684,8 +693,8 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   if (changes) { htmlParts.push(changes.html); textParts.push(...changes.text) }
 
   if (mine.length) {
-    htmlParts.push(`<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Your jobs (${mine.length})</h2>`)
-    textParts.push(`YOUR JOBS (${mine.length})`)
+    htmlParts.push(`<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Your controls (${mine.length})</h2>`)
+    textParts.push(`YOUR CONTROLS (${mine.length})`)
     for (const j of mine) { htmlParts.push(jobHtml(j, digest, links, true)); textParts.push(jobText(j, digest, links, true), "") }
   } else if (digest.level !== "owner" && kind !== "statutory" && !digest.aiChangesOnly) {
     htmlParts.push(`<p style="color:#475569;font-size:14px;">Nothing for you this week. You will get an email if anything new comes up.</p>`)
@@ -705,13 +714,13 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   }
 
   if (others.length) {
-    htmlParts.push(`<h2 style="color:#1C2B3A;font-size:15px;margin:20px 0 8px;">Everyone else's open jobs (${others.length})</h2>`)
-    textParts.push(`EVERYONE ELSE'S OPEN JOBS (${others.length})`)
+    htmlParts.push(`<h2 style="color:#1C2B3A;font-size:15px;margin:20px 0 8px;">Everyone else's open controls (${others.length})</h2>`)
+    textParts.push(`EVERYONE ELSE'S OPEN CONTROLS (${others.length})`)
     for (const j of others) { htmlParts.push(jobHtml(j, digest, links, false)); textParts.push(jobText(j, digest, links, false), "") }
   }
 
   if (carriesAiLink) { htmlParts.push(warnHtml.replace("margin:0 0 16px", "margin:16px 0 0")); textParts.push("", DO_NOT_FORWARD.toUpperCase()) }
-  const title = digest.aiChangesOnly ? "What your AI changed for you" : digest.level === "owner" ? `${digest.orgName} — DPDP this week` : "Your DPDP jobs this week"
+  const title = digest.aiChangesOnly ? "What your AI changed for you" : digest.level === "owner" ? `${digest.orgName} — DPDP this week` : "Your DPDP controls this week"
   // WO-014 §4, widened by WO-016 §1: the invite + refer asks reach every
   // signed-in person in a real Monday digest now, not just a decision-maker
   // (isDecisionMaker is kept, exported, for callers that still care who a

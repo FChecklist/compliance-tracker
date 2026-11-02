@@ -8,12 +8,12 @@ import { LEVEL1_EXPLANATION, LEVEL_LABEL, aiWorkLinkWarningSentence, formatEnInD
 describe("aiWorkLinkWarningSentence -- WO-013 §1.1, byte-exact for given counts", () => {
   test("12 jobs, 5 people", () => {
     expect(aiWorkLinkWarningSentence({ jobs: 12, people: 5 })).toBe(
-      "This link lets an AI assistant read your VERIDIAN view: 12 jobs and the names and emails of 5 people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.",
+      "This link lets an AI assistant read your VERIDIAN view: 12 controls and the names and emails of 5 people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.",
     )
   })
   test("a single job, a single person -- no special-casing of the count 1", () => {
     expect(aiWorkLinkWarningSentence({ jobs: 1, people: 1 })).toBe(
-      "This link lets an AI assistant read your VERIDIAN view: 1 jobs and the names and emails of 1 people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.",
+      "This link lets an AI assistant read your VERIDIAN view: 1 controls and the names and emails of 1 people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.",
     )
   })
   test("names ChatGPT and \"a US company\" -- the WO's own example, verbatim", () => {

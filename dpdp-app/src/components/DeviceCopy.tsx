@@ -42,7 +42,7 @@ export function DeviceCopy({ savedAt, offline, pending, email }: { savedAt: stri
     tone = "info"
     text = "This browser cannot keep an offline copy. The page works as usual while you are online."
   } else {
-    text = `✓ The whole app and your jobs are kept on this device. It opens and works with no internet.${when ? ` Last saved ${when}.` : ""}${pending > 0 ? ` ${pending} waiting to be sent.` : ""}`
+    text = `✓ The whole app and your controls are kept on this device. It opens and works with no internet.${when ? ` Last saved ${when}.` : ""}${pending > 0 ? ` ${pending} waiting to be sent.` : ""}`
   }
   const bg = tone === "ok" ? "var(--dpdp-gL)" : tone === "warn" ? "#FEF3C7" : "var(--dpdp-line2)"
   const fg = tone === "ok" ? "#0B5F26" : tone === "warn" ? "#78350F" : "var(--dpdp-ink2)"

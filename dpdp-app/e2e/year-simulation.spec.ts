@@ -32,7 +32,7 @@ async function signInAs(page: Page, email: string) {
   await expect(page.getByRole("heading", { level: 1, name: "Check your email", exact: true })).toBeVisible()
   await page.clock.fastForward(2000); now += 2000 // the mock's "the person opened the e-mail" timer
   await expect(page.getByText("Signed in as")).toBeVisible({ timeout: 10_000 })
-  const welcome = page.getByRole("button", { name: "Got it — show me my jobs", exact: true })
+  const welcome = page.getByRole("button", { name: "Got it — show me my controls", exact: true })
   for (const next of ["Next — my clients", "Next — how it works"]) {
     const b = page.getByRole("button", { name: next, exact: true })
     if (await b.isVisible().catch(() => false)) await b.click()

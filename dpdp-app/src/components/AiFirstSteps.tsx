@@ -59,7 +59,7 @@ export function AiFirstSteps({ client, orgId, offline, onMade }: { client: DpdpC
     <div className="dpdp-onepage" id="start-here" data-testid="ai-first-steps">
       <div className="max-w-[1240px] mx-auto px-5 pt-4">
         <div className="rounded-[22px] border p-6" style={card}>
-          <h2 style={{ fontFamily: "Sora, sans-serif", fontSize: 22, fontWeight: 700, margin: "0 0 14px", color: "var(--dpdp-ink)" }}>Do your DPDP jobs in 3 steps</h2>
+          <h2 style={{ fontFamily: "Sora, sans-serif", fontSize: 22, fontWeight: 700, margin: "0 0 14px", color: "var(--dpdp-ink)" }}>Do your DPDP controls in 3 steps</h2>
 
           <div className="flex gap-3.5 items-start mb-5" data-step="1">
             <span style={num} aria-hidden="true">1</span>
@@ -103,12 +103,12 @@ export function AiFirstSteps({ client, orgId, offline, onMade }: { client: DpdpC
             <span style={num} aria-hidden="true">3</span>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, color: "var(--dpdp-ink)" }}>Your AI tells you what to do</div>
-              <p style={{ fontSize: 13.5, color: "var(--dpdp-ink2)", margin: "4px 0 0", maxWidth: "74ch" }}>It reads your jobs, explains each one in plain words and says what is late. If you allowed small updates it makes them for you; anything with legal weight comes back as a button for you to confirm. It never writes or changes code.</p>
+              <p style={{ fontSize: 13.5, color: "var(--dpdp-ink2)", margin: "4px 0 0", maxWidth: "74ch" }}>It reads your controls, explains each one in plain words and says what is late. If you allowed small updates it makes them for you; anything with legal weight comes back as a button for you to confirm. It never writes or changes code.</p>
             </div>
           </div>
 
           <p style={{ fontSize: 13.5, color: "var(--dpdp-ink2)", margin: 0 }}>
-            Prefer to do it yourself? <a href="#jobs" style={{ color: "var(--dpdp-v)", fontWeight: 700 }}>Go to your jobs ↓</a>
+            Prefer to do it yourself? <a href="#jobs" style={{ color: "var(--dpdp-v)", fontWeight: 700 }}>Go to your controls ↓</a>
             {" · "}<a href="#ai-link-settings" style={{ color: "var(--dpdp-v)", fontWeight: 700 }}>More link options (hide emails, 1 or 30 days, turn a link off)</a>
           </p>
         </div>

@@ -273,8 +273,8 @@ export function OpenOrganisation({
   return (
     <Card icon="🏛️" title="Open your organisation">
       <p style={lead}>
-        {email ? <><b>{email}</b> isn&rsquo;t on any DPDP job yet. </> : null}
-        Tell us who you are and your file of DPDP jobs opens straight away, with you as its owner.
+        {email ? <><b>{email}</b> isn&rsquo;t on any DPDP control yet. </> : null}
+        Tell us who you are and your file of DPDP controls opens straight away, with you as its owner.
       </p>
       <form onSubmit={submit} noValidate className="flex flex-col gap-3 items-stretch text-left">
         <label htmlFor="org-name" style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)" }}>Organisation name</label>
@@ -346,7 +346,7 @@ export function OpenOrganisation({
         <InlineError message={slip ?? error} />
       </form>
       <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "18px auto 4px", maxWidth: "44ch" }}>
-        Invited by someone else? Ask the owner of your organisation to name this email on a job, then open the link they send.
+        Invited by someone else? Ask the owner of your organisation to name this email on a control, then open the link they send.
       </p>
       {onOpenPartner && (
         <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "8px auto 4px", maxWidth: "44ch" }}>

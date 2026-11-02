@@ -21,7 +21,7 @@ test.describe("WO-DPDP-013 Part 1 -- the Copy-AI-link screen", () => {
     await seed(page, "owner-live")
     await expect(page.getByRole("heading", { name: "🤖 AI work link", exact: true })).toBeVisible()
     await expect(page.getByText(
-      "This link lets an AI assistant read your VERIDIAN view: 31 jobs and the names and emails of 13 people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.",
+      "This link lets an AI assistant read your VERIDIAN view: 31 controls and the names and emails of 13 people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.",
       { exact: true },
     )).toBeVisible()
     // Never a sign-in token: the form never mentions signing in, and no

@@ -1,7 +1,7 @@
 {
   "name": "VERIDIAN DPDP",
   "short_name": "DPDP",
-  "description": "Your DPDP jobs, on your own device. Works without internet after the first visit.",
+  "description": "Your DPDP controls, on your own device. Works without internet after the first visit.",
   "id": "/app/",
   "start_url": "/app/",
   "scope": "/app/",

@@ -123,9 +123,9 @@ export function dependantCount(row: ObligationRow, allRows: ObligationRow[]): nu
 export function notApplicableCautions(row: ObligationRow, viewer: ViewerContext, allRows: ObligationRow[]): string[] {
   const out: string[] = []
   const waiting = dependantCount(row, allRows)
-  if (waiting > 0) out.push(`${waiting === 1 ? "Another job is" : `${waiting} other jobs are`} waiting for this one. Saying it doesn't apply lets ${waiting === 1 ? "it" : "them"} go ahead.`)
+  if (waiting > 0) out.push(`${waiting === 1 ? "Another control is" : `${waiting} other controls are`} waiting for this one. Saying it doesn't apply lets ${waiting === 1 ? "it" : "them"} go ahead.`)
   if (["coord", "go", "ca"].includes(viewer.kind) && sameAddress(row.by, viewer.me)) {
-    out.push("If this job is what gives you your role in this list (Grievance Officer, coordinator or CA), you may see only your own jobs once it is marked.")
+    out.push("If this control is what gives you your role in this list (Grievance Officer, coordinator or CA), you may see only your own controls once it is marked.")
   }
   return out
 }
@@ -133,6 +133,6 @@ export function notApplicableCautions(row: ObligationRow, viewer: ViewerContext,
 /** Shown above the reason box when today's law is what makes the job a job. */
 export function requiredTodayWarning(row: ObligationRow): string | null {
   return isToday(row.lawCodes)
-    ? "Today's law (the SPDI Rules 2011 or the Aadhaar Act) is behind this job. Say it doesn't apply only if that is really true for you, and write why."
+    ? "Today's law (the SPDI Rules 2011 or the Aadhaar Act) is behind this control. Say it doesn't apply only if that is really true for you, and write why."
     : null
 }

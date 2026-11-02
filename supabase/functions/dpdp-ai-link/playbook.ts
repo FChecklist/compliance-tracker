@@ -39,13 +39,13 @@ export const PART_NAMES: Record<number, string> = {
 export const PART_GUIDE: Record<number, { about: string; how: string[]; ask: string[]; proof: string }> = {
   1: {
     about: "the people who are named as responsible for data protection, and the public way to reach them",
-    how: ["Agree who will be responsible.", "Write down their name, role, email and phone.", "Make sure the person knows they have been named.", "Put the contact where people can find it, if the job says so."],
+    how: ["Agree who will be responsible.", "Write down their name, role, email and phone.", "Make sure the person knows they have been named.", "Put the contact where people can find it, if the control says so."],
     ask: ["Who is this person, exactly (full name and role)?", "How can people reach them (email and phone)?"],
-    proof: "The name and contact written down, and, where the job says publish, the page or notice where people can see it.",
+    proof: "The name and contact written down, and, where the control says publish, the page or notice where people can see it.",
   },
   2: {
     about: "knowing what personal data the organisation holds, where it is kept, why, and who can open it",
-    how: ["List where this data lives (a system, a register, a folder, a phone).", "Write why it is collected.", "Write who can open it.", "Write how long it is kept, if the job asks."],
+    how: ["List where this data lives (a system, a register, a folder, a phone).", "Write why it is collected.", "Write who can open it.", "Write how long it is kept, if the control asks."],
     ask: ["Where exactly is this data kept?", "Why do you need it?", "Who can open it today?"],
     proof: "A short written note, kept in the organisation's own folder, listing where the data is, why it is held and who can open it.",
   },
@@ -76,7 +76,7 @@ export const PART_GUIDE: Record<number, { about: string; how: string[]; ask: str
   7: {
     about: "the final confirmation that the answers are true, then the CA firm's check and signature",
     how: ["Make sure every earlier part is complete.", "Read the answers once more.", "Confirm, or fix what is wrong first.", "The CA manager then checks the proof and the CA partner signs the file."],
-    ask: ["Is every answer on the list true today?", "Is any job still open that should be closed first?"],
+    ask: ["Is every answer on the list true today?", "Is any control still open that should be closed first?"],
     proof: "The dated confirmation, check and signature recorded on the list.",
   },
 }
@@ -91,7 +91,7 @@ export function playbookFor(templateKey: string | null | undefined, job: Playboo
   return {
     source: "generic",
     playbook: {
-      why: `This job is part of "${PART_NAMES[job.part] ?? "the list"}": ${g.about}. Use GET /law/{code} for each law code the job lists to see what it is based on.`,
+      why: `This control is part of "${PART_NAMES[job.part] ?? "the list"}": ${g.about}. Use GET /law/{code} for each law code the control lists to see what it is based on.`,
       who: "The person it is assigned to does it; anyone whose information is needed helps. Ask the person who that is.",
       steps: g.how,
       ask: g.ask,
@@ -99,7 +99,7 @@ export function playbookFor(templateKey: string | null | undefined, job: Playboo
       note: "Done on {date}. {what was done, in one sentence}. Kept at {where the proof is kept}.",
       notApplicableWhen: null,
       email: null,
-      watchFor: ["Do not guess: if the person is not sure, note what is missing and leave the job open."],
+      watchFor: ["Do not guess: if the person is not sure, note what is missing and leave the control open."],
     },
   }
 }
@@ -116,7 +116,7 @@ export function playbookBullets(p: JobPlaybook): string[] {
     `Done looks like: ${p.proof}`,
     `Note to record: ${p.note}`,
   ]
-  out.push(p.notApplicableWhen ? `Not applicable when: ${p.notApplicableWhen}` : "Not applicable: no case is listed for this job. If the person says it does not apply, record their reason as a note and let the owner or their CA decide.")
+  out.push(p.notApplicableWhen ? `Not applicable when: ${p.notApplicableWhen}` : "Not applicable: no case is listed for this control. If the person says it does not apply, record their reason as a note and let the owner or their CA decide.")
   for (const w of p.watchFor) out.push(`Watch for: ${w}`)
   if (p.email) out.push(`Email to send (the person sends it): to ${p.email.to}. The text is just below.`)
   return out
@@ -139,7 +139,7 @@ export function playbookLines(p: JobPlaybook, opts: { includeEmail?: boolean } =
     `Done looks like: ${p.proof}`,
     `Note to record: ${p.note}`,
   ]
-  out.push(p.notApplicableWhen ? `Not applicable when: ${p.notApplicableWhen}` : "Not applicable: no case is listed for this job. If the person says it does not apply, record their reason as a note and let the owner or their CA decide.")
+  out.push(p.notApplicableWhen ? `Not applicable when: ${p.notApplicableWhen}` : "Not applicable: no case is listed for this control. If the person says it does not apply, record their reason as a note and let the owner or their CA decide.")
   if (p.watchFor.length) out.push(`Watch for: ${p.watchFor.join(" ")}`)
   if (p.email && opts.includeEmail !== false) {
     out.push(`Email to send (the person sends it; you cannot): to ${p.email.to}`, `  Subject: ${p.email.subject}`, ...p.email.body.split("\n").map((l) => `  ${l}`))

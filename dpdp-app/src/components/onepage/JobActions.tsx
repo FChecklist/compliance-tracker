@@ -145,16 +145,16 @@ function NoteForm({ row, onSubmit, onDone, onBusy }: FormProps) {
 
 function AssignForm({ row, onSubmit, onDone, onBusy }: FormProps) {
   const [email, setEmail] = useState("")
-  const { error, busy, submit } = useSubmit(() => checkEmail(email), (v) => onSubmit(row.id, v), onDone, onBusy, (v) => `Job given to ${v}.`)
+  const { error, busy, submit } = useSubmit(() => checkEmail(email), (v) => onSubmit(row.id, v), onDone, onBusy, (v) => `Control given to ${v}.`)
   return (
     <form onSubmit={submit} noValidate>
       <label htmlFor={`assign-${row.id}`} style={label}>Their email address</label>
       <input id={`assign-${row.id}`} type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} readOnly={busy} placeholder="their e-mail" style={field} />
       <div style={help}>
         {row.by ? <>It is with <b>{row.by}</b> now. </> : <>Nobody has it yet. </>}
-        The person you name can sign in with this address and see the job. It goes into their Monday email once it is their turn to do it.
+        The person you name can sign in with this address and see the control. It goes into their Monday email once it is their turn to do it.
       </div>
-      <Actions busy={busy} doing="Giving…" done="Give this job" error={error} />
+      <Actions busy={busy} doing="Giving…" done="Give this control" error={error} />
     </form>
   )
 }
@@ -169,7 +169,7 @@ function DueForm({ row, now, onSubmit, onDone, onBusy }: FormProps & { now: Date
       <label htmlFor={`due-${row.id}`} style={label}>New due date</label>
       <input id={`due-${row.id}`} type="date" value={value} min={min} max={max} onChange={(e) => setValue(e.target.value)} readOnly={busy} style={{ ...field, width: "auto" }} />
       <div style={help}>
-        It is due {inWords(dayOf(row.due))} now. A new date changes when the job counts as late: in your list, in the Monday emails, and when the reminders to the coordinator and owner start. It doesn&rsquo;t change what the law asks of you.
+        It is due {inWords(dayOf(row.due))} now. A new date changes when the control counts as late: in your list, in the Monday emails, and when the reminders to the coordinator and owner start. It doesn&rsquo;t change what the law asks of you.
       </div>
       <Actions busy={busy} doing="Saving…" done="Change the date" error={error} />
     </form>
@@ -182,7 +182,7 @@ function NotApplicableForm({ row, viewer, allRows, onSubmit, onDone, onBusy }: F
   const owner = viewer.kind === "owner"
   const warnings = [requiredTodayWarning(row), ...notApplicableCautions(row, viewer, allRows)].filter((w): w is string => !!w)
   const { error, busy, submit } = useSubmit(
-    () => (sure ? checkReason(reason) : { ok: false as const, message: "Tick the box to confirm that this job really doesn't apply." }),
+    () => (sure ? checkReason(reason) : { ok: false as const, message: "Tick the box to confirm that this control really doesn't apply." }),
     (v) => onSubmit(row.id, v),
     onDone,
     onBusy,
@@ -195,7 +195,7 @@ function NotApplicableForm({ row, viewer, allRows, onSubmit, onDone, onBusy }: F
       <textarea id={`na-${row.id}`} value={reason} onChange={(e) => setReason(e.target.value)} readOnly={busy} rows={3} maxLength={NOTE_MAX * 4} placeholder="e.g. We have no cameras at any of our premises." style={{ ...field, resize: "vertical" }} />
       <label className="inline-flex gap-1.5 items-start cursor-pointer mt-2.5" style={{ fontSize: 13, color: "var(--dpdp-ink)" }}>
         <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} disabled={busy} style={{ marginTop: 3 }} />
-        <span>This job really doesn&rsquo;t apply. I understand it is recorded in the History with my name and this reason, and can&rsquo;t be undone from this page.</span>
+        <span>This control really doesn&rsquo;t apply. I understand it is recorded in the History with my name and this reason, and can&rsquo;t be undone from this page.</span>
       </label>
       <Actions busy={busy} doing="Saving…" done="It doesn't apply" error={error} tone="danger" />
     </form>

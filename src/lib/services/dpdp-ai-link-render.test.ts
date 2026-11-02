@@ -72,7 +72,7 @@ describe("renderHtml", () => {
   })
   test("states at the top what it is, that it is read-only, that the person confirms in their browser, and the five verbs", () => {
     const top = html.slice(0, html.indexOf("<h2>"))
-    expect(top).toContain("read-only copy of the DPDP jobs that priya@example.test can see")
+    expect(top).toContain("read-only copy of the DPDP controls that priya@example.test can see")
     expect(top).toContain("It carries no authority")
     expect(top).toContain("open in their own browser, sign in, and confirm")
     expect(top).toContain("drafted by AI, confirmed by priya@example.test")
@@ -80,7 +80,7 @@ describe("renderHtml", () => {
     expect(top).toContain(REFUSED_ACTIONS)
     expect(top).toContain("do not index, cite")
   })
-  test("escapes untrusted text and prints every job id, who, and status", () => {
+  test("escapes untrusted text and prints every control id, who, and status", () => {
     expect(html).toContain("Sharma &amp; &lt;Sons&gt; LLP")
     expect(html).not.toContain("<Sons>")
     expect(html).toContain("<code>ob-late</code>")
@@ -88,21 +88,21 @@ describe("renderHtml", () => {
     expect(html).toContain("nobody yet")
     expect(html).toContain("late by 2 days")
     expect(html).toContain(opts.draftEndpoint)
-    expect(html).toContain("3 live jobs · 1 done · 2 open · 1 late · 1 not applicable")
+    expect(html).toContain("3 live controls · 1 done · 2 open · 1 late · 1 not applicable")
   })
 })
 
 describe("renderMarkdown", () => {
   const md = renderMarkdown(view, opts)
   test("carries the same plain statements and verbs as the HTML", () => {
-    expect(md.startsWith("# DPDP jobs at Sharma & <Sons> LLP -- read-only AI link")).toBe(true)
+    expect(md.startsWith("# DPDP controls at Sharma & <Sons> LLP -- read-only AI link")).toBe(true)
     expect(md).toContain("It carries no authority")
     expect(md).toContain("open in their own browser, sign in, and confirm")
     for (const v of VERBS) expect(md).toContain(`| ${v} |`)
     expect(md).toContain(REFUSED_ACTIONS)
     expect(md).toContain("POST JSON to `" + opts.draftEndpoint + "`")
   })
-  test("renders one table row per job with the id in the last column, escaping pipes", () => {
+  test("renders one table row per control with the id in the last column, escaping pipes", () => {
     expect(md).toContain("| 2 | Publish a privacy \\| policy | 3 | priya@example.test | 2026-09-20 | late by 2 days | `ob-late` |")
     expect(md).toContain("| 3 | Lock your laptop | 4 | All staff (group) | 2026-10-30 | 2 of 5 answered | `ob-group` |")
     expect(md).toContain("| 4 | Bus firm agreement | 5 | nobody yet | 2026-10-30 | not applicable | `ob-na` |")

@@ -13,22 +13,22 @@ import { GuidedError } from "@/components/GuidedError"
 // the RPC refuses anyone but the link's own membership). Until Confirm,
 // nothing in the org has changed.
 const VERB_LABEL: Record<AiDraftPreviewPayload["verb"], string> = {
-  ASSIGN: "Give a job to someone",
-  SET_DUE: "Change when a job is due",
-  NOTE: "Add a note to a job",
-  MARK_NA: "Mark a job as not applicable",
+  ASSIGN: "Give a control to someone",
+  SET_DUE: "Change when a control is due",
+  NOTE: "Add a note to a control",
+  MARK_NA: "Mark a control as not applicable",
   DRAFT: "Draft a document",
   // WO-DPDP-013 Part 1 (drizzle/0610): the Level 2 verbs. Only the first
   // three execute on Confirm today (dpdp_confirm_ai_draft); the rest are
   // recorded as drafts and the RPC refuses Confirm with a plain sentence --
   // shown here BEFORE the button so nobody presses Confirm for nothing.
-  MARK_DONE: "Mark a job done",
+  MARK_DONE: "Mark a control done",
   OWNER_CONFIRM: "Confirm the list your CA set up",
-  ADD_PERSON: "Add a person by giving them a job",
+  ADD_PERSON: "Add a person by giving them a control",
   MANAGER_CHECK: "CA manager checks the file",
   PARTNER_SIGN: "CA partner signs the file",
-  DELETE: "Delete a job",
-  REMOVE_PERSON: "Remove a person from a job",
+  DELETE: "Delete a control",
+  REMOVE_PERSON: "Remove a person from a control",
   CHANGE_SIGNER: "Change who signs",
   PUBLISH: "Publish",
   EXPORT_PERSONAL_DATA: "Export personal data",
@@ -80,7 +80,7 @@ export function DraftConfirm({ client, draft, onDone, onDismiss }: { client: Dpd
             <>
               <dl className="grid gap-x-4 gap-y-1.5 mb-4" style={{ gridTemplateColumns: "max-content 1fr", fontSize: 14 }}>
                 <dt style={{ color: "var(--dpdp-ink3)" }}>What</dt><dd style={{ margin: 0 }}><b>{VERB_LABEL[preview.verb] ?? preview.verb}</b></dd>
-                {preview.job && <><dt style={{ color: "var(--dpdp-ink3)" }}>Job</dt><dd style={{ margin: 0 }}>{preview.job}</dd></>}
+                {preview.job && <><dt style={{ color: "var(--dpdp-ink3)" }}>Control</dt><dd style={{ margin: 0 }}>{preview.job}</dd></>}
                 {fields.map(([k, v]) => (
                   <span key={k} className="contents">
                     <dt style={{ color: "var(--dpdp-ink3)" }}>{FIELD_LABEL[k] ?? k}</dt><dd style={{ margin: 0 }}>{String(v)}</dd>

@@ -98,7 +98,7 @@ export function loadFacts() {
   const lib = JSON.parse(readFileSync(join(DATA_DIR, f.library.file), "utf8"))
   need(lib.version === f.library.version, `library.version (${f.library.version}) does not match ${f.library.file} (${lib.version})`)
   need(Array.isArray(lib.templates) && lib.templates.length > 0, `${f.library.file} has no templates`)
-  need(lib.templates.every((t) => Array.isArray(t.law_codes) && t.law_codes.length > 0), `${f.library.file}: every template must carry law_codes ("Every job is mapped to its legal source")`)
+  need(lib.templates.every((t) => Array.isArray(t.law_codes) && t.law_codes.length > 0), `${f.library.file}: every template must carry law_codes ("Every control is mapped to its legal source")`)
 
   need(f.storage && f.storage.database && f.storage.email && f.storage.website, "storage.database/email/website missing")
   for (const k of ["database", "email", "website"]) need(isStr(f.storage[k].sentence), `storage.${k}.sentence missing`)

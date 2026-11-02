@@ -30,7 +30,7 @@ const OWNER_CONFIRMS = "Owner confirms all the answers are true"
 const MANAGER_CHECKS = "CA manager checks the proof"
 const PARTNER_SIGNS = "CA partner signs the file"
 const GROUP_JOB = "Check your own laptop and phone for customer data — never forward it on personal WhatsApp"
-const WELCOME_GOT_IT = "Got it — show me my jobs"
+const WELCOME_GOT_IT = "Got it — show me my controls"
 const NOT_ME = "This isn’t me"
 
 // The seeded world, signed in as its persona (mock-client.ts MOCK_SCENARIOS).
@@ -91,7 +91,7 @@ const CUSTOMER_DATA_ROW = /Customers.*Write down where it is kept, why you need 
 // tlaw -- 18 checks on the law/date labels and tags the spec renders
 // =====================================================================
 test.describe("tlaw -- the law and date labels", () => {
-  test("LAW-01 SPDI: 'IT Act §43A and SPDI Rules 2011 — in force TODAY, until 13 May 2027' on every job that cites an s: code", async ({ page }) => {
+  test("LAW-01 SPDI: 'IT Act §43A and SPDI Rules 2011 — in force TODAY, until 13 May 2027' on every control that cites an s: code", async ({ page }) => {
     await seed(page, "owner-live")
     const spdi = page.getByTitle(GO_TITLE)
     await expect(spdi).toHaveCount(11) // the 11 firm jobs with an s: code (mock-client.test.ts)
@@ -120,7 +120,7 @@ test.describe("tlaw -- the law and date labels", () => {
     await expect(row(page, PARTNER_SIGNS).getByTitle(GOOD_PRACTICE_TITLE)).toHaveText("Good practice")
   })
 
-  test("LAW-05 '⚡ required today' under every job an s: or a: code asks for, and under no other", async ({ page }) => {
+  test("LAW-05 '⚡ required today' under every control an s: or a: code asks for, and under no other", async ({ page }) => {
     await seed(page, "owner-live")
     await expect(page.getByText("⚡ required today", { exact: true })).toHaveCount(12) // LIBRARY.firm.filter(isToday) = 12
     await expect(row(page, "Publish a privacy policy on the website").getByText("⚡ required today", { exact: true })).toBeVisible()
@@ -135,7 +135,7 @@ test.describe("tlaw -- the law and date labels", () => {
     await expect(row(page, "Publish a privacy policy on the website")).toHaveText(/SPDI R4\s*DPDP §5 · R3\s*⚡ required today/)
   })
 
-  test("LAW-07 the filter chips count All / Mine / Not done / Late / Required today / Nobody named / Done, and 'Required today' shows only those jobs", async ({ page }) => {
+  test("LAW-07 the filter chips count All / Mine / Not done / Late / Required today / Nobody named / Done, and 'Required today' shows only those controls", async ({ page }) => {
     await seed(page, "owner-live")
     for (const [label, n] of [["All", 31], ["Mine", 1], ["Not done", 25], ["Late", 3], ["Required today", 9], ["Nobody named", 1], ["Done", 5]] as const) {
       await expect(chip(page, label, n)).toBeVisible()
@@ -153,7 +153,7 @@ test.describe("tlaw -- the law and date labels", () => {
     await expect(page.getByText("Salary", { exact: true }).first()).toHaveCSS("color", "rgb(75, 79, 122)") // --dpdp-ink2
   })
 
-  test("LAW-09 the seal: 'N of M' done and 'P% done', counting live jobs only", async ({ page }) => {
+  test("LAW-09 the seal: 'N of M' done and 'P% done', counting live controls only", async ({ page }) => {
     await seed(page, "owner-live")
     await expect(page.getByText("5 of 30", { exact: true })).toBeVisible() // 31 jobs, 1 n/a, 5 done
     await expect(page.getByText("17% done", { exact: true })).toBeVisible() // round(5/30*100)
@@ -174,7 +174,7 @@ test.describe("tlaw -- the law and date labels", () => {
     await expect(page.getByText("✓", { exact: true })).toHaveCount(0)
   })
 
-  test("LAW-11 the Done? column: a 'YES' stamp on a done job, 'No' on someone else's open job, 'Mark Yes' only on your own", async ({ page }) => {
+  test("LAW-11 the Done? column: a 'YES' stamp on a done control, 'No' on someone else's open control, 'Mark Yes' only on your own", async ({ page }) => {
     await seed(page, "owner-live")
     await expect(row(page, "Name the " + GRIEVANCE_OFFICER).getByText("YES", { exact: true })).toBeVisible()
     const theirs = row(page, "Publish the Grievance Officer’s name and contact — on your website or a free VERIDIAN page")
@@ -199,7 +199,7 @@ test.describe("tlaw -- the law and date labels", () => {
     await expect(row(page, CUSTOMER_DATA_ROW).getByText(ddMon(-6), { exact: true })).toBeVisible()
   })
 
-  test("LAW-14 a late job carries an 'N days late' tag next to its date; a done job never does", async ({ page }) => {
+  test("LAW-14 a late control carries an 'N days late' tag next to its date; a done control never does", async ({ page }) => {
     await seed(page, "owner-live")
     await expect(row(page, CUSTOMER_DATA_ROW).getByText("6 days late", { exact: true })).toBeVisible()
     await expect(row(page, "Publish a privacy policy on the website").getByText("3 days late", { exact: true })).toBeVisible()
@@ -208,7 +208,7 @@ test.describe("tlaw -- the law and date labels", () => {
     await expect(row(page, "Write down where the recordings are kept and for how long").getByText(/days late/)).toHaveCount(0) // done, due date in the past
   })
 
-  test("LAW-15 a job that depends on another shows 'Waiting' (no button) until the step before it is done", async ({ page }) => {
+  test("LAW-15 a control that depends on another shows 'Waiting' (no button) until the step before it is done", async ({ page }) => {
     await seed(page, "owner-live")
     await expect(row(page, MANAGER_CHECKS).getByText("Waiting", { exact: true })).toBeVisible()
     await expect(row(page, PARTNER_SIGNS).getByText("Waiting", { exact: true })).toBeVisible()
@@ -250,7 +250,7 @@ test.describe("tlaw -- the law and date labels", () => {
     await expect(page.getByText(`Said Yes to "${OWNER_CONFIRMS}"`)).toBeVisible()
   })
 
-  test("LAW-18 'grey — doesn't apply' is struck through with no person; 'nobody' is the amber tag on an unassigned job", async ({ page }) => {
+  test("LAW-18 'grey — doesn't apply' is struck through with no person; 'nobody' is the amber tag on an unassigned control", async ({ page }) => {
     await seed(page, "owner-live")
     const payroll = row(page, "Payroll firm signs the data agreement")
     await expect(payroll.getByText("Doesn't apply", { exact: true })).toBeVisible()
@@ -266,13 +266,13 @@ test.describe("tlaw -- the law and date labels", () => {
 // tfirst -- 28 checks on the first-visit flows
 // =====================================================================
 test.describe("tfirst -- first visits", () => {
-  test("FIRST-01 owner, step 1: 'First, create the DPDP list' -- '31 jobs', one card per part with its job count", async ({ page }) => {
+  test("FIRST-01 owner, step 1: 'First, create the DPDP list' -- '31 controls', one card per part with its control count", async ({ page }) => {
     await seed(page, "owner")
     await expect(page.getByRole("heading", { name: "First, here is your DPDP list", exact: true })).toBeVisible()
-    await expect(page.getByText("31 jobs", { exact: true })).toBeVisible()
+    await expect(page.getByText("31 controls", { exact: true })).toBeVisible()
     await expect(page.getByText("Create your list", { exact: true })).toBeVisible()
     await expect(page.getByText("Who looks after what", { exact: true })).toBeVisible()
-    for (const card of ["Part 1Basics — 3 jobs", "Part 2Know your data — 7 jobs", "Part 3Tell people & take consent — 6 jobs", "Part 4Keep it safe — 5 jobs", "Part 5Firms you share data with — 4 jobs", "Part 6Requests & complaints — 3 jobs", "Part 7Sign off — 3 jobs"]) {
+    for (const card of ["Part 1Basics — 3 controls", "Part 2Know your data — 7 controls", "Part 3Tell people & take consent — 6 controls", "Part 4Keep it safe — 5 controls", "Part 5Firms you share data with — 4 controls", "Part 6Requests & complaints — 3 controls", "Part 7Sign off — 3 controls"]) {
       await expect(page.getByText(card, { exact: true })).toBeVisible()
     }
   })
@@ -286,7 +286,7 @@ test.describe("tfirst -- first visits", () => {
     await expect(page.getByRole("heading", { name: "First, here is your DPDP list", exact: true })).toHaveCount(0)
   })
 
-  test("FIRST-03 owner, step 2: 'An email next to each' -- every area is a labelled field with its help line and 'N jobs: …'", async ({ page }) => {
+  test("FIRST-03 owner, step 2: 'An email next to each' -- every area is a labelled field with its help line and 'N controls: …'", async ({ page }) => {
     await seed(page, "owner")
     await page.getByRole("button", { name: "✓ Create the list", exact: true }).click()
     for (const area of [GRIEVANCE_OFFICER, "DPDP coordinator", "Customer data", "Staff records", "Website firm", "CCTV", "Accounts", "All staff", "IT & computers", "Payroll firm", "Group company"]) {
@@ -294,8 +294,8 @@ test.describe("tfirst -- first visits", () => {
     }
     await expect(page.getByText("answers complaints and looks after the privacy policy — in a small organisation, usually the owner", { exact: true })).toBeVisible()
     await expect(page.getByText("every employee — paste all their emails; each answers for their own laptop and phone", { exact: true })).toBeVisible()
-    await expect(page.getByText("4 jobs: Write down where it is kept, why you need it, and who can open it · Give a privacy notice when you collect their data — on the form, invoice or website · Take consent before sending marketing messages — and make stopping as easy as starting — and 1 more", { exact: true })).toBeVisible()
-    await expect(page.getByText("1 job: Write down how long each is kept — keep only what tax and labour law require, delete the rest", { exact: true })).toBeVisible()
+    await expect(page.getByText("4 controls: Write down where it is kept, why you need it, and who can open it · Give a privacy notice when you collect their data — on the form, invoice or website · Take consent before sending marketing messages — and make stopping as easy as starting — and 1 more", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 control: Write down how long each is kept — keep only what tax and labour law require, delete the rest", { exact: true })).toBeVisible()
   })
 
   test("FIRST-04 owner, step 2: the Grievance Officer and DPDP coordinator are prefilled with 'your email — change if someone else'", async ({ page }) => {
@@ -361,7 +361,7 @@ test.describe("tfirst -- first visits", () => {
     await expect(row(page, CUSTOMER_DATA_ROW).getByText("staff@example.test")).toBeVisible()
   })
 
-  test("FIRST-09 owner: 'Not sure? Leave it empty — it shows amber' -- 'N jobs have nobody looking after them' and 'Show me' lists exactly those", async ({ page }) => {
+  test("FIRST-09 owner: 'Not sure? Leave it empty — it shows amber' -- 'N controls have nobody looking after them' and 'Show me' lists exactly those", async ({ page }) => {
     await seed(page, "owner")
     await page.getByRole("button", { name: "✓ Create the list", exact: true }).click()
     await page.getByRole("button", { name: "✓ Save and send the first emails", exact: true }).click()
@@ -370,7 +370,7 @@ test.describe("tfirst -- first visits", () => {
     // Officer + DPDP coordinator areas hand the owner = 22 (the "Mine 5"
     // chip is the owner's chain step plus those 4). Measured on the built
     // site, not derived: the first cut of this check assumed 25.
-    await expect(page.getByText("22 jobs have nobody looking after them", { exact: true })).toBeVisible()
+    await expect(page.getByText("22 controls have nobody looking after them", { exact: true })).toBeVisible()
     await expect(page.getByText("Type an email into each amber row — or mark it “doesn’t apply” if it is not relevant to you.", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Show me", exact: true }).click()
     await expect(chip(page, "Nobody named", 22)).toBeVisible()
@@ -378,10 +378,10 @@ test.describe("tfirst -- first visits", () => {
     await expect(row(page, OWNER_CONFIRMS)).toHaveCount(0) // the owner's own job is not in the "nobody" view
   })
 
-  test("FIRST-10 CA partner, step 1 of 3: 'Welcome' -- '{org} named you as their CA partner — you have N jobs of your own'", async ({ page }) => {
+  test("FIRST-10 CA partner, step 1 of 3: 'Welcome' -- '{org} named you as their CA partner — you have N controls of your own'", async ({ page }) => {
     await seed(page, "partner")
     await expect(page.getByRole("heading", { name: "Welcome to VERIDIAN", exact: true })).toBeVisible()
-    await expect(page.getByText(`${ORG} named you as their CA partner — you have 1 job of your own here, and you sign the file once the CA manager has checked it.`, { exact: true })).toBeVisible()
+    await expect(page.getByText(`${ORG} named you as their CA partner — you have 1 control of your own here, and you sign the file once the CA manager has checked it.`, { exact: true })).toBeVisible()
     for (const step of ["This client", "Your clients", "How it works"]) await expect(page.getByText(step, { exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "Next — my clients", exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: NOT_ME, exact: true })).toBeVisible()
@@ -399,12 +399,12 @@ test.describe("tfirst -- first visits", () => {
     await expect(page.getByRole("heading", { name: "Welcome to VERIDIAN", exact: true })).toBeVisible()
   })
 
-  test("FIRST-12 CA partner, step 3 of 3: 'How it works' -- the chain, then 'Got it' lands on the jobs page and is recorded once", async ({ page }) => {
+  test("FIRST-12 CA partner, step 3 of 3: 'How it works' -- the chain, then 'Got it' lands on the controls page and is recorded once", async ({ page }) => {
     await seed(page, "partner")
     await page.getByRole("button", { name: "Next — my clients", exact: true }).click()
     await page.getByRole("button", { name: "Next — how it works", exact: true }).click()
     await expect(page.getByRole("heading", { name: "How it works", exact: true })).toBeVisible()
-    await expect(page.getByText(/the owner confirms, the CA manager checks the proof, and you sign\. Your signing job stays “Waiting” until the step before it is done/)).toBeVisible()
+    await expect(page.getByText(/the owner confirms, the CA manager checks the proof, and you sign\. Your signing control stays “Waiting” until the step before it is done/)).toBeVisible()
     await gotIt(page)
     await expect(page.getByRole("heading", { level: 1, name: ORG, exact: true })).toBeVisible()
     await expect(row(page, PARTNER_SIGNS).getByText("Waiting", { exact: true })).toBeVisible()
@@ -414,7 +414,7 @@ test.describe("tfirst -- first visits", () => {
     await expect(page.getByRole("heading", { name: "Welcome to VERIDIAN", exact: true })).toHaveCount(0)
   })
 
-  test("FIRST-13 CA partner: '✗ This is not me' -- 'Yes, tell the owner' hands the jobs back and shows the waiting screen", async ({ page }) => {
+  test("FIRST-13 CA partner: '✗ This is not me' -- 'Yes, tell the owner' hands the controls back and shows the waiting screen", async ({ page }) => {
     await seed(page, "partner")
     await page.getByRole("button", { name: NOT_ME, exact: true }).click()
     await page.getByRole("button", { name: "Yes, tell the owner", exact: true }).click()
@@ -425,14 +425,14 @@ test.describe("tfirst -- first visits", () => {
   test("FIRST-14 owner, when the CA set it up: '{CA} has set this up for you' -- the list by part, who looks after what, nothing sent", async ({ page }) => {
     await seed(page, "client-owner")
     await expect(page.getByRole("heading", { name: "partner@example.test set this up for you", exact: true })).toBeVisible()
-    await expect(page.getByText("31 jobs", { exact: true })).toBeVisible()
-    await expect(page.getByText("Part 1Basics — 3 jobs", { exact: true })).toBeVisible()
-    await expect(page.getByText("Part 7Sign off — 3 jobs", { exact: true })).toBeVisible()
+    await expect(page.getByText("31 controls", { exact: true })).toBeVisible()
+    await expect(page.getByText("Part 1Basics — 3 controls", { exact: true })).toBeVisible()
+    await expect(page.getByText("Part 7Sign off — 3 controls", { exact: true })).toBeVisible()
     await expect(page.getByRole("heading", { name: "Who looks after what", exact: true })).toBeVisible()
-    await expect(page.getByText("go@example.test — 4 jobs", { exact: true })).toBeVisible()
-    await expect(page.getByText("staff@example.test — 4 jobs", { exact: true })).toBeVisible()
-    await expect(page.getByText("All staff — 1 job", { exact: true })).toBeVisible()
-    await expect(page.getByText("1 job has nobody yet — that is fine for now.", { exact: true })).toBeVisible()
+    await expect(page.getByText("go@example.test — 4 controls", { exact: true })).toBeVisible()
+    await expect(page.getByText("staff@example.test — 4 controls", { exact: true })).toBeVisible()
+    await expect(page.getByText("All staff — 1 control", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 control has nobody yet — that is fine for now.", { exact: true })).toBeVisible()
     await expect(page.getByText("Nothing is sent to anybody yet.", { exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "Looks right — confirm", exact: true })).toBeVisible()
   })
@@ -449,32 +449,32 @@ test.describe("tfirst -- first visits", () => {
     await expect(page.getByText("Do this now", { exact: true })).toBeVisible()
   })
 
-  test("FIRST-16 invited staff: '{org} named you … — you have N jobs', with 'Got it' and 'This is not me'", async ({ page }) => {
+  test("FIRST-16 invited staff: '{org} named you … — you have N controls', with 'Got it' and 'This is not me'", async ({ page }) => {
     await seed(page, "staff")
     await expect(page.getByRole("heading", { level: 1, name: "Welcome to VERIDIAN", exact: true })).toBeVisible()
-    await expect(page.getByText(`${ORG} named you as someone who looks after some of their DPDP jobs — you have 4 jobs of your own.`, { exact: true })).toBeVisible()
+    await expect(page.getByText(`${ORG} named you as someone who looks after some of their DPDP controls — you have 4 controls of your own.`, { exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: WELCOME_GOT_IT, exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: NOT_ME, exact: true })).toBeVisible()
   })
 
-  test("FIRST-17 invited Grievance Officer: '{org} named you as their Grievance Officer — you have N jobs'", async ({ page }) => {
+  test("FIRST-17 invited Grievance Officer: '{org} named you as their Grievance Officer — you have N controls'", async ({ page }) => {
     await seed(page, "go")
-    await expect(page.getByText(`${ORG} named you as their Grievance Officer — you have 4 jobs of your own.`, { exact: true })).toBeVisible()
+    await expect(page.getByText(`${ORG} named you as their Grievance Officer — you have 4 controls of your own.`, { exact: true })).toBeVisible()
   })
 
-  test("FIRST-18 invited DPDP coordinator: '{org} named you as their DPDP coordinator — you have N job'", async ({ page }) => {
+  test("FIRST-18 invited DPDP coordinator: '{org} named you as their DPDP coordinator — you have N control'", async ({ page }) => {
     await seed(page, "coord")
-    await expect(page.getByText(`${ORG} named you as their DPDP coordinator — you have 1 job of your own.`, { exact: true })).toBeVisible()
+    await expect(page.getByText(`${ORG} named you as their DPDP coordinator — you have 1 control of your own.`, { exact: true })).toBeVisible()
   })
 
-  test("FIRST-19 invited CA manager: '{org} named you as their CA manager — you have N job'", async ({ page }) => {
+  test("FIRST-19 invited CA manager: '{org} named you as their CA manager — you have N control'", async ({ page }) => {
     await seed(page, "manager")
-    await expect(page.getByText(`${ORG} named you as their CA manager — you have 1 job of your own.`, { exact: true })).toBeVisible()
+    await expect(page.getByText(`${ORG} named you as their CA manager — you have 1 control of your own.`, { exact: true })).toBeVisible()
   })
 
-  test("FIRST-20 invited group member ('Everyone'): the group's job counts as theirs -- 'you have 1 job of your own'", async ({ page }) => {
+  test("FIRST-20 invited group member ('Everyone'): the group's control counts as theirs -- 'you have 1 control of your own'", async ({ page }) => {
     await seed(page, "member")
-    await expect(page.getByText(`${ORG} named you as someone who looks after some of their DPDP jobs — you have 1 job of your own.`, { exact: true })).toBeVisible()
+    await expect(page.getByText(`${ORG} named you as someone who looks after some of their DPDP controls — you have 1 control of your own.`, { exact: true })).toBeVisible()
   })
 
   test("FIRST-21 '✓ Got it — show me my page' lands on the page, is recorded, and the welcome never returns", async ({ page }) => {
@@ -488,16 +488,16 @@ test.describe("tfirst -- first visits", () => {
     await expect(page.getByRole("heading", { level: 1, name: ORG, exact: true })).toBeVisible()
   })
 
-  test("FIRST-22 '✗ This is not me / not my job': asked to confirm, 'Never mind' goes back, 'Yes, tell the owner' shows the waiting screen", async ({ page }) => {
+  test("FIRST-22 '✗ This is not me / not my control': asked to confirm, 'Never mind' goes back, 'Yes, tell the owner' shows the waiting screen", async ({ page }) => {
     await seed(page, "staff")
     await page.getByRole("button", { name: NOT_ME, exact: true }).click()
-    await expect(page.getByText("We’ll tell the owner this needs reassigning, and won’t show your name on these jobs as done.", { exact: true })).toBeVisible()
+    await expect(page.getByText("We’ll tell the owner this needs reassigning, and won’t show your name on these controls as done.", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Never mind", exact: true }).click()
     await expect(page.getByRole("button", { name: WELCOME_GOT_IT, exact: true })).toBeVisible()
     await page.getByRole("button", { name: NOT_ME, exact: true }).click()
     await page.getByRole("button", { name: "Yes, tell the owner", exact: true }).click()
     await expect(page.getByRole("heading", { level: 1, name: `We’ve told ${ORG}’s owner`, exact: true })).toBeVisible()
-    await expect(page.getByText("You said these jobs weren’t yours. We’ve let the owner know it needs reassigning — nothing more to do here until they fix it.", { exact: true })).toBeVisible()
+    await expect(page.getByText("You said these controls weren’t yours. We’ve let the owner know it needs reassigning — nothing more to do here until they fix it.", { exact: true })).toBeVisible()
   })
 
   test("FIRST-23 after 'this is not me': the waiting screen stays, and the owner's History says who needs reassigning", async ({ page }) => {
@@ -580,12 +580,12 @@ test.describe("tfirst -- first visits", () => {
 // troles2 -- 24 checks on what each role sees and can do
 // =====================================================================
 test.describe("troles2 -- roles", () => {
-  test("ROLES-01 owner: the full page -- seal, 'Do this now', parts track, chips, every job (theirs and others'), History, AI link", async ({ page }) => {
+  test("ROLES-01 owner: the full page -- seal, 'Do this now', parts track, chips, every control (theirs and others'), History, AI link", async ({ page }) => {
     await seed(page, "owner-live")
     await expect(page.getByRole("heading", { level: 1, name: ORG, exact: true })).toBeVisible()
     await expect(page.getByText("5 of 30", { exact: true })).toBeVisible()
     await expect(page.getByText("Do this now", { exact: true })).toBeVisible()
-    await expect(page.getByText("1 job has nobody looking after it", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 control has nobody looking after it", { exact: true })).toBeVisible()
     await expect(page.getByText("Emails sent so far", { exact: true })).toBeVisible()
     await expect(page.getByTitle(/^\d+ of \d+ done$/)).toHaveCount(7)
     await expect(chip(page, "All", 31)).toBeVisible()
@@ -596,7 +596,7 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible()
   })
 
-  test("ROLES-02 owner: 'Mark Yes' on their own job -- the stamp, the History line, and it is still there after a reload", async ({ page }) => {
+  test("ROLES-02 owner: 'Mark Yes' on their own control -- the stamp, the History line, and it is still there after a reload", async ({ page }) => {
     await seed(page, "owner-live")
     await markYes(page, OWNER_CONFIRMS)
     await expect(page.getByText(`Said Yes to "${OWNER_CONFIRMS}"`, { exact: true })).toBeVisible()
@@ -607,7 +607,7 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByText("6 of 30", { exact: true })).toBeVisible()
   })
 
-  test("ROLES-03 staff: 'Narrow table for staff' -- only the jobs that are theirs, no seal, no track, no chips, no History", async ({ page }) => {
+  test("ROLES-03 staff: 'Narrow table for staff' -- only the controls that are theirs, no seal, no track, no chips, no History", async ({ page }) => {
     await seed(page, "staff")
     await gotIt(page)
     await expect(page.getByRole("heading", { level: 1, name: ORG, exact: true })).toBeVisible()
@@ -622,7 +622,7 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByText("🕘 History", { exact: true })).toHaveCount(0)
   })
 
-  test("ROLES-04 staff: other people's jobs and a group they are not in are not on their page at all", async ({ page }) => {
+  test("ROLES-04 staff: other people's controls and a group they are not in are not on their page at all", async ({ page }) => {
     await seed(page, "staff")
     await gotIt(page)
     await expect(page.getByText("Mask Aadhaar copies — keep only the last 4 digits visible")).toHaveCount(0) // hr's
@@ -631,26 +631,26 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByText("hr@example.test")).toHaveCount(0)
   })
 
-  test("ROLES-05 staff: 'You have N jobs to do' -- 'When a job is done, press the green button. That is all.' and 'Show me my jobs'", async ({ page }) => {
+  test("ROLES-05 staff: 'You have N controls to do' -- 'When a control is done, press the green button. That is all.' and 'Show me my controls'", async ({ page }) => {
     await seed(page, "staff")
     await gotIt(page)
-    await expect(page.getByText("You have 4 jobs to do", { exact: true })).toBeVisible()
-    await expect(page.getByText("When a job is done, press the green button. That is all.", { exact: true })).toBeVisible()
-    await expect(page.getByRole("button", { name: "Show me my jobs", exact: true })).toBeVisible()
+    await expect(page.getByText("You have 4 controls to do", { exact: true })).toBeVisible()
+    await expect(page.getByText("When a control is done, press the green button. That is all.", { exact: true })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Show me my controls", exact: true })).toBeVisible()
   })
 
-  test("ROLES-06 staff: pressing the green button on one job stamps it, drops the count, and survives a reload", async ({ page }) => {
+  test("ROLES-06 staff: pressing the green button on one control stamps it, drops the count, and survives a reload", async ({ page }) => {
     await seed(page, "staff")
     await gotIt(page)
     await markYes(page, "Give a privacy notice when you collect their data — on the form, invoice or website")
-    await expect(page.getByText("You have 3 jobs to do", { exact: true })).toBeVisible()
+    await expect(page.getByText("You have 3 controls to do", { exact: true })).toBeVisible()
     await page.goto("/app/")
     await expect(page.getByText("Signed in as")).toBeVisible({ timeout: 10_000 })
     await expect(row(page, "Give a privacy notice when you collect their data — on the form, invoice or website").getByText("YES", { exact: true })).toBeVisible()
-    await expect(page.getByText("You have 3 jobs to do", { exact: true })).toBeVisible()
+    await expect(page.getByText("You have 3 controls to do", { exact: true })).toBeVisible()
   })
 
-  test("ROLES-07 group member ('Everyone'): the group's job, with the three answers 'Done', 'Doesn't apply to me', 'I can't' and 'N of M answered'", async ({ page }) => {
+  test("ROLES-07 group member ('Everyone'): the group's control, with the three answers 'Done', 'Doesn't apply to me', 'I can't' and 'N of M answered'", async ({ page }) => {
     await seed(page, "member")
     await gotIt(page)
     await expect(page.getByRole("row")).toHaveCount(1 + 1) // header + the one group job
@@ -662,7 +662,7 @@ test.describe("troles2 -- roles", () => {
     await expect(group.getByText("0 of 3 answered", { exact: true })).toBeVisible()
   })
 
-  test("ROLES-08 group member: 'your answer is in' -- '1 of 3 have answered', the job stays open, and the answer survives a reload", async ({ page }) => {
+  test("ROLES-08 group member: 'your answer is in' -- '1 of 3 have answered', the control stays open, and the answer survives a reload", async ({ page }) => {
     await seed(page, "member")
     await gotIt(page)
     await row(page, GROUP_JOB).getByRole("button", { name: "Done", exact: true }).click()
@@ -673,7 +673,7 @@ test.describe("troles2 -- roles", () => {
     await expect(row(page, GROUP_JOB).getByText("1 of 3 answered", { exact: true })).toBeVisible()
   })
 
-  test("ROLES-09 group roll-up: once everyone has answered the job closes, and the owner's History shows each answer as 'n of 3'", async ({ page }) => {
+  test("ROLES-09 group roll-up: once everyone has answered the control closes, and the owner's History shows each answer as 'n of 3'", async ({ page }) => {
     test.slow() // three group members and the owner, each a real sign-in
     await seed(page, "member")
     await gotIt(page)
@@ -702,22 +702,22 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByText("6 of 30", { exact: true })).toBeVisible()
   })
 
-  test("ROLES-10 Grievance Officer: detected and addressed as one -- 'You have N jobs of your own' / 'As Grievance Officer', with the full page", async ({ page }) => {
+  test("ROLES-10 Grievance Officer: detected and addressed as one -- 'You have N controls of your own' / 'As Grievance Officer', with the full page", async ({ page }) => {
     await seed(page, "go")
-    await expect(page.getByText(`${ORG} named you as their Grievance Officer — you have 4 jobs of your own.`, { exact: true })).toBeVisible()
+    await expect(page.getByText(`${ORG} named you as their Grievance Officer — you have 4 controls of your own.`, { exact: true })).toBeVisible()
     await gotIt(page)
-    await expect(page.getByText("You have 4 jobs of your own", { exact: true })).toBeVisible()
+    await expect(page.getByText("You have 4 controls of your own", { exact: true })).toBeVisible()
     await expect(page.getByText("As Grievance Officer. Press Mark Yes on each when it is done.", { exact: true })).toBeVisible()
     await expect(page.getByText("5 of 30", { exact: true })).toBeVisible() // the seal: a GO sees the whole list
     await expect(page.getByText("🕘 History", { exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "Mark Yes", exact: true })).toHaveCount(4)
   })
 
-  test("ROLES-11 DPDP coordinator: detected as the one who keeps it moving -- the org-wide 'nobody looking after' nudge, the full page, their own job", async ({ page }) => {
+  test("ROLES-11 DPDP coordinator: detected as the one who keeps it moving -- the org-wide 'nobody looking after' nudge, the full page, their own control", async ({ page }) => {
     await seed(page, "coord")
-    await expect(page.getByText(`${ORG} named you as their DPDP coordinator — you have 1 job of your own.`, { exact: true })).toBeVisible()
+    await expect(page.getByText(`${ORG} named you as their DPDP coordinator — you have 1 control of your own.`, { exact: true })).toBeVisible()
     await gotIt(page)
-    await expect(page.getByText("1 job has nobody looking after it", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 control has nobody looking after it", { exact: true })).toBeVisible()
     await expect(page.getByText("5 of 30", { exact: true })).toBeVisible()
     await expect(page.getByText("🕘 History", { exact: true })).toBeVisible()
     await expect(row(page, "Write down how long each is kept — keep only what tax and labour law require, delete the rest").getByRole("button", { name: "Mark Yes", exact: true })).toBeVisible()
@@ -859,7 +859,7 @@ test.describe("troles2 -- roles", () => {
     await page.goto("/app/?mock=owner-live#draft=mock-draft.mock-confirm")
     await expect(page.getByRole("heading", { name: "🤖 An AI drafted something for you to confirm", exact: true })).toBeVisible({ timeout: 10_000 })
     await expect(page).toHaveURL(/\/app\/\?mock=owner-live$/) // the confirm token is cleared from the address bar
-    await expect(page.getByText("Add a note to a job", { exact: true })).toBeVisible()
+    await expect(page.getByText("Add a note to a control", { exact: true })).toBeVisible()
     await expect(page.getByText("Write down where it is kept, why you need it, and who can open it", { exact: true }).first()).toBeVisible()
     await expect(page.getByText("Checked with the billing team — the list is in the shared drive.", { exact: true })).toBeVisible()
     await expect(page.getByText("Nothing has changed yet. It only happens if you press Confirm — under your name, not the AI’s.", { exact: true })).toBeVisible()

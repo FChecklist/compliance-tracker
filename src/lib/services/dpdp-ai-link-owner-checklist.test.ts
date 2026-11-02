@@ -21,7 +21,7 @@ const NOW = new Date("2026-10-05T01:00:00Z")
 
 const KEYS = ["firm-01", "firm-03", "firm-11", "firm-15", "firm-20", "firm-22", "firm-27", "firm-29"]
 const job = (i: number, over: Partial<JobRow> = {}): JobRow => ({
-  id: `obl-${i}`, part: [1, 1, 3, 3, 4, 5, 6, 7][i % 8], what: `Job number ${i}`, dataSet: null, dataTypes: null, lawCodes: ["d:§8(9)"], by: i % 3 === 0 ? "ravi@acmeca.in" : i % 3 === 1 ? "meena@acmeca.in" : null,
+  id: `obl-${i}`, part: [1, 1, 3, 3, 4, 5, 6, 7][i % 8], what: `Control number ${i}`, dataSet: null, dataTypes: null, lawCodes: ["d:§8(9)"], by: i % 3 === 0 ? "ravi@acmeca.in" : i % 3 === 1 ? "meena@acmeca.in" : null,
   byIsYou: false, isGroup: false, groupDone: null, groupTotal: null, due: "2026-10-01", yes: i === 7, na: false, status: "late", daysLate: 4 + i, late: i !== 7, requiredToday: i % 2 === 0,
   dependsOnObligationId: null, templateKey: KEYS[i % 8], ...over,
 } as JobRow)
@@ -49,13 +49,13 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
     expect(renderManualHtml(buildManual({ context: ctx("owner", 1), base: BASE, now: NOW, summary: summariseJobs(rows) }))).toContain('<p class="lead">')
   })
 
-  test("WHY to do it: each job says why it matters, and the law behind it is fetched, never quoted from memory", () => {
+  test("WHY to do it: each control says why it matters, and the law behind it is fetched, never quoted from memory", () => {
     expect(md).toMatch(/- Why: \S/)
     expect(md).toContain("GET /law/{code}")
     expect(md).toContain("Never quote a section or rule from memory.")
   })
 
-  test("HOW to do it: numbered steps, per job", () => {
+  test("HOW to do it: numbered steps, per control", () => {
     expect(md).toMatch(/- Step 1: \S/)
     expect(md).toMatch(/- Step 3: \S/)
   })
@@ -67,9 +67,9 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
     expect(md).toContain("DPDP proof/3 - Tell people & take consent/")
   })
 
-  test("FOR WHOM to do it: the person this link is for, and whose each job is", () => {
+  test("FOR WHOM to do it: the person this link is for, and whose each control is", () => {
     expect(md).toContain("you are working for priya@acmeca.in, the owner at Acme & Co")
-    expect(md).toMatch(/JOB obl-\d · .* · for ravi@acmeca\.in/)
+    expect(md).toMatch(/CONTROL obl-\d · .* · for ravi@acmeca\.in/)
     expect(md).toMatch(/- Who: \S/)
   })
 
@@ -79,12 +79,12 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
     expect(md).toContain("POST /drafts with MARK_DONE")
     expect(md).toMatch(/- Note to record: \S/)
     expect(md).toContain("record the answers as a NOTE (POST /actions), then prepare MARK_DONE")
-    expect(md).toContain("Never say a job is done until they have confirmed it.")
+    expect(md).toContain("Never say a control is done until they have confirmed it.")
   })
 
-  test("the QUESTIONS the AI asks the user: to open with, and per job", () => {
+  test("the QUESTIONS the AI asks the user: to open with, and per control", () => {
     expect(md).toContain("QUESTIONS TO OPEN WITH")
-    expect(md).toContain("Is there a job you have already finished that is not marked done yet?")
+    expect(md).toContain("Is there a control you have already finished that is not marked done yet?")
     expect(md).toMatch(/- Ask 1: \S.*\?/)
     expect(md).toMatch(/- Ask 2: \S/)
   })
@@ -106,7 +106,7 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
     expect(md).toContain("VERIDIAN records the dated answer and a fingerprint of a document, not the document itself")
   })
 
-  test("EMAIL to send: reminders to defaulters, a status note, and an email inside the jobs that need an outside firm - all for the person to send", () => {
+  test("EMAIL to send: reminders to defaulters, a status note, and an email inside the controls that need an outside firm - all for the person to send", () => {
     expect(md).toContain("## M · Emails you can draft — the person sends them")
     expect(md).toContain("You cannot send email or messages.")
     expect(md).toContain("To: ravi@acmeca.in")
@@ -119,7 +119,7 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
     expect(md).toContain("YOUR ROLE")
     expect(md).toContain("You are answerable for the organisation's DPDP work and the first to sign it off")
     expect(md).toContain("OWNER_CONFIRM, a draft too. It is not the final sign-off")
-    expect(md).toContain("make sure every job has someone looking after it")
+    expect(md).toContain("make sure every control has someone looking after it")
   })
 
   test("LEVEL: which of the two levels this link has, what it may change and what it may not", () => {
@@ -130,18 +130,18 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
   })
 
   test("COMPLETION, PENDING and DEFAULTERS, with numbers", () => {
-    expect(md).toMatch(/COMPLETION: 1 of 8 jobs done, 13%\./)
+    expect(md).toMatch(/COMPLETION: 1 of 8 controls done, 13%\./)
     expect(md).toMatch(/PENDING: 7 open\. 7 late \(2 of them have nobody looking after them\), 0 due today, 0 still on time\./)
-    expect(md).toContain("WHO IS BEHIND (people or groups with at least one late job, worst first)")
+    expect(md).toContain("WHO IS BEHIND (people or groups with at least one late control, worst first)")
     expect(md).toMatch(/\| ravi@acmeca\.in \| \d+ \| \d+ \| \d+ \| obl-/)
     expect(md).toContain("REQUIRED BY TODAY'S LAW")
   })
 
-  test("a member who sees only their own jobs gets the same briefing, minus a team they cannot see", () => {
+  test("a member who sees only their own controls gets the same briefing, minus a team they cannot see", () => {
     const staff = page("staff", 1)
-    expect(staff).toContain("You answer only your own jobs")
+    expect(staff).toContain("You answer only your own controls")
     expect(staff).not.toContain("WHO IS BEHIND")
-    expect(staff).not.toContain("REMINDERS TO PEOPLE WITH LATE JOBS")
+    expect(staff).not.toContain("REMINDERS TO PEOPLE WITH LATE CONTROLS")
     // the briefing sections (before the reference) never offer a member the owner's sign-off
     expect(staff.slice(0, staff.indexOf("## A · "))).not.toContain("OWNER_CONFIRM")
     for (const must of ["## S", "## N · ", "## P · ", "## T · ", "## M · ", "## W · "]) expect(staff).toContain(must.replace("## S", "## Start here"))
@@ -151,7 +151,7 @@ describe("the owner's list: the page an AI reaches from the link tells it everyt
     const handedOver = md.slice(md.indexOf("## M · "), md.indexOf("## W · "))
     const drafts = [...handedOver.matchAll(/^To: [\s\S]*?(?=\n\n[A-Z]|$)/gm)].map((m) => m[0])
     expect(drafts.length).toBeGreaterThanOrEqual(3)
-    for (const d of drafts.filter((x) => x.includes("Subject: DPDP jobs at") || x.includes("Subject: DPDP status"))) expect(d).not.toMatch(/\{[a-z_ ]+\}/)
+    for (const d of drafts.filter((x) => x.includes("Subject: DPDP controls at") || x.includes("Subject: DPDP status"))) expect(d).not.toMatch(/\{[a-z_ ]+\}/)
     expect(md.length).toBeGreaterThan(20_000)
     expect(md.length).toBeLessThan(80_000)
   })

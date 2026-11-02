@@ -54,9 +54,9 @@ export function RoleWelcome({
             Welcome to VERIDIAN
           </h1>
           <p style={{ fontSize: 15.5, color: "var(--dpdp-ink2)", margin: "0 auto 22px", maxWidth: "48ch" }}>
-            <b>{orgName}</b> named you {roleLabel ? <>as their <b>{roleLabel}</b></> : "as someone who looks after some of their DPDP jobs"}
+            <b>{orgName}</b> named you {roleLabel ? <>as their <b>{roleLabel}</b></> : "as someone who looks after some of their DPDP controls"}
             {jobCount > 0 ? (
-              <> — you have <b>{jobCount} job{jobCount === 1 ? "" : "s"}</b> of your own.</>
+              <> — you have <b>{jobCount} control{jobCount === 1 ? "" : "s"}</b> of your own.</>
             ) : (
               <>.</>
             )}
@@ -73,7 +73,7 @@ export function RoleWelcome({
                 className="font-bold text-white"
                 style={{ background: "var(--dpdp-v)", fontSize: 15, padding: "13px 22px", borderRadius: 14, opacity: pending ? 0.6 : 1 }}
               >
-                Got it — show me my jobs
+                Got it — show me my controls
               </button>
               <button
                 type="button"
@@ -87,7 +87,7 @@ export function RoleWelcome({
           ) : (
             <div className="rounded-2xl p-4" style={{ background: "var(--dpdp-rL)", border: "1px solid #FBC5CF" }}>
               <p style={{ fontSize: 14, margin: "0 0 12px", color: "var(--dpdp-ink)" }}>
-                We&rsquo;ll tell the owner this needs reassigning, and won&rsquo;t show your name on these jobs as done.
+                We&rsquo;ll tell the owner this needs reassigning, and won&rsquo;t show your name on these controls as done.
               </p>
               <div className="flex gap-2.5 items-center justify-center flex-wrap">
                 <button

@@ -35,10 +35,10 @@ export type Endpoint = {
 const JOBS_QUERY: QueryParam[] = [
   { name: "part", meaning: "1 to 7 (1 Basics, 2 Know your data, 3 Tell people & take consent, 4 Keep it safe, 5 Firms you share data with, 6 Requests & complaints, 7 Sign off)", example: "part=4" },
   { name: "status", meaning: "open | done | late | na | due_today", example: "status=open" },
-  { name: "late", meaning: "1 -- only jobs past their due date", example: "late=1" },
-  { name: "today", meaning: "1 -- only jobs required by today's law (SPDI Rules 2011 / Aadhaar Act), not the DPDP Act that starts 13 May 2027", example: "today=1" },
-  { name: "mine", meaning: "1 -- only the jobs assigned to the person this link belongs to", example: "mine=1" },
-  { name: "nobody", meaning: "1 -- only jobs nobody looks after yet", example: "nobody=1" },
+  { name: "late", meaning: "1 -- only controls past their due date", example: "late=1" },
+  { name: "today", meaning: "1 -- only controls required by today's law (SPDI Rules 2011 / Aadhaar Act), not the DPDP Act that starts 13 May 2027", example: "today=1" },
+  { name: "mine", meaning: "1 -- only the controls assigned to the person this link belongs to", example: "mine=1" },
+  { name: "nobody", meaning: "1 -- only controls nobody looks after yet", example: "nobody=1" },
   { name: "page, per_page", meaning: "pagination (default per_page 100, max 500)", example: "page=2&per_page=50" },
 ]
 
@@ -60,22 +60,22 @@ export const ENDPOINTS: ReadonlyArray<Endpoint> = [
   },
   {
     id: "jobs", method: "GET", path: "/jobs", level: 0,
-    summary: "This view's jobs. Every filter may be combined.",
+    summary: "This view's controls. Every filter may be combined.",
     query: JOBS_QUERY,
     formats: ["json", "md", "csv"],
-    returns: "{ items: [job], page, perPage, total, pages } -- a job is { id, part, what, dataSet, dataTypes, lawCodes, by, byIsYou, isGroup, groupDone, groupTotal, due, yes, na, status, daysLate, late, requiredToday, dependsOnObligationId, templateKey }",
+    returns: "{ items: [control], page, perPage, total, pages } -- a control is { id, part, what, dataSet, dataTypes, lawCodes, by, byIsYou, isGroup, groupDone, groupTotal, due, yes, na, status, daysLate, late, requiredToday, dependsOnObligationId, templateKey }",
     example: "GET /jobs?late=1",
   },
   {
     id: "job", method: "GET", path: "/jobs/{id}", level: 0,
-    summary: "One job in full: the library's plain text, data set and types, law codes, the person, due date, emails sent for it, this link's actions on it, and the history lines that name it -- plus the job's playbook (why, who, steps, questions to ask, note to record, email).",
+    summary: "One control in full: the library's plain text, data set and types, law codes, the person, due date, emails sent for it, this link's actions on it, and the history lines that name it -- plus the control's playbook (why, who, steps, questions to ask, note to record, email).",
     formats: ["json", "md"],
-    returns: "the job plus { plainText, sectionRef, proofKind, roleTag, templateKey, naReason, closedAt, emailsSent, aiActions, history, playbook, playbookSource }",
+    returns: "the control plus { plainText, sectionRef, proofKind, roleTag, templateKey, naReason, closedAt, emailsSent, aiActions, history, playbook, playbookSource }",
     example: "GET /jobs/<id from /jobs>",
   },
   {
     id: "playbook", method: "GET", path: "/playbook", level: 0,
-    summary: "The playbook for every job in this view: why it matters, who does it, the steps, the questions to ask the person, what done looks like, the note to record, and an email to send where someone outside has to act. The same filters as /jobs. Markdown by default.",
+    summary: "The playbook for every control in this view: why it matters, who does it, the steps, the questions to ask the person, what done looks like, the note to record, and an email to send where someone outside has to act. The same filters as /jobs. Markdown by default.",
     query: JOBS_QUERY,
     formats: ["md", "json"],
     returns: "{ items: [{ job, playbook, source }], page, perPage, total, pages }, or a Markdown document grouped by part",
@@ -114,7 +114,7 @@ export const ENDPOINTS: ReadonlyArray<Endpoint> = [
   },
   {
     id: "drafts", method: "POST", path: "/drafts", level: 2,
-    summary: "Level 2: anything with legal weight. Nothing changes -- you get a confirmation link for the person to open in their own browser, sign in, and confirm. The four small edits (NOTE, SET_DUE, ASSIGN, MARK_NA) may be sent here too; on a Level 0 link this is the only way to make them. Confirming SET_DUE, ASSIGN and MARK_NA needs the owner; MARK_DONE confirms only for the job's own person or the owner; a group job is answered by each member on their own page.",
+    summary: "Level 2: anything with legal weight. Nothing changes -- you get a confirmation link for the person to open in their own browser, sign in, and confirm. The four small edits (NOTE, SET_DUE, ASSIGN, MARK_NA) may be sent here too; on a Level 0 link this is the only way to make them. Confirming SET_DUE, ASSIGN and MARK_NA needs the owner; MARK_DONE confirms only for the control's own person or the owner; a group control is answered by each member on their own page.",
     body: "{ \"verb\": \"MARK_DONE | OWNER_CONFIRM | MANAGER_CHECK | PARTNER_SIGN | DELETE | ADD_PERSON | REMOVE_PERSON | CHANGE_SIGNER | PUBLISH | EXPORT_PERSONAL_DATA | NOTE | SET_DUE | ASSIGN | MARK_NA\", \"job_id\": \"<id, where the verb needs one>\", \"value\": { ... } }",
     formats: ["json"],
     returns: "201 { draftId, verb, jobId, expiresAt, confirmUrl, executableOnConfirm, next }",
@@ -129,11 +129,11 @@ export const ENDPOINTS: ReadonlyArray<Endpoint> = [
   },
   {
     id: "suggest", method: "POST", path: "/suggestions", level: 0,
-    summary: "Any level: tell us what the product is missing or could do better -- a feature, an improvement, a report, a fix, a clearer wording. It goes into the shared pool above and changes nothing else: no job, no person, no data. About the product only -- never include a person's name, email, phone, PAN, Aadhaar, an organisation's name, or a link address (the system refuses these). Send the same title as an existing idea, or an endorse id, and your voice is added to it instead. At most 20 new ideas per link per day.",
+    summary: "Any level: tell us what the product is missing or could do better -- a feature, an improvement, a report, a fix, a clearer wording. It goes into the shared pool above and changes nothing else: no control, no person, no data. About the product only -- never include a person's name, email, phone, PAN, Aadhaar, an organisation's name, or a link address (the system refuses these). Send the same title as an existing idea, or an endorse id, and your voice is added to it instead. At most 20 new ideas per link per day.",
     body: "{ \"kind\": \"feature | improvement | report | fix | wording | other\", \"title\": \"5-120 characters\", \"body\": \"10-2000 characters: what is missing and why it would help\" } -- or { \"endorse\": \"<id from GET /suggestions>\" }",
     formats: ["json"],
     returns: "201 { suggestionId, status, duplicate, endorseCount }",
-    example: "POST /suggestions  { \"kind\": \"report\", \"title\": \"Export the Part 4 jobs as a one-page checklist\", \"body\": \"A CA wants to hand the client a printable list of Part 4 jobs that are open. The reports today are Markdown and CSV only.\" }",
+    example: "POST /suggestions  { \"kind\": \"report\", \"title\": \"Export the Part 4 controls as a one-page checklist\", \"body\": \"A CA wants to hand the client a printable list of Part 4 controls that are open. The reports today are Markdown and CSV only.\" }",
   },
   {
     id: "registers", method: "GET", path: "/register", level: 0,
@@ -144,16 +144,16 @@ export const ENDPOINTS: ReadonlyArray<Endpoint> = [
   },
   {
     id: "register", method: "GET", path: "/register/{kind}", level: 0,
-    summary: "Read-only: the rest of the organisation, as a logged-in owner, coordinator, Grievance Officer or CA sees it, without any personal data (counts, states and dates only). GET /register lists the kinds. A staff or parent link is refused (403): they see only their own jobs.",
+    summary: "Read-only: the rest of the organisation, as a logged-in owner, coordinator, Grievance Officer or CA sees it, without any personal data (counts, states and dates only). GET /register lists the kinds. A staff or parent link is refused (403): they see only their own controls.",
     formats: ["json"],
-    returns: "{ kind, data } -- data-map: categories and where they are kept; notices: versions and when in force; people: who is in the organisation and their role; rights: requests by state and the open ones with due dates; grievances: ref, tier, state, due dates; breach: the register with deadlines; public-page: whether the public page is live and the published Grievance Officer; processors: firms data is shared with and whether the agreement is signed; groups: principal groups and consent campaigns (sent, opened, answered); proof: files held per job; plan: the plan band and trial end",
+    returns: "{ kind, data } -- data-map: categories and where they are kept; notices: versions and when in force; people: who is in the organisation and their role; rights: requests by state and the open ones with due dates; grievances: ref, tier, state, due dates; breach: the register with deadlines; public-page: whether the public page is live and the published Grievance Officer; processors: firms data is shared with and whether the agreement is signed; groups: principal groups and consent campaigns (sent, opened, answered); proof: files held per control; plan: the plan band and trial end",
     example: "GET /register/data-map",
   },
   {
     id: "snapshot", method: "GET", path: "/snapshot.md", level: 0,
-    summary: "The one-page snapshot of every job this link can see (the format the link served before this manual existed). Also /snapshot for HTML.",
+    summary: "The one-page snapshot of every control this link can see (the format the link served before this manual existed). Also /snapshot for HTML.",
     formats: ["md", "html"],
-    returns: "a Markdown table of jobs with their ids",
+    returns: "a Markdown table of controls with their ids",
     example: "GET /snapshot.md",
   },
 ]
@@ -169,27 +169,27 @@ export const REGISTER_KINDS: ReadonlyArray<{ kind: string; what: string }> = [
   { kind: "public-page", what: "whether the public DPDP page is live, and the published Grievance Officer" },
   { kind: "processors", what: "firms the organisation shares data with, and whether the agreement is signed" },
   { kind: "groups", what: "groups of people the organisation holds data about, and consent campaigns sent" },
-  { kind: "proof", what: "how many proof files are held for each job, and how many are accepted" },
+  { kind: "proof", what: "how many proof files are held for each control, and how many are accepted" },
   { kind: "plan", what: "the plan band and trial end (never payments)" },
 ]
 
 export type VerbHelp = { verb: string; value: string; means: string; who?: string; executableOnConfirm?: boolean }
 
 export const LEVEL1_VERBS: ReadonlyArray<VerbHelp> = [
-  { verb: "NOTE", value: "{ \"text\": \"...\" }", means: "add a note to a job's history -- nothing else changes", who: "anyone this link belongs to" },
-  { verb: "SET_DUE", value: "{ \"dueOn\": \"YYYY-MM-DD\" }", means: "change when a job is due", who: "the owner only" },
-  { verb: "ASSIGN", value: "{ \"email\": \"person@example.com\" }", means: "give a job to an EXISTING member of this organisation (never a new person -- that is ADD_PERSON, a draft)", who: "the owner only" },
-  { verb: "MARK_NA", value: "{ \"reason\": \"...\" }", means: "mark a job as not applicable, with a written reason", who: "the owner, or the person the job is assigned to" },
+  { verb: "NOTE", value: "{ \"text\": \"...\" }", means: "add a note to a control's history -- nothing else changes", who: "anyone this link belongs to" },
+  { verb: "SET_DUE", value: "{ \"dueOn\": \"YYYY-MM-DD\" }", means: "change when a control is due", who: "the owner only" },
+  { verb: "ASSIGN", value: "{ \"email\": \"person@example.com\" }", means: "give a control to an EXISTING member of this organisation (never a new person -- that is ADD_PERSON, a draft)", who: "the owner only" },
+  { verb: "MARK_NA", value: "{ \"reason\": \"...\" }", means: "mark a control as not applicable, with a written reason", who: "the owner, or the person the control is assigned to" },
 ]
 
 export const LEVEL2_VERBS: ReadonlyArray<VerbHelp> = [
-  { verb: "MARK_DONE", value: "{}", means: "mark a job done (\"Yes\")", executableOnConfirm: true },
+  { verb: "MARK_DONE", value: "{}", means: "mark a control done (\"Yes\")", executableOnConfirm: true },
   { verb: "OWNER_CONFIRM", value: "{}", means: "the owner confirms the list their CA set up", executableOnConfirm: true },
-  { verb: "ADD_PERSON", value: "{ \"email\": \"...\" }", means: "add a person to the organisation by giving them a job", executableOnConfirm: true },
+  { verb: "ADD_PERSON", value: "{ \"email\": \"...\" }", means: "add a person to the organisation by giving them a control", executableOnConfirm: true },
   { verb: "MANAGER_CHECK", value: "{}", means: "the CA manager checks the file", executableOnConfirm: false },
   { verb: "PARTNER_SIGN", value: "{}", means: "the CA partner signs the file", executableOnConfirm: false },
-  { verb: "DELETE", value: "{ \"reason\": \"...\" }", means: "delete a job", executableOnConfirm: false },
-  { verb: "REMOVE_PERSON", value: "{ \"reason\": \"...\" }", means: "remove a person from a job", executableOnConfirm: false },
+  { verb: "DELETE", value: "{ \"reason\": \"...\" }", means: "delete a control", executableOnConfirm: false },
+  { verb: "REMOVE_PERSON", value: "{ \"reason\": \"...\" }", means: "remove a person from a control", executableOnConfirm: false },
   { verb: "CHANGE_SIGNER", value: "{ \"email\": \"...\" }", means: "change who signs", executableOnConfirm: false },
   { verb: "PUBLISH", value: "{}", means: "publish (a notice, a Grievance Officer page)", executableOnConfirm: false },
   { verb: "EXPORT_PERSONAL_DATA", value: "{}", means: "export personal data", executableOnConfirm: false },
@@ -201,7 +201,7 @@ export const ERRORS: ReadonlyArray<ApiError> = [
   { status: 400, meaning: "the request is malformed, or the database refused it for a reason it states in plain English -- read `error` and fix the request" },
   { status: 401, meaning: "no token in the address (the link base is https://dpdp.veridian-aios.com/ai/<token>)" },
   { status: 403, meaning: "this link may not do that: a write on a Level 0 link, a Level 2 verb on any link, or an action outside the person's own authority" },
-  { status: 404, meaning: "no such path, or no such job in this view" },
+  { status: 404, meaning: "no such path, or no such control in this view" },
   { status: 405, meaning: "wrong method for the path" },
   { status: 410, meaning: "this link has expired or was revoked -- ask the person for a new one" },
   { status: 413, meaning: "the body is over 8 KB (6 KB when it travels in a web address as _body)" },

@@ -43,7 +43,7 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     )
     expect(facts.fact_block_title).toBe("What VERIDIAN (VERy INDIAN) is")
     expect(facts.what_it_does).toBe(
-      "It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords. Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs. Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.",
+      "It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords. Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs. Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.",
     )
     expect(facts.deadline_line).toBe("Every CA firm whose clients hold personal data will need to show DPDP compliance by 13 May 2027 — VERIDIAN is built for exactly that work.")
     expect(facts.what_it_does_not_do).toBe("It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).")
@@ -57,9 +57,9 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
   // Owner, 2026-10-01: the home page asks for FOUR things, and says four.
   test("the three points are three numbered lines, the third is 'Prove it'", () => {
     expect(facts.three_things).toEqual([
-      "People change. When they leave, what they knew about your data leaves with them.",
-      "Know what data you hold, and who else holds it for you.",
-      "Prove it — with a record that outlasts the person who set it up.",
+      "People change, but your liability does not. When people leave, what they knew about your data leaves with them.",
+      "Know what data you hold, where it is, and who else holds it for you.",
+      "Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up.",
     ])
   })
 
@@ -334,7 +334,7 @@ describe("no internal-process wording on any public surface", () => {
     for (const [what, re] of INTERNAL) {
       const planted = {
         0: "Facts version 2, approved by the owner on 2026-10-01.",
-        1: "Version 0.2-wo010: 50 jobs.",
+        1: "Version 0.2-wo010: 50 controls.",
         2: "A plain note first: no major search engine has confirmed it.",
         3: "How to describe it accurately",
         4: "See /for-ai/ and /facts.json.",
@@ -668,6 +668,6 @@ describe("/proof/ (WO-013 §2.1): built and hidden until the owner switches it o
     // Owner, 2026-10-14: with no reviewer recorded the page says nothing about a review; the version line stays.
     expect(html).not.toContain("Reviewer:")
     expect(html).not.toContain("not yet recorded")
-    expect(html).toContain("jobs, each mapped to its legal source.")
+    expect(html).toContain("controls, each mapped to its legal source.")
   })
 })

@@ -257,7 +257,7 @@ test.describe("WO-DPDP-014 §3 -- the private-page leak test", () => {
     await seed(page, "partner")
     await page.getByRole("button", { name: "Next — my clients", exact: true }).click()
     await page.getByRole("button", { name: "Next — how it works", exact: true }).click()
-    await page.getByRole("button", { name: "Got it — show me my jobs", exact: true }).click()
+    await page.getByRole("button", { name: "Got it — show me my controls", exact: true }).click()
     await page.getByRole("button", { name: "🧾 My clients (1)", exact: true }).click()
     await page.getByRole("button", { name: "Open Mehta Traders", exact: true }).click()
     await expect(page.getByRole("heading", { level: 1, name: "Mehta Traders", exact: true })).toBeVisible()

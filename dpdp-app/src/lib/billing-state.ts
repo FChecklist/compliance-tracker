@@ -57,6 +57,12 @@ export function dueLine(state: BillingState): string | null {
   }
 }
 
+/**
+ * What everyone except the owner sees when payment is pending (owner, 2026-11-02): they cannot pay, so they are told to ask their admin and get
+ * no pay button or link. Must equal PAYMENT_PENDING_FOR_STAFF in supabase/functions/dpdp-monday-email/render.ts (a test compares them).
+ */
+export const PAYMENT_PENDING_FOR_STAFF = "Payment pending. Please check with your admin."
+
 /** The actions a LOCKED account can still do. Everything else refuses with PAYMENT_DUE_PREFIX. A test pins this list against the migration. */
 export const LOCKED_ALLOWED_ACTIONS = ["pay", "declare_payment", "download_data", "record_breach", "answer_grievance", "withdraw_consent", "sign_out"] as const
 export type LockedAllowedAction = (typeof LOCKED_ALLOWED_ACTIONS)[number]

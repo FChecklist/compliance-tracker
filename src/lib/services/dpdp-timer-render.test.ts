@@ -50,14 +50,14 @@ const live: RenderLinks = {
 }
 
 describe("WO-DPDP-011 §2.5 escalation thresholds (TS mirror of dpdp.build_monday_digests)", () => {
-  test("14/30 days for an ordinary job", () => {
+  test("14/30 days for an ordinary control", () => {
     expect(computeEscalation({ daysLate: 0, requiredToday: false, stuck: false, outsideParty: false })).toMatchObject({ red: false, ccCoordinator: false, ownerNamed: false })
     expect(computeEscalation({ daysLate: 13, requiredToday: false, stuck: false, outsideParty: false })).toMatchObject({ red: true, ccCoordinator: false, ownerNamed: false })
     expect(computeEscalation({ daysLate: 14, requiredToday: false, stuck: false, outsideParty: false })).toMatchObject({ red: true, ccCoordinator: true, ownerNamed: false })
     expect(computeEscalation({ daysLate: 29, requiredToday: false, stuck: false, outsideParty: false })).toMatchObject({ ccCoordinator: true, ownerNamed: false })
     expect(computeEscalation({ daysLate: 30, requiredToday: false, stuck: false, outsideParty: false })).toMatchObject({ ccCoordinator: true, ownerNamed: true, ccThresholdDays: 14, ownerThresholdDays: 30 })
   })
-  test("twice as fast (7/15) for a job required by today's law", () => {
+  test("twice as fast (7/15) for a control required by today's law", () => {
     expect(computeEscalation({ daysLate: 6, requiredToday: true, stuck: false, outsideParty: false })).toMatchObject({ red: true, ccCoordinator: false })
     expect(computeEscalation({ daysLate: 7, requiredToday: true, stuck: false, outsideParty: false })).toMatchObject({ ccCoordinator: true, ownerNamed: false })
     expect(computeEscalation({ daysLate: 14, requiredToday: true, stuck: false, outsideParty: false })).toMatchObject({ ownerNamed: false })
@@ -71,7 +71,7 @@ describe("WO-DPDP-011 §2.5 escalation thresholds (TS mirror of dpdp.build_monda
 })
 
 describe("ordering, statutory subset, emptiness", () => {
-  test("late jobs first, most late at the top, then soonest due, then library order", () => {
+  test("late controls first, most late at the top, then soonest due, then library order", () => {
     const sorted = sortJobs([
       job({ obligationId: "a", key: "firm-12", daysLate: 0, dueOn: "2026-10-01" }),
       job({ obligationId: "b", key: "firm-04", daysLate: 3, dueOn: "2026-09-18" }),
@@ -95,7 +95,7 @@ describe("ordering, statutory subset, emptiness", () => {
 })
 
 describe("the Monday email's copy", () => {
-  test("late jobs at the top in red, coordinator copied at 14 days, owner named at 30, buttons only on my own jobs, 24-hour link sentence", () => {
+  test("late controls at the top in red, coordinator copied at 14 days, owner named at 30, buttons only on my own controls, 24-hour link sentence", () => {
     const d = digest({
       jobs: [
         job({ obligationId: "j0", key: "firm-12", what: "Take consent before marketing", daysLate: 0 }),
@@ -104,7 +104,7 @@ describe("the Monday email's copy", () => {
       ],
     })
     const out = renderDigest(d, live)
-    expect(out.subject).toBe("Your DPDP jobs this week — 3 jobs to do (2 late)")
+    expect(out.subject).toBe("Your DPDP controls this week — 3 controls to do (2 late)")
     // Late first: the 31-day job is rendered before the 14-day one, which is before the on-time one.
     const i31 = out.html.indexOf("Write down where &lt;it&gt; is kept")
     const i14 = out.html.indexOf("Give a privacy notice")
@@ -128,7 +128,7 @@ describe("the Monday email's copy", () => {
     // Not my job -> no buttons at all.
     const other = renderDigest(digest({ level: "owner", roleKind: "owner", jobs: [job({ obligationId: "x", isMine: false, assigneeEmail: "someone@example.test" })] }), live)
     expect(other.html).not.toContain("/act/#")
-    expect(other.html).toContain("Everyone else's open jobs (1)")
+    expect(other.html).toContain("Everyone else's open controls (1)")
   })
 
   test("a dry run renders placeholders and never a real link", () => {
@@ -140,7 +140,7 @@ describe("the Monday email's copy", () => {
     expect(out.html).not.toContain("supabase.co/auth")
   })
 
-  test("'I can't' names the coordinator immediately; a group job offers all three answers", () => {
+  test("'I can't' names the coordinator immediately; a group control offers all three answers", () => {
     const g = job({ obligationId: "g1", key: "firm-21", what: "Check your own laptop", isGroup: true, groupLabel: "All staff", assigneeEmail: null, stuck: true, daysLate: 0 })
     const lines = escalationLines(g, digest())
     expect(lines[0]).toContain("said they can't do this — your DPDP coordinator (coord@example.test) has been told.")
@@ -167,14 +167,14 @@ describe("the Monday email's copy", () => {
       roleKind: "coord", email: "coord@example.test",
       escalatedToMe: [{ obligationId: "c", what: "Check your own laptop", assigneeEmail: "All staff", daysLate: 0, requiredToday: false, stuck: true, outsideParty: false, reason: "stuck" }],
     }), live)
-    expect(coord.subject).toBe("Acme & Co: 1 job escalated to you as DPDP coordinator")
+    expect(coord.subject).toBe("Acme & Co: 1 control escalated to you as DPDP coordinator")
     expect(coord.html).toContain("All staff said they can't do it — please help or reassign.")
   })
 
   test("subjects", () => {
-    expect(subjectFor(digest({ jobs: [job({ obligationId: "a" })] }))).toBe("Your DPDP jobs this week — 1 job to do")
-    expect(subjectFor(digest({ level: "owner", roleKind: "owner", jobs: [job({ obligationId: "a", isMine: false, daysLate: 2 }), job({ obligationId: "b", isMine: false })] }))).toBe("Acme & Co: DPDP this week — 2 open jobs, 1 late")
-    expect(subjectFor(digest({ statutoryOnly: true, jobs: [job({ obligationId: "a", requiredToday: true, daysLate: 1 })] }), "statutory")).toBe("Acme & Co: 1 job required by today's law (1 late)")
+    expect(subjectFor(digest({ jobs: [job({ obligationId: "a" })] }))).toBe("Your DPDP controls this week — 1 control to do")
+    expect(subjectFor(digest({ level: "owner", roleKind: "owner", jobs: [job({ obligationId: "a", isMine: false, daysLate: 2 }), job({ obligationId: "b", isMine: false })] }))).toBe("Acme & Co: DPDP this week — 2 open controls, 1 late")
+    expect(subjectFor(digest({ statutoryOnly: true, jobs: [job({ obligationId: "a", requiredToday: true, daysLate: 1 })] }), "statutory")).toBe("Acme & Co: 1 control required by today's law (1 late)")
     expect(longDate("2026-09-21")).toBe("21 September 2026")
   })
 })
@@ -204,7 +204,7 @@ describe("WO-DPDP-014 -- the brand line in email footers", () => {
     expect(isDecisionMaker({ level: "staff", caSub: "manager" })).toBe(true)
   })
 
-  test("every digest carries the brand line once, in the footer, after the last job", () => {
+  test("every digest carries the brand line once, in the footer, after the last control", () => {
     for (const d of [ownerDigest(), staffDigest()]) {
       const out = renderDigest(d, live)
       expect(out.html.split(BRAND_LINE_FULL)).toHaveLength(2)
@@ -282,7 +282,7 @@ describe("WO-DPDP-014 -- the brand line in email footers", () => {
     }
   })
 
-  test("the preview text stays the person's jobs: neither line in the first 300 characters of html, visible text, or text", () => {
+  test("the preview text stays the person's controls: neither line in the first 300 characters of html, visible text, or text", () => {
     for (const [d, kind] of [[ownerDigest(), "monday_digest"], [staffDigest(), "monday_digest"]] as const) {
       const out = renderDigest(d, live, kind)
       for (const s of [out.html.slice(0, 300), stripTags(out.html).slice(0, 300), out.text.slice(0, 300)]) {
@@ -374,13 +374,23 @@ describe("legal clocks and RFC 8058 headers", () => {
 
 describe("drizzle/0734: the calm 'payment is due' line, carried by every e-mail of a DUE / GRACE / LOCKED account", () => {
   const line = "A gentle note: payment for this account is due. Everything keeps working while you sort it out."
-  test("shown above the intro with a pay link, in the owner's and a member's e-mail, and in the statutory-only one", () => {
+  test("shown above the intro with a pay link in the owner's e-mail, and in the statutory-only one", () => {
     for (const kind of [undefined, "statutory"] as const) {
-      const out = renderDigest(digest({ billingDueLine: line }), live, kind)
+      const out = renderDigest(digest({ level: "owner", roleKind: "owner", billingDueLine: line }), live, kind)
       expect(out.html).toContain(line)
       expect(out.html).toContain("Pay for this account")
       expect(out.text).toContain(line)
-      expect(out.html.indexOf(line)).toBeLessThan(out.html.indexOf("Here are your DPDP jobs") === -1 ? Number.MAX_SAFE_INTEGER : out.html.indexOf("Here are your DPDP jobs"))
+      expect(out.html.indexOf(line)).toBeLessThan(out.html.indexOf("Here are your DPDP controls") === -1 ? Number.MAX_SAFE_INTEGER : out.html.indexOf("Here are your DPDP controls"))
+    }
+  })
+  test("a member who is not the owner is told 'Payment pending. Please check with your admin.' and gets no pay link (owner, 2026-11-02)", () => {
+    for (const kind of [undefined, "statutory"] as const) {
+      const out = renderDigest(digest({ billingDueLine: line }), live, kind)
+      expect(out.html).toContain("Payment pending. Please check with your admin.")
+      expect(out.text).toContain("Payment pending. Please check with your admin.")
+      expect(out.html).not.toContain("Pay for this account")
+      expect(out.text).not.toContain("Pay for this account")
+      expect(out.html).not.toContain(line)
     }
   })
   test("absent or null: nothing is added, and the digest is otherwise the same", () => {
@@ -388,7 +398,7 @@ describe("drizzle/0734: the calm 'payment is due' line, carried by every e-mail 
     expect(renderDigest(digest({ billingDueLine: null }), live).html).toBe(plain.html)
     expect(plain.html).not.toContain("Pay for this account")
   })
-  test("it never replaces the list: every job is still there with the line present", () => {
+  test("it never replaces the list: every control is still there with the line present", () => {
     const withLine = renderDigest(digest({ billingDueLine: line }), live)
     const without = renderDigest(digest({}), live)
     expect(withLine.html.length).toBeGreaterThan(without.html.length)
@@ -402,8 +412,8 @@ describe("WO-DPDP-016 §9: the billing banner, before everything else", () => {
       const out = renderDigest(digest({ subscriptionState: state }), live)
       expect(out.html).toContain("DPDP is important")
       expect(out.text).toContain("DPDP IS IMPORTANT")
-      expect(out.html.indexOf("DPDP is important")).toBeLessThan(out.html.indexOf("Here are your DPDP jobs"))
-      expect(out.text.indexOf("DPDP IS IMPORTANT")).toBeLessThan(out.text.indexOf("Here are your DPDP jobs"))
+      expect(out.html.indexOf("DPDP is important")).toBeLessThan(out.html.indexOf("Here are your DPDP controls"))
+      expect(out.text.indexOf("DPDP IS IMPORTANT")).toBeLessThan(out.text.indexOf("Here are your DPDP controls"))
     }
   })
 

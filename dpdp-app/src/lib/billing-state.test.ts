@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
   DEFAULT_BILLING_SETTINGS, EARNINGS_DISCLAIMER, LOCKED_ALLOWED_ACTIONS, PAYMENT_DUE_PREFIX, billingState, canAddClient, capMessage, dueLine, earningsExample, finalDownloadDue,
-  formatRupees, isPaymentDueError, offerLabel, periodEnd, planForClients, yearlyChargePaise, type PlanWire,
+  PAYMENT_PENDING_FOR_STAFF, formatRupees, isPaymentDueError, offerLabel, periodEnd, planForClients, yearlyChargePaise, type PlanWire,
 } from "./billing-state"
 
 const DAY = 86_400_000
@@ -65,6 +65,24 @@ describe("the calm line and the locked-screen rules", () => {
       expect(l).toContain("payment for this account is due".replace("payment", s === "LOCKED" ? "Payment" : "payment"))
     }
     expect(dueLine("LOCKED")).toContain("Your data is safe")
+  })
+
+  test("everyone but the owner is told 'Payment pending. Please check with your admin.' and gets no pay link (owner, 2026-11-02)", () => {
+    expect(PAYMENT_PENDING_FOR_STAFF).toBe("Payment pending. Please check with your admin.")
+    const render = readFileSync(join(import.meta.dir, "..", "..", "..", "supabase", "functions", "dpdp-monday-email", "render.ts"), "utf8")
+    // The e-mail carries the very same words, and the pay link sits only inside the owner branch.
+    expect(render).toContain(`export const PAYMENT_PENDING_FOR_STAFF = "${PAYMENT_PENDING_FOR_STAFF}"`)
+    const ownerBranch = render.indexOf('if (digest.level === "owner") {')
+    const payLink = render.indexOf('const payLink = "https://dpdp.veridian-aios.com/app/"')
+    const staffBranch = render.indexOf("} else {", ownerBranch)
+    expect(ownerBranch).toBeGreaterThan(-1)
+    expect(payLink).toBeGreaterThan(ownerBranch)
+    expect(payLink).toBeLessThan(staffBranch)
+    expect(render.slice(staffBranch, staffBranch + 700)).not.toContain("payLink")
+    // The app's locked screen uses the constant, not a retyped line.
+    const screen = readFileSync(join(import.meta.dir, "..", "components", "PaymentDue.tsx"), "utf8")
+    expect(screen).toContain("PAYMENT_PENDING_FOR_STAFF")
+    expect(screen).not.toContain("Please ask the owner of your organisation to complete the payment")
   })
 
   test("the always-open list is the legal-duty set plus paying and downloading (and signing out)", () => {

@@ -51,7 +51,7 @@ export function OwnerReview({
           <div className="p-7">
             <h2 style={{ fontSize: 24, margin: "0 0 6px", fontWeight: 700 }}>{who} set this up for you</h2>
             <p style={{ fontSize: 15, color: "var(--dpdp-ink2)", margin: "0 0 18px", maxWidth: "72ch" }}>
-              Here is the DPDP list they created — <b>{totalJobs} jobs</b> — and who looks after what. If it looks right, confirm below. If anything is wrong, tell your CA and they can change it before you confirm. You can add, change, remove or mark any job &ldquo;doesn&rsquo;t apply&rdquo; later.
+              Here is the DPDP list they created — <b>{totalJobs} controls</b> — and who looks after what. If it looks right, confirm below. If anything is wrong, tell your CA and they can change it before you confirm. You can add, change, remove or mark any control &ldquo;doesn&rsquo;t apply&rdquo; later.
             </p>
             <div className="grid grid-cols-2 gap-2.5 mb-5">
               {PARTS.map((p) => {
@@ -60,23 +60,23 @@ export function OwnerReview({
                 return (
                   <div key={p.n} className="p-3" style={{ border: "1px solid var(--dpdp-line2)", borderLeft: `4px solid ${p.color}`, borderRadius: 12, fontSize: 13.5, background: "#fff" }}>
                     <i className="not-italic" style={{ fontSize: 11.5, fontWeight: 700, color: p.color, marginRight: 8 }}>Part {p.n}</i>
-                    <b style={{ fontFamily: "Sora, sans-serif" }}>{p.name}</b> — {part.all} job{part.all !== 1 ? "s" : ""}
+                    <b style={{ fontFamily: "Sora, sans-serif" }}>{p.name}</b> — {part.all} control{part.all !== 1 ? "s" : ""}
                   </div>
                 )
               })}
             </div>
             <h3 style={{ fontSize: 16, margin: "0 0 8px", fontWeight: 700 }}>Who looks after what</h3>
             {people.length === 0 ? (
-              <p style={{ fontSize: 14, color: "var(--dpdp-ink3)", margin: "0 0 18px" }}>Nobody has been named yet — every job shows amber until you or your CA name someone.</p>
+              <p style={{ fontSize: 14, color: "var(--dpdp-ink3)", margin: "0 0 18px" }}>Nobody has been named yet — every control shows amber until you or your CA name someone.</p>
             ) : (
               <ul style={{ margin: "0 0 18px", padding: 0, listStyle: "none" }}>
                 {people.map((p) => (
                   <li key={p} className="py-2" style={{ borderBottom: "1px solid var(--dpdp-line2)", fontSize: 14 }}>
-                    <b>{p}</b> <span style={{ color: "var(--dpdp-ink3)" }}>— {rows.filter((r) => r.by === p && !r.na).length} job{rows.filter((r) => r.by === p && !r.na).length !== 1 ? "s" : ""}</span>
+                    <b>{p}</b> <span style={{ color: "var(--dpdp-ink3)" }}>— {rows.filter((r) => r.by === p && !r.na).length} control{rows.filter((r) => r.by === p && !r.na).length !== 1 ? "s" : ""}</span>
                   </li>
                 ))}
                 {nobody > 0 && (
-                  <li className="py-2" style={{ fontSize: 14, color: "var(--dpdp-ink3)" }}>{nobody} job{nobody !== 1 ? "s have" : " has"} nobody yet — that is fine for now.</li>
+                  <li className="py-2" style={{ fontSize: 14, color: "var(--dpdp-ink3)" }}>{nobody} control{nobody !== 1 ? "s have" : " has"} nobody yet — that is fine for now.</li>
                 )}
               </ul>
             )}

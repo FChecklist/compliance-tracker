@@ -117,7 +117,7 @@ describe("vNow priority order (NORMATIVE -- do not reorder)", () => {
     const rows = [row({ by: "staff@example.test" }), row({ by: null })]
     const result = vNow(rows, staff, NOW)
     expect(result.action).toBe("mine")
-    expect(result.title).toContain("job")
+    expect(result.title).toContain("control")
   })
   test("parent: unanswered questions win", () => {
     const parent: ViewerContext = { kind: "parent", me: "You" }
@@ -206,7 +206,7 @@ describe("vNow for a group member (ACCEPTANCE-70.md finding: 'Nothing for you th
 
   test("an unanswered group job is the member's job to do", () => {
     const now = vNow([groupJob({ myGroupAnswer: null })], member, NOW)
-    expect(now.title).toBe("You have 1 job to do")
+    expect(now.title).toBe("You have 1 control to do")
     expect(now.action).toBe("mine")
   })
   test("once the member has answered, their week is clear even though colleagues have not", () => {

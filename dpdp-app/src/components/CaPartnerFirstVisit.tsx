@@ -77,7 +77,7 @@ export function CaPartnerFirstVisit({
                 <h2 style={{ fontSize: 24, margin: "0 0 6px", fontWeight: 700 }}>Welcome to VERIDIAN</h2>
                 <p style={{ fontSize: 15, color: "var(--dpdp-ink2)", margin: "0 0 18px", maxWidth: "72ch" }}>
                   <b>{orgName}</b> named you as their <b>CA partner</b>
-                  {jobCount > 0 ? <> — you have <b>{jobCount} job{jobCount === 1 ? "" : "s"}</b> of your own here, and you sign the file once the CA manager has checked it.</> : <>. You sign the file once the CA manager has checked it.</>}
+                  {jobCount > 0 ? <> — you have <b>{jobCount} control{jobCount === 1 ? "" : "s"}</b> of your own here, and you sign the file once the CA manager has checked it.</> : <>. You sign the file once the CA manager has checked it.</>}
                 </p>
                 {error && <GuidedError message={error} />}
                 {!confirmingNotMe ? (
@@ -92,7 +92,7 @@ export function CaPartnerFirstVisit({
                 ) : (
                   <div className="rounded-2xl p-4" style={{ background: "var(--dpdp-rL)", border: "1px solid #FBC5CF" }}>
                     <p style={{ fontSize: 14, margin: "0 0 12px", color: "var(--dpdp-ink)" }}>
-                      We&rsquo;ll tell the owner this needs reassigning, and won&rsquo;t show your name on these jobs as done.
+                      We&rsquo;ll tell the owner this needs reassigning, and won&rsquo;t show your name on these controls as done.
                     </p>
                     <div className="flex gap-2.5 items-center flex-wrap">
                       <button type="button" disabled={pending} onClick={() => runAndRefresh(onNotMe)} className="font-bold text-white" style={{ background: "var(--dpdp-r)", fontSize: 14, padding: "11px 18px", borderRadius: 12, opacity: pending ? 0.6 : 1 }}>
@@ -145,15 +145,15 @@ export function CaPartnerFirstVisit({
               <>
                 <h2 style={{ fontSize: 24, margin: "0 0 6px", fontWeight: 700 }}>How it works</h2>
                 <p style={{ fontSize: 15, color: "var(--dpdp-ink2)", margin: "0 0 12px", maxWidth: "72ch" }}>
-                  Every Monday, each person named on a job gets one email with their own jobs and a button to press. Late jobs go red; after two weeks the coordinator is copied; after a month the owner is told by name.
+                  Every Monday, each person named on a control gets one email with their own controls and a button to press. Late controls go red; after two weeks the coordinator is copied; after a month the owner is told by name.
                 </p>
                 <p style={{ fontSize: 15, color: "var(--dpdp-ink2)", margin: "0 0 18px", maxWidth: "72ch" }}>
-                  The file closes in a chain: the owner confirms, the CA manager checks the proof, and <b>you sign</b>. Your signing job stays &ldquo;Waiting&rdquo; until the step before it is done — nothing is asked of you before then.
+                  The file closes in a chain: the owner confirms, the CA manager checks the proof, and <b>you sign</b>. Your signing control stays &ldquo;Waiting&rdquo; until the step before it is done — nothing is asked of you before then.
                 </p>
                 {error && <GuidedError message={error} />}
                 <div className="flex gap-2.5 items-center flex-wrap mt-4.5">
                   <button type="button" disabled={pending} onClick={() => runAndRefresh(onAcknowledge)} className="font-bold text-white" style={{ background: "var(--dpdp-g)", fontSize: 15, padding: "13px 22px", borderRadius: 14, opacity: pending ? 0.6 : 1 }}>
-                    Got it — show me my jobs
+                    Got it — show me my controls
                   </button>
                   <button type="button" disabled={pending} onClick={() => setStep(2)} style={{ background: "transparent", color: "var(--dpdp-ink3)", fontSize: 13.5, padding: "13px 10px", textDecoration: "underline" }}>
                     Back

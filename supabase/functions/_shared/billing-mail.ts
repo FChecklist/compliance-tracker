@@ -177,7 +177,7 @@ export function renderBillingDue(d: BillingDueInput): Rendered {
     d.line,
     ``,
     d.finalDownload
-      ? `It has been a while, so this is a last reminder to take a copy of what is kept for ${d.orgName}: the jobs and the dated record. Your data is kept for a year in all, and the owner can download it here:`
+      ? `It has been a while, so this is a last reminder to take a copy of what is kept for ${d.orgName}: the controls and the dated record. Your data is kept for a year in all, and the owner can download it here:`
       : d.role === "owner" || d.role === "billing contact"
       ? `To pay for ${d.orgName}, open:`
       : `The owner of ${d.orgName} can pay here, so please let them know:`,

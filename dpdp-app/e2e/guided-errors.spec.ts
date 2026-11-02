@@ -10,7 +10,7 @@ const TECH = /\b(json|payload|rpc|sql|http|api|undefined|null|exception|postgres
 async function seed(page: Page, scenario: string) {
   await page.goto(`/app/?mock=${scenario}`)
   await expect(page.getByText("Signed in as")).toBeVisible({ timeout: 10_000 })
-  const welcome = page.getByRole("button", { name: "Got it — show me my jobs", exact: true })
+  const welcome = page.getByRole("button", { name: "Got it — show me my controls", exact: true })
   if (await welcome.isVisible().catch(() => false)) await welcome.click()
 }
 
@@ -45,7 +45,7 @@ async function openRowWithAllFour(page: Page) {
     if (tabs.length === 4) return
     await b.click()
   }
-  throw new Error("no job offers all four controls")
+  throw new Error("no control offers all four controls")
 }
 
 test.describe("guided errors -- every role, real browser", () => {
@@ -101,8 +101,8 @@ test.describe("guided errors -- every role, real browser", () => {
     await page.getByRole("tab", { name: "Doesn't apply", exact: true }).click()
     await page.getByRole("button", { name: "It doesn't apply", exact: true }).click()
     await expectGuide(page, "One box needs ticking first")
-    await takeMeThere(page, page.getByRole("checkbox", { name: /This job really doesn.t apply/ }))
-    await page.getByRole("checkbox", { name: /This job really doesn.t apply/ }).check()
+    await takeMeThere(page, page.getByRole("checkbox", { name: /This control really doesn.t apply/ }))
+    await page.getByRole("checkbox", { name: /This control really doesn.t apply/ }).check()
     await page.getByRole("button", { name: "It doesn't apply", exact: true }).click()
     await expectGuide(page, "Please say why this does not apply")
     await takeMeThere(page, page.getByLabel(/Why doesn.t this apply/))
@@ -142,12 +142,12 @@ test.describe("guided errors -- every role, real browser", () => {
     await expect(page.getByRole("button", { name: "Show what to do", exact: true })).toBeVisible()
   })
 
-  test("staff: giving a job away is not offered, and a bad hand-over e-mail is guided for the owner", async ({ page }) => {
+  test("staff: giving a control away is not offered, and a bad hand-over e-mail is guided for the owner", async ({ page }) => {
     await seed(page, "owner-live")
     await openRowWithAllFour(page)
     await page.getByRole("tab", { name: "Give to someone", exact: true }).click()
     await page.getByLabel("Their email address", { exact: true }).fill("nobody")
-    await page.getByRole("button", { name: "Give this job", exact: true }).click()
+    await page.getByRole("button", { name: "Give this control", exact: true }).click()
     await expectGuide(page, "Please check the e-mail address")
     await takeMeThere(page, page.getByLabel("Their email address", { exact: true }))
   })
@@ -156,7 +156,7 @@ test.describe("guided errors -- every role, real browser", () => {
     await page.goto("/app/?mock=partner")
     await page.getByRole("button", { name: "Next — my clients", exact: true }).click()
     await page.getByRole("button", { name: "Next — how it works", exact: true }).click()
-    await page.getByRole("button", { name: "Got it — show me my jobs", exact: true }).click()
+    await page.getByRole("button", { name: "Got it — show me my controls", exact: true }).click()
     await page.getByRole("button", { name: /^🧾 My clients/ }).click()
     await page.getByRole("button", { name: "+ Add a client", exact: true }).click()
     await page.getByLabel("Client name", { exact: true }).fill("Joshi Motors")
