@@ -325,7 +325,7 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
     expect(main).toContain("<h2>Three things to know about DPDP compliance</h2>")
     const list = /<ol class="lead-list hm-three">([\s\S]*?)<\/ol>/.exec(main)![1]
     const items = [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])
-    expect(items).toEqual(["People change, but your liability does not. When people leave, what they knew about your data leaves with them.", "Know what data you hold, and who else holds it for you.", "Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up."])
+    expect(items).toEqual(["People change, but your liability does not. When people leave, what they knew about your data leaves with them.", "Know what data you hold, where it is, and who else holds it for you.", "Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up."])
     expect(items).toEqual([...FACTS.three_things])
   })
 
@@ -336,7 +336,38 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
       expect(body, `${rel} still has the three things on one line`).not.toContain("Know what data you hold. Tell people about it. Keep it safe.")
       expect(body, `${rel} still has the old four things`).not.toContain("Tell people about it.")
     }
-    expect(read("public/llms-full.txt")).toContain("1. People change, but your liability does not. When people leave, what they knew about your data leaves with them.\n2. Know what data you hold, and who else holds it for you.\n3. Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up.")
+    expect(read("public/llms-full.txt")).toContain("1. People change, but your liability does not. When people leave, what they knew about your data leaves with them.\n2. Know what data you hold, where it is, and who else holds it for you.\n3. Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up.")
+  })
+})
+
+// Owner, 2026-11-02: a tagline band that says what the product is not (data-cleaning software) and what it keeps,
+// and an "All your questions" section that answers What, Why, Where, Whom, When, Which and How in short sentences.
+describe("the home page's tagline band and 'All your questions' section (owner, 2026-11-02)", () => {
+  const html = read("index.html")
+  const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
+  const text = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
+
+  test("the tagline names the three first questions and says it is not data-cleaning software", () => {
+    const band = /<section class="hm-sec hm-tl"[^>]*>([\s\S]*?)<\/section>/.exec(main)![1]
+    const steps = [...(/<ol class="hm-tl-steps">([\s\S]*?)<\/ol>/.exec(band)![1]).matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])
+    expect(steps).toEqual(["What is the data?", "Where is it?", "With whom is it?"])
+    expect(text(band)).toContain("But people leave, even the people you asked to track it.")
+    expect(text(band)).toContain("VERIDIAN is an independent, third-party system. It is built to work for 10 years and to keep every record in a form that cannot be edited.")
+    expect(text(band)).toContain("You never know when you will need it.")
+    expect(text(band)).toContain("Not data-cleaning software. Your data stays where it is.")
+  })
+
+  test("seven questions, in the owner's order, each answered in a few short sentences", () => {
+    const sec = /<section class="hm-sec" id="questions">([\s\S]*?)<\/section>/.exec(main)![1]
+    expect(sec).toContain("<h2>All your questions</h2>")
+    const cards = [...sec.matchAll(/<span class="hm-qa-w">([\s\S]*?)<\/span><h3>([\s\S]*?)<\/h3><p>([\s\S]*?)<\/p>/g)]
+    expect(cards.map((m) => m[1])).toEqual(["What", "Why", "Where", "Whom", "When", "Which", "How"])
+    for (const [, , question, answer] of cards) {
+      expect(question, "a question").toMatch(/\?$/)
+      const sentences = text(answer).split(/(?<=[.!?:])\s+/)
+      expect(sentences.length, `"${question}" has ${sentences.length} sentences`).toBeLessThanOrEqual(6)
+      for (const s of sentences) expect(s.split(/\s+/).length, `a long sentence under "${question}": ${s}`).toBeLessThanOrEqual(22)
+    }
   })
 })
 

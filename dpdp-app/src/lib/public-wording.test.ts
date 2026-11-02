@@ -52,7 +52,7 @@ const FEATURE_DRAFT_WORDS = [
   "playbooks, drafts, software", // the terms: what the company owns
   "drafts the updates", // "It reads your jobs and drafts the updates. You confirm them."
   "drafts updates", // the AI assistant page's meta description
-  "draft an update, such as marking a job done", // the AI assistant page's list
+  "draft an update, such as marking a control as done", // the AI assistant page's list
   "is a draft that you confirm", // "Anything with legal weight is a draft that you confirm."
   "draft ready for your review", // the sample chat on the home page
   "drafted. please confirm to record it", // the sample chat on the home page

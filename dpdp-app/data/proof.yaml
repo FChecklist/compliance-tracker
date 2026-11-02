@@ -15,7 +15,7 @@ title: Proof
 intro: >-
   Evidence from real use. Every figure on this page is an aggregate across
   real organisations using VERIDIAN, or a case study its subject agreed to
-  publish, or the name of the person who reviewed the job library. Nothing
+  publish, or the name of the person who reviewed the control library. Nothing
   here is an estimate.
 
 aggregates:
@@ -24,7 +24,7 @@ aggregates:
   items:
     - label: Organisations with a live DPDP record
       value: null
-    - label: Jobs answered, each with a dated record that is added to, not edited
+    - label: Controls answered, each with a dated record that is added to, not edited
       value: null
     - label: Weekly emails answered from the inbox, without signing in
       value: null

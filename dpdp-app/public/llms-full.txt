@@ -8,50 +8,81 @@ This is the visible text of every public page of https://veridian-aios.com.
 
 DPDP Act 2023 · DPDP Rules 2025
 ### Compliance that outlasts the person who set it up.
-VERIDIAN turns the law into a list of jobs, hands each one to a named person, and keeps a dated record that is added to, not edited.
+VERIDIAN turns the law into a set of controls, hands each one to a named person, and keeps a dated record that is added to, not edited.
 For professionals CA · CS · Legal · Audit firm Doing it for my clients → For organisations Company · School · NGO Doing it for ourselves →
 No accounts or passwords for stakeholders One email a week Never stores your documents
 Already have an account? Sign in
-Sample school · DPDP file Record sealed
-Sample data — 8 of 13 jobs done 62%
+Sample · DPDP file Record sealed
+Sample data — 8 of 13 controls done 62%
 Name a Grievance Officer Owner · answered 12 Sep, locked
 Done
-List vendors who hold student data Accounts · answered 14 Sep, locked
+List vendors who hold your data Accounts · answered 14 Sep, locked
 Done
-Publish the privacy notice Principal · due this week
+Publish the privacy notice Director · due this week
 Waiting
 Breach drill — 72-hour rule IT head · not started
 Next
 8 dated answers, each with who said it and when. Changes are added to the record, never overwritten.
 Whoever leaves, the proof stays.
-Built for DPDP Act 2023 & Rules 2025 SPDI Rules 2011 apply until 13 May 2027 Every job mapped to its legal source Free AI assistant, you confirm every update
+Built for DPDP Act 2023 & Rules 2025 SPDI Rules 2011 apply until 13 May 2027 Every control mapped to its legal source Free AI assistant, you confirm every update
+Many businesses fall short of the DPDP Act at the very first step: knowing what data they hold, where it is and who else has it.
+1. What is the data?
+2. Where is it?
+3. With whom is it?
+Then comes keeping track of it. But people leave, even the people you asked to track it.
+VERIDIAN is an independent, third-party system. It is built to work for 10 years and to keep every record in a form that cannot be edited.
+You never know when you will need it.
+Not data-cleaning software. Your data stays where it is.
 Built with CA, CS, legal and audit firms
 ### We work closely with the firms that guide India's businesses.
 VERIDIAN-AIOS builds solutions with CA, CS, legal and audit firms, so DPDP work becomes a service you can offer, track and grow.
-Every client in one place See each client's jobs, who owns them and what is overdue, without chasing e-mails.
+Every client in one place See each client's controls, who owns them and what is overdue, without chasing e-mails.
 A service you can offer Give each client a dated DPDP file they can show. You guide them, the software keeps the record.
 Grow with us Tell us what your firm needs and we build with you. A Sales Partner programme lets you earn when you bring in clients.
 Why it matters
 ### Three things to know about DPDP compliance
 1. People change, but your liability does not. When people leave, what they knew about your data leaves with them.
-2. Know what data you hold, and who else holds it for you.
+2. Know what data you hold, where it is, and who else holds it for you.
 3. Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up.
+What · Why · Where · Whom · When · Which · How
+### All your questions
+What
+### What is VERIDIAN?
+An independent, third-party record-keeper for DPDP compliance. It turns the law into controls and keeps a dated record of every answer. It is not data-cleaning software. Your data stays where it is.
+Why
+### Why do you need it?
+People change, but your liability does not. Even the person you asked to track your data can leave. An independent, uneditable record stays. If an enquiry ever comes, it helps you show your intention to comply.
+Where
+### Where is your data?
+That is the first question. Write down every place it sits: systems, offices and vendors. The VERIDIAN record is kept in India, on a database in Mumbai.
+Whom
+### With whom is your data?
+Staff, vendors and group companies may all hold it. Each one is given its own controls. Each answers by one email a week, with no account or password.
+When
+### When do you start?
+Today. You never know when you will need the record. Each control has a due date. Every answer is dated, so the record shows what was done and when.
+Which
+### Which one is for you?
+CA, CS, legal and audit firms: use the firm version for your clients. Companies, schools and NGOs: use the organisation version for yourselves.
+How
+### How does it work?
+Four plain steps. The law becomes controls. Each control gets one owner. One email a week brings the answers. Each answer is dated and added to the record.
 How it works
 ### From the law to a record, in four plain steps.
-### The law becomes jobs
-Each obligation turns into a clear job, mapped to the section or rule it comes from.
-### Each job gets one owner
-The job goes to the responsible person. Owners, staff, vendors and group companies are all covered.
+### The law becomes controls
+Each obligation turns into a clear control, mapped to the section or rule it comes from.
+### Each control gets one owner
+The control goes to the responsible person. Owners, staff, vendors and group companies are all covered.
 ### One email a week
 Everyone answers through one email a week, with no accounts or passwords.
 ### The record builds itself
 Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 ### Your free DPDP AI assistant
 It does the routine work. You stay in charge.
-Open your personal link in your own AI. It reads your jobs and drafts the updates. You confirm them.
+Open your personal link in your own AI. It reads your controls and drafts the updates. You confirm them.
 Get your free AI assistant See how it works
 What is overdue this week?
-Two jobs. The privacy notice is waiting on the Principal, and the vendor list needs one more answer. Draft ready for your review.
+Two controls. The privacy notice is waiting on the Director, and the vendor list needs one more answer. Draft ready for your review.
 Update the vendor list.
 Drafted. Please confirm to record it. Confirm
 Not sure where to start?
@@ -69,9 +100,9 @@ dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-b
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
-- It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
+- It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN
@@ -87,7 +118,7 @@ VERIDIAN, this website and its software are owned and operated by IT SERVICES BY
 
 For CA, CS, audit and legal firms
 ### DPDP compliance for all your clients, in one place
-Give each client a list of jobs. Chase the answers by email. Keep a dated record that is added to, not edited.
+Give each client a set of controls. Chase the answers by email. Keep a dated record that is added to, not edited.
 Start free →
 Your own firm's file is free. No licence fee. You pay per client file, after you have billed the client.
 ### What VERIDIAN (VERy INDIAN) is
@@ -95,24 +126,24 @@ dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-b
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
-- It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
+- It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 ### How it works
 🧾 Add each client Name the client and choose the type of organisation. Invite the owner by email.
-📋 We list the jobs VERIDIAN turns the Act into jobs. Each job has a person, a date and its legal source.
+📋 We list the controls VERIDIAN turns the Act into controls. Each control has a person, a date and its legal source.
 📧 People answer by email Each person gets one email a week and answers from the inbox. No accounts or passwords.
 ### What you get
 👥 Every client has its own file Add as many clients as you serve. Keep each one apart.
-🗂️ Jobs with names and dates Every job has a person, a due date and its legal source.
+🗂️ Controls with names and dates Every control has a person, a due date and its legal source.
 ✍️ Checks and sign-off The owner confirms. Your manager checks. Your partner signs.
 🛡️ A record that is added to, not edited Every answer is dated and kept. A change is a new entry, not an overwrite.
 🤖 Your own AI assistant Give it a private, time-limited link from inside VERIDIAN.
 🗄️ We keep no compliance documents We keep a fingerprint, a name and a date. The file stays with you (a payment proof you upload is the one exception).
 ### What we do, and where we stop
-✅ We do Turn the Act into jobs · Give each job to a person · Chase the answers · Keep a dated record
+✅ We do Turn the Act into controls · Give each control to a person · Chase the answers · Keep a dated record
 🚫 We do not Touch your systems · Keep your documents · Give legal advice · Certify you as compliant · Promise that nobody will be fined
 ### Questions people ask
 Do you touch our systems?
@@ -144,7 +175,7 @@ VERIDIAN, this website and its software are owned and operated by IT SERVICES BY
 
 For companies, institutions, schools and NGOs
 ### DPDP compliance for your own organisation, with proof you can show
-Get a list of jobs. Give each job to a person. Keep a dated record that is added to, not edited.
+Get a set of controls. Give each control to a person. Keep a dated record that is added to, not edited.
 Start free →
 Pricing after a short conversation, because the right number depends on what you hold.
 ### What VERIDIAN (VERy INDIAN) is
@@ -152,24 +183,24 @@ dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-b
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
-- It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
+- It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 ### How it works
 🚪 Open your organisation Sign in with your email. There is no password. Name your organisation.
-📋 See your jobs VERIDIAN turns the Act into jobs. Each job has a person, a date and its legal source.
+📋 See your controls VERIDIAN turns the Act into controls. Each control has a person, a date and its legal source.
 📧 People answer by email Each person gets one email a week and answers from the inbox. No accounts or passwords.
 ### What you get
-🗂️ Jobs with names and dates Every job has a person, a due date and its legal source.
+🗂️ Controls with names and dates Every control has a person, a due date and its legal source.
 📧 One email a week Each person answers Yes or No from their inbox. Most never open the website.
 🛡️ A record that is added to, not edited Every answer is dated and kept. A change is a new entry, not an overwrite.
 👨‍👩‍👧 Parents' consent, on a link Parents give consent item by item. Withdrawing is the same tap as agreeing.
 🎧 A Grievance Officer, published Name your officer on a public page. The law asks for it.
 🗄️ We keep no compliance documents We keep a fingerprint, a name and a date. The file stays with you (a payment proof you upload is the one exception).
 ### What we do, and where we stop
-✅ We do Turn the Act into jobs · Give each job to a person · Chase the answers · Keep a dated record
+✅ We do Turn the Act into controls · Give each control to a person · Chase the answers · Keep a dated record
 🚫 We do not Touch your systems · Keep your documents · Give legal advice · Certify you as compliant · Promise that nobody will be fined
 ### Questions people ask
 We are small. Does this apply to us?
@@ -205,9 +236,9 @@ dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-b
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
-- It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
+- It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 ### Key dates
@@ -290,9 +321,9 @@ dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-b
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
-- It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
+- It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN
@@ -376,9 +407,9 @@ dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-b
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
-- It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
+- It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN
@@ -394,7 +425,7 @@ VERIDIAN, this website and its software are owned and operated by IT SERVICES BY
 
 ### Your free DPDP AI assistant
 It does the routine work. You stay in charge.
-It reads your jobs, answers your questions and drafts the updates. You confirm what counts.
+It reads your controls, answers your questions and drafts the updates. You confirm what counts.
 Get your free AI assistant
 You sign in with your email. We send you a link. There is no password.
 ### How you get it
@@ -403,11 +434,11 @@ You sign in with your email. We send you a link. There is no password.
 3. Paste it into your own AI assistant.
 4. Say what you want. For example, "What is late, and who should I chase?"
 ### What it can do
-- Read your jobs and answer your questions about them.
-- Explain a job in plain English, with the law behind it.
+- Read your controls and answer your questions about them.
+- Explain a control in plain English, with the law behind it.
 - Write a status note or a reminder for you to send.
-- Draft an update, such as marking a job done. You confirm it on your own page before anything changes.
-- If you switch it on when you make the link, make small changes straight away. These are a note, a due date, who a job is given to, or not applicable. Each can be undone for 24 hours.
+- Draft an update, such as marking a control as done. You confirm it on your own page before anything changes.
+- If you switch it on when you make the link, make small changes straight away. These are a note, a due date, who a control is given to, or not applicable. Each can be undone for 24 hours.
 ### What it cannot do
 - It cannot send email or messages for you.
 - A chat that just reads web pages cannot save changes. It will say so and tell you what to do by hand.
@@ -418,7 +449,7 @@ You sign in with your email. We send you a link. There is no password.
 We charge nothing for the AI work link. We run no AI for it.
 Your own AI account, and what it costs to use, is between you and that provider.
 ### You stay in charge
-- The AI can read your jobs, and the names or emails of the people on them. Give the link to an AI you trust, and to nobody else. You can hide other people's emails when you make it.
+- The AI can read your controls, and the names or emails of the people on them. Give the link to an AI you trust, and to nobody else. You can hide other people's emails when you make it.
 - The link expires on its own, and you can switch it off at any time.
 - Every change is written to your history, with a note that an AI assistant made it.
 ### Contact
@@ -430,9 +461,9 @@ dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-b
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
-- It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
+- It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN

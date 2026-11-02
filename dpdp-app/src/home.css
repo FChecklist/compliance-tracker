@@ -597,6 +597,99 @@ body.hm {
   padding-top: 40px;
 }
 
+/* ---- the tagline band: three first questions, the 10-year record, "not data-cleaning software" (owner, 2026-11-02) ---- */
+.hm-tl {
+  background: var(--soft);
+  border-block: 1px solid var(--line);
+}
+.hm-tl-lead {
+  max-width: 44rem;
+  font: 700 clamp(1.25rem, 2.4vw, 1.75rem) / 1.3 Sora, sans-serif;
+  color: var(--ink);
+}
+.hm-tl-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: tag;
+}
+.hm-tl-steps li {
+  counter-increment: tag;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  font: 600 1.0625rem / 1.35 Sora, "Instrument Sans", sans-serif;
+  color: var(--ink);
+}
+.hm-tl-steps li::before {
+  content: counter(tag);
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+  font: 700 0.9375rem Sora, sans-serif;
+}
+.hm-tl-line {
+  max-width: 44rem;
+  margin-top: 22px;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--ink2);
+}
+.hm-tl-note {
+  margin-top: 14px;
+  font: 700 1.25rem / 1.3 Sora, sans-serif;
+  color: var(--ink);
+}
+.hm-tl-fine {
+  margin-top: 10px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink2);
+}
+.hm-tl-line + .hm-tl-line {
+  margin-top: 10px;
+}
+
+/* ---- All your questions: What, Why, Where, Whom, When, Which, How ---- */
+.hm-qa {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 30px;
+}
+.hm-qa div {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink2);
+}
+.hm-qa-w {
+  display: block;
+  margin-bottom: 6px;
+  font: 700 12px Sora, sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--violet);
+}
+.hm-qa h3 {
+  margin-bottom: 8px;
+}
+
 /* ---- phones and narrow screens ---- */
 @media (max-width: 899px) {
   .hm-grid,
@@ -619,6 +712,7 @@ body.hm {
 }
 @media (max-width: 560px) {
   .hm-doors,
+  .hm-tl-steps,
   .hm-three,
   .hm-nots,
   .hm-flow {

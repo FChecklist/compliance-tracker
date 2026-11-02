@@ -215,11 +215,11 @@ const LANDING_COPY = [
   "How it works",
   "What you get",
   "What we do, and where we stop",
-  "Turn the Act into jobs · Give each job to a person · Chase the answers · Keep a dated record",
+  "Turn the Act into controls · Give each control to a person · Chase the answers · Keep a dated record",
   "Touch your systems · Keep your documents · Give legal advice · Certify you as compliant · Promise that nobody will be fined",
   "Questions people ask",
   "One email. No card. Fifteen minutes.",
-  "Jobs with names and dates",
+  "Controls with names and dates",
   "A record that is added to, not edited",
   "We keep no compliance documents",
   "People answer by email",
@@ -261,6 +261,14 @@ export const PUBLIC_PAGES = [
       "VERy INDIAN",
       // The three points, numbered 1-3 (owner, 2026-10-01): exactly the facts file's list.
       ...FACTS.three_things,
+      // The tagline band and the questions section (owner, 2026-11-02).
+      "What is the data?",
+      "Where is it?",
+      "With whom is it?",
+      "VERIDIAN is an independent, third-party system.",
+      "You never know when you will need it.",
+      "Not data-cleaning software. Your data stays where it is.",
+      "All your questions",
       // Exactly two ways in (owner, 2026-10-01), worded as the redesigned home page words them (owner, 2026-10-02).
       "CA · CS · Legal · Audit firm",
       "Doing it for my clients →",
@@ -281,7 +289,7 @@ export const PUBLIC_PAGES = [
     jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
       "For CA, CS, audit and legal firms",
-      "Give each client a list of jobs. Chase the answers by email. Keep a dated record that is added to, not edited.",
+      "Give each client a set of controls. Chase the answers by email. Keep a dated record that is added to, not edited.",
       "Your own firm's file is free. No licence fee. You pay per client file, after you have billed the client.",
       "Add each client",
       "Every client has its own file",
@@ -301,7 +309,7 @@ export const PUBLIC_PAGES = [
     jsonLd: ["Organization", "WebSite", "SoftwareApplication", "BreadcrumbList", "FAQPage"],
     mustContain: [
       "For companies, institutions, schools and NGOs",
-      "Get a list of jobs. Give each job to a person. Keep a dated record that is added to, not edited.",
+      "Get a set of controls. Give each control to a person. Keep a dated record that is added to, not edited.",
       "Pricing after a short conversation, because the right number depends on what you hold.",
       "Open your organisation",
       "Parents' consent, on a link",

@@ -367,7 +367,7 @@ function companyLines(facts) {
 }
 
 function libraryLines(facts) {
-  const lines = [`Version ${facts.library.version}: ${facts.library.job_count} jobs, each mapped to its legal source.`]
+  const lines = [`Version ${facts.library.version}: ${facts.library.job_count} controls, each mapped to its legal source.`]
   // Owner, 2026-10-14: no public page may say a review is pending or not recorded. The reviewer line appears only once a reviewer exists.
   if (facts.library.reviewer && facts.library.reviewed_on) {
     lines.push(`Reviewed by ${facts.library.reviewer} on ${facts.library.reviewed_on}.`)
@@ -559,7 +559,7 @@ function proofPage(facts, proof) {
     sectionsHtml([
       { h2: "In use", paragraphs: asOf, bullets: aggregates },
       { h2: "Case studies", bullets: cases },
-      { h2: "The job library", paragraphs: libraryLines(facts) },
+      { h2: "The control library", paragraphs: libraryLines(facts) },
     ]),
     `  <!-- BEGIN generated: facts -->`,
     indent(factBlock(facts), 2),
