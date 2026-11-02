@@ -32,7 +32,8 @@ function esc(s: string): string {
 
 /** One line for a Subject: an organisation name is free text (the sign-up RPC only trims it), so a line break, tab or Unicode line separator in it must not reach the Subject header. */
 export function oneLine(s: string): string {
-  return s.replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, " ").replace(/ {2,}/g, " ").trim()
+  // The two Unicode line separators are built with fromCharCode, not written as escapes: some deploy tools decode unicode escapes in transit, which turns the escape into a real line break inside the regex literal and the bundler refuses it.
+  return s.replace(new RegExp(`[\\x00-\\x1f\\x7f\\x85${String.fromCharCode(0x2028, 0x2029)}]+`, "g"), " ").replace(/ {2,}/g, " ").trim()
 }
 
 function toHtml(lines: string[]): string {
