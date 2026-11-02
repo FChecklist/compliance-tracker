@@ -32,7 +32,7 @@ test.describe("Your copy on this device + the 3-step page", () => {
     await page.goto("/app/?mock=owner-live")
     await expect(page.getByText("Signed in as")).toBeVisible({ timeout: 10_000 })
     const steps = page.getByTestId("ai-first-steps")
-    await expect(steps.getByRole("heading", { name: "Do your DPDP jobs in 3 steps" })).toBeVisible()
+    await expect(steps.getByRole("heading", { name: "Do your DPDP controls in 3 steps" })).toBeVisible()
     // order on the page: steps card BEFORE the jobs; 1, 2, 3 in order
     const order = await page.evaluate(() => {
       const s = document.querySelector('[data-testid="ai-first-steps"]')!

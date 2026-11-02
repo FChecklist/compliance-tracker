@@ -11,7 +11,7 @@ import type { AiLinkWarning } from "./rpc-types"
  * this before pressing "Copy link".
  */
 export function aiWorkLinkWarningSentence(w: Pick<AiLinkWarning, "jobs" | "people">): string {
-  return `This link lets an AI assistant read your VERIDIAN view: ${w.jobs} jobs and the names and emails of ${w.people} people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.`
+  return `This link lets an AI assistant read your VERIDIAN view: ${w.jobs} controls and the names and emails of ${w.people} people. When you paste it into an AI assistant, that information is sent to the company that runs it — for example, ChatGPT is run by a US company.`
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const
@@ -40,4 +40,4 @@ export const LEVEL_LABEL: Record<0 | 1, string> = {
  * Monday email will literally say next to the AI's change.
  */
 export const LEVEL1_EXPLANATION =
-  "With this on, the AI can act directly — adding a NOTE, changing when a job is due (SET_DUE), giving a job to an existing member of your organisation (ASSIGN), or marking a job as not applicable (MARK_NA) — without asking you first. Every change it makes is recorded as “by <person> via AI assistant”, shown in your next Monday email, and can be undone for 24 hours. Anything with legal weight — marking a job done, an owner confirm, a manager check, a partner sign, a delete, adding or removing a person, changing who signs, publishing, or exporting personal data — is never done directly: the AI can only draft it, and you open the confirmation link yourself, in your own browser, to make it real."
+  "With this on, the AI can act directly — adding a NOTE, changing when a control is due (SET_DUE), giving a control to an existing member of your organisation (ASSIGN), or marking a control as not applicable (MARK_NA) — without asking you first. Every change it makes is recorded as “by <person> via AI assistant”, shown in your next Monday email, and can be undone for 24 hours. Anything with legal weight — marking a control done, an owner confirm, a manager check, a partner sign, a delete, adding or removing a person, changing who signs, publishing, or exporting personal data — is never done directly: the AI can only draft it, and you open the confirmation link yourself, in your own browser, to make it real."

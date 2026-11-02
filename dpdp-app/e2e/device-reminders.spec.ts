@@ -34,8 +34,8 @@ test.describe("Reminders made on this device", () => {
     expect(shown).toBe(1)
     const got = await page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).map((n) => ({ title: n.title, body: n.body })))
     expect(got).toHaveLength(1)
-    expect(got[0].title).toBe("DPDP jobs are overdue")
-    expect(got[0].body).toMatch(/^3 jobs overdue/)
+    expect(got[0].title).toBe("DPDP controls are overdue")
+    expect(got[0].body).toMatch(/^3 controls overdue/)
     expect(JSON.stringify(got)).not.toMatch(/@/)
   })
 

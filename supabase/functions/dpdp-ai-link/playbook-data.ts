@@ -43,13 +43,13 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
   },
   // firm-02 -- Name a DPDP coordinator
   "firm-02": {
-    "why": "DPDP is India's data-protection law, and its work touches accounts, HR, IT and marketing, so someone must chase everyone or jobs sit undone. This is good practice, not a named legal post.",
+    "why": "DPDP is India's data-protection law, and its work touches accounts, HR, IT and marketing, so someone must chase everyone or controls sit undone. This is good practice, not a named legal post.",
     "who": "A well-organised manager, backed by the owner or partners; every team head helps.",
     "steps": [
       "Choose someone who can ask colleagues for information and follow up politely.",
       "Agree how much time they give each week, for example one hour.",
       "Tell the owner and team heads who it is, and that requests from this person must be answered.",
-      "Ask them to review the job list weekly, report overdue jobs to the owner, and name a backup."
+      "Ask them to review the control list weekly, report overdue controls to the owner, and name a backup."
     ],
     "ask": [
       "Who will be the DPDP coordinator (name and role), and who is the backup?",
@@ -70,9 +70,9 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "why": "People cannot complain if they cannot find who to contact, and the rules ask for this contact to be public.",
     "who": "The Grievance Officer (responsible for DPDP policy); whoever manages your website helps put it online.",
     "steps": [
-      "Read the officer's name, role, email and phone from the Grievance Officer job's note; ask only if missing.",
+      "Read the officer's name, role, email and phone from the Grievance Officer control's note; ask only if missing.",
       "Choose where: your own website (footer or contact page), or the free VERIDIAN page.",
-      "For the VERIDIAN page, point the person to this job on their VERIDIAN page. You cannot publish it; invent no steps.",
+      "For the VERIDIAN page, point the person to this control on their VERIDIAN page. You cannot publish it; invent no steps.",
       "Write it plainly: name, role, business email and phone.",
       "Publish it, or hand the wording to whoever updates your website.",
       "Open the page on a phone and check the details."
@@ -246,7 +246,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     },
     "watchFor": [
       "Scans copied to a vendor cloud count as stored there too.",
-      "Taking scans also needs written consent, under a separate job."
+      "Taking scans also needs written consent, under a separate control."
     ]
   },
   // firm-10 -- Write down how long each is kept — keep only what tax and labour law require, delete the rest
@@ -353,7 +353,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
       "body": "Dear team, {org} holds these details about you: {data_list}. We use them for {purposes} and keep them for {period}. Questions or rights requests: {contact}. You can also complain to the Data Protection Board. Please reply 'read'. {your_name}"
     },
     "watchFor": [
-      "Fingerprints, medical and bank details need written consent under a separate job, not this notice."
+      "Fingerprints, medical and bank details need written consent under a separate control, not this notice."
     ]
   },
   // firm-14 -- Take written consent for sensitive data
@@ -493,7 +493,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
       "Keep the records at least one year, somewhere nobody can edit them."
     ],
     "ask": [
-      "Which systems hold personal data? (See your 'where your software keeps data' job.)",
+      "Which systems hold personal data? (See your 'where your software keeps data' control.)",
       "Can each show who logged in and who opened or changed records?",
       "How long does each keep those records, and where are they stored?"
     ],
@@ -711,7 +711,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "notApplicableWhen": null,
     "email": null,
     "watchFor": [
-      "The job name gives two limits: one month under today's law, 90 days under the new law. Work to one month.",
+      "The control name gives two limits: one month under today's law, 90 days under the new law. Work to one month.",
       "Complaints also arrive by phone, WhatsApp and at the counter. Write them down too."
     ]
   },
@@ -749,43 +749,43 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "why": "Your organisation stays responsible for following the data rules, even when work is handed to others. A false 'done' gives false comfort.",
     "who": "The owner, with the Grievance Officer and the IT person showing their proof.",
     "steps": [
-      "Ask the AI to read the job list and show: done jobs with no note, not-applicable reasons, open jobs missing a person or date.",
-      "For each done job, check the proof exists in your folder. Ask whether each not-applicable reason is true for you.",
-      "Ask the people who did each job about anything you doubt. A Yes cannot be taken back, so settle every doubt first and write it in a note.",
+      "Ask the AI to read the control list and show: done controls with no note, not-applicable reasons, open controls missing a person or date.",
+      "For each done control, check the proof exists in your folder. Ask whether each not-applicable reason is true for you.",
+      "Ask the people who did each control about anything you doubt. A Yes cannot be taken back, so settle every doubt first and write it in a note.",
       "When satisfied, confirm the answers yourself on your own page. The AI only prepares a draft."
     ],
     "ask": [
-      "Have you personally seen the proof for the jobs marked done, or only been told?",
-      "Is any job marked done or not applicable one you are unsure about?"
+      "Have you personally seen the proof for the controls marked done, or only been told?",
+      "Is any control marked done or not applicable one you are unsure about?"
     ],
-    "proof": "The owner's own confirmation on their page, with the date. Save the job list page as a PDF that day in your own folder.",
+    "proof": "The owner's own confirmation on their page, with the date. Save the control list page as a PDF that day in your own folder.",
     "note": "Owner reviewed all answers on {date}. Doubts to settle first: {list}. Still open: {list}. Owner to confirm by {due_date}.",
     "notApplicableWhen": null,
     "email": null,
     "watchFor": [
       "Do not confirm on a colleague's word. Look at the proof.",
       "Confirming says your answers are true. It does not mean the law is met.",
-      "A job you are unsure about is better left open than marked done."
+      "A control you are unsure about is better left open than marked done."
     ]
   },
   // firm-30 -- CA manager checks the proof
   "firm-30": {
     "why": "A second person looking at the proof catches gaps before the file is signed. This is good practice for a careful firm.",
-    "who": "The CA manager, after the owner has confirmed, with the people who did each job showing their proof.",
+    "who": "The CA manager, after the owner has confirmed, with the people who did each control showing their proof.",
     "steps": [
-      "Check the owner's confirmation job first. If it is not confirmed, add a note that you are waiting, and stop.",
-      "For each job marked done, open the proof in the folder and check it matches what the job says.",
+      "Check the owner's confirmation control first. If it is not confirmed, add a note that you are waiting, and stop.",
+      "For each control marked done, open the proof in the folder and check it matches what the control says.",
       "Check that the proof is dated and shows who signed or did it.",
-      "Write a short comment on each job checked, and tell the person responsible about any gap.",
+      "Write a short comment on each control checked, and tell the person responsible about any gap.",
       "When gaps are closed, confirm your check yourself on your own page."
     ],
     "ask": [
       "Do you have access to the folder where the proof is kept?",
-      "After checking: did you check every job in full, or only a sample?",
-      "After checking: which jobs have gaps, and what is missing?"
+      "After checking: did you check every control in full, or only a sample?",
+      "After checking: which controls have gaps, and what is missing?"
     ],
-    "proof": "A short checking note by the CA manager in your own folder: jobs checked, gaps found, gaps closed, date. Declaration on your page.",
-    "note": "CA manager checked proof for {number} jobs on {date}. Method: {full_or_sample}. Gaps: {list}. Closed on {date}.",
+    "proof": "A short checking note by the CA manager in your own folder: controls checked, gaps found, gaps closed, date. Declaration on your page.",
+    "note": "CA manager checked proof for {number} controls on {date}. Method: {full_or_sample}. Gaps: {list}. Closed on {date}.",
     "notApplicableWhen": null,
     "email": null,
     "watchFor": [
@@ -799,9 +799,9 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "why": "The partner's signature shows a senior person has looked over the whole file. This is good practice and the firm's own internal record, not an audit report or a legal opinion.",
     "who": "The CA partner, after the CA manager has finished checking the proof.",
     "steps": [
-      "Read the CA manager's job and its note. If that job is not done, say so and wait.",
+      "Read the CA manager's control and its note. If that control is not done, say so and wait.",
       "Check every gap is closed or has a written reason.",
-      "Read the summary of the file (all your jobs and answers): done, not applicable with reasons, and anything still open.",
+      "Read the summary of the file (all your controls and answers): done, not applicable with reasons, and anything still open.",
       "Ask the manager about anything unclear. Do not sign on trust alone.",
       "Sign and date the file yourself on your own page. Keep any signed printout in your folder."
     ],
@@ -846,17 +846,17 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
   },
   // institution-02 -- Name a DPDP coordinator
   "institution-02": {
-    "why": "Data protection touches admissions, fees, staff, buses and photos, so one coordinator keeps every job moving. This is good practice, not a named legal duty.",
+    "why": "Data protection touches admissions, fees, staff, buses and photos, so one coordinator keeps every control moving. This is good practice, not a named legal duty.",
     "who": "The DPDP coordinator, chosen by the principal. The Grievance Officer and the heads of admission, fees, transport and staff records work with them.",
     "steps": [
-      "Choose an organised staff member who has time each week to chase jobs across offices.",
+      "Choose an organised staff member who has time each week to chase controls across offices.",
       "Get the principal's agreement, and tell office heads this person will follow up with them.",
-      "Fix a short regular check-in, for example every two weeks, to review pending jobs.",
+      "Fix a short regular check-in, for example every two weeks, to review pending controls.",
       "Write the name, role and email on a note and share it with staff."
     ],
     "ask": [
       "Who will be the DPDP coordinator, and what are their role and official email?",
-      "Is this the same person as the Grievance Officer named on that job?",
+      "Is this the same person as the Grievance Officer named on that control?",
       "How often can they meet the office heads?"
     ],
     "proof": "A short note naming the coordinator with role, email and start date, kept in your own folder or drive. Then confirm the Yes on your own page.",
@@ -864,7 +864,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "notApplicableWhen": null,
     "email": null,
     "watchFor": [
-      "Pick someone with time; a busy principal alone will let jobs slip.",
+      "Pick someone with time; a busy principal alone will let controls slip.",
       "Naming is not enough; the coordinator must actually follow up."
     ]
   },
@@ -873,7 +873,7 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
     "why": "Parents and staff cannot raise a concern if they do not know whom to contact.",
     "who": "The Grievance Officer (responsible for DPDP policy), with whoever manages the school website.",
     "steps": [
-      "Read the officer's name, role, email and phone from the 'Name the Grievance Officer' job; ask only if missing.",
+      "Read the officer's name, role, email and phone from the 'Name the Grievance Officer' control; ask only if missing.",
       "Draft a short contact block with those details.",
       "Choose where it goes: the school website, or the free VERIDIAN page option.",
       "Ask the website manager to publish it, or use the free VERIDIAN page option on your own page. The AI cannot do this.",
@@ -1528,25 +1528,25 @@ export const PLAYBOOK_DATA: Record<string, JobPlaybook> = {
   // institution-28 -- Sign off all the answers
   "institution-28": {
     "why": "You can hand out the work, but the institution stays responsible for it. Signing off shows the head looked at every answer.",
-    "who": "The owner or head of the institution, with each officer confirming their own jobs.",
+    "who": "The owner or head of the institution, with each officer confirming their own controls.",
     "steps": [
-      "Go through the job list and chase every job still open or waiting on an outside firm.",
-      "Check every other job is Yes or Not applicable with a reason. Read the notes and confirm a named person answers for each.",
+      "Go through the control list and chase every control still open or waiting on an outside firm.",
+      "Check every other control is Yes or Not applicable with a reason. Read the notes and confirm a named person answers for each.",
       "Check that each Yes has its record in your own folder or drive.",
       "Confirm the answers yourself on your own page. The AI can only prepare a draft.",
       "Set a yearly reminder to re-check."
     ],
     "ask": [
-      "Is there any job you are unsure about or want to re-check before you sign off?",
+      "Is there any control you are unsure about or want to re-check before you sign off?",
       "Does each Yes have a record in your own folder or drive?",
       "Who will run the yearly re-check?"
     ],
-    "proof": "Every job shows Yes or Not applicable with a dated note, and you have confirmed on your own page. Keep a dated copy of the summary in your own folder.",
+    "proof": "Every control shows Yes or Not applicable with a dated note, and you have confirmed on your own page. Keep a dated copy of the summary in your own folder.",
     "note": "Owner {name} reviewed all answers on {review_date}. Open items: {list}. Next review {next_review_date}.",
     "notApplicableWhen": null,
     "email": null,
     "watchFor": [
-      "Signing off with jobs still waiting on an outside firm.",
+      "Signing off with controls still waiting on an outside firm.",
       "Sign-off is your own review record. There is no certification, and it is not legal advice."
     ]
   },

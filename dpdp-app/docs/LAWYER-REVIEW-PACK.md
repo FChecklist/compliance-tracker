@@ -106,13 +106,13 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 
 - **Done by:** DPDP coordinator  ·  **Data set:** Whole organisation
 - **Law cited:** `g:`
-- **Why (as shown):** DPDP is India's data-protection law, and its work touches accounts, HR, IT and marketing, so someone must chase everyone or jobs sit undone. This is good practice, not a named legal post.
+- **Why (as shown):** DPDP is India's data-protection law, and its work touches accounts, HR, IT and marketing, so someone must chase everyone or controls sit undone. This is good practice, not a named legal post.
 - **Who (as shown):** A well-organised manager, backed by the owner or partners; every team head helps.
 - **Steps (as shown):**
   1. Choose someone who can ask colleagues for information and follow up politely.
   2. Agree how much time they give each week, for example one hour.
   3. Tell the owner and team heads who it is, and that requests from this person must be answered.
-  4. Ask them to review the job list weekly, report overdue jobs to the owner, and name a backup.
+  4. Ask them to review the control list weekly, report overdue controls to the owner, and name a backup.
 - **Evidence of "done":** A named coordinator and backup, known to the owner and team heads. Keep a short note or email naming them in your own folder or drive.
 - **"Doesn't apply" is honest when:** (no case listed -- the AI is told to say so and leave it to the owner)
 - **Watch for:** Do not name someone with no time or authority. / In a very small firm the Grievance Officer can also be the coordinator.
@@ -125,9 +125,9 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 - **Why (as shown):** People cannot complain if they cannot find who to contact, and the rules ask for this contact to be public.
 - **Who (as shown):** The Grievance Officer (responsible for DPDP policy); whoever manages your website helps put it online.
 - **Steps (as shown):**
-  1. Read the officer's name, role, email and phone from the Grievance Officer job's note; ask only if missing.
+  1. Read the officer's name, role, email and phone from the Grievance Officer control's note; ask only if missing.
   2. Choose where: your own website (footer or contact page), or the free VERIDIAN page.
-  3. For the VERIDIAN page, point the person to this job on their VERIDIAN page. You cannot publish it; invent no steps.
+  3. For the VERIDIAN page, point the person to this control on their VERIDIAN page. You cannot publish it; invent no steps.
   4. Write it plainly: name, role, business email and phone.
   5. Publish it, or hand the wording to whoever updates your website.
   6. Open the page on a phone and check the details.
@@ -177,16 +177,16 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 
 - **Done by:** Staff records  ·  **Data set:** Job applicants
 - **Law cited:** `d:§4`, `d:§8(4)`
-- **Why (as shown):** CVs arrive by email, WhatsApp and job sites and pile up unnoticed. Knowing where they are lets you protect them and delete old ones.
+- **Why (as shown):** CVs arrive by email, WhatsApp and control sites and pile up unnoticed. Knowing where they are lets you protect them and delete old ones.
 - **Who (as shown):** HR or whoever hires, with the office manager; IT helps with mailboxes and shared drives.
 - **Steps (as shown):**
-  1. Check where CVs land: HR mailbox, managers' inboxes, WhatsApp, job portals, recruiter emails, printouts.
+  1. Check where CVs land: HR mailbox, managers' inboxes, WhatsApp, control portals, recruiter emails, printouts.
   2. Write why you keep them: the current opening only, or a talent pool the applicant agreed to.
   3. List the roles that can open the CV folders, and remove access that is not needed.
   4. Ask how long unsuccessful CVs should be kept; if unsure, suggest a short period, but the person decides.
   5. Save the record in your own folder or drive.
 - **Evidence of "done":** A one-page record of where CVs sit, why, who can open them and how long unsuccessful ones stay. Keep it in your own folder or drive.
-- **"Doesn't apply" is honest when:** You never receive CVs or job applications from anyone, including by email or WhatsApp.
+- **"Doesn't apply" is honest when:** You never receive CVs or control applications from anyone, including by email or WhatsApp.
 - **Watch for:** CVs forwarded to managers' personal email or WhatsApp are easy to forget.
 - **Counsel:**  [ ] law text correct   [ ] guidance safe   [ ] "doesn't apply" wording right   [ ] change needed --  ____________________________
 
@@ -237,7 +237,7 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
   4. Make deleting a leaver's scans a step in your exit checklist.
 - **Evidence of "done":** A written note of where scans sit, who administers them, and how leavers' scans are deleted. Keep it in your own folder or drive.
 - **"Doesn't apply" is honest when:** You have no fingerprint or face-scan machine.
-- **Watch for:** Scans copied to a vendor cloud count as stored there too. / Taking scans also needs written consent, under a separate job.
+- **Watch for:** Scans copied to a vendor cloud count as stored there too. / Taking scans also needs written consent, under a separate control.
 - **Email drafted for the user to send:** to *Attendance machine vendor*, subject "Where our attendance scans are stored"
 - **Counsel:**  [ ] law text correct   [ ] guidance safe   [ ] "doesn't apply" wording right   [ ] change needed --  ____________________________
 
@@ -308,7 +308,7 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
   4. Ask staff to acknowledge they have read it; this is not consent.
 - **Evidence of "done":** The notice, how and when it was shared, and who acknowledged it, kept in your own folder or drive.
 - **"Doesn't apply" is honest when:** You have no employees, not even part-time or contract staff.
-- **Watch for:** Fingerprints, medical and bank details need written consent under a separate job, not this notice.
+- **Watch for:** Fingerprints, medical and bank details need written consent under a separate control, not this notice.
 - **Email drafted for the user to send:** to *All staff*, subject "About your personal data"
 - **Counsel:**  [ ] law text correct   [ ] guidance safe   [ ] "doesn't apply" wording right   [ ] change needed --  ____________________________
 
@@ -555,7 +555,7 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
   5. Make sure the Grievance Officer's name and contact details are on your website.
 - **Evidence of "done":** The complaint register in your own folder, showing each complaint, date received and date answered, with a declaration by the Grievance Officer that all were answered in time.
 - **"Doesn't apply" is honest when:** (no case listed -- the AI is told to say so and leave it to the owner)
-- **Watch for:** The job name gives two limits: one month under today's law, 90 days under the new law. Work to one month. / Complaints also arrive by phone, WhatsApp and at the counter. Write them down too.
+- **Watch for:** The control name gives two limits: one month under today's law, 90 days under the new law. Work to one month. / Complaints also arrive by phone, WhatsApp and at the counter. Write them down too.
 - **Counsel:**  [ ] law text correct   [ ] guidance safe   [ ] "doesn't apply" wording right   [ ] change needed --  ____________________________
 
 ##### `firm-28` -- Delete a customer’s data when they ask or when it is no longer needed — and tell anyone you shared it with
@@ -586,13 +586,13 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 - **Why (as shown):** Your organisation stays responsible for following the data rules, even when work is handed to others. A false 'done' gives false comfort.
 - **Who (as shown):** The owner, with the Grievance Officer and the IT person showing their proof.
 - **Steps (as shown):**
-  1. Ask the AI to read the job list and show: done jobs with no note, not-applicable reasons, open jobs missing a person or date.
-  2. For each done job, check the proof exists in your folder. Ask whether each not-applicable reason is true for you.
-  3. Ask the people who did each job about anything you doubt. A Yes cannot be taken back, so settle every doubt first and write it in a note.
+  1. Ask the AI to read the control list and show: done controls with no note, not-applicable reasons, open controls missing a person or date.
+  2. For each done control, check the proof exists in your folder. Ask whether each not-applicable reason is true for you.
+  3. Ask the people who did each control about anything you doubt. A Yes cannot be taken back, so settle every doubt first and write it in a note.
   4. When satisfied, confirm the answers yourself on your own page. The AI only prepares a draft.
-- **Evidence of "done":** The owner's own confirmation on their page, with the date. Save the job list page as a PDF that day in your own folder.
+- **Evidence of "done":** The owner's own confirmation on their page, with the date. Save the control list page as a PDF that day in your own folder.
 - **"Doesn't apply" is honest when:** (no case listed -- the AI is told to say so and leave it to the owner)
-- **Watch for:** Do not confirm on a colleague's word. Look at the proof. / Confirming says your answers are true. It does not mean the law is met. / A job you are unsure about is better left open than marked done.
+- **Watch for:** Do not confirm on a colleague's word. Look at the proof. / Confirming says your answers are true. It does not mean the law is met. / A control you are unsure about is better left open than marked done.
 - **Counsel:**  [ ] law text correct   [ ] guidance safe   [ ] "doesn't apply" wording right   [ ] change needed --  ____________________________
 
 ##### `firm-30` -- CA manager checks the proof
@@ -600,14 +600,14 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 - **Done by:** CAMGR  ·  **Data set:** Whole organisation  ·  **Only after:** "Owner confirms all the answers are true"
 - **Law cited:** `g:`
 - **Why (as shown):** A second person looking at the proof catches gaps before the file is signed. This is good practice for a careful firm.
-- **Who (as shown):** The CA manager, after the owner has confirmed, with the people who did each job showing their proof.
+- **Who (as shown):** The CA manager, after the owner has confirmed, with the people who did each control showing their proof.
 - **Steps (as shown):**
-  1. Check the owner's confirmation job first. If it is not confirmed, add a note that you are waiting, and stop.
-  2. For each job marked done, open the proof in the folder and check it matches what the job says.
+  1. Check the owner's confirmation control first. If it is not confirmed, add a note that you are waiting, and stop.
+  2. For each control marked done, open the proof in the folder and check it matches what the control says.
   3. Check that the proof is dated and shows who signed or did it.
-  4. Write a short comment on each job checked, and tell the person responsible about any gap.
+  4. Write a short comment on each control checked, and tell the person responsible about any gap.
   5. When gaps are closed, confirm your check yourself on your own page.
-- **Evidence of "done":** A short checking note by the CA manager in your own folder: jobs checked, gaps found, gaps closed, date. Declaration on your page.
+- **Evidence of "done":** A short checking note by the CA manager in your own folder: controls checked, gaps found, gaps closed, date. Declaration on your page.
 - **"Doesn't apply" is honest when:** (no case listed -- the AI is told to say so and leave it to the owner)
 - **Watch for:** Checking that a file exists is not the same as checking what it says. / This is an internal check, not an audit or a legal opinion. / Never upload proof documents into this chat.
 - **Counsel:**  [ ] law text correct   [ ] guidance safe   [ ] "doesn't apply" wording right   [ ] change needed --  ____________________________
@@ -619,9 +619,9 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 - **Why (as shown):** The partner's signature shows a senior person has looked over the whole file. This is good practice and the firm's own internal record, not an audit report or a legal opinion.
 - **Who (as shown):** The CA partner, after the CA manager has finished checking the proof.
 - **Steps (as shown):**
-  1. Read the CA manager's job and its note. If that job is not done, say so and wait.
+  1. Read the CA manager's control and its note. If that control is not done, say so and wait.
   2. Check every gap is closed or has a written reason.
-  3. Read the summary of the file (all your jobs and answers): done, not applicable with reasons, and anything still open.
+  3. Read the summary of the file (all your controls and answers): done, not applicable with reasons, and anything still open.
   4. Ask the manager about anything unclear. Do not sign on trust alone.
   5. Sign and date the file yourself on your own page. Keep any signed printout in your folder.
 - **Evidence of "done":** The partner's signed and dated sign-off, on the page and as a printout or scan in your own folder, with the manager's checking note.
@@ -654,16 +654,16 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 
 - **Done by:** DPDP coordinator  ·  **Data set:** Whole school
 - **Law cited:** `g:`
-- **Why (as shown):** Data protection touches admissions, fees, staff, buses and photos, so one coordinator keeps every job moving. This is good practice, not a named legal duty.
+- **Why (as shown):** Data protection touches admissions, fees, staff, buses and photos, so one coordinator keeps every control moving. This is good practice, not a named legal duty.
 - **Who (as shown):** The DPDP coordinator, chosen by the principal. The Grievance Officer and the heads of admission, fees, transport and staff records work with them.
 - **Steps (as shown):**
-  1. Choose an organised staff member who has time each week to chase jobs across offices.
+  1. Choose an organised staff member who has time each week to chase controls across offices.
   2. Get the principal's agreement, and tell office heads this person will follow up with them.
-  3. Fix a short regular check-in, for example every two weeks, to review pending jobs.
+  3. Fix a short regular check-in, for example every two weeks, to review pending controls.
   4. Write the name, role and email on a note and share it with staff.
 - **Evidence of "done":** A short note naming the coordinator with role, email and start date, kept in your own folder or drive. Then confirm the Yes on your own page.
 - **"Doesn't apply" is honest when:** (no case listed -- the AI is told to say so and leave it to the owner)
-- **Watch for:** Pick someone with time; a busy principal alone will let jobs slip. / Naming is not enough; the coordinator must actually follow up.
+- **Watch for:** Pick someone with time; a busy principal alone will let controls slip. / Naming is not enough; the coordinator must actually follow up.
 - **Counsel:**  [ ] law text correct   [ ] guidance safe   [ ] "doesn't apply" wording right   [ ] change needed --  ____________________________
 
 ##### `institution-03` -- Publish the Grievance Officer’s name and contact — on the school website or a free VERIDIAN page
@@ -673,7 +673,7 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 - **Why (as shown):** Parents and staff cannot raise a concern if they do not know whom to contact.
 - **Who (as shown):** The Grievance Officer (responsible for DPDP policy), with whoever manages the school website.
 - **Steps (as shown):**
-  1. Read the officer's name, role, email and phone from the 'Name the Grievance Officer' job; ask only if missing.
+  1. Read the officer's name, role, email and phone from the 'Name the Grievance Officer' control; ask only if missing.
   2. Draft a short contact block with those details.
   3. Choose where it goes: the school website, or the free VERIDIAN page option.
   4. Ask the website manager to publish it, or use the free VERIDIAN page option on your own page. The AI cannot do this.
@@ -1112,16 +1112,16 @@ Each job lists: where it sits in the list, who does it, the law it cites, then t
 - **Done by:** OWNER  ·  **Data set:** Whole school
 - **Law cited:** `d:§8(1)`
 - **Why (as shown):** You can hand out the work, but the institution stays responsible for it. Signing off shows the head looked at every answer.
-- **Who (as shown):** The owner or head of the institution, with each officer confirming their own jobs.
+- **Who (as shown):** The owner or head of the institution, with each officer confirming their own controls.
 - **Steps (as shown):**
-  1. Go through the job list and chase every job still open or waiting on an outside firm.
-  2. Check every other job is Yes or Not applicable with a reason. Read the notes and confirm a named person answers for each.
+  1. Go through the control list and chase every control still open or waiting on an outside firm.
+  2. Check every other control is Yes or Not applicable with a reason. Read the notes and confirm a named person answers for each.
   3. Check that each Yes has its record in your own folder or drive.
   4. Confirm the answers yourself on your own page. The AI can only prepare a draft.
   5. Set a yearly reminder to re-check.
-- **Evidence of "done":** Every job shows Yes or Not applicable with a dated note, and you have confirmed on your own page. Keep a dated copy of the summary in your own folder.
+- **Evidence of "done":** Every control shows Yes or Not applicable with a dated note, and you have confirmed on your own page. Keep a dated copy of the summary in your own folder.
 - **"Doesn't apply" is honest when:** (no case listed -- the AI is told to say so and leave it to the owner)
-- **Watch for:** Signing off with jobs still waiting on an outside firm. / Sign-off is your own review record. There is no certification, and it is not legal advice.
+- **Watch for:** Signing off with controls still waiting on an outside firm. / Sign-off is your own review record. There is no certification, and it is not legal advice.
 - **Counsel:**  [ ] law text correct   [ ] guidance safe   [ ] "doesn't apply" wording right   [ ] change needed --  ____________________________
 
 ## 4. Sign-off

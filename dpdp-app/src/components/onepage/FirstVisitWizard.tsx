@@ -103,7 +103,7 @@ export function FirstVisitWizard({
               <>
                 <h2 style={{ fontSize: 24, margin: "0 0 6px", fontWeight: 700 }}>First, here is your DPDP list</h2>
                 <p style={{ fontSize: 15, color: "var(--dpdp-ink2)", margin: "0 0 18px", maxWidth: "72ch" }}>
-                  We have already written down what the DPDP Act asks of your organisation — <b>{totalJobs} jobs</b>. You can add, change, remove or mark any of them &ldquo;doesn&rsquo;t apply&rdquo; later.
+                  We have already written down what the DPDP Act asks of your organisation — <b>{totalJobs} controls</b>. You can add, change, remove or mark any of them &ldquo;doesn&rsquo;t apply&rdquo; later.
                 </p>
                 <div className="grid grid-cols-2 gap-2.5 mb-5">
                   {PARTS.map((p) => {
@@ -112,7 +112,7 @@ export function FirstVisitWizard({
                     return (
                       <div key={p.n} className="p-3" style={{ border: "1px solid var(--dpdp-line2)", borderLeft: `4px solid ${p.color}`, borderRadius: 12, fontSize: 13.5, background: "#fff" }}>
                         <i className="not-italic" style={{ fontSize: 11.5, fontWeight: 700, color: p.color, marginRight: 8 }}>Part {p.n}</i>
-                        <b style={{ fontFamily: "Sora, sans-serif" }}>{p.name}</b> — {part.all} job{part.all !== 1 ? "s" : ""}
+                        <b style={{ fontFamily: "Sora, sans-serif" }}>{p.name}</b> — {part.all} control{part.all !== 1 ? "s" : ""}
                       </div>
                     )
                   })}
@@ -147,7 +147,7 @@ export function FirstVisitWizard({
                           <input type="email" aria-label={a.area} value={ans.emails} onChange={(e) => setEmails(a.area, e.target.value)} placeholder="your e-mail" disabled={ans.na}
                             className="w-full" style={{ padding: "11px 13px", border: "1px solid var(--dpdp-line)", borderRadius: 12, fontSize: 14, opacity: ans.na ? 0.35 : 1 }} />
                         )}
-                        <div style={{ fontSize: 11.5, color: "var(--dpdp-ink3)", marginTop: 4 }}>{a.jobs.length} job{a.jobs.length !== 1 ? "s" : ""}: {a.jobs.slice(0, 3).join(" · ")}{a.jobs.length > 3 ? ` — and ${a.jobs.length - 3} more` : ""}</div>
+                        <div style={{ fontSize: 11.5, color: "var(--dpdp-ink3)", marginTop: 4 }}>{a.jobs.length} control{a.jobs.length !== 1 ? "s" : ""}: {a.jobs.slice(0, 3).join(" · ")}{a.jobs.length > 3 ? ` — and ${a.jobs.length - 3} more` : ""}</div>
                         {AREA_CAN_MARK_NA.has(a.area) && (
                           <label className="inline-flex gap-1.5 items-center mt-2 cursor-pointer" style={{ fontSize: 12.5, color: "var(--dpdp-ink2)" }}>
                             <input type="checkbox" checked={ans.na} onChange={(e) => toggleNa(a.area, e.target.checked)} /> We don&rsquo;t have this

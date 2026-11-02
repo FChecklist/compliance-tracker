@@ -12,10 +12,10 @@ import { GuidedError } from "@/components/GuidedError"
 // address bar or history once read. dpdp_ai_action_undo does not offer a
 // preview -- what it reversed is only known once the RPC itself returns.
 const VERB_LABEL: Record<AiActionUndoPayload["verb"], string> = {
-  NOTE: "a note added to a job",
-  SET_DUE: "a job's due date, changed",
-  ASSIGN: "a job given to someone",
-  MARK_NA: "a job marked not applicable",
+  NOTE: "a note added to a control",
+  SET_DUE: "a control's due date, changed",
+  ASSIGN: "a control given to someone",
+  MARK_NA: "a control marked not applicable",
 }
 
 export function AiUndoConfirm({ client, undo, onDone, onDismiss }: { client: DpdpClient; undo: UndoFragment; onDone: () => Promise<void>; onDismiss: () => void }) {
@@ -45,7 +45,7 @@ export function AiUndoConfirm({ client, undo, onDone, onDismiss }: { client: Dpd
           {error && <GuidedError message={error} />}
           {result ? (
             <p role="status" style={{ fontSize: 14, fontWeight: 600, color: "var(--dpdp-g)", margin: "0 0 14px" }}>
-              Undone — it reversed {VERB_LABEL[result.verb] ?? result.verb} (job {result.jobId}).
+              Undone — it reversed {VERB_LABEL[result.verb] ?? result.verb} (control {result.jobId}).
             </p>
           ) : (
             <p style={{ fontSize: 13.5, color: "var(--dpdp-ink2)", margin: "0 0 14px", maxWidth: "72ch" }}>

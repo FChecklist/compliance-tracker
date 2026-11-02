@@ -26,10 +26,10 @@ export type Verb = (typeof VERBS)[number]
 export const REFUSED_ACTIONS = "close, delete, adding or removing people, changing who can sign, publish, export"
 
 export const VERB_HELP: ReadonlyArray<{ verb: Verb; payload: string; means: string }> = [
-  { verb: "ASSIGN", payload: '{ "email": "person@example.com" }', means: "give this job to that person (the owner confirms)" },
-  { verb: "SET_DUE", payload: '{ "dueOn": "YYYY-MM-DD" }', means: "change when this job is due (the owner confirms)" },
-  { verb: "NOTE", payload: '{ "text": "..." }', means: "add a note to this job's history -- nothing else changes" },
-  { verb: "MARK_NA", payload: '{ "reason": "..." }', means: "mark this job as not applicable, with a written reason (the owner confirms)" },
+  { verb: "ASSIGN", payload: '{ "email": "person@example.com" }', means: "give this control to that person (the owner confirms)" },
+  { verb: "SET_DUE", payload: '{ "dueOn": "YYYY-MM-DD" }', means: "change when this control is due (the owner confirms)" },
+  { verb: "NOTE", payload: '{ "text": "..." }', means: "add a note to this control's history -- nothing else changes" },
+  { verb: "MARK_NA", payload: '{ "reason": "..." }', means: "mark this control as not applicable, with a written reason (the owner confirms)" },
   { verb: "DRAFT", payload: '{ "docKind": "privacy_notice", "text": "..." }', means: "record a draft in history -- it is not published anywhere" },
 ]
 
@@ -140,7 +140,7 @@ function intro(view: AiLinkView): string[] {
   const email = oneLine(view.viewer.email, 120)
   const org = oneLine(view.org.name, 80)
   return [
-    `This page is a read-only copy of the DPDP jobs that ${email} can see at ${org}, where they are ${viewerLabel(view)}. It was opened through an AI link.`,
+    `This page is a read-only copy of the DPDP controls that ${email} can see at ${org}, where they are ${viewerLabel(view)}. It was opened through an AI link.`,
     `It carries no authority. Nothing can be changed from here, nothing on it signs anyone in, and it shows nobody's details beyond what ${email} already sees on their own page.`,
     `To act on anything, an AI may draft ONE action by sending JSON to the draft endpoint below. A draft changes nothing. The reply contains a link for ${email} to open in their own browser, sign in, and confirm -- only then does anything happen, and history will record "drafted by AI, confirmed by ${email}".`,
     `Only five verbs exist: ${VERBS.join(", ")}. Anything else is refused: ${REFUSED_ACTIONS}.`,
@@ -151,7 +151,7 @@ function intro(view: AiLinkView): string[] {
 function draftInstructions(opts: RenderOptions): { endpoint: string; body: string } {
   return {
     endpoint: opts.draftEndpoint,
-    body: '{ "verb": "NOTE", "obligationId": "<Job id from the table>", "payload": { "text": "..." } }',
+    body: '{ "verb": "NOTE", "obligationId": "<Control id from the table>", "payload": { "text": "..." } }',
   }
 }
 
@@ -159,7 +159,7 @@ export function renderMarkdown(view: AiLinkView, opts: RenderOptions): string {
   const s = summarise(view.rows, opts.now)
   const draft = draftInstructions(opts)
   const lines: string[] = []
-  lines.push(`# DPDP jobs at ${oneLine(view.org.name, 80)} -- read-only AI link`)
+  lines.push(`# DPDP controls at ${oneLine(view.org.name, 80)} -- read-only AI link`)
   lines.push("")
   for (const p of intro(view)) { lines.push(p); lines.push("") }
   lines.push("## How to draft an action")
@@ -174,15 +174,15 @@ export function renderMarkdown(view: AiLinkView, opts: RenderOptions): string {
   lines.push("| --- | --- | --- |")
   for (const v of VERB_HELP) lines.push(`| ${v.verb} | \`${escapeMdCell(v.payload)}\` | ${escapeMdCell(v.means)} |`)
   lines.push("")
-  lines.push("`obligationId` is the Job id column below. DRAFT may omit it. The reply is `{ \"draftUrl\": ... }` -- give that URL to the person; it is theirs to open, sign in, and confirm. A draft expires after 48 hours.")
+  lines.push("`obligationId` is the Control id column below. DRAFT may omit it. The reply is `{ \"draftUrl\": ... }` -- give that URL to the person; it is theirs to open, sign in, and confirm. A draft expires after 48 hours.")
   lines.push("")
   lines.push("## Where things stand")
   lines.push("")
-  lines.push(`${s.total} live job${s.total === 1 ? "" : "s"} · ${s.done} done · ${s.open} open · ${s.late} late · ${s.na} not applicable`)
+  lines.push(`${s.total} live control${s.total === 1 ? "" : "s"} · ${s.done} done · ${s.open} open · ${s.late} late · ${s.na} not applicable`)
   lines.push("")
-  lines.push("## Jobs")
+  lines.push("## Controls")
   lines.push("")
-  lines.push("| # | Job | Part | Who | Due | Status | Job id |")
+  lines.push("| # | Control | Part | Who | Due | Status | Control id |")
   lines.push("| --- | --- | --- | --- | --- | --- | --- |")
   view.rows.forEach((r, i) => {
     lines.push(`| ${i + 1} | ${escapeMdCell(r.what)} | ${r.part} | ${escapeMdCell(who(r))} | ${r.due} | ${escapeMdCell(rowStatus(r, opts.now))} | \`${r.id}\` |`)
@@ -196,7 +196,7 @@ export function renderMarkdown(view: AiLinkView, opts: RenderOptions): string {
 export function renderHtml(view: AiLinkView, opts: RenderOptions): string {
   const s = summarise(view.rows, opts.now)
   const draft = draftInstructions(opts)
-  const title = `DPDP jobs at ${oneLine(view.org.name, 80)} -- read-only AI link`
+  const title = `DPDP controls at ${oneLine(view.org.name, 80)} -- read-only AI link`
   const rowsHtml = view.rows.map((r, i) => `
         <tr>
           <td>${i + 1}</td>
@@ -251,14 +251,14 @@ ${intro(view).map((p) => `    <p>${escapeHtml(p)}</p>`).join("\n")}
     <tbody>${verbsHtml}
     </tbody>
   </table>
-  <p><code>obligationId</code> is the Job id column below. DRAFT may omit it. The reply is <code>{ "draftUrl": ... }</code> -- give that URL to the person; it is theirs to open, sign in, and confirm. A draft expires after 48 hours.</p>
+  <p><code>obligationId</code> is the Control id column below. DRAFT may omit it. The reply is <code>{ "draftUrl": ... }</code> -- give that URL to the person; it is theirs to open, sign in, and confirm. A draft expires after 48 hours.</p>
 
   <h2>Where things stand</h2>
-  <p class="stats">${s.total} live job${s.total === 1 ? "" : "s"} · ${s.done} done · ${s.open} open · ${s.late} late · ${s.na} not applicable</p>
+  <p class="stats">${s.total} live control${s.total === 1 ? "" : "s"} · ${s.done} done · ${s.open} open · ${s.late} late · ${s.na} not applicable</p>
 
-  <h2>Jobs</h2>
+  <h2>Controls</h2>
   <table>
-    <thead><tr><th>#</th><th>Job</th><th>Part</th><th>Who</th><th>Due</th><th>Status</th><th>Job id</th></tr></thead>
+    <thead><tr><th>#</th><th>Control</th><th>Part</th><th>Who</th><th>Due</th><th>Status</th><th>Control id</th></tr></thead>
     <tbody>${rowsHtml}
     </tbody>
   </table>

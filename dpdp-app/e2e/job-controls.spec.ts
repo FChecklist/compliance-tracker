@@ -18,7 +18,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test"
 async function seed(page: Page, scenario: string) {
   await page.goto(`/app/?mock=${scenario}`)
   await expect(page.getByText("Signed in as")).toBeVisible({ timeout: 10_000 })
-  const welcome = page.getByRole("button", { name: "Got it — show me my jobs", exact: true })
+  const welcome = page.getByRole("button", { name: "Got it — show me my controls", exact: true })
   if (await welcome.isVisible().catch(() => false)) await welcome.click()
 }
 
@@ -47,7 +47,7 @@ async function openRowOffering(page: Page, tabs: string[]): Promise<Locator> {
 
 const ALL_FOUR = ["Add a note", "Give to someone", "Change the date", "Doesn't apply"]
 
-test.describe("job controls on the person's own page -- by accessible names", () => {
+test.describe("control controls on the person's own page -- by accessible names", () => {
   test("owner: a note is written, the panel closes, focus returns to the row's button, and History shows the words", async ({ page }) => {
     await seed(page, "owner-live")
     await expect(page.getByRole("button", MORE).first()).toBeVisible()
@@ -70,7 +70,7 @@ test.describe("job controls on the person's own page -- by accessible names", ()
     await expect(page.getByText(note)).toBeVisible()
   })
 
-  test("every row's button names its own job, so thirty of them can be told apart by ear", async ({ page }) => {
+  test("every row's button names its own control, so thirty of them can be told apart by ear", async ({ page }) => {
     await seed(page, "owner-live")
     const names = await page.getByRole("button", MORE_OR_CLOSE).evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))
     expect(names.length).toBeGreaterThan(10)
@@ -114,7 +114,7 @@ test.describe("job controls on the person's own page -- by accessible names", ()
     await expect(page.getByText(new RegExp(`due on ${soon}`)).first()).toBeVisible()
   })
 
-  test("owner: 'doesn't apply' needs a reason and a tick, then the job is marked and the reason is in History", async ({ page }) => {
+  test("owner: 'doesn't apply' needs a reason and a tick, then the control is marked and the reason is in History", async ({ page }) => {
     await seed(page, "owner-live")
     await openRowOffering(page, ALL_FOUR)
     await page.getByRole("tab", { name: "Doesn't apply", exact: true }).click()
@@ -127,7 +127,7 @@ test.describe("job controls on the person's own page -- by accessible names", ()
     await page.getByRole("button", { name: "It doesn't apply", exact: true }).click()
     await expect(page.getByRole("alert")).toContainText("Tick the box to confirm")
 
-    await page.getByRole("checkbox", { name: /This job really doesn.t apply/ }).check()
+    await page.getByRole("checkbox", { name: /This control really doesn.t apply/ }).check()
     await page.getByRole("button", { name: "It doesn't apply", exact: true }).click()
     await expect(page.getByLabel(/Why doesn.t this apply/)).toHaveCount(0)
     await expect(saidOnPage(page, "Marked as not applicable.")).toBeVisible()
@@ -135,30 +135,30 @@ test.describe("job controls on the person's own page -- by accessible names", ()
     await expect(page.getByText(reason)).toBeVisible()
   })
 
-  test("owner: dropping a step that other jobs wait for says who it lets through", async ({ page }) => {
+  test("owner: dropping a step that other controls wait for says who it lets through", async ({ page }) => {
     await seed(page, "owner-live")
     const step = page.getByRole("row", { name: /Owner confirms all the answers are true/ })
     await step.getByRole("button", MORE).click()
     await page.getByRole("tab", { name: "Doesn't apply", exact: true }).click()
-    await expect(page.getByText(/Another job is waiting for this one\. Saying it doesn't apply lets it go ahead\./)).toBeVisible()
+    await expect(page.getByText(/Another control is waiting for this one\. Saying it doesn't apply lets it go ahead\./)).toBeVisible()
   })
 
-  test("owner: giving a job to someone shows the new person on the row; a bad address is refused first", async ({ page }) => {
+  test("owner: giving a control to someone shows the new person on the row; a bad address is refused first", async ({ page }) => {
     await seed(page, "owner-live")
     await openRowOffering(page, ALL_FOUR)
     await page.getByRole("tab", { name: "Give to someone", exact: true }).click()
 
     await page.getByLabel("Their email address", { exact: true }).fill("not-an-address")
-    await page.getByRole("button", { name: "Give this job", exact: true }).click()
+    await page.getByRole("button", { name: "Give this control", exact: true }).click()
     await expect(page.getByRole("alert")).toBeVisible()
 
     await page.getByLabel("Their email address", { exact: true }).fill("Priya.New@Company.example")
-    await page.getByRole("button", { name: "Give this job", exact: true }).click()
-    await expect(saidOnPage(page, "Job given to priya.new@company.example.")).toBeVisible()
+    await page.getByRole("button", { name: "Give this control", exact: true }).click()
+    await expect(saidOnPage(page, "Control given to priya.new@company.example.")).toBeVisible()
     await expect(page.getByText("priya.new@company.example").first()).toBeVisible()
   })
 
-  test("owner: a finished job takes a note and nothing else", async ({ page }) => {
+  test("owner: a finished control takes a note and nothing else", async ({ page }) => {
     await seed(page, "owner-live")
     await openRowOffering(page, ["Add a note"])
     await expect(page.getByRole("tab")).toHaveCount(1)
@@ -167,7 +167,7 @@ test.describe("job controls on the person's own page -- by accessible names", ()
     await expect(page.getByRole("tab", { name: "Doesn't apply", exact: true })).toHaveCount(0)
   })
 
-  test("staff: only a note, and 'doesn't apply' on their own jobs -- never a date or a hand-over", async ({ page }) => {
+  test("staff: only a note, and 'doesn't apply' on their own controls -- never a date or a hand-over", async ({ page }) => {
     await seed(page, "staff")
     const buttons = page.getByRole("button", MORE_OR_CLOSE)
     await expect(buttons.first()).toBeVisible()
@@ -181,7 +181,7 @@ test.describe("job controls on the person's own page -- by accessible names", ()
     }
   })
 
-  test("staff: a note on their own job is confirmed on the page (they have no History to read it in)", async ({ page }) => {
+  test("staff: a note on their own control is confirmed on the page (they have no History to read it in)", async ({ page }) => {
     await seed(page, "staff")
     await page.getByRole("button", MORE).first().click()
     await page.getByLabel("Your note", { exact: true }).fill("Waiting on HR for the list.")
@@ -191,18 +191,18 @@ test.describe("job controls on the person's own page -- by accessible names", ()
     await expect(page.getByText("🕘 History")).toHaveCount(0)
   })
 
-  test("staff: their own job can be marked 'doesn't apply' with a reason and a tick, and the page says so", async ({ page }) => {
+  test("staff: their own control can be marked 'doesn't apply' with a reason and a tick, and the page says so", async ({ page }) => {
     await seed(page, "staff")
     await page.getByRole("button", MORE).first().click()
     await page.getByRole("tab", { name: "Doesn't apply", exact: true }).click()
     await expect(page.getByLabel(/Why doesn.t this apply to you/)).toBeVisible()
     await page.getByLabel(/Why doesn.t this apply to you/).fill("We do not keep customer bank details.")
-    await page.getByRole("checkbox", { name: /This job really doesn.t apply/ }).check()
+    await page.getByRole("checkbox", { name: /This control really doesn.t apply/ }).check()
     await page.getByRole("button", { name: "It doesn't apply", exact: true }).click()
     await expect(saidOnPage(page, "Marked as not applicable.")).toBeVisible()
   })
 
-  test("the Grievance Officer and the coordinator can note any job, but on no job can they give it away or move its date", async ({ page }) => {
+  test("the Grievance Officer and the coordinator can note any control, but on no control can they give it away or move its date", async ({ page }) => {
     for (const scenario of ["go", "coord"]) {
       await seed(page, scenario)
       const buttons = page.getByRole("button", MORE_OR_CLOSE)

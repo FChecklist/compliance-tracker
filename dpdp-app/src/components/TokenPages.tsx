@@ -118,7 +118,7 @@ function ActFlow({ client, token, bootError }: { client: DpdpClient | null; toke
     if (!outcome.ok) return <Refused reason={outcome.reason} />
     return (
       <Card icon="✅" title="Recorded, thank you">
-        <p style={lead}>&ldquo;{GROUP_ANSWER_LABEL[outcome.answer]}&rdquo; is now recorded for <b>{outcome.what ?? "this job"}</b>. You can close this page.</p>
+        <p style={lead}>&ldquo;{GROUP_ANSWER_LABEL[outcome.answer]}&rdquo; is now recorded for <b>{outcome.what ?? "this control"}</b>. You can close this page.</p>
       </Card>
     )
   }
@@ -128,14 +128,14 @@ function ActFlow({ client, token, bootError }: { client: DpdpClient | null; toke
   if (preview.alreadyDone) {
     return (
       <Card icon="✅" title="Already done">
-        <p style={lead}><b>{preview.what ?? "This job"}</b> is already marked done. There is nothing to press.</p>
+        <p style={lead}><b>{preview.what ?? "This control"}</b> is already marked done. There is nothing to press.</p>
       </Card>
     )
   }
   return (
     <Card icon="✉️" title={preview.orgName ?? "VERIDIAN DPDP"}>
       <p style={lead}>
-        Pressing the button below records <b>&ldquo;{label}&rdquo;</b> for <b>{preview.what ?? "this job"}</b>{preview.isGroup ? " — your own answer, for you alone" : ""}.
+        Pressing the button below records <b>&ldquo;{label}&rdquo;</b> for <b>{preview.what ?? "this control"}</b>{preview.isGroup ? " — your own answer, for you alone" : ""}.
       </p>
       <p style={{ ...quiet, marginBottom: 18 }}>Opening this page has changed nothing.</p>
       <Busy pending={pending}>

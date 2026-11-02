@@ -11,8 +11,8 @@ const day = (offset: number) => new Date(2026, 9, 3 + offset, 9, 0, 0).toISOStri
 const row = (over: Record<string, unknown>) => ({ id: "r", due: day(0), yes: false, na: false, by: "me@x.in", isGroup: false, ...over })
 const page = (rows: Array<Record<string, unknown>>, kind = "staff") => ({ viewer: { kind }, rows })
 
-describe("reminders: which jobs count", () => {
-  test("counts only my own open jobs, overdue vs due within 3 days", () => {
+describe("reminders: which controls count", () => {
+  test("counts only my own open controls, overdue vs due within 3 days", () => {
     const p = page([
       row({ id: "a", due: day(-2) }), // overdue
       row({ id: "b", due: day(0) }), // today = soon
@@ -24,13 +24,13 @@ describe("reminders: which jobs count", () => {
     ])
     expect(countDue(p, "ME@x.in", NOW)).toEqual({ overdue: 1, soon: 2 })
   })
-  test("a group job counts only for a member who has not answered", () => {
+  test("a group control counts only for a member who has not answered", () => {
     const g = (extra: Record<string, unknown>) => row({ isGroup: true, by: "All staff", due: day(-1), ...extra })
     expect(mineAndOpen(page([g({ viewerIsGroupMember: true })]), "me@x.in")).toHaveLength(1)
     expect(mineAndOpen(page([g({ viewerIsGroupMember: true, myGroupAnswer: "done" })]), "me@x.in")).toHaveLength(0)
     expect(mineAndOpen(page([g({ viewerIsGroupMember: false })]), "me@x.in")).toHaveLength(0)
   })
-  test("unassigned jobs are the owner's only", () => {
+  test("unassigned controls are the owner's only", () => {
     const rows = [row({ by: null, due: day(-1) })]
     expect(countDue(page(rows, "owner"), "me@x.in", NOW).overdue).toBe(1)
     expect(countDue(page(rows, "staff"), "me@x.in", NOW).overdue).toBe(0)
@@ -44,8 +44,8 @@ describe("reminders: which jobs count", () => {
 describe("reminders: the notification", () => {
   test("text is counts only, and silent when nothing is due", () => {
     expect(reminderText({ overdue: 0, soon: 0 })).toBeNull()
-    expect(reminderText({ overdue: 1, soon: 0 })?.body).toBe("1 job overdue. Open the app to see which.")
-    expect(reminderText({ overdue: 2, soon: 3 })?.body).toContain("2 jobs overdue and 3 jobs due")
+    expect(reminderText({ overdue: 1, soon: 0 })?.body).toBe("1 control overdue. Open the app to see which.")
+    expect(reminderText({ overdue: 2, soon: 3 })?.body).toContain("2 controls overdue and 3 controls due")
     const t = JSON.stringify(reminderText({ overdue: 2, soon: 3 }))
     expect(t).not.toMatch(/@|consent|breach|notice/i) // nothing identifying or topical on a lock screen
   })

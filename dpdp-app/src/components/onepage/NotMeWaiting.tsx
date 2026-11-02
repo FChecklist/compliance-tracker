@@ -15,7 +15,7 @@ export function NotMeWaiting({ orgName }: { orgName: string }) {
             We&rsquo;ve told {orgName}&rsquo;s owner
           </h1>
           <p style={{ fontSize: 15, color: "var(--dpdp-ink2)", margin: 0, maxWidth: "48ch", marginLeft: "auto", marginRight: "auto" }}>
-            You said these jobs weren&rsquo;t yours. We&rsquo;ve let the owner know it needs reassigning — nothing more to do here until they fix it.
+            You said these controls weren&rsquo;t yours. We&rsquo;ve let the owner know it needs reassigning — nothing more to do here until they fix it.
           </p>
         </div>
       </div>

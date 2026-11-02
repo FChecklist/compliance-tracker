@@ -72,7 +72,7 @@ describe("the email: warning first, then a short prompt box, and only true claim
   test("the warning is the app's WO-013 §1.1 sentence, verbatim, with the real counts, and says until when", () => {
     const out = renderDigest(digest(), withLink(1))
     expect(out.text).toContain(aiLinkWarningSentence(31, 4))
-    expect(out.text).toContain("31 jobs and the names and emails of 4 people")
+    expect(out.text).toContain("31 controls and the names and emails of 4 people")
     expect(out.text).toContain("Anyone who holds this link can read all of that and make small changes as you until 5 October 2026.")
     for (const [jobs, people] of [[0, 0], [1, 1], [31, 4], [200, 57]]) {
       expect(aiLinkWarningSentence(jobs, people)).toBe(appLink.aiWorkLinkWarningSentence({ jobs, people }))
@@ -91,7 +91,7 @@ describe("the email: warning first, then a short prompt box, and only true claim
 
   test("Option 2 is one line; the link works 48 hours, says whose work, and the button always gives a current one", () => {
     const out = renderDigest(digest(), withLink(1)).text
-    expect(out).toContain("Option 2 — Do it right here. Tap the button under a job when it is done.")
+    expect(out).toContain("Option 2 — Do it right here. Tap the button under a control when it is done.")
     expect(out).toContain("The AI works as priya@acmeca.in, a staff member at Acme & Co. This link works for 48 hours (until 5 October 2026). The button below always gives you a current one.")
   })
 
@@ -118,7 +118,7 @@ describe("the email: warning first, then a short prompt box, and only true claim
     expect(out.html).not.toMatch(/\/ai\/[0-9a-f]{64}/)
   })
 
-  test("statutory-only: no options, no link, no warning; an owner with no jobs of their own gets 'Two ways'", () => {
+  test("statutory-only: no options, no link, no warning; an owner with no controls of their own gets 'Two ways'", () => {
     const d = digest({ statutoryOnly: true, jobs: [job({ obligationId: "s", requiredToday: true, daysLate: 2 })] })
     const st = renderDigest(statutorySubset(d), withLink(), "statutory")
     expect(st.text).not.toContain("Option 1")
@@ -158,10 +158,10 @@ describe("2026-10-05: no hyperlink carries the token; the button goes to the sig
     expect(out.html.split(warn).length - 1).toBe(2)
     expect(out.html).toContain("color:#B91C1C")
     expect(out.html.indexOf(warn)).toBeLessThan(out.html.indexOf("Three ways to do this"))
-    expect(out.html.lastIndexOf(warn)).toBeGreaterThan(out.html.indexOf("Your jobs ("))
+    expect(out.html.lastIndexOf(warn)).toBeGreaterThan(out.html.indexOf("Your controls ("))
     expect(out.text.indexOf(warn.toUpperCase())).toBeLessThan(out.text.indexOf("THREE WAYS TO DO THIS"))
     expect(warn.includes("\n")).toBe(false) // one line
-    expect(out.text.lastIndexOf(warn.toUpperCase())).toBeGreaterThan(out.text.indexOf("YOUR JOBS ("))
+    expect(out.text.lastIndexOf(warn.toUpperCase())).toBeGreaterThan(out.text.indexOf("YOUR CONTROLS ("))
     expect(out.text).toContain("ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai")
     expect(out.text).toContain("works for 48 hours")
     expect(out.text).toContain("The AI works as ")
@@ -192,7 +192,7 @@ describe("the paste: two lines, the link last; the instructions live on the page
   })
   test("it sends the AI to the page and says what to do if it cannot go (pinned exactly: this is the product copy)", () => {
     // The owner's-own-API-documentation framing (a bare "follow this link" was refused as prompt injection about one run in three).
-    expect(lines[0]).toBe("I use VERIDIAN, my organisation's DPDP data-protection software, and I want you to help me with my DPDP jobs. A plain GET on my personal access link to its API returns the API guide, documentation for you to read, written by my own organisation's software (it can only do what my own role may, and I confirm anything important myself). Please read the guide first, then help me; if you cannot open links, tell me so and stop. My link:")
+    expect(lines[0]).toBe("I use VERIDIAN, my organisation's DPDP data-protection software, and I want you to help me with my DPDP controls. A plain GET on my personal access link to its API returns the API guide, documentation for you to read, written by my own organisation's software (it can only do what my own role may, and I confirm anything important myself). Please read the guide first, then help me; if you cannot open links, tell me so and stop. My link:")
     expect(lines[0]).toContain("my personal access link to its API")
     expect(lines[0]).toContain("if you cannot open links, tell me so and stop.")
   })
@@ -241,10 +241,10 @@ describe("what your AI changed for you", () => {
   })
   test("nothing changed, nothing shown; more than 20 are capped with a count; a long multi-line value becomes one short line", () => {
     expect(renderDigest(digest(), withLink(1, { aiChanges: [] })).text).not.toContain("WHAT YOUR AI CHANGED")
-    const many = Array.from({ length: 23 }, (_, i) => ({ ...changes[0], what: `Job ${i}` }))
+    const many = Array.from({ length: 23 }, (_, i) => ({ ...changes[0], what: `Control ${i}` }))
     const out = renderDigest(digest(), withLink(1, { aiChanges: many }))
     expect(out.text).toContain("...and 3 more in your history.")
-    expect(out.text).not.toContain("Job 20")
+    expect(out.text).not.toContain("Control 20")
     const s = aiChangeSentence({ verb: "NOTE", what: "x", value: { text: `line one\nline two ${"z".repeat(400)}` }, appliedAt: "2026-09-28T00:00:00Z", undoUrl: null })
     expect(s).not.toContain("\n")
     expect(s.length).toBeLessThan(200)
@@ -277,9 +277,9 @@ describe("an email that exists only to tell the person what their AI changed", (
     expect(out.html).toContain("Added a note to “Name a DPDP coordinator”")
     expect(out.html.indexOf("display:none;max-height:0")).toBeGreaterThan(-1)
   })
-  test("the same person, with jobs, gets the ordinary digest, with the share asks", () => {
+  test("the same person, with controls, gets the ordinary digest, with the share asks", () => {
     const out = renderDigest(digest({ aiChangesOnly: false }), withLink(1, { aiChanges: one }))
-    expect(out.subject).toContain("Your DPDP jobs this week")
+    expect(out.subject).toContain("Your DPDP controls this week")
     expect(out.text).toContain("Option 1")
     expect(out.text).toContain("Invite them to VERIDIAN")
   })
@@ -422,9 +422,9 @@ describe("finishEmailAiLink and markChangesShown", () => {
 
 describe("loadAiChanges, hasPendingAiChanges, aiOnlyChanges", () => {
   const rows = [
-    { actionId: "a1", verb: "NOTE", what: "Job A", value: { text: "hi" }, appliedAt: "2026-09-28T01:00:00Z", stillUndoable: true, undoneAt: null },
-    { actionId: "a2", verb: "SET_DUE", what: "Job B", value: { dueOn: "2026-10-10" }, appliedAt: "2026-09-27T01:00:00Z", stillUndoable: false, undoneAt: null },
-    { actionId: "a3", verb: "MARK_NA", what: "Job C", value: { reason: "x" }, appliedAt: "2026-09-26T01:00:00Z", stillUndoable: false, undoneAt: "2026-09-26T02:00:00Z" },
+    { actionId: "a1", verb: "NOTE", what: "Control A", value: { text: "hi" }, appliedAt: "2026-09-28T01:00:00Z", stillUndoable: true, undoneAt: null },
+    { actionId: "a2", verb: "SET_DUE", what: "Control B", value: { dueOn: "2026-10-10" }, appliedAt: "2026-09-27T01:00:00Z", stillUndoable: false, undoneAt: null },
+    { actionId: "a3", verb: "MARK_NA", what: "Control C", value: { reason: "x" }, appliedAt: "2026-09-26T01:00:00Z", stillUndoable: false, undoneAt: "2026-09-26T02:00:00Z" },
   ]
   const answers = { dpdp_timer_ai_actions_for_digest: rows, dpdp_timer_issue_undo_token: { ok: true, undoToken: "cd".repeat(32) } }
   test("undone changes are skipped, ids match the listed changes in order, and only a still-undoable one gets an Undo link", async () => {

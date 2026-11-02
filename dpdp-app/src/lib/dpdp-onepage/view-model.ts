@@ -31,11 +31,11 @@ export type ObligationRow = {
   isGroup: boolean
   groupDone?: number // how many of the group have ANSWERED (any of the 3 kinds), not how many said "done" -- the obligation closes once everyone has answered
   groupTotal?: number
-  viewerIsGroupMember?: boolean // only meaningful when isGroup -- is THIS viewer actually in the group, not just "is this a group job" (a group job is otherwise invisible to non-members, see getOnePageData)
+  viewerIsGroupMember?: boolean // only meaningful when isGroup -- is THIS viewer actually in the group, not just "is this a group control" (a group control is otherwise invisible to non-members, see getOnePageData)
   myGroupAnswer?: GroupAnswerKind | null // THIS viewer's own prior answer, if any -- null means "hasn't answered yet"
   due: Date
   yes: boolean
-  answer?: "y" | "n" // for consent-style yes/no jobs (parents)
+  answer?: "y" | "n" // for consent-style yes/no controls (parents)
   na: boolean
   dependsOnObligationId: string | null
   sent: number // WO §6 gap -- always 0 until email digest is wired to this model
@@ -171,7 +171,7 @@ export function vNow(rows: ObligationRow[], viewer: ViewerContext, now: Date = n
   }
 
   if (viewer.kind === "staff") {
-    if (mine.length) return { icon: "👉", title: `You have ${mine.length} job${mine.length > 1 ? "s" : ""} to do`, subtitle: "When a job is done, press the green button. That is all.", buttonLabel: "Show me my jobs", action: "mine" }
+    if (mine.length) return { icon: "👉", title: `You have ${mine.length} control${mine.length > 1 ? "s" : ""} to do`, subtitle: "When a control is done, press the green button. That is all.", buttonLabel: "Show me my controls", action: "mine" }
     return { icon: "🎉", title: "Nothing for you this week", subtitle: "You will get an email if anything new comes up." }
   }
 
@@ -179,23 +179,23 @@ export function vNow(rows: ObligationRow[], viewer: ViewerContext, now: Date = n
   // "CA firm view") -- not yet built; only owner/coord/go covered here.
 
   if (viewer.kind === "go" && mine.length) {
-    return { icon: "👉", title: `You have ${mine.length} job${mine.length > 1 ? "s" : ""} of your own`, subtitle: "As Grievance Officer. Press Mark Yes on each when it is done.", buttonLabel: "Show me", action: "mine" }
+    return { icon: "👉", title: `You have ${mine.length} control${mine.length > 1 ? "s" : ""} of your own`, subtitle: "As Grievance Officer. Press Mark Yes on each when it is done.", buttonLabel: "Show me", action: "mine" }
   }
   if (nob.length && viewer.kind !== "go") {
-    return { icon: "📧", title: `${nob.length} job${nob.length > 1 ? "s have" : " has"} nobody looking after ${nob.length > 1 ? "them" : "it"}`, subtitle: "Type an email into each amber row — or mark it “doesn’t apply” if it is not relevant to you.", buttonLabel: "Show me", action: "nobody" }
+    return { icon: "📧", title: `${nob.length} control${nob.length > 1 ? "s have" : " has"} nobody looking after ${nob.length > 1 ? "them" : "it"}`, subtitle: "Type an email into each amber row — or mark it “doesn’t apply” if it is not relevant to you.", buttonLabel: "Show me", action: "nobody" }
   }
   if (mine.length) {
-    return { icon: "👉", title: `You have ${mine.length} job${mine.length > 1 ? "s" : ""} of your own`, subtitle: "Press Mark Yes on each when it is done.", buttonLabel: "Show me", action: "mine" }
+    return { icon: "👉", title: `You have ${mine.length} control${mine.length > 1 ? "s" : ""} of your own`, subtitle: "Press Mark Yes on each when it is done.", buttonLabel: "Show me", action: "mine" }
   }
   const todayLate = lr.filter((r) => isToday(r.lawCodes) && !r.yes && dueDays(r.due, now) < 0)
   if (todayLate.length) {
     return {
-      icon: "⚡", title: `${todayLate.length} job${todayLate.length > 1 ? "s" : ""} required by today’s law ${todayLate.length > 1 ? "are" : "is"} late`,
+      icon: "⚡", title: `${todayLate.length} control${todayLate.length > 1 ? "s" : ""} required by today’s law ${todayLate.length > 1 ? "are" : "is"} late`,
       subtitle: "These come from the SPDI Rules 2011 or the Aadhaar Act, which apply now — not from May 2027. Everyone has been reminded.", buttonLabel: "Show me", action: "today",
     }
   }
   if (late.length) {
-    return { icon: "⏰", title: `${late.length} job${late.length > 1 ? "s are" : " is"} late`, subtitle: "Those people are reminded every Monday automatically. Nothing for you to do unless you want to call them.", buttonLabel: "Show me", action: "late" }
+    return { icon: "⏰", title: `${late.length} control${late.length > 1 ? "s are" : " is"} late`, subtitle: "Those people are reminded every Monday automatically. Nothing for you to do unless you want to call them.", buttonLabel: "Show me", action: "late" }
   }
   if (!left.length) {
     return { icon: "🎉", title: "Everything is done", subtitle: "Your list refreshes every quarter. We will email you when it does." }

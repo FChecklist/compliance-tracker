@@ -24,7 +24,7 @@ async function signIn(page: Page, email: string) {
 }
 
 test.describe("WO-DPDP-011 Step 5 -- the remaining WO-010 screens, by accessible names", () => {
-  test("owner: wizard -> own group job answered -> AI link made once", async ({ page }) => {
+  test("owner: wizard -> own group control answered -> AI link made once", async ({ page }) => {
     await signIn(page, "owner@example.test")
 
     // The owner's three-step wizard (Step 3), naming themself into the
@@ -61,7 +61,7 @@ test.describe("WO-DPDP-011 Step 5 -- the remaining WO-010 screens, by accessible
     await page.goto("/app/#draft=mock-draft.mock-confirm")
     await expect(page.getByRole("heading", { name: "🤖 An AI drafted something for you to confirm", exact: true })).toBeVisible({ timeout: 10_000 })
     await expect(page).toHaveURL(/\/app\/$/)
-    await expect(page.getByText("Add a note to a job", { exact: true })).toBeVisible()
+    await expect(page.getByText("Add a note to a control", { exact: true })).toBeVisible()
     await expect(page.getByText("drafted by AI, confirmed by")).toHaveCount(0)
     await page.getByRole("button", { name: "Confirm", exact: true }).click()
     await expect(page.getByRole("status")).toContainText("Confirmed")
@@ -80,7 +80,7 @@ test.describe("WO-DPDP-011 Step 5 -- the remaining WO-010 screens, by accessible
     await expect(page.getByText("Mehta Traders")).toBeVisible()
     await page.getByRole("button", { name: "Next — how it works", exact: true }).click()
     await expect(page.getByRole("heading", { name: "How it works", exact: true })).toBeVisible()
-    await page.getByRole("button", { name: "Got it — show me my jobs", exact: true }).click()
+    await page.getByRole("button", { name: "Got it — show me my controls", exact: true }).click()
 
     // The shell's "My clients (N)" entry, then the clients table with its
     // "Where it is" column and the add-a-client form.
@@ -106,7 +106,7 @@ test.describe("WO-DPDP-011 Step 5 -- the remaining WO-010 screens, by accessible
     await expect(page.getByRole("button", { name: "🧾 My clients (2)", exact: true })).toBeVisible()
   })
 
-  test("owner set up by a CA: the review screen, then confirm lands on the jobs page", async ({ page }) => {
+  test("owner set up by a CA: the review screen, then confirm lands on the controls page", async ({ page }) => {
     await signIn(page, "client-owner@example.test")
     await expect(page.getByRole("heading", { name: "partner@example.test set this up for you", exact: true })).toBeVisible()
     await expect(page.getByRole("heading", { name: "Who looks after what", exact: true })).toBeVisible()
