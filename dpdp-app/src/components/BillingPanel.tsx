@@ -1,31 +1,23 @@
 import { useEffect, useState } from "react"
 import type { DpdpClient } from "@/lib/client"
-import { confirmOnlinePayment, declarePayment, fetchMyAccount, myBilling, startOnlinePayment, uploadPaymentProof } from "@/lib/api"
+import { confirmOnlinePayment, fetchMyAccount, myBilling, startOnlinePayment } from "@/lib/api"
 import { PayFrameError, payViaFrame } from "@/lib/pay-frame"
 import type { BillingStatusPayload, MyAccountPayload, PayInterval } from "@/lib/rpc-types"
 import { clientsLine, formatRupees, intervalWord, ladderLine, packLength, yearAsMonthlyPhrase, yearlyPerClientLine, yearOffLabel } from "@/lib/billing-state"
 import { parseDbTimestamp } from "@/lib/db-time"
-import { PAY_EMAIL, paymentProofMailto } from "@/lib/payment-proof-mail"
+import { PAY_EMAIL } from "@/lib/payment-proof-mail"
 import { BOX_K3 } from "@/lib/terms"
 import { TermsCheckbox, TermsWhy } from "./TermsBox"
 import { GuidedError } from "@/components/GuidedError"
 
-// Where to actually send the money -- swap these for the real values the
-// moment the Owner shares them (bank/UPI details + a QR code image at
-// public/payment-qr.png; WhatsApp number). Until then the email address is
-// real and already works -- that channel needs nothing to swap. It is the
-// one public DPDP mailbox (PAY_EMAIL, src/lib/payment-proof-mail.ts), not a
-// personal address: a proof mailed there is filed as an invoice ticket.
-const PAY_UPI_ID = "veridian@upi (ask the Owner for the real UPI ID)"
-const PAY_BANK = { accountName: "VERIDIAN (bank details pending)", accountNumber: "-- pending --", ifsc: "-- pending --" }
-const PAY_QR_IMAGE = "/payment-qr.png"
-const PAY_WHATSAPP_NUMBER = "" // e.g. "919999999999" -- wa.me link is hidden until this is set
-
 // WO-DPDP-016 §7-8: the billing widget, lower-left of the owner's own page
 // (Owner instruction, this session). Owner-only -- App.tsx only renders
-// this for viewer.kind === "owner". "I've paid" is a claim, not a fact --
-// the Owner's own manual confirmation (outside this app) is what actually
-// moves an org to active.
+// this for viewer.kind === "owner".
+//
+// ONE WAY TO PAY (Owner decision, 2026-11-02): the same flow as Corporate Tambola -- choose the trial pack, a month or a year, press pay, Razorpay's
+// window opens, the person pays, and Razorpay tells us (the browser's signed result through /dpdp-pay/verify, and the webhook as the backstop); the
+// account is then made paid and active. Nothing else is offered here: no manual transfer details and no payment-claim button. The only address the
+// panel names is the one public DPDP mailbox (PAY_EMAIL, src/lib/payment-proof-mail.ts), for a person who needs help.
 //
 // POLICY CHANGE 2026-10-06 (drizzle/0734, Owner decision in chat): an
 // account that stays unpaid past its trial, the due day and a short grace
@@ -87,14 +79,12 @@ function daysLeft(iso: string | null): number | null {
   return Math.max(0, Math.ceil(ms / 86_400_000))
 }
 
-export function BillingPanel({ client, orgId, inline = false }: { client: DpdpClient; orgId: string; inline?: boolean }) {
+/** onPaid: told once, right after the server has confirmed a payment made in this panel (the Payment due screen uses it to open the working screens again). */
+export function BillingPanel({ client, orgId, inline = false, onPaid }: { client: DpdpClient; orgId: string; inline?: boolean; onPaid?: () => void }) {
   const [open, setOpen] = useState(inline)
   const [account, setAccount] = useState<MyAccountPayload | null>(null)
   const [billing, setBilling] = useState<BillingStatusPayload | null | undefined>(undefined)
   const [chosen, setChosen] = useState<PayInterval | null>(null) // null = the default for this account (the pack if it is still on offer, else a year)
-  const [reference, setReference] = useState("")
-  const [note, setNote] = useState("")
-  const [proofFile, setProofFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [onlineOff, setOnlineOff] = useState(false)
@@ -134,6 +124,8 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
           setBilling(b)
           if (b.state === "active" && (b.lastConfirmedAt ?? "none") !== baseline) {
             clearPending(orgId)
+            const a = await fetchMyAccount(client, orgId).catch(() => null) // the plan, the state and the price move with the payment
+            if (!cancelled && a) setAccount(a)
             setPayStatus("received")
             return
           }
@@ -149,6 +141,13 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
   }, [loaded, client, orgId])
 
   if (billing === undefined || billing === null) return null
+
+  /** Reads the billing state AND the account again, so the pill, the plan line and the price show the payment without a page reload. A read that fails changes nothing. */
+  async function reread(): Promise<void> {
+    const [b, a] = await Promise.allSettled([myBilling(client, orgId), fetchMyAccount(client, orgId)])
+    if (b.status === "fulfilled") setBilling(b.value)
+    if (a.status === "fulfilled" && a.value) setAccount(a.value)
+  }
 
   async function payOnline(interval: PayInterval) {
     if (!billing || !terms) return
@@ -172,29 +171,15 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
         setPayStatus("idle")
         setError(c.error)
       } else {
-        setBilling(await myBilling(client, orgId))
+        await reread()
         setPayStatus("received")
+        onPaid?.()
       }
     } catch (e) {
       clearPending(orgId)
       if (!(e instanceof PayFrameError && e.cancelled)) setError(e instanceof Error ? e.message : String(e))
     }
     setBusy(false)
-  }
-
-  async function pay() {
-    setBusy(true)
-    setError(null)
-    try {
-      const amount = amountDue
-      const proofPath = proofFile ? (await uploadPaymentProof(client, orgId, proofFile)) ?? undefined : undefined
-      await declarePayment(client, choice, amount, orgId, { reference: reference.trim(), note: note.trim(), proofPath })
-      setBilling(await myBilling(client, orgId))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
   }
 
   const price = account?.hasAccount && account.money ? account.money : null
@@ -207,9 +192,6 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
   // What was chosen; if nothing yet, the trial pack while it is on offer (it is the gentle first step), else a year.
   const choice: PayInterval = chosen === "pack" && !packOffered ? "year" : chosen ?? (packOffered ? "pack" : "year")
   const amountDue = choice === "pack" ? (pack?.pricePaise ?? 0) : choice === "year" ? yearPaise : monthPaise
-  const intervalText = intervalWord(choice)
-  const waMessage = encodeURIComponent(`VERIDIAN payment -- org ${orgId}, ${formatRupees(amountDue)} (${intervalText}). Reference: ${reference || "(see attached)"}`)
-  const proofMailto = paymentProofMailto({ orgId, amountLabel: formatRupees(amountDue), interval: choice, reference })
   /** The whole ladder in one calm line, shown before anyone pays the pack so what comes after it is no surprise; built from the account's own numbers. */
   const ladder = pack && packOffered ? ladderLine({ monthlyPaise: monthPaise, yearlyMonthsCharged: yearlyMonths, packPricePaise: pack.pricePaise, packDays: pack.days }) : null
   const perClient = price && price.perClient.includedClients > 0 ? clientsLine({ includedClients: price.perClient.includedClients, extraClientMonthlyPaise: price.perClient.extraMonthlyPaise, yearlyMonthsCharged: yearlyMonths }) : null
@@ -221,7 +203,15 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
   // Online payment charges the account's own price (drizzle/0755 dpdp__pay_begin_core). Only a client covered by its firm has nothing to pay itself.
   // An organisation with no account row (made before billing) can pay online for a year only; the server refuses a month or the pack for it.
   const noAccount = !(account?.hasAccount === true)
-  const onlineUnavailable = onlineOff || (account?.hasAccount === true && account.coveredByFirm) || (noAccount && choice !== "year")
+  const coveredByFirm = account?.hasAccount === true && account.coveredByFirm
+  const yearOnly = noAccount && choice !== "year"
+  /** What the person sees when the Razorpay window cannot be opened (the service is switched off, or the connection dropped). There is nothing else to pay with; "Try again" clears the sticky flag. */
+  const onlineOffNote = (
+    <div role="status">
+      <p style={{ margin: "0 0 6px", fontSize: 12.5 }}>Online payment is not available right now. Please try again in a few minutes, or write to {PAY_EMAIL} and we will help.</p>
+      <button type="button" onClick={() => setOnlineOff(false)} style={{ background: "transparent", color: "var(--dpdp-v)", textDecoration: "underline", fontSize: 12.5 }}>Try again</button>
+    </div>
+  )
   const state = account?.hasAccount ? account.state : null
   const needsPayment = state === "DUE" || state === "GRACE" || state === "LOCKED"
   const onPack = pack?.onPack === true
@@ -281,7 +271,7 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
                 <div style={{ marginTop: 10 }}>
                   <p style={{ margin: "0 0 6px" }}>Your yearly plan comes up for renewal on {renewalDate(billing.lastConfirmedAt)}.</p>
                   {onlineOff
-                    ? <p style={{ margin: 0 }}>Online payment is not switched on yet. Please pay by bank transfer and email {PAY_EMAIL} with the reference.</p>
+                    ? onlineOffNote
                     : (
                       <>
                         <TermsCheckbox box={BOX_K3} checked={terms} onChange={setTerms} disabled={busy} />
@@ -342,8 +332,10 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
                 </label>
               </div>
               <div style={{ margin: "0 0 10px" }}>
-                {onlineUnavailable ? (
-                  <p style={{ margin: 0, fontSize: 12.5 }}>{onlineOff ? "Online payment is not switched on yet. Please pay by bank transfer below." : "Please pay by bank transfer below."}</p>
+                {onlineOff ? onlineOffNote : coveredByFirm ? (
+                  <p style={{ margin: 0, fontSize: 12.5 }}>Your firm covers this organisation, so there is nothing for you to pay here.</p>
+                ) : yearOnly ? (
+                  <p style={{ margin: 0, fontSize: 12.5 }}>For this organisation, online payment is for the yearly plan. Please choose Yearly.</p>
                 ) : (
                   <>
                     <TermsCheckbox box={BOX_K3} checked={terms} onChange={setTerms} disabled={busy} />
@@ -357,42 +349,6 @@ export function BillingPanel({ client, orgId, inline = false }: { client: DpdpCl
                   </>
                 )}
               </div>
-              <div style={{ background: "var(--dpdp-bg2, #f6f5fb)", borderRadius: 10, padding: "10px 12px", margin: "0 0 10px", fontSize: 12.5 }}>
-                <p style={{ margin: "0 0 6px", fontWeight: 600, color: "var(--dpdp-ink)" }}>{onlineUnavailable ? "Pay by UPI or bank transfer" : "Or pay by UPI or bank transfer"}</p>
-                <img src={PAY_QR_IMAGE} alt="UPI QR code" style={{ width: 96, height: 96, borderRadius: 8, marginBottom: 6 }}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }} />
-                <p style={{ margin: "0 0 2px" }}>UPI: <strong>{PAY_UPI_ID}</strong></p>
-                <p style={{ margin: 0 }}>Bank: {PAY_BANK.accountName}, A/C {PAY_BANK.accountNumber}, IFSC {PAY_BANK.ifsc}</p>
-              </div>
-              <label style={{ display: "block", margin: "0 0 6px" }}>
-                Reference / UTR number (optional, helps us match it faster)
-                <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. 12-digit UTR"
-                  style={{ display: "block", width: "100%", marginTop: 3, padding: "6px 8px", borderRadius: 8, border: "1px solid var(--dpdp-line)", fontSize: 13 }} />
-              </label>
-              <label style={{ display: "block", margin: "0 0 6px" }}>
-                Screenshot of the payment (optional)
-                <input type="file" accept="image/*" onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
-                  style={{ display: "block", width: "100%", marginTop: 3, fontSize: 12.5 }} />
-              </label>
-              <label style={{ display: "block", margin: "0 0 10px" }}>
-                Anything else we should know? (optional)
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
-                  style={{ display: "block", width: "100%", marginTop: 3, padding: "6px 8px", borderRadius: 8, border: "1px solid var(--dpdp-line)", fontSize: 13, resize: "vertical" }} />
-              </label>
-              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                <button type="button" onClick={pay} disabled={busy} style={{ background: "var(--dpdp-v)", color: "#fff", borderRadius: 10, padding: "9px 14px", fontWeight: 600, fontSize: 13.5 }}>
-                  {busy ? "Saving…" : "I have paid by bank transfer"}
-                </button>
-                {PAY_WHATSAPP_NUMBER && (
-                  <a href={`https://wa.me/${PAY_WHATSAPP_NUMBER}?text=${waMessage}`} target="_blank" rel="noreferrer"
-                    style={{ alignSelf: "center", fontSize: 12.5, color: "var(--dpdp-v)", textDecoration: "underline" }}>
-                    or send on WhatsApp
-                  </a>
-                )}
-              </div>
-              <p style={{ margin: 0, fontSize: 12 }}>
-                Prefer email? <a href={proofMailto} style={{ color: "var(--dpdp-v)" }}>{PAY_EMAIL}</a> -- attach your screenshot there.
-              </p>
             </>
           )}
           {error && <GuidedError message={error} />}

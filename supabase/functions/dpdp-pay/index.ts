@@ -32,8 +32,8 @@
 // APP_ORIGIN (where the customer returns to after paying; default https://dpdp.veridian-aios.com).
 //
 // WHEN KEYS ARE MISSING the function answers 503 {"error":"Online payment is not switched on
-// yet","code":"not_enabled"} and the app falls back to the bank-transfer / "I have paid" path,
-// which is unchanged. Nothing breaks before the Owner adds the keys.
+// yet","code":"not_enabled"} and the app shows one calm line ("Online payment is not available right now. Please try again in a few minutes, or write to
+// dpdp@veridian-aios.com and we will help.") and offers no other way to pay: Razorpay is the only way (Owner decision, 2026-11-02). Nothing breaks before the Owner adds the keys.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import { isDeliverableAddress, renderReceipt, sendViaResend } from "../_shared/billing-mail.ts"
@@ -169,7 +169,7 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
   }
   if (!order) {
     await sb.rpc("dpdp_pay_attempt_cancel", { p_attempt_id: a.attemptId })
-    return json({ error: "Razorpay did not accept the request. Try again in a minute, or pay by bank transfer and press \"I have paid\"." }, 502, cors)
+    return json({ error: "Razorpay did not accept the request. Please try again in a few minutes, or write to dpdp@veridian-aios.com and we will help." }, 502, cors)
   }
   const { error: linkErr } = await sb.rpc("dpdp_pay_attempt_order", { p_attempt_id: a.attemptId, p_order_id: order.id, p_receipt: receiptFor(a.attemptId) })
   if (linkErr) {

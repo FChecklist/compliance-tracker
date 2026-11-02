@@ -12,7 +12,7 @@ The K3 box (`drizzle/0748_dpdp_terms_acceptance.sql`): `POST /dpdp-pay` needs `t
 
 Deploy: `verify_jwt: false` (Razorpay cannot send a Supabase JWT; the create endpoint's owner check is in the database). Needs migrations `0673_dpdp_razorpay_sales_lifecycle.sql`, `0747_dpdp_pay_order_product_variation.sql` and `0748_dpdp_terms_acceptance.sql` first (deploying this version before 0748 is applied makes every payment attempt fail: the database would not know the two new arguments). Optional secret `PAY_HOP_URL` (default `https://itservices-rajat-agarwal.pages.dev/payframe/`).
 
-Secrets (Edge env, set by the Owner only): `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`. Optional: `RESEND_API_KEY`, `DPDP_EMAIL_FROM`, `APP_ORIGIN`. With the keys missing every call answers 503 `{"code":"not_enabled"}` and the app falls back to bank transfer.
+Secrets (Edge env, set by the Owner only): `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`. Optional: `RESEND_API_KEY`, `DPDP_EMAIL_FROM`, `APP_ORIGIN`. With the keys missing every call answers 503 `{"code":"not_enabled"}` and the app shows one calm "not available right now" line (Razorpay is the only way to pay).
 
 Webhook answers: 401 bad signature; 200 booked / duplicate / flagged second payment / ignored event type; 400 unreadable, wrong amount, wrong currency, wrong org; 404 unknown order; 500 temporary fault (Razorpay retries).
 

@@ -9,7 +9,7 @@ import { GuidedError } from "@/components/GuidedError"
 
 // The "Payment due" screen (drizzle/0734). Shown instead of the working screens when the account is LOCKED. It is calm on purpose: the data is
 // safe, nothing is deleted, and the person can do the four things the law or common sense says must stay open:
-//   * Pay (the BillingPanel, inline) and say they have paid;
+//   * Pay (the BillingPanel, inline: Razorpay only, and the working screens open again by themselves once the payment is confirmed);
 //   * Download my data;
 //   * Record a personal data breach (the 72-hour clock must never wait for an invoice);
 //   * Answer a grievance (a person is waiting for an answer).
@@ -85,10 +85,10 @@ export function PaymentDue({ client, email, onSignOut, onRetry }: { client: Dpdp
           <>
             <p style={{ margin: "6px 0 10px", fontSize: 13.5 }}>
               {amount ? <>Your plan is {formatRupees(amount.monthPaise)} a month, or {formatRupees(amount.yearPaise)} for a year{yearOffLabel(amount.yearlyMonthsCharged) ? ` (${yearOffLabel(amount.yearlyMonthsCharged)}${yearAsMonthlyPhrase(amount.monthPaise, amount.yearlyMonthsCharged) ? `, ${yearAsMonthlyPhrase(amount.monthPaise, amount.yearlyMonthsCharged)}` : ""})` : ""}. That is the whole amount; GST is not charged.{amount.offerLabel ? ` ${amount.offerLabel}.` : ""} </> : null}
-              Pay by bank transfer or UPI, then tell us here. Everything opens again once we have seen the payment.
+              Pay online: Razorpay's window opens, you pay, and everything opens again as soon as the payment is confirmed.
             </p>
             <button type="button" style={primary} onClick={() => setShowPay(true)} aria-expanded={showPay}>Pay now</button>
-            {showPay && orgId && <div style={{ marginTop: 12 }}><BillingPanel client={client} orgId={orgId} inline /></div>}
+            {showPay && orgId && <div style={{ marginTop: 12 }}><BillingPanel client={client} orgId={orgId} inline onPaid={() => { setMsg("Opening your screens again…"); window.setTimeout(onRetry, 1800) }} /></div>}
           </>
         ) : (
           <p style={{ margin: "6px 0 0", fontSize: 13.5 }}>

@@ -1,6 +1,6 @@
-// The "Prefer email?" path of the billing widget (components/BillingPanel.tsx),
-// kept in a plain module so a test can read it: BillingPanel only draws itself
-// after an async call, so nothing about its link is reachable from a static render.
+// The public DPDP mailbox (PAY_EMAIL, which the billing widget names for a person who needs help) and the mail a person sends when they write to us
+// about a payment. The widget no longer offers a payment proof by e-mail (Razorpay is the only way to pay, Owner decision 2026-11-02); the inbound
+// classifier still files such a mail as an invoice ticket, and the tests below keep the two agreeing.
 //
 // WHERE THE MAIL GOES. To the ONE public address, dpdp@veridian-aios.com -- the
 // single mailbox the whole product uses (supabase/functions/dpdp-inbound-mail
