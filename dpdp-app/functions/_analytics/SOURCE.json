@@ -1,9 +1,9 @@
 {
   "from": "site-analytics (C:/ct/test-sites/site-analytics)",
-  "commit": "ce86e64",
+  "commit": "3e26da5",
   "privateSitesLeftOut": true,
   "note": "The collector copy leaves out the entries of the sites that must not be linked to our other products; every other line is the canonical source. Byte-for-byte copies (line endings ignored). Change the canonical source and run tools/sync.mjs, never edit a copy.",
   "files": {
-    "functions/_analytics/core.ts": "308529ecf20f7c8142ec40c2a990c97a7f9bad6af7654180306060b7bc488672"
+    "functions/_analytics/core.ts": "fe1365c0125ac1b0498bad732d3445e7288ef7536ae8212d296ab2f31e2fdc31"
   }
 }

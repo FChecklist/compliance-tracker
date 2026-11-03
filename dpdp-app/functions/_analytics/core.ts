@@ -68,7 +68,7 @@ export const SITES: SiteCfg[] = [
   game("snakes", "Corporate Snakes and Ladders", ["snakes.corporatetambola.com"]),
   game("luck", "Corporate Luck by Chance", ["luck.corporatetambola.com"]),
   game("tictactoe", "Corporate Tic Tac Toe", ["tictactoe.corporatetambola.com"]),
-  game("luckydraw", "Corporate Lucky Draw", ["luckydraw.corporatetambola.com", "lucky.corporatetambola.com"]), // both addresses are in use in our own files (the game repo says luckydraw, the console and IT Services say lucky); the owner confirms which one is live
+  game("luckydraw", "Corporate Lucky Draw", ["luckydraw.corporatetambola.com"]), // the live host (checked 3 Nov 2026: lucky.corporatetambola.com does not exist)
   { key: "console", name: "Corporate Games master console", hosts: ["console.corporatetambola.com"], paths: ["/", "/signin"] },
   { key: "dpdp", name: "VERIDIAN DPDP", hosts: ["veridian-aios.com", "www.veridian-aios.com", "app.veridian-aios.com", "dpdp.veridian-aios.com"], skip: ["/app", "/act", "/unsubscribe", "/p", "/copy", "/ai", "/api"] },
   { key: "townhall", name: "Townhall Records", hosts: ["townhall-records.com", "www.townhall-records.com"], skip: ["/api"] },

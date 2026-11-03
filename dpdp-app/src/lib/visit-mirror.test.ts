@@ -112,10 +112,20 @@ describe("the relay still does exactly what it did, and also feeds the central d
 })
 
 describe("the collector copy", () => {
-  test("the sidecar equals the file; the copy names no private-brand site; the database binding stays a comment", () => {
+  test("the sidecar equals the file; the copy names no private-brand site; the central database is bound with its real id", () => {
     const side = JSON.parse(read("functions/_analytics/SOURCE.json")), sha = createHash("sha256").update(read("functions/_analytics/core.ts").split("\r").join("")).digest("hex")
     expect(side.files).toEqual({ "functions/_analytics/core.ts": sha }); expect(side.privateSitesLeftOut).toBe(true)
     expect(read("functions/_analytics/core.ts")).not.toMatch(LEFT_OUT); expect(read("functions/_analytics/core.ts")).toMatch(/key: "dpdp"[^\n]*veridian-aios\.com/)
-    const toml = read("wrangler.toml"); expect(toml).toMatch(/^# binding = "ANALYTICS"$/m); expect(toml).not.toMatch(/^binding = "ANALYTICS"/m); expect(toml).toMatch(/^binding = "DB"$/m)
+    const toml = read("wrangler.toml"); expect(toml).toMatch(/^binding = "ANALYTICS"\r?\ndatabase_name = "site-analytics"\r?\ndatabase_id = "056cf051-6cf9-4e9e-b8f8-bc5fdfd3c817"\r?$/m); expect(toml).toMatch(/^binding = "DB"\r?$/m)
+  })
+})
+
+describe("the privacy notice", () => {
+  test("carries the agreed storage and Global Privacy Control sentences and says what the visit counter keeps", () => {
+    const p = read("public/privacy/index.html")
+    expect(p).toContain("No advertising cookies and no third-party trackers are used.")
+    expect(p).toContain("Navigation data is collected to improve this site. A Global Privacy Control signal from the browser is respected: no navigation data is collected.")
+    expect(p).toMatch(/visit counter keeps the pages looked at[^<;]*for up to one year[^<;]*never a name, a mobile number or an e-mail address/)
+    expect(p).not.toMatch(LEFT_OUT)
   })
 })
