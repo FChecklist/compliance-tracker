@@ -18,3 +18,11 @@ compatibility_date = "2026-09-01"
 binding = "DB"
 database_name = "dpdp-telemetry"
 database_id = "55c55442-0977-4165-83da-956ecafe2ce4"
+
+# Visitor analytics (NOT active): the relay at functions/api/_visit.ts also copies each visit beacon into the ONE central visitor database. Create it first
+# (wrangler d1 create site-analytics), put its real id below and remove the leading '#'. A made-up id would break the deploy, so it stays a comment until the owner has the id.
+# The Pages secret ANALYTICS_KEY (same value as on the other sites) is needed too. Without the binding the relay behaves exactly as before.
+# [[d1_databases]]
+# binding = "ANALYTICS"
+# database_name = "site-analytics"
+# database_id = "<real id from wrangler d1 create>"
