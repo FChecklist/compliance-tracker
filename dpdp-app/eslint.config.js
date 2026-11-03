@@ -9,7 +9,8 @@ import tseslint from "typescript-eslint"
 import { defineConfig, globalIgnores } from "eslint/config"
 
 export default defineConfig([
-  globalIgnores(["dist"]),
+  // functions/_analytics is a byte-for-byte copy of the central visitor collector (site-analytics/src/core.ts, checksum-tested): it is changed at its source, never here.
+  globalIgnores(["dist", "functions/_analytics"]),
   {
     files: ["**/*.{ts,tsx}"],
     extends: [js.configs.recommended, tseslint.configs.recommended, reactHooks.configs.flat.recommended, reactRefresh.configs.vite],

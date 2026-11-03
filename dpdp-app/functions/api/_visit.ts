@@ -5,11 +5,13 @@
 // secret DPDP_VISIT_PROXY_KEY), so a browser can never choose them. The relay stores nothing and keeps no cookie. PURE (WHATWG Request/Response/fetch only) so
 // src/lib/visit-relay.test.ts can drive it under `bun test`.
 
+import { mirrorVisit, type MirrorEnv } from "./_visit-mirror"
+
 export const UPSTREAM = "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/dpdp-track"
 export const MAX_BODY_BYTES = 6144
 const ALLOWED_ORIGIN_RE = /^https:\/\/(?:(?:www|dpdp|app)\.)?veridian-aios\.com$|^https:\/\/(?:[a-z0-9-]+\.)?veridian-dpdp-app\.pages\.dev$/
 
-export type Env = { VISIT_PROXY_KEY?: string }
+export type Env = { VISIT_PROXY_KEY?: string } & MirrorEnv
 type Cf = { city?: string; country?: string; asn?: number | string }
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
@@ -41,10 +43,15 @@ export async function relayVisit(request: Request, env: Env, cf: Cf | undefined,
   if (country) h["x-dpdp-client-country"] = String(country)
   if (cf?.city) h["x-dpdp-client-city"] = encodeURIComponent(String(cf.city)).slice(0, 120)
   if (env.VISIT_PROXY_KEY) h["x-dpdp-proxy-key"] = env.VISIT_PROXY_KEY
+  // The same beacon is also copied into the one central visitor database (owner's dashboard for every site): no-op without the ANALYTICS binding, never throws, at most 1.5 s, and it runs
+  // next to the upstream call, so the answer to the page is exactly what it was before.
+  const mirrored = mirrorVisit(request, env, cf, body)
   try {
     const up = await fetchImpl(UPSTREAM, { method: "POST", headers: h, body })
+    await mirrored
     return empty(up.status === 429 || up.status === 400 || up.status === 413 ? up.status : 204)
   } catch {
+    await mirrored
     return empty(204)
   }
 }

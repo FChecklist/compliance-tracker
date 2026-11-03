@@ -18,3 +18,10 @@ compatibility_date = "2026-09-01"
 binding = "DB"
 database_name = "dpdp-telemetry"
 database_id = "55c55442-0977-4165-83da-956ecafe2ce4"
+
+# Visitor analytics: the relay at functions/api/_visit.ts also copies each visit beacon into the ONE central visitor database `site-analytics`, shared by every site.
+# The Pages secret ANALYTICS_KEY (same value as on the other sites) is set too. Without the binding the relay behaves exactly as before.
+[[d1_databases]]
+binding = "ANALYTICS"
+database_name = "site-analytics"
+database_id = "056cf051-6cf9-4e9e-b8f8-bc5fdfd3c817"
