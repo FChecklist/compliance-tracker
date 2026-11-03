@@ -53,8 +53,11 @@ export async function mirrorVisit(request: Request, env: MirrorEnv, cf: Cf | und
   try {
     const text = toCentral(body)
     if (!text) return
-    const req = new Request(request.url, { method: "POST", headers: request.headers })
-    ;(req as unknown as { cf?: Cf }).cf = (request as unknown as { cf?: Cf }).cf ?? cf
+    const where = (request as unknown as { cf?: Cf }).cf ?? cf
+    // The Workers runtime keeps `cf` read-only on a Request: it can only be given in the constructor's init (assigning it throws, and the catch below would hide that: nothing would ever be stored,
+    // which is what the first live release did, 3 Nov 2026). A runtime that ignores the init option (the unit tests) gets it as an own property instead.
+    const req = new Request(request.url, { method: "POST", headers: request.headers, cf: where } as RequestInit)
+    if (where && !(req as unknown as { cf?: Cf }).cf) { try { Object.defineProperty(req, "cf", { value: where }) } catch { /* the runtime carries it already */ } }
     await mirrorBeacon(env as AEnv, req, text, now)
   } catch { /* the visit journey never waits for the central database */ }
 }

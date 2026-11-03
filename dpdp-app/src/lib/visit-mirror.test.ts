@@ -72,6 +72,18 @@ describe("the relay still does exactly what it did, and also feeds the central d
     const res = await relayVisit(relayReq(first), { VISIT_PROXY_KEY: "secret-secret-secret" }, CF, f)
     expect(res.status).toBe(204); expect(sent.length).toBe(1); expect(cq("SELECT COUNT(*) AS c FROM a_session")).toEqual([])
   })
+  test("in the Workers runtime (a Request whose cf is read-only and can only be given in the constructor) the visit still lands centrally with country, city and network", async () => {
+    // The first live release assigned `request.cf` on the copy it makes; workerd throws on that ("Cannot assign to read only property 'cf'"), the catch hid it, and nothing was ever stored.
+    class WorkersRequest extends Request {
+      readonly #cf: unknown
+      constructor(input: RequestInfo | URL, init?: RequestInit & { cf?: unknown }) { super(input, init); this.#cf = init?.cf }
+      get cf() { return this.#cf }
+    }
+    const incoming = relayReq(first), RealRequest = globalThis.Request
+    ;(globalThis as { Request: unknown }).Request = WorkersRequest
+    try { expect((await relayVisit(incoming, env(), CF, async () => new Response(null, { status: 204 }))).status).toBe(204) } finally { (globalThis as { Request: unknown }).Request = RealRequest }
+    expect(cq("SELECT site, country, city, network FROM a_session")).toEqual([{ site: "dpdp", country: "IN", city: "Pune", network: "Example Broadband" }])
+  })
   test("a central database that is down never changes the answer or stops the upstream call", async () => {
     const { sent, f } = fake()
     const down = { prepare() { throw new Error("D1 down") }, batch: async () => { throw new Error("D1 down") } } as unknown as Analytics
