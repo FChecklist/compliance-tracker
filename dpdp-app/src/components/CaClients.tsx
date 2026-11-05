@@ -100,7 +100,7 @@ const RAGS: Record<Rag["key"], Rag> = {
   red: { key: "red", label: "Needs attention", bg: "var(--dpdp-rL)", fg: "var(--dpdp-r)", bar: "var(--dpdp-r)" },
 }
 /** Red / amber / green for one client: a signed-off file or 80%+ done is green; under 30% done is red; in between is amber. */
-export function ragFor(c: CaClient): Rag {
+function ragFor(c: CaClient): Rag {
   const pct = c.total ? (c.done / c.total) * 100 : 0
   if (c.whereItIs === "Signed off" || pct >= 80) return RAGS.green
   if (pct < 30) return RAGS.red
