@@ -12,19 +12,19 @@ import { test, expect, type Page } from "@playwright/test"
 
 const BOX_K2 = "I have read and agree to the Terms & Conditions and the Privacy Policy."
 
-type Edition = { slug: "firm" | "institution"; path: string; radio: string; otherRadio: string; email: string; area: string }
+type Edition = { slug: "firm" | "institution"; path: string; heading: string; button: string; nameLabel: string; email: string; area: string }
 const EDITIONS: Edition[] = [
-  { slug: "firm", path: "/dpdp-firm/", radio: "A company, firm or NGO", otherRadio: "A school or institution", email: "new-firm-owner@example.test", area: "All staff" },
-  { slug: "institution", path: "/dpdp-institution/", radio: "A school or institution", otherRadio: "A company, firm or NGO", email: "new-school-principal@example.test", area: "Teachers" },
+  { slug: "firm", path: "/dpdp-firm/", heading: "Open your professional account", button: "Open my firm account", nameLabel: "Firm name", email: "new-firm-owner@example.test", area: "All staff" },
+  { slug: "institution", path: "/dpdp-institution/", heading: "Open your organisation account", button: "Open my organisation", nameLabel: "Organisation name", email: "new-school-principal@example.test", area: "Teachers" },
 ]
 
-async function signInFrom(page: Page, email: string) {
+async function signInFrom(page: Page, email: string, heading: string) {
   await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
   await page.getByLabel("Your email", { exact: true }).fill(email)
   await page.getByRole("button", { name: "Email me a sign-in link", exact: true }).click()
   await expect(page.getByRole("heading", { level: 1, name: "Check your email", exact: true })).toBeVisible()
-  // The mock stands in for the human opening the emailed link (1.5 s); a stranger lands on "Open your organisation".
-  await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible({ timeout: 10_000 })
+  // The mock stands in for the human opening the emailed link (1.5 s); a stranger lands on the opening screen for the door they came through.
+  await expect(page.getByRole("heading", { level: 1, name: heading, exact: true })).toBeVisible({ timeout: 10_000 })
 }
 
 for (const ed of EDITIONS) {
@@ -40,25 +40,24 @@ for (const ed of EDITIONS) {
       await starts.first().click()
       await expect(page).toHaveURL(/\/app\/$/) // the edition hint is consumed and stripped from the address
 
-      await signInFrom(page, ed.email)
+      await signInFrom(page, ed.email, ed.heading)
 
       // A person no organisation knows is asked to open theirs; the edition they came from is already chosen.
-      await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
-      await expect(page.getByLabel(ed.radio, { exact: true })).toBeChecked()
-      await expect(page.getByLabel(ed.otherRadio, { exact: true })).not.toBeChecked()
+      await expect(page.getByRole("heading", { level: 1, name: ed.heading, exact: true })).toBeVisible()
       await expect(page.getByText(ed.email)).toBeVisible()
       await expect(page.getByText("Invited by someone else?", { exact: false })).toBeVisible()
 
       // The name is required, and so is the K2 box: the button waits (disabled) and nothing is opened.
-      await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeDisabled()
-      await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
+      await expect(page.getByRole("button", { name: ed.button, exact: true })).toBeDisabled()
+      await expect(page.getByRole("heading", { level: 1, name: ed.heading, exact: true })).toBeVisible()
 
-      await page.getByLabel("Organisation name", { exact: true }).fill(`Mehta ${ed.slug} 1`)
+      await page.getByLabel(ed.nameLabel, { exact: true }).fill(`Mehta ${ed.slug} 1`)
+      if (ed.slug === "firm") await page.getByLabel("Kind of firm", { exact: true }).selectOption("ca")
       // The K2 box is never pre-ticked: the button waits (and says why) until it is.
       await expect(page.getByRole("checkbox", { name: BOX_K2 })).not.toBeChecked()
-      await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeDisabled()
+      await expect(page.getByRole("button", { name: ed.button, exact: true })).toBeDisabled()
       await page.getByRole("checkbox", { name: BOX_K2 }).check()
-      await page.getByRole("button", { name: "Open my organisation", exact: true }).click()
+      await page.getByRole("button", { name: ed.button, exact: true }).click()
 
       // The owner's own first visit: the list, then who looks after what.
       await expect(page.getByRole("heading", { name: "First, here is your DPDP list", exact: true })).toBeVisible()
@@ -75,7 +74,7 @@ for (const ed of EDITIONS) {
 
       // And it is theirs on the next visit: a reload signs them straight back into their organisation.
       await page.goto("/app/")
-      await expect(page.getByRole("heading", { name: "Open your organisation", exact: true })).toHaveCount(0)
+      await expect(page.getByRole("heading", { name: ed.heading, exact: true })).toHaveCount(0)
       await expect(page.getByText(`Mehta ${ed.slug} 1`).first()).toBeVisible()
     })
 
@@ -89,16 +88,18 @@ for (const ed of EDITIONS) {
 }
 
 test.describe("a visitor with no organisation", () => {
-  test("must choose the kind of organisation and name it; a double click makes one; the invited are told what to ask for", async ({ page }) => {
+  test("must choose a door (professionals or organisations) and name it; a double click makes one; the invited are told what to ask for", async ({ page }) => {
     await page.goto("/app/?mock=visitor")
-    await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
-    // No edition was chosen on a landing page, so none is pre-selected and the button waits.
-    await expect(page.getByLabel("A company, firm or NGO", { exact: true })).not.toBeChecked()
-    await expect(page.getByLabel("A school or institution", { exact: true })).not.toBeChecked()
-    await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeDisabled()
+    await expect(page.getByRole("heading", { level: 1, name: "Open your account", exact: true })).toBeVisible()
+    // No edition was chosen on a landing page: two doors, no form yet.
+    await expect(page.getByRole("button", { name: /^For professionals/ })).toBeVisible()
+    await expect(page.getByLabel("Organisation name", { exact: true })).toHaveCount(0)
 
+    await page.getByRole("button", { name: /^For organisations/ }).click()
+    await expect(page.getByRole("heading", { level: 1, name: "Open your organisation account", exact: true })).toBeVisible()
+    // Organisations never see the professional block.
+    await expect(page.getByLabel("Kind of firm", { exact: true })).toHaveCount(0)
     await page.getByLabel("Organisation name", { exact: true }).fill("St Anne's High School")
-    await page.getByLabel("A school or institution", { exact: true }).check()
     await expect(page.getByRole("button", { name: "Open my organisation", exact: true })).toBeDisabled() // the K2 box is still unticked
     await expect(page.getByText("Please tick the box to continue.", { exact: true })).toBeVisible()
     await page.getByRole("checkbox", { name: BOX_K2 }).check()
@@ -113,7 +114,7 @@ test.describe("a visitor with no organisation", () => {
 
   test("sign out from the screen gives the sign-in page back", async ({ page }) => {
     await page.goto("/app/?mock=visitor")
-    await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1, name: "Open your account", exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Use a different email", exact: true }).click()
     await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
   })
