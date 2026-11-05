@@ -229,7 +229,7 @@ const PRACTICE_KINDS: Array<{ key: PracticeKind; label: string; body: Profession
   { key: "other", label: "Another professional practice", body: "other", declared: false },
 ]
 
-const OPENING_FIRM_FIELDS: Array<[string, string]> = [["firmName", "Firm name"], ["city", "City"], ["gstin", "GSTIN"], ["clientsEstimate", "About how many clients"], ["contactPerson", "Contact person"], ["phone", "Phone"]]
+const OPENING_FIRM_FIELDS: Array<[string, string]> = [["city", "City"], ["gstin", "GSTIN"], ["clientsEstimate", "About how many clients"], ["contactPerson", "Contact person"], ["phone", "Phone"]]
 const OPENING_INSTITUTION_FIELDS: Array<[string, string]> = [["legalName", "Legal name"], ["city", "City"], ["gstin", "GSTIN"], ["contactPerson", "Contact person"], ["phone", "Phone"], ["dpoName", "DPO or Grievance Officer name"], ["dpoEmail", "DPO or Grievance Officer e-mail"]]
 
 /**
