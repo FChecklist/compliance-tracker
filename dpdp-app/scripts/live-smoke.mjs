@@ -89,7 +89,7 @@ for (const p of ["/", "/dpdp-firm/", "/dpdp-institution/", "/about/", "/partner/
 // The redesigned home page (2026-10-02): the three-dot colour theme script is served and loaded by the home page only; /new is gone (301 to /).
 const themeJs = await get("/theme.js")
 check(themeJs.status === 200 && /javascript/i.test(themeJs.type) && themeJs.body.includes("veridian-theme"), "/theme.js is served as JavaScript", `${themeJs.status} ${themeJs.type}`)
-check(root.body.includes('<script src="/theme.js"></script>') && root.body.includes("Compliance that <em>outlasts</em>"), "/: the redesigned home page loads /theme.js")
+check(root.body.includes('<script src="/theme.js"></script>') && root.body.includes("DPDP compliance that <em>outlasts</em>"), "/: the redesigned home page loads /theme.js")
 const oldPreview = await get("/new/", { redirect: "manual" })
 check(oldPreview.status === 301 && (oldPreview.headers.get("location") || "").replace(/^https?:\/\/[^/]+/, "") === "/", "/new/ answers 301 to /", `${oldPreview.status} ${oldPreview.headers.get("location")}`)
 const rumJs = await get("/rum.js")

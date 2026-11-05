@@ -219,6 +219,16 @@ export type OpenAccountExtra = {
   termsAccepted: boolean
 }
 
+type PracticeKind = "ca" | "cs" | "cost" | "legal" | "audit" | "other"
+const PRACTICE_KINDS: Array<{ key: PracticeKind; label: string; body: ProfessionalBody; declared: boolean }> = [
+  { key: "ca", label: "CA firm (Chartered Accountants)", body: "ICAI", declared: true },
+  { key: "cs", label: "CS firm (Company Secretaries)", body: "ICSI", declared: true },
+  { key: "cost", label: "Cost accountant firm", body: "ICMAI", declared: true },
+  { key: "legal", label: "Legal firm", body: "other", declared: false },
+  { key: "audit", label: "Audit firm", body: "other", declared: false },
+  { key: "other", label: "Another professional practice", body: "other", declared: false },
+]
+
 const OPENING_FIRM_FIELDS: Array<[string, string]> = [["firmName", "Firm name"], ["city", "City"], ["gstin", "GSTIN"], ["clientsEstimate", "About how many clients"], ["contactPerson", "Contact person"], ["phone", "Phone"]]
 const OPENING_INSTITUTION_FIELDS: Array<[string, string]> = [["legalName", "Legal name"], ["city", "City"], ["gstin", "GSTIN"], ["contactPerson", "Contact person"], ["phone", "Phone"], ["dpoName", "DPO or Grievance Officer name"], ["dpoEmail", "DPO or Grievance Officer e-mail"]]
 
@@ -251,75 +261,71 @@ export function OpenOrganisation({
 }) {
   const [name, setName] = useState("")
   const [product, setProduct] = useState<"firm" | "institution" | null>(initialEdition)
-  const [body, setBody] = useState<ProfessionalBody | "">("")
+  const [practice, setPractice] = useState<PracticeKind | "">("")
   const [registration, setRegistration] = useState("")
   const [billing, setBilling] = useState("")
-  const [declared, setDeclared] = useState(false)
   const [more, setMore] = useState<Record<string, string>>({})
   const [terms, setTerms] = useState(false) // K2: never pre-ticked
   const [slip, setSlip] = useState<string | null>(null)
   function submit(e: FormEvent) {
     e.preventDefault()
     if (!product || !terms) return
-    if (!name.trim()) { setSlip("An organisation name is required"); return }
-    setSlip(null)
     const isFirm = product === "firm"
+    if (!name.trim()) { setSlip(isFirm ? "Your firm name is required" : "An organisation name is required"); return }
+    if (isFirm && !practice) { setSlip("Choose what kind of firm it is"); return }
+    setSlip(null)
+    const kind = PRACTICE_KINDS.find((k) => k.key === practice)
+    const body: ProfessionalBody | "" = kind ? kind.body : ""
     const profile: Record<string, string> = {}
     for (const [k, v] of Object.entries(more)) if (v.trim() !== "") profile[k] = v.trim()
     onCreate(name.trim(), product, {
       professionalBody: isFirm && body !== "" ? (body as ProfessionalBody) : null, registrationNo: isFirm ? registration.trim() : "", billingContactEmail: billing.trim(),
-      profile, practitionerDeclared: isFirm && declared, termsAccepted: true,
+      profile, practitionerDeclared: isFirm && !!kind?.declared, termsAccepted: true,
     })
   }
   const money = priceLine(plans, product)
   const optionStyle = { borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" } as const
   return (
-    <Card icon="🏛️" title="Open your organisation">
+    <Card icon="🏛️" title={product === "firm" ? "Open your professional account" : product === "institution" ? "Open your organisation account" : "Open your account"}>
       <p style={lead}>
         {email ? <><b>{email}</b> isn&rsquo;t on any DPDP control yet. </> : null}
-        Tell us who you are and your file of DPDP controls opens straight away, with you as its owner.
+        {product === "firm"
+          ? "Tell us about your firm and your clients' DPDP files open from here, with you as the owner."
+          : product === "institution"
+            ? "Tell us who you are and your file of DPDP controls opens straight away, with you as its owner."
+            : "Two doors, two kinds of account. Choose the one that fits."}
       </p>
+      {!product && (
+        <div className="flex flex-col gap-2 items-stretch text-left" role="group" aria-label="Choose your account type">
+          <button type="button" onClick={() => setProduct("firm")} className="rounded-xl border px-3.5 py-3 text-left" style={optionStyle}>
+            <b>For professionals</b><br /><span style={{ fontSize: 13, color: "var(--dpdp-ink3)" }}>CA · CS · Cost accountant · Legal firm · Audit firm. DPDP work done for clients.</span>
+          </button>
+          <button type="button" onClick={() => setProduct("institution")} className="rounded-xl border px-3.5 py-3 text-left" style={optionStyle}>
+            <b>For organisations</b><br /><span style={{ fontSize: 13, color: "var(--dpdp-ink3)" }}>Company · School · NGO. DPDP work done for itself.</span>
+          </button>
+        </div>
+      )}
+      {product && (
       <form onSubmit={submit} noValidate className="flex flex-col gap-3 items-stretch text-left">
-        <label htmlFor="org-name" style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)" }}>Organisation name</label>
+        <label htmlFor="org-name" style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)" }}>{product === "firm" ? "Firm name" : "Organisation name"}</label>
         <input
           id="org-name" name="org-name" type="text" required maxLength={120} autoComplete="organization" autoFocus
           value={name} onChange={(e) => { setName(e.target.value); setSlip(null) }} disabled={busy}
           className="rounded-xl border px-3.5 py-3"
           style={{ borderColor: "var(--dpdp-line)", fontSize: 15, color: "var(--dpdp-ink)", background: "#fff" }}
         />
-        <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
-          <legend style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)", padding: 0, marginBottom: 6 }}>What kind of organisation is it?</legend>
-          <label className="flex gap-2 items-center rounded-xl border px-3.5 py-3 cursor-pointer" style={optionStyle}>
-            <input type="radio" name="edition" value="firm" required checked={product === "firm"} onChange={() => setProduct("firm")} disabled={busy} />
-            A company, firm or NGO
-          </label>
-          <label className="flex gap-2 items-center rounded-xl border px-3.5 py-3 cursor-pointer" style={optionStyle}>
-            <input type="radio" name="edition" value="institution" required checked={product === "institution"} onChange={() => setProduct("institution")} disabled={busy} />
-            A school or institution
-          </label>
-        </fieldset>
-        <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: 0 }}>
-          A firm that looks after other organisations&rsquo; DPDP work, or a company or institution that uses it for itself: pick the one closest. You can add clients later.
-        </p>
         {product === "firm" && (
           <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
-            <legend style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)", padding: 0, marginBottom: 6 }}>A CA, CS or cost accountant practice? (optional)</legend>
-            <label className="flex gap-2 items-center" style={{ fontSize: 14.5, color: "var(--dpdp-ink)" }}>
-              <input type="checkbox" checked={declared} onChange={(e) => setDeclared(e.target.checked)} disabled={busy} />
-              I am a practising CA / CS / cost accountant
-            </label>
-            <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: 0 }}>Tick it to put this on your account&rsquo;s record. It does not change the price, and nobody checks it first. The membership number below is optional.</p>
-            <select id="pro-body" aria-label="Professional body" value={body} onChange={(e) => setBody(e.target.value as ProfessionalBody | "")} disabled={busy}
+            <legend style={{ fontSize: 13, fontWeight: 600, color: "var(--dpdp-ink2)", padding: 0, marginBottom: 6 }}>What kind of firm is it?</legend>
+            <select id="practice-kind" aria-label="Kind of firm" value={practice} onChange={(e) => setPractice(e.target.value as PracticeKind | "")} disabled={busy}
               className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }}>
-              <option value="">Professional body</option>
-              <option value="ICAI">ICAI (Chartered Accountants)</option>
-              <option value="ICSI">ICSI (Company Secretaries)</option>
-              <option value="ICMAI">ICMAI (Cost and Management Accountants)</option>
-              <option value="other">Another body</option>
+              <option value="">Choose one</option>
+              {PRACTICE_KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
             </select>
-            <input id="pro-reg" aria-label="Membership or firm registration number" type="text" maxLength={40} placeholder="Membership or firm registration number" value={registration}
+            <input id="pro-reg" aria-label="Membership or firm registration number" type="text" maxLength={40} placeholder="Membership or firm registration number (optional)" value={registration}
               onChange={(e) => setRegistration(e.target.value)} disabled={busy} autoComplete="off"
               className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" }} />
+            <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: 0 }}>This goes on your account&rsquo;s record. It does not change the price, and nobody checks it first.</p>
           </fieldset>
         )}
         {product && (
@@ -343,11 +349,13 @@ export function OpenOrganisation({
         </p>
         <TermsCheckbox box={BOX_K2} checked={terms} onChange={setTerms} disabled={busy} />
         <button type="submit" disabled={busy || !product || !terms} aria-describedby={terms ? undefined : "terms-why-k2"} className="font-bold text-white" style={{ ...primaryButton, opacity: busy || !product || !terms ? 0.6 : 1 }}>
-          {busy ? "Opening…" : "Open my organisation"}
+          {busy ? "Opening…" : product === "firm" ? "Open my firm account" : "Open my organisation"}
         </button>
         <TermsWhy id="terms-why-k2" ticked={terms} />
         <InlineError message={slip ?? error} />
+        <button type="button" onClick={() => setProduct(null)} style={linkButton}>{product === "firm" ? "I am an organisation, not a professional firm" : "I am a professional firm, not an organisation"}</button>
       </form>
+      )}
       <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "18px auto 4px", maxWidth: "44ch" }}>
         Invited by someone else? Ask the owner of your organisation to name this email on a control, then open the link they send.
       </p>
