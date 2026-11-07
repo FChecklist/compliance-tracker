@@ -59,10 +59,15 @@ export function buildMessage(d: HookDeps, user: { email: string }, ed: Json): Ms
   const confirmationURL = `${supa}/auth/v1/verify?token=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(type)}&redirect_to=${encodeURIComponent(redirect)}`
   const vars = { Token: token, TokenHash: tokenHash, ConfirmationURL: confirmationURL, RedirectTo: redirect, SiteURL: site, Email: user.email }
   if (type === "magiclink") return { subject: renderGoTemplate(d.magicSubject, vars).replace(/\s+/g, " "), html: renderGoTemplate(d.magicHtml, vars) }
-  const titles: Record<string, string> = { signup: "Confirm your sign-up", recovery: "Reset your access", invite: "You have been invited", email_change: "Confirm your new e-mail", reauthentication: "Your confirmation code" }
+  // Subjects match the project's own configured subjects, so other apps on this shared project see the same wording as before the hook.
+  const titles: Record<string, string> = { signup: "Confirm your email address", recovery: "Reset your password", invite: "You've been invited", email_change: "Confirm your new email address", reauthentication: `${token} is your verification code` }
+  if (type.endsWith("_notification")) { // security notices: no link, no code
+    const t = type.replace(/_notification$/, "").replace(/_/g, " ")
+    return { subject: `Security notice: ${t}`, html: `<p>A security notice about your account: ${esc(t)}.</p><p>If this was not you, please contact support or reset your access.</p>` }
+  }
   const title = titles[type] ?? "Your sign-in link"
   const html = type === "reauthentication"
-    ? `<p>${esc(title)}: <b>${esc(token)}</b></p>`
+    ? `<p>Your verification code: <b>${esc(token)}</b></p>`
     : `<p>${esc(title)}. This link expires shortly and works once.</p><p><a href="${esc(confirmationURL)}">Continue</a></p><p>Did not ask for this? Ignore this e-mail.</p>`
   return { subject: title, html }
 }
@@ -76,7 +81,10 @@ async function viaResend(d: HookDeps, m: Msg, to: string, from: string): Promise
   } catch (e) { return { ok: false, why: `resend error ${(e as Error).name}` } }
 }
 
-async function viaCloudflare(d: HookDeps, m: Msg, to: string, from: string): Promise<{ ok: boolean; why: string }> {
+async function viaCloudflare(d: HookDeps, m: Msg, to: string, resendFrom: string): Promise<{ ok: boolean; why: string }> {
+  // Cloudflare Email Sending is onboarded on the mail.veridian-aios.com subdomain (the root domain's mail records stay with Resend), so its From differs.
+  const from = d.env("CLOUDFLARE_EMAIL_FROM") || "VERIDIAN DPDP <dpdp@mail.veridian-aios.com>"
+  void resendFrom
   const tok = d.env("CLOUDFLARE_EMAIL_TOKEN"), acct = d.env("CLOUDFLARE_ACCOUNT_ID")
   if (!tok || !acct) return { ok: false, why: "cloudflare not configured" }
   try {
