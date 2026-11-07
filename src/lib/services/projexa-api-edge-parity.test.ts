@@ -196,12 +196,17 @@ describe("AUDIT-100 A2 batch 7: what the edge adds on its own (not comparable wi
     const deps = { cache, fetchImpl: countingFetch(calls), orgKey: async (org: string) => (keyLookups++, golden.org_keys[org] ?? null) }
     await runEdge(read("/api/cost-centers"), deps)
     await runEdge(read("/api/cost-centers", "pm"), deps)
-    await runEdge(read("/api/cost-centers", "client_viewer"), deps)
+    await runEdge(read("/api/cost-centers", "owner"), deps)
+    // the READ gate runs BEFORE the cache: a client viewer is refused (ORG_ADMIN read tier) and never reaches a cached answer
+    const refused = await runEdge(read("/api/cost-centers", "client_viewer"), deps)
+    expect(refused.status).toBe(403)
     expect(calls).toHaveLength(1)
     expect(keyLookups).toBe(1)
-    await runEdge(read("/api/cost-centers", "wrong_org"), deps)
+    // another organisation gets its own answer (currencies is readable by every role, so wrong_org, a pm of org B, passes the READ gate)
+    await runEdge(read("/api/currencies"), deps)
+    await runEdge(read("/api/currencies", "wrong_org"), deps)
     await runEdge(read("/api/fiscal-years"), deps)
-    expect(calls).toHaveLength(3)
+    expect(calls).toHaveLength(4)
   })
 
   test("the cache is bounded: the oldest entry goes first", () => {
