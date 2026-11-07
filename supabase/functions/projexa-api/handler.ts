@@ -42,7 +42,7 @@
 // Nothing here logs a token, an email, a key or a body.
 import type { SessionVerifier } from "../ai-work-link/session.ts"
 import { buildCategoryDistribution } from "./category-distribution.ts"
-import { checkApiWriteAccess, EDGE_ROUTES, ROLE_GROUPS, SHADOW_ROUTES, SOURCE_SHA256, type EdgeMethodSpec } from "./policy.generated.ts"
+import { checkApiReadAccess, checkApiWriteAccess, EDGE_ROUTES, ROLE_GROUPS, SHADOW_ROUTES, SOURCE_SHA256, type EdgeMethodSpec } from "./policy.generated.ts"
 
 export const ALLOWED_ORIGINS = ["https://projexa-ai.com", "https://www.projexa-ai.com", "http://localhost:3100", "http://localhost:3101"] as const
 export const CORS_ALLOW_HEADERS = "authorization, content-type, accept, x-px-client"
@@ -400,6 +400,9 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   // 4. the write gate (middleware.ts): runs before the handler's own "No organization", exactly like the Next pipeline
   const gate = checkApiWriteAccess(method, apiPath, role)
   if (!gate.allowed) return json(req, deps, 403, { error: "Forbidden: your role does not permit this action" })
+  // 4b. the READ gate (middleware.ts checkApiReadAccess, projexa #493/#494): finance/HR/commercial reads need a role tier, not just a session
+  const readGate = checkApiReadAccess(method, apiPath, role)
+  if (!readGate.allowed) return json(req, deps, 403, { error: "Forbidden: your role does not permit this action" })
   if (!found.row) return json(req, deps, 400, { error: "No organization" })
   const orgId = found.row.organization_id
   // the handler's own requireRole(ctx, ROLE_GROUPS.X) (auth-guard.ts: no role or a role outside the set is 403), its first statement
