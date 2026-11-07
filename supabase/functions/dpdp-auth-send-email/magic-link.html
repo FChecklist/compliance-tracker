@@ -1,0 +1,39 @@
+{{- /* Supabase Auth "Magic Link" e-mail for project pcrjmlpuqsbocqfwoxod, which is SHARED with other apps. Only a DPDP sign-in (redirect_to on one of the DPDP hosts) gets the three-option design; every other redirect gets the original text, unchanged. Source of truth: this file; src/lib/services/dpdp-auth-template.test.ts renders both branches. Apply: scripts/apply-auth-template.mjs. */ -}}
+{{ if or (eq .RedirectTo "https://dpdp.veridian-aios.com/app/") (eq .RedirectTo "https://app.veridian-aios.com/app/") (eq .RedirectTo "https://veridian-aios.com/app/") (eq .RedirectTo "https://www.veridian-aios.com/app/") -}}
+<div style="max-width:560px;margin:0 auto;padding:0;font-family:Inter,Segoe UI,Arial,sans-serif;color:#1C2B3A;line-height:1.5;">
+  <div style="padding:14px 20px;background:#1C2B3A;color:#FFFFFF;font-size:15px;font-weight:700;letter-spacing:.02em;">VERIDIAN <span style="color:#F5820A;">DPDP</span></div>
+  <div style="padding:24px 20px;">
+    <h1 style="font-size:24px;margin:0 0 8px;">You are almost in</h1>
+    <p style="margin:0 0 20px;font-size:15px;">Someone, hopefully you, asked to sign in to Veridian DPDP with this email address. Choose any ONE of the three ways below.</p>
+
+    <div style="border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:0 0 12px;">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#64748B;">OPTION 1</p>
+      <p style="margin:0 0 10px;font-size:17px;font-weight:700;">Let your AI do the work</p>
+      <p style="margin:0 0 12px;"><a href="https://pcrjmlpuqsbocqfwoxod.supabase.co/auth/v1/verify?token={{ .TokenHash }}&type=magiclink&redirect_to=https://dpdp.veridian-aios.com/app/%3Fnext%3Dai-link" style="display:inline-block;background:#1C2B3A;color:#FFFFFF;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:8px;">Sign in and get my AI work link</a></p>
+      <p style="margin:0;font-size:14px;color:#475569;">Copy the prompt into ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai or any AI chat. It reads what needs doing and helps you do it.</p>
+    </div>
+
+    <div style="border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:0 0 12px;">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#64748B;">OPTION 2</p>
+      <p style="margin:0 0 10px;font-size:17px;font-weight:700;">Work on your own</p>
+      <p style="margin:0;"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#F5820A;color:#FFFFFF;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:8px;">Open my workspace</a></p>
+    </div>
+
+    <div style="border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:0 0 20px;">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#64748B;">OPTION 3</p>
+      <p style="margin:0 0 10px;font-size:17px;font-weight:700;">Already have the sign-in page open?</p>
+      <p style="margin:0 0 6px;font-size:14px;">Type this code there:</p>
+      <p style="margin:0;font-size:28px;font-weight:700;letter-spacing:.2em;font-family:Consolas,Menlo,monospace;">{{ .Token }}</p>
+    </div>
+
+    <p style="margin:0 0 6px;font-size:13px;color:#B91C1C;font-weight:700;">Do not forward this email: the buttons and code open your account.</p>
+    <p style="margin:0;font-size:13px;color:#64748B;">Did not ask to sign in? Ignore this email. Nobody can sign in without it.</p>
+  </div>
+  <div style="padding:12px 20px;border-top:1px solid #E2E8F0;font-size:12px;color:#64748B;">VERIDIAN DPDP &middot; dpdp@veridian-aios.com</div>
+</div>
+{{- else -}}
+<h2>Your sign-in link</h2>
+
+<p>Follow the link below to sign in. This link expires shortly and can only be used once.</p>
+<p><a href="{{ .ConfirmationURL }}">Sign in</a></p>
+{{- end }}
