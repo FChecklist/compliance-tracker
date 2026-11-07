@@ -178,7 +178,7 @@ test.describe("tlaw -- the law and date labels", () => {
     await seed(page, "owner-live")
     await expect(row(page, "Name the " + GRIEVANCE_OFFICER).getByText("YES", { exact: true })).toBeVisible()
     const theirs = row(page, "Publish the Grievance Officer’s name and contact — on your website or a free VERIDIAN page")
-    await expect(theirs.getByText("No", { exact: true })).toBeVisible()
+    await expect(theirs.getByText("Not done yet", { exact: true })).toBeVisible()
     await expect(theirs.getByRole("button", { name: "Mark Yes", exact: true })).toHaveCount(0)
     await expect(row(page, OWNER_CONFIRMS).getByRole("button", { name: "Mark Yes", exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "Mark Yes", exact: true })).toHaveCount(1) // the owner has exactly one open job of their own
@@ -223,7 +223,7 @@ test.describe("tlaw -- the law and date labels", () => {
     await seed(page, "owner-live")
     await markYes(page, OWNER_CONFIRMS)
     await expect(row(page, MANAGER_CHECKS).getByText("Waiting", { exact: true })).toHaveCount(0)
-    await expect(row(page, MANAGER_CHECKS).getByText("No", { exact: true })).toBeVisible() // open now, but the manager's, not the owner's
+    await expect(row(page, MANAGER_CHECKS).getByText("Not done yet", { exact: true })).toBeVisible() // open now, but the manager's, not the owner's
     await expect(row(page, PARTNER_SIGNS).getByText("Waiting", { exact: true })).toBeVisible() // still behind the manager
     await expect(page.getByText(`Said Yes to "${OWNER_CONFIRMS}"`)).toBeVisible()
   })

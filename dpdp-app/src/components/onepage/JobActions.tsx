@@ -33,13 +33,13 @@ export function MoreButton({ open, count, onClick, rowId, what, busy }: { open: 
 
 /** The panel under a row: a tab per available action, then that action's form. */
 export function JobActionsPanel({
-  row, viewer, handlers, allRows, now, onDone, onBusy,
+  row, viewer, handlers, allRows, now, onDone, onBusy, initial,
 }: {
-  row: ObligationRow; viewer: ViewerContext; handlers: JobActionHandlers; allRows: ObligationRow[]; now: Date
+  row: ObligationRow; viewer: ViewerContext; handlers: JobActionHandlers; allRows: ObligationRow[]; now: Date; initial?: JobActionKind
   onDone: (saved: string) => void; onBusy: (busy: boolean) => void
 }) {
   const kinds = offeredActions(row, viewer, handlers)
-  const [kind, setKind] = useState<JobActionKind>(kinds[0] ?? "note")
+  const [kind, setKind] = useState<JobActionKind>(initial && kinds.includes(initial) ? initial : kinds[0] ?? "note")
   if (kinds.length === 0) return null
   const active = kinds.includes(kind) ? kind : kinds[0]
   const tabId = (k: JobActionKind) => `job-tab-${row.id}-${k}`

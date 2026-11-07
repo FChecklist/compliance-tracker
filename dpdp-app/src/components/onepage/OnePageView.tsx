@@ -5,6 +5,7 @@ import { DoThisNow } from "./DoThisNow"
 import { PartsTrack } from "./PartsTrack"
 import { FilterChips } from "./FilterChips"
 import { JobsTable } from "./JobsTable"
+import { MyJobs } from "./MyJobs"
 import type { JobActionHandlers } from "@/lib/dpdp-onepage/job-actions"
 import {
   applyFilter, filterCounts, heroStats, partsForRows, vNow,
@@ -35,6 +36,14 @@ export function OnePageView({
   jobActions?: JobActionHandlers
 }) {
   const [filter, setFilter] = useState<FilterKey>("all")
+  // Every role opens on "What you have to do"; the full list is one tap away. The last choice is remembered on this device only.
+  const [tab, setTabState] = useState<"todo" | "full">(() => {
+    try { return window.localStorage.getItem("dpdp.view") === "full" ? "full" : "todo" } catch { return "todo" }
+  })
+  const setTab = (t: "todo" | "full") => {
+    setTabState(t)
+    try { window.localStorage.setItem("dpdp.view", t) } catch { /* private window: the choice just is not remembered */ }
+  }
   const [pending, startTransition] = useTransition()
   const [actionError, setActionError] = useState<string | null>(null)
   const now = new Date()
@@ -106,7 +115,7 @@ export function OnePageView({
         <div className="grid gap-4.5 mb-1.5" style={{ gridTemplateColumns: staffView ? "1fr" : "236px 1fr" }}>
           {!staffView && <Seal done={stats.done} total={stats.total} />}
           <div className="flex flex-col gap-3 min-w-0">
-            <DoThisNow now={now_} onAction={(a) => a === "mine" || a === "today" || a === "late" || a === "nobody" ? setFilter(a as FilterKey) : undefined} />
+            <DoThisNow now={now_} onAction={(a) => { if (a === "mine" || a === "today" || a === "late" || a === "nobody") { setFilter(a as FilterKey); setTab("full") } }} />
             {!staffView && (
               <div className="grid grid-cols-3 gap-3">
                 {[
@@ -124,9 +133,21 @@ export function OnePageView({
           </div>
         </div>
 
-        {!staffView && parts.length > 1 && <PartsTrack parts={parts} />}
+        <div role="group" aria-label="Which view" className="flex gap-2 flex-wrap mb-4">
+          {([["todo", "What you have to do"], ["full", "Full list"]] as const).map(([k, label]) => (
+            <button
+              key={k} type="button" aria-pressed={tab === k} onClick={() => setTab(k)}
+              className="rounded-xl font-bold"
+              style={{ fontSize: 14, padding: "9px 16px", background: tab === k ? "var(--dpdp-v)" : "#fff", color: tab === k ? "#fff" : "var(--dpdp-ink2)", border: `1.4px solid ${tab === k ? "var(--dpdp-v)" : "var(--dpdp-line)"}` }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-        {!staffView && (
+        {tab === "full" && !staffView && parts.length > 1 && <PartsTrack parts={parts} />}
+
+        {tab === "full" && !staffView && (
           <FilterChips counts={counts} active={filter} onChange={setFilter} />
         )}
 
@@ -143,7 +164,11 @@ export function OnePageView({
         </div>
 
         <div style={pending ? { opacity: 0.6, pointerEvents: "none" } : undefined}>
+          {tab === "todo" ? (
+            <MyJobs rows={visibleRows} allRows={visibleRows} viewer={viewer} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} onAnswerGroup={onAnswerGroup ? handleAnswerGroup : undefined} actions={actions} onShowAll={() => setTab("full")} />
+          ) : (
           <JobsTable rows={filtered} allRows={visibleRows} partSummaries={parts} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} onAnswerGroup={onAnswerGroup ? handleAnswerGroup : undefined} actions={actions} />
+          )}
         </div>
 
         <div className="text-center mt-7" style={{ fontSize: 12, color: "var(--dpdp-ink3)" }}>

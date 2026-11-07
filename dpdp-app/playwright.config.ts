@@ -32,6 +32,9 @@ export default defineConfig({
     // Only on failure: a trace of the sign-in screen holds the typed address
     // (a fake @example.test one here, but the habit matters). The output
     // directories are git-ignored (dpdp-app/.gitignore).
+    // The signed-in page opens on "What you have to do" (src/components/onepage/MyJobs.tsx); the older specs drive the full table, so they start
+    // with the remembered choice set to "full list". e2e/role-todo-view.spec.ts clears it to prove the default.
+    storageState: { cookies: [], origins: [{ origin: "http://127.0.0.1:4173", localStorage: [{ name: "dpdp.view", value: "full" }] }] },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

@@ -83,7 +83,7 @@ function DueCell({ row, now }: { row: ObligationRow; now: Date }) {
   )
 }
 
-function GroupAnswerButtons({ row, onAnswerGroup }: { row: ObligationRow; onAnswerGroup: (obligationId: string, answer: GroupAnswerKind) => void }) {
+export function GroupAnswerButtons({ row, onAnswerGroup }: { row: ObligationRow; onAnswerGroup: (obligationId: string, answer: GroupAnswerKind) => void }) {
   return (
     <div className="flex flex-col gap-1 items-start">
       <div className="flex gap-1 flex-wrap">
@@ -138,8 +138,11 @@ function StampOrAction({
       </button>
     )
   }
-  return <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 11px", background: "var(--dpdp-rL)", color: "var(--dpdp-r)", borderRadius: 8, display: "inline-block" }}>No</span>
+  return <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 11px", background: "var(--dpdp-rL)", color: "var(--dpdp-r)", borderRadius: 8, display: "inline-block" }}>Not done yet</span>
 }
+
+// "More" is the last column of a wide table: pinned to the right edge so it is always reachable, however narrow the screen.
+const STICKY_LAST = { position: "sticky", right: 0, boxShadow: "-6px 0 8px -6px rgba(20,30,60,.18)" } as const
 
 export function JobsTable({
   rows, allRows, partSummaries, viewer, staffView, now = new Date(), onMarkYes, onAnswerGroup, actions,
@@ -171,7 +174,7 @@ export function JobsTable({
         <thead>
           <tr>
             {["#", "Data set", "Data type", "What has to be done", "Law", "Person responsible", "Due date", "Done?", "Emails sent", "More"].map((h) => (
-              <th key={h} className="text-left whitespace-nowrap" style={{ background: "#F8F9FC", color: "var(--dpdp-ink3)", fontSize: 12, fontWeight: 600, padding: 12, borderBottom: "1px solid var(--dpdp-line)" }}>{h}</th>
+              <th key={h} className="text-left whitespace-nowrap" style={{ background: "#F8F9FC", color: "var(--dpdp-ink3)", fontSize: 12, fontWeight: 600, padding: 12, borderBottom: "1px solid var(--dpdp-line)", ...(h === "More" ? STICKY_LAST : {}) }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -240,7 +243,7 @@ function JobRow({
         <td style={cell}><DueCell row={row} now={now} /></td>
         <td style={cell}><StampOrAction row={row} allRows={allRows} mine={mine} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} /></td>
         <td className="text-center" style={cell}>{row.sent}</td>
-        <td style={cell}>{actions && <MoreButton rowId={row.id} what={row.what} busy={busy} open={open} count={offered} onClick={() => setOpen((o) => !o)} />}</td>
+        <td style={{ ...cell, ...STICKY_LAST, background: row.yes ? "#F7FBF8" : "var(--dpdp-card)" }}>{actions && <MoreButton rowId={row.id} what={row.what} busy={busy} open={open} count={offered} onClick={() => setOpen((o) => !o)} />}</td>
       </tr>
       {open && actions && offered > 0 && (
         <tr>

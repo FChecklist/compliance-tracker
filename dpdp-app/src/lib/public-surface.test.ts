@@ -320,7 +320,7 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
   const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
 
   test("the h1 and an ordered list of exactly three, 1 to 3, in the owner's words", () => {
-    expect(main).toContain('<h1 class="chooser-title">Compliance that <em>outlasts</em> the person who set it up.</h1>')
+    expect(main).toContain('<h1 class="chooser-title">DPDP compliance that <em>outlasts</em> the person who set it up.</h1>')
     // The old h1 is kept as the h2 over the three points, so the phrase stays on the page.
     expect(main).toContain("<h2>Three things to know about DPDP compliance</h2>")
     const list = /<ol class="lead-list hm-three">([\s\S]*?)<\/ol>/.exec(main)![1]

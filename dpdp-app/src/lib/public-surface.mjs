@@ -255,7 +255,7 @@ export const PUBLIC_PAGES = [
     path: "/",
     source: "index.html",
     title: pageTitle(FACTS, "/"),
-    h1: "Compliance that outlasts the person who set it up.",
+    h1: "DPDP compliance that outlasts the person who set it up.",
     jsonLd: ["Organization", "WebSite", "SoftwareApplication"],
     mustContain: [
       "VERy INDIAN",

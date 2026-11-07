@@ -98,12 +98,12 @@ test.describe("one simulated year -- fake people, clock fast-forwarded", () => {
   test("a school: opens its organisation, the parent answers, a year passes, the consent can be withdrawn", async ({ page }) => {
     await page.clock.install({ time: START })
     await page.goto("/app/?mock=visitor")
-    await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1, name: "Open your account", exact: true })).toBeVisible()
+    await page.getByRole("button", { name: /^For organisations/ }).click()
     await page.getByLabel("Organisation name", { exact: true }).fill("St Anne's High School")
-    await page.getByLabel("A school or institution", { exact: true }).check()
     await page.getByRole("checkbox").last().check()
     await page.getByRole("button", { name: "Open my organisation", exact: true }).click()
-    await expect(page.getByRole("heading", { level: 1, name: "Open your organisation", exact: true })).toHaveCount(0)
+    await expect(page.getByRole("heading", { level: 1, name: "Open your organisation account", exact: true })).toHaveCount(0)
     await expect(page.getByRole("alert")).toHaveCount(0)
 
     // Month 1: a parent answers the school's consent request on their own link.
