@@ -79,12 +79,14 @@ describe.skipIf(!HAS_BASH)("check-domain-drift.sh: one honest message + exit cod
     expect(code).toBe(0)
     expect(out).toContain("OK: projexa-ai.com -> projexa")
     expect(out).toContain("OK: www.projexa-ai.com -> projexa")
+    expect(out).toContain("OK: projects.projexa-ai.com -> projexa")
     expect(out).toContain("All domains match")
     expect(out).not.toContain("::error::")
     // The request that drove that verdict is the read-only per-project domain GET.
     expect(mock.seen.map((s) => s.path)).toEqual([
       `/v9/projects/${CANONICAL_ID}/domains/projexa-ai.com`,
       `/v9/projects/${CANONICAL_ID}/domains/www.projexa-ai.com`,
+      `/v9/projects/${CANONICAL_ID}/domains/projects.projexa-ai.com`,
     ])
     expect(mock.seen.every((s) => s.query === `?teamId=${TEAM}`)).toBe(true)
     expect(mock.seen.every((s) => s.auth === `Bearer ${TOKEN}`)).toBe(true)
@@ -218,7 +220,7 @@ describe.skipIf(!HAS_BASH)("check-domain-drift.sh: one honest message + exit cod
     const { out } = await runScript(mock.base)
     // Every line that mentions the injected text must still be OUR annotation line.
     for (const line of out.split(/\r?\n/).filter((l) => l.includes("injected"))) {
-      expect(line.startsWith("::error::www.projexa-ai.com:") || line.startsWith("::error::projexa-ai.com:")).toBe(true)
+      expect(line.startsWith("::error::www.projexa-ai.com:") || line.startsWith("::error::projexa-ai.com:") || line.startsWith("::error::projects.projexa-ai.com:")).toBe(true)
     }
   })
 })

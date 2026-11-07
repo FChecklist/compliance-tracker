@@ -48,7 +48,7 @@ TEAM="team_Iqx3zyb7sDdsdzcNskCFFsHD"
 # Canonical values from ai-os/DOMAIN_OWNERSHIP.yaml (kept in sync by hand --
 # see that file's rule 3 for when/how this changes; check-domain-drift.test.ts
 # fails if these stop matching it).
-DOMAINS="projexa-ai.com www.projexa-ai.com"
+DOMAINS="projexa-ai.com www.projexa-ai.com projects.projexa-ai.com"
 CANONICAL_PROJECT_ID="prj_JA9mwUdOfW3SKSxjG4jdPo0R2iVM"
 CANONICAL_PROJECT_NAME="projexa"
 
