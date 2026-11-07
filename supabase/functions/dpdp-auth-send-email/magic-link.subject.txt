@@ -1,0 +1,1 @@
+{{ if or (eq .RedirectTo "https://dpdp.veridian-aios.com/app/") (eq .RedirectTo "https://app.veridian-aios.com/app/") (eq .RedirectTo "https://veridian-aios.com/app/") (eq .RedirectTo "https://www.veridian-aios.com/app/") }}Sign in to Veridian DPDP - choose how you want to continue{{ else }}Your sign-in link{{ end }}
