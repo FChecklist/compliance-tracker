@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { cadence, checkCounts, STAGES, stageLog, weekStart, type HistoryLike } from "./weekly-routine"
+import { cadence, checkCounts, runsToEntries, STAGES, stageLog, weekStart, type HistoryLike } from "./weekly-routine"
 
 const at = (iso: string) => new Date(iso)
 const e = (kind: string, iso: string): HistoryLike => ({ kind, summary: `did ${kind}`, actorLabel: "Asha", occurredAt: at(iso) })
@@ -18,7 +18,7 @@ describe("weekly routine rules", () => {
   test("stage log: newest entry of that stage's kinds; other kinds are ignored", () => {
     const h = [e("obligation_accepted", "2026-11-10T08:00:00Z"), e("obligation_assigned", "2026-11-03T08:00:00Z"), e("payment_confirmed", "2026-11-11T08:00:00Z"), e("ai_link_created", "2026-11-02T08:00:00Z")]
     const act = stageLog("act", h, NOW)
-    expect(act.lastWhat).toBe("did obligation_accepted")
+    expect(act.lastWhat).toBe("A job was updated") // never the History sentence itself
     expect(act.thisWeek).toBe(true)
     expect(act.countThisWeek).toBe(1)
     const know = stageLog("know", h, NOW)
@@ -45,5 +45,18 @@ describe("weekly routine rules", () => {
       { yes: false, na: true, due: at("2026-11-01T00:00:00Z") },
     ]
     expect(checkCounts(rows, NOW)).toEqual({ done: 1, open: 2, late: 1, total: 3 })
+  })
+  test("the server's weekly record is read like History: stage, who, outcome, and the person's sign-off line", () => {
+    const runs = runsToEntries([
+      { id: "1", stage: "discover", weekStart: "2026-11-09", ranAt: "2026-11-09T04:00:00Z", byKind: "software", actorLabel: "Automatic helper", outcome: "ok", note: "Monday reading" },
+      { id: "2", stage: "confirm", weekStart: "2026-11-09", ranAt: "2026-11-10T10:00:00Z", byKind: "person", actorLabel: null, outcome: "failed", note: null },
+    ])
+    const know = stageLog("know", runs, NOW)
+    expect(know.lastWho).toBe("Automatic helper")
+    expect(know.lastWhat).toBe("Discover finished (Monday reading)")
+    expect(know.thisWeek).toBe(true)
+    expect(stageLog("check", runs, NOW).lastWhat).toBe("Confirm did not finish")
+    expect(stageLog("check", [e("weekly_run_logged", "2026-11-10T08:00:00Z")], NOW).thisWeek).toBe(true) // a sign-off also in History
+    expect(cadence(runs, NOW).weeks[3].ran).toBe(true)
   })
 })

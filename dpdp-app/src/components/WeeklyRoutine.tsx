@@ -1,9 +1,9 @@
 import "./onepage/dpdp-onepage-tokens.css"
 import { useEffect, useState } from "react"
-import { fetchHistory } from "@/lib/api"
+import { fetchHistory, fetchWeeklyRuns, logWeeklyRun } from "@/lib/api"
 import type { DpdpClient } from "@/lib/client"
 import type { ObligationRow } from "@/lib/dpdp-onepage/view-model"
-import { cadence, checkCounts, checkedKey, dayLine, DOER_LABEL, STAGES, stageLog, type HistoryLike, type RoutineStage } from "@/lib/weekly-routine"
+import { cadence, checkCounts, checkedKey, dayLine, DOER_LABEL, runsToEntries, STAGES, stageLog, type HistoryLike, type RoutineStage } from "@/lib/weekly-routine"
 
 // The weekly routine, at the top of the signed-in page: Discover, Act, Confirm, every week. Each stage lists its numbered steps (who does it, what the
 // result looks like), then its latest log line, so a non-technical person sees in one glance what ran, when and how it ended. The rhythm strip shows the
@@ -20,17 +20,26 @@ export function WeeklyRoutine({ client, orgId, rows, offline }: { client: DpdpCl
   })
   const now = new Date()
 
+  // Two sources, merged: the weekly record (the server's own run log, once the database has it) and History (always there). If the weekly record
+  // is not available the call simply fails and the screen shows History alone, exactly as before -- no error is shown for that.
+  const [recorded, setRecorded] = useState(false)
   useEffect(() => {
     let live = true
-    fetchHistory(client, orgId, 50).then(
-      (h) => { if (live) setEntries(h.map((x) => ({ kind: x.kind, summary: x.summary, actorLabel: x.actorLabel, occurredAt: x.occurredAt }))) },
-      () => { if (live) { setFailed(true); setEntries([]) } },
-    )
+    Promise.allSettled([fetchHistory(client, orgId, 50), fetchWeeklyRuns(client, orgId, 4)]).then(([h, w]) => {
+      if (!live) return
+      const hist: HistoryLike[] = h.status === "fulfilled" ? h.value.map((x) => ({ kind: x.kind, summary: x.summary, actorLabel: x.actorLabel, occurredAt: x.occurredAt })) : []
+      const runs: HistoryLike[] = w.status === "fulfilled" ? runsToEntries(w.value) : []
+      setRecorded(w.status === "fulfilled")
+      if (h.status === "rejected" && w.status === "rejected") setFailed(true)
+      setEntries([...hist, ...runs])
+    })
     return () => { live = false }
   }, [client, orgId, rows])
 
-  function signOff() {
+  async function signOff() {
     const stamp = new Date().toISOString()
+    // Server first (it also writes History); if the database does not have the weekly record yet, keep it on this device.
+    try { await logWeeklyRun(client, orgId, "confirm") } catch { /* not available yet: the device copy below is the record */ }
     try { window.localStorage.setItem(checkedKey(orgId, new Date()), stamp) } catch { /* private window: it shows for this visit only */ }
     setSignedAt(stamp)
   }
@@ -62,6 +71,7 @@ export function WeeklyRoutine({ client, orgId, rows, offline }: { client: DpdpCl
               ))}
             </ol>
             {failed && <p role="status" style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: "8px 0 0" }}>We could not read your History just now, so the lines below may look empty. Try again in a moment.</p>}
+            {recorded && <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: "8px 0 0" }}>These lines come from your weekly record and History.</p>}
             {offline && <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: "8px 0 0" }}>You are offline, so these lines show what was last saved on this device.</p>}
           </div>
 
@@ -76,7 +86,7 @@ export function WeeklyRoutine({ client, orgId, rows, offline }: { client: DpdpCl
 
 function Stage({ stage, index, entries, loaded, now, counts, signedAt, onSignOff }: {
   stage: RoutineStage; index: number; entries: HistoryLike[]; loaded: boolean; now: Date
-  counts: ReturnType<typeof checkCounts> | null; signedAt: string | null; onSignOff: () => void
+  counts: ReturnType<typeof checkCounts> | null; signedAt: string | null; onSignOff: () => void | Promise<void>
 }) {
   const log = stageLog(stage.id, entries, now)
   const checked = stage.id === "check" && signedAt !== null
@@ -101,7 +111,7 @@ function Stage({ stage, index, entries, loaded, now, counts, signedAt, onSignOff
       {stage.id === "check" && (
         checked
           ? <p role="status" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--dpdp-g, #0B5F26)", margin: "0 0 8px" }}>✓ This week is checked ({when(new Date(signedAt))})</p>
-          : <button type="button" onClick={onSignOff} className="font-bold text-white rounded-lg mb-2" style={{ background: "var(--dpdp-v)", fontSize: 14, padding: "10px 16px" }}>This week is checked</button>
+          : <button type="button" onClick={() => void onSignOff()} className="font-bold text-white rounded-lg mb-2" style={{ background: "var(--dpdp-v)", fontSize: 14, padding: "10px 16px" }}>This week is checked</button>
       )}
 
       <div role="group" aria-label={`Latest log, ${stage.name}`} style={{ fontSize: 13, borderTop: "1px solid var(--dpdp-line)", paddingTop: 8, color: "var(--dpdp-ink2)" }}>
