@@ -6,7 +6,7 @@
 --     * the organisation's ICP status for the week p_now falls in (the same dpdp.icp_status_for the signed-in page and the weekly record use),
 --       cut into three stages with their steps, so the e-mail shows the same checklist the page does;
 --     * CARRY-OVER: a step that is not done now AND was not done in the organisation's latest earlier record ("last recorded", which can be older than last
---       week). Steps that are by nature this week's own (anything new, a record this week, the week's sign-off) are never carried: on a Monday they are open
+--       week). Steps that are by nature this week's own (anything new, a record this week, the week's sign-off, and the week-scoped re-confirmation of the register) are never carried: on a Monday they are open
 --       for everyone, so carrying them would only be noise;
 --     * WHO MAY SEE IT: the active memberships whose viewer kind is a whole-organisation one (owner, grievance officer, coordinator, CA partner or manager)
 --       -- the same rule as dpdp__icp_member, so a staff member's e-mail never carries the register's status;
@@ -17,7 +17,7 @@
 --       organisation, OR set that organisation up (the institution library has no CA-tagged job); and the client's owner has confirmed the set-up. A person
 --       can therefore only ever be shown what their own "My clients" page already shows them, whatever memberships anybody else has added to the firm
 --       (naming a CA's e-mail in a made-up firm gains the firm's owner nothing). The result is keyed by membership in `clientsByViewer`; the aggregate
---       `clients` / `clientTotal` are always empty. Stricter than "My clients" in two ways: an unconfirmed set-up is hidden, and a client with no jobs counts.
+--       `clients` / `clientTotal` are always empty. It differs from "My clients" in two ways: an unconfirmed set-up is hidden (stricter), and an organisation the person set up themself that has no jobs yet counts (looser, but still one they set up).
 --       dpdp.relationship is deliberately not used: no flow fills it and nothing in it records that the client agreed. Counts only: no register line, no free
 --       text, no name of any person. Worst first, 100 at most per recipient, 25 recipients at most.
 --
