@@ -43,7 +43,7 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     )
     expect(facts.fact_block_title).toBe("What VERIDIAN (VERy INDIAN) is")
     expect(facts.what_it_does).toBe(
-      "It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords. Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs. Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.",
+      "It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords. Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs. Each control names the law it comes from, including the SPDI Rules 2011 that apply until 13 May 2027, or is marked as good practice.",
     )
     expect(facts.deadline_line).toBe("Every CA firm whose clients hold personal data will need to show DPDP compliance by 13 May 2027 — VERIDIAN is built for exactly that work.")
     expect(facts.what_it_does_not_do).toBe("It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).")
@@ -668,6 +668,6 @@ describe("/proof/ (WO-013 §2.1): built and hidden until the owner switches it o
     // Owner, 2026-10-14: with no reviewer recorded the page says nothing about a review; the version line stays.
     expect(html).not.toContain("Reviewer:")
     expect(html).not.toContain("not yet recorded")
-    expect(html).toContain("controls, each mapped to its legal source.")
+    expect(html).toContain("controls, each naming the law it comes from or marked as good practice.")
   })
 })

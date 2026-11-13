@@ -15,6 +15,7 @@
 // unsubscribeMailto) and mail-outbound.ts for domainOfFrom, re-exported below
 // so existing importers keep working and there is one implementation.
 import { replyToAddress } from "../_shared/mail-taxonomy.ts"
+import { type IcpBlock, icpBlockUsable, renderIcpBlock } from "./icp-block.ts"
 import { domainOfFrom } from "../_shared/mail-outbound.ts"
 
 export { domainOfFrom }
@@ -112,6 +113,8 @@ export type Digest = {
   coordinators: Contact[]
   jobs: DigestJob[]
   escalatedToMe: EscalatedItem[]
+  /** Set by the sender, never by the database row: this week's ICP routine for the organisation (drizzle/0763), only for a whole-organisation member, never in the statutory-only view. */
+  icp?: IcpBlock | null
 }
 
 export type ActionLinks = Record<string, { done: string; cannot: string; neverHadAny: string | null }>
@@ -255,12 +258,13 @@ export function statutorySubset(digest: Digest): Digest {
     ...digest,
     jobs: digest.jobs.filter((j) => j.requiredToday),
     escalatedToMe: digest.escalatedToMe.filter((e) => e.requiredToday),
+    icp: null,
   }
 }
 
 /** True when there is nothing to say -- the Edge Function skips the send. */
 export function isEmpty(digest: Digest): boolean {
-  return digest.jobs.length === 0 && digest.escalatedToMe.length === 0
+  return digest.jobs.length === 0 && digest.escalatedToMe.length === 0 && !icpBlockUsable(digest.icp)
 }
 
 export function esc(s: unknown): string {
@@ -290,7 +294,7 @@ export function subjectFor(digest: Digest, kind: EmailKind = "monday_digest"): s
   if (digest.aiChangesOnly) return `${digest.orgName}: what your AI changed for you this week`
   if (digest.level === "owner") {
     const open = digest.jobs.length
-    return `${digest.orgName}: DPDP this week — ${plural(open, "open control")}${late.length ? `, ${late.length} late` : ""}${escalated ? `, ${escalated} escalated to you` : ""}`
+    return `${digest.orgName}: DPDP this week — ${plural(open, "open control")}${late.length ? `, ${late.length} late` : ""}${escalated ? `, ${escalated} escalated to you` : ""}${icpBlockUsable(digest.icp) ? `, routine ${digest.icp.done} of ${digest.icp.total}` : ""}`
   }
   if (mine.length === 0 && escalated) {
     return `${digest.orgName}: ${plural(escalated, "control")} escalated to you as DPDP coordinator`
@@ -691,6 +695,12 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   // What the person's AI changed is reported in every version of the email they get, including the statutory-only one.
   const changes = aiChangesSection(links.aiChanges ?? [])
   if (changes) { htmlParts.push(changes.html); textParts.push(...changes.text) }
+
+  if (kind !== "statutory" && !digest.aiChangesOnly && icpBlockUsable(digest.icp)) {
+    const icp = renderIcpBlock(digest.icp, links.appHome)
+    htmlParts.push(icp.html)
+    textParts.push(...icp.text)
+  }
 
   if (mine.length) {
     htmlParts.push(`<h2 style="color:#1C2B3A;font-size:15px;margin:16px 0 8px;">Your controls (${mine.length})</h2>`)

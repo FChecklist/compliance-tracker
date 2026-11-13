@@ -109,7 +109,7 @@ claims:
     approved_on: "2026-09-22"
     legal_approved: false
   - id: CLM-004
-    sentence: "Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027."
+    sentence: "Each control names the law it comes from, including the SPDI Rules 2011 that apply until 13 May 2027, or is marked as good practice."
     words: []
     where: The fact block on every public page; /about/ (WO-DPDP-013 v2 §2.2).
     evidence: Every template in data/dpdp-library-0.2-wo010.json carries law_codes ("d:§…" for the Act, "r:…" for the Rules, "s:…" for SPDI); src/lib/facts.test.ts counts them.

@@ -312,7 +312,7 @@ export const PUBLIC_PAGES = [
       "Get a set of controls. Give each control to a person. Keep a dated record that is added to, not edited.",
       "Start free and build your list. Rs 99 for your first 3 months, then Rs 999 a month, or Rs 5,994 a year (half price, effectively about Rs 499 a month).",
       "Open your organisation",
-      "Parents' consent, on a link",
+      "Parents' consent, on one page",
       "Start with what you hold",
       'href="/app/?edition=institution"',
       ...LANDING_COPY,

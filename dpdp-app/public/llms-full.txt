@@ -23,8 +23,8 @@ Waiting
 Breach drill — 72-hour rule IT head · not started
 Next
 8 dated answers, each with who said it and when. Changes are added to the record, never overwritten.
-Whoever leaves, the proof stays.
-Built for DPDP Act 2023 & Rules 2025 SPDI Rules 2011 apply until 13 May 2027 Every control mapped to its legal source Free AI assistant, you confirm every update
+Whoever leaves, your dated record stays.
+Built for DPDP Act 2023 & Rules 2025 SPDI Rules 2011 apply until 13 May 2027 Every control names the law it comes from Free AI assistant, you confirm every update
 Many businesses fall short of the DPDP Act at the very first step: knowing what data they hold, where it is and who else has it.
 1. What is the data?
 2. Where is it?
@@ -102,7 +102,7 @@ Who it is for:
 2. Companies, institutions, schools and NGOs
 - It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Each control names the law it comes from, including the SPDI Rules 2011 that apply until 13 May 2027, or is marked as good practice.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN
@@ -128,7 +128,7 @@ Who it is for:
 2. Companies, institutions, schools and NGOs
 - It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Each control names the law it comes from, including the SPDI Rules 2011 that apply until 13 May 2027, or is marked as good practice.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 ### How it works
@@ -141,7 +141,7 @@ About VERIDIAN
 ✍️ Checks and sign-off The owner confirms. Your manager checks. Your partner signs.
 🛡️ A record that is added to, not edited Every answer is dated and kept. A change is a new entry, not an overwrite.
 🤖 Your own AI assistant Give it a private, time-limited link from inside VERIDIAN.
-🗄️ We keep no compliance documents We keep a fingerprint, a name and a date. The file stays with you (a payment proof you upload is the one exception).
+🗄️ We keep no compliance documents When you record a document, we keep its fingerprint (worked out on your own device), the name you give it, where you keep the original and the date. The file stays with you (a payment proof you upload is the one exception). We record what you tell us; we do not check that a document is genuine.
 ### What we do, and where we stop
 ✅ We do Turn the Act into controls · Give each control to a person · Chase the answers · Keep a dated record
 🚫 We do not Touch your systems · Keep your documents · Give legal advice · Certify you as compliant · Promise that nobody will be fined
@@ -149,7 +149,7 @@ About VERIDIAN
 Do you touch our systems?
 No. We do not connect to your software, read your files or install anything. We record what you tell us.
 Do you keep our documents?
-No. We keep a fingerprint, a name and a date. The document stays with you, so keep your own originals.
+No. When you record a document we keep its fingerprint (worked out on your own device), the name you give it, where you keep the original and the date. The document stays with you, so keep your own originals. We record what you tell us; we do not check that a document is genuine.
 Can you certify us as compliant?
 No. There is no government DPDP certification in India. We help you do the work and keep the record.
 What if we stop paying?
@@ -161,7 +161,7 @@ This is an example, not a promise. Say you charge each client Rs 500 a month for
 ### Start with one client
 One email. No card. Fifteen minutes.
 Start free →
-Your DPDP proof — not just your DPDP policy. People move on. The proof stays.
+Your DPDP records, not just your DPDP policy. People move on. Your dated record stays in your account.
 VERIDIAN · VERy INDIAN
 Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
 Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
@@ -185,7 +185,7 @@ Who it is for:
 2. Companies, institutions, schools and NGOs
 - It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Each control names the law it comes from, including the SPDI Rules 2011 that apply until 13 May 2027, or is marked as good practice.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 ### How it works
@@ -196,9 +196,9 @@ About VERIDIAN
 🗂️ Controls with names and dates Every control has a person, a due date and its legal source.
 📧 One email a week Each person answers Yes or No from their inbox. Most never open the website.
 🛡️ A record that is added to, not edited Every answer is dated and kept. A change is a new entry, not an overwrite.
-👨‍👩‍👧 Parents' consent, on a link Parents give consent item by item. Withdrawing is the same tap as agreeing.
-🎧 A Grievance Officer, published Name your officer on a public page. The law asks for it.
-🗄️ We keep no compliance documents We keep a fingerprint, a name and a date. The file stays with you (a payment proof you upload is the one exception).
+👨‍👩‍👧 Parents' consent, on one page A parent can give or withdraw consent item by item on one page, the same tap for both. Your account does not yet send that link to parents for you.
+🎧 A Grievance Officer, named Your list has the job of naming your officer and the job of publishing the officer's contact. You publish it on your own site; we remind you until it is done.
+🗄️ We keep no compliance documents When you record a document, we keep its fingerprint (worked out on your own device), the name you give it, where you keep the original and the date. The file stays with you (a payment proof you upload is the one exception). We record what you tell us; we do not check that a document is genuine.
 ### What we do, and where we stop
 ✅ We do Turn the Act into controls · Give each control to a person · Chase the answers · Keep a dated record
 🚫 We do not Touch your systems · Keep your documents · Give legal advice · Certify you as compliant · Promise that nobody will be fined
@@ -208,7 +208,7 @@ Yes. There is no size exemption in the Act. A ten-person firm holding customer p
 Do you touch our systems?
 No. We do not connect to your software, read your files or install anything. We record what you tell us.
 Do you keep our documents?
-No. We keep a fingerprint, a name and a date. The document stays with you, so keep your own originals.
+No. When you record a document we keep its fingerprint (worked out on your own device), the name you give it, where you keep the original and the date. The document stays with you, so keep your own originals. We record what you tell us; we do not check that a document is genuine.
 Can you certify us as compliant?
 No. There is no government DPDP certification in India. We help you do the work and keep the record.
 Has anyone been fined yet?
@@ -218,7 +218,7 @@ No. Sign-in is a link to whatever address you use: Gmail, Yahoo or your own doma
 ### Start with what you hold
 One email. No card. Fifteen minutes.
 Start free →
-Your DPDP proof — not just a policy nobody reads. People move on. The proof stays.
+Your DPDP records, not just a policy nobody reads. People move on. Your dated record stays in your account.
 VERIDIAN · VERy INDIAN
 Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
 Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
@@ -238,7 +238,7 @@ Who it is for:
 2. Companies, institutions, schools and NGOs
 - It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Each control names the law it comes from, including the SPDI Rules 2011 that apply until 13 May 2027, or is marked as good practice.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 ### Key dates
@@ -323,7 +323,7 @@ Who it is for:
 2. Companies, institutions, schools and NGOs
 - It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Each control names the law it comes from, including the SPDI Rules 2011 that apply until 13 May 2027, or is marked as good practice.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN
@@ -409,7 +409,7 @@ Who it is for:
 2. Companies, institutions, schools and NGOs
 - It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Each control names the law it comes from, including the SPDI Rules 2011 that apply until 13 May 2027, or is marked as good practice.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN
@@ -463,7 +463,7 @@ Who it is for:
 2. Companies, institutions, schools and NGOs
 - It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
 - Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
+- Each control names the law it comes from, including the SPDI Rules 2011 that apply until 13 May 2027, or is marked as good practice.
 It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
 About VERIDIAN
 VERIDIAN · VERy INDIAN

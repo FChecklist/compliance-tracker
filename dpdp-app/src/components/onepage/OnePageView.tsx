@@ -172,7 +172,7 @@ export function OnePageView({
         </div>
 
         <div className="text-center mt-7" style={{ fontSize: 12, color: "var(--dpdp-ink3)" }}>
-          VERIDIAN · VERy INDIAN — Your DPDP proof, not just your DPDP policy. · Stored in India · no passwords · we never keep your documents
+          VERIDIAN · VERy INDIAN — Your DPDP records, not just your DPDP policy. · Stored in India · no passwords · we never keep your documents
         </div>
       </div>
     </div>
