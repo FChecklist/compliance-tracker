@@ -9,7 +9,7 @@
 export type IcpKind = "data_set" | "system" | "vendor" | "person_group"
 export type IcpStage = "identify" | "classify" | "prove"
 export type PrincipalType = "student" | "parent_guardian" | "staff" | "applicant" | "alumni" | "client_staff" | "customer" | "visitor" | "other"
-export type LawfulBasis = "consent" | "legitimate_use" | "legal_obligation" | "state_function" | "employment" | "not_sure"
+export type LawfulBasis = "consent" | "legitimate_use" | "legal_obligation" | "state_function" | "employment" | "child_exemption" | "not_sure"
 export type Sensitivity = "ordinary" | "elevated" | "high"
 export type AgreementStatus = "none" | "requested" | "signed"
 
@@ -36,7 +36,7 @@ export type IcpStatus = {
 export const STAGE_INFO: Record<IcpStage, { name: string; promise: string }> = {
   identify: { name: "Identify", promise: "Know what personal data you hold, where it lives and who holds it. Add what is new; check the rest is still true." },
   classify: { name: "Classify", promise: "For each line: whose data, children or not, why you hold it, on what basis, for how long. The rules below then show what needs a look." },
-  prove: { name: "Prove", promise: "Keep the records that show it: evidence, parent answers, breach and request logs, agreements, erasure, and a signed-off week." },
+  prove: { name: "Prove", promise: "Keep the records that show it: files you hold (as fingerprints), breaches, requests, agreements and erasures, and a signed-off week." },
 }
 export const STAGES: IcpStage[] = ["identify", "classify", "prove"]
 
@@ -46,15 +46,17 @@ export const PRINCIPAL_LABEL: Record<PrincipalType, string> = {
   student: "Students", parent_guardian: "Parents and guardians", staff: "Staff", applicant: "Applicants", alumni: "Alumni", client_staff: "Our clients' people", customer: "Customers", visitor: "Visitors", other: "Others",
 }
 export const BASIS_LABEL: Record<LawfulBasis, string> = {
-  consent: "Their consent", legitimate_use: "A legitimate use (s.7)", legal_obligation: "A legal duty to disclose", state_function: "A State function or benefit", employment: "Employment", not_sure: "Not sure yet",
+  consent: "Their consent (a parent's, for a child)", legitimate_use: "A legitimate use (s.7)", legal_obligation: "A legal duty to disclose", state_function: "A State function or benefit", employment: "Employment",
+  child_exemption: "A school exemption: tracking or monitoring for education or safety only", not_sure: "Not sure yet",
 }
 export const SENSITIVITY_LABEL: Record<Sensitivity, string> = { ordinary: "Ordinary", elevated: "Needs more care", high: "Needs the most care" }
 export const AGREEMENT_LABEL: Record<AgreementStatus, string> = { none: "No agreement yet", requested: "Asked for", signed: "Signed" }
 
 export const FLAG_TEXT: Record<string, string> = {
   unclassified: "Not classified yet: say whose data it is, why you hold it, on what basis and for how long.",
-  children_basis_missing: "Children's data with no lawful basis recorded. Record parental consent or the educational purpose you rely on.",
-  children_consent_not_collected: "Children's data held on consent, but no parent has answered a consent request yet.",
+  children_basis_missing: "Children's data with no basis recorded. The Act needs a parent's verifiable consent, unless a specific exemption applies. Record which.",
+  children_basis_check: "Children's data on a basis other than a parent's consent. The Act allows only narrow exemptions (the Fourth Schedule; for a school, only tracking or monitoring for education or safety). Say which one applies, or collect parental consent.",
+  children_consent_not_collected: "Children's data held on consent, but not every parent link has been answered yet.",
   vendor_agreement_missing: "An outside helper without a signed agreement on record.",
   stale: "Not re-checked for more than three weeks.",
 }
@@ -80,7 +82,8 @@ export function itemFlags(i: Pick<IcpItem, "kind" | "status" | "principalType" |
   if (personal && (i.principalType === null || i.children === null || i.purpose === null || i.lawfulBasis === null || (i.retentionDays === null && i.retentionNote === null))) v.push("unclassified")
   if (personal && i.children === true) {
     if (i.lawfulBasis === null || i.lawfulBasis === "not_sure") v.push("children_basis_missing")
-    else if (i.lawfulBasis === "consent" && !childConsentAnswered) v.push("children_consent_not_collected")
+    else if (i.lawfulBasis === "consent") { if (!childConsentAnswered) v.push("children_consent_not_collected") }
+    else if (i.lawfulBasis !== "child_exemption") v.push("children_basis_check") // s.7 or employment alone do not stand in for a parent's consent
   }
   if (i.kind === "vendor" && (i.agreementStatus ?? "none") !== "signed") v.push("vendor_agreement_missing")
   if ((i.lastConfirmedWeek ?? i.firstSeenWeek) < addDaysISO(weekStart, -21)) v.push("stale")

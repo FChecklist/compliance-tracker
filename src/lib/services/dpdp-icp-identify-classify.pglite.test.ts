@@ -78,12 +78,13 @@ describe('the migration file', () => {
 })
 
 describe('who may do what', () => {
-  test('the owner can add; a staff member can read but not change; a stranger learns nothing', async () => {
+  test('the owner can add; a staff member can neither read nor change (the register names where children\'s data sits); a stranger learns nothing', async () => {
     await as('owner@icp.test')
     const r = await save('school', { kind: 'data_set', name: 'Student admission files', whereHeld: 'Admission office cabinet and ERP' })
     expect(r.ok).toBe(true)
     await as('clerk@icp.test')
-    expect(await register('school')).toHaveLength(1)
+    expect(await fails(`select public.dpdp_icp_register('school')`)).toContain('Only the people who see the whole organisation')
+    expect(await fails(`select public.dpdp_icp_status('school')`)).toContain('Only the people who see the whole organisation')
     expect(await fails(`select public.dpdp_icp_save_item('school', '{"kind":"data_set","name":"x y"}'::jsonb)`)).toContain('Only the people who see the whole organisation')
     await as('outsider@icp.test')
     expect(await fails(`select public.dpdp_icp_register('school')`)).toContain('Organisation not found')
@@ -101,10 +102,23 @@ describe('IDENTIFY: the register', () => {
     const id = ((await register('school'))[0] as J).id
     expect(await fails(`select public.dpdp_icp_save_item('school', $1::jsonb)`, [JSON.stringify({ id, name: 'mail me@x.in' })])).toContain('not a person')
   })
-  test('a duplicate (same kind, same name, any case) is refused; a different kind with the same name is fine', async () => {
+  test('a duplicate (same kind, same name, any case) is refused, also by renaming; a different kind with the same name is fine', async () => {
     await as('owner@icp.test')
     expect(await fails(`select public.dpdp_icp_save_item('school', '{"kind":"data_set","name":"  student ADMISSION files "}'::jsonb)`)).toContain('already in your register')
     expect((await save('school', { kind: 'system', name: 'Student admission files' })).ok).toBe(true)
+    const sys = (await register('school')).find((i) => i.kind === 'system')!
+    await save('school', { kind: 'system', name: 'Other system' })
+    expect(await fails(`select public.dpdp_icp_save_item('school', $1::jsonb)`, [JSON.stringify({ id: sys.id, name: 'other SYSTEM' })])).toContain('already in your register')
+    await one(`select public.dpdp_icp_retire_item('school', $1, 'Test clean-up') as r`, [(await register('school')).find((i) => i.name === 'Other system')!.id])
+  })
+  test('every free-text answer is kept free of e-mail addresses and phone numbers, and a bad choice or number gets a plain sentence', async () => {
+    await as('owner@icp.test')
+    const ds = (await register('school')).find((i) => i.kind === 'data_set')!
+    for (const field of ['whereHeld', 'holderLabel', 'purpose', 'retentionNote', 'recipients', 'agreementRef'])
+      expect(await fails(`select public.dpdp_icp_save_item('school', $1::jsonb)`, [JSON.stringify({ id: ds.id, [field]: 'ask asha@example.com or 98765 43210' })]), field).toContain('e-mail address or phone number')
+    expect(await fails(`select public.dpdp_icp_save_item('school', $1::jsonb)`, [JSON.stringify({ id: ds.id, lawfulBasis: 'whatever' })])).toContain('Pick one of the choices')
+    expect(await fails(`select public.dpdp_icp_save_item('school', $1::jsonb)`, [JSON.stringify({ id: ds.id, retentionDays: 12.5 })])).toContain('whole number')
+    expect(await fails(`select public.dpdp_icp_save_item('school', $1::jsonb)`, [JSON.stringify({ id: ds.id, agreementOn: 'not a date' })])).toContain('Check the date')
   })
   test('a data set is mirrored into the older category and location tables (so the AI link data-map and the CA list see it); retiring removes the mirror', async () => {
     await as('owner@icp.test')
@@ -119,6 +133,17 @@ describe('IDENTIFY: the register', () => {
     expect(await rows(`select 1 from dpdp.data_category where org_id = 'school'`)).toHaveLength(1)
     expect((await register('school')).some((i) => i.id === fee.id)).toBe(false)
     expect(await fails(`select public.dpdp_icp_retire_item('school', $1, '   ')`, [ds.id])).toContain('why it is no longer held')
+    expect(await fails(`select public.dpdp_icp_retire_item('school', $1, 'moved, ask asha@example.com')`, [ds.id])).toContain('e-mail address')
+  })
+  test('retiring one line keeps the older category while another line still points at it; retiring clears the free text; re-saving never downgrades a confirmed location', async () => {
+    await as('owner@icp.test')
+    const a = await save('school', { kind: 'data_set', name: 'Library records', whereHeld: 'Library app', purpose: 'Lending', recipients: 'Library vendor' })
+    await db.query(`update dpdp.data_location set state = 'confirmed', confirmed_at = now() where system_name = 'Library app'`)
+    await save('school', { id: a.item.id, retentionNote: 'Keep two years' })
+    expect((await rows<J>(`select state from dpdp.data_location where system_name = 'Library app'`))[0].state).toBe('confirmed')
+    await one(`select public.dpdp_icp_retire_item('school', $1, 'Library closed') as r`, [a.item.id])
+    const gone = (await rows<J>(`select where_held, purpose, recipients, retention_note, status from dpdp.icp_item where id = $1`, [a.item.id]))[0]
+    expect(gone).toEqual({ where_held: null, purpose: null, recipients: null, retention_note: null, status: 'retired' })
   })
   test('confirming marks lines as still true this week and the mirrored location becomes confirmed', async () => {
     await as('owner@icp.test')
@@ -153,19 +178,27 @@ describe('CLASSIFY: facts, derived flags and the job rule', () => {
     expect(flagKeys(it)).toEqual(['unclassified'])
     expect((await rows<J>(`select classified_at is null as c from dpdp.icp_item where id = $1`, [ds.id]))[0].c).toBe(true)
   })
-  test("children's data: no basis -> flagged; consent basis with no parent answer -> flagged; a parent's answer clears the second", async () => {
+  test("children's data: no basis -> flagged; consent with no parent answer -> flagged; ONE unanswered link keeps it flagged; a school exemption raises no flag; any other basis asks for a check", async () => {
     await as('owner@icp.test')
     await save('school', { kind: 'data_set', name: 'Student records', whereHeld: 'ERP', principalType: 'student', children: true, purpose: 'Teaching', retentionDays: 3650 })
-    let it = (await register('school')).find((i) => i.name === 'Student records')!
+    const get = async () => (await register('school')).find((i) => i.name === 'Student records')!
+    let it = await get()
     expect(flagKeys(it)).toEqual(['children_basis_missing', 'unclassified'])
     await save('school', { id: it.id, lawfulBasis: 'consent' })
-    it = (await register('school')).find((i) => i.name === 'Student records')!
-    expect(flagKeys(it)).toEqual(['children_consent_not_collected'])
+    expect(flagKeys(await get())).toEqual(['children_consent_not_collected'])
     await db.query(`insert into dpdp.consent_campaign (id, org_id, principal_is_child) values ('c1', 'school', true)`)
-    await db.query(`insert into dpdp.consent_token (id, campaign_id, acted_at) values ('t1', 'c1', null)`)
-    expect(flagKeys((await register('school')).find((i) => i.name === 'Student records')!)).toEqual(['children_consent_not_collected'])
+    await db.query(`insert into dpdp.consent_token (id, campaign_id, acted_at) values ('t1', 'c1', null), ('t2', 'c1', null)`)
+    expect(flagKeys(await get())).toEqual(['children_consent_not_collected'])
     await db.query(`update dpdp.consent_token set acted_at = now() where id = 't1'`)
-    expect(flagKeys((await register('school')).find((i) => i.name === 'Student records')!)).toEqual([])
+    expect(flagKeys(await get())).toEqual(['children_consent_not_collected']) // one family answered, one not: still flagged
+    await db.query(`update dpdp.consent_token set acted_at = now() where id = 't2'`)
+    expect(flagKeys(await get())).toEqual([])
+    await save('school', { id: it.id, lawfulBasis: 'child_exemption' })
+    expect(flagKeys(await get())).toEqual([])
+    await save('school', { id: it.id, lawfulBasis: 'legal_obligation' })
+    expect(flagKeys(await get())).toEqual(['children_basis_check'])
+    await db.query(`delete from dpdp.consent_token`)
+    await db.query(`delete from dpdp.consent_campaign`)
   })
   test('an outside helper without a signed agreement is flagged; a signed one is not', async () => {
     await as('owner@icp.test')
@@ -182,7 +215,7 @@ describe('CLASSIFY: facts, derived flags and the job rule', () => {
     await one(`select public.dpdp_icp_confirm_items('school', array[$1]) as r`, [v.id])
     expect(flagKeys((await register('school')).find((i) => i.id === v.id)!)).toEqual([])
   })
-  test('PARITY: the browser copy of the rules (dpdp-app/src/lib/icp.ts itemFlags) gives the same flags as the SQL function on 288 combinations, with and without a parent answer', async () => {
+  test('PARITY: the browser copy of the rules (dpdp-app/src/lib/icp.ts itemFlags) gives the same flags as the SQL function on 360 combinations, with and without a parent answer', async () => {
     await org('parity', 'institution')
     await member('parity', 'ownerp', 'owner')
     const week = (await rows<J>(`select dpdp.icp_week()::text as w`))[0].w as string
@@ -192,7 +225,7 @@ describe('CLASSIFY: facts, derived flags and the job rule', () => {
     const wanted = new Map<string, string[]>()
     for (const kind of ['data_set', 'vendor', 'system'] as const)
       for (const children of [null, true, false] as const)
-        for (const basis of [null, 'not_sure', 'consent', 'employment'] as const)
+        for (const basis of [null, 'not_sure', 'consent', 'child_exemption', 'employment'] as const)
           for (const retention of ['none', 'days'] as const)
             for (const agreement of [null, 'signed'] as const)
               for (const stale of [false, true] as const) {
@@ -211,7 +244,7 @@ describe('CLASSIFY: facts, derived flags and the job rule', () => {
       await db.query(`insert into dpdp.consent_token (id, campaign_id, acted_at) values ('pt', 'pc', ${answered ? 'now()' : 'null'})`)
       await as('ownerp@icp.test')
       const reg = await register('parity')
-      expect(reg).toHaveLength(288)
+      expect(reg).toHaveLength(360)
       for (const it of reg) {
         const w = wanted.get(it.name)!
         const mine = itemFlags({
@@ -253,28 +286,45 @@ describe('the weekly checklist and record', () => {
     expect(['not_started', 'in_progress', 'complete']).toContain(s.status)
     expect(new Date(`${s.weekStart}T00:00:00Z`).getUTCDay()).toBe(1) // a Monday
   })
-  test('"nothing new this week" is a recorded, dated sign-off; the run keeps a snapshot; the History line carries no free text', async () => {
+  test('a plain sign-off never ticks "anything new?"; only a "nothing new this week" from a person does; the run keeps a snapshot and the role (never an e-mail address); History carries no free text', async () => {
     await org('school4', 'institution')
     await member('school4', 'owner4', 'owner')
     await as('owner4@icp.test')
-    expect((await status('school4')).identify.steps.find((x: J) => x.key === 'anything_new').done).toBe(false)
-    await one(`select public.dpdp_icp_log('school4', 'identify', 'ok', 'Nothing new this week') as r`)
-    expect((await status('school4')).identify.steps.find((x: J) => x.key === 'anything_new').done).toBe(true)
-    const run = (await rows<J>(`select stage, by_kind, outcome, note, snapshot ->> 'percent' as p from dpdp.icp_run where org_id = 'school4'`))[0]
-    expect(run).toMatchObject({ stage: 'identify', by_kind: 'person', outcome: 'ok', note: 'Nothing new this week' })
-    expect(run.p).not.toBeNull()
-    const ev = await rows<J>(`select kind, summary, detail from dpdp.event where org_id = 'school4'`)
-    expect(ev).toEqual([{ kind: 'icp_stage_signed_off', summary: 'Signed off Identify for the week', detail: null }])
+    const tick = async () => (await status('school4')).identify.steps.find((x: J) => x.key === 'anything_new').done
+    expect(await tick()).toBe(false)
+    await one(`select public.dpdp_icp_log('school4', 'identify', 'ok', 'Reviewed') as r`)
+    expect(await tick()).toBe(false)
+    await one(`select public.dpdp_icp_log('school4', 'identify', 'skipped', 'Nothing new this week') as r`)
+    expect(await tick()).toBe(true)
+    const runs = await rows<J>(`select stage, by_kind, outcome, note, actor_label, actor_identity_id, snapshot ->> 'percent' as p from dpdp.icp_run where org_id = 'school4' order by ran_at`)
+    expect(runs[1]).toMatchObject({ stage: 'identify', by_kind: 'person', outcome: 'skipped', note: 'Nothing new this week', actor_label: 'Owner', actor_identity_id: 'i_owner4' })
+    expect(runs[1].p).not.toBeNull()
+    const ev = await rows<J>(`select kind, summary, detail, actor_label from dpdp.event where org_id = 'school4' order by occurred_at`)
+    expect(ev.map((e) => e.summary)).toEqual(['Signed off Identify for the week', 'Recorded: nothing new this week'])
+    expect(ev.every((e) => e.detail === null && e.actor_label === 'Owner')).toBe(true)
   })
-  test('the weekly record is append-only; a person cannot log as the helper; the service role can', async () => {
+  test('the weekly record is append-only; a person cannot record "failed" or a bad stage; only the service role can log as the helper, and only it', async () => {
     await as('owner4@icp.test')
     expect(await fails(`update dpdp.icp_run set outcome = 'failed' where org_id = 'school4'`)).toContain('append-only')
     expect(await fails(`delete from dpdp.icp_run where org_id = 'school4'`)).toContain('append-only')
-    expect(await fails(`select public.dpdp_icp_log('school4', 'prove', 'ok', null, 'software')`)).toContain('Only the automatic helper')
-    expect(await fails(`select public.dpdp_icp_log('school4', 'bogus', 'ok', null, 'person')`)).toContain('Unknown stage')
+    expect(await fails(`select public.dpdp_icp_log('school4', 'prove', 'failed', null)`)).toContain('Unknown outcome')
+    expect(await fails(`select public.dpdp_icp_log('school4', 'bogus', 'ok', null)`)).toContain('Unknown stage')
+    expect(await fails(`select public.dpdp_icp_log('school4', 'prove', 'ok', 'mail asha@example.com')`)).toContain('Leave out')
+    const g = await rows<J>(`select grantee from information_schema.routine_privileges where routine_schema = 'public' and routine_name = 'dpdp_icp_run_software' and grantee in ('anon', 'authenticated', 'PUBLIC')`)
+    expect(g).toEqual([])
     await asService()
-    expect((await one<J>(`select public.dpdp_icp_log('school4', 'classify', 'partial', 'Counted by the Monday job', 'software') as r`)).ok).toBe(true)
-    expect((await rows<J>(`select actor_label from dpdp.icp_run where by_kind = 'software'`))[0].actor_label).toBe('Automatic helper')
+    expect((await one<J>(`select public.dpdp_icp_run_software('school4', 'classify', 'partial', 'Counted by the Monday job') as r`)).ok).toBe(true)
+    expect(await fails(`select public.dpdp_icp_run_software('nowhere', 'classify', 'ok', null)`)).toContain('Organisation not found')
+    expect((await rows<J>(`select actor_label, actor_identity_id from dpdp.icp_run where by_kind = 'software'`))[0]).toEqual({ actor_label: 'Automatic helper', actor_identity_id: null })
+  })
+  test('while an organisation is being offboarded (exporting) its weekly record may be deleted with it; otherwise never', async () => {
+    await db.exec(`create table if not exists dpdp.org_offboarding (org_id text primary key, state text not null)`)
+    await asService()
+    expect(await fails(`delete from dpdp.icp_run where org_id = 'school4'`)).toContain('append-only')
+    await db.query(`insert into dpdp.org_offboarding (org_id, state) values ('school4', 'exporting')`)
+    await db.query(`delete from dpdp.icp_run where org_id = 'school4'`)
+    expect(await rows(`select 1 from dpdp.icp_run where org_id = 'school4'`)).toHaveLength(0)
+    await db.query(`delete from dpdp.org_offboarding where org_id = 'school4'`)
   })
   test('register writes never put the item name in History (the chain can never be erased)', async () => {
     const ev = await rows<J>(`select summary, detail from dpdp.event where org_id = 'school'`)

@@ -2,7 +2,8 @@
 -- defined it (no advisory lock). WARNING: dropping dpdp.icp_item / dpdp.icp_run deletes their rows; the mirrored dpdp.data_category / data_location rows
 -- (ids starting icp_c_ / icp_l_) are removed too. Run drizzle/down/0762 (and later) first if they were applied.
 begin;
-drop function if exists public.dpdp_icp_log(text, text, text, text, text);
+drop function if exists public.dpdp_icp_run_software(text, text, text, text);
+drop function if exists public.dpdp_icp_log(text, text, text, text);
 drop function if exists public.dpdp_icp_status(text);
 drop function if exists dpdp.icp_status_for(text, date);
 drop function if exists dpdp.icp_prove(text, date);
@@ -28,6 +29,9 @@ drop function if exists public.dpdp__icp_member(text, boolean);
 drop function if exists dpdp.icp_week(timestamp);
 drop table if exists dpdp.icp_run;
 drop function if exists dpdp.icp_run_no_change();
+drop function if exists dpdp.icp_actor_label(dpdp.membership);
+drop function if exists dpdp.icp_not_contact(text);
+drop function if exists dpdp.icp_offboarding(text);
 drop table if exists dpdp.icp_item;
 
 create or replace function public.dpdp__append_event(

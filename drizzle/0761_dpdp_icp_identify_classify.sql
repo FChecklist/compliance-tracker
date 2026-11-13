@@ -10,7 +10,7 @@
 --              kept, who receives it. dpdp.icp_item_flags() derives the risk flags from those facts; public.dpdp_icp_apply_rules() switches the children's-data jobs back ON
 --              (never off) when the register lists children's data and those jobs were marked "does not apply".
 --   WEEKLY     dpdp.icp_run (append-only): one row per stage per week; public.dpdp_icp_status() is the single "this week" checklist for Identify, Classify and Prove, with a
---              routine score that is a count of this week's routine steps done, NOT a legal rating. The PROVE section is a replaceable function (dpdp__icp_prove): this file
+--              routine score that is a count of this week's routine steps done, NOT a legal rating. The PROVE section is a replaceable function (dpdp.icp_prove): this file
 --              ships the version that reads what exists today; drizzle/0762 replaces it with the evidence, breach, rights, vendor and erasure steps.
 --   CHAIN FIX  public.dpdp__append_event() now takes a per-organisation advisory lock before it reads the previous hash, so two writers at the same moment can no longer
 --              both chain onto the same previous event and fork the History chain. Same signature, same hash formula as 0605; only the lock line is new.
@@ -88,7 +88,7 @@ create table if not exists dpdp.icp_item (
   principal_type text check (principal_type is null or principal_type in ('student', 'parent_guardian', 'staff', 'applicant', 'alumni', 'client_staff', 'customer', 'visitor', 'other')),
   children boolean,                                  -- null = not classified yet
   purpose text check (purpose is null or char_length(purpose) <= 200),
-  lawful_basis text check (lawful_basis is null or lawful_basis in ('consent', 'legitimate_use', 'legal_obligation', 'state_function', 'employment', 'not_sure')),
+  lawful_basis text check (lawful_basis is null or lawful_basis in ('consent', 'legitimate_use', 'legal_obligation', 'state_function', 'employment', 'child_exemption', 'not_sure')),
   sensitivity text check (sensitivity is null or sensitivity in ('ordinary', 'elevated', 'high')),   -- our own plain tier for ordering work, not a legal category
   retention_days integer check (retention_days is null or retention_days between 1 and 36500),
   retention_note text check (retention_note is null or char_length(retention_note) <= 160),
@@ -105,7 +105,11 @@ create table if not exists dpdp.icp_item (
   created_at timestamp not null default (clock_timestamp() at time zone 'UTC'),
   updated_at timestamp not null default (clock_timestamp() at time zone 'UTC'),
   constraint icp_item_name_not_contact check (name !~ '@' and name !~ '[0-9][0-9 -]{8,}[0-9]'),
-  constraint icp_item_retired_has_reason check (status = 'active' or retired_reason is not null)
+  constraint icp_item_retired_has_reason check (status = 'active' or retired_reason is not null),
+  -- every free-text column: the register holds names of THINGS, never a person's e-mail address or phone number ('|' keeps one column's digits from joining the next)
+  constraint icp_item_text_not_contact check (
+    (coalesce(where_held, '') || '|' || coalesce(holder_label, '') || '|' || coalesce(purpose, '') || '|' || coalesce(retention_note, '') || '|' || coalesce(recipients, '') || '|' || coalesce(agreement_ref, '') || '|' || coalesce(retired_reason, '')) !~ '@'
+    and (coalesce(where_held, '') || '|' || coalesce(holder_label, '') || '|' || coalesce(purpose, '') || '|' || coalesce(retention_note, '') || '|' || coalesce(recipients, '') || '|' || coalesce(agreement_ref, '') || '|' || coalesce(retired_reason, '')) !~ '[0-9][0-9 -]{8,}[0-9]')
 );
 create unique index if not exists icp_item_org_kind_name_uq on dpdp.icp_item (org_id, kind, lower(btrim(name))) where status = 'active';
 create index if not exists icp_item_org_status_idx on dpdp.icp_item (org_id, status, kind);
@@ -122,18 +126,51 @@ create table if not exists dpdp.icp_run (
   week_start date not null check (extract(isodow from week_start) = 1),   -- always a Monday (UTC)
   ran_at timestamp not null default (clock_timestamp() at time zone 'UTC'),
   by_kind text not null check (by_kind in ('person', 'software')),
-  actor_label text,
-  outcome text not null default 'ok' check (outcome in ('ok', 'partial', 'failed', 'skipped')),
-  note text check (note is null or char_length(note) <= 300),
+  actor_label text,                                  -- the person's ROLE ("Owner"), never an e-mail address: every member can read the record
+  actor_identity_id text,                            -- who, for accountability; never returned to the browser
+  outcome text not null default 'ok' check (outcome in ('ok', 'partial', 'failed', 'skipped')),   -- 'skipped' = "nothing new / nothing to attach this week"
+  note text check (note is null or (char_length(note) <= 300 and note !~ '@' and note !~ '[0-9][0-9 -]{8,}[0-9]')),
   snapshot jsonb                                   -- the counts at that moment: the weekly proof snapshot
 );
 create index if not exists icp_run_org_week_idx on dpdp.icp_run (org_id, week_start desc, stage, ran_at desc);
 alter table dpdp.icp_run enable row level security;
 revoke all on table dpdp.icp_run from public, anon, authenticated;
 
+-- True while the organisation is in its export period before deletion (dpdp.org_offboarding.state = 'exporting'): the append-only guards let the retention job delete then.
+create or replace function dpdp.icp_offboarding(p_org_id text)
+returns boolean language plpgsql stable security definer set search_path = '' as $$
+declare
+  v boolean := false;
+begin
+  if to_regclass('dpdp.org_offboarding') is not null then
+    execute 'select exists (select 1 from dpdp.org_offboarding o where o.org_id = $1 and o.state = ''exporting'')' into v using p_org_id;
+  end if;
+  return coalesce(v, false);
+end
+$$;
+revoke all on function dpdp.icp_offboarding(text) from public, anon, authenticated;
+
+-- A free-text answer must not be a person's contact detail.
+create or replace function dpdp.icp_not_contact(p text)
+returns boolean language sql immutable set search_path = '' as $$
+  select p is null or (p !~ '@' and p !~ '[0-9][0-9 -]{8,}[0-9]')
+$$;
+revoke all on function dpdp.icp_not_contact(text) from public, anon, authenticated;
+
+-- The label that goes on a record: the person's role, never their e-mail address.
+create or replace function dpdp.icp_actor_label(m dpdp.membership)
+returns text language sql stable set search_path = '' as $$
+  select initcap(m.level::text)
+$$;
+revoke all on function dpdp.icp_actor_label(dpdp.membership) from public, anon, authenticated;
+
 create or replace function dpdp.icp_run_no_change()
 returns trigger language plpgsql set search_path = '' as $$
 begin
+  -- the one exception: while an organisation that has ended is being deleted (dpdp.org_offboarding, drizzle/0724) its rows go with it
+  if tg_op = 'DELETE' and dpdp.icp_offboarding(old.org_id) then
+    return old;
+  end if;
   raise exception 'The weekly record is append-only' using errcode = '42501';
 end
 $$;
@@ -145,11 +182,12 @@ create trigger icp_run_no_update before update or delete on dpdp.icp_run for eac
 -- ---------------------------------------------------------------------
 -- The Monday (UTC) that starts the week containing p_at.
 create or replace function dpdp.icp_week(p_at timestamp default null)
-returns date language sql immutable set search_path = '' as $$
+returns date language sql stable set search_path = '' as $$
   select (date_trunc('week', coalesce(p_at, (clock_timestamp() at time zone 'UTC'))))::date
 $$;
 
--- The caller's membership in the organisation. A writer must be someone who sees the whole organisation (not a staff or parent view).
+-- The caller's membership in the organisation. p_write = true means "someone who sees the whole organisation" (owner, grievance officer, coordinator, CA):
+-- NOT a staff or parent view. Reads of the register and the weekly record use it too: a staff member sees only their own jobs elsewhere in the product.
 create or replace function public.dpdp__icp_member(p_org_id text, p_write boolean default false)
 returns dpdp.membership
 language plpgsql stable security definer
@@ -173,8 +211,9 @@ create or replace function dpdp.icp_flag_label(p_key text)
 returns text language sql immutable set search_path = '' as $$
   select case p_key
     when 'unclassified' then 'Not classified yet: say whose data it is, why you hold it, on what basis and for how long.'
-    when 'children_basis_missing' then 'Children''s data with no lawful basis recorded. Record parental consent or the educational purpose you rely on.'
-    when 'children_consent_not_collected' then 'Children''s data held on consent, but no parent has answered a consent request yet.'
+    when 'children_basis_missing' then 'Children''s data with no basis recorded. The Act needs a parent''s verifiable consent, unless a specific exemption applies. Record which.'
+    when 'children_basis_check' then 'Children''s data on a basis other than a parent''s consent. The Act allows only narrow exemptions (the Fourth Schedule; for a school, only tracking or monitoring for education or safety). Say which one applies, or collect parental consent.'
+    when 'children_consent_not_collected' then 'Children''s data held on consent, but not every parent link has been answered yet.'
     when 'vendor_agreement_missing' then 'An outside helper without a signed agreement on record.'
     when 'stale' then 'Not re-checked for more than three weeks.'
     else p_key
@@ -198,8 +237,12 @@ begin
   if i.kind in ('data_set', 'person_group') and i.children is true then
     if i.lawful_basis is null or i.lawful_basis = 'not_sure' then
       v := array_append(v, 'children_basis_missing');
-    elsif i.lawful_basis = 'consent' and not p_child_consent_answered then
-      v := array_append(v, 'children_consent_not_collected');
+    elsif i.lawful_basis = 'consent' then
+      if not p_child_consent_answered then
+        v := array_append(v, 'children_consent_not_collected');
+      end if;
+    elsif i.lawful_basis <> 'child_exemption' then
+      v := array_append(v, 'children_basis_check');   -- s.7 or employment alone do not stand in for a parent's consent: ask which exemption applies
     end if;
   end if;
   if i.kind = 'vendor' and coalesce(i.agreement_status, 'none') <> 'signed' then
@@ -212,12 +255,13 @@ begin
 end
 $$;
 
--- Has any parent answered a consent request for a child in this organisation? (the consent tables are older than the register; reading them is all this does)
+-- Has EVERY parent link that was issued for a child in this organisation been answered (yes or no)? A link nobody answered, or that ran out, keeps this false.
+-- (the consent tables are older than the register; reading them is all this does)
 create or replace function dpdp.icp_child_consent_answered(p_org_id text)
 returns boolean language sql stable security definer set search_path = '' as $$
-  select exists (
-    select 1 from dpdp.consent_campaign c join dpdp.consent_token t on t.campaign_id = c.id
-    where c.org_id = p_org_id and c.principal_is_child and t.acted_at is not null)
+  select count(*) > 0 and count(*) = count(t.acted_at)
+    from dpdp.consent_campaign c join dpdp.consent_token t on t.campaign_id = c.id
+   where c.org_id = p_org_id and c.principal_is_child
 $$;
 
 -- Mirror a data set into the older register tables (category + one location) so the AI link's data-map and the CA client list see it.
@@ -238,7 +282,8 @@ begin
     if i.location_id is not null then
       delete from dpdp.data_location where id = i.location_id;
     end if;
-    if i.category_id is not null then
+    -- the category goes only if nothing else (another flow's location) hangs off it
+    if i.category_id is not null and not exists (select 1 from dpdp.data_location l where l.category_id = i.category_id) then
       delete from dpdp.data_category where id = i.category_id;
     end if;
     update dpdp.icp_item set category_id = null, location_id = null where id = i.id;
@@ -254,7 +299,9 @@ begin
     values (v_loc, v_cat, i.where_held, 'internal_person',
             case when i.last_confirmed_week is not null then 'confirmed'::dpdp.location_state else 'unknown'::dpdp.location_state end,
             case when i.last_confirmed_week is not null then (clock_timestamp() at time zone 'UTC') end)
-    on conflict (id) do update set system_name = excluded.system_name, state = excluded.state, confirmed_at = coalesce(excluded.confirmed_at, dpdp.data_location.confirmed_at);
+    on conflict (id) do update set system_name = excluded.system_name,
+      state = case when dpdp.data_location.state = 'unknown' then excluded.state else dpdp.data_location.state end,   -- never overwrite what another flow recorded
+      confirmed_at = coalesce(dpdp.data_location.confirmed_at, excluded.confirmed_at);
   else
     v_loc := null;
     if i.location_id is not null then
@@ -297,7 +344,7 @@ declare
   v_week date := dpdp.icp_week();
   v_child boolean;
 begin
-  perform public.dpdp__icp_member(p_org_id, false);
+  perform public.dpdp__icp_member(p_org_id, true);
   v_child := dpdp.icp_child_consent_answered(p_org_id);
   return coalesce((
     select jsonb_agg(dpdp.icp_item_json(i, v_week, v_child) order by i.kind, lower(i.name))
@@ -322,12 +369,28 @@ declare
   v_kind text;
   v_name text;
   v_new boolean := false;
+  v_k text;
 begin
   v_m := public.dpdp__icp_member(p_org_id, true);
   if p_item is null or jsonb_typeof(p_item) <> 'object' then
     raise exception 'That is not something the register can record' using errcode = '22023';
   end if;
-  select i2.primary_email into v_label from dpdp.identity i2 where i2.id = v_m.identity_id;
+  v_label := dpdp.icp_actor_label(v_m);
+  foreach v_k in array array['whereHeld', 'holderLabel', 'purpose', 'retentionNote', 'recipients', 'agreementRef'] loop
+    if not dpdp.icp_not_contact(p_item ->> v_k) then
+      raise exception 'That looks like a person''s e-mail address or phone number. The register holds names of things, never a person''s contact' using errcode = '22023';
+    end if;
+  end loop;
+  if (p_item ? 'principalType' and coalesce(p_item ->> 'principalType', '') not in ('', 'student', 'parent_guardian', 'staff', 'applicant', 'alumni', 'client_staff', 'customer', 'visitor', 'other'))
+     or (p_item ? 'lawfulBasis' and coalesce(p_item ->> 'lawfulBasis', '') not in ('', 'consent', 'legitimate_use', 'legal_obligation', 'state_function', 'employment', 'child_exemption', 'not_sure'))
+     or (p_item ? 'sensitivity' and coalesce(p_item ->> 'sensitivity', '') not in ('', 'ordinary', 'elevated', 'high'))
+     or (p_item ? 'agreementStatus' and coalesce(p_item ->> 'agreementStatus', '') not in ('', 'none', 'requested', 'signed')) then
+    raise exception 'Pick one of the choices offered' using errcode = '22023';
+  end if;
+  if p_item ? 'retentionDays' and jsonb_typeof(p_item -> 'retentionDays') = 'number'
+     and ((p_item ->> 'retentionDays')::numeric <> trunc((p_item ->> 'retentionDays')::numeric) or (p_item ->> 'retentionDays')::numeric not between 1 and 36500) then
+    raise exception 'Keep for a whole number of days, between 1 and 36500' using errcode = '22023';
+  end if;
 
   if v_id is null then
     v_new := true;
@@ -361,6 +424,11 @@ begin
     raise exception 'Name the kind of data or the system, not a person: no e-mail address or phone number here' using errcode = '22023';
   end if;
 
+  begin
+  if p_item ? 'name' and not v_new and v_name is not null and exists (
+       select 1 from dpdp.icp_item x where x.org_id = p_org_id and x.kind = i.kind and lower(btrim(x.name)) = lower(v_name) and x.status = 'active' and x.id <> i.id) then
+    raise exception 'That is already in your register' using errcode = 'P0001';
+  end if;
   update dpdp.icp_item set
     name = case when p_item ? 'name' and not v_new then coalesce(nullif(btrim(regexp_replace(p_item ->> 'name', '\s+', ' ', 'g')), ''), name) else name end,
     where_held = case when p_item ? 'whereHeld' then nullif(btrim(p_item ->> 'whereHeld'), '') else where_held end,
@@ -378,6 +446,11 @@ begin
     agreement_on = case when p_item ? 'agreementOn' then nullif(p_item ->> 'agreementOn', '')::date else agreement_on end,
     updated_at = v_now
   where id = i.id;
+  exception
+    when check_violation then raise exception 'One of the answers is not allowed: check the choices and the lengths' using errcode = '22023';
+    when invalid_text_representation or numeric_value_out_of_range or invalid_datetime_format or datetime_field_overflow then raise exception 'Check the date and the numbers' using errcode = '22023';
+    when unique_violation then raise exception 'That is already in your register' using errcode = 'P0001';
+  end;
 
   select x.* into i from dpdp.icp_item x where x.id = i.id;
   -- classified: the five facts a person can answer. Stamped once they are all there, cleared if one is taken away again.
@@ -413,9 +486,15 @@ begin
   if i.id is null then
     raise exception 'Not found in your register' using errcode = 'P0002';
   end if;
-  update dpdp.icp_item set status = 'retired', retired_reason = v_reason, updated_at = (clock_timestamp() at time zone 'UTC') where id = i.id;
+  if not dpdp.icp_not_contact(v_reason) then
+    raise exception 'That looks like a person''s e-mail address or phone number. Leave it out' using errcode = '22023';
+  end if;
+  -- a retired line keeps only its name, its kind and the reason: the free-text answers are cleared so nothing typed there outlives the line
+  update dpdp.icp_item set status = 'retired', retired_reason = v_reason, updated_at = (clock_timestamp() at time zone 'UTC'),
+         where_held = null, holder_label = null, purpose = null, recipients = null, retention_note = null, agreement_ref = null
+   where id = i.id;
   perform dpdp.icp_mirror(i.id);
-  select i2.primary_email into v_label from dpdp.identity i2 where i2.id = v_m.identity_id;
+  v_label := dpdp.icp_actor_label(v_m);
   perform public.dpdp__append_event(p_org_id, v_m.identity_id, v_label, 'icp_item_retired', 'Took a ' || replace(i.kind, '_', ' ') || ' off the register');
   return jsonb_build_object('ok', true);
 end
@@ -442,7 +521,7 @@ begin
     perform dpdp.icp_mirror(r.id);
   end loop;
   if v_n > 0 then
-    select i2.primary_email into v_label from dpdp.identity i2 where i2.id = v_m.identity_id;
+    v_label := dpdp.icp_actor_label(v_m);
     perform public.dpdp__append_event(p_org_id, v_m.identity_id, v_label, 'icp_register_confirmed', 'Confirmed ' || v_n || ' register line(s) as still true this week');
   end if;
   return jsonb_build_object('ok', true, 'confirmed', v_n);
@@ -480,7 +559,7 @@ begin
     end if;
   end loop;
   if v_n > 0 then
-    select i2.primary_email into v_label from dpdp.identity i2 where i2.id = v_m.identity_id;
+    v_label := dpdp.icp_actor_label(v_m);
     perform public.dpdp__append_event(p_org_id, v_m.identity_id, v_label, 'icp_register_started', 'Started the register from the library: ' || v_n || ' data set(s)');
   end if;
   return jsonb_build_object('ok', true, 'added', v_n);
@@ -492,7 +571,7 @@ $$;
 -- ---------------------------------------------------------------------
 create or replace function dpdp.icp_children_job_keys()
 returns text[] language sql immutable set search_path = '' as $$
-  select array['institution-11', 'institution-12', 'institution-13', 'institution-21', 'institution-25', 'institution-27']
+  select array['institution-07', 'institution-08', 'institution-11', 'institution-12', 'institution-13', 'institution-21', 'institution-22', 'institution-25', 'institution-27']
 $$;
 revoke all on function dpdp.icp_children_job_keys() from public, anon, authenticated;
 
@@ -510,14 +589,17 @@ begin
   if not exists (select 1 from dpdp.icp_item x where x.org_id = p_org_id and x.status = 'active' and x.children is true and x.kind in ('data_set', 'person_group')) then
     return jsonb_build_object('ok', true, 'reopened', 0);
   end if;
-  update dpdp.obligation ob set state = 'open', na_reason = null
-   from dpdp.obligation_template t
-   where ob.org_id = p_org_id and t.id = ob.template_id and t.key = any (dpdp.icp_children_job_keys()) and ob.state = 'not_applicable';
-  get diagnostics v_n = row_count;
+  select count(*) into v_n from dpdp.obligation ob join dpdp.obligation_template t on t.id = ob.template_id
+   where ob.org_id = p_org_id and t.key = any (dpdp.icp_children_job_keys()) and ob.state = 'not_applicable';
   if v_n > 0 then
-    select i2.primary_email into v_label from dpdp.identity i2 where i2.id = v_m.identity_id;
+    -- the event (and with it the History lock) first, then the job rows: no row lock is held while waiting for the lock
+    v_label := dpdp.icp_actor_label(v_m);
     perform public.dpdp__append_event(p_org_id, v_m.identity_id, v_label, 'icp_jobs_switched_on',
       'Switched ' || v_n || ' children''s-data job(s) back on, because the register lists children''s data');
+    update dpdp.obligation ob set state = 'open', na_reason = null
+     from dpdp.obligation_template t
+     where ob.org_id = p_org_id and t.id = ob.template_id and t.key = any (dpdp.icp_children_job_keys()) and ob.state = 'not_applicable';
+    get diagnostics v_n = row_count;
   end if;
   return jsonb_build_object('ok', true, 'reopened', v_n);
 end
@@ -551,7 +633,7 @@ begin
   select count(*) into v_active from dpdp.icp_item where org_id = p_org_id and status = 'active';
   select count(*) into v_unconfirmed from dpdp.icp_item where org_id = p_org_id and status = 'active' and coalesce(last_confirmed_week, '1900-01-01') < p_week and first_seen_week < p_week;
   select count(*) into v_new from dpdp.icp_item where org_id = p_org_id and first_seen_week = p_week and status = 'active';
-  select exists (select 1 from dpdp.icp_run r where r.org_id = p_org_id and r.week_start = p_week and r.stage = 'identify' and r.outcome = 'ok') into v_logged;
+  select exists (select 1 from dpdp.icp_run r where r.org_id = p_org_id and r.week_start = p_week and r.stage = 'identify' and r.outcome = 'skipped' and r.by_kind = 'person') into v_logged;   -- 'skipped' = nothing new this week
   return dpdp.icp_section(array[
     dpdp.icp_step('register_started', 'Start your register: list what you hold, where, and who holds it', v_active > 0, v_active, 'register'),
     dpdp.icp_step('confirm_register', 'Check each line of your register is still true', v_active > 0 and v_unconfirmed = 0, v_unconfirmed, 'register'),
@@ -598,7 +680,7 @@ declare
   v_events integer;
   v_signed boolean;
 begin
-  select count(*) into v_late from dpdp.obligation ob where ob.org_id = p_org_id and ob.state not in ('closed', 'not_applicable') and ob.due_on < (clock_timestamp() at time zone 'UTC')::date;
+  select count(*) into v_late from dpdp.obligation ob where ob.org_id = p_org_id and ob.state not in ('closed', 'submitted', 'not_applicable') and ob.due_on < (clock_timestamp() at time zone 'UTC')::date;
   select count(*) into v_events from dpdp.event e where e.org_id = p_org_id and e.occurred_at >= p_week::timestamp;
   select exists (select 1 from dpdp.icp_run r where r.org_id = p_org_id and r.week_start = p_week and r.stage = 'prove' and r.by_kind = 'person' and r.outcome = 'ok') into v_signed;
   return dpdp.icp_section(array[
@@ -646,7 +728,7 @@ declare
   v_week date := dpdp.icp_week();
   v_out jsonb;
 begin
-  perform public.dpdp__icp_member(p_org_id, false);
+  perform public.dpdp__icp_member(p_org_id, true);
   v_out := dpdp.icp_status_for(p_org_id, v_week);
   return v_out || jsonb_build_object(
     'runs', coalesce((
@@ -655,8 +737,9 @@ begin
 end
 $$;
 
--- A person's sign-off of one stage, or the Monday job (service role) recording what it counted. The snapshot is the counts at that moment.
-create or replace function public.dpdp_icp_log(p_org_id text, p_stage text, p_outcome text default 'ok', p_note text default null, p_by text default 'person')
+-- A person's sign-off of one stage. The snapshot is the counts at that moment. outcome 'ok' = signed off; 'skipped' = "nothing new this week" (Identify) or
+-- "nothing to attach this week" (Prove); only those two tick a checklist step of their own, a plain sign-off never ticks another step.
+create or replace function public.dpdp_icp_log(p_org_id text, p_stage text, p_outcome text default 'ok', p_note text default null)
 returns jsonb
 language plpgsql security definer
 set search_path = ''
@@ -664,31 +747,44 @@ as $$
 declare
   v_m dpdp.membership;
   v_label text;
-  v_role text := coalesce(current_setting('request.jwt.claim.role', true), '');
+  v_note text := nullif(btrim(coalesce(p_note, '')), '');
+  v_week date := dpdp.icp_week();
+  v_id text;
+begin
+  v_m := public.dpdp__icp_member(p_org_id, true);   -- an organisation that is not yours is "not found", the same answer as one that does not exist
+  if p_stage not in ('identify', 'classify', 'prove') then raise exception 'Unknown stage' using errcode = '22023'; end if;
+  if p_outcome not in ('ok', 'partial', 'skipped') then raise exception 'Unknown outcome' using errcode = '22023'; end if;
+  if char_length(v_note) > 300 then raise exception 'A note can be 300 characters at most' using errcode = '22023'; end if;
+  if not dpdp.icp_not_contact(v_note) then raise exception 'Leave out e-mail addresses and phone numbers' using errcode = '22023'; end if;
+  v_label := dpdp.icp_actor_label(v_m);
+  insert into dpdp.icp_run (org_id, stage, week_start, by_kind, actor_label, actor_identity_id, outcome, note, snapshot)
+  values (p_org_id, p_stage, v_week, 'person', v_label, v_m.identity_id, p_outcome, v_note, dpdp.icp_status_for(p_org_id, v_week) - 'notALegalRating')
+  returning id into v_id;
+  perform public.dpdp__append_event(p_org_id, v_m.identity_id, v_label, 'icp_stage_signed_off',
+    case when p_outcome = 'skipped' then (case p_stage when 'identify' then 'Recorded: nothing new this week' else 'Recorded: nothing to attach this week' end)
+         else (case p_stage when 'identify' then 'Signed off Identify for the week' when 'classify' then 'Signed off Classify for the week' else 'Signed off Prove for the week' end) end);
+  return jsonb_build_object('ok', true, 'id', v_id, 'weekStart', to_char(v_week, 'YYYY-MM-DD'));
+end
+$$;
+
+-- The Monday job (service role ONLY, by grant) recording what it counted for one organisation. Never callable from a browser.
+create or replace function public.dpdp_icp_run_software(p_org_id text, p_stage text, p_outcome text default 'ok', p_note text default null)
+returns jsonb
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
   v_note text := nullif(btrim(coalesce(p_note, '')), '');
   v_week date := dpdp.icp_week();
   v_id text;
 begin
   if p_stage not in ('identify', 'classify', 'prove') then raise exception 'Unknown stage' using errcode = '22023'; end if;
   if p_outcome not in ('ok', 'partial', 'failed', 'skipped') then raise exception 'Unknown outcome' using errcode = '22023'; end if;
-  if p_by not in ('person', 'software') then raise exception 'Unknown kind' using errcode = '22023'; end if;
-  if char_length(v_note) > 300 then raise exception 'A note can be 300 characters at most' using errcode = '22023'; end if;
+  if char_length(v_note) > 300 or not dpdp.icp_not_contact(v_note) then raise exception 'Check the note' using errcode = '22023'; end if;
   if not exists (select 1 from dpdp.organisation o where o.id = p_org_id) then raise exception 'Organisation not found' using errcode = 'P0002'; end if;
-  if p_by = 'person' then
-    v_m := public.dpdp__icp_member(p_org_id, true);
-    select i2.primary_email into v_label from dpdp.identity i2 where i2.id = v_m.identity_id;
-  elsif v_role <> 'service_role' then
-    raise exception 'Only the automatic helper can record its own runs' using errcode = '42501';
-  else
-    v_label := 'Automatic helper';
-  end if;
   insert into dpdp.icp_run (org_id, stage, week_start, by_kind, actor_label, outcome, note, snapshot)
-  values (p_org_id, p_stage, v_week, p_by, v_label, p_outcome, v_note, dpdp.icp_status_for(p_org_id, v_week) - 'notALegalRating')
+  values (p_org_id, p_stage, v_week, 'software', 'Automatic helper', p_outcome, v_note, dpdp.icp_status_for(p_org_id, v_week) - 'notALegalRating')
   returning id into v_id;
-  if p_by = 'person' then
-    perform public.dpdp__append_event(p_org_id, v_m.identity_id, v_label, 'icp_stage_signed_off',
-      case p_stage when 'identify' then 'Signed off Identify for the week' when 'classify' then 'Signed off Classify for the week' else 'Signed off Prove for the week' end);
-  end if;
   return jsonb_build_object('ok', true, 'id', v_id, 'weekStart', to_char(v_week, 'YYYY-MM-DD'));
 end
 $$;
@@ -700,7 +796,8 @@ revoke all on function public.dpdp_icp_confirm_items(text, text[]) from public, 
 revoke all on function public.dpdp_icp_starter(text) from public, anon;
 revoke all on function public.dpdp_icp_apply_rules(text) from public, anon;
 revoke all on function public.dpdp_icp_status(text) from public, anon;
-revoke all on function public.dpdp_icp_log(text, text, text, text, text) from public, anon;
+revoke all on function public.dpdp_icp_log(text, text, text, text) from public, anon;
+revoke all on function public.dpdp_icp_run_software(text, text, text, text) from public, anon, authenticated;
 grant execute on function public.dpdp_icp_register(text) to authenticated, app_runtime, service_role;
 grant execute on function public.dpdp_icp_save_item(text, jsonb) to authenticated, app_runtime, service_role;
 grant execute on function public.dpdp_icp_retire_item(text, text, text) to authenticated, app_runtime, service_role;
@@ -708,6 +805,7 @@ grant execute on function public.dpdp_icp_confirm_items(text, text[]) to authent
 grant execute on function public.dpdp_icp_starter(text) to authenticated, app_runtime, service_role;
 grant execute on function public.dpdp_icp_apply_rules(text) to authenticated, app_runtime, service_role;
 grant execute on function public.dpdp_icp_status(text) to authenticated, app_runtime, service_role;
-grant execute on function public.dpdp_icp_log(text, text, text, text, text) to authenticated, app_runtime, service_role;
+grant execute on function public.dpdp_icp_log(text, text, text, text) to authenticated, app_runtime, service_role;
+grant execute on function public.dpdp_icp_run_software(text, text, text, text) to service_role;
 
 commit;

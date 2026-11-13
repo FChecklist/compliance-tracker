@@ -2,6 +2,7 @@ import "./onepage/dpdp-onepage-tokens.css"
 import { useCallback, useEffect, useState } from "react"
 import { applyIcpRules, confirmIcpItems, fetchIcpRegister, fetchIcpStatus, retireIcpItem, saveIcpItem, signOffIcpStage, startIcpRegister } from "@/lib/api"
 import type { DpdpClient } from "@/lib/client"
+import { ProvePanel } from "./ProvePanel"
 import {
   AGREEMENT_LABEL, BASIS_LABEL, KIND_LABEL, KIND_LABEL_PLURAL, PRINCIPAL_LABEL, SENSITIVITY_LABEL, STAGES, STAGE_INFO, STATUS_WORD,
   looksLikePerson, retentionLine, weekLine,
@@ -33,7 +34,16 @@ export function IcpWeek({ client, orgId, offline, canEdit, onChanged }: { client
       setProblem(e instanceof Error ? e.message : "We could not read your weekly routine just now. Try again in a moment.")
     }
   }, [client, orgId])
-  useEffect(() => { void load() }, [load])
+  // Initial load: state is set inline in the callbacks (the react-hooks set-state-in-effect rule flags an effect that only calls a local function that sets state);
+  // `load` above is for event handlers only.
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchIcpStatus(client, orgId), fetchIcpRegister(client, orgId)]).then(
+      ([s, r]) => { if (!cancelled) { setStatus(s); setItems(r); setProblem(null) } },
+      (e) => { if (!cancelled) setProblem(e instanceof Error ? e.message : "We could not read your weekly routine just now. Try again in a moment.") },
+    )
+    return () => { cancelled = true }
+  }, [client, orgId])
 
   async function run(what: () => Promise<string | void>) {
     setBusy(true); setProblem(null); setNote(null)
@@ -46,7 +56,7 @@ export function IcpWeek({ client, orgId, offline, canEdit, onChanged }: { client
         <section className="rounded-[22px] border p-6" style={card} aria-labelledby="icp-h">
           <h2 id="icp-h" style={{ fontFamily: "Sora, sans-serif", fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "var(--dpdp-ink)" }}>This week: Identify, Classify, Prove</h2>
           <p style={{ fontSize: 14, color: "var(--dpdp-ink2)", margin: "0 0 12px", maxWidth: "76ch" }}>
-            Three short steps, once a week. Know what you hold, sort it, and keep the records that show it. Your Monday e-mail brings you here.
+            Three short steps, once a week. Know what you hold, sort it, and keep the records that show it.
           </p>
           {status && (
             <p data-testid="icp-score" style={{ fontSize: 15, margin: "0 0 14px", color: "var(--dpdp-ink)" }}>
@@ -60,7 +70,7 @@ export function IcpWeek({ client, orgId, offline, canEdit, onChanged }: { client
 
           <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
             {STAGES.map((id, n) => (
-              <StageCard key={id} id={id} index={n + 1} section={status ? status[id] : null} canEdit={canEdit} busy={busy}
+              <StageCard key={id} id={id} index={n + 1} section={status ? status[id] : null} canEdit={canEdit} busy={busy || offline}
                 onSignOff={() => run(async () => { await signOffIcpStage(client, orgId, id); return `${STAGE_INFO[id].name} signed off for this week.` })}
                 onRules={() => run(async () => { const n2 = await applyIcpRules(client, orgId); return n2 ? `${n2} children's-data job(s) switched back on.` : "Nothing needed switching." })}
               />
@@ -68,14 +78,16 @@ export function IcpWeek({ client, orgId, offline, canEdit, onChanged }: { client
           </div>
 
           <Register
-            items={items} canEdit={canEdit} busy={busy} editing={editing} setEditing={setEditing}
+            items={items} canEdit={canEdit} busy={busy || offline} editing={editing} setEditing={setEditing}
             onStart={() => run(async () => { const n = await startIcpRegister(client, orgId); return n ? `${n} data set(s) added from the library. Now classify them.` : "Nothing new to add from the library." })}
             onConfirmAll={() => run(async () => { const n = await confirmIcpItems(client, orgId); return `${n} line(s) confirmed as still true this week.` })}
-            onNothingNew={() => run(async () => { await signOffIcpStage(client, orgId, "identify", "Nothing new this week"); return "Recorded: nothing new this week." })}
+            onNothingNew={() => run(async () => { await signOffIcpStage(client, orgId, "identify", "Nothing new this week", "skipped"); return "Recorded: nothing new this week." })}
             onAdd={(input) => run(async () => { await saveIcpItem(client, orgId, input); return "Added to your register." })}
             onSave={(input) => run(async () => { await saveIcpItem(client, orgId, input); setEditing(null); return "Saved." })}
             onRetire={(id, reason) => run(async () => { await retireIcpItem(client, orgId, id, reason); return "Taken off your register." })}
           />
+
+          {canEdit && <ProvePanel key={orgId} client={client} orgId={orgId} offline={offline} onChanged={load} />}
         </section>
       </div>
     </div>
@@ -111,6 +123,7 @@ function Register(p: {
   const [kind, setKind] = useState<IcpKind>("data_set")
   const [name, setName] = useState("")
   const [where, setWhere] = useState("")
+  const [retiring, setRetiring] = useState<{ id: string; reason: string } | null>(null)
   const bad = name.trim() !== "" && looksLikePerson(name)
   const kinds = (["data_set", "system", "vendor", "person_group"] as IcpKind[]).filter((k) => p.items.some((i) => i.kind === k))
   return (
@@ -148,7 +161,13 @@ function Register(p: {
                 {p.canEdit && (
                   <div className="flex gap-2 mt-2">
                     <button type="button" className="rounded-lg" style={ghost} onClick={() => p.setEditing(p.editing === i.id ? null : i.id)} aria-expanded={p.editing === i.id}>{p.editing === i.id ? "Close" : "Classify or change"}</button>
-                    <button type="button" className="rounded-lg" style={ghost} disabled={p.busy} onClick={() => { const r = window.prompt(`Why is "${i.name}" no longer held? (a few words)`); if (r && r.trim()) p.onRetire(i.id, r.trim()) }}>No longer held</button>
+                    <button type="button" className="rounded-lg" style={ghost} disabled={p.busy} aria-expanded={retiring?.id === i.id} onClick={() => setRetiring(retiring?.id === i.id ? null : { id: i.id, reason: "" })}>No longer held</button>
+                  </div>
+                )}
+                {retiring?.id === i.id && p.canEdit && (
+                  <div role="group" aria-label={`Take ${i.name} off the register`} className="flex gap-2 flex-wrap mt-2 items-end" style={{ fontSize: 13 }}>
+                    <label>Why is it no longer held? (a few words, no names)<br /><input style={{ ...field, width: 280 }} maxLength={200} value={retiring.reason} onChange={(e) => setRetiring({ id: i.id, reason: e.target.value })} /></label>
+                    <button type="button" className="rounded-lg" style={ghost} disabled={p.busy || retiring.reason.trim().length < 3 || looksLikePerson(retiring.reason)} onClick={() => { p.onRetire(i.id, retiring.reason.trim()); setRetiring(null) }}>Take it off</button>
                   </div>
                 )}
                 {p.editing === i.id && p.canEdit && <Editor item={i} busy={p.busy} onSave={p.onSave} />}
@@ -183,9 +202,10 @@ function Editor({ item, busy, onSave }: { item: IcpItem; busy: boolean; onSave: 
   const [agree, setAgree] = useState<AgreementStatus | "">(item.agreementStatus ?? "")
   const [aref, setAref] = useState(item.agreementRef ?? "")
   const [whereHeld, setWhere] = useState(item.whereHeld ?? "")
+  const [holder, setHolder] = useState(item.holderLabel ?? "")
   const personal = item.kind === "data_set" || item.kind === "person_group"
   const save = () => onSave({
-    id: item.id, whereHeld: whereHeld || null,
+    id: item.id, whereHeld: whereHeld || null, holderLabel: holder || null,
     ...(personal ? {
       principalType: (principalType || null) as PrincipalType | null, children: children === "" ? null : children === "yes", purpose: purpose || null,
       lawfulBasis: (basis || null) as LawfulBasis | null, sensitivity: (tier || null) as Sensitivity | null,
@@ -196,13 +216,14 @@ function Editor({ item, busy, onSave }: { item: IcpItem; busy: boolean; onSave: 
   return (
     <div role="group" aria-label={`Classify ${item.name}`} className="grid gap-3 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", fontSize: 13 }}>
       <label>Where it is kept<br /><input style={field} value={whereHeld} maxLength={160} onChange={(e) => setWhere(e.target.value)} /></label>
+      <label>Who looks after it? (a role, not a name)<br /><input style={field} value={holder} maxLength={120} onChange={(e) => setHolder(e.target.value)} placeholder="e.g. Admissions office" /></label>
       {personal && <>
         <label>Whose data is it?<br /><select style={field} value={principalType} onChange={(e) => setPrincipal(e.target.value as PrincipalType | "")}><option value="">Choose…</option>{(Object.keys(PRINCIPAL_LABEL) as PrincipalType[]).map((k) => <option key={k} value={k}>{PRINCIPAL_LABEL[k]}</option>)}</select></label>
         <label>Is it children&apos;s data (under 18)?<br /><select style={field} value={children} onChange={(e) => setChildren(e.target.value as "" | "yes" | "no")}><option value="">Choose…</option><option value="yes">Yes, children</option><option value="no">No, adults only</option></select></label>
         <label>Why do you hold it?<br /><input style={field} value={purpose} maxLength={200} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Admission and teaching" /></label>
         <label>On what basis?<br /><select style={field} value={basis} onChange={(e) => setBasis(e.target.value as LawfulBasis | "")}><option value="">Choose…</option>{(Object.keys(BASIS_LABEL) as LawfulBasis[]).map((k) => <option key={k} value={k}>{BASIS_LABEL[k]}</option>)}</select></label>
         <label>How much care does it need?<br /><select style={field} value={tier} onChange={(e) => setTier(e.target.value as Sensitivity | "")}><option value="">Choose…</option>{(Object.keys(SENSITIVITY_LABEL) as Sensitivity[]).map((k) => <option key={k} value={k}>{SENSITIVITY_LABEL[k]}</option>)}</select></label>
-        <label>How long do you keep it?<br /><select style={field} value={days} onChange={(e) => setDays(e.target.value)}><option value="">Another period (write it)</option>{RETENTION.map((r) => <option key={r.days} value={r.days}>{r.label}</option>)}</select></label>
+        <label>How long do you keep it?<br /><select style={field} value={days} onChange={(e) => setDays(e.target.value)}><option value="">Another period (write it)</option>{RETENTION.map((r) => <option key={r.days} value={r.days}>{r.label}</option>)}{item.retentionDays && !RETENTION.some((r) => r.days === item.retentionDays) ? <option value={item.retentionDays}>{retentionLine(item)}</option> : null}</select></label>
         {!days && <label>Keep until…<br /><input style={field} value={rnote} maxLength={160} onChange={(e) => setRnote(e.target.value)} placeholder="e.g. Until the student leaves, then 3 years" /></label>}
         <label>Who else receives it?<br /><input style={field} value={recipients} maxLength={200} onChange={(e) => setRecipients(e.target.value)} placeholder="e.g. Board, bank" /></label>
       </>}

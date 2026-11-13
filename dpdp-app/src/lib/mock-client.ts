@@ -1298,7 +1298,7 @@ export function createMockClient(scenario?: string): DpdpClient {
               eventsThisWeek: org.history.filter((h) => Date.parse(h.occurredAt) >= weekStart).length,
               log: (k, summary) => log(org, k, summary),
             }
-            const res = icpRpc(host, fn, args, kind !== "staff")
+            const res = icpRpc(host, fn, args, !["staff", "parent"].includes(kind))
             org.icp = host.icp
             save(state)
             if (res) return res

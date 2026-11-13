@@ -2,8 +2,9 @@
 // and the browser tests behave the way the live ones do. Nothing here is used against a real database. Rules are shared with the e-mail and the unit
 // tests through icp.ts (itemFlags); the SQL has a parity test in src/lib/services/dpdp-icp-identify-classify.pglite.test.ts.
 import { addDaysISO, FLAG_TEXT, itemFlags, isClassified, looksLikePerson, mondayOf, type IcpItem, type IcpItemInput, type IcpKind, type IcpRunWire, type IcpSection, type IcpStage, type IcpStatus, type IcpStep } from "./icp"
+import { proveCounts, proveRpc, type ProveMockState } from "./icp-prove-mock"
 
-export type IcpMockState = { items: IcpItem[]; runs: IcpRunWire[]; childConsentAnswered: boolean }
+export type IcpMockState = { items: IcpItem[]; runs: IcpRunWire[]; childConsentAnswered: boolean; prove?: ProveMockState }
 export type IcpMockRow = { libIndex: number; part: number; dataSet: string; na: boolean; yes: boolean; due: string }
 export type IcpMockHost = {
   product: "firm" | "institution"; rows: IcpMockRow[]; icp?: IcpMockState
@@ -15,8 +16,8 @@ type Result = { data: unknown; error: null } | { data: null; error: { message: s
 const ok = (data: unknown): Result => ({ data, error: null })
 const fail = (message: string, code?: string): Result => ({ data: null, error: { message, code } })
 
-/** institution-11, 12, 13, 21, 25, 27: the children's-data jobs (dpdp.icp_children_job_keys()). */
-export const CHILDREN_JOB_INDEXES = [11, 12, 13, 21, 25, 27]
+/** institution-07, 08, 11, 12, 13, 21, 22, 25, 27: the children's-data jobs (dpdp.icp_children_job_keys()). */
+export const CHILDREN_JOB_INDEXES = [7, 8, 11, 12, 13, 21, 22, 25, 27]
 
 const step = (key: string, label: string, done: boolean, count: number | null, action: string | null): IcpStep => ({ key, label, done, count, action })
 const section = (steps: IcpStep[]): IcpSection => ({ done: steps.filter((s) => s.done).length, total: steps.length, steps })
@@ -30,7 +31,7 @@ export function icpStatus(host: IcpMockHost, now = new Date()): IcpStatus {
   const active = st.items.filter((i) => i.status === "active")
   const unconfirmed = active.filter((i) => (i.lastConfirmedWeek ?? "1900-01-01") < week && i.firstSeenWeek < week).length
   const newThisWeek = active.filter((i) => i.firstSeenWeek === week).length
-  const logged = st.runs.some((r) => r.weekStart === week && r.stage === "identify" && r.outcome === "ok")
+  const logged = st.runs.some((r) => r.weekStart === week && r.stage === "identify" && r.outcome === "skipped" && r.byKind === "person")
   const identify = section([
     step("register_started", "Start your register: list what you hold, where, and who holds it", active.length > 0, active.length, "register"),
     step("confirm_register", "Check each line of your register is still true", active.length > 0 && unconfirmed === 0, unconfirmed, "register"),
@@ -51,13 +52,15 @@ export function icpStatus(host: IcpMockHost, now = new Date()): IcpStatus {
     step("vendor_rules", "Outside helpers: an agreement on record for each", vendorFlags === 0, vendorFlags, "register"),
     step("jobs_follow_register", "Children's-data jobs switched on where the register lists children", jobsOff === 0, jobsOff, "rules"),
   ])
-  const today = now.toISOString().slice(0, 10)
-  const late = host.rows.filter((r) => !r.na && !r.yes && r.due.slice(0, 10) < today).length
-  const signed = st.runs.some((r) => r.weekStart === week && r.stage === "prove" && r.byKind === "person" && r.outcome === "ok")
+  const c = proveCounts(host, now)
   const prove = section([
-    step("jobs_not_late", "No job is late", late === 0, late, "jobs"),
-    step("history_written", "This week's work is on the record (History)", host.eventsThisWeek > 0, host.eventsThisWeek, "history"),
-    step("week_signed_off", "A person signs off the week", signed, null, "signoff"),
+    step("jobs_not_late", "No job is late", c.jobsLate === 0, c.jobsLate, "jobs"),
+    step("evidence_this_week", "Attach this week's records (or say there is nothing to attach)", c.evidenceThisWeek > 0 || c.nothingToAttach, c.evidenceThisWeek, "evidence"),
+    step("agreements_on_record", "Each signed agreement with an outside helper has its record attached", c.agreementsWithoutEvidence === 0, c.agreementsWithoutEvidence, "evidence"),
+    step("breach_clocks", "No open breach is past its 72-hour report to the Board", c.breachesPastClock === 0, c.breachesPastClock, "breach"),
+    step("requests_on_time", "No request or grievance is past its due date", c.requestsPastDue === 0, c.requestsPastDue, "requests"),
+    step("erasures_on_time", "No erasure is past its due date", c.erasuresPastDue === 0, c.erasuresPastDue, "erasure"),
+    step("week_signed_off", "A person signs off the week", c.signed, null, "signoff"),
   ])
   const done = identify.done + classify.done + prove.done
   const total = identify.total + classify.total + prove.total
@@ -76,8 +79,8 @@ export function icpRpc(host: IcpMockHost, fn: string, args: Record<string, unkno
   if (!fn.startsWith("dpdp_icp_")) return null
   const st = state(host)
   const week = mondayOf(now)
-  const needWrite = fn !== "dpdp_icp_register" && fn !== "dpdp_icp_status"
-  if (needWrite && !canWrite) return fail("Only the people who see the whole organisation can change this", "42501")
+  // every ICP function is for the people who see the whole organisation (a staff member sees only their own jobs)
+  if (!canWrite) return fail("Only the people who see the whole organisation can change this", "42501")
   switch (fn) {
     case "dpdp_icp_status": return ok(icpStatus(host, now))
     case "dpdp_icp_register": return ok(st.items.filter((i) => i.status === "active").map((i) => withFlags(host, i, week)).sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name)))
@@ -107,6 +110,13 @@ export function icpRpc(host: IcpMockHost, fn: string, args: Record<string, unkno
         }
       }
       const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null)
+      for (const k of ["whereHeld", "holderLabel", "purpose", "retentionNote", "recipients", "agreementRef"]) {
+        const v = (p as Record<string, unknown>)[k]
+        if (typeof v === "string" && looksLikePerson(v)) return fail("That looks like a person's e-mail address or phone number. The register holds names of things, never a person's contact", "22023")
+      }
+      if (("lawfulBasis" in p && p.lawfulBasis && !["consent", "legitimate_use", "legal_obligation", "state_function", "employment", "child_exemption", "not_sure"].includes(String(p.lawfulBasis)))
+        || ("principalType" in p && p.principalType && !["student", "parent_guardian", "staff", "applicant", "alumni", "client_staff", "customer", "visitor", "other"].includes(String(p.principalType)))) return fail("Pick one of the choices offered", "22023")
+      if ("retentionDays" in p && typeof p.retentionDays === "number" && (!Number.isInteger(p.retentionDays) || p.retentionDays < 1 || p.retentionDays > 36500)) return fail("Keep for a whole number of days, between 1 and 36500", "22023")
       if ("whereHeld" in p) item.whereHeld = text(p.whereHeld)
       if ("holderLabel" in p) item.holderLabel = text(p.holderLabel)
       if ("principalType" in p) item.principalType = (text(p.principalType) as IcpItem["principalType"]) ?? null
@@ -129,7 +139,9 @@ export function icpRpc(host: IcpMockHost, fn: string, args: Record<string, unkno
       if (!reason || reason.length > 200) return fail("Say in a few words why it is no longer held (up to 200 characters)", "22023")
       const item = st.items.find((x) => x.id === args?.p_item_id && x.status === "active")
       if (!item) return fail("Not found in your register", "P0002")
+      if (looksLikePerson(reason)) return fail("That looks like a person's e-mail address or phone number. Leave it out", "22023")
       item.status = "retired"
+      item.whereHeld = null; item.holderLabel = null; item.purpose = null; item.recipients = null; item.retentionNote = null; item.agreementRef = null
       host.log("icp_item_retired", `Took a ${item.kind.replace("_", " ")} off the register`)
       return ok({ ok: true })
     }
@@ -166,10 +178,14 @@ export function icpRpc(host: IcpMockHost, fn: string, args: Record<string, unkno
     case "dpdp_icp_log": {
       const stage = args?.p_stage as IcpStage
       if (!["identify", "classify", "prove"].includes(stage)) return fail("Unknown stage", "22023")
-      st.runs.push({ stage, weekStart: week, ranAt: now.toISOString(), byKind: "person", actor: "You", outcome: "ok", note: typeof args?.p_note === "string" ? args.p_note : null, percent: icpStatus(host, now).percent })
-      host.log("icp_stage_signed_off", `Signed off ${stage[0].toUpperCase()}${stage.slice(1)} for the week`)
+      const outcome = (args?.p_outcome ?? "ok") as IcpRunWire["outcome"]
+      if (!["ok", "partial", "skipped"].includes(outcome)) return fail("Unknown outcome", "22023")
+      const note = typeof args?.p_note === "string" && args.p_note.trim() ? args.p_note.trim() : null
+      if (note && (note.length > 300 || looksLikePerson(note))) return fail("Leave out e-mail addresses and phone numbers", "22023")
+      st.runs.push({ stage, weekStart: week, ranAt: now.toISOString(), byKind: "person", actor: "Owner", outcome, note, percent: icpStatus(host, now).percent })
+      host.log("icp_stage_signed_off", outcome === "skipped" ? (stage === "identify" ? "Recorded: nothing new this week" : "Recorded: nothing to attach this week") : `Signed off ${stage[0].toUpperCase()}${stage.slice(1)} for the week`)
       return ok({ ok: true, weekStart: week })
     }
-    default: return null
+    default: return proveRpc(host, fn, args, canWrite, now)
   }
 }

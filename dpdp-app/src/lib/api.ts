@@ -1,4 +1,5 @@
 import type { IcpItem, IcpItemInput, IcpStage, IcpStatus } from "@/lib/icp"
+import type { BreachInput, BreachUpdate, ErasureInput, EvidenceInput, EvidencePack, ProveOverview, RequestInput, RequestOutcome } from "@/lib/icp-prove"
 import type { GroupAnswerKind, ObligationRow, ViewerContext } from "@/lib/dpdp-onepage/view-model"
 import type { DpdpClient, RpcError } from "./client"
 import type {
@@ -151,9 +152,60 @@ export async function applyIcpRules(client: DpdpClient, orgId: string): Promise<
   if (error) throw new RpcFailure(error)
   return (data as { reopened: number }).reopened
 }
-export async function signOffIcpStage(client: DpdpClient, orgId: string, stage: IcpStage, note?: string): Promise<void> {
-  const { error } = await client.rpc("dpdp_icp_log", { p_org_id: orgId, p_stage: stage, p_outcome: "ok", p_note: note ?? null, p_by: "person" })
+/** outcome "ok" signs the stage off; "skipped" records "nothing new this week" (Identify) or "nothing to attach this week" (Prove). */
+export async function signOffIcpStage(client: DpdpClient, orgId: string, stage: IcpStage, note?: string, outcome: "ok" | "skipped" = "ok"): Promise<void> {
+  const { error } = await client.rpc("dpdp_icp_log", { p_org_id: orgId, p_stage: stage, p_outcome: outcome, p_note: note ?? null })
   if (error) throw new RpcFailure(error)
+}
+
+// ---------------------------------------------------------------------
+// PROVE (drizzle/0762): evidence, breaches, requests and grievances, erasures, the evidence pack.
+// ---------------------------------------------------------------------
+export async function fetchProveOverview(client: DpdpClient, orgId: string): Promise<ProveOverview> {
+  const { data, error } = await client.rpc("dpdp_icp_prove_overview", { p_org_id: orgId })
+  if (error) throw new RpcFailure(error)
+  return data as ProveOverview
+}
+export async function addEvidence(client: DpdpClient, orgId: string, input: EvidenceInput): Promise<string> {
+  const { data, error } = await client.rpc("dpdp_icp_evidence_add", { p_org_id: orgId, p: input })
+  if (error) throw new RpcFailure(error)
+  return (data as { id: string }).id
+}
+export async function withdrawEvidence(client: DpdpClient, orgId: string, evidenceId: string, reason: string): Promise<void> {
+  const { error } = await client.rpc("dpdp_icp_evidence_withdraw", { p_org_id: orgId, p_evidence_id: evidenceId, p_reason: reason })
+  if (error) throw new RpcFailure(error)
+}
+export async function logBreach(client: DpdpClient, orgId: string, input: BreachInput): Promise<string> {
+  const { data, error } = await client.rpc("dpdp_icp_breach_log", { p_org_id: orgId, p: input })
+  if (error) throw new RpcFailure(error)
+  return (data as { id: string }).id
+}
+export async function updateBreach(client: DpdpClient, orgId: string, breachId: string, input: BreachUpdate): Promise<void> {
+  const { error } = await client.rpc("dpdp_icp_breach_update", { p_org_id: orgId, p_breach_id: breachId, p: input })
+  if (error) throw new RpcFailure(error)
+}
+export async function logRequest(client: DpdpClient, orgId: string, input: RequestInput): Promise<{ ref: string; dueOn: string }> {
+  const { data, error } = await client.rpc("dpdp_icp_request_log", { p_org_id: orgId, p: input })
+  if (error) throw new RpcFailure(error)
+  return data as { ref: string; dueOn: string }
+}
+export async function closeRequest(client: DpdpClient, orgId: string, ref: string, outcome: RequestOutcome): Promise<void> {
+  const { error } = await client.rpc("dpdp_icp_request_close", { p_org_id: orgId, p_ref: ref, p_outcome: outcome })
+  if (error) throw new RpcFailure(error)
+}
+export async function logErasure(client: DpdpClient, orgId: string, input: ErasureInput): Promise<string> {
+  const { data, error } = await client.rpc("dpdp_icp_erasure_log", { p_org_id: orgId, p: input })
+  if (error) throw new RpcFailure(error)
+  return (data as { id: string }).id
+}
+export async function closeErasure(client: DpdpClient, orgId: string, erasureId: string, input: { state: "done" | "not_needed"; doneOn?: string; method?: string }): Promise<void> {
+  const { error } = await client.rpc("dpdp_icp_erasure_close", { p_org_id: orgId, p_erasure_id: erasureId, p: input })
+  if (error) throw new RpcFailure(error)
+}
+export async function fetchEvidencePack(client: DpdpClient, orgId: string): Promise<EvidencePack> {
+  const { data, error } = await client.rpc("dpdp_icp_evidence_pack", { p_org_id: orgId })
+  if (error) throw new RpcFailure(error)
+  return data as EvidencePack
 }
 
 // ---------------------------------------------------------------------

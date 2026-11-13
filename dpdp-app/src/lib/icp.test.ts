@@ -35,12 +35,15 @@ describe("the derived flags (the same rules as dpdp.icp_item_flags)", () => {
     expect(itemFlags({ ...base, retentionDays: null, retentionNote: "Until the student leaves" }, W, false)).toEqual([])
     expect(itemFlags({ ...base, retentionDays: null, retentionNote: null }, W, false)).toEqual(["unclassified"])
   })
-  test("children: no basis or 'not sure' -> basis missing; consent with no parent answer -> not collected; an answer clears it; other bases are not asked for consent", () => {
+  test("children: no basis or 'not sure' -> basis missing; consent needs every parent link answered; only the named school exemption stands in for consent; s.7 / employment alone do not", () => {
     const kid = { ...base, children: true, principalType: "student" as const }
     expect(itemFlags({ ...kid, lawfulBasis: "not_sure" }, W, false)).toEqual(["children_basis_missing"])
     expect(itemFlags({ ...kid, lawfulBasis: "consent" }, W, false)).toEqual(["children_consent_not_collected"])
     expect(itemFlags({ ...kid, lawfulBasis: "consent" }, W, true)).toEqual([])
-    expect(itemFlags({ ...kid, lawfulBasis: "legal_obligation" }, W, false)).toEqual([])
+    expect(itemFlags({ ...kid, lawfulBasis: "child_exemption" }, W, false)).toEqual([])
+    for (const b of ["legitimate_use", "legal_obligation", "state_function", "employment"] as const) expect(itemFlags({ ...kid, lawfulBasis: b }, W, true)).toEqual(["children_basis_check"])
+    // adults are never asked for a parent's consent
+    expect(itemFlags({ ...base, children: false, lawfulBasis: "legitimate_use" }, W, false)).toEqual([])
   })
   test("a vendor needs a signed agreement; systems and groups of people do not", () => {
     expect(itemFlags({ ...base, kind: "vendor" }, W, false)).toEqual(["vendor_agreement_missing"])
@@ -55,7 +58,7 @@ describe("the derived flags (the same rules as dpdp.icp_item_flags)", () => {
   })
   test("a retired line has no flags; every flag has a plain sentence", () => {
     expect(itemFlags({ ...base, status: "retired", purpose: null }, W, false)).toEqual([])
-    for (const k of ["unclassified", "children_basis_missing", "children_consent_not_collected", "vendor_agreement_missing", "stale"]) expect(FLAG_TEXT[k].length).toBeGreaterThan(20)
+    for (const k of ["unclassified", "children_basis_missing", "children_basis_check", "children_consent_not_collected", "vendor_agreement_missing", "stale"]) expect(FLAG_TEXT[k].length).toBeGreaterThan(20)
   })
   test("nothing in the wording claims compliance", () => {
     const all = Object.values(FLAG_TEXT).join(" ").toLowerCase()
@@ -84,10 +87,11 @@ const call = (h: IcpMockHost, fn: string, args: Record<string, unknown> = {}, ca
 const data = <T,>(r: ReturnType<typeof call>) => { expect(r.error).toBeNull(); return r.data as T }
 
 describe("the offline mock follows the database's rules", () => {
-  test("a staff view can read but not change; a new line has the same guards", () => {
+  test("a staff view can neither read nor change; a new line has the same guards", () => {
     const h = host()
     expect(call(h, "dpdp_icp_save_item", { p_item: { kind: "data_set", name: "Fees" } }, false).error?.message).toContain("Only the people who see the whole organisation")
-    expect(call(h, "dpdp_icp_register", {}, false).error).toBeNull()
+    expect(call(h, "dpdp_icp_register", {}, false).error?.message).toContain("Only the people who see the whole organisation")
+    expect(call(h, "dpdp_icp_status", {}, false).error?.code).toBe("42501")
     expect(call(h, "dpdp_icp_save_item", { p_item: { kind: "data_set", name: "a@b.in" } }).error?.message).toContain("not a person")
     expect(call(h, "dpdp_icp_save_item", { p_item: { kind: "nope", name: "Fees" } }).error?.message).toContain("Say whether")
     data(call(h, "dpdp_icp_save_item", { p_item: { kind: "data_set", name: "Fees" } }))
@@ -104,11 +108,14 @@ describe("the offline mock follows the database's rules", () => {
   test("the status counts steps; 'nothing new' is a recorded sign-off; the score is not a legal rating", () => {
     const h = host()
     let s = icpStatus(h, new Date("2026-11-11T10:00:00Z"))
-    expect([s.identify.total, s.classify.total, s.prove.total, s.total]).toEqual([3, 4, 3, 10])
+    expect([s.identify.total, s.classify.total, s.prove.total, s.total]).toEqual([3, 4, 7, 14])
     expect(s.notALegalRating).toBe(true)
     expect(s.weekStart).toBe("2026-11-09")
     expect(s.identify.steps.find((x) => x.key === "anything_new")!.done).toBe(false)
-    call(h, "dpdp_icp_log", { p_stage: "identify", p_note: "Nothing new this week" })
+    // a plain sign-off of Identify does not tick "nothing new"; only the explicit 'skipped' record does
+    call(h, "dpdp_icp_log", { p_stage: "identify", p_outcome: "ok" })
+    expect(icpStatus(h, new Date("2026-11-11T10:00:00Z")).identify.steps.find((x) => x.key === "anything_new")!.done).toBe(false)
+    call(h, "dpdp_icp_log", { p_stage: "identify", p_outcome: "skipped", p_note: "Nothing new this week" })
     s = icpStatus(h, new Date("2026-11-11T10:00:00Z"))
     expect(s.identify.steps.find((x) => x.key === "anything_new")!.done).toBe(true)
     // a sign-off in LAST week does not count for this week
@@ -123,7 +130,24 @@ describe("the offline mock follows the database's rules", () => {
     expect(h.rows.find((r) => r.libIndex === 11)!.na).toBe(false)
     expect(h.rows.find((r) => r.libIndex === 14)!.na).toBe(true) // not a children's job
     expect(h.rows.find((r) => r.libIndex === 6)!.na).toBe(true)
-    expect(CHILDREN_JOB_INDEXES).toEqual([11, 12, 13, 21, 25, 27])
+    expect(CHILDREN_JOB_INDEXES).toEqual([7, 8, 11, 12, 13, 21, 22, 25, 27])
+  })
+  test("every free-text answer is guarded; a retired line loses its free text; bad choices are refused in plain words", () => {
+    const h = host()
+    const id = (data<{ item: IcpItem }>(call(h, "dpdp_icp_save_item", { p_item: { kind: "data_set", name: "Fees", whereHeld: "School ERP", purpose: "Billing" } })).item).id
+    for (const k of ["whereHeld", "holderLabel", "purpose", "retentionNote", "recipients", "agreementRef"]) expect(call(h, "dpdp_icp_save_item", { p_item: { id, [k]: "call 9876543210" } }).error?.code).toBe("22023")
+    expect(call(h, "dpdp_icp_save_item", { p_item: { id, lawfulBasis: "whatever" } }).error?.message).toContain("Pick one of the choices")
+    expect(call(h, "dpdp_icp_save_item", { p_item: { id, retentionDays: 3.5 } }).error?.message).toContain("whole number of days")
+    expect(call(h, "dpdp_icp_retire_item", { p_item_id: id, p_reason: "mail asha@example.com" }).error?.code).toBe("22023")
+    data(call(h, "dpdp_icp_retire_item", { p_item_id: id, p_reason: "No longer used" }))
+    expect(JSON.stringify(data<IcpItem[]>(call(h, "dpdp_icp_register")))).not.toContain("School ERP")
+  })
+  test("sign-off outcomes: only ok, partial or skipped by a person; a note must not hold a contact", () => {
+    const h = host()
+    expect(call(h, "dpdp_icp_log", { p_stage: "prove", p_outcome: "failed" }).error?.message).toContain("Unknown outcome")
+    expect(call(h, "dpdp_icp_log", { p_stage: "prove", p_note: "asha@example.com" }).error?.code).toBe("22023")
+    data(call(h, "dpdp_icp_log", { p_stage: "prove", p_outcome: "ok" }))
+    expect(icpStatus(h, new Date("2026-11-11T10:00:00Z")).prove.steps.find((x) => x.key === "week_signed_off")!.done).toBe(true)
   })
   test("History lines never carry the line's own name", () => {
     const h = host()
