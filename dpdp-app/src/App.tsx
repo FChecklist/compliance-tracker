@@ -74,6 +74,16 @@ function orgHintFromUrl(): string | null {
   } catch { return null }
 }
 
+/** Takes the hint out of the address bar once it has been used or the person chose another organisation, so a reload does not go back to it. */
+function forgetOrgHint(): void {
+  try {
+    const u = new URL(window.location.href)
+    if (!u.searchParams.has("org")) return
+    u.searchParams.delete("org")
+    window.history.replaceState(window.history.state, "", u.pathname + u.search + u.hash)
+  } catch { /* not a browser (tests): nothing to tidy */ }
+}
+
 export function App() {
   const [boot] = useState<{ landing: Landing; draft: DraftFragment | null; undo: UndoFragment | null; client: DpdpClient | Error }>(() => {
     // The URL is read before the client exists: a success hash must be left
@@ -176,12 +186,19 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       // reports, so it is folded into [] here and the page decides.
       const got = await loadWithCopy<MyPage, CaClient>({
         fetchPage: async () => {
-          try { return await fetchMyPage(client, orgRef.current) } catch (e) {
-            if (orgIsHint.current && e instanceof RpcFailure && !e.code?.startsWith("PGRST")) { orgIsHint.current = false; orgRef.current = null; return fetchMyPage(client, null) }
+          try {
+            const p = await fetchMyPage(client, orgRef.current)
+            if (orgIsHint.current) forgetOrgHint()
+            orgIsHint.current = false // the hint is tried once; after it worked, a later refusal is shown as it is, never swapped for another organisation
+            return p
+          } catch (e) {
+            // Only the plain "not a member of that organisation" refusal (an e-mail link for an organisation this sign-in is not in) falls back to the person's own newest
+            // organisation. A payment-due refusal, a timeout or any other error is shown as what it is.
+            if (orgIsHint.current && e instanceof RpcFailure && e.code === "42501" && !isPaymentDueError(e.message)) { orgIsHint.current = false; orgRef.current = null; forgetOrgHint(); return fetchMyPage(client, null) }
             throw e
           }
         }, fetchClients: () => fetchMyClients(client),
-        store, email: emailRef.current, org: orgRef.current, isNetwork: isNetworkError,
+        store, email: emailRef.current, org: () => orgRef.current, isNetwork: isNetworkError,
       })
       if (mine !== loadSeq.current) return
       setCopyInfo((c) => ({ ...c, offline: got.source === "device", savedAt: got.savedAt }))
@@ -305,6 +322,8 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
     await client.auth.signOut()
     forgetLoginReport()
     orgRef.current = null
+    orgIsHint.current = false
+    forgetOrgHint()
     setView("page")
     setPartnerOpen(false)
     setPhase(SIGNED_OUT)
@@ -345,6 +364,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   async function openOrg(orgId: string) {
     orgRef.current = orgId
     orgIsHint.current = false
+    forgetOrgHint()
     setView("page")
     await load()
   }

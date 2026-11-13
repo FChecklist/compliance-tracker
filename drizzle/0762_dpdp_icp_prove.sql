@@ -658,8 +658,9 @@ begin
     'truncated', (select coalesce(jsonb_array_length(v_over -> 'evidence') < (v_over -> 'totals' ->> 'evidence')::int, false)
                        or coalesce(jsonb_array_length(v_over -> 'breaches') < (v_over -> 'totals' ->> 'breaches')::int, false)
                        or coalesce(jsonb_array_length(v_over -> 'erasures') < (v_over -> 'totals' ->> 'erasures')::int, false)),
-    'notices', (select coalesce(jsonb_agg(jsonb_build_object('docKind', n.doc_kind, 'version', n.version, 'releasedOn', to_char(n.released_on, 'YYYY-MM-DD'),
-                  'effectiveFrom', to_char(n.effective_from, 'YYYY-MM-DD'), 'effectiveTo', to_char(n.effective_to, 'YYYY-MM-DD'), 'languages', n.languages, 'state', n.state)
+    'notices', (select coalesce(jsonb_agg(jsonb_build_object('docKind', case when n.doc_kind ~ '^[A-Za-z][A-Za-z_ -]{0,39}$' then n.doc_kind else 'other' end, 'version', n.version, 'releasedOn', to_char(n.released_on, 'YYYY-MM-DD'),
+                  'effectiveFrom', to_char(n.effective_from, 'YYYY-MM-DD'), 'effectiveTo', to_char(n.effective_to, 'YYYY-MM-DD'), 'languages', (select coalesce(jsonb_agg(l), '[]'::jsonb) from unnest(n.languages) l where l ~ '^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$'),
+                  'state', case when n.state ~ '^[A-Za-z][A-Za-z_ -]{0,39}$' then n.state else 'other' end)
                   order by n.released_on desc nulls last), '[]'::jsonb) from dpdp.notice_version n where n.org_id = p_org_id),
     'consent', (
       with last as (
@@ -686,7 +687,7 @@ begin
       'Documents are not kept by VERIDIAN: the fingerprint, name and reference are the organisation''s own entries, recorded by the organisation.',
       'A file that gives the same fingerprint today is the same file that gave it when the organisation recorded it. VERIDIAN did not see the file and cannot check how the fingerprint was made, and a fingerprint does not show the file is correct.',
       'The date of a record is the date the organisation entered for it; the "recorded in VERIDIAN" time is set by VERIDIAN and cannot be changed.',
-      'The pack is built not to contain any person''s e-mail address or phone number, and the weekly record, the breach log and the request log hold no free text about a person. The organisation''s own titles and notes are shown as it wrote them.')
+      'The pack is built not to contain any person''s e-mail address or phone number, and the weekly record, the breach log and the request log hold no free text about a person. The organisation''s own titles and notes are shown as it wrote them, and the words kept by VERIDIAN''s older screens (references, states) are shown as stored.')
   );
 end
 $$;

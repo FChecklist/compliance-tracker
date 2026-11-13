@@ -364,6 +364,37 @@ describe('PROVE: what the Audit 2 found (kept as regression tests)', () => {
   })
 })
 
+describe('PROVE: what the Audit 4 found (kept as regression tests)', () => {
+  test('the notice rows in the pack show plain words only: a hostile doc kind, state or language is never passed through', async () => {
+    await as('')
+    await db.query(`insert into dpdp.notice_version (id, org_id, doc_kind, version, released_on, languages, state) values ('nv_ok', 'school', 'privacy_notice', 1, current_date, array['en', 'hi'], 'active')`)
+    await db.query(`insert into dpdp.notice_version (id, org_id, doc_kind, version, released_on, languages, state) values ('nv_bad', 'school', 'zz.hostile@evil.com 9876543210', 2, current_date, array['en', 'zz.hostile@evil.com'], '9876543210 call me')`)
+    await as('owner@prove.test')
+    const pack = await rpc('dpdp_icp_evidence_pack', 'school')
+    expect(JSON.stringify(pack)).not.toMatch(/hostile|evil\.com|9876543210|call me/)
+    const good = pack.notices.find((n: J) => n.docKind === 'privacy_notice')
+    expect(good.languages).toEqual(['en', 'hi'])
+    expect(good.state).toBe('active')
+    const bad = pack.notices.find((n: J) => n.docKind === 'other')
+    expect(bad.languages).toEqual(['en'])
+    expect(bad.state).toBe('other')
+  })
+  test('a breach time is stored in UTC whatever the session time zone is (the function sets its own zone)', async () => {
+    await as('owner@prove.test')
+    await db.query(`set timezone = 'Asia/Kolkata'`)
+    try {
+      const r = await rpc('dpdp_icp_breach_log', 'school', { description: 'A pen drive with a class list was lost', becameAwareAt: `${day(-3)}T10:00:00` })
+      const d = await rpc('dpdp_icp_breach_log', 'school', { description: 'A register was left on a bus', becameAwareAt: day(-4) })
+      const a = (await rows<J>(`select to_char(became_aware_at, 'YYYY-MM-DD"T"HH24:MI:SS') as t from dpdp.breach where id = $1`, [r.id]))[0]
+      const b = (await rows<J>(`select to_char(became_aware_at, 'YYYY-MM-DD') as t from dpdp.breach where id = $1`, [d.id]))[0]
+      expect(a.t).toBe(`${day(-3)}T10:00:00`)
+      expect(b.t).toBe(day(-4))
+    } finally {
+      await db.query(`reset timezone`)
+    }
+  })
+})
+
 describe('offboarding and roll-back', () => {
   test('while an organisation is being offboarded (exporting) its evidence may be deleted with it; otherwise never', async () => {
     await db.exec(`create table if not exists dpdp.org_offboarding (org_id text primary key, state text not null)`)

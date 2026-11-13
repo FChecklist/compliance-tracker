@@ -23,17 +23,19 @@ export async function loadWithCopy<P extends WithRows, C>(args: {
   fetchClients: () => Promise<C[]>
   store: CopyStore | null
   email: string | null
-  org: string | null
+  /** The organisation the page belongs to, read AFTER the fetch (a fallback may have changed it) */
+  org: string | null | (() => string | null)
   isNetwork: (e: unknown) => boolean
 }): Promise<PageSource<P, C>> {
-  const { fetchPage, fetchClients, store, email, org, isNetwork } = args
+  const { fetchPage, fetchClients, store, email, isNetwork } = args
+  const orgNow = () => (typeof args.org === "function" ? args.org() : args.org)
   try {
     const [page, clients] = await Promise.all([fetchPage(), fetchClients().catch(() => [] as C[])])
-    if (store && email) store.saveSnapshot(email, org, toStored(page), clients).catch(() => { /* no room or no IndexedDB: the page still works online */ })
+    if (store && email) store.saveSnapshot(email, orgNow(), toStored(page), clients).catch(() => { /* no room or no IndexedDB: the page still works online */ })
     return { page, clients, source: "server", savedAt: null }
   } catch (e) {
     if (store && email && isNetwork(e)) {
-      const snap = await store.loadSnapshot(email, org).catch(() => null)
+      const snap = await store.loadSnapshot(email, orgNow()).catch(() => null)
       if (snap) return { page: fromStored<P>(snap.page), clients: snap.clients as C[], source: "device", savedAt: snap.savedAt }
     }
     throw e

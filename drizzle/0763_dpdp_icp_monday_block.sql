@@ -12,10 +12,12 @@
 --       -- the same rule as dpdp__icp_member, so a staff member's e-mail never carries the register's status;
 --     * THE WEEKLY PROOF SNAPSHOT: when p_record is true, one software run per stage ("Monday snapshot") is added to the append-only weekly record, once per
 --       stage per week (a retry adds nothing). It records the counts at that moment; it is not a statement about anyone's legal position;
---     * PER-CLIENT ROLL-UP (Professional / firm organisations only): the same clients the CA already sees in "My clients" (public.dpdp_my_clients, 0609): an
---       organisation where a member of the firm holds an active membership AND is named on a live CAPARTNER / CAMGR job, and whose owner has confirmed the
---       set-up (an organisation a CA set up and whose owner has not yet confirmed is NOT shown). dpdp.relationship is deliberately not used: no flow fills it
---       and nothing in it records that the client agreed. Counts only: no register line, no free text, no name of any person. Worst first, 100 at most.
+--     * PER-CLIENT ROLL-UP (Professional / firm organisations only): the same two routes as the CA's "My clients" (public.dpdp_my_clients, 0612): a CA of the
+--       firm is named on a live CAPARTNER / CAMGR job in the client organisation, OR set that organisation up (the institution library has no CA-tagged job);
+--       and the client's owner has confirmed the set-up. The CA's membership in the FIRM must be the CA's own doing: first_visit_seen_at is stamped only by the
+--       person's own acknowledge call, and said_not_me_at removes it. Without that, anybody could add a CA's e-mail to a firm they made up and read that CA's
+--       client list. (A CA who has opened two firms is counted for both: their own act.) dpdp.relationship is deliberately not used: no flow fills it and nothing in
+--       it records that the client agreed. Counts only: no register line, no free text, no name of any person. Worst first, 100 at most.
 --
 -- Nothing here says "compliant", "certified" or "guaranteed"; the score is a count of this week's routine steps and the return value says so.
 -- ADDITIVE and re-runnable. No new table. Depends on 0761 and 0762 (dpdp.icp_status_for, dpdp_icp_run_software, dpdp.icp_week, dpdp.icp_item, dpdp.icp_run).
@@ -26,23 +28,27 @@ set local lock_timeout = '5s';
 -- the Monday snapshot is written once per organisation, stage and week, even when two runs overlap
 create unique index if not exists icp_run_monday_once on dpdp.icp_run (org_id, stage, week_start) where by_kind = 'software' and note = 'Monday snapshot';
 
--- the clients of a firm: the same rule as "My clients" (0609 dpdp_my_clients). Internal: the timer function below is the only caller.
+-- the clients of a firm: the same two routes as "My clients" (0612 dpdp_my_clients): the CA is named on a live CAPARTNER / CAMGR job in the client,
+-- OR the CA set the client up (organisation.set_up_by_membership_id; the institution library has no CA-tagged job at all, so schools come in this way),
+-- and the client's owner has confirmed the set-up. The firm side is the CA's OWN doing: the CA's membership in the firm must have been opened by the CA
+-- (first_visit_seen_at is stamped only by the person's own acknowledge call) and not disowned (said_not_me_at). Without that, an owner could add any
+-- CA's e-mail to a firm they made up and read that CA's client list. Internal: the timer function below is the only caller.
 create or replace function dpdp.icp_firm_clients(p_firm_org_id text)
 returns table (id text, name text)
 language sql stable security definer
 set search_path = ''
 as $f$
   select distinct o.id, o.name
-    from dpdp.organisation o
-   where o.id <> p_firm_org_id
+    from dpdp.membership mf
+    join dpdp.membership mc on mc.identity_id = mf.identity_id and mc.state = 'active'
+    join dpdp.organisation o on o.id = mc.org_id
+   where mf.org_id = p_firm_org_id and mf.state = 'active'
+     and mf.first_visit_seen_at is not null and mf.said_not_me_at is null
+     and o.id <> p_firm_org_id
      and not (o.set_up_by_membership_id is not null and o.owner_confirmed_at is null)   -- still waiting for the client's owner to confirm: not shown
-     and exists (
-       select 1
-         from dpdp.membership mc
-         join dpdp.membership mf on mf.identity_id = mc.identity_id and mf.org_id = p_firm_org_id and mf.state = 'active'
-        where mc.org_id = o.id and mc.state = 'active'
-          and exists (select 1 from dpdp.obligation ob join dpdp.obligation_template t on t.id = ob.template_id
-                       where ob.org_id = o.id and ob.assigned_person_id = mc.identity_id and ob.state <> 'not_applicable' and t.role_tag in ('CAPARTNER', 'CAMGR')))
+     and (o.set_up_by_membership_id = mc.id
+          or exists (select 1 from dpdp.obligation ob join dpdp.obligation_template t on t.id = ob.template_id
+                      where ob.org_id = o.id and ob.assigned_person_id = mc.identity_id and ob.state <> 'not_applicable' and t.role_tag in ('CAPARTNER', 'CAMGR')))
 $f$;
 revoke all on function dpdp.icp_firm_clients(text) from public, anon, authenticated;
 
@@ -84,7 +90,7 @@ begin
     v_stages := v_stages || jsonb_build_array(jsonb_build_object('stage', v_stage, 'title', v_title, 'done', (v_sec ->> 'done')::int, 'total', (v_sec ->> 'total')::int, 'steps', v_sec -> 'steps'));
     if v_prev is not null then
       for v_step in select * from jsonb_array_elements(v_sec -> 'steps') loop
-        if not coalesce((v_step ->> 'done')::boolean, false) and (v_step ->> 'key') not in ('anything_new', 'evidence_this_week', 'week_signed_off') then
+        if not coalesce((v_step ->> 'done')::boolean, false) and (v_step ->> 'key') not in ('anything_new', 'evidence_this_week', 'week_signed_off', 'confirm_register') then
           select p into v_pstep from jsonb_array_elements(coalesce(v_prev -> v_stage -> 'steps', '[]'::jsonb)) p where p ->> 'key' = v_step ->> 'key' limit 1;
           if v_pstep is not null and not coalesce((v_pstep ->> 'done')::boolean, false) then
             v_carried := v_carried || jsonb_build_array(jsonb_build_object('stage', v_stage, 'key', v_step ->> 'key', 'label', v_step ->> 'label', 'count', v_step -> 'count'));
@@ -110,7 +116,7 @@ begin
     end loop;
   end if;
 
-  if v_org.product = 'firm' then
+  if coalesce(v_org.product, 'firm') = 'firm' then
     select count(*) into v_client_total from dpdp.icp_firm_clients(p_org_id);
     -- ranked BEFORE the cut, so a firm with more than 100 clients sees its weakest 100, not the first 100 by name
     select coalesce(jsonb_agg(q.c order by (q.c ->> 'percent')::int, q.c ->> 'name'), '[]'::jsonb) into v_clients from (
