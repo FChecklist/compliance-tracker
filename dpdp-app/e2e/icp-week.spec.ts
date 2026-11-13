@@ -66,7 +66,7 @@ test.describe("This week: Identify, Classify, Prove", () => {
     await expect(page.getByRole("list", { name: "Records you hold" })).toContainText("Privacy notice, version 3")
     await expect(page.locator('[data-step="evidence_this_week"]')).toHaveAttribute("data-done", "true")
 
-    await page.getByLabel("What happened?").fill("A staff laptop with exam marks was lost")
+    await page.getByLabel("What happened").fill("A staff laptop with exam marks was lost")
     await page.getByRole("button", { name: "Record the breach" }).click()
     await expect(page.getByRole("status")).toContainText("72-hour clock")
     await expect(page.getByRole("list", { name: "Breaches" })).toContainText("A staff laptop")
