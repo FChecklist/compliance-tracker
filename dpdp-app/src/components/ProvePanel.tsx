@@ -189,7 +189,7 @@ function Breaches({ ov, disabled, onLog, onStep }: { ov: ProveOverview; disabled
   return (
     <Box id="icp-breach-h" title={`Breaches${ov.counts.breachesOpen ? ` · ${ov.counts.breachesOpen} open` : ""}`}>
       <p style={hint}>If personal data is lost, leaked or opened by the wrong person: tell the Board without delay, send the detailed report within 72 hours, and tell each person affected (Rule 7). This keeps the clock and your steps. Describe what happened, not who.</p>
-      <form onSubmit={(e) => { e.preventDefault(); if (!bad && desc.trim().length >= 5) { onLog({ description: desc.trim(), ...(aware ? { becameAwareAt: `${aware}T00:00:00Z` } : {}), ...(people !== "" ? { peopleAffected: Number(people) } : {}) }); setDesc(""); setAware(""); setPeople("") } }} aria-label="Record a breach" className="grid gap-2" style={{ fontSize: 13 }}>
+      <form onSubmit={(e) => { e.preventDefault(); if (!bad && desc.trim().length >= 5) { onLog({ description: desc.trim(), ...(aware ? { becameAwareAt: Date.parse(`${aware}T00:00:00Z`) > Date.now() ? new Date().toISOString() : `${aware}T00:00:00Z` } : {}), ...(people !== "" ? { peopleAffected: Number(people) } : {}) }); setDesc(""); setAware(""); setPeople("") } }} aria-label="Record a breach" className="grid gap-2" style={{ fontSize: 13 }}>
         <label>What happened?<br /><textarea style={{ ...field, width: "100%" }} rows={2} value={desc} maxLength={2000} onChange={(e) => setDesc(e.target.value)} aria-label="What happened" /></label>
         <label>The day you came to know (optional, today if empty)<br /><input type="date" style={field} value={aware} onChange={(e) => setAware(e.target.value)} aria-label="Day you came to know" /></label>
         <label>About how many people (optional)<br /><input type="number" min={0} style={field} value={people} onChange={(e) => setPeople(e.target.value)} aria-label="How many people" /></label>
@@ -209,6 +209,7 @@ function BreachRow({ b, disabled, onStep, open }: { b: BreachWire; disabled: boo
     <li data-breach={b.id} style={{ margin: "0 0 10px", paddingBottom: 8, borderBottom: "1px solid var(--dpdp-line)" }}>
       <b>Came to know {niceDate(b.becameAwareAt)}</b>{b.peopleAffected !== null ? ` · about ${b.peopleAffected} people` : ""} · {b.state === "open" ? "Open" : "Closed"}
       {b.pastClock && <span style={late}> · the 72-hour report to the Board is late</span>}
+      {b.description && <div style={{ margin: "2px 0" }}>{b.description}</div>}
       <div style={{ color: "var(--dpdp-ink2)" }}>Board told: {done(b.boardNotifiedAt)} · Detailed report (due {niceDate(b.boardDetailDueAt)}): {done(b.boardDetailedAt)} · People told: {done(b.individualsNotifiedAt)} · CERT-In (due {niceDate(b.certInDueAt)}): {done(b.certInReportedAt)}</div>
       {open && (
         <div className="flex gap-2 flex-wrap mt-1">
@@ -216,7 +217,7 @@ function BreachRow({ b, disabled, onStep, open }: { b: BreachWire; disabled: boo
           {!b.boardDetailedAt && <button type="button" className="rounded-lg" style={ghost} disabled={disabled} onClick={() => onStep(b.id, { boardDetailed: true }, "Recorded: the detailed report was sent.")}>The detailed report was sent</button>}
           {!b.individualsNotifiedAt && <button type="button" className="rounded-lg" style={ghost} disabled={disabled} onClick={() => onStep(b.id, { individualsNotified: true }, "Recorded: the people affected were told.")}>The people affected were told</button>}
           {!b.certInReportedAt && <button type="button" className="rounded-lg" style={ghost} disabled={disabled} onClick={() => onStep(b.id, { certInReported: true }, "Recorded: CERT-In was told.")}>CERT-In was told</button>}
-          <button type="button" className="rounded-lg" style={ghost} disabled={disabled} onClick={() => onStep(b.id, { closed: true }, "Closed.")}>Close this record</button>
+          {b.boardDetailedAt ? <button type="button" className="rounded-lg" style={ghost} disabled={disabled} onClick={() => onStep(b.id, { closed: true }, "Closed.")}>Close this record</button> : <span style={{ color: "var(--dpdp-ink2)", fontSize: 12.5 }}>You can close this record once the detailed report to the Board is recorded.</span>}
         </div>
       )}
     </li>
@@ -245,7 +246,7 @@ function Requests({ ov, disabled, onLog, onClose }: { ov: ProveOverview; disable
         {ov.requests.length === 0 && <li style={{ color: "var(--dpdp-ink2)" }}>Nothing logged.</li>}
         {ov.requests.map((r) => (
           <li key={r.ref} data-request={r.ref} style={{ margin: "0 0 8px" }}>
-            <b>{r.ref}</b> · {REQUEST_LABEL[r.type]} · received {niceDate(r.receivedOn)} · reply by {niceDate(r.dueOn)}
+            <b>{r.ref}</b> · {REQUEST_LABEL[r.type]} · {r.receivedOn ? `received ${niceDate(r.receivedOn)}` : "received date not recorded"} · reply by {niceDate(r.dueOn)}
             {r.state === "answered" ? ` · answered${r.outcome ? `: ${OUTCOME_LABEL[r.outcome as RequestOutcome] ?? r.outcome}` : ""}` : r.pastDue ? <span style={late}> · past its date</span> : " · open"}
             {r.state === "open" && <ReplyPicker disabled={disabled} onPick={(o) => onClose(r.ref, o)} />}
           </li>

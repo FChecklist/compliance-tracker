@@ -79,6 +79,15 @@ describe("PROVE: breach, requests, erasure", () => {
     expect(call(h, "dpdp_icp_breach_update", { p_breach_id: r.id, p: { individualsNotified: true } }).error?.code).toBe("55000")
   })
 
+  test("a breach cannot be closed before the detailed report to the Board is recorded (the SQL rule, so closing never hides a late report)", () => {
+    const h = host()
+    const r = data<{ id: string }>(call(h, "dpdp_icp_breach_log", { p: { description: "A cupboard of old forms was left open", becameAwareAt: "2026-11-01T00:00:00Z" } }))
+    expect(call(h, "dpdp_icp_breach_update", { p_breach_id: r.id, p: { closed: true } }).error?.message).toContain("detailed report")
+    expect(step(h, "breach_clocks").done).toBe(false)
+    data(call(h, "dpdp_icp_breach_update", { p_breach_id: r.id, p: { boardDetailed: true, closed: true } }))
+    expect(step(h, "breach_clocks").done).toBe(true)
+  })
+
   test("a request or grievance is due 90 days after it arrived and is past due only after that day; a plain request keeps no free text", () => {
     const h = host()
     expect(call(h, "dpdp_icp_request_log", { p: { type: "grievance", receivedOn: "2026-11-01" } }).error?.message).toContain("what it is about")
@@ -129,6 +138,9 @@ describe("PROVE: the pack and its page", () => {
     expect(html).not.toContain("<b>x</b>")
     expect(html).toContain("&lt;b&gt;x&lt;/b&gt;")
     expect(html).toContain("not a rating of legal position")
+    expect(html).toContain("Recorded in VERIDIAN")
+    expect(html).not.toContain("has not changed since")
+    expect(packToHtml({ ...pack, truncated: true, totals: { evidence: 300, breaches: 1, erasures: 0 } })).toContain("latest records only")
     expect(/compliant|certified|guarantee/i.test(html.replace(/not a certificate/gi, ""))).toBe(false)
   })
 

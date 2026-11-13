@@ -17,7 +17,7 @@ export type BreachWire = {
   boardNotifiedAt: string | null; boardDetailedAt: string | null; individualsNotifiedAt: string | null; certInReportedAt: string | null; certInReference: string | null; pastClock: boolean
 }
 export type RequestWire = {
-  ref: string; type: RequestType; arrivedVia?: ArrivedVia; summary?: string; receivedOn: string; dueOn: string; state: "open" | "answered"; outcome: string | null; pastDue: boolean
+  ref: string; type: RequestType; arrivedVia?: ArrivedVia; summary?: string; receivedOn: string | null; dueOn: string; state: "open" | "answered"; outcome: string | null; pastDue: boolean
 }
 export type ErasureWire = { id: string; scope: string; trigger: ErasureTrigger; dueOn: string; state: "open" | "done" | "not_needed"; doneOn: string | null; method: string | null; pastDue: boolean; itemId: string | null }
 export type VendorWire = { id: string; name: string; agreementStatus: "none" | "requested" | "signed"; agreementRef: string | null; agreementOn: string | null; hasEvidence: boolean }
@@ -50,7 +50,7 @@ export const TRIGGER_LABEL: Record<ErasureTrigger, string> = {
 export const PROVE_PROMISE = "Keep the records that show it: files you hold (as fingerprints), breaches, requests, agreements and erasures, and a signed-off week."
 
 /** The honest line shown next to every evidence form. */
-export const EVIDENCE_NOTE = "VERIDIAN does not keep your document. Your browser works out its fingerprint (a short code) and sends only that, the name you give it and where you keep the original. It shows the file has not changed since you recorded it. It does not show the file is right."
+export const EVIDENCE_NOTE = "VERIDIAN does not keep your document. Your browser works out its fingerprint (a short code) and sends only that, the name you give it and where you keep the original. A file that gives the same fingerprint later is the same file that gave it now. VERIDIAN does not see your file, so it cannot check how the fingerprint was made, and it does not show the file is right."
 
 /** SHA-256 of a file's bytes as 64 lowercase hex characters. Runs in the browser; the file never leaves the device. */
 export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
@@ -75,13 +75,13 @@ export type EvidencePack = {
   what: string; organisation: string | null; generatedAt: string; weekStart: string
   status: { done: number; total: number; percent: number }
   register: { kind: string; name: string; whereHeld: string | null; principalType: string | null; children: boolean | null; lawfulBasis: string | null; retentionDays: number | null; retentionNote: string | null; flags: { text: string }[] }[]
-  retiredLines: number; evidence: EvidenceWire[]
+  retiredLines: number; evidence: EvidenceWire[]; totals?: { evidence: number; breaches: number; erasures: number }; truncated?: boolean
   notices: { docKind: string; version: string; releasedOn: string | null; state: string }[]
   consent: { campaigns: number; linksIssued: number; linksAnswered: number; answersGiven: number; answersRefusedOrWithdrawn: number }
   breaches: Omit<BreachWire, "description">[]; requests: Omit<RequestWire, "summary">[]; vendors: VendorWire[]; erasures: ErasureWire[]
   jobs: { job: string; state: string; dueOn: string | null; closedAt: string | null }[]
   weeklyRecord: { stage: string; weekStart: string; ranAt: string; byKind: string; outcome: string; percent: number | null }[]
-  history: { events: number; checked: number; linksBroken: number; hashesWrong: number; intact: boolean; headHash: string | null; firstAt: string | null; lastAt: string | null }
+  history: { events: number; checked: number; linksBroken: number; hashesWrong: number; intact: boolean; headHash: string | null; truncated?: boolean; firstAt: string | null; lastAt: string | null }
   limits: string[]
 }
 
@@ -96,11 +96,12 @@ export function packToHtml(p: EvidencePack): string {
 <h1>Evidence pack${p.organisation ? `: ${esc(p.organisation)}` : ""}</h1>
 <p class="note">${esc(p.what)}</p>
 <p>Made on ${esc(niceDate(p.generatedAt))}. Week of ${esc(niceDate(p.weekStart))}: ${p.status.done} of ${p.status.total} routine steps done (${p.status.percent}%). This counts routine steps. It is not a rating of legal position.</p>
+${p.truncated ? `<p class="note">This pack lists the latest records only (evidence ${p.evidence.length} of ${p.totals?.evidence ?? "?"}, breaches ${p.breaches.length} of ${p.totals?.breaches ?? "?"}, erasures ${p.erasures.length} of ${p.totals?.erasures ?? "?"}). Older ones are in the app.</p>` : ""}
 <h2>1. What you hold (register)</h2>
 ${table(["Kind", "Name", "Kept in", "Whose", "Children", "Basis", "Keep for", "Things to look at"], p.register.map((r) => [r.kind, r.name, r.whereHeld, r.principalType, r.children === null ? "not set" : r.children ? "yes" : "no", r.lawfulBasis, r.retentionDays ? `${r.retentionDays} days` : r.retentionNote, r.flags.map((f) => f.text).join(" ")]))}
 <p>Lines taken off the register: ${p.retiredLines}.</p>
 <h2>2. Evidence recorded by the organisation</h2>
-${table(["Date", "Kind", "Title", "Fingerprint (SHA-256)", "File name", "Kept at", "Status"], p.evidence.map((e) => [niceDate(e.evidenceOn), e.kind, e.title, e.sha256, e.filename, e.reference, e.withdrawn ? `Withdrawn: ${e.withdrawnReason ?? ""}` : "Current"]))}
+${table(["Date entered", "Recorded in VERIDIAN", "Kind", "Title", "Fingerprint (SHA-256)", "File name", "Kept at", "Status"], p.evidence.map((e) => [niceDate(e.evidenceOn), niceDate(e.recordedAt), e.kind, e.title, e.sha256, e.filename, e.reference, e.withdrawn ? `Withdrawn: ${e.withdrawnReason ?? ""}` : "Current"]))}
 <h2>3. Notices</h2>
 ${table(["Document", "Version", "Released", "State"], p.notices.map((n) => [n.docKind, n.version, niceDate(n.releasedOn), n.state]))}
 <h2>4. Consent (counts only)</h2>
@@ -108,7 +109,7 @@ ${table(["Document", "Version", "Released", "State"], p.notices.map((n) => [n.do
 <h2>5. Breaches</h2>
 ${table(["Became aware", "Board detail due", "People affected", "Board told", "Board detailed", "People told", "CERT-In", "State"], p.breaches.map((b) => [niceDate(b.becameAwareAt), niceDate(b.boardDetailDueAt), b.peopleAffected, niceDate(b.boardNotifiedAt), niceDate(b.boardDetailedAt), niceDate(b.individualsNotifiedAt), niceDate(b.certInReportedAt), b.state]))}
 <h2>6. Requests and grievances (no names)</h2>
-${table(["Ref", "Type", "Received", "Due", "State", "Outcome"], p.requests.map((r) => [r.ref, r.type, niceDate(r.receivedOn), niceDate(r.dueOn), r.state, r.outcome]))}
+${table(["Ref", "Type", "Received", "Due", "State", "Outcome"], p.requests.map((r) => [r.ref, r.type, r.receivedOn ? niceDate(r.receivedOn) : "not recorded", niceDate(r.dueOn), r.state, r.outcome]))}
 <h2>7. Outside helpers</h2>
 ${table(["Helper", "Agreement", "Reference", "Date", "Record attached"], p.vendors.map((v) => [v.name, v.agreementStatus, v.agreementRef, niceDate(v.agreementOn), v.hasEvidence ? "yes" : "no"]))}
 <h2>8. Erasure</h2>
@@ -118,7 +119,7 @@ ${table(["Job", "State", "Due", "Closed"], p.jobs.map((j) => [j.job, j.state, ni
 <h2>10. Weekly record</h2>
 ${table(["Week", "Stage", "By", "Outcome", "Steps done %"], p.weeklyRecord.map((w) => [niceDate(w.weekStart), w.stage, w.byKind, w.outcome, w.percent]))}
 <h2>11. The History record</h2>
-<p>${h.events} entries from ${esc(niceDate(h.firstAt))} to ${esc(niceDate(h.lastAt))}. Checked ${h.checked}: links broken ${h.linksBroken}, entries that do not match their fingerprint ${h.hashesWrong}. ${h.intact ? "Every checked entry matches the one before it." : "Something does not match: ask us before relying on this part."} Latest fingerprint: ${esc(h.headHash ?? "none")}.</p>
+<p>${h.events} entries from ${esc(niceDate(h.firstAt))} to ${esc(niceDate(h.lastAt))}. Checked ${h.checked}: links broken ${h.linksBroken}, entries that do not match their fingerprint ${h.hashesWrong}. ${h.intact ? "Every checked entry matches the one before it." : "Something does not match: ask us before relying on this part."} ${h.truncated ? "Only the first entries were checked, so the fingerprint below is of the last one checked, not the newest. " : ""}Latest fingerprint: ${esc(h.headHash ?? "none")}.</p>
 <h2>What this does not show</h2>
 <ul>${p.limits.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
 </body></html>`

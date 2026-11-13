@@ -59,7 +59,7 @@ export function proveOverview(host: IcpMockHost, now = new Date()): ProveOvervie
     weekStart: mondayOf(now), counts: proveCounts(host, now),
     evidence: ps.evidence.slice().sort((a, b) => b.recordedAt.localeCompare(a.recordedAt)),
     breaches: ps.breaches.map((b) => ({ ...b, pastClock: b.state === "open" && new Date(b.boardDetailDueAt) < now && !b.boardDetailedAt })).sort((a, b) => b.becameAwareAt.localeCompare(a.becameAwareAt)),
-    requests: ps.requests.map((r) => ({ ...r, pastDue: r.state === "open" && r.dueOn < today })).sort((a, b) => b.receivedOn.localeCompare(a.receivedOn)),
+    requests: ps.requests.map((r) => ({ ...r, pastDue: r.state === "open" && r.dueOn < today })).sort((a, b) => (b.receivedOn ?? "").localeCompare(a.receivedOn ?? "")),
     erasures: ps.erasures.map((e) => ({ ...e, pastDue: e.state === "open" && e.dueOn < today })).sort((a, b) => a.dueOn.localeCompare(b.dueOn)),
     vendors: vendors(host),
   }
@@ -145,6 +145,7 @@ export function proveRpc(host: IcpMockHost, fn: string, args: Record<string, unk
       if (p.certInReported) b.certInReportedAt ??= stamp
       if (text(p.certInReference)) b.certInReference = text(p.certInReference)
       if (typeof p.peopleAffected === "number") b.peopleAffected = p.peopleAffected
+      if (p.closed && !b.boardDetailedAt) return fail("Record the detailed report to the Board before closing this breach", "22023")
       if (p.closed) b.state = "closed"
       host.log("breach_updated", p.closed ? "Closed a personal data breach record" : "Updated a personal data breach record")
       return ok({ ok: true })
@@ -157,7 +158,7 @@ export function proveRpc(host: IcpMockHost, fn: string, args: Record<string, unk
       if (!["in_person", "email", "post", "phone", "portal", "other"].includes(via)) return fail("Pick how it arrived", "22023")
       const on = text(p.receivedOn) ?? today
       if (!/^\d{4}-\d{2}-\d{2}$/.test(on) || Number.isNaN(Date.parse(on))) return fail("Check the date it arrived", "22023")
-      if (on > today || on < day(new Date(now.getTime() - 365 * DAY))) return fail("The date it arrived looks wrong", "22023")
+      if (on > day(new Date(now.getTime() + DAY)) || on < day(new Date(now.getTime() - 365 * DAY))) return fail("The date it arrived looks wrong", "22023")
       const summary = text(p.summary)
       if (type === "grievance") {
         if (!summary || summary.length < 3 || summary.length > 300) return fail("Say in a few words what it is about (3 to 300 characters)", "22023")
@@ -184,7 +185,7 @@ export function proveRpc(host: IcpMockHost, fn: string, args: Record<string, unk
       if (scope.length < 2 || scope.length > 160) return fail("Say what is to be erased (2 to 160 characters)", "22023")
       if (looksLikePerson(scope)) return fail("Name the data set, not a person: leave out e-mail addresses and phone numbers", "22023")
       const trigger = text(p.trigger) ?? "other"
-      if (!TRIGGERS.includes(trigger)) return fail("Pick why", "22023")
+      if (!TRIGGERS.includes(trigger)) return fail("Pick why this erasure is needed", "22023")
       const due = text(p.dueOn) ?? day(new Date(now.getTime() + 30 * DAY))
       if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || Number.isNaN(Date.parse(due))) return fail("Check the due date", "22023")
       if (due < day(new Date(now.getTime() - 365 * DAY)) || due > day(new Date(now.getTime() + 3650 * DAY))) return fail("The due date looks wrong", "22023")
@@ -196,7 +197,8 @@ export function proveRpc(host: IcpMockHost, fn: string, args: Record<string, unk
     }
     case "dpdp_icp_erasure_close": {
       const p = (args?.p ?? {}) as { state?: string; doneOn?: string; method?: string }
-      const state = p.state ?? "done"
+      if (!p.state) return fail("Say whether it was done or is not needed", "22023")
+      const state = p.state
       if (state !== "done" && state !== "not_needed") return fail("Say whether it was done or is not needed", "22023")
       const method = text(p.method)
       if (state === "not_needed" && !method) return fail("Say why it is not needed", "22023")
@@ -229,6 +231,6 @@ function mockPack(host: IcpMockHost, now: Date): EvidencePack {
     jobs: host.rows.map((r) => ({ job: r.dataSet || `Job ${r.libIndex}`, state: r.na ? "not_applicable" : r.yes ? "closed" : "open", dueOn: r.due.slice(0, 10), closedAt: null })),
     weeklyRecord: st.runs.map((r) => ({ stage: r.stage, weekStart: r.weekStart, ranAt: r.ranAt, byKind: r.byKind, outcome: r.outcome, percent: r.percent })),
     history: { events: host.eventsThisWeek, checked: host.eventsThisWeek, linksBroken: 0, hashesWrong: 0, intact: true, headHash: null, firstAt: null, lastAt: null },
-    limits: ["Documents are not kept by VERIDIAN: the fingerprint, name and reference are the organisation's own entries, recorded by the organisation.", "A fingerprint shows that a file has not changed since it was recorded; it does not show the file is correct.", "No individual's name, e-mail address or phone number is in this pack."],
+    limits: ["Documents are not kept by VERIDIAN: the fingerprint, name and reference are the organisation's own entries, recorded by the organisation.", "A file that gives the same fingerprint today is the same file that gave it when the organisation recorded it. VERIDIAN did not see the file and cannot check how the fingerprint was made, and a fingerprint does not show the file is correct.", "The date of a record is the date the organisation entered for it; the \"recorded in VERIDIAN\" time is set by VERIDIAN and cannot be changed.", "The pack is built not to contain any person's e-mail address or phone number, and the weekly record, the breach log and the request log hold no free text about a person. The organisation's own titles and notes are shown as it wrote them."],
   }
 }

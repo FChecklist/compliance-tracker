@@ -145,7 +145,7 @@ begin
   if v_size is not null and v_size < 0 then raise exception 'Check the size' using errcode = '22023'; end if;
   if v_on > v_today + 1 or v_on < date '2000-01-01' then raise exception 'The date of the record looks wrong' using errcode = '22023'; end if;
   if nullif(p ->> 'itemId', '') is not null then
-    select * into v_item from dpdp.icp_item where id = p ->> 'itemId' and org_id = p_org_id;
+    select * into v_item from dpdp.icp_item where id = p ->> 'itemId' and org_id = p_org_id and status = 'active';   -- a retired line takes no new record
     if v_item.id is null then raise exception 'That register line was not found' using errcode = 'P0002'; end if;
   end if;
   if nullif(p ->> 'obligationId', '') is not null then
@@ -214,6 +214,7 @@ declare
   v_people integer;
   v_id text := replace(gen_random_uuid()::text, '-', '');
 begin
+  perform set_config('dpdp.allow_locked', 'on', true);   -- a legal duty (the 72-hour clock) stays open on a locked account, as 0734 decided
   v_m := public.dpdp__icp_member(p_org_id, true);
   if char_length(v_desc) < 5 or char_length(v_desc) > 2000 then raise exception 'Describe what happened in a few sentences (5 to 2000 characters)' using errcode = '22023'; end if;
   if coalesce(char_length(v_nature), 0) > 500 or coalesce(char_length(v_extent), 0) > 500 or coalesce(char_length(v_where), 0) > 500 or coalesce(char_length(v_impact), 0) > 500 then
@@ -223,7 +224,8 @@ begin
     raise exception 'Describe it without any person''s e-mail address or phone number: the record lists what happened, not who' using errcode = '22023';
   end if;
   begin
-    v_aware := coalesce(nullif(p ->> 'becameAwareAt', '')::timestamp, v_now);
+    -- read as an instant (an offset such as +05:30 is honoured) and stored as UTC; a date alone counts from 00:00 UTC
+    v_aware := coalesce((nullif(p ->> 'becameAwareAt', '')::timestamptz) at time zone 'UTC', v_now);
     v_people := nullif(p ->> 'peopleAffected', '')::integer;
   exception when others then
     raise exception 'Check the date and the number of people' using errcode = '22023';
@@ -258,10 +260,21 @@ declare
   v_steps text := nullif(btrim(coalesce(p ->> 'remedialSteps', '')), '');
   v_people integer;
 begin
+  perform set_config('dpdp.allow_locked', 'on', true);   -- a legal duty stays open on a locked account (0734)
   v_m := public.dpdp__icp_member(p_org_id, true);
-  select * into b from dpdp.breach where id = p_breach_id and org_id = p_org_id;
+  select * into b from dpdp.breach where id = p_breach_id and org_id = p_org_id for update;
   if b.id is null then raise exception 'That record was not found' using errcode = 'P0002'; end if;
   if b.state = 'closed' then raise exception 'This breach record is closed' using errcode = '55000'; end if;
+  if p is null or jsonb_typeof(p) <> 'object' or p = '{}'::jsonb then raise exception 'Say what to update' using errcode = '22023'; end if;
+  begin
+    perform (p ->> 'boardNotified')::boolean, (p ->> 'boardDetailed')::boolean, (p ->> 'individualsNotified')::boolean, (p ->> 'certInReported')::boolean, (p ->> 'closed')::boolean;
+  exception when others then
+    raise exception 'Tick a box or leave it' using errcode = '22023';
+  end;
+  -- a breach is closed only after the detailed report to the Board has been made (or was already made): closing must not make a late report disappear
+  if coalesce((p ->> 'closed')::boolean, false) and b.board_detailed_at is null and not coalesce((p ->> 'boardDetailed')::boolean, false) then
+    raise exception 'Record the detailed report to the Board before closing this breach' using errcode = '22023';
+  end if;
   if coalesce(char_length(v_ref), 0) > 80 or coalesce(char_length(v_mit), 0) > 1000 or coalesce(char_length(v_cause), 0) > 1000 or coalesce(char_length(v_steps), 0) > 1000 then
     raise exception 'A note is too long (up to 1000 characters; the reference up to 80)' using errcode = '22023';
   end if;
@@ -286,7 +299,7 @@ begin
     board_remedial_steps = coalesce(v_steps, board_remedial_steps),
     scope_person_count = coalesce(v_people, scope_person_count),
     state = case when coalesce((p ->> 'closed')::boolean, false) then 'closed' else state end
-  where id = b.id;
+  where id = b.id and state = 'open';
   v_label := dpdp.icp_actor_label(v_m);
   perform public.dpdp__append_event(p_org_id, v_m.identity_id, v_label, 'breach_updated',
     case when coalesce((p ->> 'closed')::boolean, false) then 'Closed a personal data breach record' else 'Updated a personal data breach record' end, b.id);
@@ -315,6 +328,7 @@ declare
   v_recv timestamp;
   v_due timestamp;
 begin
+  perform set_config('dpdp.allow_locked', 'on', true);   -- answering a person stays open on a locked account (0734)
   v_m := public.dpdp__icp_member(p_org_id, true);
   if v_type not in ('access', 'correction', 'erasure', 'nominee', 'grievance') then raise exception 'Pick the kind of request' using errcode = '22023'; end if;
   if v_via not in ('in_person', 'email', 'post', 'phone', 'portal', 'other') then raise exception 'Pick how it arrived' using errcode = '22023'; end if;
@@ -323,7 +337,7 @@ begin
   exception when others then
     raise exception 'Check the date it arrived' using errcode = '22023';
   end;
-  if v_on > v_today or v_on < v_today - 365 then raise exception 'The date it arrived looks wrong' using errcode = '22023'; end if;
+  if v_on > v_today + 1 or v_on < v_today - 365 then raise exception 'The date it arrived looks wrong' using errcode = '22023'; end if;
   if v_type = 'grievance' then
     if v_sum is null or char_length(v_sum) < 3 or char_length(v_sum) > 300 then raise exception 'Say in a few words what it is about (3 to 300 characters)' using errcode = '22023'; end if;
     if not dpdp.icp_not_contact(v_sum) then raise exception 'Leave out the person''s e-mail address and phone number: the log keeps the subject, not who' using errcode = '22023'; end if;
@@ -357,15 +371,18 @@ declare
   v_out text := coalesce(p_outcome, '');
   v_n integer;
 begin
+  perform set_config('dpdp.allow_locked', 'on', true);   -- answering a person stays open on a locked account (0734)
   v_m := public.dpdp__icp_member(p_org_id, true);
   if v_out not in ('provided', 'corrected', 'erased', 'refused_with_reason', 'withdrawn', 'answered') then raise exception 'Pick how it was answered' using errcode = '22023'; end if;
   v_label := dpdp.icp_actor_label(v_m);
-  if left(coalesce(p_ref, ''), 3) = 'GR-' then
-    update dpdp.grievance set state = 'answered', officer_decision = v_out where ref = p_ref and org_id = p_org_id and state = 'open';
-  else
-    update dpdp.rights_request set state = 'answered', answered_at = v_now, answer_text = v_out where ref = p_ref and org_id = p_org_id and answered_at is null;
-  end if;
+  -- the reference is looked up where it lives (a grievance made before this screen has a G-0001 style reference, so the prefix is not a safe guide);
+  -- a decision the officer already wrote is never overwritten
+  update dpdp.grievance set state = 'answered', officer_decision = coalesce(officer_decision, v_out) where ref = p_ref and org_id = p_org_id and state = 'open';
   get diagnostics v_n = row_count;
+  if v_n = 0 then
+    update dpdp.rights_request set state = 'answered', answered_at = v_now, answer_text = coalesce(answer_text, v_out) where ref = p_ref and org_id = p_org_id and answered_at is null;
+    get diagnostics v_n = row_count;
+  end if;
   if v_n = 0 then raise exception 'That request was not found or is already answered' using errcode = 'P0002'; end if;
   perform public.dpdp__append_event(p_org_id, v_m.identity_id, v_label, 'icp_request_answered', 'Answered a request', p_ref);
   return jsonb_build_object('ok', true);
@@ -393,7 +410,7 @@ begin
   v_m := public.dpdp__icp_member(p_org_id, true);
   if char_length(v_scope) < 2 or char_length(v_scope) > 160 then raise exception 'Say what is to be erased (2 to 160 characters)' using errcode = '22023'; end if;
   if not dpdp.icp_not_contact(v_scope) then raise exception 'Name the data set, not a person: leave out e-mail addresses and phone numbers' using errcode = '22023'; end if;
-  if v_trig not in ('retention_ended', 'person_request', 'consent_withdrawn', 'purpose_served', 'other') then raise exception 'Pick why' using errcode = '22023'; end if;
+  if v_trig not in ('retention_ended', 'person_request', 'consent_withdrawn', 'purpose_served', 'other') then raise exception 'Pick why this erasure is needed' using errcode = '22023'; end if;
   begin
     v_due := coalesce(nullif(p ->> 'dueOn', '')::date, v_today + 30);
   exception when others then
@@ -426,6 +443,7 @@ declare
   v_n integer;
 begin
   v_m := public.dpdp__icp_member(p_org_id, true);
+  if p is null or jsonb_typeof(p) <> 'object' or nullif(p ->> 'state', '') is null then raise exception 'Say whether it was done or is not needed' using errcode = '22023'; end if;
   if v_state not in ('done', 'not_needed') then raise exception 'Say whether it was done or is not needed' using errcode = '22023'; end if;
   begin
     v_on := coalesce(nullif(p ->> 'doneOn', '')::date, v_today);
@@ -526,15 +544,26 @@ begin
         'certInReference', b.cert_in_reference, 'pastClock', b.state = 'open' and b.deadline_at < v_now and b.board_detailed_at is null
       ) order by b.became_aware_at desc), '[]'::jsonb)
       from (select * from dpdp.breach x where x.org_id = p_org_id order by x.became_aware_at desc limit 100) b),
+    -- how many rows exist against how many are listed above, so a pack that is cut short says so
+    'totals', jsonb_build_object(
+        'evidence', (select count(*) from dpdp.icp_evidence e where e.org_id = p_org_id),
+        'breaches', (select count(*) from dpdp.breach b where b.org_id = p_org_id),
+        'erasures', (select count(*) from dpdp.icp_erasure z where z.org_id = p_org_id),
+        'listedMax', jsonb_build_object('evidence', 200, 'breaches', 100, 'erasures', 200)),
     'requests', (select coalesce(jsonb_agg(q.j order by q.recv desc), '[]'::jsonb) from (
+        -- 'outcome' is one of six fixed words, never the free text an older flow may have stored there (that text can name a person)
         select r.received_at as recv, jsonb_build_object('ref', r.ref, 'type', r.kind, 'arrivedVia', r.arrived_via, 'receivedOn', to_char(r.received_at, 'YYYY-MM-DD'),
-               'dueOn', to_char(r.due_at, 'YYYY-MM-DD'), 'state', case when r.answered_at is null then 'open' else 'answered' end, 'outcome', r.answer_text,
+               'dueOn', to_char(r.due_at, 'YYYY-MM-DD'), 'state', case when r.answered_at is null then 'open' else 'answered' end,
+               'outcome', case when r.answered_at is null then null when r.answer_text in ('provided', 'corrected', 'erased', 'refused_with_reason', 'withdrawn', 'answered') then r.answer_text else 'answered' end,
                'pastDue', r.answered_at is null and r.due_at::date < v_now::date) as j
           from dpdp.rights_request r where r.org_id = p_org_id
         union all
-        select coalesce(g.received_at, g.officer_due_at - interval '90 days'), jsonb_build_object('ref', g.ref, 'type', 'grievance', 'summary', g.summary,
-               'receivedOn', to_char(coalesce(g.received_at, g.officer_due_at - interval '90 days'), 'YYYY-MM-DD'), 'dueOn', to_char(g.officer_due_at, 'YYYY-MM-DD'),
-               'state', case when g.state = 'open' then 'open' else 'answered' end, 'outcome', g.officer_decision, 'pastDue', g.state = 'open' and g.officer_due_at::date < v_now::date)
+        -- a grievance made before this screen has no received date: it is shown as null, never as a date worked backwards from the due date
+        select coalesce(g.received_at, g.officer_due_at - interval '30 days'), jsonb_build_object('ref', g.ref, 'type', 'grievance', 'summary', g.summary,
+               'receivedOn', to_char(g.received_at, 'YYYY-MM-DD'), 'dueOn', to_char(g.officer_due_at, 'YYYY-MM-DD'),
+               'state', case when g.state = 'open' then 'open' else 'answered' end,
+               'outcome', case when g.state = 'open' then null when g.officer_decision in ('provided', 'corrected', 'erased', 'refused_with_reason', 'withdrawn', 'answered') then g.officer_decision else 'answered' end,
+               'pastDue', g.state = 'open' and g.officer_due_at::date < v_now::date)
           from dpdp.grievance g where g.org_id = p_org_id) q),
     'erasures', (select coalesce(jsonb_agg(jsonb_build_object(
         'id', e.id, 'scope', e.scope, 'trigger', e.trigger_kind, 'dueOn', to_char(e.due_on, 'YYYY-MM-DD'), 'state', e.state, 'doneOn', to_char(e.done_on, 'YYYY-MM-DD'),
@@ -590,7 +619,7 @@ begin
     v_head := r.hash;
   end loop;
   return jsonb_build_object('events', v_total, 'checked', v_n, 'linksBroken', v_bad_link, 'hashesWrong', v_bad_hash, 'firstProblemAt', v_first_bad,
-    'intact', v_bad_link = 0 and v_bad_hash = 0, 'headHash', v_head,
+    'intact', v_bad_link = 0 and v_bad_hash = 0, 'headHash', v_head, 'truncated', v_total > v_n,   -- true: only the first p_limit events were walked, so headHash is not the newest one
     'firstAt', to_char(v_first, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'lastAt', to_char(v_last, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'));
 end
 $$;
@@ -620,6 +649,10 @@ begin
     'register', (select coalesce(jsonb_agg(dpdp.icp_item_json(i, v_week, v_child) order by i.kind, i.name), '[]'::jsonb) from dpdp.icp_item i where i.org_id = p_org_id and i.status = 'active'),
     'retiredLines', (select count(*) from dpdp.icp_item i where i.org_id = p_org_id and i.status = 'retired'),
     'evidence', v_over -> 'evidence',
+    'totals', v_over -> 'totals',
+    'truncated', (select coalesce(jsonb_array_length(v_over -> 'evidence') < (v_over -> 'totals' ->> 'evidence')::int, false)
+                       or coalesce(jsonb_array_length(v_over -> 'breaches') < (v_over -> 'totals' ->> 'breaches')::int, false)
+                       or coalesce(jsonb_array_length(v_over -> 'erasures') < (v_over -> 'totals' ->> 'erasures')::int, false)),
     'notices', (select coalesce(jsonb_agg(jsonb_build_object('docKind', n.doc_kind, 'version', n.version, 'releasedOn', to_char(n.released_on, 'YYYY-MM-DD'),
                   'effectiveFrom', to_char(n.effective_from, 'YYYY-MM-DD'), 'effectiveTo', to_char(n.effective_to, 'YYYY-MM-DD'), 'languages', n.languages, 'state', n.state)
                   order by n.released_on desc nulls last), '[]'::jsonb) from dpdp.notice_version n where n.org_id = p_org_id),
@@ -646,8 +679,9 @@ begin
     'history', dpdp.icp_chain_check(p_org_id),
     'limits', jsonb_build_array(
       'Documents are not kept by VERIDIAN: the fingerprint, name and reference are the organisation''s own entries, recorded by the organisation.',
-      'A fingerprint shows that a file has not changed since it was recorded; it does not show the file is correct.',
-      'No individual''s name, e-mail address or phone number is in this pack.')
+      'A file that gives the same fingerprint today is the same file that gave it when the organisation recorded it. VERIDIAN did not see the file and cannot check how the fingerprint was made, and a fingerprint does not show the file is correct.',
+      'The date of a record is the date the organisation entered for it; the "recorded in VERIDIAN" time is set by VERIDIAN and cannot be changed.',
+      'The pack is built not to contain any person''s e-mail address or phone number, and the weekly record, the breach log and the request log hold no free text about a person. The organisation''s own titles and notes are shown as it wrote them.')
   );
 end
 $$;

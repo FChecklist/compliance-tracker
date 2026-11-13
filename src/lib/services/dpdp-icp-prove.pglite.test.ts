@@ -199,7 +199,7 @@ describe('PROVE: erasure', () => {
   test('an erasure has a due date; late until closed; "not needed" needs a reason; never a person as the scope; closes once', async () => {
     await as('owner@prove.test')
     expect(await rpcFails('dpdp_icp_erasure_log', 'school', { scope: 'asha@example.com' })).toContain('not a person')
-    expect(await rpcFails('dpdp_icp_erasure_log', 'school', { scope: 'Old forms', trigger: 'whim' })).toContain('Pick why')
+    expect(await rpcFails('dpdp_icp_erasure_log', 'school', { scope: 'Old forms', trigger: 'whim' })).toContain('Pick why this erasure')
     const e = await rpc('dpdp_icp_erasure_log', 'school', { scope: 'Admission forms of 2019', trigger: 'retention_ended', dueOn: day(-5) })
     expect((await step('school', 'erasures_on_time')).done).toBe(false)
     expect(await rpcFails('dpdp_icp_erasure_close', 'school', e.id, { state: 'not_needed' })).toContain('Say why')
@@ -216,7 +216,7 @@ describe('PROVE: the pack, the chain check and the checklist', () => {
     expect(JSON.stringify(pack.breaches)).not.toContain('laptop')
     expect(JSON.stringify(pack)).not.toMatch(/@|98765/)
     expect(pack.what).toContain('not a certificate')
-    expect(pack.limits).toHaveLength(3)
+    expect(pack.limits).toHaveLength(4)
     expect(pack.history.intact).toBe(true)
     expect(pack.history.linksBroken).toBe(0)
     expect(pack.history.hashesWrong).toBe(0)
@@ -252,6 +252,93 @@ describe('PROVE: the pack, the chain check and the checklist', () => {
     expect((await step('school', 'jobs_not_late')).done).toBe(true)
     await db.query(`insert into dpdp.obligation (id, org_id, template_id, state, due_on) values ('oj2', 'school', 'tj', 'open', current_date - 10)`)
     expect((await step('school', 'jobs_not_late')).done).toBe(false)
+  })
+})
+
+describe('PROVE: what the Audit 2 found (kept as regression tests)', () => {
+  test('a grievance made before this screen (G-0001 style, no received date, free-text decision) can be answered here; its received date is never invented; free text never reaches the pack', async () => {
+    await as('')
+    await db.query(`insert into dpdp.grievance (id, org_id, ref, summary, state, officer_decision, tier, officer_due_at) values ('lg1', 'school', 'G-0001', 'Old complaint', 'open', 'We told Rahul Mehta (rahul@x.com) about it', 1, $1)`, [`${day(-2)}T00:00:00`])
+    await db.query(`insert into dpdp.rights_request (id, org_id, ref, kind, arrived_via, received_at, due_at, state, answered_at, answer_text) values ('lr1', 'school', 'R-0001', 'access', 'email', $1, $2, 'answered', now(), 'Dear Asha Verma, mail asha.verma@gmail.com or 98765 43210')`, [`${day(-20)}T00:00:00`, `${day(70)}T00:00:00`])
+    await as('owner@prove.test')
+    const o = await rpc('dpdp_icp_prove_overview', 'school')
+    const g = o.requests.find((x: J) => x.ref === 'G-0001')
+    expect(g.receivedOn).toBeNull() // not worked backwards from the due date
+    expect(g.pastDue).toBe(true)
+    expect((await step('school', 'requests_on_time')).done).toBe(false)
+    const pack = JSON.stringify(await rpc('dpdp_icp_evidence_pack', 'school'))
+    expect(pack).not.toMatch(/@|98765|Rahul|Asha/)
+    expect(o.requests.find((x: J) => x.ref === 'R-0001').outcome).toBe('answered')
+    await rpc('dpdp_icp_request_close', 'school', 'G-0001', 'answered') // the prefix is not a guide: it is found where it lives
+    expect((await step('school', 'requests_on_time')).done).toBe(true)
+    expect((await rows<J>(`select officer_decision from dpdp.grievance where ref = 'G-0001'`))[0].officer_decision).toContain('Rahul') // a decision already written is never overwritten
+    expect(JSON.stringify(await rpc('dpdp_icp_evidence_pack', 'school'))).not.toContain('Rahul')
+  })
+  test('a breach cannot be closed until the detailed report to the Board is recorded, so closing never hides a late report', async () => {
+    await as('owner@prove.test')
+    const r = await rpc('dpdp_icp_breach_log', 'school', { description: 'A cupboard of old forms was left open', becameAwareAt: `${iso(-10 * 86_400_000)}Z` })
+    expect((await step('school', 'breach_clocks')).done).toBe(false)
+    expect(await rpcFails('dpdp_icp_breach_update', 'school', r.id, { closed: true })).toContain('detailed report')
+    expect((await step('school', 'breach_clocks')).done).toBe(false)
+    expect(await rpcFails('dpdp_icp_breach_update', 'school', r.id, {})).toContain('Say what to update')
+    expect(await rpcFails('dpdp_icp_breach_update', 'school', r.id, { boardNotified: 'abc' })).toContain('Tick a box')
+    await rpc('dpdp_icp_breach_update', 'school', r.id, { boardDetailed: true, closed: true }) // reporting and closing in one go is fine
+    expect((await step('school', 'breach_clocks')).done).toBe(true)
+    expect((await rows<J>(`select state from dpdp.breach where id = $1`, [r.id]))[0].state).toBe('closed')
+  })
+  test('a time with an offset is stored as the same instant in UTC, and a date later today (UTC+1) is accepted', async () => {
+    await as('owner@prove.test')
+    const t = new Date(Date.now() - 2 * 3_600_000)
+    const ist = new Date(t.getTime() + 5.5 * 3_600_000).toISOString().slice(0, 19) + '+05:30'
+    const r = await rpc('dpdp_icp_breach_log', 'school', { description: 'A phone with a class list was lost', becameAwareAt: ist })
+    const b = (await rows<J>(`select became_aware_at from dpdp.breach where id = $1`, [r.id]))[0]
+    expect(Math.abs(new Date(`${new Date(b.became_aware_at).toISOString().slice(0, 19)}Z`).getTime() - t.getTime())).toBeLessThan(1500)
+    const tomorrow = await rpc('dpdp_icp_request_log', 'school', { type: 'access', arrivedVia: 'phone', receivedOn: day(1) })
+    expect(tomorrow.ok).toBe(true)
+  })
+  test('a retired register line takes no new record; an empty erasure close does nothing', async () => {
+    await as('owner@prove.test')
+    const v = (await rpc('dpdp_icp_save_item', 'school', { kind: 'vendor', name: 'Old Vendor', agreementStatus: 'requested' })).item
+    await rpc('dpdp_icp_retire_item', 'school', v.id, 'No longer used')
+    expect(await rpcFails('dpdp_icp_evidence_add', 'school', { kind: 'agreement', title: 'Late agreement', sha256: HASH, itemId: v.id })).toContain('not found')
+    expect((await rows<J>(`select agreement_status from dpdp.icp_item where id = $1`, [v.id]))[0].agreement_status).not.toBe('signed')
+    const e = await rpc('dpdp_icp_erasure_log', 'school', { scope: 'Scratch files', trigger: 'other', dueOn: day(5) })
+    expect(await rpcFails('dpdp_icp_erasure_close', 'school', e.id, {})).toContain('Say whether')
+    expect((await rows<J>(`select state from dpdp.icp_erasure where id = $1`, [e.id]))[0].state).toBe('open')
+  })
+  test("another organisation's ids are never found, in any of the writes", async () => {
+    await org('other', 'owner2')
+    await as('owner2@prove.test')
+    const ev = await rpc('dpdp_icp_evidence_add', 'other', { kind: 'policy', title: 'Their policy', sha256: HASH })
+    const br = await rpc('dpdp_icp_breach_log', 'other', { description: 'Their own breach, described plainly' })
+    const rq = await rpc('dpdp_icp_request_log', 'other', { type: 'access', arrivedVia: 'email' })
+    const er = await rpc('dpdp_icp_erasure_log', 'other', { scope: 'Their old files', trigger: 'other' })
+    await as('owner@prove.test')
+    expect(await rpcFails('dpdp_icp_evidence_withdraw', 'school', ev.id, 'not yours')).toContain('not found')
+    expect(await rpcFails('dpdp_icp_breach_update', 'school', br.id, { boardNotified: true })).toContain('not found')
+    expect(await rpcFails('dpdp_icp_request_close', 'school', rq.ref, 'answered')).toContain('not found')
+    expect(await rpcFails('dpdp_icp_erasure_close', 'school', er.id, { state: 'done' })).toContain('not found')
+    expect(JSON.stringify(await rpc('dpdp_icp_evidence_pack', 'school'))).not.toContain('Their policy')
+  })
+  test('a pack that is cut short says so, and the History check says when it did not walk the whole chain', async () => {
+    await as('')
+    await db.query(`insert into dpdp.icp_evidence (id, org_id, kind, title, reference, evidence_on, week_start, recorded_by, actor_label)
+      select 'bulk' || g, 'school', 'other', 'Bulk ' || g, 'x', current_date, dpdp.icp_week(), 'i_owner', 'Owner' from generate_series(1, 230) g`)
+    await as('owner@prove.test')
+    const pack = await rpc('dpdp_icp_evidence_pack', 'school')
+    expect(pack.evidence).toHaveLength(200)
+    expect(pack.truncated).toBe(true)
+    expect(pack.totals.evidence).toBeGreaterThan(230)
+    expect(pack.history.truncated).toBe(false)
+    expect((await one<J>(`select dpdp.icp_chain_check('school', 3) as r`)).truncated).toBe(true)
+  })
+  test('the four legal-duty writes (breach log/update, request log/close) stay open on a locked account (they set the allow flag before the gate)', () => {
+    const src = read(F0762)
+    for (const fn of ['dpdp_icp_breach_log', 'dpdp_icp_breach_update', 'dpdp_icp_request_log', 'dpdp_icp_request_close']) {
+      const body = src.slice(src.indexOf(`function public.${fn}(`)).split('$$;')[0]
+      expect(body).toContain("set_config('dpdp.allow_locked', 'on', true)")
+      expect(body.indexOf('allow_locked')).toBeLessThan(body.indexOf('dpdp__icp_member'))
+    }
   })
 })
 
