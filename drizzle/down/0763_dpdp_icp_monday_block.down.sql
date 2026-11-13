@@ -3,6 +3,6 @@
 -- dpdp.icp_run stay (that record is append-only by design, and they are the organisation's own weekly record).
 begin;
 drop function if exists public.dpdp_timer_icp_weekly(text, timestamptz, boolean);
-drop function if exists dpdp.icp_firm_clients(text);
+drop function if exists dpdp.icp_clients_of(text, text);
 drop index if exists dpdp.icp_run_monday_once;
 commit;

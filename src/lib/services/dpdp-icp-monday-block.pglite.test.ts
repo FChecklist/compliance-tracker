@@ -21,12 +21,14 @@ async function person(key: string) {
   await db.query(`insert into dpdp.identity (id, primary_email) values ($1, $2) on conflict do nothing`, [`i_${key}`, email])
   await db.query(`insert into dpdp.identity_email (id, identity_id, email, is_primary) values ($1, $2, $3, true) on conflict do nothing`, [`ie_${key}`, `i_${key}`, email])
 }
-async function org(key: string, ownerKey: string, product = 'institution') {
+async function org(key: string, ownerKey: string, product: string | null = 'institution') {
   await db.query(`insert into dpdp.organisation (id, name, slug, product) values ($1, $2, $1, $3)`, [key, `Org ${key}`, product])
   await person(ownerKey)
   await db.query(`insert into dpdp.membership (id, identity_id, org_id, level, joined_via, first_visit_seen_at) values ($1, $2, $3, 'owner', 'created', now())`, [`m_${key}`, `i_${ownerKey}`, key])
 }
 const mondayOf = (d: Date) => { const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x }
+// the clients ONE recipient (a membership) acts for: the database keys them per person, never as one list for the whole firm
+const mineOf = (w: J, membershipId: string): { clientTotal: number; clients: J[] } => w.clientsByViewer?.[membershipId] ?? { clientTotal: 0, clients: [] }
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000)
 
@@ -84,6 +86,7 @@ describe('the e-mail block data', () => {
     expect(w.viewerMembershipIds).toEqual(['m_school'])
     expect(new Date(`${w.weekStart}T00:00:00Z`).getUTCDay()).toBe(1)
     expect(w.clients).toEqual([])
+    expect(w.clientsByViewer).toEqual({})
     expect(w.snapshotsAdded).toBe(0)
     expect(JSON.stringify(w)).not.toMatch(/@/)
   })
@@ -145,15 +148,17 @@ describe('the e-mail block data', () => {
     await save('cl2', { kind: 'data_set', name: 'Hidden client list', whereHeld: 'Secret cabinet' })
     await one(`select public.dpdp_icp_log('cl2', 'identify', 'skipped', 'Secret note') as r`)
     const w = await weekly('caf', null, false)
-    expect(w.clientTotal).toBe(3)
-    expect(w.clients.map((c: J) => c.orgId).sort()).toEqual(['cl1', 'cl2', 'cl5'])
-    expect(w.clients[0].percent).toBeLessThanOrEqual(w.clients[1].percent)
-    const cl2 = w.clients.find((c: J) => c.orgId === 'cl2')
+    const mine = mineOf(w, 'm_caf')
+    expect(w.clients).toEqual([]) // never one list for the whole firm
+    expect(mine.clientTotal).toBe(3)
+    expect(mine.clients.map((c: J) => c.orgId).sort()).toEqual(['cl1', 'cl2', 'cl5'])
+    expect(mine.clients[0].percent).toBeLessThanOrEqual(mine.clients[1].percent)
+    const cl2 = mine.clients.find((c: J) => c.orgId === 'cl2')
     expect(cl2.started).toBe(true)
     expect(cl2.total).toBe(14)
-    expect(w.clients.find((c: J) => c.orgId === 'cl1').started).toBe(false)
+    expect(mine.clients.find((c: J) => c.orgId === 'cl1').started).toBe(false)
     expect(JSON.stringify(w)).not.toMatch(/Hidden client list|Secret/)
-    expect((await weekly('cl1', null, false)).clients).toEqual([]) // an institution never gets a roll-up
+    expect((await weekly('cl1', null, false)).clientsByViewer).toEqual({}) // an institution never gets a roll-up
   })
 
   test('more than 100 clients: the cut keeps the weakest 100, not the first 100 by name', async () => {
@@ -165,32 +170,36 @@ describe('the e-mail block data', () => {
     // the first 50 have started their register (a higher score); the last 55 have not, so the weakest clients are the ones LAST by name
     await db.query(`insert into dpdp.icp_item (org_id, kind, name, first_seen_week) select 'bc' || g, 'data_set', 'Admission files', dpdp.icp_week() from generate_series(1, 50) g`)
     const w = await weekly('big', null, false)
-    expect(w.clientTotal).toBe(105)
-    expect(w.clients).toHaveLength(100)
-    const pcts = w.clients.map((c: J) => c.percent)
+    const mine = mineOf(w, 'm_big')
+    expect(mine.clientTotal).toBe(105)
+    expect(mine.clients).toHaveLength(100)
+    const pcts = mine.clients.map((c: J) => c.percent)
     expect([...pcts].sort((a: number, b: number) => a - b)).toEqual(pcts)
     expect(pcts[0]).toBeLessThan(pcts[99]) // the scores really differ, so the cut is a ranking and not a tie
-    const got = w.clients.map((c: J) => c.orgId)
+    const got = mine.clients.map((c: J) => c.orgId)
     for (const g of [101, 102, 103, 104, 105]) expect(got).toContain(`bc${g}`) // the weakest by score, last by name: kept
   }, 120_000)
 
-  test('a firm sees only the clients of people who themselves opened the firm: naming a CA in a firm they never joined shows nothing, and a CA who said it is not them is dropped', async () => {
+  test('every recipient is shown only the clients THEY act for: a CA\'s e-mail named in a made-up firm gives that firm\'s owner nothing, whatever the CA taps', async () => {
     await org('goodf', 'vic', 'firm')
     await addClient('goodf', 'vic', 'vc1')
     await addClient('goodf', 'vic', 'vc2')
     await org('evil', 'evilowner', 'firm')
-    // the owner of a made-up firm names the victim CA's e-mail: a membership appears with no act of the CA
-    await db.query(`insert into dpdp.membership (id, identity_id, org_id, level, joined_via) values ('m_evil_vic', 'i_vic', 'evil', 'staff', 'named_in_role')`)
-    const w = await weekly('evil', null, false)
-    expect(w.clientTotal).toBe(0)
-    expect(JSON.stringify(w)).not.toMatch(/vc1|vc2|Org vc/)
-    // the CA opens that firm themself: their own act, so their clients are counted for it
-    await db.query(`update dpdp.membership set first_visit_seen_at = now() where id = 'm_evil_vic'`)
-    expect((await weekly('evil', null, false)).clientTotal).toBe(2)
-    // and says it is not them: gone again
-    await db.query(`update dpdp.membership set said_not_me_at = now() where id = 'm_evil_vic'`)
-    expect((await weekly('evil', null, false)).clientTotal).toBe(0)
-    expect((await weekly('goodf', null, false)).clientTotal).toBe(2)
+    await person('vic2')
+    // the owner of a made-up firm names the victim CA's e-mail as a co-owner and another as plain staff: memberships appear with no act of the CAs
+    await db.query(`insert into dpdp.membership (id, identity_id, org_id, level, joined_via) values ('m_evil_vic', 'i_vic', 'evil', 'owner', 'invited'), ('m_evil_vic2', 'i_vic2', 'evil', 'staff', 'named_in_role')`)
+    for (const stamp of [false, true]) {
+      if (stamp) await db.query(`update dpdp.membership set first_visit_seen_at = now() where id in ('m_evil_vic', 'm_evil_vic2')`) // even after the welcome screen was dismissed
+      const w = await weekly('evil', null, false)
+      expect(w.clients).toEqual([])
+      expect(mineOf(w, 'm_evil').clientTotal).toBe(0) // the attacker's own list: nothing
+      expect(w.clientsByViewer.m_evil).toBeUndefined()
+      expect(w.clientsByViewer.m_evil_vic2).toBeUndefined() // plain staff are not recipients of the block at all
+      expect(mineOf(w, 'm_evil_vic').clientTotal).toBe(2) // the CA herself, in her own e-mail, sees her own clients
+      // nothing of the CA's clients sits under any other recipient's key
+      expect(JSON.stringify(Object.fromEntries(Object.entries(w.clientsByViewer).filter(([k]) => k !== 'm_evil_vic')))).not.toMatch(/vc1|vc2|Org vc/)
+    }
+    expect(mineOf(await weekly('goodf', null, false), 'm_goodf').clientTotal).toBe(2)
   })
 
   test('a client the CA set up (school or university: the library has no CA-tagged job) counts once the owner confirmed; a departed CA or a departed firm membership drops them', async () => {
@@ -199,23 +208,33 @@ describe('the e-mail block data', () => {
     await addClient('caf2', 'caf2owner', 'sch2', { noJob: true, setUpBy: true, confirmed: false }) // not confirmed: not shown
     await addClient('caf2', 'caf2owner', 'sch3', { noJob: true }) // no job, not set up by the CA: no tie at all
     const w = await weekly('caf2', null, false)
-    expect(w.clients.map((c: J) => c.orgId)).toEqual(['sch1'])
+    expect(mineOf(w, 'm_caf2').clients.map((c: J) => c.orgId)).toEqual(['sch1'])
     await db.query(`update dpdp.membership set state = 'revoked' where id = 'm_sch1_ca'`)
-    expect((await weekly('caf2', null, false)).clientTotal).toBe(0)
+    expect(mineOf(await weekly('caf2', null, false), 'm_caf2').clientTotal).toBe(0)
     await db.query(`update dpdp.membership set state = 'active' where id = 'm_sch1_ca'`)
-    expect((await weekly('caf2', null, false)).clientTotal).toBe(1)
+    expect(mineOf(await weekly('caf2', null, false), 'm_caf2').clientTotal).toBe(1)
     await db.query(`update dpdp.membership set state = 'revoked' where id = 'm_caf2'`)
-    expect((await weekly('caf2', null, false)).clientTotal).toBe(0)
+    expect(mineOf(await weekly('caf2', null, false), 'm_caf2').clientTotal).toBe(0)
   })
 
-  test('the firm-clients helper is closed to every browser role', async () => {
-    expect((await rows<J>(`select has_function_privilege('anon', 'dpdp.icp_firm_clients(text)', 'execute') as a, has_function_privilege('authenticated', 'dpdp.icp_firm_clients(text)', 'execute') as b`))[0]).toEqual({ a: false, b: false })
+  test('a firm with no product value is treated as a firm, like My clients does (the block says so, so the e-mail shows the roll-up)', async () => {
+    await org('np', 'npowner', null)
+    await org('npc', 'npcowner')
+    await db.query(`insert into dpdp.membership (id, identity_id, org_id, level, joined_via) values ('m_npc_ca', 'i_npowner', 'npc', 'staff', 'created')`)
+    await db.query(`update dpdp.organisation set set_up_by_membership_id = 'm_npc_ca', owner_confirmed_at = now() where id = 'npc'`)
+    const w = await weekly('np', null, false)
+    expect(w.product).toBe('firm')
+    expect(mineOf(w, 'm_np').clients.map((c: J) => c.orgId)).toEqual(['npc'])
+  })
+
+  test('the clients helper is closed to every browser role', async () => {
+    expect((await rows<J>(`select has_function_privilege('anon', 'dpdp.icp_clients_of(text, text)', 'execute') as a, has_function_privilege('authenticated', 'dpdp.icp_clients_of(text, text)', 'execute') as b`))[0]).toEqual({ a: false, b: false })
   })
 
   test('carry-over never lists the steps that are open for everyone on a Monday (anything new, a record this week, the week sign-off)', async () => {
     await org('wk', 'wkowner')
     const lastWeek = addDays(mondayOf(new Date()), -7)
-    await db.query(`insert into dpdp.icp_item (org_id, kind, name, first_seen_week, last_confirmed_week) values ('wk', 'data_set', 'Old files', $1, null)`, [ymd(lastWeek)])
+    await db.query(`insert into dpdp.icp_item (org_id, kind, name, first_seen_week, last_confirmed_week) values ('wk', 'data_set', 'Old files', $1, null)`, [ymd(addDays(lastWeek, -14))])
     await db.query(`insert into dpdp.icp_run (org_id, stage, week_start, by_kind, actor_label, outcome, snapshot)
                     values ('wk', 'identify', $1, 'person', 'Owner', 'ok', dpdp.icp_status_for('wk', $1::date) - 'notALegalRating')`, [ymd(lastWeek)])
     await db.query(`insert into dpdp.icp_run (org_id, stage, week_start, by_kind, actor_label, outcome, snapshot)

@@ -139,6 +139,8 @@ describe('the sender wiring (index.ts is Deno, so its source is checked rather t
     expect(src).toContain('p_record: !dryRun')
     expect(src).toContain('!d.statutoryOnly && viewers.has(d.membershipId)')
     expect(src).toContain('recorded: !dryRun')
+    expect(src).toContain('icp.clientsByViewer?.[d.membershipId]') // each person gets only their own clients
+    expect(src).toContain('clientsByViewer: undefined') // and never the other recipients' lists
     expect(src).toContain('DPDP_EMAIL_ICP_ENABLED')
     expect(src.indexOf('dpdp_timer_icp_weekly')).toBeLessThan(src.indexOf('await deliverDigests(sb, digests, dryRun, summary)'))
   })

@@ -15,7 +15,7 @@ Once a week the customer works through three short stages. Each stage is a check
 
 - The **weekly score** is a count: "N of M steps of this week's routine". It is never called "compliant" or "certified", and it is not a rating of the organisation's legal position.
 - Weeks run Monday to Sunday (UTC). A step not done last week shows as "still open from last week".
-- A **Professional (CA/CS firm)** organisation also sees its clients ranked worst first (counts only). "Clients" means the organisations a CA of the firm acts for (named on a CA job there, or set the client up) whose owner confirmed the set-up, the same as "My clients". Only a CA who has opened the firm themself counts: nobody can add a CA's e-mail to a made-up firm and read that CA's clients. A CA who has opened two firms shows their clients to both.
+- A **Professional (CA/CS firm)** organisation also sees a list of clients, worst first (counts only). **Each person gets only the clients they themself act for** (the same ones their own "My clients" page shows: named on a CA job there, or set the client up, with the client's owner having confirmed it). Nobody can see another CA's clients by adding that CA's e-mail to a firm, and the firm owner does not get a list of everybody's clients. A firm owner who does not act for any client sees none.
 
 ## 2. What the Monday e-mail says
 

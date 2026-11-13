@@ -24,8 +24,11 @@ export type IcpBlock = {
   carriedOver: Array<{ stage: string; key: string; label: string; count: number | null }>
   viewerMembershipIds: string[]
   snapshotsAdded?: number
+  /** The recipient's OWN clients (set by the sender from clientsByViewer; the database never puts another person's list here) */
   clients: IcpClient[]
   clientTotal: number
+  /** Per whole-organisation member, keyed by membership id: the clients that member acts for. Dropped before rendering. */
+  clientsByViewer?: Record<string, { clientTotal: number; clients: IcpClient[] }>
   notALegalRating: boolean
   note: string
   /** Set by the sender: true only on a real send (a dry run records nothing, so it must not say it did). */

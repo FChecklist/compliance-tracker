@@ -370,7 +370,13 @@ async function runMonday(sb: SupabaseClient, now: Date, orgId: string | null, dr
             if (icpBlockUsable(icp)) {
               const viewers = new Set(icp.viewerMembershipIds ?? [])
               const block: IcpBlock = { ...icp, recorded: !dryRun }
-              for (const d of digests) if (!d.statutoryOnly && viewers.has(d.membershipId)) d.icp = block
+              // each person is shown only the clients THEY act for (the database keys them by membership): never another member's list
+              for (const d of digests) {
+                if (!d.statutoryOnly && viewers.has(d.membershipId)) {
+                  const mine = icp.clientsByViewer?.[d.membershipId]
+                  d.icp = { ...block, clientsByViewer: undefined, clients: mine?.clients ?? [], clientTotal: mine?.clientTotal ?? 0 }
+                }
+              }
             }
           } catch (e) {
             console.warn(`dpdp_timer_icp_weekly failed for org ${id}: ${e instanceof Error ? e.message : String(e)}`)
