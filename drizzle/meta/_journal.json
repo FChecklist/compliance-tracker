@@ -3935,6 +3935,13 @@
       "when": 1790700036000,
       "tag": "0756_dpdp_extra_client_price_rs50",
       "breakpoints": true
+    },
+    {
+      "idx": 564,
+      "version": "7",
+      "when": 1790700037000,
+      "tag": "0761_dpdp_icp_identify_classify",
+      "breakpoints": true
     }
   ]
 }

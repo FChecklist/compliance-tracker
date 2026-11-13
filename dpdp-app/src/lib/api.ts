@@ -1,4 +1,4 @@
-import type { WeeklyRunWire } from "@/lib/weekly-routine"
+import type { IcpItem, IcpItemInput, IcpStage, IcpStatus } from "@/lib/icp"
 import type { GroupAnswerKind, ObligationRow, ViewerContext } from "@/lib/dpdp-onepage/view-model"
 import type { DpdpClient, RpcError } from "./client"
 import type {
@@ -113,14 +113,46 @@ export async function fetchHistory(client: DpdpClient, orgId?: string, limit = 1
   return (data as HistoryEntryWire[]).map((h) => ({ ...h, occurredAt: new Date(h.occurredAt) }))
 }
 
-/** The weekly routine's own record (proposed migration 0760, not applied yet). Throws RpcFailure; until the database has it the call fails and the page reads History instead. */
-export async function fetchWeeklyRuns(client: DpdpClient, orgId: string, weeks = 4): Promise<WeeklyRunWire[]> {
-  const { data, error } = await client.rpc("dpdp_weekly_runs", { p_org_id: orgId, p_weeks: weeks })
+// ---------------------------------------------------------------------
+// The weekly ICP routine (drizzle/0761): Identify, Classify, Prove. Every call throws RpcFailure with the database's own plain sentence.
+// ---------------------------------------------------------------------
+export async function fetchIcpStatus(client: DpdpClient, orgId: string): Promise<IcpStatus> {
+  const { data, error } = await client.rpc("dpdp_icp_status", { p_org_id: orgId })
   if (error) throw new RpcFailure(error)
-  return (data ?? []) as WeeklyRunWire[]
+  return data as IcpStatus
 }
-export async function logWeeklyRun(client: DpdpClient, orgId: string, stage: WeeklyRunWire["stage"], note?: string): Promise<void> {
-  const { error } = await client.rpc("dpdp_weekly_log", { p_org_id: orgId, p_stage: stage, p_outcome: "ok", p_note: note ?? null, p_by: "person" })
+export async function fetchIcpRegister(client: DpdpClient, orgId: string): Promise<IcpItem[]> {
+  const { data, error } = await client.rpc("dpdp_icp_register", { p_org_id: orgId })
+  if (error) throw new RpcFailure(error)
+  return (data ?? []) as IcpItem[]
+}
+export async function saveIcpItem(client: DpdpClient, orgId: string, item: IcpItemInput): Promise<IcpItem> {
+  const { data, error } = await client.rpc("dpdp_icp_save_item", { p_org_id: orgId, p_item: item })
+  if (error) throw new RpcFailure(error)
+  return (data as { item: IcpItem }).item
+}
+export async function retireIcpItem(client: DpdpClient, orgId: string, itemId: string, reason: string): Promise<void> {
+  const { error } = await client.rpc("dpdp_icp_retire_item", { p_org_id: orgId, p_item_id: itemId, p_reason: reason })
+  if (error) throw new RpcFailure(error)
+}
+/** "Still true": with no ids, every active line is confirmed for this week. */
+export async function confirmIcpItems(client: DpdpClient, orgId: string, itemIds?: string[]): Promise<number> {
+  const { data, error } = await client.rpc("dpdp_icp_confirm_items", { p_org_id: orgId, ...(itemIds ? { p_item_ids: itemIds } : {}) })
+  if (error) throw new RpcFailure(error)
+  return (data as { confirmed: number }).confirmed
+}
+export async function startIcpRegister(client: DpdpClient, orgId: string): Promise<number> {
+  const { data, error } = await client.rpc("dpdp_icp_starter", { p_org_id: orgId })
+  if (error) throw new RpcFailure(error)
+  return (data as { added: number }).added
+}
+export async function applyIcpRules(client: DpdpClient, orgId: string): Promise<number> {
+  const { data, error } = await client.rpc("dpdp_icp_apply_rules", { p_org_id: orgId })
+  if (error) throw new RpcFailure(error)
+  return (data as { reopened: number }).reopened
+}
+export async function signOffIcpStage(client: DpdpClient, orgId: string, stage: IcpStage, note?: string): Promise<void> {
+  const { error } = await client.rpc("dpdp_icp_log", { p_org_id: orgId, p_stage: stage, p_outcome: "ok", p_note: note ?? null, p_by: "person" })
   if (error) throw new RpcFailure(error)
 }
 
