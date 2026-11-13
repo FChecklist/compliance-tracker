@@ -11,14 +11,14 @@ async function seed(page: Page, scenario: string) {
 
 test.describe("This week: Identify, Classify, Prove", () => {
   test("the owner sees three stages, a step count and the plain 'not a legal rating' line", async ({ page }) => {
-    await seed(page, "owner")
+    await seed(page, "owner-live")
     await expect(page.getByRole("heading", { name: "This week: Identify, Classify, Prove" })).toBeVisible()
     for (const n of ["1. Identify", "2. Classify", "3. Prove"]) await expect(page.getByRole("heading", { name: new RegExp(`^${n}`) })).toBeVisible()
     await expect(page.getByTestId("icp-score")).toContainText("It is not a rating of your legal position")
   })
 
   test("start from the library, classify a children's data set, and the rules show what needs a look", async ({ page }) => {
-    await seed(page, "owner")
+    await seed(page, "owner-live")
     await page.getByRole("button", { name: "Start from the library" }).click()
     await expect(page.getByRole("status")).toContainText("added from the library")
     const reg = page.getByTestId("icp-register")
@@ -40,14 +40,14 @@ test.describe("This week: Identify, Classify, Prove", () => {
   })
 
   test("the register refuses a person's e-mail or phone number as a name", async ({ page }) => {
-    await seed(page, "owner")
+    await seed(page, "owner-live")
     await page.getByLabel("Name of the line").fill("asha@example.com")
     await expect(page.getByRole("alert").filter({ hasText: "looks like a person" })).toBeVisible()
     await expect(page.getByRole("button", { name: "Add to register" })).toBeDisabled()
   })
 
   test("'Nothing new this week' ticks its step, a plain Identify sign-off does not; 'Sign off Prove' ticks the last step", async ({ page }) => {
-    await seed(page, "owner")
+    await seed(page, "owner-live")
     await expect(page.locator('[data-step="anything_new"]')).toHaveAttribute("data-done", "false")
     await page.getByRole("button", { name: "Nothing new this week" }).click()
     await expect(page.locator('[data-step="anything_new"]')).toHaveAttribute("data-done", "true")
@@ -56,7 +56,7 @@ test.describe("This week: Identify, Classify, Prove", () => {
   })
 
   test("Prove: record a document, log a breach with its 72-hour clock, and the checklist follows", async ({ page }) => {
-    await seed(page, "owner")
+    await seed(page, "owner-live")
     await expect(page.getByRole("heading", { name: "Prove: your records" })).toBeVisible()
     const form = page.getByRole("form", { name: "Record a document" })
     await form.getByLabel("Title").fill("Privacy notice, version 3")
@@ -73,7 +73,7 @@ test.describe("This week: Identify, Classify, Prove", () => {
   })
 
   test("Prove: a person's e-mail in a record is refused before it is sent", async ({ page }) => {
-    await seed(page, "owner")
+    await seed(page, "owner-live")
     const form = page.getByRole("form", { name: "Record a document" })
     await form.getByLabel("Title").fill("Notice for asha@example.com")
     await form.getByLabel("Where the original is kept").fill("Admin office, cabinet 3")

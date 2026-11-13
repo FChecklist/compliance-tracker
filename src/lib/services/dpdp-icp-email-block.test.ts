@@ -3,6 +3,7 @@
 // carry-over, the snapshot line, the per-client roll-up for a Professional (firm) organisation. Pure TypeScript; no Deno, no database.
 // The SQL it is fed by is proven in dpdp-icp-monday-block.pglite.test.ts.
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { icpBlockUsable, icpHeadline, icpStageLink, renderIcpBlock, type IcpBlock, type IcpClient } from '../../../supabase/functions/dpdp-monday-email/icp-block'
 import { isEmpty, renderDigest, statutorySubset, subjectFor, type Digest, type RenderLinks } from '../../../supabase/functions/dpdp-monday-email/render'
 
@@ -132,7 +133,7 @@ describe('inside the e-mail', () => {
 })
 
 describe('the sender wiring (index.ts is Deno, so its source is checked rather than run)', () => {
-  const src = require('node:fs').readFileSync('supabase/functions/dpdp-monday-email/index.ts', 'utf8') as string
+  const src = readFileSync('supabase/functions/dpdp-monday-email/index.ts', 'utf8')
   test('the block is fetched per organisation, only recorded on a real send, attached only to whole-organisation members who have not stopped the weekly e-mail, and fails open', () => {
     expect(src).toContain('"dpdp_timer_icp_weekly"')
     expect(src).toContain('p_record: !dryRun')

@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Rollback file for the owner requirement relayed by the boss session on 2026-11-14 (the DPDP Identify, Classify, Prove weekly lifecycle; see the matching up file, drizzle/0761_dpdp_icp_identify_classify.sql). FILE ONLY: not applied to any database; running it live needs the owner's separate go and a recorded rollback id.
 -- Rollback of 0761 (DPDP ICP slice 1). Drops the register, the weekly record and every function 0761 added, and puts dpdp__append_event back exactly as 0605
 -- defined it (no advisory lock). WARNING: dropping dpdp.icp_item / dpdp.icp_run deletes their rows; the mirrored dpdp.data_category / data_location rows
 -- (ids starting icp_c_ / icp_l_) are removed too. Run drizzle/down/0762 (and later) first if they were applied.

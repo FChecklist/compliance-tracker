@@ -1,3 +1,4 @@
+-- PRE-APPROVED-LIVE-DDL: Rollback file for the owner requirement relayed by the boss session on 2026-11-14 (the DPDP Identify, Classify, Prove weekly lifecycle; see the matching up file, drizzle/0762_dpdp_icp_prove.sql). FILE ONLY: not applied to any database; running it live needs the owner's separate go and a recorded rollback id.
 -- Rollback of 0762 (DPDP ICP slice 2, PROVE). Drops the evidence and erasure tables, the new functions, puts dpdp.icp_prove back to the 0761 placeholder, and removes
 -- the grievance.received_at column. WARNING: dropping dpdp.icp_evidence / dpdp.icp_erasure deletes their rows. Rows 0762 wrote into the EXISTING dpdp.breach,
 -- dpdp.rights_request and dpdp.grievance tables are NOT removed (they are the organisation's own records); the History events stay (the chain is append-only).

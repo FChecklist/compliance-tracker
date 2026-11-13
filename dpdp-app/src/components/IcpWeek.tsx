@@ -104,7 +104,7 @@ function StageCard({ id, index, section, canEdit, busy, onSignOff, onRules }: { 
         <ul style={{ listStyle: "none", padding: 0, margin: "0 0 10px" }}>
           {section.steps.map((s) => (
             <li key={s.key} data-step={s.key} data-done={s.done} style={{ fontSize: 13.5, margin: "0 0 6px", color: "var(--dpdp-ink)" }}>
-              <span aria-hidden="true">{s.done ? "✓" : "○"}</span> <span className="sr-only">{s.done ? "Done: " : "Still to do: "}</span>{s.label}
+              <span aria-hidden="true">{s.done ? "✔" : "○"}</span> <span className="sr-only">{s.done ? "Done: " : "Still to do: "}</span>{s.label}
               {!s.done && s.count ? <b> ({s.count})</b> : null}
               {!s.done && s.action === "rules" && canEdit && <> <button type="button" disabled={busy} onClick={onRules} className="rounded-lg" style={ghost}>Switch them on</button></>}
             </li>
