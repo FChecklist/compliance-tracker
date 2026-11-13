@@ -61,8 +61,10 @@ describe('the block', () => {
   })
   test('stage links stay on the app page, carry no credential, and drop an earlier hash', () => {
     expect(icpStageLink(`${APP}#something`, 'classify')).toBe(`${APP}#icp-stage-classify`)
-    const r = renderIcpBlock(block(), APP)
-    expect(r.html).toContain(`${APP}#icp-stage-identify`)
+    const r = renderIcpBlock(block({ orgId: 'org12345' }), APP)
+    expect(r.html).toContain(`${APP}?org=org12345#icp-stage-identify`) // names the organisation, for someone who belongs to several
+    expect(icpStageLink(`${APP}?org=zzz#x`, 'prove', 'org2000')).toBe(`${APP}?org=org2000#icp-stage-prove`)
+    expect(icpStageLink(APP, 'prove', 'bad id<script>')).toBe(`${APP}#icp-stage-prove`) // a hint that does not look like an id is dropped
     expect(r.html).not.toMatch(/token|supabase\.co|\?t=/i)
   })
   test('never claims compliance, certification, a guarantee or verification', () => {

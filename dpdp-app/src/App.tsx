@@ -66,6 +66,14 @@ type Phase =
 
 const SIGNED_OUT: Phase = { name: "signed-out", busy: false, error: null }
 
+/** The organisation a weekly e-mail link names (?org=<id>): a hint only, never a credential. Anything that does not look like an organisation id is ignored. */
+function orgHintFromUrl(): string | null {
+  try {
+    const v = new URLSearchParams(window.location.search).get("org")
+    return v && /^[A-Za-z0-9_-]{6,64}$/.test(v) ? v : null
+  } catch { return null }
+}
+
 export function App() {
   const [boot] = useState<{ landing: Landing; draft: DraftFragment | null; undo: UndoFragment | null; client: DpdpClient | Error }>(() => {
     // The URL is read before the client exists: a success hash must be left
@@ -131,7 +139,9 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   const fetchStarted = useRef(false)
   // Which org the page shows: null = the caller's newest membership (the
   // RPC's default); set when a CA opens one of their clients.
-  const orgRef = useRef<string | null>(null)
+  const orgRef = useRef<string | null>(orgHintFromUrl())
+  // true while orgRef holds only the organisation a weekly e-mail link named (a hint, not a choice): if the signed-in person is not a member of it, the page falls back to their newest one
+  const orgIsHint = useRef<boolean>(orgHintFromUrl() !== null)
 
   // Refetches can overlap (two job controls saved close together); only the newest one may put its page on screen, or an older, slower answer
   // would win and show a row as it was before the last change.
@@ -165,7 +175,12 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       // refusal from it -- that is the same "no membership" the page call
       // reports, so it is folded into [] here and the page decides.
       const got = await loadWithCopy<MyPage, CaClient>({
-        fetchPage: () => fetchMyPage(client, orgRef.current), fetchClients: () => fetchMyClients(client),
+        fetchPage: async () => {
+          try { return await fetchMyPage(client, orgRef.current) } catch (e) {
+            if (orgIsHint.current && e instanceof RpcFailure && !e.code?.startsWith("PGRST")) { orgIsHint.current = false; orgRef.current = null; return fetchMyPage(client, null) }
+            throw e
+          }
+        }, fetchClients: () => fetchMyClients(client),
         store, email: emailRef.current, org: orgRef.current, isNetwork: isNetworkError,
       })
       if (mine !== loadSeq.current) return
@@ -329,6 +344,7 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   // of it; the RPC refuses otherwise and the error screen says so).
   async function openOrg(orgId: string) {
     orgRef.current = orgId
+    orgIsHint.current = false
     setView("page")
     await load()
   }

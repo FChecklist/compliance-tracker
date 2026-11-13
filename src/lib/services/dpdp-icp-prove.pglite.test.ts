@@ -274,6 +274,28 @@ describe('PROVE: what the Audit 2 found (kept as regression tests)', () => {
     expect((await rows<J>(`select officer_decision from dpdp.grievance where ref = 'G-0001'`))[0].officer_decision).toContain('Rahul') // a decision already written is never overwritten
     expect(JSON.stringify(await rpc('dpdp_icp_evidence_pack', 'school'))).not.toContain('Rahul')
   })
+  test('a request row from an older, unvalidated flow cannot carry free text through its kind or how it arrived; a breach an older flow marked "notified" is still a live breach', async () => {
+    await as('')
+    await db.query(`insert into dpdp.rights_request (id, org_id, ref, kind, arrived_via, received_at, due_at, state) values ('lr2', 'school', 'R-0002', 'Asha Rao (asha@gmail.com, 9876543210) wants her marks deleted', 'call me on 9876543210', now(), now() + interval '30 days', 'open')`)
+    await as('owner@prove.test')
+    const o = await rpc('dpdp_icp_prove_overview', 'school')
+    const r = o.requests.find((x: J) => x.ref === 'R-0002')
+    expect(r.type).toBe('other')
+    expect(r.arrivedVia).toBe('other')
+    expect(JSON.stringify(await rpc('dpdp_icp_evidence_pack', 'school'))).not.toMatch(/Asha Rao|9876543210|asha@gmail/)
+    await as('')
+    await db.query(`update dpdp.rights_request set answered_at = now(), state = 'answered' where ref = 'R-0002'`)
+    await db.query(`insert into dpdp.breach (id, org_id, became_aware_at, deadline_at, state, description) values ('nb1', 'school', now() - interval '5 days', now() - interval '2 days', 'notified', 'Old flow breach')`)
+    await as('owner@prove.test')
+    expect((await step('school', 'breach_clocks')).done).toBe(false) // not hidden by its state word
+    expect((await rpc('dpdp_icp_prove_overview', 'school')).breaches.find((b: J) => b.id === 'nb1').pastClock).toBe(true)
+    await rpc('dpdp_icp_breach_update', 'school', 'nb1', { boardDetailed: true }) // updating it really changes it
+    expect((await rows<J>(`select board_detailed_at is not null as d from dpdp.breach where id = 'nb1'`))[0].d).toBe(true)
+    await as('')
+    await db.query(`update dpdp.breach set state = 'closed' where id = 'nb1'`)
+    await as('owner@prove.test')
+    expect(await rpcFails('dpdp_icp_breach_update', 'school', 'nb1', { boardNotified: true })).toContain('closed')
+  })
   test('a breach cannot be closed until the detailed report to the Board is recorded, so closing never hides a late report', async () => {
     await as('owner@prove.test')
     const r = await rpc('dpdp_icp_breach_log', 'school', { description: 'A cupboard of old forms was left open', becameAwareAt: `${iso(-10 * 86_400_000)}Z` })

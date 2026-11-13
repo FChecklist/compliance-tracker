@@ -185,7 +185,7 @@ function Breaches({ ov, disabled, onLog, onStep }: { ov: ProveOverview; disabled
   const [aware, setAware] = useState("")
   const [people, setPeople] = useState("")
   const bad = desc.trim() !== "" && looksLikePerson(desc)
-  const open = ov.breaches.filter((b) => b.state === "open")
+  const open = ov.breaches.filter((b) => b.state !== "closed")
   return (
     <Box id="icp-breach-h" title={`Breaches${ov.counts.breachesOpen ? ` · ${ov.counts.breachesOpen} open` : ""}`}>
       <p style={hint}>If personal data is lost, leaked or opened by the wrong person: tell the Board without delay, send the detailed report within 72 hours, and tell each person affected (Rule 7). This keeps the clock and your steps. Describe what happened, not who.</p>
@@ -207,7 +207,7 @@ function BreachRow({ b, disabled, onStep, open }: { b: BreachWire; disabled: boo
   const done = (at: string | null) => (at ? `done ${niceDate(at)}` : "not yet")
   return (
     <li data-breach={b.id} style={{ margin: "0 0 10px", paddingBottom: 8, borderBottom: "1px solid var(--dpdp-line)" }}>
-      <b>Came to know {niceDate(b.becameAwareAt)}</b>{b.peopleAffected !== null ? ` · about ${b.peopleAffected} people` : ""} · {b.state === "open" ? "Open" : "Closed"}
+      <b>Came to know {niceDate(b.becameAwareAt)}</b>{b.peopleAffected !== null ? ` · about ${b.peopleAffected} people` : ""} · {b.state === "closed" ? "Closed" : "Open"}
       {b.pastClock && <span style={late}> · the 72-hour report to the Board is late</span>}
       {b.description && <div style={{ margin: "2px 0" }}>{b.description}</div>}
       <div style={{ color: "var(--dpdp-ink2)" }}>Board told: {done(b.boardNotifiedAt)} · Detailed report (due {niceDate(b.boardDetailDueAt)}): {done(b.boardDetailedAt)} · People told: {done(b.individualsNotifiedAt)} · CERT-In (due {niceDate(b.certInDueAt)}): {done(b.certInReportedAt)}</div>

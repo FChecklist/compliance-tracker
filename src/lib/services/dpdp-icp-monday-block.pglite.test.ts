@@ -36,6 +36,7 @@ beforeAll(async () => {
   await db.exec(`
     alter table dpdp.obligation_template add column key text, add column part integer, add column data_set text, add column role_tag text;
     alter table dpdp.obligation add column assigned_person_id text;
+    alter table dpdp.organisation add column set_up_by_membership_id text, add column owner_confirmed_at timestamp;
     create type dpdp.holder_kind as enum ('internal_person', 'processor_org');
     create type dpdp.location_state as enum ('unknown', 'asked', 'confirmed', 'blocked_no_agreement');
     create table dpdp.data_category (id text primary key, org_id text not null, category text not null, subject_group text, is_children_data boolean not null default false);
@@ -120,18 +121,30 @@ describe('the e-mail block data', () => {
     expect(w2.carriedOver.map((c: J) => `${c.stage}.${c.key}`)).not.toContain('identify.register_started')
   })
 
-  test('a Professional (firm) organisation gets a per-client roll-up of counts only, worst first, current clients only, never a register line', async () => {
+  // the real client model (0609): a member of the firm holds a membership in the client organisation AND is named on a live CAPARTNER / CAMGR job there
+  async function addClient(firm: string, firmPersonKey: string, client: string, opts: { confirmed?: boolean; tag?: string; setUpBy?: boolean } = {}) {
+    await org(client, `${client}owner`)
+    await db.query(`insert into dpdp.membership (id, identity_id, org_id, level, joined_via) values ($1, $2, $3, 'staff', 'created') on conflict do nothing`, [`m_${client}_ca`, `i_${firmPersonKey}`, client])
+    await db.query(`insert into dpdp.obligation_template (id, name, role_tag) values ($1, 'CA job', $2) on conflict do nothing`, [`t_${opts.tag ?? 'CAPARTNER'}`, opts.tag ?? 'CAPARTNER'])
+    await db.query(`insert into dpdp.obligation (id, org_id, template_id, state, due_on, assigned_person_id) values ($1, $2, $3, 'open', current_date + 30, $4)`, [`ob_${client}`, client, `t_${opts.tag ?? 'CAPARTNER'}`, `i_${firmPersonKey}`])
+    if (opts.setUpBy) await db.query(`update dpdp.organisation set set_up_by_membership_id = $2, owner_confirmed_at = $3 where id = $1`, [client, `m_${client}_ca`, opts.confirmed ? new Date().toISOString() : null])
+  }
+
+  test('a Professional (firm) organisation gets a per-client roll-up of counts only, worst first, only clients its own people really act for and whose owner confirmed; never a register line', async () => {
     await org('caf', 'cafowner', 'firm')
-    await org('cl1', 'cl1owner')
-    await org('cl2', 'cl2owner')
-    await org('cl3', 'cl3owner')
-    await db.query(`insert into dpdp.relationship (id, from_org, to_org, kind, ended_at) values ('r1', 'caf', 'cl1', 'advises', null), ('r2', 'caf', 'cl2', 'advises', null), ('r3', 'caf', 'cl3', 'advises', now()), ('r4', 'cl1', 'caf', 'advises', null)`)
+    await addClient('caf', 'cafowner', 'cl1')
+    await addClient('caf', 'cafowner', 'cl2')
+    await addClient('caf', 'cafowner', 'cl3', { setUpBy: true, confirmed: false }) // set up by the CA, the client's owner has not confirmed: not shown
+    await addClient('caf', 'cafowner', 'cl5', { setUpBy: true, confirmed: true })
+    await addClient('caf', 'cafowner', 'cl6', { tag: 'OTHER' }) // named on a job, but not a CA job: not a client
+    await org('cl4', 'cl4owner') // an organisation with no tie to the firm at all
+    await db.query(`insert into dpdp.relationship (id, from_org, to_org, kind, ended_at) values ('r1', 'caf', 'cl4', 'advises', null)`) // a declared relationship alone gives a firm nothing
     await as('cl2owner@mon.test')
     await save('cl2', { kind: 'data_set', name: 'Hidden client list', whereHeld: 'Secret cabinet' })
     await one(`select public.dpdp_icp_log('cl2', 'identify', 'skipped', 'Secret note') as r`)
     const w = await weekly('caf', null, false)
-    expect(w.clientTotal).toBe(2)
-    expect(w.clients.map((c: J) => c.orgId).sort()).toEqual(['cl1', 'cl2'])
+    expect(w.clientTotal).toBe(3)
+    expect(w.clients.map((c: J) => c.orgId).sort()).toEqual(['cl1', 'cl2', 'cl5'])
     expect(w.clients[0].percent).toBeLessThanOrEqual(w.clients[1].percent)
     const cl2 = w.clients.find((c: J) => c.orgId === 'cl2')
     expect(cl2.started).toBe(true)
@@ -139,6 +152,39 @@ describe('the e-mail block data', () => {
     expect(w.clients.find((c: J) => c.orgId === 'cl1').started).toBe(false)
     expect(JSON.stringify(w)).not.toMatch(/Hidden client list|Secret/)
     expect((await weekly('cl1', null, false)).clients).toEqual([]) // an institution never gets a roll-up
+  })
+
+  test('more than 100 clients: the cut keeps the weakest 100, not the first 100 by name', async () => {
+    await org('big', 'bigowner', 'firm')
+    await db.query(`insert into dpdp.obligation_template (id, name, role_tag) values ('t_CAPARTNER', 'CA job', 'CAPARTNER') on conflict do nothing`)
+    await db.query(`insert into dpdp.organisation (id, name, slug, product) select 'bc' || g, 'Client ' || lpad(g::text, 3, '0'), 'bc' || g, 'institution' from generate_series(1, 105) g`)
+    await db.query(`insert into dpdp.membership (id, identity_id, org_id, level, joined_via) select 'mbc' || g, 'i_bigowner', 'bc' || g, 'staff', 'created' from generate_series(1, 105) g`)
+    await db.query(`insert into dpdp.obligation (id, org_id, template_id, state, due_on, assigned_person_id) select 'obc' || g, 'bc' || g, 't_CAPARTNER', 'open', current_date + 30, 'i_bigowner' from generate_series(1, 105) g`)
+    const w = await weekly('big', null, false)
+    expect(w.clientTotal).toBe(105)
+    expect(w.clients).toHaveLength(100)
+    const pcts = w.clients.map((c: J) => c.percent)
+    expect([...pcts].sort((a: number, b: number) => a - b)).toEqual(pcts)
+  }, 120_000)
+
+  test('carry-over never lists the steps that are open for everyone on a Monday (anything new, a record this week, the week sign-off)', async () => {
+    await org('wk', 'wkowner')
+    const lastWeek = addDays(mondayOf(new Date()), -7)
+    await db.query(`insert into dpdp.icp_run (org_id, stage, week_start, by_kind, actor_label, outcome, snapshot)
+                    values ('wk', 'prove', $1, 'person', 'Owner', 'ok', dpdp.icp_status_for('wk', $1::date) - 'notALegalRating')`, [ymd(lastWeek)])
+    const keys = (await weekly('wk', null, false)).carriedOver.map((c: J) => c.key)
+    expect(keys).not.toContain('week_signed_off')
+    expect(keys).not.toContain('evidence_this_week')
+    expect(keys).not.toContain('anything_new')
+  })
+
+  test('a date in the past passed in never writes a snapshot, and a second run for the same week adds nothing (the unique index)', async () => {
+    await org('snap', 'snapowner')
+    expect((await weekly('snap', '2026-01-05T00:30:00Z', true)).snapshotsAdded).toBe(0)
+    expect(await rows(`select 1 from dpdp.icp_run where org_id = 'snap'`)).toHaveLength(0)
+    expect((await weekly('snap', null, true)).snapshotsAdded).toBe(3)
+    expect((await weekly('snap', null, true)).snapshotsAdded).toBe(0)
+    expect(await fails(`insert into dpdp.icp_run (org_id, stage, week_start, by_kind, actor_label, outcome, note, snapshot) values ('snap', 'identify', dpdp.icp_week(), 'software', 'x', 'ok', 'Monday snapshot', '{}'::jsonb)`)).toContain('icp_run_monday_once')
   })
 
   test('the week follows the date given, in UTC, Monday to Sunday', async () => {

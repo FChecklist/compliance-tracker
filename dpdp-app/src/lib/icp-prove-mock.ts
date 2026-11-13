@@ -35,7 +35,7 @@ export function proveCounts(host: IcpMockHost, now = new Date()): ProveCounts {
     nothingToAttach: st.runs.some((r) => r.weekStart === week && r.stage === stage && r.byKind === "person" && r.outcome === "skipped"),
     signed: st.runs.some((r) => r.weekStart === week && r.stage === stage && r.byKind === "person" && r.outcome === "ok"),
     agreementsWithoutEvidence: st.items.filter((i) => i.status === "active" && i.kind === "vendor" && i.agreementStatus === "signed" && !ps.evidence.some((e) => !e.withdrawn && e.kind === "agreement" && e.itemId === i.id)).length,
-    breachesPastClock: ps.breaches.filter((b) => b.state === "open" && new Date(b.boardDetailDueAt) < now && !b.boardDetailedAt).length,
+    breachesPastClock: ps.breaches.filter((b) => b.state !== "closed" && new Date(b.boardDetailDueAt) < now && !b.boardDetailedAt).length,
     breachesOpen: ps.breaches.filter((b) => b.state === "open").length,
     requestsPastDue: ps.requests.filter((r) => r.state === "open" && r.dueOn < today).length,
     requestsOpen: ps.requests.filter((r) => r.state === "open").length,
@@ -58,7 +58,7 @@ export function proveOverview(host: IcpMockHost, now = new Date()): ProveOvervie
   return {
     weekStart: mondayOf(now), counts: proveCounts(host, now),
     evidence: ps.evidence.slice().sort((a, b) => b.recordedAt.localeCompare(a.recordedAt)),
-    breaches: ps.breaches.map((b) => ({ ...b, pastClock: b.state === "open" && new Date(b.boardDetailDueAt) < now && !b.boardDetailedAt })).sort((a, b) => b.becameAwareAt.localeCompare(a.becameAwareAt)),
+    breaches: ps.breaches.map((b) => ({ ...b, pastClock: b.state !== "closed" && new Date(b.boardDetailDueAt) < now && !b.boardDetailedAt })).sort((a, b) => b.becameAwareAt.localeCompare(a.becameAwareAt)),
     requests: ps.requests.map((r) => ({ ...r, pastDue: r.state === "open" && r.dueOn < today })).sort((a, b) => (b.receivedOn ?? "").localeCompare(a.receivedOn ?? "")),
     erasures: ps.erasures.map((e) => ({ ...e, pastDue: e.state === "open" && e.dueOn < today })).sort((a, b) => a.dueOn.localeCompare(b.dueOn)),
     vendors: vendors(host),

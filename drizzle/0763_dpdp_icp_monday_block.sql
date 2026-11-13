@@ -5,19 +5,46 @@
 --   public.dpdp_timer_icp_weekly(p_org_id, p_now, p_record)
 --     * the organisation's ICP status for the week p_now falls in (the same dpdp.icp_status_for the signed-in page and the weekly record use),
 --       cut into three stages with their steps, so the e-mail shows the same checklist the page does;
---     * CARRY-OVER: a step that is not done now AND was not done in the organisation's latest earlier record (the previous week's last snapshot);
+--     * CARRY-OVER: a step that is not done now AND was not done in the organisation's latest earlier record ("last recorded", which can be older than last
+--       week). Steps that are by nature this week's own (anything new, a record this week, the week's sign-off) are never carried: on a Monday they are open
+--       for everyone, so carrying them would only be noise;
 --     * WHO MAY SEE IT: the active memberships whose viewer kind is a whole-organisation one (owner, grievance officer, coordinator, CA partner or manager)
 --       -- the same rule as dpdp__icp_member, so a staff member's e-mail never carries the register's status;
 --     * THE WEEKLY PROOF SNAPSHOT: when p_record is true, one software run per stage ("Monday snapshot") is added to the append-only weekly record, once per
 --       stage per week (a retry adds nothing). It records the counts at that moment; it is not a statement about anyone's legal position;
---     * PER-CLIENT ROLL-UP (Professional / firm organisations only): for each organisation the firm currently advises (dpdp.relationship kind 'advises',
---       not ended), that client's weekly score and step counts. Counts only: no register line, no free text, no name of any person.
+--     * PER-CLIENT ROLL-UP (Professional / firm organisations only): the same clients the CA already sees in "My clients" (public.dpdp_my_clients, 0609): an
+--       organisation where a member of the firm holds an active membership AND is named on a live CAPARTNER / CAMGR job, and whose owner has confirmed the
+--       set-up (an organisation a CA set up and whose owner has not yet confirmed is NOT shown). dpdp.relationship is deliberately not used: no flow fills it
+--       and nothing in it records that the client agreed. Counts only: no register line, no free text, no name of any person. Worst first, 100 at most.
 --
 -- Nothing here says "compliant", "certified" or "guaranteed"; the score is a count of this week's routine steps and the return value says so.
 -- ADDITIVE and re-runnable. No new table. Depends on 0761 and 0762 (dpdp.icp_status_for, dpdp_icp_run_software, dpdp.icp_week, dpdp.icp_item, dpdp.icp_run).
 
 begin;
 set local lock_timeout = '5s';
+
+-- the Monday snapshot is written once per organisation, stage and week, even when two runs overlap
+create unique index if not exists icp_run_monday_once on dpdp.icp_run (org_id, stage, week_start) where by_kind = 'software' and note = 'Monday snapshot';
+
+-- the clients of a firm: the same rule as "My clients" (0609 dpdp_my_clients). Internal: the timer function below is the only caller.
+create or replace function dpdp.icp_firm_clients(p_firm_org_id text)
+returns table (id text, name text)
+language sql stable security definer
+set search_path = ''
+as $f$
+  select distinct o.id, o.name
+    from dpdp.organisation o
+   where o.id <> p_firm_org_id
+     and not (o.set_up_by_membership_id is not null and o.owner_confirmed_at is null)   -- still waiting for the client's owner to confirm: not shown
+     and exists (
+       select 1
+         from dpdp.membership mc
+         join dpdp.membership mf on mf.identity_id = mc.identity_id and mf.org_id = p_firm_org_id and mf.state = 'active'
+        where mc.org_id = o.id and mc.state = 'active'
+          and exists (select 1 from dpdp.obligation ob join dpdp.obligation_template t on t.id = ob.template_id
+                       where ob.org_id = o.id and ob.assigned_person_id = mc.identity_id and ob.state <> 'not_applicable' and t.role_tag in ('CAPARTNER', 'CAMGR')))
+$f$;
+revoke all on function dpdp.icp_firm_clients(text) from public, anon, authenticated;
 
 create or replace function public.dpdp_timer_icp_weekly(p_org_id text, p_now timestamptz default null, p_record boolean default true)
 returns jsonb
@@ -41,6 +68,7 @@ declare
   v_step jsonb;
   v_pstep jsonb;
   v_recorded integer := 0;
+  v_n integer;
 begin
   select o.* into v_org from dpdp.organisation o where o.id = p_org_id;
   if v_org.id is null then
@@ -56,7 +84,7 @@ begin
     v_stages := v_stages || jsonb_build_array(jsonb_build_object('stage', v_stage, 'title', v_title, 'done', (v_sec ->> 'done')::int, 'total', (v_sec ->> 'total')::int, 'steps', v_sec -> 'steps'));
     if v_prev is not null then
       for v_step in select * from jsonb_array_elements(v_sec -> 'steps') loop
-        if not coalesce((v_step ->> 'done')::boolean, false) then
+        if not coalesce((v_step ->> 'done')::boolean, false) and (v_step ->> 'key') not in ('anything_new', 'evidence_this_week', 'week_signed_off') then
           select p into v_pstep from jsonb_array_elements(coalesce(v_prev -> v_stage -> 'steps', '[]'::jsonb)) p where p ->> 'key' = v_step ->> 'key' limit 1;
           if v_pstep is not null and not coalesce((v_pstep ->> 'done')::boolean, false) then
             v_carried := v_carried || jsonb_build_array(jsonb_build_object('stage', v_stage, 'key', v_step ->> 'key', 'label', v_step ->> 'label', 'count', v_step -> 'count'));
@@ -70,33 +98,34 @@ begin
     from dpdp.membership m
    where m.org_id = p_org_id and m.state = 'active' and coalesce(public.dpdp__viewer_kind(m.id), 'staff') not in ('staff', 'parent');
 
-  -- the weekly proof snapshot: one software run per stage per week, never twice
-  if p_record then
+  -- the weekly proof snapshot: one software run per stage per week, never twice (the unique index makes a racing second run add nothing).
+  -- It is the week's STARTING line, taken when the e-mail goes out, and only for the week that is current now, never for a date passed in.
+  if p_record and v_week = dpdp.icp_week() then
     for v_stage in select unnest(array['identify', 'classify', 'prove']) loop
-      if not exists (select 1 from dpdp.icp_run r where r.org_id = p_org_id and r.week_start = v_week and r.stage = v_stage and r.by_kind = 'software') then
-        insert into dpdp.icp_run (org_id, stage, week_start, by_kind, actor_label, outcome, note, snapshot)
-        values (p_org_id, v_stage, v_week, 'software', 'Automatic helper', 'ok', 'Monday snapshot', v_status - 'notALegalRating');
-        v_recorded := v_recorded + 1;
-      end if;
+      insert into dpdp.icp_run (org_id, stage, week_start, by_kind, actor_label, outcome, note, snapshot)
+      values (p_org_id, v_stage, v_week, 'software', 'Automatic helper', 'ok', 'Monday snapshot', v_status - 'notALegalRating')
+      on conflict do nothing;
+      get diagnostics v_n = row_count;
+      v_recorded := v_recorded + v_n;
     end loop;
   end if;
 
   if v_org.product = 'firm' then
-    select count(*) into v_client_total from dpdp.relationship r where r.kind = 'advises' and r.from_org = p_org_id and r.ended_at is null;
-    select coalesce(jsonb_agg(c order by (c ->> 'percent')::int, c ->> 'name'), '[]'::jsonb) into v_clients from (
+    select count(*) into v_client_total from dpdp.icp_firm_clients(p_org_id);
+    -- ranked BEFORE the cut, so a firm with more than 100 clients sees its weakest 100, not the first 100 by name
+    select coalesce(jsonb_agg(q.c order by (q.c ->> 'percent')::int, q.c ->> 'name'), '[]'::jsonb) into v_clients from (
       select jsonb_build_object(
-               'orgId', o.id, 'name', o.name,
-               'started', exists (select 1 from dpdp.icp_item i where i.org_id = o.id and i.status = 'active'),
-               'percent', (s.j ->> 'percent')::int, 'done', (s.j ->> 'done')::int, 'total', (s.j ->> 'total')::int,
-               'identify', jsonb_build_object('done', (s.j -> 'identify' ->> 'done')::int, 'total', (s.j -> 'identify' ->> 'total')::int),
-               'classify', jsonb_build_object('done', (s.j -> 'classify' ->> 'done')::int, 'total', (s.j -> 'classify' ->> 'total')::int),
-               'prove', jsonb_build_object('done', (s.j -> 'prove' ->> 'done')::int, 'total', (s.j -> 'prove' ->> 'total')::int)) as c
-        from dpdp.relationship r
-        join dpdp.organisation o on o.id = r.to_org
-        cross join lateral (select dpdp.icp_status_for(o.id, v_week) as j) s
-       where r.kind = 'advises' and r.from_org = p_org_id and r.ended_at is null
-       order by o.name
-       limit 100) q;
+               'orgId', sc.id, 'name', sc.name,
+               'started', exists (select 1 from dpdp.icp_item i where i.org_id = sc.id and i.status = 'active'),
+               'percent', (sc.j ->> 'percent')::int, 'done', (sc.j ->> 'done')::int, 'total', (sc.j ->> 'total')::int,
+               'identify', jsonb_build_object('done', (sc.j -> 'identify' ->> 'done')::int, 'total', (sc.j -> 'identify' ->> 'total')::int),
+               'classify', jsonb_build_object('done', (sc.j -> 'classify' ->> 'done')::int, 'total', (sc.j -> 'classify' ->> 'total')::int),
+               'prove', jsonb_build_object('done', (sc.j -> 'prove' ->> 'done')::int, 'total', (sc.j -> 'prove' ->> 'total')::int)) as c
+        from (select f.id, f.name, s.j
+                from dpdp.icp_firm_clients(p_org_id) f
+               cross join lateral (select dpdp.icp_status_for(f.id, v_week) as j) s
+               order by (s.j ->> 'percent')::int, f.name
+               limit 100) sc) q;
   end if;
 
   return jsonb_build_object(

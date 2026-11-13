@@ -3,7 +3,7 @@
 //
 // WORDING RULES (the owner's, kept in the tests): the score is "N of M steps of this week's routine" -- never a rating, never "compliant", "certified" or
 // "guaranteed". A client's line is counts only. Nothing in the block is a person's name, e-mail address or phone number: the database never puts one there.
-// The links open the signed-in page where the step is done (one tap away); they carry no credential of their own.
+// The links open the signed-in page where the step is done (one tap away); they carry no credential of their own, only the organisation to open (?org=).
 
 export type IcpStep = { key: string; label: string; done: boolean; count: number | null; action?: string | null }
 export type IcpStage = { stage: "identify" | "classify" | "prove"; title: string; done: number; total: number; steps: IcpStep[] }
@@ -57,8 +57,11 @@ export function icpHeadline(b: IcpBlock): string {
 }
 
 const STAGE_HASH: Record<string, string> = { identify: "icp-stage-identify", classify: "icp-stage-classify", prove: "icp-stage-prove" }
-export function icpStageLink(appHome: string, stage: string): string {
-  return `${appHome.replace(/#.*$/, "")}#${STAGE_HASH[stage] ?? "icp-h"}`
+/** The page, at the stage. `orgId` is a hint that opens this organisation for a person who belongs to several (never a credential: the page still needs their sign-in). */
+export function icpStageLink(appHome: string, stage: string, orgId?: string): string {
+  const base = appHome.replace(/#.*$/, "").replace(/\?.*$/, "")
+  const hint = orgId && /^[A-Za-z0-9_-]{6,64}$/.test(orgId) ? `?org=${orgId}` : ""
+  return `${base}${hint}#${STAGE_HASH[stage] ?? "icp-h"}`
 }
 
 function clientLine(c: IcpClient): string {
@@ -79,7 +82,7 @@ export function renderIcpBlock(b: IcpBlock, appHome: string): { html: string; te
   text.push(sub, "")
 
   for (const s of b.stages) {
-    const link = icpStageLink(appHome, s.stage)
+    const link = icpStageLink(appHome, s.stage, b.orgId)
     html.push(`<p style="margin:10px 0 2px;font-size:14px;color:#1C2B3A;"><b>${e(s.title)}</b> <span style="color:#64748B;">(${s.done} of ${s.total})</span></p>`)
     text.push(`${s.title} (${s.done} of ${s.total})`)
     html.push(`<ul style="margin:0 0 4px;padding:0 0 0 18px;font-size:13.5px;line-height:1.55;color:#334155;">${s.steps.map((st) => `<li>${st.done ? "Done" : "To do"}: ${e(st.label)}${st.count !== null && st.count !== undefined && !st.done ? ` <span style="color:#64748B;">(${st.count})</span>` : ""}</li>`).join("")}</ul>`)

@@ -200,6 +200,7 @@ create or replace function public.dpdp_icp_breach_log(p_org_id text, p jsonb)
 returns jsonb
 language plpgsql volatile security definer
 set search_path = ''
+set timezone = 'UTC'
 as $$
 declare
   v_m dpdp.membership;
@@ -259,6 +260,7 @@ declare
   v_cause text := nullif(btrim(coalesce(p ->> 'cause', '')), '');
   v_steps text := nullif(btrim(coalesce(p ->> 'remedialSteps', '')), '');
   v_people integer;
+  v_rows integer;
 begin
   perform set_config('dpdp.allow_locked', 'on', true);   -- a legal duty stays open on a locked account (0734)
   v_m := public.dpdp__icp_member(p_org_id, true);
@@ -299,7 +301,9 @@ begin
     board_remedial_steps = coalesce(v_steps, board_remedial_steps),
     scope_person_count = coalesce(v_people, scope_person_count),
     state = case when coalesce((p ->> 'closed')::boolean, false) then 'closed' else state end
-  where id = b.id and state = 'open';
+  where id = b.id and state <> 'closed';   -- an older flow's 'notified' is still a live breach
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then raise exception 'This breach record is closed' using errcode = '55000'; end if;
   v_label := dpdp.icp_actor_label(v_m);
   perform public.dpdp__append_event(p_org_id, v_m.identity_id, v_label, 'breach_updated',
     case when coalesce((p ->> 'closed')::boolean, false) then 'Closed a personal data breach record' else 'Updated a personal data breach record' end, b.id);
@@ -485,8 +489,8 @@ begin
           and not exists (select 1 from dpdp.icp_evidence x where x.item_id = i.id and x.kind = 'agreement' and x.withdrawn_at is null)),
     -- a request or grievance is past due only AFTER its due date has gone (the 90th day itself is still in time)
     -- the 72-hour detailed report to the Board is the clock the Rules set; the first intimation is "without delay" and has no fixed hour
-    'breachesPastClock', (select count(*) from dpdp.breach b where b.org_id = p_org_id and b.state = 'open' and b.deadline_at < v_now and b.board_detailed_at is null),
-    'breachesOpen', (select count(*) from dpdp.breach b where b.org_id = p_org_id and b.state = 'open'),
+    'breachesPastClock', (select count(*) from dpdp.breach b where b.org_id = p_org_id and b.state <> 'closed' and b.deadline_at < v_now and b.board_detailed_at is null),
+    'breachesOpen', (select count(*) from dpdp.breach b where b.org_id = p_org_id and b.state <> 'closed'),
     'requestsPastDue', (select count(*) from dpdp.rights_request r where r.org_id = p_org_id and r.answered_at is null and r.due_at::date < v_today)
                      + (select count(*) from dpdp.grievance g where g.org_id = p_org_id and g.state = 'open' and g.officer_due_at::date < v_today),
     'requestsOpen', (select count(*) from dpdp.rights_request r where r.org_id = p_org_id and r.answered_at is null)
@@ -541,7 +545,7 @@ begin
         'certInDueAt', to_char(b.cert_in_due_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'peopleAffected', b.scope_person_count, 'description', b.description,
         'boardNotifiedAt', to_char(b.board_notified_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'boardDetailedAt', to_char(b.board_detailed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
         'individualsNotifiedAt', to_char(b.individuals_notified_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'certInReportedAt', to_char(b.cert_in_reported_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-        'certInReference', b.cert_in_reference, 'pastClock', b.state = 'open' and b.deadline_at < v_now and b.board_detailed_at is null
+        'certInReference', b.cert_in_reference, 'pastClock', b.state <> 'closed' and b.deadline_at < v_now and b.board_detailed_at is null
       ) order by b.became_aware_at desc), '[]'::jsonb)
       from (select * from dpdp.breach x where x.org_id = p_org_id order by x.became_aware_at desc limit 100) b),
     -- how many rows exist against how many are listed above, so a pack that is cut short says so
@@ -551,8 +555,9 @@ begin
         'erasures', (select count(*) from dpdp.icp_erasure z where z.org_id = p_org_id),
         'listedMax', jsonb_build_object('evidence', 200, 'breaches', 100, 'erasures', 200)),
     'requests', (select coalesce(jsonb_agg(q.j order by q.recv desc), '[]'::jsonb) from (
-        -- 'outcome' is one of six fixed words, never the free text an older flow may have stored there (that text can name a person)
-        select r.received_at as recv, jsonb_build_object('ref', r.ref, 'type', r.kind, 'arrivedVia', r.arrived_via, 'receivedOn', to_char(r.received_at, 'YYYY-MM-DD'),
+        -- 'type', 'arrivedVia' and 'outcome' are each one of a few fixed words, never the free text an older flow may have stored there (that text can name a person)
+        select r.received_at as recv, jsonb_build_object('ref', r.ref, 'type', case when r.kind in ('access', 'correction', 'erasure', 'nominee', 'grievance') then r.kind else 'other' end,
+               'arrivedVia', case when r.arrived_via in ('in_person', 'email', 'post', 'phone', 'portal') then r.arrived_via else 'other' end, 'receivedOn', to_char(r.received_at, 'YYYY-MM-DD'),
                'dueOn', to_char(r.due_at, 'YYYY-MM-DD'), 'state', case when r.answered_at is null then 'open' else 'answered' end,
                'outcome', case when r.answered_at is null then null when r.answer_text in ('provided', 'corrected', 'erased', 'refused_with_reason', 'withdrawn', 'answered') then r.answer_text else 'answered' end,
                'pastDue', r.answered_at is null and r.due_at::date < v_now::date) as j
