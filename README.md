@@ -32,3 +32,6 @@ own list is the closest thing to a map.
 `public.code_quality_inspection_findings` in the `verdian-ai` Supabase
 project) that found this repo's README.md contained only a single leftover
 CI-smoke-test comment.*
+
+
+See [KNOWLEDGE-MAP.md](KNOWLEDGE-MAP.md) for what this repository is for and what the other repositories are for (updated 14 Nov 2026).
