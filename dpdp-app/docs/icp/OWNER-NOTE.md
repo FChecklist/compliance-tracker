@@ -1,7 +1,7 @@
 # VERIDIAN DPDP: the weekly Identify, Classify, Prove cycle. Owner note
 
-Written for the owner, in plain words. PR: https://github.com/FChecklist/compliance-tracker/pull/2207 (not merged).
-**Nothing has been applied to any database, deployed or e-mailed. Every step below waits for your go.**
+Written for the owner, in plain words. PR: https://github.com/FChecklist/compliance-tracker/pull/2207.
+**Status on 14 November 2026: the owner gave the go. PR 2207 is merged, migrations 0761, 0762 and 0763 are applied live, the edge function and the app are deployed, and the Monday e-mail block is switched OFF. The rest of this note was written before the go and is kept as the plan; the live state, rollback ids and open items are in [`../product/05-LIVE-STATE-AND-OPEN-ITEMS.md`](../product/05-LIVE-STATE-AND-OPEN-ITEMS.md). Deployment order changed: migrations first, then merge (the merge deploys the app), see [`../product/04-HOW.md`](../product/04-HOW.md).**
 
 ## 1. What it does for a customer (a school, a university, a CA or CS firm)
 
