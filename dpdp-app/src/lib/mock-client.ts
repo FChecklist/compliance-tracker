@@ -2,6 +2,8 @@ import type { AuthListener, AuthSession, DpdpClient, RpcResult } from "./client"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
 import { NOTE_MAX, charCount, dueBounds } from "@/lib/dpdp-onepage/job-actions"
 import { recallEdition } from "./landing"
+import { icpRpc, type IcpMockHost, type IcpMockState } from "./icp-mock"
+import { mondayOf } from "./icp"
 import { CONSENT_REQUIRED_CODE, TERMS_VERSION, TICK_TO_CONTINUE } from "./terms"
 import type {
   AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire,
@@ -223,6 +225,8 @@ type OrgState = {
   history: HistoryEntryWire[]; setUpBy: { membershipId: string; email: string } | null; ownerConfirmedAt: string | null
   viewers: Record<string, ViewerFlags>
   aiWorkLinks: AiWorkLinkRecord[]
+  /** The weekly ICP register and record (icp-mock.ts); created on first use. */
+  icp?: IcpMockState
   /** Set by dpdp_create_my_org: this org was opened by the visitor themselves (a double click returns it again). */
   createdByVisitor?: boolean
   /** WO-DPDP-016 Step 2: emails that joined via dpdp_join_org_via_invite -- treated as staff by viewerIn, same as a real 'invited' membership. */
@@ -1282,8 +1286,25 @@ export function createMockClient(scenario?: string): DpdpClient {
         }
         case "dpdp_my_account":
           return ok({ orgId: String(args?.p_org_id ?? HOME_ORG), hasAccount: false, state: "ACTIVE" })
-        default:
+        default: {
+          // The weekly ICP routine (drizzle/0761): same rules as the database, over in-memory state (icp-mock.ts).
+          if (fn.startsWith("dpdp_icp_")) {
+            const org = orgOf(args?.p_org_id)
+            const kind = org ? viewerIn(org, me)?.kind : undefined
+            if (!org || !kind) return fail("Organisation not found")
+            const weekStart = Date.parse(`${mondayOf(new Date())}T00:00:00Z`)
+            const host: IcpMockHost = {
+              product: org.product, rows: org.rows, icp: org.icp,
+              eventsThisWeek: org.history.filter((h) => Date.parse(h.occurredAt) >= weekStart).length,
+              log: (k, summary) => log(org, k, summary),
+            }
+            const res = icpRpc(host, fn, args, !["staff", "parent"].includes(kind))
+            org.icp = host.icp
+            save(state)
+            if (res) return res
+          }
           return fail(`Unknown RPC ${fn}`)
+        }
       }
     },
   }

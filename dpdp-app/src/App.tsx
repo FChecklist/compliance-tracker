@@ -36,6 +36,7 @@ import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, Si
 import { BrandLine } from "./components/BrandLine"
 import { shareRoleFor } from "./lib/brand"
 import { AiFirstSteps } from "./components/AiFirstSteps"
+import { IcpWeek } from "./components/IcpWeek"
 import { DeviceCopy } from "./components/DeviceCopy"
 import { createCopyStore } from "./lib/device-copy/copy-store"
 import { idbKv } from "./lib/device-copy/kv"
@@ -64,6 +65,24 @@ type Phase =
   | { name: "error"; message: string }
 
 const SIGNED_OUT: Phase = { name: "signed-out", busy: false, error: null }
+
+/** The organisation a weekly e-mail link names (?org=<id>): a hint only, never a credential. Anything that does not look like an organisation id is ignored. */
+function orgHintFromUrl(): string | null {
+  try {
+    const v = new URLSearchParams(window.location.search).get("org")
+    return v && /^[A-Za-z0-9_-]{6,64}$/.test(v) ? v : null
+  } catch { return null }
+}
+
+/** Takes the hint out of the address bar once it has been used or the person chose another organisation, so a reload does not go back to it. */
+function forgetOrgHint(): void {
+  try {
+    const u = new URL(window.location.href)
+    if (!u.searchParams.has("org")) return
+    u.searchParams.delete("org")
+    window.history.replaceState(window.history.state, "", u.pathname + u.search + u.hash)
+  } catch { /* not a browser (tests): nothing to tidy */ }
+}
 
 export function App() {
   const [boot] = useState<{ landing: Landing; draft: DraftFragment | null; undo: UndoFragment | null; client: DpdpClient | Error }>(() => {
@@ -130,7 +149,9 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   const fetchStarted = useRef(false)
   // Which org the page shows: null = the caller's newest membership (the
   // RPC's default); set when a CA opens one of their clients.
-  const orgRef = useRef<string | null>(null)
+  const orgRef = useRef<string | null>(orgHintFromUrl())
+  // true while orgRef holds only the organisation a weekly e-mail link named (a hint, not a choice): if the signed-in person is not a member of it, the page falls back to their newest one
+  const orgIsHint = useRef<boolean>(orgHintFromUrl() !== null)
 
   // Refetches can overlap (two job controls saved close together); only the newest one may put its page on screen, or an older, slower answer
   // would win and show a row as it was before the last change.
@@ -164,8 +185,20 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
       // refusal from it -- that is the same "no membership" the page call
       // reports, so it is folded into [] here and the page decides.
       const got = await loadWithCopy<MyPage, CaClient>({
-        fetchPage: () => fetchMyPage(client, orgRef.current), fetchClients: () => fetchMyClients(client),
-        store, email: emailRef.current, org: orgRef.current, isNetwork: isNetworkError,
+        fetchPage: async () => {
+          try {
+            const p = await fetchMyPage(client, orgRef.current)
+            if (orgIsHint.current) forgetOrgHint()
+            orgIsHint.current = false // the hint is tried once; after it worked, a later refusal is shown as it is, never swapped for another organisation
+            return p
+          } catch (e) {
+            // Only the plain "not a member of that organisation" refusal (an e-mail link for an organisation this sign-in is not in) falls back to the person's own newest
+            // organisation. A payment-due refusal, a timeout or any other error is shown as what it is.
+            if (orgIsHint.current && e instanceof RpcFailure && e.code === "42501" && !isPaymentDueError(e.message)) { orgIsHint.current = false; orgRef.current = null; forgetOrgHint(); return fetchMyPage(client, null) }
+            throw e
+          }
+        }, fetchClients: () => fetchMyClients(client),
+        store, email: emailRef.current, org: () => orgRef.current, isNetwork: isNetworkError,
       })
       if (mine !== loadSeq.current) return
       setCopyInfo((c) => ({ ...c, offline: got.source === "device", savedAt: got.savedAt }))
@@ -289,6 +322,8 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
     await client.auth.signOut()
     forgetLoginReport()
     orgRef.current = null
+    orgIsHint.current = false
+    forgetOrgHint()
     setView("page")
     setPartnerOpen(false)
     setPhase(SIGNED_OUT)
@@ -328,6 +363,8 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   // of it; the RPC refuses otherwise and the error screen says so).
   async function openOrg(orgId: string) {
     orgRef.current = orgId
+    orgIsHint.current = false
+    forgetOrgHint()
     setView("page")
     await load()
   }
@@ -456,6 +493,7 @@ function Page({
     // without an RPC; everything else on the page is wired.
     body = (
       <>
+        {viewer.kind !== "staff" && viewer.kind !== "parent" && <IcpWeek key={org.id} client={client} orgId={org.id} offline={copyInfo.offline} canEdit onChanged={refetch} />}
         <AiFirstSteps client={client} orgId={org.id} offline={copyInfo.offline} onMade={refetch} />
         <div id="jobs" />
         <OnePageView

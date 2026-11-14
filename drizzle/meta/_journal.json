@@ -3935,6 +3935,27 @@
       "when": 1790700036000,
       "tag": "0756_dpdp_extra_client_price_rs50",
       "breakpoints": true
+    },
+    {
+      "idx": 564,
+      "version": "7",
+      "when": 1790700037000,
+      "tag": "0761_dpdp_icp_identify_classify",
+      "breakpoints": true
+    },
+    {
+      "idx": 565,
+      "version": "7",
+      "when": 1790700038000,
+      "tag": "0762_dpdp_icp_prove",
+      "breakpoints": true
+    },
+    {
+      "idx": 566,
+      "version": "7",
+      "when": 1790700039000,
+      "tag": "0763_dpdp_icp_monday_block",
+      "breakpoints": true
     }
   ]
 }

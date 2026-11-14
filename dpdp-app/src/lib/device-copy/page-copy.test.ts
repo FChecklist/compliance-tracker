@@ -27,6 +27,14 @@ describe("loadWithCopy", () => {
     expect(b.clients).toEqual(["c"])
     expect(b.page.rows[0].due).toBeInstanceOf(Date)
   })
+  test("the copy is kept under the organisation the page really came from (read after the fetch), not the one first asked for", async () => {
+    const store = createCopyStore(memoryKv())
+    let org: string | null = "hinted_org"
+    await loadWithCopy<P, string>({ fetchPage: async () => { org = null; return page() }, fetchClients: async () => [], store, email: "a@x.in", org: () => org, isNetwork: net })
+    await new Promise((r) => setTimeout(r, 10))
+    expect(await store.loadSnapshot("a@x.in", "hinted_org")).toBeNull()
+    expect(await store.loadSnapshot("a@x.in", null)).not.toBeNull()
+  })
   test("offline with no copy yet: the network error stands", async () => {
     const store = createCopyStore(memoryKv())
     await expect(loadWithCopy<P, string>({ fetchPage: off, fetchClients: off, store, email: "a@x.in", org: null, isNetwork: net })).rejects.toThrow("Failed to fetch")

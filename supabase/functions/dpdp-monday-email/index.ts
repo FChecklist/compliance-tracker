@@ -60,6 +60,7 @@ import {
 import {
   type AiStats, type Rpc, aiOnlyChanges, finishEmailAiLink, loadAiChanges, markChangesShown, mintAiLink, newAiStats, parseAiLinkConfig,
 } from "./ai-link-email.ts"
+import { type IcpBlock, icpBlockUsable } from "./icp-block.ts"
 import { type OutboundEnvelope, buildOutbound, foreignSenderWarning, logOutbound, resendPayload, resolveFrom } from "../_shared/mail-outbound.ts"
 import { SUPPRESSED_MESSAGE_ID, mailGate } from "../_shared/mail-gate.ts"
 import { type MailClass, newRef, withSubjectPrefix } from "../_shared/mail-taxonomy.ts"
@@ -85,6 +86,10 @@ const UNSUBSCRIBE_PATH = env("DPDP_UNSUBSCRIBE_PATH") || "/unsubscribe/"
 // revoked_at = now() where label = 'Monday email' and revoked_at is null.
 const AI = parseAiLinkConfig((k) => env(k).trim())
 for (const w of AI.warnings) console.warn(`dpdp-monday-email: ${w}`)
+// The ICP block (drizzle/0763 public.dpdp_timer_icp_weekly): this week's Identify / Classify / Prove checklist, the score, last week's open items, the weekly
+// snapshot and (a firm) the per-client roll-up, in the Monday e-mail of every whole-organisation member. FAIL OPEN to the old e-mail: on unless
+// DPDP_EMAIL_ICP_ENABLED is exactly "0"; if the database call fails the digest still goes out without the block (and without a snapshot) this once.
+const ICP_ENABLED = env("DPDP_EMAIL_ICP_ENABLED").trim() !== "0"
 const aiRpc = (sb: SupabaseClient): Rpc => (fn, args) => rpc<unknown>(sb, fn, args)
 const aiWarn = (m: string) => console.warn(m)
 
@@ -357,6 +362,25 @@ async function runMonday(sb: SupabaseClient, now: Date, orgId: string | null, dr
           if (due?.line) for (const d of digests) d.billingDueLine = due.line
         } catch (e) {
           console.warn(`dpdp_timer_billing_due_line failed for org ${id}: ${e instanceof Error ? e.message : String(e)}`)
+        }
+        // The weekly ICP block, for the people who may see the whole organisation (never the statutory-only view, never staff). Best effort.
+        if (ICP_ENABLED) {
+          try {
+            const icp = await rpc<IcpBlock>(sb, "dpdp_timer_icp_weekly", { p_org_id: id, p_now: now.toISOString(), p_record: !dryRun })
+            if (icpBlockUsable(icp)) {
+              const viewers = new Set(icp.viewerMembershipIds ?? [])
+              const block: IcpBlock = { ...icp, recorded: !dryRun }
+              // each person is shown only the clients THEY act for (the database keys them by membership): never another member's list
+              for (const d of digests) {
+                if (!d.statutoryOnly && viewers.has(d.membershipId)) {
+                  const mine = icp.clientsByViewer?.[d.membershipId]
+                  d.icp = { ...block, clientsByViewer: undefined, clients: mine?.clients ?? [], clientTotal: mine?.clientTotal ?? 0 }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`dpdp_timer_icp_weekly failed for org ${id}: ${e instanceof Error ? e.message : String(e)}`)
+          }
         }
         await deliverDigests(sb, digests, dryRun, summary)
       } catch (e) {
