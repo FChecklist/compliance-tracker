@@ -29,6 +29,7 @@ On Monday morning an e-mail (the "Monday e-mail") repeats the same three steps w
 | [03-WHERE.md](03-WHERE.md) | Where everything is: files, tables, functions, the edge function, the Cloudflare Pages project, the workflows |
 | [04-HOW.md](04-HOW.md) | How to run it locally and in mock mode, how to test it, how the deploy order works (and why it was changed), how to turn the Monday e-mail on or off, how to roll back |
 | [05-LIVE-STATE-AND-OPEN-ITEMS.md](05-LIVE-STATE-AND-OPEN-ITEMS.md) | What is live as of 14 November, the rollback ids, and what is still open |
+| [design/](design/) | UI/UX designs, all mock data only: `DPDP-UI-UX-flow.html` (25 screens of today's product, by role, plus the Monday e-mail), `DPDP-UI-UX-Professional-Firm.html` (design A, firms with many clients), `DPDP-UI-UX-Organization.html` (design B, a school or company), `DPDP-UI-UX-Shared-and-Changes.html` (what is shared and what must change). Open the files in a browser; each is self-contained |
 | [OWNER-NOTE.md](../../dpdp-app/docs/icp/OWNER-NOTE.md) | The owner note, in plain words (written before the go-live; where it says "nothing applied", read `05` for the live state) |
 | [PLAN.md](../../dpdp-app/docs/icp/PLAN.md), [GAP-ANALYSIS.md](../../dpdp-app/docs/icp/GAP-ANALYSIS.md), [ROUND-LOG.md](../../dpdp-app/docs/icp/ROUND-LOG.md) | The plan, the gap list, and the full round-by-round audit log (the long source for `02-WHY.md`) |
 
