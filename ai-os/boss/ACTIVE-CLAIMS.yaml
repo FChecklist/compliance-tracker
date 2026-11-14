@@ -40,15 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (DPDP ICP weekly lifecycle: Identify, Classify, Prove; branch dpdp-icp-lifecycle, worktree happy-shirley-bc24c8)"
-    claimed_at: "2026-11-14 (this session)"
-    claim: |
-      Scope: drizzle/0761..0763 (+down, +journal 564..) for the dpdp schema (icp_item register, icp_run weekly record, evidence, breach/rights/grievance/vendor/erasure
-      RPCs; the consent campaign + guardian method were NOT built in this PR), dpdp-app/src (lib/icp*.ts, components/IcpWeek.tsx and Prove screens, App.tsx wiring, mock-client hook, api.ts),
-      supabase/functions/dpdp-monday-email (weekly ICP block), dpdp-app/docs/icp/*, public wording fixes in dpdp-app (data/veridian-facts.yaml, public-surface.mjs,
-      generated pages). Supersedes the draft proposed migration 0760 and the Discover/Act/Confirm weekly routine of PR 2206 (merged into this branch, then replaced).
-      Does NOT touch games, Tambola, PROJEXA or the AI-gateway session's folder. No live DB change and no deploy: migrations are files only until the owner says go.
-      Status 2026-11-14: three audit rounds done, PR opened (not merged). Release this claim when the PR merges or is closed.
   - session_label: "claude-code (DPDP pricing: Rs 99 trial pack + Rs 999/month + per-client; branch claude/dpdp-pricing-pack-99)"
     claimed_at: "2026-11-02 (this session)"
     claim: |
@@ -5353,6 +5344,14 @@ active:
       instruction.
 
 recently_completed:
+  - session_label: "claude-code (DPDP ICP weekly lifecycle: Identify, Classify, Prove; branch dpdp-icp-lifecycle, worktree happy-shirley-bc24c8)"
+    claimed_at: "2026-11-14 (this session)"
+    completed_at: "2026-11-14 (compliance-tracker PR #2207 merged; drizzle/0761..0763 applied live to the dpdp schema; dpdp-app auto-deployed to Cloudflare Pages; dpdp-monday-email deployed with the ICP block switched OFF (DPDP_EMAIL_ICP_ENABLED=0). Claim released.)"
+    claim: |
+      Scope: drizzle/0761..0763 (+down, +journal 564..) for the dpdp schema (icp_item register, icp_run weekly record, evidence, breach/rights/grievance/vendor/erasure
+      RPCs; the consent campaign + guardian method were NOT built in this PR), dpdp-app/src (lib/icp*.ts, components/IcpWeek.tsx and Prove screens, App.tsx wiring, mock-client hook, api.ts),
+      supabase/functions/dpdp-monday-email (weekly ICP block), dpdp-app/docs/icp/*, public wording fixes in dpdp-app (data/veridian-facts.yaml, public-surface.mjs,
+      generated pages). Supersedes the draft proposed migration 0760 and the Discover/Act/Confirm weekly routine of PR 2206 (merged into this branch, then replaced).
   - session_label: "claude-code (AUDIT-100 AI work link guide, items 3,4,5,6,8; worktree C:/ct/w-awl-guide2, branches feat/awl-*)"
     claimed_at: "2026-10-06 (this session)"
     completed_at: "2026-10-06 (PRs #2106 + the items 4-8 PR merged; ai-work-link redeployed once; drizzle/0735 applied live)"
