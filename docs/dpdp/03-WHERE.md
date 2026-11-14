@@ -23,7 +23,7 @@ All paths are in `FChecklist/compliance-tracker`.
 | Wiring | `src/App.tsx` (the organisation hint `?org=` is used once, then removed), `src/lib/api.ts`, `src/lib/device-copy/page-copy.ts` |
 | Public wording | `data/veridian-facts.yaml` (source of the generated public pages), `data/claims-register.yaml` (`CLM-004`) |
 | E2E spec | `e2e/icp-week.spec.ts` |
-| Docs | `docs/icp/` (plan, gaps, round log, owner note), `docs/product/` (these pages), `DEPLOY.md`, `OPERATIONS.md` |
+| Docs | `dpdp-app/docs/icp/` (plan, gaps, round log, owner note), `docs/dpdp/` (these pages, kept outside `dpdp-app/` so a docs change does not redeploy the app), `DEPLOY.md`, `OPERATIONS.md` |
 
 ## Edge function
 
@@ -38,7 +38,7 @@ All paths are in `FChecklist/compliance-tracker`.
 | Thing | Where |
 |---|---|
 | App host | Cloudflare Pages project `veridian-dpdp-app`, served at `app.veridian-aios.com` |
-| App deploy | `.github/workflows/dpdp-app-deploy.yml`: runs on push to `main` when a path under `dpdp-app/**` (or the workflow file) changes, and on manual dispatch. **Docs under `dpdp-app/docs/` also match that filter**, so a docs-only change there triggers a (harmless, identical) rebuild and redeploy |
+| App deploy | `.github/workflows/dpdp-app-deploy.yml`: runs on push to `main` when a path under `dpdp-app/**` (or the workflow file) changes, and on manual dispatch. **Docs under `dpdp-app/docs/` also match that filter**, so a docs-only change there triggers a (harmless, identical) rebuild and redeploy; this is why these pages are in `docs/dpdp/` |
 | App CI | `.github/workflows/dpdp-app-ci.yml` |
 | Database migration | `.github/workflows/db-migrate.yml` (manual only) |
 | Live check | `.github/workflows/dpdp-live-smoke.yml` (daily 05:15 UTC), `dpdp-site-health.yml` |

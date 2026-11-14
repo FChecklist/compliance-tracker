@@ -37,7 +37,7 @@ Merging to `main` auto-deploys the app to Cloudflare Pages (`dpdp-app-deploy.yml
 5. Deploy the edge function `dpdp-monday-email` with the block switch already set to `0`.
 6. Check: tables exist with row security on and no anonymous access; the append-only trigger; the new public functions; the Prove stage has seven steps on a real organisation; the weekly e-mail function runs read-only for real organisations and writes nothing; the edge function answers 401 without the bearer secret; the app host answers 200.
 
-The original plan in `icp/OWNER-NOTE.md` treated "deploy the app" as a separate step after the migrations and the edge function. In fact the merge itself is the app deploy, so the migrations had to come before the merge, and the edge function was deployed after it with the block switch already off.
+The original plan in `dpdp-app/docs/icp/OWNER-NOTE.md` treated "deploy the app" as a separate step after the migrations and the edge function. In fact the merge itself is the app deploy, so the migrations had to come before the merge, and the edge function was deployed after it with the block switch already off.
 
 How the migrations are applied: the Supabase Management API `database/migrations` endpoint (or the Supabase MCP `apply_migration`), one file per call, named after the file. `db-migrate.yml` is manual only and is not used for these.
 

@@ -22,7 +22,7 @@
 
 ## 3. The audit rounds and what each found
 
-Each audit was a fresh, read-only, adversarial reviewer that did not write the code. Full detail and the fixes are in [`../icp/ROUND-LOG.md`](../icp/ROUND-LOG.md).
+Each audit was a fresh, read-only, adversarial reviewer that did not write the code. Full detail and the fixes are in [`dpdp-app/docs/icp/ROUND-LOG.md`](../../dpdp-app/docs/icp/ROUND-LOG.md).
 
 | Audit | Verdict | What it found (short) |
 |---|---|---|

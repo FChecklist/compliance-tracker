@@ -29,9 +29,9 @@ On Monday morning an e-mail (the "Monday e-mail") repeats the same three steps w
 | [03-WHERE.md](03-WHERE.md) | Where everything is: files, tables, functions, the edge function, the Cloudflare Pages project, the workflows |
 | [04-HOW.md](04-HOW.md) | How to run it locally and in mock mode, how to test it, how the deploy order works (and why it was changed), how to turn the Monday e-mail on or off, how to roll back |
 | [05-LIVE-STATE-AND-OPEN-ITEMS.md](05-LIVE-STATE-AND-OPEN-ITEMS.md) | What is live as of 14 November, the rollback ids, and what is still open |
-| [../icp/OWNER-NOTE.md](../icp/OWNER-NOTE.md) | The owner note, in plain words |
-| [../icp/PLAN.md](../icp/PLAN.md), [../icp/GAP-ANALYSIS.md](../icp/GAP-ANALYSIS.md), [../icp/ROUND-LOG.md](../icp/ROUND-LOG.md) | The plan, the gap list, and the full round-by-round audit log (the long source for `02-WHY.md`) |
+| [OWNER-NOTE.md](../../dpdp-app/docs/icp/OWNER-NOTE.md) | The owner note, in plain words (written before the go-live; where it says "nothing applied", read `05` for the live state) |
+| [PLAN.md](../../dpdp-app/docs/icp/PLAN.md), [GAP-ANALYSIS.md](../../dpdp-app/docs/icp/GAP-ANALYSIS.md), [ROUND-LOG.md](../../dpdp-app/docs/icp/ROUND-LOG.md) | The plan, the gap list, and the full round-by-round audit log (the long source for `02-WHY.md`) |
 
 ## Which repository holds this
 
-Only `FChecklist/compliance-tracker`, under `dpdp-app/docs/`. The repository `FChecklist/veridian-dpdp` exists and is **public, not private**; it is a stale copy of compliance-tracker made on 3 November 2026 (last pushed that day) and does not hold the weekly-cycle work or any product notes of its own, so nothing was added to it.
+Only `FChecklist/compliance-tracker`: these pages in `docs/dpdp/`, and the earlier working documents in `dpdp-app/docs/icp/`. (These pages live outside `dpdp-app/` on purpose: any change under `dpdp-app/` redeploys the app to Cloudflare Pages.) The repository `FChecklist/veridian-dpdp` exists and is **public, not private**; it is a stale copy of compliance-tracker made on 3 November 2026 (last pushed that day) and does not hold the weekly-cycle work or any product notes of its own, so nothing was added to it. (Since 14 November the owner has made all repositories public except those holding secrets, so it is public by design.)
