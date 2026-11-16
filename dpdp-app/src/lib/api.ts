@@ -1,3 +1,4 @@
+import type { WeeklyRunWire } from "@/lib/weekly-routine"
 import type { GroupAnswerKind, ObligationRow, ViewerContext } from "@/lib/dpdp-onepage/view-model"
 import type { DpdpClient, RpcError } from "./client"
 import type {
@@ -110,6 +111,17 @@ export async function fetchHistory(client: DpdpClient, orgId?: string, limit = 1
   const { data, error } = await client.rpc("dpdp_org_history", { p_limit: limit, ...(orgId ? { p_org_id: orgId } : {}) })
   if (error) throw new RpcFailure(error)
   return (data as HistoryEntryWire[]).map((h) => ({ ...h, occurredAt: new Date(h.occurredAt) }))
+}
+
+/** The weekly routine's own record (proposed migration 0760, not applied yet). Throws RpcFailure; until the database has it the call fails and the page reads History instead. */
+export async function fetchWeeklyRuns(client: DpdpClient, orgId: string, weeks = 4): Promise<WeeklyRunWire[]> {
+  const { data, error } = await client.rpc("dpdp_weekly_runs", { p_org_id: orgId, p_weeks: weeks })
+  if (error) throw new RpcFailure(error)
+  return (data ?? []) as WeeklyRunWire[]
+}
+export async function logWeeklyRun(client: DpdpClient, orgId: string, stage: WeeklyRunWire["stage"], note?: string): Promise<void> {
+  const { error } = await client.rpc("dpdp_weekly_log", { p_org_id: orgId, p_stage: stage, p_outcome: "ok", p_note: note ?? null, p_by: "person" })
+  if (error) throw new RpcFailure(error)
 }
 
 // ---------------------------------------------------------------------
