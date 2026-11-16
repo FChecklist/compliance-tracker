@@ -23,9 +23,14 @@
 // the caller's own Authorization header to the database, where dpdp_pay_begin resolves
 // auth.jwt() and refuses anyone who is not an owner of that organisation.
 //
-// SECRETS (Edge function secrets, set by the Owner in the Supabase dashboard; none are in this
-// repo and none are ever logged or echoed):
-//   RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET   -- to create a Payment Link
+// HOW THE MONEY MOVES (the same pattern as every game: Corporate Tambola, Luck by Chance ...; payee: IT Services by Rajat Agarwal, gateway: Razorpay only):
+//   product website (this app) -> POST /dpdp-pay -> the order is opened through the central payment service (PAY_SERVICE_URL/api/pay/order, header
+//   x-site-key = PAY_SERVICE_KEY, site veridian-aios.com = site code DPD) -> the app opens Razorpay's window inside the registered pay frame (PAY_HOP_URL)
+//   -> /verify reports the signed result to the central service and books it here. No separate Razorpay account exists for DPDP.
+//
+// SECRETS (Edge function secrets, set by the Owner; none are in this repo and none are ever logged or echoed):
+//   PAY_SERVICE_KEY                        -- DPDP's own key for the central service (its hash is registered there for site veridian-aios.com)
+//   RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET   -- the IT Services Razorpay keys (checkout signature check, and the order if the central service is unreachable)
 //   RAZORPAY_WEBHOOK_SECRET                -- to verify a webhook
 // Platform-injected: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY. Optional:
 // RESEND_API_KEY / DPDP_EMAIL_FROM (the receipt; no key = the receipt is recorded as a dry run),
