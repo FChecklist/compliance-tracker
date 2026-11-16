@@ -9,7 +9,7 @@ import {
   type Deps, type Rpc, attemptStatusOf, attemptStatusOfEntity, buildAttemptRow, buildCommissionBody, buildRefundRow, buildSummaryBody, derivedEventKey, ledgerCsv, ledgerTick, maskVpa,
   monthKeyOf, parseLedgerEvent, prevMonthKey, pushSummaries, recordLedgerEvent, syncCommissions,
 } from "../../../supabase/functions/dpdp-pay/ledger"
-import { CENTRAL_SITE, buildCentralOrderBody, buildOrderBody, receiptFor, txnIdOf } from "../../../supabase/functions/dpdp-pay/logic"
+import { CENTRAL_SITE, buildCentralOrderBody, entityFromCentral, receiptFor, txnIdOf } from "../../../supabase/functions/dpdp-pay/logic"
 
 const ATTEMPT = "11111111222233334444555555555555"
 const migration = readFileSync("drizzle/0749_dpdp_ledger_c.sql", "utf8")
@@ -59,12 +59,6 @@ describe("txn_id (A = order notes + receipt, B = central payment row, C = dpdp.p
     // The central service builds txn_id as SITE_CODES[site] + "-" + payment_ref (itservices-site functions/_lib.js txnIdOf). Same recipe, same text.
     expect(`DPD-${central.payment_ref}`).toBe(txnIdOf(ATTEMPT))
     expect(central.site).toBe(CENTRAL_SITE)
-  })
-  test("a direct Razorpay order (the fallback when the central service is down) carries the same txn_id in its notes and the same receipt", () => {
-    const body = buildOrderBody({ attemptId: ATTEMPT, orgId: "o", orgName: "Org", plan: "firm", interval: "year", amountPaise: 999900, currency: "INR" })
-    expect((body.notes as Record<string, string>).txn_id).toBe(txnIdOf(ATTEMPT))
-    expect(body.receipt).toBe(receiptFor(ATTEMPT))
-    expect(Object.keys(body.notes as object).length).toBeLessThanOrEqual(15) // Razorpay's limit on notes
   })
   test("the database computes the same text: a generated column on dpdp.payment_attempt", () => {
     expect(migration).toContain("add column if not exists txn_id text generated always as ('DPD-dpdp_' || id) stored")
@@ -366,7 +360,7 @@ describe("the edge function wiring", () => {
   })
   test("the order answer carries txnId, the verify path records the attempt whatever its outcome, and the new routes exist", () => {
     expect(indexTs).toContain("txnId: txnIdOf(a.attemptId)")
-    expect(indexTs).toContain("await recordPaymentEntity(pay)")
+    expect(indexTs).toContain("await recordPaymentEntity(entityFromCentral(answer))")
     expect(indexTs).toContain('path.endsWith("/ledger-tick")')
     expect(indexTs).toContain('path.endsWith("/ledger")')
     // the cron endpoint is guarded by the Vault bearer

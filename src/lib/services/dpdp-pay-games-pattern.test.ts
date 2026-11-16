@@ -16,14 +16,20 @@ const ledger = readFileSync(join(ROOT, "supabase/functions/dpdp-pay/ledger.ts"),
 const ATTEMPT = "0123456789abcdef0123456789abcdef"
 
 describe("DPDP pays the way the games do", () => {
-  test("the order goes to the central payment service first, with DPDP's own site key", () => {
+  test("the order goes to the central payment service with DPDP's own site key, and there is NO direct Razorpay call or API key", () => {
     const central = index.indexOf("`${PAY_SERVICE_URL}/api/pay/order`")
-    const direct = index.indexOf("`${RAZORPAY_API}/orders`")
     expect(central).toBeGreaterThan(-1)
-    expect(direct).toBeGreaterThan(central) // the direct call is only the fallback after the central one
     const call = index.slice(central, central + 400)
     expect(call).toContain('"x-site-key": PAY_SERVICE_KEY')
     expect(index).toContain('const PAY_SERVICE_KEY = env("PAY_SERVICE_KEY")') // its own secret, not a shared or hard-coded one
+    // owner rule 2026-11-16: no direct Razorpay per product
+    for (const src of [index, logic, ledger]) {
+      expect(src).not.toContain("api.razorpay.com")
+      expect(src).not.toMatch(/RAZORPAY_API|RAZORPAY_KEY_ID|RAZORPAY_KEY_SECRET|basicAuthHeader|verifyCheckoutSignature/)
+    }
+    expect(index).toContain('env("RAZORPAY_WEBHOOK_SECRET")') // the only Razorpay value left: the inbound webhook signature check
+    expect(index.match(/env\("RAZORPAY_/g)?.length).toBe(1)
+    expect(index).toContain("keyId: order.keyId") // the checkout key id comes from the central service's answer
   })
 
   test("the answer hands over to the registered pay frame of IT Services by Rajat Agarwal", () => {
@@ -32,12 +38,15 @@ describe("DPDP pays the way the games do", () => {
     expect(index).toContain('env("PAY_SERVICE_URL") || "https://itservices-rajat-agarwal.pages.dev"')
   })
 
-  test("a verified payment is reported to the central service under the same site", () => {
-    const at = index.indexOf("async function reportToCentral")
-    const fn = index.slice(at, index.indexOf("}\n}", at) + 3)
-    expect(fn).toContain("/api/pay/verify")
+  test("the signed result is checked by the central service, and what it answers is booked against OUR attempt", () => {
+    const at = index.indexOf("async function verify(")
+    const fn = index.slice(at, index.indexOf("async function webhook", at))
+    expect(fn).toContain("`${PAY_SERVICE_URL}/api/pay/verify`")
     expect(fn).toContain('"x-site-key": PAY_SERVICE_KEY')
-    expect(fn).toContain("razorpay_signature: signature")
+    expect(fn).toContain("site: CENTRAL_SITE")
+    expect(fn).toContain("razorpay_signature: v.signature")
+    expect(fn).toContain("capturedFromCentral(answer, v.orderId)")
+    expect(fn).toContain("await recordCaptured(outcome.payment)")
   })
 
   test("the site is veridian-aios.com and its code is DPD, in the order, the txn id and the ledger", () => {
