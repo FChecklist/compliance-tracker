@@ -7,9 +7,9 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import {
   type Deps, type Rpc, attemptStatusOf, attemptStatusOfEntity, buildAttemptRow, buildCommissionBody, buildRefundRow, buildSummaryBody, derivedEventKey, ledgerCsv, ledgerTick, maskVpa,
-  monthKeyOf, parseLedgerEvent, prevMonthKey, pushSummaries, recordLedgerEvent, syncCommissions,
+  isOtherSiteEvent, monthKeyOf, parseLedgerEvent, prevMonthKey, pushSummaries, recordLedgerEvent, syncCommissions,
 } from "../../../supabase/functions/dpdp-pay/ledger"
-import { CENTRAL_SITE, buildCentralOrderBody, buildOrderBody, receiptFor, txnIdOf } from "../../../supabase/functions/dpdp-pay/logic"
+import { CENTRAL_SITE, buildCentralOrderBody, entityFromCentral, receiptFor, txnIdOf } from "../../../supabase/functions/dpdp-pay/logic"
 
 const ATTEMPT = "11111111222233334444555555555555"
 const migration = readFileSync("drizzle/0749_dpdp_ledger_c.sql", "utf8")
@@ -60,16 +60,31 @@ describe("txn_id (A = order notes + receipt, B = central payment row, C = dpdp.p
     expect(`DPD-${central.payment_ref}`).toBe(txnIdOf(ATTEMPT))
     expect(central.site).toBe(CENTRAL_SITE)
   })
-  test("a direct Razorpay order (the fallback when the central service is down) carries the same txn_id in its notes and the same receipt", () => {
-    const body = buildOrderBody({ attemptId: ATTEMPT, orgId: "o", orgName: "Org", plan: "firm", interval: "year", amountPaise: 999900, currency: "INR" })
-    expect((body.notes as Record<string, string>).txn_id).toBe(txnIdOf(ATTEMPT))
-    expect(body.receipt).toBe(receiptFor(ATTEMPT))
-    expect(Object.keys(body.notes as object).length).toBeLessThanOrEqual(15) // Razorpay's limit on notes
-  })
   test("the database computes the same text: a generated column on dpdp.payment_attempt", () => {
     expect(migration).toContain("add column if not exists txn_id text generated always as ('DPD-dpdp_' || id) stored")
     // and the SQL that links an attempt to its payment uses the same recipe
     expect(migration).toContain("'DPD-dpdp_' || v_att")
+  })
+})
+
+// ---- the Razorpay account is shared: another product's payment is not ours ----------------------------------------------------------------------------
+describe("a payment of another website is acknowledged and not recorded", () => {
+  const ev = (notes: Record<string, unknown> | undefined, where: "payment" | "order" = "payment") =>
+    JSON.stringify({ event: "payment.captured", payload: { payment: { entity: { id: "pay_Abc123", ...(where === "payment" && notes ? { notes } : {}) } }, order: { entity: { id: "order_Abc123", ...(where === "order" && notes ? { notes } : {}) } } } })
+  test("a game's payment (notes.site = its own host) is foreign; ours and older orders without a site note are not", () => {
+    expect(isOtherSiteEvent(ev({ site: "corporate-tambola.pages.dev", stream: "sales" }))).toBe(true)
+    expect(isOtherSiteEvent(ev({ site: "corporate-luck-by-chance.pages.dev" }, "order"))).toBe(true)
+    expect(isOtherSiteEvent(ev({ site: CENTRAL_SITE, stream: "sales" }))).toBe(false)
+    expect(isOtherSiteEvent(ev({ attempt_id: "x" }))).toBe(false) // no site note: treated as ours
+    expect(isOtherSiteEvent(ev(undefined))).toBe(false)
+    expect(isOtherSiteEvent("not json")).toBe(false)
+    expect(isOtherSiteEvent(JSON.stringify({ event: "refund.created", payload: { refund: { entity: { id: "rfnd_1" } } } }))).toBe(false)
+  })
+  test("the webhook acknowledges it before any booking or ledger write", () => {
+    const at = indexTs.indexOf("if (isOtherSiteEvent(raw))")
+    expect(at).toBeGreaterThan(indexTs.indexOf("verifyWebhookSignature(raw"))
+    expect(at).toBeLessThan(indexTs.indexOf("parseLedgerEvent(raw, eventId"))
+    expect(indexTs.slice(at, at + 140)).toContain("recorded: false")
   })
 })
 
@@ -356,7 +371,7 @@ describe("zero duplication and closed tables (drizzle/0749)", () => {
 describe("the edge function wiring", () => {
   test("the webhook marks a delivery as seen only AFTER the booking and the ledger write succeeded, and checks it BEFORE", () => {
     const seen = indexTs.indexOf('"dpdp_ledger_event_seen"')
-    const book = indexTs.indexOf("await recordCaptured(parsed.payment)")
+    const book = indexTs.indexOf('await recordCaptured(parsed.payment, "webhook")')
     const rec = indexTs.indexOf("await recordLedgerEvent(ledgerDeps(sb).rpc, ledger)")
     const mark = indexTs.indexOf('"dpdp_ledger_mark_event"')
     expect(seen).toBeGreaterThan(0)
@@ -366,7 +381,7 @@ describe("the edge function wiring", () => {
   })
   test("the order answer carries txnId, the verify path records the attempt whatever its outcome, and the new routes exist", () => {
     expect(indexTs).toContain("txnId: txnIdOf(a.attemptId)")
-    expect(indexTs).toContain("await recordPaymentEntity(pay)")
+    expect(indexTs).toContain("await recordPaymentEntity(entityFromCentral(answer))")
     expect(indexTs).toContain('path.endsWith("/ledger-tick")')
     expect(indexTs).toContain('path.endsWith("/ledger")')
     // the cron endpoint is guarded by the Vault bearer

@@ -7,9 +7,9 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import {
-  type AttemptFacts, type CapturedPayment, SUPPORTED_EVENTS, basicAuthHeader, buildPaymentLinkBody, constantTimeEqual, corsHeadersFor, decideWebhook,
-  hmacSha256Hex, httpStatusFor, parseCreateRequest, parseNotes, parsePaymentLinkResponse, parseWebhookEvent, razorpayConfigured, verifyWebhookSignature,
-  CONSENT_REQUIRED_BODY, readTermsConsent, PRODUCT_CODE, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, parseOrderResponse, parseVerifyRequest, receiptFor, verifyCheckoutSignature,
+  type AttemptFacts, type CapturedPayment, SUPPORTED_EVENTS, buildPaymentLinkBody, constantTimeEqual, corsHeadersFor, decideWebhook,
+  hmacSha256Hex, httpStatusFor, parseCreateRequest, parseNotes, parsePaymentLinkResponse, parseWebhookEvent, verifyWebhookSignature,
+  CONSENT_REQUIRED_BODY, readTermsConsent, PRODUCT_CODE, buildCentralOrderBody, buildCheckoutOptions, parseVerifyRequest, receiptFor, parseCentralOrder, capturedFromCentral, webhookStatusFor, entityFromCentral,
 } from "../../../supabase/functions/dpdp-pay/logic"
 
 const SECRET = "whsec_test_not_a_real_secret"
@@ -256,19 +256,26 @@ describe("creating the payment link", () => {
     }
     expect(CONSENT_REQUIRED_BODY).toEqual({ error: "Please tick the box to continue.", code: "consent-required" })
   })
-  test("the dpdp-pay function refuses before it asks Razorpay for an order, and passes the version and the tick to dpdp_pay_begin", () => {
+  test("the dpdp-pay function refuses before it asks the central service for an order, and passes the version and the tick to dpdp_pay_begin", () => {
     const src = readFileSync(new URL("../../../supabase/functions/dpdp-pay/index.ts", import.meta.url), "utf8")
     const refuse = src.indexOf("if (!consent.given) return json(CONSENT_REQUIRED_BODY, 400, cors)")
     expect(refuse).toBeGreaterThan(0)
     expect(refuse).toBeLessThan(src.indexOf('.rpc("dpdp_pay_begin"'))
-    expect(src.indexOf('.rpc("dpdp_pay_begin"')).toBeLessThan(src.indexOf("`${RAZORPAY_API}/orders`"))
+    expect(src.indexOf('.rpc("dpdp_pay_begin"')).toBeLessThan(src.indexOf("`${PAY_SERVICE_URL}/api/pay/order`"))
     expect(src).toContain("p_terms_version: consent.version, p_terms_accepted: consent.accepted")
     expect(src).toContain("hint === CONSENT_REQUIRED_CODE")
   })
-  test("Basic auth header and the 'keys present' check", () => {
-    expect(basicAuthHeader("rzp_test_id", "sec")).toBe("Basic " + Buffer.from("rzp_test_id:sec").toString("base64"))
-    expect(razorpayConfigured("id", "secret")).toBe(true)
-    for (const [a, b] of [["", "x"], ["x", ""], [null, "x"], ["x", undefined], ["  ", "x"]] as const) expect(razorpayConfigured(a, b)).toBe(false)
+  test("the webhook answers 200 (ignored) for an order we never opened, so Razorpay stops retrying; /verify keeps the 404; real refusals stay 4xx", () => {
+    const unknown = decideWebhook(captured(), null)
+    expect(unknown).toEqual({ action: "reject", reason: "unknown_order" })
+    expect(webhookStatusFor(unknown)).toBe(200)
+    expect(httpStatusFor(unknown)).toBe(404) // /verify: a payment the buyer thinks is theirs was not found
+    expect(webhookStatusFor({ action: "reject", reason: "amount_mismatch" })).toBe(400)
+    expect(webhookStatusFor({ action: "reject", reason: "currency_mismatch" })).toBe(400)
+    expect(webhookStatusFor({ action: "reject", reason: "org_mismatch" })).toBe(400)
+    expect(webhookStatusFor({ action: "record" })).toBe(200)
+    expect(webhookStatusFor({ action: "duplicate" })).toBe(200)
+    expect(webhookStatusFor({ action: "flag", reason: "attempt_already_paid" })).toBe(200)
   })
   test("CORS: only an allow-listed origin is echoed, never a wildcard", () => {
     const allowed = ["https://dpdp.veridian-aios.com", "https://veridian-aios.com/"]
@@ -334,23 +341,10 @@ describe("paying through an ORDER (the Corporate Tambola method, 2026-10-11)", (
   const SECRET_KEY = "key_secret_not_real"
   const orderReq = { attemptId: "a".repeat(32), orgId: "org1", orgName: "Acme Associates", plan: "firm", variation: "professional_year", interval: "year" as const, amountPaise: 999900, currency: "INR" }
 
-  test("the order carries the price WE chose, a product-led receipt, and product + variation + our ids in its notes", () => {
-    const b = buildOrderBody(orderReq) as { amount: number; currency: string; receipt: string; notes: Record<string, string> }
-    expect(b.amount).toBe(999900)
-    expect(b.currency).toBe("INR")
-    expect(b.receipt).toBe(`dpdp_${"a".repeat(32)}`)
-    expect(b.receipt.length).toBeLessThanOrEqual(40)
-    expect(b.notes).toMatchObject({ product: PRODUCT_CODE, variation: "professional_year", org_id: "org1", attempt_id: "a".repeat(32), interval: "year", plan: "firm" })
-    expect(PRODUCT_CODE).toBe("veridian_dpdp")
+  test("the receipt is product-led and within Razorpay's 40 characters, and the product is veridian_dpdp", () => {
+    expect(receiptFor("a".repeat(32))).toBe(`dpdp_${"a".repeat(32)}`)
     expect(receiptFor("b".repeat(60)).length).toBe(40)
-  })
-  test("without a database-supplied variation the notes fall back to edition_interval", () => {
-    const b = buildOrderBody({ ...orderReq, variation: undefined }) as { notes: Record<string, string> }
-    expect(b.notes.variation).toBe("firm_year")
-  })
-  test("the order notes name the website and the sales stream, so even a direct order lands in the central ledger", () => {
-    const b = buildOrderBody(orderReq) as { notes: Record<string, string> }
-    expect(b.notes).toMatchObject({ site: "veridian-aios.com", stream: "sales" })
+    expect(PRODUCT_CODE).toBe("veridian_dpdp")
   })
   test("the central order request: this website / sales / the variation as the plan, with our ids as extra notes", () => {
     const c = buildCentralOrderBody({ ...orderReq, ownerEmail: "o@acme.in" }) as Record<string, any>
@@ -360,11 +354,11 @@ describe("paying through an ORDER (the Corporate Tambola method, 2026-10-11)", (
     expect((buildCentralOrderBody(orderReq) as Record<string, any>).payer_email).toBeUndefined()
     expect((buildCentralOrderBody({ ...orderReq, variation: undefined }) as Record<string, any>).plan).toBe("firm_year")
   })
-  test("the order response needs a real order id", () => {
-    expect(parseOrderResponse({ id: "order_Abc123xyz" })).toEqual({ id: "order_Abc123xyz" })
-    expect(parseOrderResponse({ id: "plink_1" })).toBeNull()
-    expect(parseOrderResponse({ error: { description: "bad" } })).toBeNull()
-    expect(parseOrderResponse(null)).toBeNull()
+  test("the central service's order answer needs a real order id AND a public Razorpay key id (never a secret-looking value)", () => {
+    expect(parseCentralOrder({ ok: true, orderId: "order_Abc123xyz", keyId: "rzp_live_Abc123xyz" })).toEqual({ orderId: "order_Abc123xyz", keyId: "rzp_live_Abc123xyz" })
+    expect(parseCentralOrder({ ok: true, orderId: "order_Abc123xyz", keyId: "rzp_test_Abc123xyz" })?.keyId).toBe("rzp_test_Abc123xyz")
+    for (const bad of [null, {}, { ok: true, orderId: "plink_1", keyId: "rzp_live_Abc123xyz" }, { ok: true, orderId: "order_Abc123xyz" }, { ok: true, orderId: "order_Abc123xyz", keyId: "not_a_razorpay_key_id" },
+      { ok: false, orderId: "order_Abc123xyz", keyId: "rzp_live_Abc123xyz" }, { error: "unknown site or wrong key" }]) expect(parseCentralOrder(bad)).toBeNull()
   })
   test("the window options name the order, never carry a secret, and put UPI first", () => {
     const o = buildCheckoutOptions({ keyId: "rzp_live_key", orderId: "order_Abc123xyz", amountPaise: 999900, currency: "INR", orgName: "Acme", plan: "institution", variation: "professional_year", interval: "year", ownerEmail: "o@acme.in" })
@@ -381,40 +375,43 @@ describe("paying through an ORDER (the Corporate Tambola method, 2026-10-11)", (
     expect(parseVerifyRequest(good)).toEqual({ ok: true, orderId: "order_Abc123xyz", paymentId: "pay_Abc123xyz", signature: "a".repeat(64) })
     for (const bad of [null, {}, { ...good, razorpay_signature: "short" }, { ...good, razorpay_order_id: "x" }, { ...good, razorpay_payment_id: "../etc" }]) expect(parseVerifyRequest(bad).ok).toBe(false)
   })
-  test("the checkout signature is HMAC(order|payment) under the key secret; wrong, tampered or empty-secret never verifies", async () => {
-    const sig = await hmacSha256Hex(SECRET_KEY, "order_Abc123xyz|pay_Abc123xyz")
-    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Abc123xyz", sig, SECRET_KEY)).toBe(true)
-    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Other99999", sig, SECRET_KEY)).toBe(false)
-    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Abc123xyz", sig, "other")).toBe(false)
-    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Abc123xyz", sig, "")).toBe(false)
-    expect(await verifyCheckoutSignature("order_Abc123xyz", "pay_Abc123xyz", "nothex", SECRET_KEY)).toBe(false)
+  const central = (over: Record<string, unknown> = {}) => ({
+    ok: true, paid: true, status: "captured", amount_minor: 999900, currency: "INR", method: "upi", razorpay_payment_id: "pay_Abc123", razorpay_order_id: "order_Zzz1abc",
+    fee_minor: 23600, tax_minor: 3600, razorpay: { method: "upi", vpa: "ab@bank", bank: null, wallet: null, card_last4: null, card_network: null, bank_transaction_id: "rrn123", created_at_ms: 1_790_000_000_000 }, ...over,
   })
-  const rzOrder = (over: Record<string, unknown> = {}) => ({ id: "order_Zzz1abc", amount: 999900, currency: "INR", notes: { org_id: "org1", attempt_id: "a".repeat(32), interval: "year" }, ...over })
-  const rzPay = (over: Record<string, unknown> = {}) => ({ id: "pay_Abc123", order_id: "order_Zzz1abc", amount: 999900, currency: "INR", status: "captured", method: "upi", ...over })
-  test("a captured payment becomes the same CapturedPayment the webhook produces, read from Razorpay's own answer", () => {
-    const r = capturedFromRazorpay(rzOrder(), rzPay(), "order_Zzz1abc")
+  test("a paid answer from the central service becomes the same CapturedPayment the webhook produces, and the same money rules apply to it", () => {
+    const r = capturedFromCentral(central(), "order_Zzz1abc")
     expect(r.kind).toBe("payment")
     if (r.kind !== "payment") return
-    expect(r.payment).toMatchObject({ paymentId: "pay_Abc123", orderId: "order_Zzz1abc", amountPaise: 999900, currency: "INR", method: "upi", eventId: "verify:pay_Abc123" })
-    expect(r.payment.notes).toEqual({ orgId: "org1", attemptId: "a".repeat(32), interval: "year" })
-    // and the same money rules apply to it
+    expect(r.payment).toMatchObject({ paymentId: "pay_Abc123", orderId: "order_Zzz1abc", amountPaise: 999900, currency: "INR", method: "upi", eventId: "verify:pay_Abc123", eventType: "order.paid" })
     expect(decideWebhook(r.payment, attempt())).toEqual({ action: "record" })
     expect(decideWebhook(r.payment, attempt({ amountPaise: 1 }))).toEqual({ action: "reject", reason: "amount_mismatch" })
+    expect(decideWebhook(r.payment, attempt({ currency: "USD" }))).toEqual({ action: "reject", reason: "currency_mismatch" })
   })
-  test("pending, failed and mismatched payments book nothing", () => {
-    expect(capturedFromRazorpay(rzOrder(), rzPay({ status: "created" }), "order_Zzz1abc").kind).toBe("pending")
-    expect(capturedFromRazorpay(rzOrder(), rzPay({ status: "failed" }), "order_Zzz1abc")).toEqual({ kind: "failed", status: "failed" })
-    expect(capturedFromRazorpay(rzOrder(), rzPay({ order_id: "order_Other999" }), "order_Zzz1abc").kind).toBe("mismatch")
-    expect(capturedFromRazorpay(rzOrder(), rzPay({ amount: 100 }), "order_Zzz1abc").kind).toBe("mismatch")
-    expect(capturedFromRazorpay(rzOrder({ id: "order_Other999" }), rzPay(), "order_Zzz1abc").kind).toBe("mismatch")
-    expect(capturedFromRazorpay(null, rzPay(), "order_Zzz1abc").kind).toBe("mismatch")
+  test("pending, failed and mismatched answers book nothing", () => {
+    expect(capturedFromCentral(central({ paid: false, status: "created" }), "order_Zzz1abc").kind).toBe("pending")
+    expect(capturedFromCentral(central({ paid: false, status: "authorized" }), "order_Zzz1abc").kind).toBe("pending")
+    expect(capturedFromCentral(central({ paid: false, status: "failed" }), "order_Zzz1abc")).toEqual({ kind: "failed", status: "failed" })
+    expect(capturedFromCentral(central({ paid: "yes" }), "order_Zzz1abc").kind).toBe("failed") // only a real true counts as paid
+    expect(capturedFromCentral(central({ razorpay_order_id: "order_Other999" }), "order_Zzz1abc").kind).toBe("mismatch")
+    expect(capturedFromCentral(central({ amount_minor: 0 }), "order_Zzz1abc").kind).toBe("mismatch")
+    expect(capturedFromCentral(central({ amount_minor: 99.5 }), "order_Zzz1abc").kind).toBe("mismatch")
+    expect(capturedFromCentral(central({ razorpay_payment_id: "" }), "order_Zzz1abc").kind).toBe("mismatch")
+    expect(capturedFromCentral(central({ ok: false }), "order_Zzz1abc").kind).toBe("mismatch")
+    expect(capturedFromCentral(null, "order_Zzz1abc").kind).toBe("mismatch")
+  })
+  test("ledger C gets only the safe fields from the central answer (no card number, no full UPI id)", () => {
+    const e = entityFromCentral(central())!
+    expect(e).toMatchObject({ id: "pay_Abc123", order_id: "order_Zzz1abc", amount: 999900, currency: "INR", status: "captured", method: "upi", fee: 23600, tax: 3600 })
+    expect(entityFromCentral(null)).toBeNull()
+    expect(entityFromCentral({ ok: true })).toBeNull()
   })
   test("/verify and the webhook share one booking path, and the browser is never believed on its own", () => {
     const src = readFileSync("supabase/functions/dpdp-pay/index.ts", "utf8")
     expect(src).toContain("async function recordCaptured(")
     expect(src.match(/await recordCaptured\(/g)?.length).toBe(2)
-    expect(src).toContain("verifyCheckoutSignature(")
-    expect(src).toContain("capturedFromRazorpay(order, pay, v.orderId)") // Razorpay's own answer, not the browser's
+    expect(src).toContain("/api/pay/verify") // the central service checks the signature and asks Razorpay; the browser's word is never enough
+    expect(src).toContain("capturedFromCentral(answer, v.orderId)")
   })
   test("migration 0747: product + variation + receipt on the attempt, the order RPC, the ledger view, journal entry", () => {
     const m = readFileSync("drizzle/0747_dpdp_pay_order_product_variation.sql", "utf8")

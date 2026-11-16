@@ -26,8 +26,6 @@
 
 import { CONSENT_REQUIRED_CODE, CONSENT_REQUIRED_MESSAGE, TERMS_VERSION } from "../_shared/terms.ts"
 
-export const RAZORPAY_API = "https://api.razorpay.com/v1"
-
 /** Events that can record money. Anything else that is validly signed is acknowledged and ignored. */
 export const SUPPORTED_EVENTS = ["payment.captured", "payment_link.paid", "order.paid"] as const
 export type SupportedEvent = (typeof SUPPORTED_EVENTS)[number]
@@ -213,14 +211,18 @@ export function httpStatusFor(d: Decision): number {
   }
 }
 
+/**
+ * HTTP answer for the WEBHOOK. The IT Services Razorpay account is shared by every product, so Razorpay also sends us payments that belong to other products
+ * (the games). An order we never opened is not an error here: answer 200 (ignored) so Razorpay does not retry it for 24 hours. /verify keeps the 404, because
+ * there it would mean a payment the buyer thinks is theirs was not found.
+ */
+export function webhookStatusFor(d: Decision): number {
+  return d.action === "reject" && d.reason === "unknown_order" ? 200 : httpStatusFor(d)
+}
+
 // ---------------------------------------------------------------------
 // Creating the payment link
 // ---------------------------------------------------------------------
-
-/** "Basic <base64(key_id:key_secret)>" for Razorpay's REST API. */
-export function basicAuthHeader(keyId: string, keySecret: string): string {
-  return "Basic " + btoa(`${keyId}:${keySecret}`)
-}
 
 export type LinkRequest = {
   attemptId: string
@@ -286,16 +288,6 @@ export type OrderRequest = {
   currency: string
 }
 
-/** The JSON body for POST /v1/orders. Notes carry product + variation + our ids; they are a cross-check, our attempt row stays the source of truth. */
-export function buildOrderBody(r: OrderRequest): Record<string, unknown> {
-  return {
-    amount: r.amountPaise,
-    currency: r.currency,
-    receipt: receiptFor(r.attemptId),
-    notes: { ...productNotes(r.plan, r.interval, r.variation), site: CENTRAL_SITE, stream: "sales", txn_id: txnIdOf(r.attemptId), org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, plan: r.plan, organisation: r.orgName.slice(0, 80) },
-  }
-}
-
 /** Central payments (owner order 2026-10-12): the order is opened through IT Services by Rajat Agarwal, so it lands in its ONE Razorpay ledger as
  *  razorpay / IT Services / veridian-aios.com / sales / <variation>. This builds the request to its POST /api/pay/order. */
 export const CENTRAL_SITE = "veridian-aios.com"
@@ -306,12 +298,6 @@ export function buildCentralOrderBody(r: OrderRequest & { ownerEmail?: string | 
     ...(r.ownerEmail ? { payer_email: r.ownerEmail } : {}),
     extra_notes: { org_id: r.orgId, attempt_id: r.attemptId, interval: r.interval, edition: r.plan, organisation: r.orgName.slice(0, 80) },
   }
-}
-
-export function parseOrderResponse(body: unknown): { id: string } | null {
-  if (!isObj(body)) return null
-  const id = str(body.id)
-  return id && /^order_\w{6,40}$/.test(id) ? { id } : null
 }
 
 /** What the browser's Razorpay window needs. UPI first, as on the other products. */
@@ -341,28 +327,40 @@ export function parseVerifyRequest(body: unknown): { ok: true; orderId: string; 
   return { ok: true, orderId, paymentId, signature }
 }
 
-/** Razorpay's checkout signature: HMAC-SHA256("order_id|payment_id", key secret). An empty secret never verifies. */
-export async function verifyCheckoutSignature(orderId: string, paymentId: string, signature: string, keySecret: string | null | undefined): Promise<boolean> {
-  if (!keySecret || !/^[0-9a-f]{64}$/.test(signature)) return false
-  return constantTimeEqual(await hmacSha256Hex(keySecret, `${orderId}|${paymentId}`), signature)
+// ---------------------------------------------------------------------
+// The central payment service (IT Services by Rajat Agarwal): the ONLY way DPDP reaches Razorpay (owner rule, 2026-11-16)
+// ---------------------------------------------------------------------
+//
+// DPDP holds no Razorpay API key and makes no call to Razorpay. The central service opens the order (POST /api/pay/order) and answers with the
+// order id and Razorpay's PUBLIC key id for the checkout window; it checks the signed result, asks Razorpay what really happened and records the
+// payment in its one ledger (POST /api/pay/verify), then tells us the facts. These functions only read what it answered.
+
+/** The order the central service opened: the Razorpay order id and the public key id the checkout window needs. Null when the answer is unusable. */
+export function parseCentralOrder(body: unknown): { orderId: string; keyId: string } | null {
+  if (!isObj(body) || body.ok !== true) return null
+  const orderId = str(body.orderId)
+  const keyId = str(body.keyId)
+  if (!orderId || !/^order_\w{6,40}$/.test(orderId)) return null
+  if (!keyId || !/^rzp_(live|test)_\w{6,40}$/.test(keyId)) return null // a public key id only: a secret never looks like this
+  return { orderId, keyId }
 }
 
 export type VerifyOutcome =
   | { kind: "payment"; payment: CapturedPayment }
-  /** Razorpay has not captured it (yet). 202 = ask again shortly; 402 = failed. */
+  /** Not captured (yet). 202 = ask again shortly; 402 = failed. */
   | { kind: "pending" }
   | { kind: "failed"; status: string }
   | { kind: "mismatch" }
 
-/** Builds a CapturedPayment from what Razorpay itself says about the order and payment (never from what the browser said). */
-export function capturedFromRazorpay(order: unknown, pay: unknown, orderId: string): VerifyOutcome {
-  if (!isObj(order) || !isObj(pay)) return { kind: "mismatch" }
-  const paymentId = str(pay.id)
-  if (!paymentId || str(pay.order_id) !== orderId || str(order.id) !== orderId) return { kind: "mismatch" }
-  if (typeof pay.amount !== "number" || !Number.isInteger(pay.amount) || pay.amount !== order.amount) return { kind: "mismatch" }
-  const status = str(pay.status) ?? ""
-  if (status === "created") return { kind: "pending" }
-  if (status !== "captured") return { kind: "failed", status }
+/** What the central service says about the payment after it checked the signature and asked Razorpay (its /api/pay/verify answer), as the verify outcome. */
+export function capturedFromCentral(body: unknown, orderId: string): VerifyOutcome {
+  if (!isObj(body) || body.ok !== true) return { kind: "mismatch" }
+  const paymentId = str(body.razorpay_payment_id)
+  if (!paymentId || str(body.razorpay_order_id) !== orderId) return { kind: "mismatch" }
+  const amount = body.amount_minor
+  if (typeof amount !== "number" || !Number.isInteger(amount) || amount <= 0) return { kind: "mismatch" }
+  const status = str(body.status) ?? ""
+  if (body.paid !== true) return status === "created" || status === "authorized" ? { kind: "pending" } : { kind: "failed", status: status || "unknown" }
   return {
     kind: "payment",
     payment: {
@@ -372,11 +370,25 @@ export function capturedFromRazorpay(order: unknown, pay: unknown, orderId: stri
       orderId,
       paymentLinkId: null,
       referenceId: null,
-      amountPaise: pay.amount,
-      currency: (str(pay.currency) ?? "").toUpperCase(),
-      method: str(pay.method),
-      notes: mergeNotes(parseNotes(order), parseNotes(pay)),
+      amountPaise: amount,
+      currency: (str(body.currency) ?? "").toUpperCase(),
+      method: str(body.method),
+      notes: { orgId: null, attemptId: null, interval: null },
     },
+  }
+}
+
+/** A payment-entity-shaped object from the central service's answer, for DPDP's own ledger C (only the safe fields it names; the webhook later adds the rest). Null when it names no payment. */
+export function entityFromCentral(body: unknown): Record<string, unknown> | null {
+  if (!isObj(body)) return null
+  const id = str(body.razorpay_payment_id)
+  if (!id) return null
+  const r = isObj(body.razorpay) ? body.razorpay : {}
+  const created = typeof r.created_at_ms === "number" ? Math.floor(r.created_at_ms / 1000) : undefined
+  return {
+    id, order_id: str(body.razorpay_order_id), amount: body.amount_minor, currency: str(body.currency), status: body.paid === true ? "captured" : str(body.status),
+    method: str(r.method), bank: str(r.bank), wallet: str(r.wallet), vpa: str(r.vpa), card: r.card_last4 || r.card_network ? { last4: r.card_last4, network: r.card_network } : undefined,
+    fee: body.fee_minor, tax: body.tax_minor, acquirer_data: { rrn: str(r.bank_transaction_id) }, created_at: created,
   }
 }
 
@@ -416,11 +428,6 @@ export function readTermsConsent(body: unknown): { version: string | null; accep
 
 /** The refusal body for a payment request without the tick: HTTP 400, this sentence, this code. */
 export const CONSENT_REQUIRED_BODY = { error: CONSENT_REQUIRED_MESSAGE, code: CONSENT_REQUIRED_CODE } as const
-
-/** Razorpay credentials present? Both halves, non-empty. Webhook secret is checked separately (it is not needed to create a link). */
-export function razorpayConfigured(keyId: string | null | undefined, keySecret: string | null | undefined): boolean {
-  return !!(keyId && keyId.trim() && keySecret && keySecret.trim())
-}
 
 /** CORS headers for the create endpoint: the caller's Origin is echoed only if it is on the allow-list, never "*". The webhook needs none. */
 export function corsHeadersFor(origin: string | null | undefined, allowed: readonly string[]): Record<string, string> {

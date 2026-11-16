@@ -23,21 +23,13 @@ The two products in the owner's words, **Corporate Tambola and VERIDIAN DPDP, ar
 
 ## Checking it
 
-```
-node scripts/razorpay-ledger-report.mjs --days 30
-```
+The script `scripts/razorpay-ledger-report.mjs` was retired on 2026-11-16: it called Razorpay directly with API keys, and no product holds those keys any more (every payment goes through the central service of IT Services by Rajat Agarwal). Use instead:
 
-Read-only. It groups the last N days of Razorpay orders by product and variation (orders, paid, rupees paid), lists any order with no product label, and, when `SUPABASE_ACCESS_TOKEN` is set, compares every DPDP attempt with its Razorpay order in both directions:
-
-- paid on Razorpay but not booked by us (needs a human: money arrived),
-- booked by us but not paid on Razorpay,
-- a Razorpay DPDP order we have no record of,
-- variation or receipt that differs between the two.
-
-Exit code 1 means "look at the output"; 0 means every order is labelled and every DPDP attempt agrees.
+- **The central ledger** of IT Services (`https://itservices-rajat-agarwal.pages.dev/`): every payment by website, product (`product`) and plan (`variation`), the master ledger and the tax summary.
+- **DPDP's own report**, `POST /dpdp-pay/ledger {"month":"2026-11"[,"format":"csv"]}` with the platform owner's sign-in (or `select public.dpdp_owner_ledger('2026-11')`): every website payment with all its Razorpay attempts, refunds, commissions, and `issues` (should be empty): paid twice, captured but not booked, captured without a website payment, amount differs, commission on a refunded sale.
 
 Orders made before 2026-10-11 carry the old labels (`engagement`, `payment test`, `Startup coaching program (12 steps)`) and show up as their own groups; they are history, not errors.
 
 ## Adding a fourth product
 
-Use the same three words: pick a `product` code, define its `variation` values, make the receipt start with something that names the product, and write them on the Razorpay order notes AND on your own row. Add the product to the table above and to the report script's header comment.
+Use the same three words: pick a `product` code, define its `variation` values, make the receipt start with something that names the product, and write them on the Razorpay order notes AND on your own row. Add the product to the table above.

@@ -23,25 +23,31 @@
 // the caller's own Authorization header to the database, where dpdp_pay_begin resolves
 // auth.jwt() and refuses anyone who is not an owner of that organisation.
 //
-// SECRETS (Edge function secrets, set by the Owner in the Supabase dashboard; none are in this
-// repo and none are ever logged or echoed):
-//   RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET   -- to create a Payment Link
-//   RAZORPAY_WEBHOOK_SECRET                -- to verify a webhook
+// HOW THE MONEY MOVES (the same pattern as every game: Corporate Tambola, Luck by Chance ...; payee: IT Services by Rajat Agarwal, gateway: Razorpay only):
+//   product website (this app) -> POST /dpdp-pay -> the order is opened through the central payment service (PAY_SERVICE_URL/api/pay/order, header
+//   x-site-key = PAY_SERVICE_KEY, site veridian-aios.com = site code DPD) -> the app opens Razorpay's window inside the registered pay frame (PAY_HOP_URL)
+//   -> /verify sends the signed result to the central service, which checks it, asks Razorpay and answers with the facts; DPDP books them here.
+// OWNER RULE (2026-11-16, binding for every product): this function makes NO call to Razorpay and holds NO Razorpay API key. No separate Razorpay account
+// or KYC exists for DPDP. If the central service is unreachable the payment simply does not start (the app shows the calm "not available right now" line).
+//
+// SECRETS (Edge function secrets, set by the Owner; none are in this repo and none are ever logged or echoed):
+//   PAY_SERVICE_KEY                        -- DPDP's own key for the central service (its hash is registered there for site veridian-aios.com)
+//   RAZORPAY_WEBHOOK_SECRET                -- to verify the webhook Razorpay sends us (an inbound signature check, not an API credential)
 // Platform-injected: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY. Optional:
 // RESEND_API_KEY / DPDP_EMAIL_FROM (the receipt; no key = the receipt is recorded as a dry run),
 // APP_ORIGIN (where the customer returns to after paying; default https://dpdp.veridian-aios.com).
 //
-// WHEN KEYS ARE MISSING the function answers 503 {"error":"Online payment is not switched on
+// WHEN PAY_SERVICE_KEY IS MISSING the function answers 503 {"error":"Online payment is not switched on
 // yet","code":"not_enabled"} and the app shows one calm line ("Online payment is not available right now. Please try again in a few minutes, or write to
-// dpdp@veridian-aios.com and we will help.") and offers no other way to pay: Razorpay is the only way (Owner decision, 2026-11-02). Nothing breaks before the Owner adds the keys.
+// dpdp@veridian-aios.com and we will help.") and offers no other way to pay: Razorpay is the only way (Owner decision, 2026-11-02). Nothing breaks before the key is set.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import { isDeliverableAddress, renderReceipt, sendViaResend } from "../_shared/billing-mail.ts"
 import { CONSENT_REQUIRED_CODE } from "../_shared/terms.ts"
-import { type Deps as LedgerDeps, type LedgerEvent, attemptStatusOfEntity, buildAttemptRow, ledgerCsv, ledgerTick, parseLedgerEvent, recordLedgerEvent } from "./ledger.ts"
+import { type Deps as LedgerDeps, type LedgerEvent, attemptStatusOfEntity, buildAttemptRow, isOtherSiteEvent, ledgerCsv, ledgerTick, parseLedgerEvent, recordLedgerEvent } from "./ledger.ts"
 import {
-  type AttemptFacts, type CapturedPayment, type Interval, CONSENT_REQUIRED_BODY, RAZORPAY_API, basicAuthHeader, buildCentralOrderBody, buildCheckoutOptions, buildOrderBody, capturedFromRazorpay, corsHeadersFor, decideWebhook,
-  httpStatusFor, parseCreateRequest, parseOrderResponse, parseVerifyRequest, parseWebhookEvent, razorpayConfigured, readTermsConsent, receiptFor, txnIdOf, verifyCheckoutSignature,
+  type AttemptFacts, type CapturedPayment, type Interval, CONSENT_REQUIRED_BODY, buildCentralOrderBody, buildCheckoutOptions, capturedFromCentral, corsHeadersFor, decideWebhook, entityFromCentral,
+  httpStatusFor, webhookStatusFor, parseCentralOrder, parseCreateRequest, parseVerifyRequest, parseWebhookEvent, readTermsConsent, receiptFor, txnIdOf,
   verifyWebhookSignature, CENTRAL_SITE,
 } from "./logic.ts"
 
@@ -49,14 +55,12 @@ const env = (k: string): string => Deno.env.get(k) ?? ""
 const SUPABASE_URL = env("SUPABASE_URL")
 const ANON_KEY = env("SUPABASE_ANON_KEY")
 const SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY")
-const KEY_ID = env("RAZORPAY_KEY_ID")
-const KEY_SECRET = env("RAZORPAY_KEY_SECRET")
 const WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET")
 const RESEND_API_KEY = env("RESEND_API_KEY")
 const EMAIL_FROM = resolveFrom(env("DPDP_EMAIL_FROM"))
 // Where Razorpay's window runs: a page of the website registered with Razorpay (IT Services by Rajat Agarwal). The same frame Corporate Tambola uses.
 const PAY_HOP_URL = env("PAY_HOP_URL") || "https://itservices-rajat-agarwal.pages.dev/payframe/"
-// Central payments: the website's key for IT Services' payment service (secret PAY_SERVICE_KEY). Unset, or the service unreachable = the order is opened directly with Razorpay as before.
+// Central payments: the website's key for IT Services' payment service (secret PAY_SERVICE_KEY). It is the only road to Razorpay: unset = online payment is off.
 const PAY_SERVICE_KEY = env("PAY_SERVICE_KEY")
 const PAY_SERVICE_URL = (env("PAY_SERVICE_URL") || "https://itservices-rajat-agarwal.pages.dev").replace(/\/+$/, "")
 const APP_ORIGIN = (env("APP_ORIGIN") || "https://dpdp.veridian-aios.com").replace(/\/+$/, "")
@@ -65,6 +69,7 @@ if (SENDER_WARNING) console.warn(SENDER_WARNING)
 
 const NOT_ENABLED = "Online payment is not switched on yet"
 const MAX_BODY_BYTES = 256 * 1024
+const KEY_REJECTED = "dpdp-pay: PAY SERVICE KEY REJECTED by the central payment service (HTTP 401): PAY_SERVICE_KEY is wrong, was rotated, or site veridian-aios.com is not registered there. Online payment is down until it is fixed."
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...extra } })
@@ -94,7 +99,7 @@ async function background(work: Promise<unknown>): Promise<void> {
   else await safe
 }
 
-/** Ledger C from what Razorpay's own API returned for a payment (the /verify path). Best effort: the booking never depends on it; the webhook is the backstop. */
+/** Ledger C from what the central service answered about a payment (the /verify path). Best effort: the booking never depends on it; the webhook is the backstop. */
 async function recordPaymentEntity(pay: unknown): Promise<void> {
   try {
     const status = attemptStatusOfEntity((pay as { status?: unknown } | null)?.status)
@@ -111,7 +116,7 @@ async function recordPaymentEntity(pay: unknown): Promise<void> {
 // POST /dpdp-pay -- the owner asks for a payment link
 // ---------------------------------------------------------------------
 async function createLink(req: Request, cors: Record<string, string>): Promise<Response> {
-  if (!razorpayConfigured(KEY_ID, KEY_SECRET)) return json({ error: NOT_ENABLED, code: "not_enabled" }, 503, cors)
+  if (!PAY_SERVICE_KEY) return json({ error: NOT_ENABLED, code: "not_enabled" }, 503, cors)
   const authHeader = req.headers.get("authorization") ?? ""
   if (!authHeader) return json({ error: "Sign in first" }, 401, cors)
 
@@ -141,63 +146,39 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
   const plan = a.plan === "institution" ? "institution" : "firm"
 
   const sb = serviceClient()
-  let order: ReturnType<typeof parseOrderResponse> = null
-  if (PAY_SERVICE_KEY) {
-    try {
-      const res = await fetch(`${PAY_SERVICE_URL}/api/pay/order`, {
-        method: "POST", headers: { "Content-Type": "application/json", "x-site-key": PAY_SERVICE_KEY }, signal: AbortSignal.timeout(6000),
-        body: JSON.stringify(buildCentralOrderBody({ attemptId: a.attemptId, orgId: a.orgId, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, amountPaise: a.amountPaise, currency: a.currency, ownerEmail: a.ownerEmail })),
-      })
-      const payload = (await res.json().catch(() => null)) as { orderId?: string } | null
-      if (res.ok && payload?.orderId) order = parseOrderResponse({ id: payload.orderId })
-      else console.warn(`dpdp-pay: central order refused with HTTP ${res.status}`)
-    } catch (e) {
-      console.warn(`dpdp-pay: central order unreachable: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
-  if (!order) try {
-    const res = await fetch(`${RAZORPAY_API}/orders`, {
-      method: "POST",
-      headers: { Authorization: basicAuthHeader(KEY_ID, KEY_SECRET), "Content-Type": "application/json" },
-      body: JSON.stringify(buildOrderBody({ attemptId: a.attemptId, orgId: a.orgId, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, amountPaise: a.amountPaise, currency: a.currency })),
+  let order: { orderId: string; keyId: string } | null = null
+  try {
+    const res = await fetch(`${PAY_SERVICE_URL}/api/pay/order`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-site-key": PAY_SERVICE_KEY }, signal: AbortSignal.timeout(6000),
+      body: JSON.stringify(buildCentralOrderBody({ attemptId: a.attemptId, orgId: a.orgId, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, amountPaise: a.amountPaise, currency: a.currency, ownerEmail: a.ownerEmail })),
     })
     const payload = await res.json().catch(() => null)
-    if (res.ok) order = parseOrderResponse(payload)
-    else console.warn(`dpdp-pay: Razorpay refused an order with HTTP ${res.status}`) // status only: never the body, never a key
+    if (res.ok) order = parseCentralOrder(payload)
+    else if (res.status === 401) console.error(KEY_REJECTED) // wrong or revoked PAY_SERVICE_KEY: say so plainly instead of a vague "refused"
+    else console.warn(`dpdp-pay: central order refused with HTTP ${res.status}`) // status only: never the body, never a key
   } catch (e) {
-    console.warn(`dpdp-pay: Razorpay call failed: ${e instanceof Error ? e.message : String(e)}`)
+    console.warn(`dpdp-pay: central order unreachable: ${e instanceof Error ? e.message : String(e)}`)
   }
   if (!order) {
     await sb.rpc("dpdp_pay_attempt_cancel", { p_attempt_id: a.attemptId })
     return json({ error: "Razorpay did not accept the request. Please try again in a few minutes, or write to dpdp@veridian-aios.com and we will help." }, 502, cors)
   }
-  const { error: linkErr } = await sb.rpc("dpdp_pay_attempt_order", { p_attempt_id: a.attemptId, p_order_id: order.id, p_receipt: receiptFor(a.attemptId) })
+  const { error: linkErr } = await sb.rpc("dpdp_pay_attempt_order", { p_attempt_id: a.attemptId, p_order_id: order.orderId, p_receipt: receiptFor(a.attemptId) })
   if (linkErr) {
     console.warn(`dpdp-pay: could not store the order for attempt ${a.attemptId}: ${linkErr.message}`)
     return json({ error: "Could not start the payment" }, 500, cors)
   }
   return json({
     ok: true, hop: PAY_HOP_URL, attemptId: a.attemptId, txnId: txnIdOf(a.attemptId), amountPaise: a.amountPaise, currency: a.currency,
-    razorpay: buildCheckoutOptions({ keyId: KEY_ID, orderId: order.id, amountPaise: a.amountPaise, currency: a.currency, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, ownerEmail: a.ownerEmail }),
+    razorpay: buildCheckoutOptions({ keyId: order.keyId, orderId: order.orderId, amountPaise: a.amountPaise, currency: a.currency, orgName: a.orgName, plan, variation: a.variation, interval: a.interval, ownerEmail: a.ownerEmail }),
   }, 200, cors)
 }
 
-/** Tell the central ledger (IT Services) about a verified payment. Best effort: it never blocks or fails the buyer; the central webhook records it too. */
-async function reportToCentral(orderId: string, paymentId: string, signature: string): Promise<void> {
-  if (!PAY_SERVICE_KEY) return
-  try {
-    await fetch(`${PAY_SERVICE_URL}/api/pay/verify`, {
-      method: "POST", headers: { "Content-Type": "application/json", "x-site-key": PAY_SERVICE_KEY }, signal: AbortSignal.timeout(4000),
-      body: JSON.stringify({ site: "veridian-aios.com", razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature }),
-    })
-  } catch { /* the central webhook records it */ }
-}
-
 // ---------------------------------------------------------------------
-// POST /dpdp-pay/verify -- the browser reports Razorpay's signed result; we check it, then ask Razorpay
+// POST /dpdp-pay/verify -- the browser reports Razorpay's signed result; the central service checks it and asks Razorpay
 // ---------------------------------------------------------------------
 async function verify(req: Request, cors: Record<string, string>): Promise<Response> {
-  if (!razorpayConfigured(KEY_ID, KEY_SECRET)) return json({ error: NOT_ENABLED, code: "not_enabled" }, 503, cors)
+  if (!PAY_SERVICE_KEY) return json({ error: NOT_ENABLED, code: "not_enabled" }, 503, cors)
   const raw = await req.text()
   if (raw.length > 4096) return json({ error: "Request too large" }, 413, cors)
   let body: unknown
@@ -208,29 +189,31 @@ async function verify(req: Request, cors: Record<string, string>): Promise<Respo
   }
   const v = parseVerifyRequest(body)
   if (!v.ok) return json({ error: "We could not match this payment." }, 400, cors)
-  if (!(await verifyCheckoutSignature(v.orderId, v.paymentId, v.signature, KEY_SECRET))) {
-    return json({ error: "The payment could not be verified. If money was taken, write to us with your payment ID." }, 400, cors)
-  }
-  // Ask Razorpay itself: the browser's word is never enough.
-  let order: unknown
-  let pay: unknown
+  // The central service (IT Services by Rajat Agarwal) checks Razorpay's signature, asks Razorpay what really happened, captures an authorized payment and records it
+  // in its one ledger; the browser's word is never enough. We then book what IT answered, against OUR attempt (found by the order id; its amount and currency must equal what we asked for).
+  let res: Response
   try {
-    const get = async (path: string) => {
-      const r = await fetch(`${RAZORPAY_API}${path}`, { headers: { Authorization: basicAuthHeader(KEY_ID, KEY_SECRET) } })
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      return await r.json()
-    }
-    ;[order, pay] = await Promise.all([get(`/orders/${v.orderId}`), get(`/payments/${v.paymentId}`)])
+    res = await fetch(`${PAY_SERVICE_URL}/api/pay/verify`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-site-key": PAY_SERVICE_KEY }, signal: AbortSignal.timeout(12000),
+      body: JSON.stringify({ site: CENTRAL_SITE, razorpay_order_id: v.orderId, razorpay_payment_id: v.paymentId, razorpay_signature: v.signature }),
+    })
   } catch {
     return json({ error: "We could not reach the payment service to confirm. Your payment is safe; check again in a minute." }, 502, cors)
   }
-  const outcome = capturedFromRazorpay(order, pay, v.orderId)
+  const answer: unknown = await res.json().catch(() => null)
+  if (res.status === 400) return json({ error: "The payment could not be verified. If money was taken, write to us with your payment ID." }, 400, cors)
+  if (res.status === 404 || res.status === 409) return json({ error: "The payment details did not match the order." }, 400, cors)
+  if (!res.ok) {
+    if (res.status === 401) console.error(KEY_REJECTED)
+    else console.warn(`dpdp-pay: central verify answered HTTP ${res.status}`) // status only
+    return json({ error: "We could not reach the payment service to confirm. Your payment is safe; check again in a minute." }, 502, cors)
+  }
+  const outcome = capturedFromCentral(answer, v.orderId)
   if (outcome.kind === "mismatch") return json({ error: "The payment details did not match the order." }, 400, cors)
-  await recordPaymentEntity(pay) // ledger C: this attempt, whatever its outcome (captured, authorized or failed)
+  await recordPaymentEntity(entityFromCentral(answer)) // ledger C: this attempt, whatever its outcome (captured, authorized or failed)
   if (outcome.kind === "pending") return json({ confirming: true }, 202, cors)
   if (outcome.kind === "failed") return json({ error: `The payment is ${outcome.status}. Nothing was charged to your order.` }, 402, cors)
 
-  await reportToCentral(v.orderId, v.paymentId, v.signature)
   const r = await recordCaptured(outcome.payment)
   if (r.status < 300) await background(ledgerTick(ledgerDeps(serviceClient())))
   return json(r.body, r.status, cors)
@@ -250,6 +233,8 @@ async function webhook(req: Request): Promise<Response> {
 
   // Ledger C first look: a delivery Razorpay repeats (same x-razorpay-event-id, or the same derived key) is answered and ignored. It is marked as seen only AFTER everything
   // below succeeded, so a delivery that failed half way is processed again on Razorpay's retry.
+  // The Razorpay account is shared by every product: a payment of another website (a game) is acknowledged and left alone, so it is neither retried nor mixed into DPDP's ledger.
+  if (isOtherSiteEvent(raw)) return json({ ok: true, recorded: false, outcome: "other_site" })
   const eventId = req.headers.get("x-razorpay-event-id")
   const ledger = parseLedgerEvent(raw, eventId, Date.now())
   const sb = serviceClient()
@@ -262,7 +247,7 @@ async function webhook(req: Request): Promise<Response> {
   if (parsed.kind === "invalid") return json({ error: "Unreadable event", reason: parsed.reason }, 400)
 
   // The booking path, exactly as before: only a captured payment books money. Every other validly signed event is acknowledged.
-  const r = parsed.kind === "payment" ? await recordCaptured(parsed.payment) : { status: 200, body: { ok: true, ignored: parsed.reason } as Record<string, unknown> }
+  const r = parsed.kind === "payment" ? await recordCaptured(parsed.payment, "webhook") : { status: 200, body: { ok: true, ignored: parsed.reason } as Record<string, unknown> }
   if (r.status >= 500) return json(r.body, r.status)
 
   // Ledger C: the attempt (authorized / captured / failed) or refund this message is about. A database fault answers 500 so Razorpay retries.
@@ -278,7 +263,7 @@ async function webhook(req: Request): Promise<Response> {
 }
 
 /** Books one captured payment against its attempt (shared by the webhook and /verify; idempotent per Razorpay payment id). */
-async function recordCaptured(p: CapturedPayment): Promise<{ status: number; body: Record<string, unknown> }> {
+async function recordCaptured(p: CapturedPayment, via: "verify" | "webhook" = "verify"): Promise<{ status: number; body: Record<string, unknown> }> {
   const sb = serviceClient()
   const { data: found, error: findErr } = await sb.rpc("dpdp_pay_attempt_lookup", {
     p_payment_link_id: p.paymentLinkId, p_order_id: p.orderId, p_reference_id: p.referenceId ?? p.notes.attemptId,
@@ -295,7 +280,8 @@ async function recordCaptured(p: CapturedPayment): Promise<{ status: number; bod
     await sb.rpc("dpdp_pay_log_event", {
       p_event_id: p.eventId, p_event_type: p.eventType, p_payment_id: p.paymentId, p_attempt_id: (found as AttemptFacts | null)?.id ?? null, p_outcome: outcome,
     })
-    return { status: httpStatusFor(decision), body: decision.action === "reject" ? { error: "Payment not recorded", reason: decision.reason } : { ok: true, recorded: false, outcome } }
+    const status = via === "webhook" ? webhookStatusFor(decision) : httpStatusFor(decision)
+    return { status, body: decision.action === "reject" && status >= 400 ? { error: "Payment not recorded", reason: decision.reason } : { ok: true, recorded: false, outcome } }
   }
 
   const { data: done, error: confirmErr } = await sb.rpc("dpdp_pay_confirm", {
