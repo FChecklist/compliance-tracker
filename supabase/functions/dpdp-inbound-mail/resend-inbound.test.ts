@@ -1541,3 +1541,73 @@ describe("the webhook body is read only up to its limit", () => {
     expect(r.resend.calls).toHaveLength(0)
   })
 })
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Marketing pass-through (owner decision 2026-11-08): rina@ is NOT DPDP. Forwarded unchanged, never ticketed; only id + time logged.
+describe("marketing pass-through (rina@)", () => {
+  const MARKETING = "lane@example.net"
+  const rina = (over: Stored = {}) => email({ to: ["rina@veridian-aios.com"], received_for: ["rina@veridian-aios.com"], text: "Hello Rina, price list please.", ...over })
+  const on = () => { const r = rig(); r.deps.marketingForwardTo = MARKETING; return r }
+
+  test("a message to rina@ is forwarded as plain text with the original sender, and creates no ticket, no ack, no operator notice", async () => {
+    const r = on()
+    const res = await r.receive(rina())
+    expect(res.status).toBe(200)
+    expect((await body(res)).passthrough).toBe("marketing")
+    expect(inserts(r.db).length).toBe(0)
+    expect(r.acks().length).toBe(0)
+    expect(r.notices().length).toBe(0)
+    expect(r.sent.length).toBe(1)
+    expect(r.sent[0].to).toBe(MARKETING)
+    expect(r.sent[0].text).toContain("Asha M <asha@example.org>")
+    expect(r.sent[0].text).toContain("Hello Rina, price list please.")
+    expect(r.sent[0].replyTo).toBe("asha@example.org")
+  })
+
+  test("a plus tag (rina+x@) and Cc are matched too", async () => {
+    const r = on()
+    expect((await body(await r.receive(rina({ to: ["rina+launch@veridian-aios.com"], received_for: ["rina+launch@veridian-aios.com"] })))).passthrough).toBe("marketing")
+    const r2 = on()
+    expect((await body(await r2.receive(rina({ to: ["someone@example.org"], cc: ["RINA@veridian-aios.com"], received_for: [] })))).passthrough).toBe("marketing")
+  })
+
+  test("the log carries the email id and a time, never an address, subject or text", async () => {
+    const r = on()
+    await r.receive(rina({ subject: "SECRETSUBJECT", text: "SECRETBODY" }))
+    const line = r.logs.find((l) => l.includes("marketing"))!
+    expect(line).toContain(EID)
+    expect(line).not.toMatch(/SECRETSUBJECT|SECRETBODY|asha@|rina@/)
+  })
+
+  test("dpdp@ behaviour is untouched: a message to dpdp@ is ticketed as before, and one to BOTH dpdp@ and rina@ keeps its DPDP ticket (never forwarded)", async () => {
+    const r = on()
+    const res = await r.receive(email({ text: "Please erase my data." }))
+    expect(inserts(r.db).length).toBe(1)
+    expect((await body(res)).passthrough).toBeUndefined()
+    const r2 = on()
+    await r2.receive(email({ to: [MAILBOX, "rina@veridian-aios.com"], text: "Please erase my data." }))
+    expect(inserts(r2.db).length).toBe(1)
+    expect(r2.sent.some((m) => m.to === MARKETING)).toBe(false)
+  })
+
+  test("OFF unless MARKETING_FORWARD_TO is set: rina@ then takes the old path (unknown address, auto)", async () => {
+    const r = rig()
+    const res = await r.receive(rina())
+    expect(inserts(r.db).length).toBe(1)
+    expect((await body(res)).passthrough).toBeUndefined()
+  })
+
+  test("a failed forward is a 502 (Svix retries) and still creates no ticket", async () => {
+    const r = rig({ failSend: () => true })
+    r.deps.marketingForwardTo = MARKETING
+    const res = await r.receive(rina())
+    expect(res.status).toBe(502)
+    expect(inserts(r.db).length).toBe(0)
+  })
+
+  test("mom@ is left alone (not passed through)", async () => {
+    const r = on()
+    const res = await r.receive(rina({ to: ["mom@veridian-aios.com"], received_for: ["mom@veridian-aios.com"] }))
+    expect((await body(res)).passthrough).toBeUndefined()
+  })
+})

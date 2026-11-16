@@ -77,6 +77,12 @@ describe("dpdp-auth-send-email hook", () => {
     expect(buildMessage(d, { email: "t@test.invalid" }, payload("https://x.test/", "recovery").email_data).html).toContain("/auth/v1/verify?token=hash1&amp;type=recovery")
     expect(buildMessage(d, { email: "t@test.invalid" }, payload("https://x.test/", "reauthentication").email_data).html).toContain("<b>123456</b>")
   })
+  test("security notices carry no link; subjects match the project's own wording", () => {
+    const { d } = deps({})
+    const n = buildMessage(d, { email: "t@test.invalid" }, payload("https://x.test/", "password_changed_notification").email_data)
+    expect(n.html).not.toContain("/auth/v1/verify")
+    expect(buildMessage(d, { email: "t@test.invalid" }, payload("https://x.test/", "recovery").email_data).subject).toBe("Reset your password")
+  })
   test("template values are HTML-escaped", () => {
     expect(renderGoTemplate("<p>{{ .Token }}</p>", { Token: "<b>&\"" })).toBe("<p>&lt;b&gt;&amp;&quot;</p>")
   })
