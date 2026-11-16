@@ -211,6 +211,15 @@ export function httpStatusFor(d: Decision): number {
   }
 }
 
+/**
+ * HTTP answer for the WEBHOOK. The IT Services Razorpay account is shared by every product, so Razorpay also sends us payments that belong to other products
+ * (the games). An order we never opened is not an error here: answer 200 (ignored) so Razorpay does not retry it for 24 hours. /verify keeps the 404, because
+ * there it would mean a payment the buyer thinks is theirs was not found.
+ */
+export function webhookStatusFor(d: Decision): number {
+  return d.action === "reject" && d.reason === "unknown_order" ? 200 : httpStatusFor(d)
+}
+
 // ---------------------------------------------------------------------
 // Creating the payment link
 // ---------------------------------------------------------------------

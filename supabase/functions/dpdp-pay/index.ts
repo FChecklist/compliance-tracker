@@ -44,10 +44,10 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import { buildOutbound, foreignSenderWarning, logOutbound, resolveFrom } from "../_shared/mail-outbound.ts"
 import { isDeliverableAddress, renderReceipt, sendViaResend } from "../_shared/billing-mail.ts"
 import { CONSENT_REQUIRED_CODE } from "../_shared/terms.ts"
-import { type Deps as LedgerDeps, type LedgerEvent, attemptStatusOfEntity, buildAttemptRow, ledgerCsv, ledgerTick, parseLedgerEvent, recordLedgerEvent } from "./ledger.ts"
+import { type Deps as LedgerDeps, type LedgerEvent, attemptStatusOfEntity, buildAttemptRow, isOtherSiteEvent, ledgerCsv, ledgerTick, parseLedgerEvent, recordLedgerEvent } from "./ledger.ts"
 import {
   type AttemptFacts, type CapturedPayment, type Interval, CONSENT_REQUIRED_BODY, buildCentralOrderBody, buildCheckoutOptions, capturedFromCentral, corsHeadersFor, decideWebhook, entityFromCentral,
-  httpStatusFor, parseCentralOrder, parseCreateRequest, parseVerifyRequest, parseWebhookEvent, readTermsConsent, receiptFor, txnIdOf,
+  httpStatusFor, webhookStatusFor, parseCentralOrder, parseCreateRequest, parseVerifyRequest, parseWebhookEvent, readTermsConsent, receiptFor, txnIdOf,
   verifyWebhookSignature, CENTRAL_SITE,
 } from "./logic.ts"
 
@@ -69,6 +69,7 @@ if (SENDER_WARNING) console.warn(SENDER_WARNING)
 
 const NOT_ENABLED = "Online payment is not switched on yet"
 const MAX_BODY_BYTES = 256 * 1024
+const KEY_REJECTED = "dpdp-pay: PAY SERVICE KEY REJECTED by the central payment service (HTTP 401): PAY_SERVICE_KEY is wrong, was rotated, or site veridian-aios.com is not registered there. Online payment is down until it is fixed."
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...extra } })
@@ -153,6 +154,7 @@ async function createLink(req: Request, cors: Record<string, string>): Promise<R
     })
     const payload = await res.json().catch(() => null)
     if (res.ok) order = parseCentralOrder(payload)
+    else if (res.status === 401) console.error(KEY_REJECTED) // wrong or revoked PAY_SERVICE_KEY: say so plainly instead of a vague "refused"
     else console.warn(`dpdp-pay: central order refused with HTTP ${res.status}`) // status only: never the body, never a key
   } catch (e) {
     console.warn(`dpdp-pay: central order unreachable: ${e instanceof Error ? e.message : String(e)}`)
@@ -188,7 +190,7 @@ async function verify(req: Request, cors: Record<string, string>): Promise<Respo
   const v = parseVerifyRequest(body)
   if (!v.ok) return json({ error: "We could not match this payment." }, 400, cors)
   // The central service (IT Services by Rajat Agarwal) checks Razorpay's signature, asks Razorpay what really happened, captures an authorized payment and records it
-  // in its one ledger; the browser's word is never enough. We then book what IT answered, against OUR attempt (amount, currency and organisation are checked again).
+  // in its one ledger; the browser's word is never enough. We then book what IT answered, against OUR attempt (found by the order id; its amount and currency must equal what we asked for).
   let res: Response
   try {
     res = await fetch(`${PAY_SERVICE_URL}/api/pay/verify`, {
@@ -202,7 +204,8 @@ async function verify(req: Request, cors: Record<string, string>): Promise<Respo
   if (res.status === 400) return json({ error: "The payment could not be verified. If money was taken, write to us with your payment ID." }, 400, cors)
   if (res.status === 404 || res.status === 409) return json({ error: "The payment details did not match the order." }, 400, cors)
   if (!res.ok) {
-    console.warn(`dpdp-pay: central verify answered HTTP ${res.status}`) // status only
+    if (res.status === 401) console.error(KEY_REJECTED)
+    else console.warn(`dpdp-pay: central verify answered HTTP ${res.status}`) // status only
     return json({ error: "We could not reach the payment service to confirm. Your payment is safe; check again in a minute." }, 502, cors)
   }
   const outcome = capturedFromCentral(answer, v.orderId)
@@ -230,6 +233,8 @@ async function webhook(req: Request): Promise<Response> {
 
   // Ledger C first look: a delivery Razorpay repeats (same x-razorpay-event-id, or the same derived key) is answered and ignored. It is marked as seen only AFTER everything
   // below succeeded, so a delivery that failed half way is processed again on Razorpay's retry.
+  // The Razorpay account is shared by every product: a payment of another website (a game) is acknowledged and left alone, so it is neither retried nor mixed into DPDP's ledger.
+  if (isOtherSiteEvent(raw)) return json({ ok: true, recorded: false, outcome: "other_site" })
   const eventId = req.headers.get("x-razorpay-event-id")
   const ledger = parseLedgerEvent(raw, eventId, Date.now())
   const sb = serviceClient()
@@ -242,7 +247,7 @@ async function webhook(req: Request): Promise<Response> {
   if (parsed.kind === "invalid") return json({ error: "Unreadable event", reason: parsed.reason }, 400)
 
   // The booking path, exactly as before: only a captured payment books money. Every other validly signed event is acknowledged.
-  const r = parsed.kind === "payment" ? await recordCaptured(parsed.payment) : { status: 200, body: { ok: true, ignored: parsed.reason } as Record<string, unknown> }
+  const r = parsed.kind === "payment" ? await recordCaptured(parsed.payment, "webhook") : { status: 200, body: { ok: true, ignored: parsed.reason } as Record<string, unknown> }
   if (r.status >= 500) return json(r.body, r.status)
 
   // Ledger C: the attempt (authorized / captured / failed) or refund this message is about. A database fault answers 500 so Razorpay retries.
@@ -258,7 +263,7 @@ async function webhook(req: Request): Promise<Response> {
 }
 
 /** Books one captured payment against its attempt (shared by the webhook and /verify; idempotent per Razorpay payment id). */
-async function recordCaptured(p: CapturedPayment): Promise<{ status: number; body: Record<string, unknown> }> {
+async function recordCaptured(p: CapturedPayment, via: "verify" | "webhook" = "verify"): Promise<{ status: number; body: Record<string, unknown> }> {
   const sb = serviceClient()
   const { data: found, error: findErr } = await sb.rpc("dpdp_pay_attempt_lookup", {
     p_payment_link_id: p.paymentLinkId, p_order_id: p.orderId, p_reference_id: p.referenceId ?? p.notes.attemptId,
@@ -275,7 +280,8 @@ async function recordCaptured(p: CapturedPayment): Promise<{ status: number; bod
     await sb.rpc("dpdp_pay_log_event", {
       p_event_id: p.eventId, p_event_type: p.eventType, p_payment_id: p.paymentId, p_attempt_id: (found as AttemptFacts | null)?.id ?? null, p_outcome: outcome,
     })
-    return { status: httpStatusFor(decision), body: decision.action === "reject" ? { error: "Payment not recorded", reason: decision.reason } : { ok: true, recorded: false, outcome } }
+    const status = via === "webhook" ? webhookStatusFor(decision) : httpStatusFor(decision)
+    return { status, body: decision.action === "reject" && status >= 400 ? { error: "Payment not recorded", reason: decision.reason } : { ok: true, recorded: false, outcome } }
   }
 
   const { data: done, error: confirmErr } = await sb.rpc("dpdp_pay_confirm", {

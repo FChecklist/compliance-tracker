@@ -62,6 +62,18 @@ describe("DPDP pays the way the games do", () => {
     expect(ledger).toContain('import { CENTRAL_SITE, txnIdOf } from "./logic.ts"') // ledger C and the order cannot drift apart
   })
 
+  test("only the webhook answers 200 for an order we never opened; /verify keeps the 404 so a buyer is never told a missing payment succeeded", () => {
+    expect(index).toContain('via === "webhook" ? webhookStatusFor(decision) : httpStatusFor(decision)')
+    expect(index).toContain('await recordCaptured(parsed.payment, "webhook")')
+    expect(index).toContain("await recordCaptured(outcome.payment)") // the verify path: no "webhook" argument
+  })
+
+  test("a central 401 (wrong or rotated site key) is logged plainly, in the order call and in verify", () => {
+    expect(index).toMatch(/const KEY_REJECTED = "dpdp-pay: PAY SERVICE KEY REJECTED[^"]*HTTP 401/)
+    expect(index.match(/res\.status === 401\) console\.error\(KEY_REJECTED\)/g)?.length).toBe(2)
+    expect(index).not.toMatch(/KEY_REJECTED = `/) // a plain string: it can never interpolate the key's value
+  })
+
   test("the person sees English text and the payee 'IT Services by Rajat Agarwal'", () => {
     const o = buildCheckoutOptions({ keyId: "rzp_test_placeholder", orderId: "order_abc123456", amountPaise: 599400, currency: "INR", orgName: "Acme School", plan: "institution", interval: "year", ownerEmail: null })
     expect(String(o.name)).toBe("VERIDIAN DPDP")

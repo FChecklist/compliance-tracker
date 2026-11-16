@@ -7,7 +7,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import {
   type Deps, type Rpc, attemptStatusOf, attemptStatusOfEntity, buildAttemptRow, buildCommissionBody, buildRefundRow, buildSummaryBody, derivedEventKey, ledgerCsv, ledgerTick, maskVpa,
-  monthKeyOf, parseLedgerEvent, prevMonthKey, pushSummaries, recordLedgerEvent, syncCommissions,
+  isOtherSiteEvent, monthKeyOf, parseLedgerEvent, prevMonthKey, pushSummaries, recordLedgerEvent, syncCommissions,
 } from "../../../supabase/functions/dpdp-pay/ledger"
 import { CENTRAL_SITE, buildCentralOrderBody, entityFromCentral, receiptFor, txnIdOf } from "../../../supabase/functions/dpdp-pay/logic"
 
@@ -64,6 +64,27 @@ describe("txn_id (A = order notes + receipt, B = central payment row, C = dpdp.p
     expect(migration).toContain("add column if not exists txn_id text generated always as ('DPD-dpdp_' || id) stored")
     // and the SQL that links an attempt to its payment uses the same recipe
     expect(migration).toContain("'DPD-dpdp_' || v_att")
+  })
+})
+
+// ---- the Razorpay account is shared: another product's payment is not ours ----------------------------------------------------------------------------
+describe("a payment of another website is acknowledged and not recorded", () => {
+  const ev = (notes: Record<string, unknown> | undefined, where: "payment" | "order" = "payment") =>
+    JSON.stringify({ event: "payment.captured", payload: { payment: { entity: { id: "pay_Abc123", ...(where === "payment" && notes ? { notes } : {}) } }, order: { entity: { id: "order_Abc123", ...(where === "order" && notes ? { notes } : {}) } } } })
+  test("a game's payment (notes.site = its own host) is foreign; ours and older orders without a site note are not", () => {
+    expect(isOtherSiteEvent(ev({ site: "corporate-tambola.pages.dev", stream: "sales" }))).toBe(true)
+    expect(isOtherSiteEvent(ev({ site: "corporate-luck-by-chance.pages.dev" }, "order"))).toBe(true)
+    expect(isOtherSiteEvent(ev({ site: CENTRAL_SITE, stream: "sales" }))).toBe(false)
+    expect(isOtherSiteEvent(ev({ attempt_id: "x" }))).toBe(false) // no site note: treated as ours
+    expect(isOtherSiteEvent(ev(undefined))).toBe(false)
+    expect(isOtherSiteEvent("not json")).toBe(false)
+    expect(isOtherSiteEvent(JSON.stringify({ event: "refund.created", payload: { refund: { entity: { id: "rfnd_1" } } } }))).toBe(false)
+  })
+  test("the webhook acknowledges it before any booking or ledger write", () => {
+    const at = indexTs.indexOf("if (isOtherSiteEvent(raw))")
+    expect(at).toBeGreaterThan(indexTs.indexOf("verifyWebhookSignature(raw"))
+    expect(at).toBeLessThan(indexTs.indexOf("parseLedgerEvent(raw, eventId"))
+    expect(indexTs.slice(at, at + 140)).toContain("recorded: false")
   })
 })
 
@@ -350,7 +371,7 @@ describe("zero duplication and closed tables (drizzle/0749)", () => {
 describe("the edge function wiring", () => {
   test("the webhook marks a delivery as seen only AFTER the booking and the ledger write succeeded, and checks it BEFORE", () => {
     const seen = indexTs.indexOf('"dpdp_ledger_event_seen"')
-    const book = indexTs.indexOf("await recordCaptured(parsed.payment)")
+    const book = indexTs.indexOf('await recordCaptured(parsed.payment, "webhook")')
     const rec = indexTs.indexOf("await recordLedgerEvent(ledgerDeps(sb).rpc, ledger)")
     const mark = indexTs.indexOf('"dpdp_ledger_mark_event"')
     expect(seen).toBeGreaterThan(0)

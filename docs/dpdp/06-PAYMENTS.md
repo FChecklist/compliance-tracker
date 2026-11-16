@@ -7,7 +7,7 @@
 1. The owner of an organisation presses **Pay online** in the Billing panel and ticks the Terms box. The browser never sends an amount; the database picks the price.
 2. The edge function `dpdp-pay` opens the order through the **central payment service** of IT Services (`/api/pay/order`, header `x-site-key`, the site is `veridian-aios.com`, **site code DPD**). Every payment lands in that one ledger.
 3. The app opens Razorpay's window inside the registered **pay frame** (`https://itservices-rajat-agarwal.pages.dev/payframe/`). No card field and no Razorpay script exists on the DPDP site.
-4. The browser reports Razorpay's signed result to `dpdp-pay/verify`. The function sends it to the central service (`/api/pay/verify`), which checks the signature, asks Razorpay what really happened and records it in its ledger; `dpdp-pay` then books the payment once, after checking the amount, currency and organisation against its own attempt. A webhook (`dpdp-pay/webhook`) is the backstop for someone who closes the tab.
+4. The browser reports Razorpay's signed result to `dpdp-pay/verify`. The function sends it to the central service (`/api/pay/verify`), which checks the signature, asks Razorpay what really happened and records it in its ledger; `dpdp-pay` then finds its own attempt by the order id and books the payment once, only if the amount and currency equal what DPDP asked for (the central service has already matched the payment to the order). The organisation is the one stored on that attempt; it is not re-read from the payment. A webhook (`dpdp-pay/webhook`) is the backstop for someone who closes the tab.
 5. One id ties the three ledgers together: `DPD-dpdp_<attempt id>` (Razorpay, the central ledger, and DPDP's own ledger C).
 
 Wording a person sees: English, payee "IT Services by Rajat Agarwal", Razorpay as the only way to pay.
@@ -25,6 +25,10 @@ Wording a person sees: English, payee "IT Services by Rajat Agarwal", Razorpay a
 
 The key behind the central service is a **live** key. A real payment moves real money.
 
+## Webhook and the shared account
+
+The Razorpay account is shared by every product, so Razorpay also sends `dpdp-pay/webhook` the games' payments. A message whose order notes name another website is answered 200 and recorded nowhere; an order DPDP never opened is answered 200 (not 404), so Razorpay does not retry it for 24 hours. A payment-failed or refund message that carries no site note is still treated as DPDP's (a refund names only a payment id).
+
 ## Left for the owner
 
 1. In Razorpay, check that the webhook list holds the `dpdp-pay/webhook` address of the DPDP backend with `payment.captured` and `order.paid`, and the same secret as `RAZORPAY_WEBHOOK_SECRET`. Only the backstop needs it; the normal path does not.
@@ -33,8 +37,4 @@ The key behind the central service is a **live** key. A real payment moves real 
 
 ## No direct Razorpay (the change in this PR)
 
-`dpdp-pay` no longer holds a Razorpay API key and makes no call to Razorpay. Before, it opened the order directly with Razorpay if the central service could not be reached, and it checked the payment with Razorpay itself. Now both go through the central service only. The checkout key id comes from the central service's answer (it is the public id, not a secret). If the central service is down, a payment simply does not start and the app shows the calm "not available right now" line. The only Razorpay value left on DPDP's side is the webhook secret (an inbound signature check). `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are still set on the edge function from before but nothing reads them; the owner can delete them in the Supabase dashboard when convenient.
-
-## Not done here
-
-`dpdp-app/OPERATIONS.md`, section "Online payment (Razorpay)", still lists six steps for the owner (create keys, add the webhook, set secrets, test, go live) that describe the situation before the keys were set. Updating it touches `dpdp-app/`, which redeploys the app, so it waits until the independent check is done.
+`dpdp-pay` no longer holds a Razorpay API key and makes no call to Razorpay. Before, it opened the order directly with Razorpay if the central service could not be reached, and it checked the payment with Razorpay itself. Now both go through the central service only. The checkout key id comes from the central service's answer (it is the public id, not a secret). If the central service answers 401 the function log says "PAY SERVICE KEY REJECTED"; if it is down, a payment simply does not start and the app shows the calm "not available right now" line. The only Razorpay value left on DPDP's side is the webhook secret (an inbound signature check). `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are still set on the edge function from before but nothing reads them; the owner can delete them in the Supabase dashboard when convenient. `dpdp-app/OPERATIONS.md`, `DPDP_EXTRACTION_SECRETS_NEEDED_2026-10-15.md` and `docs/PAYMENT_TRACING.md` were updated to match, and `scripts/razorpay-ledger-report.mjs` (which called Razorpay directly) was retired.

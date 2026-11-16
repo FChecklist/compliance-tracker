@@ -149,6 +149,23 @@ export function parseLedgerEvent(rawBody: string, eventIdHeader: string | null |
   return { eventKey, event: ev.event.slice(0, 60), attempt, refund }
 }
 
+/**
+ * True when the verified webhook message is about a payment of ANOTHER website. The IT Services Razorpay account is shared by every product, and the central service writes
+ * notes.site (the website's host) on every order it opens, so a game's payment names its own site there. Such a message is acknowledged and not recorded: it is not DPDP's
+ * money and must not appear in DPDP's ledger C as an unmatched attempt. A message with no site note (an older order, a refund) is treated as ours.
+ */
+export function isOtherSiteEvent(rawBody: string): boolean {
+  let ev: unknown
+  try { ev = JSON.parse(rawBody) } catch { return false }
+  if (!isObj(ev) || !isObj(ev.payload)) return false
+  for (const k of ["payment", "order"]) {
+    const e = isObj(ev.payload[k]) ? (ev.payload[k] as Json).entity : null
+    const site = isObj(e) && isObj(e.notes) ? str(e.notes.site, 120) : null
+    if (site) return site !== CENTRAL_SITE
+  }
+  return false
+}
+
 // ---------------------------------------------------------------- Indian months
 const IST = 19_800_000
 export const monthKeyOf = (ms: number): string => { const d = new Date(ms + IST); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` }

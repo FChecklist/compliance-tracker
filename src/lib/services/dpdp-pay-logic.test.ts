@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs"
 import {
   type AttemptFacts, type CapturedPayment, SUPPORTED_EVENTS, buildPaymentLinkBody, constantTimeEqual, corsHeadersFor, decideWebhook,
   hmacSha256Hex, httpStatusFor, parseCreateRequest, parseNotes, parsePaymentLinkResponse, parseWebhookEvent, verifyWebhookSignature,
-  CONSENT_REQUIRED_BODY, readTermsConsent, PRODUCT_CODE, buildCentralOrderBody, buildCheckoutOptions, parseVerifyRequest, receiptFor, parseCentralOrder, capturedFromCentral, entityFromCentral,
+  CONSENT_REQUIRED_BODY, readTermsConsent, PRODUCT_CODE, buildCentralOrderBody, buildCheckoutOptions, parseVerifyRequest, receiptFor, parseCentralOrder, capturedFromCentral, webhookStatusFor, entityFromCentral,
 } from "../../../supabase/functions/dpdp-pay/logic"
 
 const SECRET = "whsec_test_not_a_real_secret"
@@ -264,6 +264,18 @@ describe("creating the payment link", () => {
     expect(src.indexOf('.rpc("dpdp_pay_begin"')).toBeLessThan(src.indexOf("`${PAY_SERVICE_URL}/api/pay/order`"))
     expect(src).toContain("p_terms_version: consent.version, p_terms_accepted: consent.accepted")
     expect(src).toContain("hint === CONSENT_REQUIRED_CODE")
+  })
+  test("the webhook answers 200 (ignored) for an order we never opened, so Razorpay stops retrying; /verify keeps the 404; real refusals stay 4xx", () => {
+    const unknown = decideWebhook(captured(), null)
+    expect(unknown).toEqual({ action: "reject", reason: "unknown_order" })
+    expect(webhookStatusFor(unknown)).toBe(200)
+    expect(httpStatusFor(unknown)).toBe(404) // /verify: a payment the buyer thinks is theirs was not found
+    expect(webhookStatusFor({ action: "reject", reason: "amount_mismatch" })).toBe(400)
+    expect(webhookStatusFor({ action: "reject", reason: "currency_mismatch" })).toBe(400)
+    expect(webhookStatusFor({ action: "reject", reason: "org_mismatch" })).toBe(400)
+    expect(webhookStatusFor({ action: "record" })).toBe(200)
+    expect(webhookStatusFor({ action: "duplicate" })).toBe(200)
+    expect(webhookStatusFor({ action: "flag", reason: "attempt_already_paid" })).toBe(200)
   })
   test("CORS: only an allow-listed origin is echoed, never a wildcard", () => {
     const allowed = ["https://dpdp.veridian-aios.com", "https://veridian-aios.com/"]
