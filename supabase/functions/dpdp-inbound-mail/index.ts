@@ -73,6 +73,7 @@ const resend = { webhookSecret: env("DPDP_RESEND_WEBHOOK_SECRET"), apiKey: RESEN
 Deno.serve((req: Request) =>
   routeInbound(req, {
     resend,
+    marketingForwardTo: env("MARKETING_FORWARD_TO"), // rina@ pass-through target; unset = off
     inbound: {
       config,
       send: sendViaResend,

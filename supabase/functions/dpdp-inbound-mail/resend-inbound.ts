@@ -33,6 +33,7 @@
 // so bun runs this real code in resend-inbound.test.ts with fakes.
 import { CLASS_TAG, MAILBOX, MAILBOX_DOMAIN, MAILBOX_LOCAL, parseRecipient } from "../_shared/mail-taxonomy.ts"
 import { bareAddress } from "./classify.ts"
+import { isMarketingPassthrough, marketingTarget, renderPassthrough } from "./passthrough.ts"
 import { handleInbound, htmlToText, secretMatches, type InboundDeps, type InboundPolicy } from "./handler.ts"
 import { runOperatorDigest } from "./operator-digest.ts"
 
@@ -74,6 +75,8 @@ export type RouteDeps = {
   budgetMs?: number
   /** email ids already recorded in THIS isolate (a cache in front of the database's own dedup, never a replacement). */
   seen?: Map<string, number>
+  /** MARKETING_FORWARD_TO. Set to one address: mail for rina@ is forwarded there and never ticketed (passthrough.ts). Unset: off. */
+  marketingForwardTo?: string
 }
 
 const PROCESSED = new Map<string, number>()
@@ -361,7 +364,7 @@ function strings(v: unknown): string[] {
   return list.slice(0, 200).map((x) => x.slice(0, 4000))
 }
 
-export type MappedEmail = { emailId: string; payload: Record<string, unknown>; policy: InboundPolicy; recipient: RecipientChoice }
+export type MappedEmail = { candidates: string[]; emailId: string; payload: Record<string, unknown>; policy: InboundPolicy; recipient: RecipientChoice }
 
 /**
  * `data` is what the webhook (or a list row) said, `email` what GET /emails/receiving/{id} returned (null when it was too
@@ -468,7 +471,7 @@ export function mapReceivedEmail(input: { emailId: string; data: Record<string, 
     recipientPolicy = { ...recipientPolicy, unlessLegal: false, reason: `${recipientPolicy.reason ?? "unknown-recipient"} (bulk: List-Unsubscribe / List-Id header)` }
   }
   const policy: InboundPolicy = { ...(recipientPolicy ?? {}), noticeLines: notice, trustReceivedAt: true }
-  return { emailId, payload, policy, recipient }
+  return { candidates, emailId, payload, policy, recipient }
 }
 
 // ---------------------------------------------------------------------------
@@ -577,6 +580,23 @@ async function ingest(deps: RouteDeps, emailId: string, data: Record<string, unk
   }
   const now = deps.inbound.now ? deps.inbound.now() : new Date()
   const mapped = mapReceivedEmail({ emailId, data, email, now })
+
+  // Marketing address (rina@): forward, never classify or ticket. Off unless MARKETING_FORWARD_TO is set. A failed forward is a 502 so Svix retries.
+  const target = marketingTarget(deps.marketingForwardTo)
+  if (target !== null && isMarketingPassthrough(mapped.candidates)) {
+    const p = mapped.payload
+    try {
+      const sent = await deps.inbound.send(renderPassthrough({
+        emailId, fromHeader: str(p.header_from), fromAddress: str(p.from_address), subject: str(p.subject), text: str(p.text),
+        truncated: p.truncated === true, receivedAt: new Date(str(p.received_at)),
+      }, target))
+      log(JSON.stringify({ evt: "dpdp-inbound-mail", src: "resend", source, passthrough: "marketing", emailId, sentId: sent.id, at: now.toISOString() }))
+      return { status: 200, body: { ok: true, passthrough: "marketing", emailId }, recorded: true, duplicate: false }
+    } catch (e) {
+      log(JSON.stringify({ evt: "dpdp-inbound-mail", src: "resend", source, passthrough: "marketing-failed", emailId, at: now.toISOString() }))
+      return { status: 502, body: { ok: false, error: "marketing forward failed; it will be retried", emailId }, recorded: false, duplicate: false }
+    }
+  }
 
   const internal = new Request("https://internal.invalid/dpdp-inbound-mail", {
     method: "POST",
