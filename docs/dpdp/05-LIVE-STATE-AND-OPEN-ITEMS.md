@@ -1,6 +1,27 @@
-# Live state (14 November 2026) and open items
+# Live state (updated 17 November 2026) and open items
 
-## What is live
+## Update, 17 November 2026 (read this first; the sections below were written on 14 November)
+
+**Payments are live and go the games' way.** Pull request 2213 (squash commit `64697f0a`) removed the last direct-to-Razorpay parts. The `dpdp-pay` edge function is deployed as **version 25** (version 23 was live before; rollback is to redeploy from commit `9d40babc`). Every payment goes product site, then IT Services by Rajat Agarwal (the central payment service), then Razorpay, under site code DPD. See [06-PAYMENTS.md](06-PAYMENTS.md). Live smoke after the deploy, all as expected: no sign-in refused (401); a bad checkout signature refused (400); a malformed verify body refused (400); a webhook with a bad signature refused (401); a webhook for an order DPDP never opened answered 200 and recorded nothing; a webhook for another site's payment answered 200 and recorded nothing. **No real payment has been made through DPDP yet**: no accounts and no payment attempts exist. The first real, small, refundable payment from a trial organisation is the owner's to make (it moves real money through a live key).
+
+**Monday e-mail routine ran cleanly on 16 November.** Read-only check of the run log: 572 organisations, 1,017 digests, 1 sent, 0 failed (the rest were skipped because the addresses are fixtures); the week before had 3 failures. The daily legal-clock job ran on 17 November. The ICP block flag was not re-read on 17 November, so treat the "OFF" line below as the last recorded value.
+
+**Tests.** The whole `dpdp-app` suite passes on a clean copy of `main` (833 pass, 0 fail, 53 files, run on the partner laptop). Note for anyone copying only part of the repo: several tests read `../drizzle/*.sql` and `../src/app/...`, so a partial copy fails ten tests for no real reason.
+
+**Prices and plans** match the owner's decisions (read from the live plan table, not repeated here). Old tiers stay switched off.
+
+**Open pull requests that touch DPDP** (none changed on 17 November; the owner decides):
+
+| PR | What it is | State |
+|---|---|---|
+| 2206 | Older "Discover, Act, Confirm" weekly routine | Superseded by 2207 (merged). Candidate to close |
+| 2187 | Hide the school or institution option in the app (owner order of 27 October) | Draft, merge conflicts, its dpdp-app e2e check fails. Later work (the two sign-up doors, PR 2198) may overlap it. Needs the owner to say: still wanted (then rebase) or close |
+| 2198 | Two sign-up doors (professionals and organisations) | Checks green, behind `main`. Needs a rebase and the owner's go |
+| 2205, 2204, 2202 | Marketing pass-through mailbox; auth e-mail hook follow-up; mock-mode erasure e2e spec | Older, not touched here |
+
+**Waits on the owner:** the first real payment as end-to-end proof; checking in Razorpay that the webhook entry for `dpdp-pay/webhook` exists with `payment.captured` and `order.paid` and the same secret; deleting the two unused Razorpay API-key secrets on the edge function after the first real payment works (the webhook secret stays); the lawyer-gated line on the public pricing page that still mentions a bank transfer; the `/sw.js` cache setting and `CLM-004` (items 1 and 3 below). Partner commission payouts stay on UPI or bank until the central gate is live; do not change them before then.
+
+## What is live (14 November)
 
 | Layer | State |
 |---|---|
