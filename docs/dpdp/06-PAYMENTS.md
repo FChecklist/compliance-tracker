@@ -32,8 +32,10 @@ The Razorpay account is shared by every product, so Razorpay also sends `dpdp-pa
 ## Left for the owner
 
 1. In Razorpay, check that the webhook list holds the `dpdp-pay/webhook` address of the DPDP backend with `payment.captured` and `order.paid`, and the same secret as `RAZORPAY_WEBHOOK_SECRET`. Only the backstop needs it; the normal path does not.
-2. Deploy of the changed `dpdp-pay` (only after the independent check).
-3. One real, small, refundable payment from a trial organisation, as the end-to-end proof. This is the owner's call because it is real money.
+2. ~~Deploy of the changed `dpdp-pay`~~ **Done on 17 November 2026:** after the independent check passed and the owner gave the go, PR 2213 was merged (`64697f0a`) and `dpdp-pay` is live as version 25 (rollback: version 23, or redeploy from `9d40babc`). The central-service address and DPDP's own site key are set as edge secrets (values never printed). Live smoke: no sign-in, a bad signature and a malformed body are all refused; a webhook for an unknown order or for another site's payment answers 200 and records nothing.
+3. One real, small, refundable payment from a trial organisation, as the end-to-end proof. This is the owner's call because it is real money. Not yet done: no payment attempt exists.
+4. After that first payment works, delete `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` from the edge function's secrets (nothing reads them). Keep `RAZORPAY_WEBHOOK_SECRET`.
+5. Later, DPDP will pay through the central gate that is being built (the Moneypenny gate). Do not change this path until that gate is live.
 
 ## No direct Razorpay (the change in this PR)
 

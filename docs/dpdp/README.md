@@ -18,7 +18,7 @@ The page shows "N of M steps of this week's routine". That is a count of routine
 
 On Monday morning an e-mail (the "Monday e-mail") repeats the same three steps with a button that opens the right page. A CA firm's e-mail also lists the clients that person acts for, worst first. **That e-mail block is built and deployed but switched OFF**, until the boss decides to turn it on.
 
-**State on 14 November 2026:** the cycle is live in production (database, edge function and app). The Monday e-mail block is off. A few small items are open (see `05-LIVE-STATE-AND-OPEN-ITEMS.md`).
+**State on 17 November 2026:** the cycle is live in production (database, edge function and app); payment is live through IT Services by Rajat Agarwal (`dpdp-pay` version 25), with no real payment made yet; the Monday run of 16 November was clean; the `dpdp-app` tests pass (833). The Monday e-mail ICP block was last recorded as off. A few small items and several old pull requests are open (see `05-LIVE-STATE-AND-OPEN-ITEMS.md`, which starts with the 17 November update).
 
 ## Pages
 
@@ -28,7 +28,7 @@ On Monday morning an e-mail (the "Monday e-mail") repeats the same three steps w
 | [02-WHY.md](02-WHY.md) | Why it is shaped this way: the owner's decisions with dates, the six audit rounds and what each found |
 | [03-WHERE.md](03-WHERE.md) | Where everything is: files, tables, functions, the edge function, the Cloudflare Pages project, the workflows |
 | [04-HOW.md](04-HOW.md) | How to run it locally and in mock mode, how to test it, how the deploy order works (and why it was changed), how to turn the Monday e-mail on or off, how to roll back |
-| [05-LIVE-STATE-AND-OPEN-ITEMS.md](05-LIVE-STATE-AND-OPEN-ITEMS.md) | What is live as of 14 November, the rollback ids, and what is still open |
+| [05-LIVE-STATE-AND-OPEN-ITEMS.md](05-LIVE-STATE-AND-OPEN-ITEMS.md) | What is live (17 November update on top, 14 November below), the rollback ids, the open pull requests, and what is still open or waits on the owner |
 | [06-PAYMENTS.md](06-PAYMENTS.md) | How DPDP takes payment (the same path as the games: IT Services by Rajat Agarwal and Razorpay), what was checked, what is left |
 | [design/](design/) | UI/UX designs, all mock data only: `DPDP-UI-UX-flow.html` (25 screens of today's product, by role, plus the Monday e-mail), `DPDP-UI-UX-Professional-Firm.html` (design A, firms with many clients), `DPDP-UI-UX-Organization.html` (design B, a school or company), `DPDP-UI-UX-Shared-and-Changes.html` (what is shared and what must change). Open the files in a browser; each is self-contained |
 | [OWNER-NOTE.md](../../dpdp-app/docs/icp/OWNER-NOTE.md) | The owner note, in plain words (written before the go-live; where it says "nothing applied", read `05` for the live state) |
