@@ -321,3 +321,21 @@ silently smoothed over):
 If a future reader finds any claim above no longer matches the code, that
 is drift in this document, not a hidden intentional inaccuracy — fix the
 claim or remove it, per this file's own opening paragraph.
+
+## 6. Version
+
+- **Current version: `0.2.0`** (baseline, 2026-11-21). Source of truth for the
+  number is `package.json`; the deploy-facing record is below.
+- **Where it lives:** `public/version.json` (served statically at
+  `/version.json`; fields `product`, `version`, `releasedAt`, `releasedAtIST`,
+  `commit`, `changes[]`) and the version-numbered entries at the top of
+  `CHANGELOG.md`.
+- **How to bump (owner rule: mandatory for every deployed change):** pick
+  MAJOR.MINOR.PATCH (PATCH = fix, MINOR = new capability, MAJOR = breaking),
+  then in the **same PR** update `package.json` `version`, add a new
+  `## vX.Y.Z` entry at the top of `CHANGELOG.md`, add a matching item at the
+  front of `changes[]` in `public/version.json` (and set its top-level
+  `version`, `releasedAt`, `releasedAtIST`, `commit`), and update this
+  section.
+- Deploys themselves stay locked down per R76 / R87 (see `CLAUDE.md`);
+  bumping a version does not deploy anything.

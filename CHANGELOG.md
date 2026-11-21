@@ -13,6 +13,16 @@ standards doc's own scope note). Newest entry first, grouped by queue seq.
 > root, or `git log` directly — there is no single index for that earlier
 > period.
 
+## v0.2.0 -- version tracking baseline (2026-11-21)
+First version-numbered entry. Version `0.2.0` is the value already in
+`package.json`; it predates version tracking, so its original release date is
+not recoverable from git history and this entry records the baseline as of
+`64697f0` instead. Adds `public/version.json` (served at `/version.json`) and a
+Version section in `ai-os/BRAIN.md`. From now on every deployed change bumps
+the version and updates this file, `public/version.json` and `ai-os/BRAIN.md`
+in the same PR. Docs and metadata only: no application code, `vercel.json`,
+workflows or env touched, and nothing deployed.
+
 ## R46 P9 seq36 -- documentation standards + this CHANGELOG (this PR, 2026-08-25)
 `docs/DOCUMENTATION_STANDARDS.md` (new) + this file (new). Docs-only.
 

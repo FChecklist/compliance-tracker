@@ -1,0 +1,14 @@
+{
+  "product": "VERIDIAN AI (compliance-tracker)",
+  "version": "0.2.0",
+  "releasedAt": "2026-11-21T06:02:18Z",
+  "releasedAtIST": "2026-11-21T11:32:18+05:30",
+  "commit": "64697f0a6a23f59aac0d4292468332100a79e46f",
+  "changes": [
+    {
+      "version": "0.2.0",
+      "releasedAt": "2026-11-21T06:02:18Z",
+      "notes": "Baseline entry. Version 0.2.0 is the value already in package.json; it predates version tracking and its original release date is not recoverable from git history. This is the first version.json and the first version-numbered CHANGELOG entry. Docs and metadata only: no application code changed."
+    }
+  ]
+}
