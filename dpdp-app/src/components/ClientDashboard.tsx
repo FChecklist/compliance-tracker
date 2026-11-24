@@ -8,7 +8,6 @@ const NEXT: Record<StepId, string> = {
   decide: "Name who will do each job, and by when.",
   do: "Do each job, then mark it done.",
 }
-const SHOWN = 5
 
 // The client's own dashboard: Step 1 Discover, Step 2 Decide, Step 3 Do. It only reads the rows of the one organisation already loaded for this
 // signed-in person, so a client never sees another client's data.
@@ -36,21 +35,11 @@ export function ClientDashboard({ rows }: { rows: ObligationRow[] }) {
                   <h3 id={`cd-${s}`} style={{ fontFamily: "Sora, sans-serif", fontSize: 17, fontWeight: 700, margin: 0 }}>Step {i + 1} · {STEP_NAMES[s]}</h3>
                   <p style={{ fontSize: 13, color: "var(--dpdp-ink2)", margin: "4px 0 8px" }}>{done} done · {open.length} pending</p>
                   {open.length === 0 ? <p style={{ fontSize: 13.5 }}><StateMark state="done" /> Nothing pending here.</p> : (
-                    <table className="w-full border-collapse" style={{ fontSize: 13 }}>
-                      <caption className="sr-only">Pending items for {STEP_NAMES[s]}, oldest first</caption>
-                      <thead><tr>{["Item", "With whom", "Age"].map((h) => <th key={h} scope="col" className="text-left" style={{ fontSize: 12, color: "var(--dpdp-ink3)", padding: "4px 6px 4px 0" }}>{h}</th>)}</tr></thead>
-                      <tbody>
-                        {open.slice(0, SHOWN).map((x) => (
-                          <tr key={x.id}>
-                            <td style={{ padding: "6px 6px 6px 0", borderTop: "1px solid var(--dpdp-line2)" }}>{x.what}</td>
-                            <td style={{ padding: "6px 6px 6px 0", borderTop: "1px solid var(--dpdp-line2)", wordBreak: "break-word" }}>{x.withWhom}</td>
-                            <td style={{ padding: "6px 0", borderTop: "1px solid var(--dpdp-line2)" }}><AgeBadge days={x.ageDays} bucket={x.bucket} /></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <p style={{ fontSize: 13.5, margin: "0 0 4px" }}>
+                      Oldest pending: <AgeBadge days={open[0].ageDays} bucket={open[0].bucket} />
+                      {" "}With {new Set(open.map((x) => x.withWhom)).size} {new Set(open.map((x) => x.withWhom)).size === 1 ? "person or role" : "people or roles"}. Each job, and who has it, is in the list below.
+                    </p>
                   )}
-                  {open.length > SHOWN && <p style={{ fontSize: 12.5, color: "var(--dpdp-ink3)", margin: "6px 0 0" }}>and {open.length - SHOWN} more, in the list below.</p>}
                   <p style={{ fontSize: 13, margin: "8px 0 0", color: "var(--dpdp-ink)" }}><b>Next:</b> {open.length === 0 ? "Nothing. Check again next week." : NEXT[s]}</p>
                 </article>
               )
