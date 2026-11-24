@@ -18,7 +18,8 @@ export const HOME_COPY = {
   under: ["Sign in with an e-mail. No password.", "Simple. Step by step.", "A free AI assistant helps with each step"],
   strip: [
     "Built for DPDP Act 2023 & Rules 2025",
-    "SPDI Rules 2011 apply until 13 May 2027",
+    // Month taken from public coverage of the notification (final stage ends in May 2027); no day is given. A lawyer should confirm it.
+    "SPDI Rules 2011 apply until May 2027",
     "Every control mapped to its legal source",
     "Free AI assistant, a person confirms every update",
   ],

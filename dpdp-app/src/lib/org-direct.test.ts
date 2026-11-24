@@ -112,4 +112,26 @@ describe("nothing is deleted", () => {
     const app = read("src/App.tsx")
     expect(app).toContain("editionAllowed(product)")
   })
+
+  test("the plural /dpdp-institutions lines in _redirects point exactly where institutionsPluralTarget says (a planted wrong target is caught)", () => {
+    const pluralLines = (file: string) => file.split(/\r?\n/).map((l) => l.trim().split(/\s+/)).filter((p) => p[0] === "/dpdp-institutions" || p[0] === "/dpdp-institutions/")
+    const agrees = (file: string, enabled: boolean) => {
+      const lines = pluralLines(file)
+      return lines.length === 2 && lines.every((p) => p[1] === institutionsPluralTarget(enabled) && p[2] === "301")
+    }
+    expect(agrees(read("public/_redirects"), ORG_DIRECT_ENABLED)).toBe(true)
+    const planted = read("public/_redirects").replace(/^(\/dpdp-institutions\s+)\S+/m, "$1/wrong/")
+    expect(agrees(planted, ORG_DIRECT_ENABLED)).toBe(false)
+  })
+
+  test("while the switch is off, no listed page's visible text or llms text links to /dpdp-institution/ (either state is followed)", () => {
+    const strip = (h: string) => h.replace(/<!--[\s\S]*?-->/g, " ").replace(/<script[\s\S]*?<\/script>/g, " ")
+    const bad: string[] = []
+    for (const p of listedPages(ORG_DIRECT_ENABLED)) {
+      const rel = p.path === "/" ? "index.html" : `${p.path.slice(1)}index.html`
+      if (strip(read(rel)).includes("/dpdp-institution/") !== ORG_DIRECT_ENABLED && p.path !== "/dpdp-institution/") bad.push(rel)
+    }
+    for (const f of ["public/llms.txt", "public/llms-full.txt"]) if (read(f).includes("/dpdp-institution/") !== ORG_DIRECT_ENABLED) bad.push(f)
+    expect(bad).toEqual([])
+  })
 })

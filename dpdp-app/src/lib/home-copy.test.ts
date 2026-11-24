@@ -146,3 +146,17 @@ describe("plain-English rules", () => {
     expect(ownText(main)).not.toContain("For organisations")
   })
 })
+
+describe("no exact date in the home copy", () => {
+  const DATE = /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/i
+  const strings = (v: unknown): string[] => (typeof v === "string" ? [v] : v && typeof v === "object" ? Object.values(v).flatMap(strings) : [])
+  test("the guard catches planted dates", () => {
+    expect(DATE.test("until 13 May 2027")).toBe(true)
+    expect(DATE.test("until 13/05/2027")).toBe(true)
+    expect(DATE.test("until May 2027")).toBe(false)
+  })
+  test("HOME_COPY has no day-level date, and the strip says May 2027", () => {
+    for (const s of strings(HOME_COPY)) expect(DATE.test(s), s).toBe(false)
+    expect(strings(HOME_COPY)).toContain("SPDI Rules 2011 apply until May 2027")
+  })
+})

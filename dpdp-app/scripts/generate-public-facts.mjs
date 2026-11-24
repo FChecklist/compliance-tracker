@@ -301,7 +301,7 @@ function nav(facts, current) {
     ["/dpdp-firm/", "For CA, CS, legal and audit firms"],
     ["/dpdp-institution/", "For companies, schools and NGOs"],
     ["/about/", facts.pages["/about/"].name],
-  ]
+  ].filter(([href]) => LISTED_PAGES.some((p) => p.path === href) || href !== "/dpdp-institution/") // the hidden organisation door is advertised only while the switch is on
   return [
     `<header class="nav">`,
     `  <div class="nav-inner">`,
