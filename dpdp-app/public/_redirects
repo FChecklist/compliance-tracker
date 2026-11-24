@@ -17,7 +17,7 @@
 
 # ORG-DIRECT SWITCH (owner order, 24 Nov 2026, src/lib/org-direct.mjs): the organisation-direct landing page is hidden while ORG_DIRECT_ENABLED is
 # false. The page is still built; these two lines send a visitor to the Partner door. To unhide, delete them (src/lib/org-direct.test.ts keeps this
-# file and the switch in step). The two lines below this block still point at the page; they chain to the Partner door while it is hidden.
+# file and the switch in step). The two plural lines below this block also go straight to the Partner door while the page is hidden; point them back at the page when you unhide.
 /dpdp-institution   /partner/   302
 /dpdp-institution/  /partner/   302
 
