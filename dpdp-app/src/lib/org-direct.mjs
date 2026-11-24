@@ -10,7 +10,7 @@
 //                    - the app refuses to open an organisation account (openMyOrg in src/App.tsx).
 //   true             all of that is back exactly as it was.
 //
-// To UNHIDE: set the constant below to true, delete the two "org-direct" lines from public/_redirects, and put the organisation door back on the home page
+// To UNHIDE: set the constant below to true, delete the two "org-direct" lines from public/_redirects and point the two /dpdp-institutions lines back at /dpdp-institution/, and put the organisation door back on the home page
 // (data in src/lib/home-copy.mjs). src/lib/org-direct.test.ts fails if the constant and _redirects disagree.
 //
 // Plain ESM (.mjs) so scripts run under plain node can read it; the .d.mts next to it carries the types.
@@ -21,6 +21,11 @@ export const ORG_DIRECT_REDIRECTS = [
   "/dpdp-institution   /partner/   302",
   "/dpdp-institution/  /partner/   302",
 ]
+
+/** Where the plural /dpdp-institutions address goes (301): straight to the Partner door while hidden, so there is one hop. */
+export function institutionsPluralTarget(enabled = ORG_DIRECT_ENABLED) {
+  return enabled ? "/dpdp-institution/" : "/partner/"
+}
 
 /** Which account types the open-an-account screen may offer. */
 export function editionsOffered(enabled = ORG_DIRECT_ENABLED) {

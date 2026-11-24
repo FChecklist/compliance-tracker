@@ -21,9 +21,10 @@
 /dpdp-institution   /partner/   302
 /dpdp-institution/  /partner/   302
 
+# While the switch is off these go straight to the Partner door (one hop). Switch on: point them back at /dpdp-institution/ (src/lib/redirects.test.ts checks).
 # The institution edition is singular -- owner decision, 18 Sep 2026.
-/dpdp-institutions   /dpdp-institution/   301
-/dpdp-institutions/  /dpdp-institution/   301
+/dpdp-institutions   /partner/   301
+/dpdp-institutions/  /partner/   301
 
 # Withdrawn on 2026-10-01 (owner decision): the AI-only fact sheet, its
 # plain-text copy and the facts file are no longer published. A visitor or a

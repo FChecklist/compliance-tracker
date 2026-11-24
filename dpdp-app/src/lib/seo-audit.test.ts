@@ -6,7 +6,7 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-import { HIDDEN_PAGES, LEGAL_PAGES, PRIVATE_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES, SITEMAP_PAGES, renderSitemap } from "./public-surface.mjs"
+import { HIDDEN_PAGES, LEGAL_PAGES, LISTED_PAGES, PRIVATE_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES, SITEMAP_PAGES, renderSitemap } from "./public-surface.mjs"
 
 const root = join(import.meta.dir, "..", "..")
 const read = (rel: string) => readFileSync(join(root, rel), "utf8")
@@ -98,9 +98,9 @@ describe("sitemap.xml and robots.txt agree with the page lists", () => {
   const xml = renderSitemap(SITEMAP_PAGES.map((p: { path: string }) => ({ path: p.path, lastmod: "2026-10-06T00:00:00Z" })))
   test("the sitemap lists exactly the public and legal pages, once each, on the public origin; hidden pages are not in it", () => {
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
-    expect(locs.length).toBe(PUBLIC_PAGES.length + LEGAL_PAGES.length)
+    expect(locs.length).toBe(LISTED_PAGES.length + LEGAL_PAGES.length)
     expect(new Set(locs).size).toBe(locs.length)
-    for (const p of pages) expect(locs, p.path).toContain(`${PUBLIC_ORIGIN}${p.path}`)
+    for (const p of pages.filter((q) => LISTED_PAGES.some((l: { path: string }) => l.path === q.path) || q.legal)) expect(locs, p.path).toContain(`${PUBLIC_ORIGIN}${p.path}`)
     for (const h of HIDDEN_PAGES) expect(locs).not.toContain(`${PUBLIC_ORIGIN}${h.prefix}`)
     for (const priv of PRIVATE_PAGES) expect(locs.some((l) => String(l).includes(priv.prefix))).toBe(false)
   })

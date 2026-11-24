@@ -19,6 +19,7 @@ import {
   REF_SCRIPT,
   PRIVATE_PAGES,
   PUBLIC_ORIGIN,
+  LISTED_PAGES,
   PUBLIC_PAGES,
   SITEMAP_PAGES,
   PWA_SCRIPT,
@@ -257,7 +258,7 @@ describe("public/llms.txt and llms-full.txt (WO-012 §3: honest, existing pages 
   for (const file of ["public/llms.txt", "public/llms-full.txt"]) {
     test(`${file} lists every public page, links no private page, and carries no crawl-policy essay`, () => {
       const text = read(file)
-      for (const pub of PUBLIC_PAGES) expect(text).toContain(pageUrl(pub.path))
+      for (const pub of LISTED_PAGES) expect(text).toContain(pageUrl(pub.path))
       for (const priv of PRIVATE_PAGES) expect(text).not.toContain(pageUrl(priv.prefix))
       // Owner, 2026-10-01: nothing about what search engines have or have not confirmed.
       expect(text).not.toMatch(/no major search engine has confirmed/i)

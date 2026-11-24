@@ -10,6 +10,7 @@
 // path carries X-Robots-Tag: noindex for every agent. The table it prints is
 // the evidence line for the go-live checklist (DEPLOY.md §5 #12).
 import { pathToFileURL } from "node:url"
+import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
 
 export const CRAWLER_AGENTS = [
   ["Googlebot", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"],
@@ -23,7 +24,7 @@ export const CRAWLER_AGENTS = [
   ["Perplexity-User", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Perplexity-User/1.0; +https://perplexity.ai/perplexity-user)"],
 ]
 
-export const PUBLIC_PATHS = ["/", "/dpdp-firm/", "/dpdp-institution/", "/robots.txt", "/sitemap.xml", "/llms.txt"]
+export const PUBLIC_PATHS = ["/", "/dpdp-firm/", ...(ORG_DIRECT_ENABLED ? ["/dpdp-institution/"] : []), "/robots.txt", "/sitemap.xml", "/llms.txt"]
 export const PRIVATE_PATHS = ["/app/"]
 
 /** Pure: returns the rows and a boolean verdict; `fetchImpl` is injectable for tests. */

@@ -25,6 +25,7 @@
 // linked from nowhere -- but NOT a private prefix (no robots Disallow, so a
 // crawler that finds it can still read the noindex).
 import { HOME_COPY } from "./home-copy.mjs"
+import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
 import { companyFooterParts, loadFacts, pageTitle, subjectTopicsClause } from "./facts.mjs"
 
 import { LEGACY_APP_ORIGIN, PUBLIC_ORIGIN, SITE_ORIGIN } from "./site-origin.mjs"
@@ -432,8 +433,15 @@ if (FACTS.proof.enabled) PUBLIC_PAGES.push(PROOF_PAGE)
  * sitemap or llms*.txt, linked from nowhere. Not a private prefix. */
 export const HIDDEN_PAGES = FACTS.proof.enabled ? [] : [{ prefix: PROOF_PAGE.path, source: PROOF_PAGE.source }]
 
-/** Every URL the sitemap lists: the public pages, then the legal pages. */
-export const SITEMAP_PAGES = [...PUBLIC_PAGES, ...LEGAL_PAGES]
+/** The pages listed to crawlers (sitemap, llms files, crawler-access list). The organisation-direct page is built but left out while the switch
+ * (src/lib/org-direct.mjs) is off; it is redirected to /partner/ then. Switch on: it is listed again. */
+export function listedPages(enabled = ORG_DIRECT_ENABLED) {
+  return PUBLIC_PAGES.filter((p) => enabled || p.path !== "/dpdp-institution/")
+}
+export const LISTED_PAGES = listedPages()
+
+/** Every URL the sitemap lists: the listed public pages, then the legal pages. */
+export const SITEMAP_PAGES = [...LISTED_PAGES, ...LEGAL_PAGES]
 
 export function pageUrl(path) {
   return PUBLIC_ORIGIN + path

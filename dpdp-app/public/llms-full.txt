@@ -9,7 +9,7 @@ This is the visible text of every public page of https://veridian-aios.com.
 DPDP Act 2023 · DPDP Rules 2025
 ### DPDP is coming. Penalties are high.
 It is not an IT job. It is the job of the CA, CS or auditor to remind the client.
-The first step is Discover, with a regular independent follow-up every week: what data is there, where it is, and what has been done with it.
+The first step is Discover. Then comes a regular, independent follow-up every week. It shows what data is there, where it is, and what has been done with it.
 Become a Partner
 For a Firm (CA, CS, auditor or lawyer) and for an Accountant Partner.
 By continuing you accept the Terms of Service .
@@ -35,7 +35,6 @@ Discover, Decide, Do. Partner and client both see what is done, what is pending,
 Firm A CA, CS, auditor or lawyer. Runs the weekly work for clients, signs off reports and gives advice.
 Accountant Partner An accountant or bookkeeper who is not a CA. Runs the weekly routine with clients as a reminder and follow-up service.
 Accountant Partners remind clients and follow up every week. A professional confirms every sign-off and every legal point.
-Partners earn a commission in Moneypenny credits when a client pays for the weekly plan.
 Become a Partner
 Why it matters
 ### Three things to know about DPDP compliance
@@ -127,63 +126,6 @@ This is an example, not a promise. Say you charge each client Rs 500 a month for
 One email. No card. Fifteen minutes.
 Start free →
 Your DPDP proof — not just your DPDP policy. People move on. The proof stays.
-VERIDIAN · VERy INDIAN
-Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
-Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
-Stored in India: the database is in Mumbai. Email goes through Resend, a US company.
-We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one.
-About VERIDIAN
-Terms of Service · Privacy Notice · Disclaimer · Pricing · Cancellation & Refund · Delivery · Contact · Sub-processors
-VERIDIAN, this website and its software are owned and operated by IT SERVICES BY RAJAT AGARWAL . © 2026 IT SERVICES BY RAJAT AGARWAL. All rights reserved.
-
-## DPDP Act Compliance for Companies, Institutions, Schools and NGOs — https://veridian-aios.com/dpdp-institution/
-
-For companies, institutions, schools and NGOs
-### DPDP compliance for your own organisation, with proof you can show
-Get a set of controls. Give each control to a person. Keep a dated record that is added to, not edited.
-Start free →
-Start free and build your list. Rs 99 for your first 3 months, then Rs 999 a month, or Rs 5,994 a year (half price, effectively about Rs 499 a month).
-### What VERIDIAN (VERy INDIAN) is
-dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
-Who it is for:
-1. CA, CS, audit and legal firms · their clients
-2. Companies, institutions, schools and NGOs
-- It turns the law into a set of controls, gives each control to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.
-- Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
-- Every control is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.
-It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).
-About VERIDIAN
-### How it works
-🚪 Open your organisation Sign in with your email. There is no password. Name your organisation.
-📋 See your controls VERIDIAN turns the Act into controls. Each control has a person, a date and its legal source.
-📧 People answer by email Each person gets one email a week and answers from the inbox. No accounts or passwords.
-### What you get
-🗂️ Controls with names and dates Every control has a person, a due date and its legal source.
-📧 One email a week Each person answers Yes or No from their inbox. Most never open the website.
-🛡️ A record that is added to, not edited Every answer is dated and kept. A change is a new entry, not an overwrite.
-👨‍👩‍👧 Parents' consent, on a link Parents give consent item by item. Withdrawing is the same tap as agreeing.
-🎧 A Grievance Officer, published Name your officer on a public page. The law asks for it.
-🗄️ We keep no compliance documents We keep a fingerprint, a name and a date. The file stays with you (a payment proof you upload is the one exception).
-### What we do, and where we stop
-✅ We do Turn the Act into controls · Give each control to a person · Chase the answers · Keep a dated record
-🚫 We do not Touch your systems · Keep your documents · Give legal advice · Certify you as compliant · Promise that nobody will be fined
-### Questions people ask
-We are small. Does this apply to us?
-Yes. There is no size exemption in the Act. A ten-person firm holding customer phone numbers is a Data Fiduciary.
-Do you touch our systems?
-No. We do not connect to your software, read your files or install anything. We record what you tell us.
-Do you keep our documents?
-No. We keep a fingerprint, a name and a date. The document stays with you, so keep your own originals.
-Can you certify us as compliant?
-No. There is no government DPDP certification in India. We help you do the work and keep the record.
-Has anyone been fined yet?
-No penalty order has been issued in India to date. The date to prepare for is 13 May 2027.
-Do we need a special email address?
-No. Sign-in is a link to whatever address you use: Gmail, Yahoo or your own domain.
-### Start with what you hold
-One email. No card. Fifteen minutes.
-Start free →
-Your DPDP proof — not just a policy nobody reads. People move on. The proof stays.
 VERIDIAN · VERy INDIAN
 Write to dpdp@veridian-aios.com and put the topic in the subject: Grievance, Data request, Sales or Partner
 Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)

@@ -4,13 +4,14 @@
 //
 // Rules for anything added here: short sentences, simple English, no "my" or "your", no tick box, no number, date or section of the Act unless it is
 // checked against the official text (spec/veridian-dpdp.html is the repo's own copy) and the source is cited. "Penalties are high" is the whole penalty claim.
+import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
 // Words the claims register bans (data/claims-register.yaml) stay out. Plain ESM so node scripts can read it; the .d.mts carries the types.
 
 export const HOME_COPY = {
   eyebrow: "DPDP Act 2023 · DPDP Rules 2025",
   h1: "DPDP is coming. Penalties are high.",
   lead: "It is not an IT job. It is the job of the CA, CS or auditor to remind the client.",
-  lead2: "The first step is Discover, with a regular independent follow-up every week: what data is there, where it is, and what has been done with it.",
+  lead2: "The first step is Discover. Then comes a regular, independent follow-up every week. It shows what data is there, where it is, and what has been done with it.",
   cta: { label: "Become a Partner", href: "/partner/" },
   ctaNote: "For a Firm (CA, CS, auditor or lawyer) and for an Accountant Partner.",
   signIn: { label: "Already a Partner or a client? Sign in", href: "/app/" },
@@ -43,14 +44,15 @@ export const HOME_COPY = {
     { name: "Accountant Partner", text: "An accountant or bookkeeper who is not a CA. Runs the weekly routine with clients as a reminder and follow-up service." },
   ],
   accountantLine: "Accountant Partners remind clients and follow up every week. A professional confirms every sign-off and every legal point.",
-  earnLine: "Partners earn a commission in Moneypenny credits when a client pays for the weekly plan.",
+  // The organisation door, as the home page had it before 03d6ddc. Printed only while ORG_DIRECT_ENABLED is true (src/lib/org-direct.mjs).
+  orgDoor: { href: "/dpdp-institution/", label: "For organisations", sub: "Company · School · NGO", cta: "Doing it for ourselves →" },
   terms: { before: "By continuing you accept the ", label: "Terms of Service", href: "/terms/", after: "." },
 }
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 
 /** The home page's generated region, as HTML. Pure: the same copy always gives the same bytes. */
-export function renderHome(c = HOME_COPY) {
+export function renderHome(c = HOME_COPY, orgDirect = ORG_DIRECT_ENABLED) {
   const L = []
   L.push(`        <section class="hm-hero">`)
   L.push(`          <div class="hm-wrap">`)
@@ -59,6 +61,7 @@ export function renderHome(c = HOME_COPY) {
   L.push(`            <p class="hm-lead">${esc(c.lead)}</p>`)
   L.push(`            <p class="hm-lead">${esc(c.lead2)}</p>`)
   L.push(`            <p class="hm-cta"><a class="btn hm-cta-btn" href="${c.cta.href}">${esc(c.cta.label)}</a></p>`)
+  if (orgDirect) L.push(`            <p class="hm-cta"><a class="choice" href="${c.orgDoor.href}"><span>${esc(c.orgDoor.label)}</span> <strong>${esc(c.orgDoor.sub)}</strong> <i>${esc(c.orgDoor.cta)}</i></a></p>`)
   L.push(`            <p class="hm-cta-note">${esc(c.ctaNote)}</p>`)
   L.push(`            <p class="hm-notice">${esc(c.terms.before)}<a href="${c.terms.href}">${esc(c.terms.label)}</a>${esc(c.terms.after)}</p>`)
   L.push(`            <div class="hm-under">`)
@@ -100,7 +103,6 @@ export function renderHome(c = HOME_COPY) {
   for (const p of c.partners) L.push(`              <div><b>${esc(p.name)}</b> ${esc(p.text)}</div>`)
   L.push(`            </div>`)
   L.push(`            <p class="hm-firms-lead">${esc(c.accountantLine)}</p>`)
-  L.push(`            <p class="hm-firms-lead">${esc(c.earnLine)}</p>`)
   L.push(`            <p class="hm-cta"><a class="btn hm-cta-btn" href="${c.cta.href}">${esc(c.cta.label)}</a></p>`)
   L.push(`          </div>`)
   L.push(`        </section>`)
@@ -111,9 +113,9 @@ export const HOME_BEGIN = "<!-- BEGIN generated: home-firm-first -->"
 export const HOME_END = "<!-- END generated: home-firm-first -->"
 
 /** index.html with the generated region replaced by renderHome(). Throws if the markers are missing or not in order. */
-export function applyHome(html, c = HOME_COPY) {
+export function applyHome(html, c = HOME_COPY, orgDirect = ORG_DIRECT_ENABLED) {
   const a = html.indexOf(HOME_BEGIN)
   const b = html.indexOf(HOME_END)
   if (a < 0 || b < a) throw new Error("index.html: the home-firm-first markers are missing or out of order")
-  return `${html.slice(0, a + HOME_BEGIN.length)}\n${renderHome(c)}\n        ${html.slice(b)}`
+  return `${html.slice(0, a + HOME_BEGIN.length)}\n${renderHome(c, orgDirect)}\n        ${html.slice(b)}`
 }

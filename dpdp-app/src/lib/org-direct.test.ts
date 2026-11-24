@@ -7,7 +7,9 @@ import { join, resolve } from "node:path"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { OpenOrganisation } from "../components/Screens"
-import { ORG_DIRECT_ENABLED, ORG_DIRECT_REDIRECTS, editionAllowed, editionsOffered, sendToPartnerDoor } from "./org-direct.mjs"
+import { PUBLIC_PAGES, SITEMAP_PAGES, listedPages } from "./public-surface.mjs"
+import { PUBLIC_PATHS } from "../../scripts/check-crawler-access.mjs"
+import { ORG_DIRECT_ENABLED, ORG_DIRECT_REDIRECTS, editionAllowed, institutionsPluralTarget, editionsOffered, sendToPartnerDoor } from "./org-direct.mjs"
 
 const APP = resolve(import.meta.dir, "../..")
 const read = (rel: string) => readFileSync(join(APP, rel), "utf8")
@@ -78,6 +80,32 @@ describe("nothing is deleted", () => {
       const present = file.split(/\r?\n/).some((l) => l.trim() === line)
       expect(present, line).toBe(!ORG_DIRECT_ENABLED)
     }
+  })
+
+  test("the switch and _redirects agree, line by line, in both switch states (a planted wrong state is caught)", () => {
+    const has = (file: string, line: string) => file.split(/\r?\n/).some((l) => l.trim() === line)
+    const agrees = (file: string, enabled: boolean) => ORG_DIRECT_REDIRECTS.every((line) => has(file, line) === !enabled)
+    const withLines = ORG_DIRECT_REDIRECTS.join("\n")
+    expect(agrees(withLines, true)).toBe(false)
+    expect(agrees(withLines, false)).toBe(true)
+    expect(agrees("", true)).toBe(true)
+    expect(agrees("", false)).toBe(false)
+    expect(agrees(read("public/_redirects"), ORG_DIRECT_ENABLED)).toBe(true)
+  })
+
+  test("/dpdp-institutions goes where the switch says", () => {
+    expect(institutionsPluralTarget(false)).toBe("/partner/")
+    expect(institutionsPluralTarget(true)).toBe("/dpdp-institution/")
+  })
+
+  test("the sitemap, llms files and crawler list leave the organisation page out exactly while the switch is off", () => {
+    for (const on of [true, false]) expect(listedPages(on).some((p: { path: string }) => p.path === "/dpdp-institution/")).toBe(on)
+    const has = (s: string) => s.includes("/dpdp-institution/")
+    expect(has(read("public/llms.txt"))).toBe(ORG_DIRECT_ENABLED)
+    expect(has(read("public/llms-full.txt"))).toBe(ORG_DIRECT_ENABLED)
+    expect(PUBLIC_PATHS.includes("/dpdp-institution/")).toBe(ORG_DIRECT_ENABLED)
+    expect(SITEMAP_PAGES.some((p: { path: string }) => p.path === "/dpdp-institution/")).toBe(ORG_DIRECT_ENABLED)
+    expect(PUBLIC_PAGES.some((p: { path: string }) => p.path === "/dpdp-institution/")).toBe(true) // the page itself still builds
   })
 
   test("App.tsx refuses a hidden edition even if the screen were bypassed", () => {

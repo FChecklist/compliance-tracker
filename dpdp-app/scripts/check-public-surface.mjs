@@ -31,6 +31,7 @@ import {
   OG_IMAGE,
   PRIVATE_PAGES,
   PUBLIC_ORIGIN,
+  LISTED_PAGES,
   PUBLIC_PAGES,
   PAYTEST_URL,
   PUBLIC_SCRIPT_OPENS,
@@ -540,7 +541,7 @@ for (const f of ["llms.txt", "llms-full.txt"]) {
   expect(has(f), `dist/${f} missing`)
   if (!has(f)) continue
   const body = read(f)
-  for (const pub of PUBLIC_PAGES) expect(body.includes(pageUrl(pub.path)), `${f}: does not list ${pageUrl(pub.path)}`)
+  for (const pub of LISTED_PAGES) expect(body.includes(pageUrl(pub.path)), `${f}: does not list ${pageUrl(pub.path)}`)
   for (const priv of PRIVATE_PAGES) expect(!body.includes(pageUrl(priv.prefix)), `${f}: names the private URL ${pageUrl(priv.prefix)}`)
   for (const hidden of HIDDEN_PAGES) expect(!body.includes(hidden.prefix), `${f}: names the hidden page ${hidden.prefix}`)
   // Owner, 2026-10-01: no crawl-policy essay and no internal-process wording in the llms files.

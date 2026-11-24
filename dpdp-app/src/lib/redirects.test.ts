@@ -9,7 +9,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { HIDDEN_PAGES, PRIVATE_PAGES, PUBLIC_PAGES } from "./public-surface.mjs"
-import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
+import { ORG_DIRECT_ENABLED, institutionsPluralTarget } from "./org-direct.mjs"
 
 const APP = resolve(import.meta.dir, "../..")
 
@@ -37,9 +37,11 @@ describe("public/_redirects (WO-013 §2.4)", () => {
   const rules = parseRedirects(readFileSync(join(APP, "public", "_redirects"), "utf8"))
   const rule = (from: string) => rules.find((r) => r.from === from)
 
-  test("/dpdp-institutions and /dpdp-institutions/ -> 301 -> /dpdp-institution/", () => {
-    expect(rule("/dpdp-institutions")).toEqual({ from: "/dpdp-institutions", to: "/dpdp-institution/", status: 301 })
-    expect(rule("/dpdp-institutions/")).toEqual({ from: "/dpdp-institutions/", to: "/dpdp-institution/", status: 301 })
+  test("/dpdp-institutions and /dpdp-institutions/ -> 301 -> /dpdp-institution/ (switch on) or straight to /partner/ (switch off, one hop)", () => {
+    const to = institutionsPluralTarget(ORG_DIRECT_ENABLED)
+    expect(to).toBe(ORG_DIRECT_ENABLED ? "/dpdp-institution/" : "/partner/")
+    expect(rule("/dpdp-institutions")).toEqual({ from: "/dpdp-institutions", to, status: 301 })
+    expect(rule("/dpdp-institutions/")).toEqual({ from: "/dpdp-institutions/", to, status: 301 })
   })
 
   test("/new and /new/ (the design preview, promoted to the home page on 2026-10-02) -> 301 -> /, so there is one page and no duplicate", () => {

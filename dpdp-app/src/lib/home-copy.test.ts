@@ -4,6 +4,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { HOME_COPY, applyHome, renderHome } from "./home-copy.mjs"
+import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
 
 const APP = resolve(import.meta.dir, "../..")
 const html = readFileSync(join(APP, "index.html"), "utf8")
@@ -32,7 +33,7 @@ describe("the standard sentences", () => {
   test("the owner's central message, word for word", () => {
     expect(HOME_COPY.h1).toBe("DPDP is coming. Penalties are high.")
     expect(HOME_COPY.lead).toBe("It is not an IT job. It is the job of the CA, CS or auditor to remind the client.")
-    expect(HOME_COPY.lead2).toBe("The first step is Discover, with a regular independent follow-up every week: what data is there, where it is, and what has been done with it.")
+    expect(HOME_COPY.lead2).toBe("The first step is Discover. Then comes a regular, independent follow-up every week. It shows what data is there, where it is, and what has been done with it.")
     for (const s of [HOME_COPY.h1, HOME_COPY.lead, HOME_COPY.lead2]) expect(ownText(main)).toContain(s)
   })
 
@@ -70,6 +71,29 @@ describe("plain-English rules", () => {
     expect(t.match(/\b(my|your|yours)\b/gi) ?? []).toEqual([])
   })
 
+  // The WHOLE page: header, nav, chat, footer, generated blocks. Only visible text counts (no tags, attributes, scripts, styles or comments).
+  // Allow-listed by exact text: the owner-approved lines that come from data/veridian-facts.yaml and data/claims-register.yaml, not from this page.
+  const WHOLE_PAGE_ALLOWED = [
+    ...ALLOWED_TECHNICAL,
+    "Your free DPDP AI assistant",
+    "Open your personal link in your own AI. It reads your controls and drafts the updates. You confirm them.",
+    "Get your free AI assistant",
+    "It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and does not keep your compliance documents (it keeps a fingerprint of each; payment proofs you upload are the one exception).",
+    "Copy this link and paste in your AI to work.",
+  ]
+  const visibleText = (s: string) => s.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->/g, " ").replace(/<[^>]+>/g, "\n").replace(/&amp;/g, "&").replace(/[ \t]+/g, " ")
+  const wholePageHits = (s: string) => WHOLE_PAGE_ALLOWED.reduce((t, a) => t.split(a).join(" "), visibleText(s)).match(/\b(my|mine|your|yours)\b/gi) ?? []
+
+  test("no my, mine, your or yours anywhere in the visible text of the whole index.html (only the owner-approved facts lines are allowed)", () => {
+    expect(wholePageHits(html)).toEqual([])
+  })
+
+  test("the whole-page rule is real: a planted word in the header, the footer or an attribute-free line is found, a tag attribute is not", () => {
+    expect(wholePageHits("<header>Sign in to mine</header>")).toEqual(["mine"])
+    expect(wholePageHits("<footer>Contact yours truly</footer>")).toEqual(["yours"])
+    expect(wholePageHits('<a title="your" href="/x">Go</a>')).toEqual([])
+  })
+
   test("the rule is real: a planted 'your' is found", () => {
     expect(words("Open your account").match(/\b(my|your|yours)\b/gi)).toEqual(["your"])
   })
@@ -85,11 +109,11 @@ describe("plain-English rules", () => {
     expect(own).not.toMatch(/deadline|within \d+ (days|hours)/i)
   })
 
-  test("every sentence of the copy module is short (30 words or fewer; the owner's own 28-word sentence is the longest)", () => {
+  test("every sentence of the copy module is short (22 words or fewer)", () => {
     const strings: string[] = []
     const walk = (v: unknown) => { if (typeof v === "string") strings.push(v); else if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === "object") Object.values(v).forEach(walk) }
     walk(HOME_COPY)
-    for (const str of strings) for (const sentence of str.split(/(?<=[.!?])\s+/)) expect(sentence.split(/\s+/).length, sentence).toBeLessThanOrEqual(30)
+    for (const str of strings) for (const sentence of str.split(/(?<=[.!?])\s+/)) expect(sentence.split(/\s+/).length, sentence).toBeLessThanOrEqual(22)
   })
 
   test("no banned claim word from the claims register in the generated copy", () => {
@@ -100,6 +124,21 @@ describe("plain-English rules", () => {
 
   test("'host' is not used; the word is 'co-organizer'", () => {
     expect(ownText(main)).not.toMatch(/\bhost\b/i)
+  })
+
+  test("the removed commission promise is gone: no Moneypenny credits or weekly plan on the page or in the copy", () => {
+    expect(JSON.stringify(HOME_COPY)).not.toMatch(/moneypenny|commission|weekly plan/i)
+    expect(html).not.toMatch(/Moneypenny credits|weekly plan/i)
+  })
+
+  test("renderHome prints the organisation door only when the switch is passed in as true; applyHome follows it too", () => {
+    const door = '<a class="choice" href="/dpdp-institution/"><span>For organisations</span> <strong>Company · School · NGO</strong> <i>Doing it for ourselves →</i></a>'
+    expect(renderHome(HOME_COPY, true)).toContain(door)
+    expect(renderHome(HOME_COPY, false)).not.toContain("dpdp-institution")
+    expect(renderHome(HOME_COPY, false)).not.toContain("For organisations")
+    expect(renderHome()).toBe(renderHome(HOME_COPY, ORG_DIRECT_ENABLED))
+    expect(applyHome(html, HOME_COPY, true)).toContain(door)
+    expect(applyHome(html, HOME_COPY, ORG_DIRECT_ENABLED)).toBe(html)
   })
 
   test("the organisation door is not on the home page while the switch is off", () => {

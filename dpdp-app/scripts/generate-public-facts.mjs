@@ -55,7 +55,7 @@ import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, companyFooterHtml, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
-import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, FAMILY_BLOCK, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, PWA, PWA_SCRIPT, REF_SCRIPT, RUM_SCRIPT, VISIT_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
+import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, FAMILY_BLOCK, OG_IMAGE, PUBLIC_ORIGIN, LISTED_PAGES, PUBLIC_PAGES, PWA, PWA_SCRIPT, REF_SCRIPT, RUM_SCRIPT, VISIT_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
 
@@ -678,7 +678,7 @@ function llmsTxt(facts) {
     ``,
     `## Pages`,
     ``,
-    ...PUBLIC_PAGES.map((p) => `- [${facts.pages[p.path].name}](${pageUrl(p.path)}): ${facts.pages[p.path].summary}`),
+    ...LISTED_PAGES.map((p) => `- [${facts.pages[p.path].name}](${pageUrl(p.path)}): ${facts.pages[p.path].summary}`),
     `- The sitemap: ${facts.site}/sitemap.xml`,
     ``,
     `## Contact`,
@@ -692,7 +692,7 @@ function llmsTxt(facts) {
 
 function llmsFullTxt(facts, pagesHtml) {
   const out = [`# ${facts.product} — full text`, ``, `> ${facts.one_line}`, ``, `This is the visible text of every public page of ${facts.site}.`, ``]
-  for (const p of PUBLIC_PAGES) {
+  for (const p of LISTED_PAGES) {
     out.push(`## ${facts.pages[p.path].name} — ${pageUrl(p.path)}`, ``)
     for (const line of visibleLines(pagesHtml.get(p.source).replace(/<div class="uf-family">[\s\S]*?<\/ul>\s*<\/div>/, ""))) out.push(line.startsWith("# ") ? `### ${line.slice(2)}` : line.startsWith("## ") ? `### ${line.slice(3)}` : line)
     out.push(``)
