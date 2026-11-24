@@ -41,6 +41,9 @@ const HOME_SIGN_IN = "Already a Partner or a client? Sign in"
 
 const ALL_SURFACES = [...PUBLIC_PAGES, SIGN_IN] as const
 
+// While the organisation door is hidden (ORG_DIRECT_ENABLED false) its page is not one a visitor is led to, so the loops below leave it out.
+const listed = <T extends { path: string }>(all: readonly T[]) => all.filter((p) => ORG_DIRECT_ENABLED || p.path !== "/dpdp-institution/")
+
 // A fake address on the reserved .test TLD (RFC 2606): even outside mock
 // mode nothing could ever be delivered to it.
 const AGENT_EMAIL = "agent@example.test"
@@ -124,7 +127,7 @@ test.describe("WO-DPDP-012 §6 -- an assistant can use the public site by access
 
   // (b) again for the other landing, and the chooser: one h1, the primary
   // call-to-action by role + name, nothing hover-only, on every public page.
-  for (const surface of PUBLIC_PAGES) {
+  for (const surface of listed(PUBLIC_PAGES)) {
     test(`${surface.path}: one h1 with its name, primary call-to-action by role + name, nothing hover-only`, async ({ page }) => {
       await open(page, surface)
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1)
@@ -153,7 +156,7 @@ test.describe("WO-DPDP-012 §6 -- an assistant can use the public site by access
   // (d) Negative guard: no CAPTCHA anywhere an anonymous visitor goes. The
   // WO's alternative is rate limiting, which lives server-side (Supabase
   // Auth's own OTP rate limit), not in this HTML.
-  for (const surface of ALL_SURFACES) {
+  for (const surface of listed(ALL_SURFACES)) {
     test(`${surface.path}: no CAPTCHA`, async ({ page }) => {
       await open(page, surface)
       await expectNoCaptcha(page, surface.path)
@@ -165,7 +168,7 @@ test.describe("WO-DPDP-012 §6 -- an assistant can use the public site by access
   // computed by Playwright's own accessible-name algorithm (the same one
   // getByRole matches against), so "has a name here" and "can be found by
   // getByRole" are one fact. A failure names the element by its outerHTML.
-  for (const surface of ALL_SURFACES) {
+  for (const surface of listed(ALL_SURFACES)) {
     test(`${surface.path}: every button, link and textbox has a non-empty accessible name`, async ({ page }) => {
       await open(page, surface)
       const found = await controls(page, false)
