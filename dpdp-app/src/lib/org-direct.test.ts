@@ -135,3 +135,10 @@ describe("nothing is deleted", () => {
     expect(bad).toEqual([])
   })
 })
+
+describe("noindex on the organisation page follows the switch", () => {
+  test("the tag is present exactly while ORG_DIRECT_ENABLED is false", () => {
+    const page = readFileSync(join(APP, "dpdp-institution/index.html"), "utf8")
+    expect(page.includes('<meta name="robots" content="noindex" />')).toBe(!ORG_DIRECT_ENABLED)
+  })
+})

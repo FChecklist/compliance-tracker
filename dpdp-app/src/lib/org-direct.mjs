@@ -11,7 +11,8 @@
 //   true             all of that is back exactly as it was.
 //
 // To UNHIDE: set the constant below to true, delete the two "org-direct" lines from public/_redirects and point the two /dpdp-institutions lines back at /dpdp-institution/, and put the organisation door back on the home page
-// (data in src/lib/home-copy.mjs). src/lib/org-direct.test.ts fails if the constant and _redirects disagree.
+// (data in src/lib/home-copy.mjs). Then run `node scripts/generate-public-facts.mjs` and `node scripts/generate-home.mjs` and commit the regenerated files
+// (the noindex tag on /dpdp-institution/ is removed by the first one; the build's --check steps fail until you do). src/lib/org-direct.test.ts fails if the constant and _redirects disagree.
 //
 // Plain ESM (.mjs) so scripts run under plain node can read it; the .d.mts next to it carries the types.
 export const ORG_DIRECT_ENABLED = false

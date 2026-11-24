@@ -8,7 +8,9 @@ import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
 
 const APP = resolve(import.meta.dir, "../..")
 const html = readFileSync(join(APP, "index.html"), "utf8")
-const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
+const mainMatch = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)
+if (!mainMatch || !mainMatch[1].trim()) throw new Error('index.html must contain a non-empty <main class="chooser"> ... </main>: the markers are missing or the body is empty')
+const main = mainMatch[1]
 
 // Text a person reads in the home page body, with the generated blocks (their copy is the owner-approved facts file) split off.
 const GENERATED = /<!-- BEGIN generated: (?:ai-assistant|facts) -->[\s\S]*?<!-- END generated: (?:ai-assistant|facts) -->/g
@@ -155,8 +157,9 @@ describe("no exact date in the home copy", () => {
     expect(DATE.test("until 13/05/2027")).toBe(true)
     expect(DATE.test("until May 2027")).toBe(false)
   })
-  test("HOME_COPY has no day-level date, and the strip says May 2027", () => {
+  test("HOME_COPY has no day-level date, and the strip prints no legal date at all", () => {
     for (const s of strings(HOME_COPY)) expect(DATE.test(s), s).toBe(false)
-    expect(strings(HOME_COPY)).toContain("SPDI Rules 2011 apply until May 2027")
+    expect(strings(HOME_COPY).join(" ")).not.toContain("SPDI Rules 2011 apply until")
+    expect(ownText(main)).not.toContain("apply until")
   })
 })

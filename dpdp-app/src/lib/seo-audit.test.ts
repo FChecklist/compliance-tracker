@@ -6,6 +6,7 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
+import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
 import { HIDDEN_PAGES, LEGAL_PAGES, LISTED_PAGES, PRIVATE_PAGES, PUBLIC_ORIGIN, PUBLIC_PAGES, SITEMAP_PAGES, renderSitemap } from "./public-surface.mjs"
 
 const root = join(import.meta.dir, "..", "..")
@@ -59,7 +60,7 @@ describe("every public page: the basics a crawler needs", () => {
     }
   })
   test("no public page is marked noindex or nofollow", () => {
-    for (const p of pages) expect(meta(p.html, "name", "robots") ?? "", p.path).not.toMatch(/noindex|nofollow/i)
+    for (const p of pages.filter((x) => !(x.path === "/dpdp-institution/" && !ORG_DIRECT_ENABLED))) expect(meta(p.html, "name", "robots") ?? "", p.path).not.toMatch(/noindex|nofollow/i)
   })
   test("every image has alt text (decorative ones an empty alt on purpose)", () => {
     for (const p of pages) for (const img of p.html.match(/<img\b[^>]*>/gi) ?? []) expect(/\balt="/i.test(img), `${p.path}: ${img.slice(0, 80)}`).toBe(true)
