@@ -35,7 +35,7 @@ describe("the standard sentences", () => {
   test("the owner's central message, word for word", () => {
     expect(HOME_COPY.h1).toBe("DPDP is coming. Penalties are high.")
     expect(HOME_COPY.lead).toBe("It is not an IT job. It is the job of the CA, CS or auditor to remind the client.")
-    expect(HOME_COPY.lead2).toBe("The first step is Discover. Then comes a regular, independent follow-up every week. It shows what data is there, where it is, and what has been done with it.")
+    expect(HOME_COPY.lead2).toBe("The first step is Discover. Then comes a regular follow-up every week. It shows what data is there, where it is, and what has been done with it.")
     for (const s of [HOME_COPY.h1, HOME_COPY.lead, HOME_COPY.lead2]) expect(ownText(main)).toContain(s)
   })
 

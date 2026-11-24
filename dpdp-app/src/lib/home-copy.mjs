@@ -11,15 +11,15 @@ export const HOME_COPY = {
   eyebrow: "DPDP Act 2023 · DPDP Rules 2025",
   h1: "DPDP is coming. Penalties are high.",
   lead: "It is not an IT job. It is the job of the CA, CS or auditor to remind the client.",
-  lead2: "The first step is Discover. Then comes a regular, independent follow-up every week. It shows what data is there, where it is, and what has been done with it.",
+  lead2: "The first step is Discover. Then comes a regular follow-up every week. It shows what data is there, where it is, and what has been done with it.",
   cta: { label: "Become a Partner", href: "/partner/" },
   ctaNote: "For a Firm (CA, CS, auditor or lawyer) and for an Accountant Partner.",
   signIn: { label: "Already a Partner or a client? Sign in", href: "/app/" },
   under: ["Sign in with an e-mail. No password.", "Simple. Step by step.", "A free AI assistant helps with each step"],
   strip: [
     "Built for DPDP Act 2023 & Rules 2025",
-    "Every control mapped to its legal source",
-    "Free AI assistant, a person confirms every update",
+    "Simple steps: Discover, Decide, Do",
+    "A free AI assistant helps with each step",
   ],
   wordsTitle: "Discover. Decide. Do.",
   words: [

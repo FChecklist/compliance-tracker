@@ -110,7 +110,13 @@ describe("nothing is deleted", () => {
 
   test("App.tsx refuses a hidden edition even if the screen were bypassed", () => {
     const app = read("src/App.tsx")
-    expect(app).toContain("editionAllowed(product)")
+    // the refusal must sit inside openMyOrg, before any account is opened (not just mention the helper somewhere)
+    const body = app.slice(app.indexOf("async function openMyOrg("))
+    const guard = body.indexOf("if (!editionAllowed(product))")
+    const call = body.indexOf("await openAccount(")
+    expect(guard).toBeGreaterThan(-1)
+    expect(call).toBeGreaterThan(guard)
+    expect(body.slice(guard, call)).toContain("return")
   })
 
   test("the plural /dpdp-institutions lines in _redirects point exactly where institutionsPluralTarget says (a planted wrong target is caught)", () => {
