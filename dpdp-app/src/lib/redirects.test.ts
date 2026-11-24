@@ -9,6 +9,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { HIDDEN_PAGES, PRIVATE_PAGES, PUBLIC_PAGES } from "./public-surface.mjs"
+import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
 
 const APP = resolve(import.meta.dir, "../..")
 
@@ -56,10 +57,17 @@ describe("public/_redirects (WO-013 §2.4)", () => {
     for (const from of ["/for-ai", "/for-ai/", "/for-ai.md", "/facts.json"]) expect(rule(from), from).toEqual({ from, to: "/about/", status: 301 })
   })
 
-  test("exactly these ten rules, every one permanent, every destination a public page", () => {
-    expect(rules).toHaveLength(10)
+  // The two org-direct rules (src/lib/org-direct.mjs) are the only temporary (302) ones, and exist exactly while the switch is off.
+  const orgRules = rules.filter((r) => r.status === 302)
+
+  test("exactly these ten permanent rules plus the two org-direct 302s while the switch is off; every destination a public page", () => {
+    expect(rules.filter((r) => r.status === 301)).toHaveLength(10)
+    expect(orgRules).toEqual(ORG_DIRECT_ENABLED ? [] : [
+      { from: "/dpdp-institution", to: "/partner/", status: 302 },
+      { from: "/dpdp-institution/", to: "/partner/", status: 302 },
+    ])
     for (const r of rules) {
-      expect(r.status).toBe(301)
+      expect([301, 302]).toContain(r.status)
       expect(PUBLIC_PAGES.some((p) => p.path === r.to), `${r.to} is not a public page`).toBe(true)
       for (const priv of PRIVATE_PAGES) expect(r.to.startsWith(priv.prefix)).toBe(false)
       for (const h of HIDDEN_PAGES) expect(r.to.startsWith(h.prefix)).toBe(false)

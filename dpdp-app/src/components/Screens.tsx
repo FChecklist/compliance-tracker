@@ -7,6 +7,7 @@ import { TermsCheckbox, TermsWhy } from "./TermsBox"
 import { BOX_K2 } from "@/lib/terms"
 import type { PlanWirePayload, ProfessionalBody } from "@/lib/rpc-types"
 import { GuidedError } from "@/components/GuidedError"
+import { ORG_DIRECT_ENABLED, sendToPartnerDoor } from "@/lib/org-direct.mjs"
 
 export function Card({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
   return (
@@ -248,8 +249,10 @@ function priceLine(plans: PlanWirePayload[] | undefined, product: "firm" | "inst
 }
 
 export function OpenOrganisation({
-  email, initialEdition, busy, error, onCreate, onSignOut, onOpenPartner, plans,
+  email, initialEdition, busy, error, onCreate, onSignOut, onOpenPartner, plans, orgDirect = ORG_DIRECT_ENABLED,
 }: {
+  /** The organisation-direct switch (src/lib/org-direct.mjs). A prop only so a test can render both values. */
+  orgDirect?: boolean
   onOpenPartner?: () => void
   email: string | null
   initialEdition: "firm" | "institution" | null
@@ -260,7 +263,7 @@ export function OpenOrganisation({
   plans?: PlanWirePayload[]
 }) {
   const [name, setName] = useState("")
-  const [product, setProduct] = useState<"firm" | "institution" | null>(initialEdition)
+  const [product, setProduct] = useState<"firm" | "institution" | null>(orgDirect ? initialEdition : "firm")
   const [practice, setPractice] = useState<PracticeKind | "">("")
   const [registration, setRegistration] = useState("")
   const [billing, setBilling] = useState("")
@@ -284,6 +287,7 @@ export function OpenOrganisation({
     })
   }
   const money = priceLine(plans, product)
+  const partnerDoor = sendToPartnerDoor(initialEdition, orgDirect)
   const optionStyle = { borderColor: "var(--dpdp-line)", fontSize: 14.5, color: "var(--dpdp-ink)", background: "#fff" } as const
   return (
     <Card icon="🏛️" title={product === "firm" ? "Open your professional account" : product === "institution" ? "Open your organisation account" : "Open your account"}>
@@ -295,14 +299,22 @@ export function OpenOrganisation({
             ? "Tell us who you are and your file of DPDP controls opens straight away, with you as its owner."
             : "Two doors, two kinds of account. Choose the one that fits."}
       </p>
+      {partnerDoor && (
+        <p role="note" data-testid="partner-door" style={{ fontSize: 14, color: "var(--dpdp-ink2)", margin: "0 auto 14px", maxWidth: "44ch" }}>
+          An organisation joins through a Firm or an Accountant Partner. Ask the Firm for an e-mail invitation.
+          {onOpenPartner && <>{" "}<button type="button" onClick={onOpenPartner} style={{ ...linkButton, padding: 0, display: "inline" }}>Become a Partner</button></>}
+        </p>
+      )}
       {!product && (
         <div className="flex flex-col gap-2 items-stretch text-left" role="group" aria-label="Choose your account type">
           <button type="button" onClick={() => setProduct("firm")} className="rounded-xl border px-3.5 py-3 text-left" style={optionStyle}>
             <b>For professionals</b><br /><span style={{ fontSize: 13, color: "var(--dpdp-ink3)" }}>CA · CS · Cost accountant · Legal firm · Audit firm. DPDP work done for clients.</span>
           </button>
-          <button type="button" onClick={() => setProduct("institution")} className="rounded-xl border px-3.5 py-3 text-left" style={optionStyle}>
-            <b>For organisations</b><br /><span style={{ fontSize: 13, color: "var(--dpdp-ink3)" }}>Company · School · NGO. DPDP work done for itself.</span>
-          </button>
+          {orgDirect && (
+            <button type="button" onClick={() => setProduct("institution")} className="rounded-xl border px-3.5 py-3 text-left" style={optionStyle}>
+              <b>For organisations</b><br /><span style={{ fontSize: 13, color: "var(--dpdp-ink3)" }}>Company · School · NGO. DPDP work done for itself.</span>
+            </button>
+          )}
         </div>
       )}
       {product && (
@@ -353,11 +365,11 @@ export function OpenOrganisation({
         </button>
         <TermsWhy id="terms-why-k2" ticked={terms} />
         <InlineError message={slip ?? error} />
-        <button type="button" onClick={() => setProduct(null)} style={linkButton}>{product === "firm" ? "I am an organisation, not a professional firm" : "I am a professional firm, not an organisation"}</button>
+        {orgDirect && <button type="button" onClick={() => setProduct(null)} style={linkButton}>{product === "firm" ? "I am an organisation, not a professional firm" : "I am a professional firm, not an organisation"}</button>}
       </form>
       )}
       <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "18px auto 4px", maxWidth: "44ch" }}>
-        Invited by someone else? Ask the owner of your organisation to name this email on a control, then open the link they send.
+        Invited by someone else? Open the link in the e-mail invitation.
       </p>
       {onOpenPartner && (
         <p style={{ fontSize: 13.5, color: "var(--dpdp-ink3)", margin: "8px auto 4px", maxWidth: "44ch" }}>

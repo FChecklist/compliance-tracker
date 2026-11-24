@@ -7,94 +7,59 @@ This is the visible text of every public page of https://veridian-aios.com.
 ## DPDP Compliance Management Software for India — https://veridian-aios.com/
 
 DPDP Act 2023 · DPDP Rules 2025
-### DPDP compliance that outlasts the person who set it up.
-VERIDIAN turns the law into a set of controls, hands each one to a named person, and keeps a dated record that is added to, not edited.
-For professionals CA · CS · Legal · Audit firm Doing it for my clients → For organisations Company · School · NGO Doing it for ourselves →
-No accounts or passwords for stakeholders One email a week Never stores your documents
-Already have an account? Sign in
-Sample · DPDP file Record sealed
-Sample data — 8 of 13 controls done 62%
-Name a Grievance Officer Owner · answered 12 Sep, locked
-Done
-List vendors who hold your data Accounts · answered 14 Sep, locked
-Done
-Publish the privacy notice Director · due this week
-Waiting
-Breach drill — 72-hour rule IT head · not started
-Next
-8 dated answers, each with who said it and when. Changes are added to the record, never overwritten.
-Whoever leaves, the proof stays.
-Built for DPDP Act 2023 & Rules 2025 SPDI Rules 2011 apply until 13 May 2027 Every control mapped to its legal source Free AI assistant, you confirm every update
-Many businesses fall short of the DPDP Act at the very first step: knowing what data they hold, where it is and who else has it.
-1. What is the data?
-2. Where is it?
-3. With whom is it?
-Then comes keeping track of it. But people leave, even the people you asked to track it.
-VERIDIAN is an independent, third-party system. It is built to work for 10 years and to keep every record in a form that cannot be edited.
-You never know when you will need it.
-Not data-cleaning software. Your data stays where it is.
-Built with CA, CS, legal and audit firms
-### We work closely with the firms that guide India's businesses.
-VERIDIAN-AIOS builds solutions for compliance, audit and control. For more information, call +91 96503 97480 or write to dpdp@veridian-aios.com .
-Every client in one place See each client's controls, who owns them and what is overdue, without chasing e-mails.
-A service you can offer Give each client a dated DPDP file they can show. You guide them, the software keeps the record.
-Grow with us Tell us what your firm needs and we build with you. A Sales Partner programme lets you earn when you bring in clients.
+### DPDP is coming. Penalties are high.
+It is not an IT job. It is the job of the CA, CS or auditor to remind the client.
+The first step is Discover, with a regular independent follow-up every week: what data is there, where it is, and what has been done with it.
+Become a Partner
+For a Firm (CA, CS, auditor or lawyer) and for an Accountant Partner.
+By continuing you accept the Terms of Service .
+Sign in with an e-mail. No password. Simple. Step by step. A free AI assistant helps with each step
+Already a Partner or a client? Sign in
+Built for DPDP Act 2023 & Rules 2025 SPDI Rules 2011 apply until 13 May 2027 Every control mapped to its legal source Free AI assistant, a person confirms every update
+### Discover. Decide. Do.
+1. Discover What data there is, where it is, and with whom.
+2. Decide What to do, when to do it, and who will do it.
+3. Do Confirm that it is done.
+It is not a one-time job. It is weekly work. Discover, Decide and Do come round every week. A simple system keeps them going. VERIDIAN is that system.
+### How it works in 3 steps
+1.
+### A Partner joins
+A Firm or an Accountant Partner signs in with an e-mail. No password.
+2.
+### The Partner adds clients
+Each client gets an e-mail invitation, verifies by e-mail, and sees its own dashboard.
+3.
+### Every week
+Discover, Decide, Do. Partner and client both see what is done, what is pending, with whom, and how old it is.
+### Two ways to become a Partner
+Firm A CA, CS, auditor or lawyer. Runs the weekly work for clients, signs off reports and gives advice.
+Accountant Partner An accountant or bookkeeper who is not a CA. Runs the weekly routine with clients as a reminder and follow-up service.
+Accountant Partners remind clients and follow up every week. A professional confirms every sign-off and every legal point.
+Partners earn a commission in Moneypenny credits when a client pays for the weekly plan.
+Become a Partner
 Why it matters
 ### Three things to know about DPDP compliance
 1. People change, but your liability does not. When people leave, what they knew about your data leaves with them.
 2. Know what data you hold, where it is, and who else holds it for you.
 3. Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up.
-What · Why · Where · Whom · When · Which · How
-### All your questions
-What
-### What is VERIDIAN?
-An independent, third-party record-keeper for DPDP compliance. It turns the law into controls and keeps a dated record of every answer. It is not data-cleaning software. Your data stays where it is.
-Why
-### Why do you need it?
-People change, but your liability does not. Even the person you asked to track your data can leave. An independent, uneditable record stays. If an enquiry ever comes, it helps you show your intention to comply.
-Where
-### Where is your data?
-That is the first question. Write down every place it sits: systems, offices and vendors. The VERIDIAN record is kept in India, on a database in Mumbai.
-Whom
-### With whom is your data?
-Staff, vendors and group companies may all hold it. Each one is given its own controls. Each answers by one email a week, with no account or password.
-When
-### When do you start?
-Today. You never know when you will need the record. Each control has a due date. Every answer is dated, so the record shows what was done and when.
-Which
-### Which one is for you?
-CA, CS, legal and audit firms: use the firm version for your clients. Companies, schools and NGOs: use the organisation version for yourselves.
-How
-### How does it work?
-Four plain steps. The law becomes controls. Each control gets one owner. One email a week brings the answers. Each answer is dated and added to the record.
-How it works
-### From the law to a record, in four plain steps.
-### The law becomes controls
-Each obligation turns into a clear control, mapped to the section or rule it comes from.
-### Each control gets one owner
-The control goes to the responsible person. Owners, staff, vendors and group companies are all covered.
-### One email a week
-Everyone answers through one email a week, with no accounts or passwords.
-### The record builds itself
-Each answer is recorded with a date and is added to the record, not edited, building the proof an organisation needs.
 ### Your free DPDP AI assistant
 It does the routine work. You stay in charge.
 Open your personal link in your own AI. It reads your controls and drafts the updates. You confirm them.
 Get your free AI assistant See how it works
 What is overdue this week?
-Two controls. The privacy notice is waiting on the Director, and the vendor list needs one more answer. Draft ready for your review.
+Two controls. The privacy notice is waiting on the Director, and the vendor list needs one more answer. Draft ready for review.
 Update the vendor list.
 Drafted. Please confirm to record it. Confirm
 Not sure where to start?
 ### Talk to a person.
-Tell us about your firm or organisation. We will help you choose, and answer in plain words.
+Tell us about the firm or the practice. We will help, and answer in plain words.
 +91 96503 97480 or dpdp@veridian-aios.com
 What VERIDIAN is not
 ### Said plainly, so you can trust the rest.
 Not a law firm. It is software, not legal advice.
 Not a certifier. No DPDP certification exists in India and we do not offer one.
 No promised outcome. It helps you do and prove the work. It does not promise a result.
-Not a document store. It does not keep your documents. The one exception is a payment proof you choose to upload.
+Not a document store. It does not keep documents. The one exception is a payment proof that a person chooses to upload.
 ### What VERIDIAN (VERy INDIAN) is
 dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 Who it is for:

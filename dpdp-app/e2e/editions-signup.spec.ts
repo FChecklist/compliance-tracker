@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
 
 // WO-DPDP-015: the two edition landing pages END TO END in a browser, mock
 // mode (VITE_MOCK=1), by accessible names only (same rule as
@@ -29,6 +30,8 @@ async function signInFrom(page: Page, email: string, heading: string) {
 
 for (const ed of EDITIONS) {
   test.describe(`${ed.path} -- a new ${ed.slug} owner, start to finish`, () => {
+    // The organisation-direct path is hidden (src/lib/org-direct.mjs): its landing page redirects to the Partner door and the form is not offered.
+    test.skip(ed.slug === "institution" && !ORG_DIRECT_ENABLED, "organisation-direct is hidden while ORG_DIRECT_ENABLED is false")
     test("Start free -> email -> Open your organisation (edition chosen) -> the owner's first visit -> the list", async ({ page }) => {
       await page.goto(ed.path)
       // Every "Start free" on the page opens the app, not the old Next.js login.

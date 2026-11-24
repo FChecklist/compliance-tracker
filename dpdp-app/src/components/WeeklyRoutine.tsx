@@ -52,9 +52,9 @@ export function WeeklyRoutine({ client, orgId, rows, offline }: { client: DpdpCl
     <div className="dpdp-onepage" id="weekly-routine" data-testid="weekly-routine">
       <div className="max-w-[1240px] mx-auto px-5 pt-4">
         <section className="rounded-[22px] border p-6" style={card} aria-labelledby="weekly-h">
-          <h2 id="weekly-h" style={{ fontFamily: "Sora, sans-serif", fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "var(--dpdp-ink)" }}>Your weekly routine</h2>
+          <h2 id="weekly-h" style={{ fontFamily: "Sora, sans-serif", fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "var(--dpdp-ink)" }}>Weekly routine</h2>
           <p style={{ fontSize: 14, color: "var(--dpdp-ink2)", margin: "0 0 14px", maxWidth: "74ch" }}>
-            Three small stages, once a week: Discover, Act, Confirm. Most of it is done for you by the automatic helper; where a person is needed, it says so.
+            Three small stages, once a week: Discover, Decide, Do. Most of it is done for you by the automatic helper; where a person is needed, it says so.
           </p>
 
           <div role="group" aria-label="Weekly rhythm" className="rounded-2xl border p-4 mb-5" style={{ borderColor: "var(--dpdp-line)", background: "rgba(0,0,0,0.02)" }}>

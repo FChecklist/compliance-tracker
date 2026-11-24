@@ -1,4 +1,4 @@
-// The weekly routine: three stages every organisation runs every week -- Discover, Act, Confirm. Pure functions only (no React, no network),
+// The weekly routine: three stages run every week -- Discover, Decide, Do (internal ids stay know / act / check). Pure functions only (no React, no network),
 // so the same rules are unit-tested and the screen just shows what they return.
 //
 // Honest source of every line: the organisation's own History (dpdp_org_history, newest first) and its jobs. Nothing here is invented:
@@ -22,7 +22,7 @@ export const STAGES: RoutineStage[] = [
   {
     id: "know",
     name: "Discover",
-    promise: "Find out what data you hold, who holds it and where it lives.",
+    promise: "What data there is, where it is, and with whom.",
     steps: [
       { n: 1, doer: "software", what: "Every Monday the helper reads your list of data, people and systems.", result: "A fresh reading, with the date, shows in the line below." },
       { n: 2, doer: "person", what: "Open your AI work link and ask: “What changed since last week?”", result: "You get a short list: new data, new people, new systems." },
@@ -31,8 +31,8 @@ export const STAGES: RoutineStage[] = [
   },
   {
     id: "act",
-    name: "Act",
-    promise: "Do this week's jobs, one by one, each with a name and a date.",
+    name: "Decide",
+    promise: "What to do, when to do it, and who will do it.",
     steps: [
       { n: 1, doer: "software", what: "The helper sorts the week's jobs: late first, then due soon.", result: "“What you have to do” is already in the right order." },
       { n: 2, doer: "person", what: "Do the job, then tap Mark done. Not yours? Give it to someone.", result: "The job shows ✓ and your name and the time go into History." },
@@ -41,8 +41,8 @@ export const STAGES: RoutineStage[] = [
   },
   {
     id: "check",
-    name: "Confirm",
-    promise: "Make sure the week's work really happened, and keep the proof.",
+    name: "Do",
+    promise: "Confirm that it is done.",
     steps: [
       { n: 1, doer: "software", what: "The helper counts the week's jobs: done, still open, late.", result: "Three numbers, always live, below." },
       { n: 2, doer: "person", what: "The owner looks at the numbers and at History, and opens the audit log if needed.", result: "You can say, in one line, whether the week is complete." },
@@ -65,7 +65,7 @@ export type HistoryLike = { kind: string; summary: string; actorLabel: string; o
 /** One row of dpdp_weekly_runs (drizzle proposal 0760): the server's own record of a run. */
 export type WeeklyRunWire = { id: string; stage: "discover" | "act" | "confirm"; weekStart: string; ranAt: string; byKind: "person" | "device" | "software"; actorLabel: string | null; outcome: "ok" | "partial" | "failed" | "skipped"; note: string | null }
 const STAGE_OF_WIRE: Record<WeeklyRunWire["stage"], StageId> = { discover: "know", act: "act", confirm: "check" }
-const STAGE_WORD: Record<WeeklyRunWire["stage"], string> = { discover: "Discover", act: "Act", confirm: "Confirm" }
+const STAGE_WORD: Record<WeeklyRunWire["stage"], string> = { discover: "Discover", act: "Decide", confirm: "Do" }
 const OUTCOME_WORD: Record<WeeklyRunWire["outcome"], string> = { ok: "finished", partial: "partly finished", failed: "did not finish", skipped: "was skipped" }
 
 /** The server's runs, shaped like History lines so the same latest-log and rhythm rules read both. */

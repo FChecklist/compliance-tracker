@@ -68,6 +68,8 @@ export const CATALOG: GuideEntry[] = [
   // ---------- jobs ----------
   { m: ["Job not found", "That job does not exist, or is not one this link can see"], k: "blocked", t: "That control is no longer on your list",
     w: "The control may have been finished, moved or removed while you were looking at it.", d: ["Press Try again to see the latest list.", "If you still need it, ask the owner of your organisation."], g: retry },
+  { m: ["An organisation joins through a Firm or an Accountant Partner"], k: "blocked", t: "An organisation joins through a Firm",
+    w: "Opening an organisation account directly is switched off. A Firm or an Accountant Partner adds the organisation as a client.", d: ["Ask the Firm for an e-mail invitation, then open the link in it."], g: none },
   { m: ["Not your job", "Only the owner or the person it is assigned to can mark it not applicable"], k: "blocked", t: "That control belongs to someone else",
     w: "Only the person a control is given to, or the owner of the organisation, can change it.", d: ["Ask the owner to give you the control, or to change it for you."], g: none },
   { m: ["Waiting — the step before this one isn't done yet", "Waiting - the step before this one"], k: "blocked", t: "This control is waiting for an earlier step",

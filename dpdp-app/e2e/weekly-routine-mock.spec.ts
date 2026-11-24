@@ -11,12 +11,12 @@ test.describe("Weekly routine (mock)", () => {
 
     const routine = page.getByRole("region", { name: "Your weekly routine" })
     await expect(routine).toBeVisible()
-    for (const [n, name] of [[1, "Discover"], [2, "Act"], [3, "Confirm"]] as const) {
+    for (const [n, name] of [[1, "Discover"], [2, "Decide"], [3, "Do"]] as const) {
       await expect(routine.getByRole("heading", { name: `Stage ${n} · ${name}` })).toBeVisible()
     }
     await expect(routine.getByText("Step 1.")).toHaveCount(3)
     await expect(routine.getByText("Step 3.")).toHaveCount(3)
-    for (const name of ["Discover", "Act", "Confirm"]) await expect(routine.getByRole("group", { name: `Latest log, ${name}` })).toContainText("Latest log:")
+    for (const name of ["Discover", "Decide", "Do"]) await expect(routine.getByRole("group", { name: `Latest log, ${name}` })).toContainText("Latest log:")
 
     const rhythm = routine.getByRole("group", { name: "Weekly rhythm" })
     await expect(rhythm).toContainText("Last run:")

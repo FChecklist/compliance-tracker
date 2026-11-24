@@ -7,7 +7,7 @@ const NOW = at("2026-11-11T09:00:00Z") // a Wednesday
 
 describe("weekly routine rules", () => {
   test("three stages, each with numbered steps by a person, the device or the helper", () => {
-    expect(STAGES.map((s) => s.name)).toEqual(["Discover", "Act", "Confirm"])
+    expect(STAGES.map((s) => s.name)).toEqual(["Discover", "Decide", "Do"])
     for (const s of STAGES) expect(s.steps.map((x) => x.n)).toEqual([1, 2, 3])
   })
   test("a week starts on Monday", () => {
@@ -55,7 +55,7 @@ describe("weekly routine rules", () => {
     expect(know.lastWho).toBe("Automatic helper")
     expect(know.lastWhat).toBe("Discover finished (Monday reading)")
     expect(know.thisWeek).toBe(true)
-    expect(stageLog("check", runs, NOW).lastWhat).toBe("Confirm did not finish")
+    expect(stageLog("check", runs, NOW).lastWhat).toBe("Do did not finish")
     expect(stageLog("check", [e("weekly_run_logged", "2026-11-10T08:00:00Z")], NOW).thisWeek).toBe(true) // a sign-off also in History
     expect(cadence(runs, NOW).weeks[3].ran).toBe(true)
   })
