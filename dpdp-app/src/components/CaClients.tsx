@@ -2,6 +2,7 @@ import "./onepage/dpdp-onepage-tokens.css"
 import { useState, useTransition, type FormEvent, type ReactNode } from "react"
 import type { CaClient } from "@/lib/api"
 import { GuidedError } from "@/components/GuidedError"
+import { FirmDashboard } from "@/components/FirmDashboard"
 
 // WO-DPDP-010 §3 "CA firm view", ported from src/app/dpdp/(app)/ca-clients/
 // page.tsx (copy verbatim) onto dpdp_my_clients, plus the two things WO-011
@@ -191,6 +192,7 @@ export function CaClients({
         <p style={{ fontSize: 14.5, color: "var(--dpdp-ink2)", margin: "0 0 20px" }}>
           Every organisation that named you as their CA manager or CA partner.
         </p>
+        <FirmDashboard clients={clients} onOpen={onOpen} />
         {clients.length > 0 && <ClientsDashboard clients={clients} />}
         <HowTo clients={clients} onAdd={() => setAdding(true)} />
         {clients.length === 0 ? (

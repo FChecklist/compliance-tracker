@@ -39,6 +39,7 @@ import { BrandLine } from "./components/BrandLine"
 import { shareRoleFor } from "./lib/brand"
 import { AiFirstSteps } from "./components/AiFirstSteps"
 import { WeeklyRoutine } from "./components/WeeklyRoutine"
+import { ClientDashboard } from "./components/ClientDashboard"
 import { DeviceCopy } from "./components/DeviceCopy"
 import { createCopyStore } from "./lib/device-copy/copy-store"
 import { idbKv } from "./lib/device-copy/kv"
@@ -466,6 +467,7 @@ function Page({
     // without an RPC; everything else on the page is wired.
     body = (
       <>
+        {viewer.kind !== "staff" && viewer.kind !== "parent" && <ClientDashboard rows={rows} />}
         {viewer.kind !== "staff" && viewer.kind !== "parent" && <WeeklyRoutine key={org.id} client={client} orgId={org.id} rows={rows} offline={copyInfo.offline} />}
         <AiFirstSteps client={client} orgId={org.id} offline={copyInfo.offline} onMade={refetch} />
         <div id="jobs" />
