@@ -17,11 +17,11 @@ test.describe("home page: firm first", () => {
     await expect(page.getByRole("checkbox")).toHaveCount(0)
   })
 
-  test("the organisation door is hidden: no link on the home page, and its landing address goes to the Partner door", async ({ page }) => {
+  test("the organisation door is hidden: no link on the home page", async ({ page }) => {
     test.skip(ORG_DIRECT_ENABLED, "organisation-direct is switched on")
     await page.goto("/")
     await expect(page.locator('a[href="/dpdp-institution/"]')).toHaveCount(0)
-    await page.goto("/dpdp-institution/")
-    await expect(page).toHaveURL(/\/partner\/$/)
+    // The redirect from /dpdp-institution/ to /partner/ lives in public/_redirects, which the host applies but "vite preview" does not;
+    // src/lib/org-direct.test.ts and src/lib/redirects.test.ts check that file.
   })
 })

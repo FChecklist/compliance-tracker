@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
 
 // Guided errors, in a real browser, as each role (owner, 2026-10-22): a polite title, a plain
 // explanation, numbered steps, a button that takes the person to the exact box, and a way back.
@@ -184,6 +185,7 @@ test.describe("guided errors -- every role, real browser", () => {
   })
 
   test("school: a person opening their organisation without a name is guided to the name box", async ({ page }) => {
+    test.skip(!ORG_DIRECT_ENABLED, "organisation-direct is hidden (src/lib/org-direct.mjs)")
     await page.goto("/app/?mock=visitor")
     await expect(page.getByRole("heading", { level: 1, name: "Open your account", exact: true })).toBeVisible()
     await page.getByRole("button", { name: /^For organisations/ }).click()

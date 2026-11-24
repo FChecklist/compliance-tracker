@@ -92,6 +92,7 @@ for (const ed of EDITIONS) {
 
 test.describe("a visitor with no organisation", () => {
   test("must choose a door (professionals or organisations) and name it; a double click makes one; the invited are told what to ask for", async ({ page }) => {
+    test.skip(!ORG_DIRECT_ENABLED, "organisation-direct is hidden (src/lib/org-direct.mjs): only the professional account is offered")
     await page.goto("/app/?mock=visitor")
     await expect(page.getByRole("heading", { level: 1, name: "Open your account", exact: true })).toBeVisible()
     // No edition was chosen on a landing page: two doors, no form yet.
@@ -117,7 +118,8 @@ test.describe("a visitor with no organisation", () => {
 
   test("sign out from the screen gives the sign-in page back", async ({ page }) => {
     await page.goto("/app/?mock=visitor")
-    await expect(page.getByRole("heading", { level: 1, name: "Open your account", exact: true })).toBeVisible()
+    // With organisation-direct hidden the visitor goes straight to the professional account form.
+    await expect(page.getByRole("heading", { level: 1, name: ORG_DIRECT_ENABLED ? "Open your account" : "Open your professional account", exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Use a different email", exact: true }).click()
     await expect(page.getByRole("heading", { level: 1, name: "Sign in or start free", exact: true })).toBeVisible()
   })

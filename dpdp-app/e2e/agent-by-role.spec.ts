@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test"
+import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
 
 // WO-DPDP-012 §6, verbatim: "Semantic HTML: real <button>, <a>, <label>,
 // <form>. Every control has a clear accessible name. Nothing works only on
@@ -26,16 +27,17 @@ import { test, expect, type Locator, type Page } from "@playwright/test"
 // /app/ is private to crawlers but is where the sign-in lives, so it is the
 // last step of the public journey and is audited the same way.
 const PUBLIC_PAGES = [
-  { path: "/", h1: "DPDP compliance that outlasts the person who set it up." },
+  { path: "/", h1: "DPDP is coming. Penalties are high." },
   { path: "/dpdp-firm/", h1: "DPDP compliance for all your clients, in one place" },
   { path: "/dpdp-institution/", h1: "DPDP compliance for your own organisation, with proof you can show" },
 ] as const
 
 const SIGN_IN = { path: "/app/", h1: "Sign in or start free" } as const
 
-// The two ways in on the home page, word for word (owner, 2026-10-01).
-const FOR_CLIENTS = "For professionals CA · CS · Legal · Audit firm Doing it for my clients →"
-const FOR_US = "For organisations Company · School · NGO Doing it for ourselves →"
+// The home page since the firm-first redesign (owner, 24 Nov 2026): one Partner button and one sign-in link, word for word (src/lib/home-copy.mjs).
+// The organisation door is hidden while ORG_DIRECT_ENABLED is false (src/lib/org-direct.mjs); the old two-door chooser is only back when it is true.
+const BECOME_PARTNER = "Become a Partner"
+const HOME_SIGN_IN = "Already a Partner or a client? Sign in"
 
 const ALL_SURFACES = [...PUBLIC_PAGES, SIGN_IN] as const
 
@@ -66,16 +68,17 @@ test.describe("WO-DPDP-012 §6 -- an assistant can use the public site by access
   // (a) + (b) + (c): the one journey, root chooser -> firm landing -> sign-in
   // up to the email step, and not one step further.
   test("root chooser -> firm landing -> sign-in, stopping at 'check your email'", async ({ page }) => {
-    // (a) The root chooser offers exactly two ways in (owner, 2026-10-01),
-    // each a real link whose accessible name is its whole label.
+    // (a) The home page offers one way in, the Partner door, and a sign-in
+    // link, each a real link whose accessible name is its whole label.
+    test.skip(ORG_DIRECT_ENABLED, "the two-door home is not the page while organisation-direct is switched on")
     await open(page, PUBLIC_PAGES[0])
-    const forClients = page.getByRole("link", { name: FOR_CLIENTS, exact: true })
-    const forUs = page.getByRole("link", { name: FOR_US, exact: true })
-    await expect(forClients).toBeVisible()
-    await expect(forUs).toBeVisible()
+    const becomePartner = page.getByRole("link", { name: BECOME_PARTNER, exact: true }).first()
+    await expect(becomePartner).toBeVisible()
+    await expect(becomePartner).toHaveAttribute("href", "/partner/")
     await expect(page.getByRole("link", { name: /school instead/i })).toHaveCount(0)
-    await expect(page.getByRole("link", { name: "Already have an account? Sign in", exact: true })).toBeVisible()
-    await forClients.click()
+    await expect(page.getByRole("link", { name: HOME_SIGN_IN, exact: true })).toBeVisible()
+    // The firm landing is a public page of its own: go to it directly.
+    await page.goto("/dpdp-firm/")
 
     // (b) The firm landing: one h1 with the expected name, the primary
     // call-to-action reachable by role + name, nothing hover-only.
@@ -126,10 +129,10 @@ test.describe("WO-DPDP-012 §6 -- an assistant can use the public site by access
       await open(page, surface)
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1)
       if (surface.path === "/") {
-        // The chooser's primary actions are the two edition links (tested
-        // by full name in the journey above); here, that both exist by role.
-        await expect(page.getByRole("link", { name: FOR_CLIENTS, exact: true })).toBeVisible()
-        await expect(page.getByRole("link", { name: FOR_US, exact: true })).toBeVisible()
+        // The home page's primary actions are the Partner button and the sign-in link; here, that both exist by role and name.
+        test.skip(ORG_DIRECT_ENABLED, "the two-door home is not the page while organisation-direct is switched on")
+        await expect(page.getByRole("link", { name: BECOME_PARTNER, exact: true }).first()).toBeVisible()
+        await expect(page.getByRole("link", { name: HOME_SIGN_IN, exact: true })).toBeVisible()
       } else {
         await expectPrimaryCallToAction(page)
       }

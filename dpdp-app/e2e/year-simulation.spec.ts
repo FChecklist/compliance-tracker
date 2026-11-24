@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
 
 // One simulated year, month by month (owner, 2026-10-22: "test the complete role and user life cycle
 // for 1 year, fast-forward the time, fake ids, CA use case, school use case"). The BUILT site in mock
@@ -96,6 +97,7 @@ test.describe("one simulated year -- fake people, clock fast-forwarded", () => {
   })
 
   test("a school: opens its organisation, the parent answers, a year passes, the consent can be withdrawn", async ({ page }) => {
+    test.skip(!ORG_DIRECT_ENABLED, "organisation-direct is hidden (src/lib/org-direct.mjs)")
     await page.clock.install({ time: START })
     await page.goto("/app/?mock=visitor")
     await expect(page.getByRole("heading", { level: 1, name: "Open your account", exact: true })).toBeVisible()
