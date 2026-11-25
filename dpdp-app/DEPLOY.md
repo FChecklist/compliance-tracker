@@ -148,6 +148,9 @@ build if any public surface names either app host.
 
 Brand images (`public/og-image.png` 1200x630, `logo.png`, `favicon-48.png`) are
 rendered from `brand/social-images.html` (the recipe is in its header comment).
+The touch icon, `favicon-32.png` and the four app icons under `public/app/` are rendered from
+`brand/app-icons.html` (recipe in its header comment). All of them show the mark in `public/logo-mark.svg`:
+after a logo change, re-render all nine files (26 Nov 2026: re-rendered for logo option C).
 Cache: `/assets/*` and `/fonts/*` one year `immutable` (fonts are not
 hashed: never replace one in place, ship a new file name); public HTML stays on
 the Pages default (revalidate) on purpose.

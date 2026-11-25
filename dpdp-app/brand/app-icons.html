@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  Source of the app and touch icons in public/ (2026-11-26, after the logo change to option C):
+    apple-touch-icon.png        180x180  app-icons.html?m=touch
+    favicon-32.png               32x32   app-icons.html?m=fav
+    app/icon-192.png, icon-512.png            192 and 512  app-icons.html?m=any
+    app/icon-maskable-192.png, -512.png       192 and 512  app-icons.html?m=maskable
+  Not part of the site (this folder is outside public/ and is not built). The only picture used is
+  public/logo-mark.svg, so switching the logo is still a one-file change followed by a re-render.
+  Maskable keeps the mark inside the middle 60 percent (the safe zone). "touch" and "maskable" are
+  full-bleed (the phone adds its own rounded corners). "any" has rounded corners and a transparent edge.
+
+  Re-render (Chrome or Edge, headless), from dpdp-app/, one command per size:
+    chrome --headless=new --hide-scrollbars --default-background-color=00000000 --window-size=180,180 --screenshot=public/apple-touch-icon.png "file:///<abs path>/brand/app-icons.html?m=touch&s=180"
+    chrome --headless=new --hide-scrollbars --default-background-color=00000000 --window-size=32,32   --screenshot=public/favicon-32.png "file:///<abs path>/brand/app-icons.html?m=fav&s=32"
+    chrome --headless=new --hide-scrollbars --default-background-color=00000000 --window-size=192,192 --screenshot=public/app/icon-192.png "file:///<abs path>/brand/app-icons.html?m=any&s=192"
+    chrome --headless=new --hide-scrollbars --default-background-color=00000000 --window-size=512,512 --screenshot=public/app/icon-512.png "file:///<abs path>/brand/app-icons.html?m=any&s=512"
+    chrome --headless=new --hide-scrollbars --default-background-color=00000000 --window-size=192,192 --screenshot=public/app/icon-maskable-192.png "file:///<abs path>/brand/app-icons.html?m=maskable&s=192"
+    chrome --headless=new --hide-scrollbars --default-background-color=00000000 --window-size=512,512 --screenshot=public/app/icon-maskable-512.png "file:///<abs path>/brand/app-icons.html?m=maskable&s=512"
+-->
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>VERIDIAN app icons</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { background: transparent; overflow: hidden; }
+      .t { display: none; align-items: center; justify-content: center; width: var(--s, 180px); height: var(--s, 180px); }
+      body[data-m="touch"] .touch, body[data-m="fav"] .fav, body[data-m="any"] .any, body[data-m="maskable"] .maskable { display: flex; }
+      .touch { background: #fffdf9; }
+      .touch img { width: 78%; height: 78%; }
+      .fav img { width: 100%; height: 100%; }
+      .any { background: #fffdf9; border-radius: 22%; }
+      .any img { width: 74%; height: 74%; }
+      .maskable { background: #fffdf9; }
+      .maskable img { width: 56%; height: 56%; }
+    </style>
+  </head>
+  <body>
+    <div class="t touch"><img src="../public/logo-mark.svg" alt="" /></div>
+    <div class="t fav"><img src="../public/logo-mark.svg" alt="" /></div>
+    <div class="t any"><img src="../public/logo-mark.svg" alt="" /></div>
+    <div class="t maskable"><img src="../public/logo-mark.svg" alt="" /></div>
+    <script>
+      // Fixed pixel size (headless Chrome lays small windows out wider than asked, so 100vw would centre the picture off-image).
+      const q = new URLSearchParams(location.search)
+      const m = q.get("m") || "touch"
+      document.body.dataset.m = m
+      const size = q.get("s") || (m === "fav" ? "32" : "180")
+      document.documentElement.style.setProperty("--s", size + "px")
+    </script>
+  </body>
+</html>
