@@ -85,7 +85,7 @@ const jsonRes = (status: number, body: unknown, extra: Record<string, string> = 
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", ...NO_STORE, ...extra } })
 const oauthError = (status: number, error: string, description: string): Response => jsonRes(status, { error, error_description: description })
 const page = (status: number, text: string): Response =>
-  new Response(`<!doctype html><meta charset="utf-8"><title>PROJEXA</title><p style="font:16px system-ui;margin:2rem">${text}</p>`, { status, headers: { "Content-Type": "text/html; charset=utf-8", ...NO_STORE } })
+  new Response(`<!doctype html><meta charset="utf-8"><title>PROJEXA</title><style>.mark139{position:absolute;top:0;left:0;right:0;margin:0;padding:1px 0 0;text-align:center;line-height:1;pointer-events:none;user-select:none;z-index:2147483647;font-family:"Noto Sans Devanagari","Mukta","Nirmala UI","Mangal","Kohinoor Devanagari","Devanagari Sangam MN",sans-serif;font-size:6px;font-weight:700;color:#0B2A6B}.mark139 span{display:inline-block;border-bottom:.5px solid #7A1010;padding-bottom:.5px}</style><div class="mark139" lang="hi" aria-hidden="true"><span>१३९</span></div><p style="font:16px system-ui;margin:2rem">${text}</p>`, { status, headers: { "Content-Type": "text/html; charset=utf-8", ...NO_STORE } })
 
 const cors = (origin: string | null, allow: string): Record<string, string> =>
   origin === allow ? { "Access-Control-Allow-Origin": allow, "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", Vary: "Origin" } : {}

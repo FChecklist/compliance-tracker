@@ -76,6 +76,7 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <body className={`${veridianSansFont.variable} ${veridianHeadingFont.variable} font-sans antialiased`}>
+        <div className="mark139" lang="hi" aria-hidden="true"><span>१३९</span></div>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider
             attribute="class"

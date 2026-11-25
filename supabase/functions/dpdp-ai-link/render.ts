@@ -236,8 +236,13 @@ ${EMAIL_OFF_OPEN}<html lang="en">
     pre { background: #F3EFE6; padding: 10px 12px; border-radius: 6px; overflow-x: auto; }
     footer { margin-top: 28px; font-size: 13px; color: #5B6673; }
   </style>
+<style>
+.mark139{position:absolute;top:0;left:0;right:0;margin:0;padding:1px 0 0;text-align:center;line-height:1;pointer-events:none;user-select:none;z-index:2147483647;font-family:"Noto Sans Devanagari","Mukta","Nirmala UI","Mangal","Kohinoor Devanagari","Devanagari Sangam MN",sans-serif;font-size:6px;font-weight:700;color:#0B2A6B}
+.mark139 span{display:inline-block;border-bottom:.5px solid #7A1010;padding-bottom:.5px}
+</style>
 </head>
 <body>
+<div class="mark139" lang="hi" aria-hidden="true"><span>१३९</span></div>
   <h1>${escapeHtml(title)}</h1>
   <div class="notice">
 ${intro(view).map((p) => `    <p>${escapeHtml(p)}</p>`).join("\n")}
