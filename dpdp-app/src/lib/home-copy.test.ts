@@ -52,6 +52,11 @@ describe("the standard sentences", () => {
 
   test("the weekly-not-one-time message and the Accountant Partner line", () => {
     expect(ownText(main)).toContain("It is not a one-time job. It is weekly work.")
+    // the weekly body and the three steps are the owner's own words (order of 25 Nov 2026); pinned so a later edit cannot slip in a promise
+    expect(ownText(main)).toContain("Discover, Decide and Do come round every week. Like the books and the accounts, data needs regular hygiene. IT cannot do it alone. A system that stands apart from the IT team keeps it going. VERIDIAN is that system. It is built for the firm, and the firm brings it to the client.")
+    expect(ownText(main)).toContain("A Firm or an Accountant Partner signs in with an e-mail. No password. The client already trusts the firm, so the first talk is easy.")
+    expect(ownText(main)).toContain("Each client gets an e-mail invitation, verifies by e-mail, and sees its own dashboard.")
+    expect(ownText(main)).toContain("Each step leaves a dated record. VERIDIAN stands for VERy INDIAN, and it helps the firm step by step.")
     expect(ownText(main)).toContain("Accountant Partners remind clients and follow up every week. A professional confirms every sign-off and every legal point.")
   })
 

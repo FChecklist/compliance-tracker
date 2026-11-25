@@ -29,15 +29,15 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
   const facts = loadFacts()
 
   test("is version 2, owner-approved on 2026-10-01 (the home-page block) on top of the owner's WO text", () => {
-    expect(facts.version).toBe(2)
+    expect(facts.version).toBe(3)
     expect(facts.owner_approved).toBe(true)
-    expect(facts.approved_on).toBe("2026-10-01")
+    expect(facts.approved_on).toBe("2026-11-25")
     expect(facts.approved_by).toContain("owner")
     expect(facts.approved_by).toContain("WO-DPDP-013 v2")
   })
 
   test("carries WO-DPDP-013 v2 §2.2 verbatim (the four paragraphs)", () => {
-    // 2026-10-01 (owner): the first sentence names the app host; the audience adds companies and NGOs.
+    // 2026-10-01 (owner): the audience adds companies and NGOs. 2026-11-25 (owner order, facts version 3): the first sentence names veridian-aios.com, the main address (it used to name the app host).
     expect(facts.one_line).toBe(
       "veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.",
     )
@@ -165,7 +165,7 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
     expect(facts.site).toBe("https://veridian-aios.com")
     expect(PUBLIC_ORIGIN).toBe(facts.site)
     expect(facts.company_site).toBe(`${facts.site}/`)
-    // The owner-approved sentence names dpdp.veridian-aios.com as a plain word; no URL anywhere.
+    // The owner-approved sentence names veridian-aios.com (the main address) as a plain word; no URL for the app host anywhere.
     expect(JSON.stringify(facts)).not.toContain("https://dpdp.veridian-aios.com")
     expect(JSON.stringify(facts)).not.toContain("app.veridian-aios.com")
   })
