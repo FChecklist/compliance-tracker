@@ -155,6 +155,8 @@ Cache: `/assets/*` and `/fonts/*` one year `immutable` (fonts are not
 hashed: never replace one in place, ship a new file name); public HTML stays on
 the Pages default (revalidate) on purpose.
 
+The facts file `data/veridian-facts.yaml` is version 3 since 2026-11-25 (owner order: the first sentence of `one_line` names veridian-aios.com, the main address). `src/lib/facts.mjs` pins the version, so a deploy built from an older facts file fails its tests.
+
 After the first deploy that carries this: `curl -s https://veridian-aios.com/ | grep -E 'canonical|og:url|og:image'`,
 `curl -s https://veridian-aios.com/sitemap.xml`, grep the live pages for
 `[email protected]` (must be absent), then in Google Search Console add the

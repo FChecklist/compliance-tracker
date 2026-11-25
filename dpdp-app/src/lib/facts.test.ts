@@ -28,7 +28,7 @@ const read = (rel: string) => readFileSync(join(APP, rel), "utf8").replace(/\r\n
 describe("data/veridian-facts.yaml: the one source of truth", () => {
   const facts = loadFacts()
 
-  test("is version 2, owner-approved on 2026-10-01 (the home-page block) on top of the owner's WO text", () => {
+  test("is version 3, owner-approved on 2026-11-25 (the main address in the first sentence, on top of the 2026-10-01 home-page block and the owner's WO text)", () => {
     expect(facts.version).toBe(3)
     expect(facts.owner_approved).toBe(true)
     expect(facts.approved_on).toBe("2026-11-25")
