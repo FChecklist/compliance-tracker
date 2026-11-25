@@ -48,7 +48,7 @@ export const FACT_PAGE_PATHS = ["/", "/dpdp-firm/", "/dpdp-institution/", "/abou
 export function loadFacts() {
   const f = readYaml(FACTS_FILE)
   need(f && typeof f === "object", "not a mapping")
-  need(f.version === 2, "version must be 2 (the 2026-10-01 owner-approved home-page block)")
+  need(f.version === 3, "version must be 3 (the 2026-10-01 owner-approved home-page block, and the 2026-11-25 owner order that put the main address in the first sentence)")
   need(f.owner_approved === true, "owner_approved must be true (the §2.2 / §1.3-A / WO-014 §1 text is owner text)")
   need(/^\d{4}-\d{2}-\d{2}$/.test(String(f.approved_on)), "approved_on must be YYYY-MM-DD")
   need(isStr(f.approved_by), "approved_by missing")

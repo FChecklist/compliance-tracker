@@ -60,7 +60,7 @@ export interface AiAssistant {
 }
 
 export interface Facts {
-  version: 2
+  version: 3
   owner_approved: true
   approved_on: string
   approved_by: string

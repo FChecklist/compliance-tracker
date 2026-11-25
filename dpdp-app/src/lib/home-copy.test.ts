@@ -33,9 +33,9 @@ describe("the committed home page is generated from the copy module", () => {
 
 describe("the standard sentences", () => {
   test("the owner's central message, word for word", () => {
-    expect(HOME_COPY.h1).toBe("DPDP is coming. Penalties are high.")
-    expect(HOME_COPY.lead).toBe("It is not an IT job. It is the job of the CA, CS or auditor to remind the client.")
-    expect(HOME_COPY.lead2).toBe("The first step is Discover. Then comes a regular follow-up every week. It shows what data is there, where it is, and what has been done with it.")
+    expect(HOME_COPY.h1).toBe("DPDP is not an IT problem. It is a data hygiene issue, and it has to be done every week.")
+    expect(HOME_COPY.lead).toBe("DPDP is not a one-time job. It has to be done regularly. A firm and its clients need a simple system to Discover, Decide and Do. Data hygiene is not an IT or computer issue. It is regular audit and confirmation. The first step is to set up a process that stands apart from the IT team. VERIDIAN DPDP is that separate, third-party process.")
+    expect(HOME_COPY.lead2).toBe("For a CA, CS, auditor or law firm, this is a regular service for clients. The work comes back every week. VERIDIAN is the tool designed for it: Discover, Decide, Do, with a dated record.")
     for (const s of [HOME_COPY.h1, HOME_COPY.lead, HOME_COPY.lead2]) expect(ownText(main)).toContain(s)
   })
 
@@ -52,6 +52,11 @@ describe("the standard sentences", () => {
 
   test("the weekly-not-one-time message and the Accountant Partner line", () => {
     expect(ownText(main)).toContain("It is not a one-time job. It is weekly work.")
+    // the weekly body and the three steps are the owner's own words (order of 25 Nov 2026); pinned so a later edit cannot slip in a promise
+    expect(ownText(main)).toContain("Discover, Decide and Do come round every week. Like the books and the accounts, data needs regular hygiene. IT cannot do it alone. A system that stands apart from the IT team keeps it going. VERIDIAN is that system. It is built for the firm, and the firm brings it to the client.")
+    expect(ownText(main)).toContain("A Firm or an Accountant Partner signs in with an e-mail. No password. The client already trusts the firm, so the first talk is easy.")
+    expect(ownText(main)).toContain("Each client gets an e-mail invitation, verifies by e-mail, and sees its own dashboard.")
+    expect(ownText(main)).toContain("Each step leaves a dated record. VERIDIAN stands for VERy INDIAN, and it helps the firm step by step.")
     expect(ownText(main)).toContain("Accountant Partners remind clients and follow up every week. A professional confirms every sign-off and every legal point.")
   })
 

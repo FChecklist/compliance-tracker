@@ -22,10 +22,10 @@
 # the owner must supply before it may appear anywhere is `null` with
 # `owner_required: true`, and the generator renders nothing for it.
 
-version: 2
+version: 3
 owner_approved: true
-approved_on: "2026-10-01"
-approved_by: owner (WO-DPDP-013 v2 text, WO-DPDP-014 §1 text; the home-page "What VERIDIAN is" block, 2026-10-01)
+approved_on: "2026-11-25"
+approved_by: owner (WO-DPDP-013 v2 text, WO-DPDP-014 §1 text; the home-page "What VERIDIAN is" block, 2026-10-01; version 3 made the first sentence of one_line name veridian-aios.com as the main address, owner order of 25 Nov 2026)
 
 product: VERIDIAN DPDP
 # `site` is the host the PUBLIC pages are indexed under (canonical, sitemap,
@@ -44,7 +44,7 @@ company_site: https://veridian-aios.com/
 # institutions" became the app host and "companies, institutions, schools and
 # NGOs").
 one_line: >-
-  dpdp.veridian-aios.com is Indian software for running DPDP compliance,
+  veridian-aios.com is Indian software for running DPDP compliance,
   purpose-built for the Digital Personal Data Protection Act 2023 and DPDP
   Rules 2025, for CA, CS, audit and legal firms, their clients, and companies,
   institutions, schools and NGOs.

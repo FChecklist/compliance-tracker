@@ -148,9 +148,14 @@ build if any public surface names either app host.
 
 Brand images (`public/og-image.png` 1200x630, `logo.png`, `favicon-48.png`) are
 rendered from `brand/social-images.html` (the recipe is in its header comment).
+The touch icon, `favicon-32.png` and the four app icons under `public/app/` are rendered from
+`brand/app-icons.html` (recipe in its header comment). All of them show the mark in `public/logo-mark.svg`:
+after a logo change, re-render all nine files (26 Nov 2026: re-rendered for logo option C).
 Cache: `/assets/*` and `/fonts/*` one year `immutable` (fonts are not
 hashed: never replace one in place, ship a new file name); public HTML stays on
 the Pages default (revalidate) on purpose.
+
+The facts file `data/veridian-facts.yaml` is version 3 since 2026-11-25 (owner order: the first sentence of `one_line` names veridian-aios.com, the main address). `src/lib/facts.mjs` pins the version, so a deploy built from an older facts file fails its tests.
 
 After the first deploy that carries this: `curl -s https://veridian-aios.com/ | grep -E 'canonical|og:url|og:image'`,
 `curl -s https://veridian-aios.com/sitemap.xml`, grep the live pages for

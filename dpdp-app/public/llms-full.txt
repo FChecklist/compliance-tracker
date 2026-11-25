@@ -1,15 +1,15 @@
 # VERIDIAN DPDP — full text
 
-> dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
+> veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 
 This is the visible text of every public page of https://veridian-aios.com.
 
 ## DPDP Compliance Management Software for India — https://veridian-aios.com/
 
 DPDP Act 2023 · DPDP Rules 2025
-### DPDP is coming. Penalties are high.
-It is not an IT job. It is the job of the CA, CS or auditor to remind the client.
-The first step is Discover. Then comes a regular follow-up every week. It shows what data is there, where it is, and what has been done with it.
+### DPDP is not an IT problem. It is a data hygiene issue, and it has to be done every week.
+DPDP is not a one-time job. It has to be done regularly. A firm and its clients need a simple system to Discover, Decide and Do. Data hygiene is not an IT or computer issue. It is regular audit and confirmation. The first step is to set up a process that stands apart from the IT team. VERIDIAN DPDP is that separate, third-party process.
+For a CA, CS, auditor or law firm, this is a regular service for clients. The work comes back every week. VERIDIAN is the tool designed for it: Discover, Decide, Do, with a dated record.
 Become a Partner
 For a Firm (CA, CS, auditor or lawyer) and for an Accountant Partner.
 By continuing you accept the Terms of Service .
@@ -20,17 +20,17 @@ Built for DPDP Act 2023 & Rules 2025 Simple steps: Discover, Decide, Do A free A
 1. Discover What data there is, where it is, and with whom.
 2. Decide What to do, when to do it, and who will do it.
 3. Do Confirm that it is done.
-It is not a one-time job. It is weekly work. Discover, Decide and Do come round every week. A simple system keeps them going. VERIDIAN is that system.
+It is not a one-time job. It is weekly work. Discover, Decide and Do come round every week. Like the books and the accounts, data needs regular hygiene. IT cannot do it alone. A system that stands apart from the IT team keeps it going. VERIDIAN is that system. It is built for the firm, and the firm brings it to the client.
 ### How it works in 3 steps
 1.
-### A Partner joins
-A Firm or an Accountant Partner signs in with an e-mail. No password.
+### The firm joins
+A Firm or an Accountant Partner signs in with an e-mail. No password. The client already trusts the firm, so the first talk is easy.
 2.
-### The Partner adds clients
+### The firm adds clients
 Each client gets an e-mail invitation, verifies by e-mail, and sees its own dashboard.
 3.
 ### Every week
-Discover, Decide, Do. Partner and client both see what is done, what is pending, with whom, and how old it is.
+Discover, Decide, Do. Firm and client both see what is done, what is pending, with whom, and how old it is. Each step leaves a dated record. VERIDIAN stands for VERy INDIAN, and it helps the firm step by step.
 ### Two ways to become a Partner
 Firm A CA, CS, auditor or lawyer. Runs the weekly work for clients, signs off reports and gives advice.
 Accountant Partner An accountant or bookkeeper who is not a CA. Runs the weekly routine with clients as a reminder and follow-up service.
@@ -60,7 +60,7 @@ Not a certifier. No DPDP certification exists in India and we do not offer one.
 No promised outcome. It helps you do and prove the work. It does not promise a result.
 Not a document store. It does not keep documents. The one exception is a payment proof that a person chooses to upload.
 ### What VERIDIAN (VERy INDIAN) is
-dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
+veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
@@ -86,7 +86,7 @@ Give each client a set of controls. Chase the answers by email. Keep a dated rec
 Start free →
 Start free and build your list. Rs 99 for your first 3 months (up to 10 clients), then Rs 999 a month with 10 clients included and Rs 50 for each further client, or half price by the year (effectively about Rs 499 a month, under Rs 50 per client per month for 10 clients).
 ### What VERIDIAN (VERy INDIAN) is
-dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
+veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
@@ -139,7 +139,7 @@ VERIDIAN, this website and its software are owned and operated by IT SERVICES BY
 
 ### About VERIDIAN
 ### What VERIDIAN (VERy INDIAN) is
-dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
+veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
@@ -224,7 +224,7 @@ We do not give tax advice. For a question about a payout or about tax, write to 
 - Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 Become a Sales Partner
 ### What VERIDIAN (VERy INDIAN) is
-dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
+veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
@@ -310,7 +310,7 @@ Not registered for GST. GST is not charged.
 - Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 Back to Become a Sales Partner · Terms of Service
 ### What VERIDIAN (VERy INDIAN) is
-dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
+veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs
@@ -364,7 +364,7 @@ Your own AI account, and what it costs to use, is between you and that provider.
 - Grievance Officer: dpdp@veridian-aios.com (subject: Grievance)
 Get your free AI assistant
 ### What VERIDIAN (VERy INDIAN) is
-dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
+veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 Who it is for:
 1. CA, CS, audit and legal firms · their clients
 2. Companies, institutions, schools and NGOs

@@ -27,7 +27,7 @@ import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
 // /app/ is private to crawlers but is where the sign-in lives, so it is the
 // last step of the public journey and is audited the same way.
 const PUBLIC_PAGES = [
-  { path: "/", h1: "DPDP is coming. Penalties are high." },
+  { path: "/", h1: "DPDP is not an IT problem. It is a data hygiene issue, and it has to be done every week." },
   { path: "/dpdp-firm/", h1: "DPDP compliance for all your clients, in one place" },
   { path: "/dpdp-institution/", h1: "DPDP compliance for your own organisation, with proof you can show" },
 ] as const
