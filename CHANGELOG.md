@@ -13,6 +13,9 @@ standards doc's own scope note). Newest entry first, grouped by queue seq.
 > root, or `git log` directly — there is no single index for that earlier
 > period.
 
+## Owner order 25 Nov 2026 -- the small Devanagari mark "१३९" on every page (root 0.2.1, dpdp-app 0.0.2)
+Adds the approved mark (6px, bold, #0B2A6B, thin #7A1010 line, absolute at top centre, aria-hidden, no clicks) as the first element of every page: 36 static HTML pages, 73 generated draft pages (template `dpdp-app/scripts/draft-content/render.mjs`, regenerated), the Next.js root layout (CSS in `globals.css`) and `global-error`, and pages built in code (evidence pack, report export, meeting export, task link, projexa-oauth, AI-link page and manual). Guard test `src/lib/mark139.test.ts`. Not touched: e-mail HTML (templates and sent mails), raster pictures, logos/icons.
+
 ## R46 P9 seq36 -- documentation standards + this CHANGELOG (this PR, 2026-08-25)
 `docs/DOCUMENTATION_STANDARDS.md` (new) + this file (new). Docs-only.
 

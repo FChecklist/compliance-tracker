@@ -21,7 +21,7 @@ function htmlResponse(body: string) {
 }
 
 function page(title: string, body: string, ok: boolean) {
-  return `<!DOCTYPE html><html><body style="font-family:Inter,sans-serif;background:#FFFDF9;margin:0;padding:60px 20px;text-align:center;">
+  return `<!DOCTYPE html><html><head><style>.mark139{position:absolute;top:0;left:0;right:0;margin:0;padding:1px 0 0;text-align:center;line-height:1;pointer-events:none;user-select:none;z-index:2147483647;font-family:"Noto Sans Devanagari","Mukta","Nirmala UI","Mangal","Kohinoor Devanagari","Devanagari Sangam MN",sans-serif;font-size:6px;font-weight:700;color:#0B2A6B}.mark139 span{display:inline-block;border-bottom:.5px solid #7A1010;padding-bottom:.5px}</style></head><body style="font-family:Inter,sans-serif;background:#FFFDF9;margin:0;padding:60px 20px;text-align:center;"><div class="mark139" lang="hi" aria-hidden="true"><span>१३९</span></div>
 <div style="max-width:420px;margin:0 auto;background:#fff;border-radius:12px;border:1px solid #E2E8F0;padding:32px;">
   <div style="font-size:32px;margin-bottom:8px;">${ok ? "✅" : "⚠️"}</div>
   <h2 style="color:#1C2B3A;margin:0 0 8px;">${title}</h2>
@@ -30,7 +30,7 @@ function page(title: string, body: string, ok: boolean) {
 }
 
 function confirmPage(action: "yes" | "no") {
-  return `<!DOCTYPE html><html><body style="font-family:Inter,sans-serif;background:#FFFDF9;margin:0;padding:60px 20px;text-align:center;">
+  return `<!DOCTYPE html><html><head><style>.mark139{position:absolute;top:0;left:0;right:0;margin:0;padding:1px 0 0;text-align:center;line-height:1;pointer-events:none;user-select:none;z-index:2147483647;font-family:"Noto Sans Devanagari","Mukta","Nirmala UI","Mangal","Kohinoor Devanagari","Devanagari Sangam MN",sans-serif;font-size:6px;font-weight:700;color:#0B2A6B}.mark139 span{display:inline-block;border-bottom:.5px solid #7A1010;padding-bottom:.5px}</style></head><body style="font-family:Inter,sans-serif;background:#FFFDF9;margin:0;padding:60px 20px;text-align:center;"><div class="mark139" lang="hi" aria-hidden="true"><span>१३९</span></div>
 <div style="max-width:420px;margin:0 auto;background:#fff;border-radius:12px;border:1px solid #E2E8F0;padding:32px;">
   <div style="font-size:32px;margin-bottom:8px;">${action === "yes" ? "✅" : "⚠️"}</div>
   <h2 style="color:#1C2B3A;margin:0 0 8px;">Confirm your answer</h2>
