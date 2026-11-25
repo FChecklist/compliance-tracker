@@ -35,7 +35,7 @@
 //     host (app.veridian-aios.com) at all -- the public pages are indexed under
 //     veridian-aios.com alone, so a canonical, sitemap entry, llms.txt line,
 //     JSON-LD value or link that says dpdp. or app. is a split-index bug. The
-//     owner-approved sentence "dpdp.veridian-aios.com is Indian software ..."
+//     owner-approved sentence "veridian-aios.com is Indian software ..."
 //     (data/veridian-facts.yaml one_line) names the host as a plain word, not
 //     as a link, and is the one thing allowed.
 // (f) THE BRAND LINE (WO-014 §1): no variant spelling of "VERy INDIAN" and

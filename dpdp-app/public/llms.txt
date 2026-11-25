@@ -1,6 +1,6 @@
 # VERIDIAN DPDP
 
-> dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
+> veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.
 
 VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India.
 

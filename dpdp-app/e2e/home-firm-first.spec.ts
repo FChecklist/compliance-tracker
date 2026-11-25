@@ -7,8 +7,8 @@ import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
 test.describe("home page: firm first", () => {
   test("the central message, Discover / Decide / Do, and one Become a Partner button", async ({ page }) => {
     await page.goto("/")
-    await expect(page.getByRole("heading", { level: 1, name: "DPDP is coming. Penalties are high.", exact: true })).toBeVisible()
-    await expect(page.getByText("It is not an IT job. It is the job of the CA, CS or auditor to remind the client.")).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1, name: "DPDP is not an IT problem. It is a data hygiene issue, and it has to be done every week.", exact: true })).toBeVisible()
+    await expect(page.getByText("DPDP is not a one-time job. It has to be done regularly.", { exact: false })).toBeVisible()
     for (const w of ["Discover", "Decide", "Do"]) await expect(page.getByRole("listitem").filter({ hasText: w }).first()).toBeVisible()
     await expect(page.getByText("It is not a one-time job. It is weekly work.")).toBeVisible()
     const become = page.getByRole("link", { name: "Become a Partner", exact: true }).first()

@@ -118,8 +118,8 @@ describe("two origins, one bundle (SEO canonical host)", () => {
     expect(pageUrl("/")).toBe("https://veridian-aios.com/")
   })
 
-  // The owner-approved product sentence ("dpdp.veridian-aios.com is Indian
-  // software ...") names the dpdp. host as a plain word on every page, so the
+  // The owner-approved product sentence ("veridian-aios.com is Indian
+  // software ...") is now the main address, and the dpdp. app host stays out of the public text, so the
   // rule for that host is "never as an address": no `//host`, no `host/`. The
   // legacy app. host is named nowhere at all.
   test("no public page source, llms file or robots.txt links to the app host or names the legacy host", () => {
@@ -322,7 +322,7 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
   const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
 
   test("the h1 and an ordered list of exactly three, 1 to 3, in the owner's words", () => {
-    expect(main).toContain('<h1 class="chooser-title">DPDP is coming. Penalties are high.</h1>')
+    expect(main).toContain('<h1 class="chooser-title">DPDP is not an IT problem. It is a data hygiene issue, and it has to be done every week.</h1>')
     expect(main).toContain("<h2>Three things to know about DPDP compliance</h2>")
     const list = /<ol class="lead-list hm-three">([\s\S]*?)<\/ol>/.exec(main)![1]
     const items = [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])

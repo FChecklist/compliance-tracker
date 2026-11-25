@@ -9,9 +9,9 @@ import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
 
 export const HOME_COPY = {
   eyebrow: "DPDP Act 2023 · DPDP Rules 2025",
-  h1: "DPDP is coming. Penalties are high.",
-  lead: "It is not an IT job. It is the job of the CA, CS or auditor to remind the client.",
-  lead2: "The first step is Discover. Then comes a regular follow-up every week. It shows what data is there, where it is, and what has been done with it.",
+  h1: "DPDP is not an IT problem. It is a data hygiene issue, and it has to be done every week.",
+  lead: "DPDP is not a one-time job. It has to be done regularly. A firm and its clients need a simple system to Discover, Decide and Do. Data hygiene is not an IT or computer issue. It is regular audit and confirmation. The first step is to set up a process that stands apart from the IT team. VERIDIAN DPDP is that separate, third-party process.",
+  lead2: "For a CA, CS, auditor or law firm, this is a real service line. The work comes back every week, so it is regular, billable work. The client keeps coming back. VERIDIAN does the heavy part: Discover, Decide, Do, with a dated record.",
   cta: { label: "Become a Partner", href: "/partner/" },
   ctaNote: "For a Firm (CA, CS, auditor or lawyer) and for an Accountant Partner.",
   signIn: { label: "Already a Partner or a client? Sign in", href: "/app/" },
@@ -29,13 +29,13 @@ export const HOME_COPY = {
   ],
   weekly: {
     title: "It is not a one-time job. It is weekly work.",
-    text: "Discover, Decide and Do come round every week. A simple system keeps them going. VERIDIAN is that system.",
+    text: "Discover, Decide and Do come round every week. Like the books and the accounts, data needs regular hygiene. IT cannot do it alone. A system that stands apart from the IT team keeps it going. VERIDIAN is that system. It is built for the firm, and the firm brings it to the client.",
   },
   stepsTitle: "How it works in 3 steps",
   steps: [
-    { title: "A Partner joins", text: "A Firm or an Accountant Partner signs in with an e-mail. No password." },
-    { title: "The Partner adds clients", text: "Each client gets an e-mail invitation, verifies by e-mail, and sees its own dashboard." },
-    { title: "Every week", text: "Discover, Decide, Do. Partner and client both see what is done, what is pending, with whom, and how old it is." },
+    { title: "The firm joins", text: "A Firm or an Accountant Partner signs in with an e-mail. No password. The client already trusts the firm, so the first talk is easy." },
+    { title: "The firm adds clients", text: "Each client gets an e-mail invitation, verifies by e-mail, and sees its own dashboard." },
+    { title: "Every week", text: "Discover, Decide, Do. Firm and client both see what is done, what is pending, with whom, and how old it is. Each step leaves a dated record. VERIDIAN stands for VERy INDIAN, and it helps the firm step by step." },
   ],
   partnersTitle: "Two ways to become a Partner",
   partners: [

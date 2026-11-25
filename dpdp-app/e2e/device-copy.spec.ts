@@ -47,7 +47,7 @@ test.describe("Your copy on this device + the 3-step page", () => {
     const prompt = steps.getByTestId("ai-first-prompt")
     await expect(prompt).toContainText("/ai/")
     const clip = await page.evaluate(() => navigator.clipboard.readText())
-    expect(clip).toContain("https://dpdp.veridian-aios.com/ai/")
+    expect(clip).toMatch(/^https:\/\/(dpdp\.)?veridian-aios\.com\/ai\//m) // the AI work link stays on the app host (SITE_ORIGIN); the main address also works
   })
 
   test("after one visit the app opens with the server GONE, and says the copy is on the device", async ({ page }) => {

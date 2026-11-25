@@ -39,7 +39,7 @@ describe("data/veridian-facts.yaml: the one source of truth", () => {
   test("carries WO-DPDP-013 v2 §2.2 verbatim (the four paragraphs)", () => {
     // 2026-10-01 (owner): the first sentence names the app host; the audience adds companies and NGOs.
     expect(facts.one_line).toBe(
-      "dpdp.veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.",
+      "veridian-aios.com is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and companies, institutions, schools and NGOs.",
     )
     expect(facts.fact_block_title).toBe("What VERIDIAN (VERy INDIAN) is")
     expect(facts.what_it_does).toBe(
