@@ -19,6 +19,7 @@
 // llms*.txt carry no crawl-policy note.
 //
 // Exit 1 with every failure named; exit 2 if dist/ is missing.
+import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -31,6 +32,7 @@ import {
   OG_IMAGE,
   PRIVATE_PAGES,
   PUBLIC_ORIGIN,
+  LISTED_PAGES,
   PUBLIC_PAGES,
   PAYTEST_URL,
   PUBLIC_SCRIPT_OPENS,
@@ -219,7 +221,8 @@ for (const page of PUBLIC_PAGES) {
   expect(meta(html, "property", "og:title") === title, `${label}: og:title differs from <title>`)
   expect(meta(html, "property", "og:description") === description, `${label}: og:description differs from the meta description`)
   const robotsMeta = meta(html, "name", "robots")
-  expect(!robotsMeta || !/noindex|nofollow/i.test(robotsMeta), `${label}: PUBLIC page carries <meta name="robots" content="${robotsMeta}">`)
+  const orgPageHidden = page.path === "/dpdp-institution/" && !ORG_DIRECT_ENABLED // noindex exactly while the organisation-direct switch is off
+  expect(orgPageHidden ? robotsMeta === "noindex" : !robotsMeta || !/noindex|nofollow/i.test(robotsMeta), `${label}: PUBLIC page carries <meta name="robots" content="${robotsMeta}">`)
 
   // One host: every public page is indexed under PUBLIC_ORIGIN and never
   // mentions the signed-in app's host (SITE_ORIGIN) -- not in a canonical, an
@@ -540,7 +543,7 @@ for (const f of ["llms.txt", "llms-full.txt"]) {
   expect(has(f), `dist/${f} missing`)
   if (!has(f)) continue
   const body = read(f)
-  for (const pub of PUBLIC_PAGES) expect(body.includes(pageUrl(pub.path)), `${f}: does not list ${pageUrl(pub.path)}`)
+  for (const pub of LISTED_PAGES) expect(body.includes(pageUrl(pub.path)), `${f}: does not list ${pageUrl(pub.path)}`)
   for (const priv of PRIVATE_PAGES) expect(!body.includes(pageUrl(priv.prefix)), `${f}: names the private URL ${pageUrl(priv.prefix)}`)
   for (const hidden of HIDDEN_PAGES) expect(!body.includes(hidden.prefix), `${f}: names the hidden page ${hidden.prefix}`)
   // Owner, 2026-10-01: no crawl-policy essay and no internal-process wording in the llms files.

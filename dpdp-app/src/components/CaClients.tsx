@@ -2,6 +2,9 @@ import "./onepage/dpdp-onepage-tokens.css"
 import { useState, useTransition, type FormEvent, type ReactNode } from "react"
 import type { CaClient } from "@/lib/api"
 import { GuidedError } from "@/components/GuidedError"
+import { FirmDashboard } from "@/components/FirmDashboard"
+import { AgeBadge } from "@/components/DashboardParts"
+import { firmRow } from "@/lib/dashboard-rules"
 
 // WO-DPDP-010 §3 "CA firm view", ported from src/app/dpdp/(app)/ca-clients/
 // page.tsx (copy verbatim) onto dpdp_my_clients, plus the two things WO-011
@@ -191,6 +194,7 @@ export function CaClients({
         <p style={{ fontSize: 14.5, color: "var(--dpdp-ink2)", margin: "0 0 20px" }}>
           Every organisation that named you as their CA manager or CA partner.
         </p>
+        <FirmDashboard clients={clients} />
         {clients.length > 0 && <ClientsDashboard clients={clients} />}
         <HowTo clients={clients} onAdd={() => setAdding(true)} />
         {clients.length === 0 ? (
@@ -202,7 +206,7 @@ export function CaClients({
             <table className="w-full border-collapse" style={{ minWidth: 640 }}>
               <thead>
                 <tr>
-                  {["Client", "As", "Done", "Where it is", ""].map((h, i) => (
+                  {["Client", "As", "Done", "Where it is", "With whom", "Age", ""].map((h, i) => (
                     <th key={i} className="text-left whitespace-nowrap" style={{ background: "#F8F9FC", color: "var(--dpdp-ink3)", fontSize: 12, fontWeight: 600, padding: 12, borderBottom: "1px solid var(--dpdp-line)" }}>{h}</th>
                   ))}
                 </tr>
@@ -210,6 +214,7 @@ export function CaClients({
               <tbody>
                 {clients.map((c) => {
                   const pct = c.total ? Math.round((c.done / c.total) * 100) : 0
+                  const dash = firmRow(c)
                   return (
                     <tr key={c.org.id}>
                       <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>
@@ -226,6 +231,8 @@ export function CaClients({
                           {c.whereItIs}
                         </span>
                       </td>
+                      <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)", fontSize: 13, color: "var(--dpdp-ink2)" }}>{dash.withWhom ?? "Nobody. All done."}</td>
+                      <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>{dash.firstPending ? <AgeBadge days={dash.ageDays} bucket={dash.bucket} /> : <span style={{ fontSize: 13 }}>—</span>}</td>
                       <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)", textAlign: "right" }}>
                         <button type="button" onClick={() => onOpen(c.org.id)} aria-label={`Open ${c.org.name}`} className="font-bold text-white rounded-lg" style={{ background: "var(--dpdp-v)", fontSize: 13, padding: "9px 16px" }}>
                           Open

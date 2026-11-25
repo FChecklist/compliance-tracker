@@ -55,7 +55,8 @@ import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { APP_DIR, companyFooterHtml, contactSentence, grievanceOfficerLine, loadClaims, loadFacts, loadProof, pageDescription, pageTitle, subjectTopicsClause } from "../src/lib/facts.mjs"
-import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, FAMILY_BLOCK, OG_IMAGE, PUBLIC_ORIGIN, PUBLIC_PAGES, PWA, PWA_SCRIPT, REF_SCRIPT, RUM_SCRIPT, VISIT_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
+import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
+import { FOOTER_LINKS, HIDDEN_PAGES, NAV_AI, NAV_PARTNER, NAV_SIGN_IN, FAMILY_BLOCK, OG_IMAGE, PUBLIC_ORIGIN, LISTED_PAGES, PUBLIC_PAGES, PWA, PWA_SCRIPT, REF_SCRIPT, RUM_SCRIPT, VISIT_SCRIPT, pageUrl } from "../src/lib/public-surface.mjs"
 
 const SELF = fileURLToPath(import.meta.url)
 
@@ -301,7 +302,7 @@ function nav(facts, current) {
     ["/dpdp-firm/", "For CA, CS, legal and audit firms"],
     ["/dpdp-institution/", "For companies, schools and NGOs"],
     ["/about/", facts.pages["/about/"].name],
-  ]
+  ].filter(([href]) => LISTED_PAGES.some((p) => p.path === href) || href !== "/dpdp-institution/") // the hidden organisation door is advertised only while the switch is on
   return [
     `<header class="nav">`,
     `  <div class="nav-inner">`,
@@ -607,6 +608,11 @@ export function applyToLanding(facts, html, path, file) {
   out = replaceOne(out, /<title>[^<]*<\/title>/i, `<title>${esc(title)}</title>`, file, "<title>")
   out = replaceOne(out, /<meta name="description" content="[^"]*" \/>/i, `<meta name="description" content="${esc(description)}" />`, file, "the meta description")
   out = replaceOne(out, /<link rel="canonical" href="[^"]*" \/>/i, `<link rel="canonical" href="${esc(pageUrl(path))}" />`, file, "the canonical link")
+  // The organisation page is noindex only while the organisation-direct switch is off (src/lib/org-direct.mjs); removed when it is on.
+  out = out.replace(/^[ \t]*<meta name="robots" content="noindex" \/>\r?\n/gm, "")
+  if (path === "/dpdp-institution/" && !ORG_DIRECT_ENABLED) {
+    out = replaceOne(out, /^([ \t]*)(<link rel="canonical" href="[^"]*" \/>)\r?\n/m, (m) => `${m[1]}${m[2]}\n${m[1]}<meta name="robots" content="noindex" />\n`, file, "the canonical link (to attach the noindex tag)")
+  }
   out = replaceOne(out, /<meta property="og:url" content="[^"]*" \/>/i, `<meta property="og:url" content="${esc(pageUrl(path))}" />`, file, "og:url")
   out = replaceOne(out, /<meta property="og:title" content="[^"]*" \/>/i, `<meta property="og:title" content="${esc(title)}" />`, file, "og:title")
   out = replaceOne(out, /<meta property="og:description" content="[^"]*" \/>/i, `<meta property="og:description" content="${esc(description)}" />`, file, "og:description")
@@ -678,7 +684,7 @@ function llmsTxt(facts) {
     ``,
     `## Pages`,
     ``,
-    ...PUBLIC_PAGES.map((p) => `- [${facts.pages[p.path].name}](${pageUrl(p.path)}): ${facts.pages[p.path].summary}`),
+    ...LISTED_PAGES.map((p) => `- [${facts.pages[p.path].name}](${pageUrl(p.path)}): ${facts.pages[p.path].summary}`),
     `- The sitemap: ${facts.site}/sitemap.xml`,
     ``,
     `## Contact`,
@@ -692,7 +698,7 @@ function llmsTxt(facts) {
 
 function llmsFullTxt(facts, pagesHtml) {
   const out = [`# ${facts.product} — full text`, ``, `> ${facts.one_line}`, ``, `This is the visible text of every public page of ${facts.site}.`, ``]
-  for (const p of PUBLIC_PAGES) {
+  for (const p of LISTED_PAGES) {
     out.push(`## ${facts.pages[p.path].name} — ${pageUrl(p.path)}`, ``)
     for (const line of visibleLines(pagesHtml.get(p.source).replace(/<div class="uf-family">[\s\S]*?<\/ul>\s*<\/div>/, ""))) out.push(line.startsWith("# ") ? `### ${line.slice(2)}` : line.startsWith("## ") ? `### ${line.slice(3)}` : line)
     out.push(``)

@@ -55,6 +55,8 @@ export declare const THEME_SCRIPT: { readonly src: string; readonly tag: string;
 export declare function scriptOpensFor(path: string): readonly string[]
 export declare const COMPANY_FOOTER_COPY: readonly string[]
 export declare const LEGAL_PAGES: readonly { readonly path: string; readonly source: string; readonly h1: string }[]
+export declare const LISTED_PAGES: readonly { readonly path: string; readonly source: string }[]
+export declare function listedPages(enabled?: boolean): readonly { readonly path: string; readonly source: string }[]
 export declare const SITEMAP_PAGES: readonly { readonly path: string; readonly source: string }[]
 export declare const REF_SCRIPT: { readonly src: string; readonly tag: string; readonly open: string }
 export declare const NAV_AI: { readonly href: string; readonly label: string }

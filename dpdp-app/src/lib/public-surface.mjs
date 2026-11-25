@@ -24,6 +24,8 @@
 // canonical, X-Robots-Tag noindex, absent from the sitemap and llms*.txt,
 // linked from nowhere -- but NOT a private prefix (no robots Disallow, so a
 // crawler that finds it can still read the noindex).
+import { HOME_COPY } from "./home-copy.mjs"
+import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
 import { companyFooterParts, loadFacts, pageTitle, subjectTopicsClause } from "./facts.mjs"
 
 import { LEGACY_APP_ORIGIN, PUBLIC_ORIGIN, SITE_ORIGIN } from "./site-origin.mjs"
@@ -255,28 +257,23 @@ export const PUBLIC_PAGES = [
     path: "/",
     source: "index.html",
     title: pageTitle(FACTS, "/"),
-    h1: "DPDP compliance that outlasts the person who set it up.",
+    h1: HOME_COPY.h1,
     jsonLd: ["Organization", "WebSite", "SoftwareApplication"],
     mustContain: [
       "VERy INDIAN",
       // The three points, numbered 1-3 (owner, 2026-10-01): exactly the facts file's list.
       ...FACTS.three_things,
-      // The tagline band and the questions section (owner, 2026-11-02).
-      "What is the data?",
-      "Where is it?",
-      "With whom is it?",
-      "VERIDIAN is an independent, third-party system.",
-      "You never know when you will need it.",
-      "Not data-cleaning software. Your data stays where it is.",
-      "All your questions",
-      // Exactly two ways in (owner, 2026-10-01), worded as the redesigned home page words them (owner, 2026-10-02).
-      "CA · CS · Legal · Audit firm",
-      "Doing it for my clients →",
-      "Company · School · NGO",
-      "Doing it for ourselves →",
-      'href="/dpdp-firm/"',
-      'href="/dpdp-institution/"',
-      "Already have an account? Sign in",
+      // The firm-first home page (owner order, 24 Nov 2026): its copy lives in src/lib/home-copy.mjs and index.html is generated from it.
+      HOME_COPY.lead,
+      HOME_COPY.lead2,
+      ...HOME_COPY.words.map((w) => w.meaning),
+      HOME_COPY.weekly.title,
+      HOME_COPY.stepsTitle,
+      HOME_COPY.cta.label,
+      `href="${HOME_COPY.cta.href}"`,
+      'href="/terms/"',
+      HOME_COPY.accountantLine,
+      "Already a Partner or a client? Sign in",
       FACTS.brand.share_ask,
       ...FACT_COPY,
     ],
@@ -436,8 +433,15 @@ if (FACTS.proof.enabled) PUBLIC_PAGES.push(PROOF_PAGE)
  * sitemap or llms*.txt, linked from nowhere. Not a private prefix. */
 export const HIDDEN_PAGES = FACTS.proof.enabled ? [] : [{ prefix: PROOF_PAGE.path, source: PROOF_PAGE.source }]
 
-/** Every URL the sitemap lists: the public pages, then the legal pages. */
-export const SITEMAP_PAGES = [...PUBLIC_PAGES, ...LEGAL_PAGES]
+/** The pages listed to crawlers (sitemap, llms files, crawler-access list). The organisation-direct page is built but left out while the switch
+ * (src/lib/org-direct.mjs) is off; it is redirected to /partner/ then. Switch on: it is listed again. */
+export function listedPages(enabled = ORG_DIRECT_ENABLED) {
+  return PUBLIC_PAGES.filter((p) => enabled || p.path !== "/dpdp-institution/")
+}
+export const LISTED_PAGES = listedPages()
+
+/** Every URL the sitemap lists: the listed public pages, then the legal pages. */
+export const SITEMAP_PAGES = [...LISTED_PAGES, ...LEGAL_PAGES]
 
 export function pageUrl(path) {
   return PUBLIC_ORIGIN + path

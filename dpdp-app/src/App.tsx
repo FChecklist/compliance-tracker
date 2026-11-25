@@ -32,11 +32,14 @@ import { MyData } from "./components/MyData"
 import { SalesPartner } from "./components/SalesPartner"
 import { DraftConfirm } from "./components/DraftConfirm"
 import { AiUndoConfirm } from "./components/AiUndoConfirm"
+import { editionAllowed } from "./lib/org-direct.mjs"
+import { MoneypennyChatMount, MONEYPENNY_PRODUCT_ID } from "./components/MoneypennyChatMount"
 import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, OpenOrganisation, SignIn, type OpenAccountExtra, type ResendState } from "./components/Screens"
 import { BrandLine } from "./components/BrandLine"
 import { shareRoleFor } from "./lib/brand"
 import { AiFirstSteps } from "./components/AiFirstSteps"
 import { WeeklyRoutine } from "./components/WeeklyRoutine"
+import { ClientDashboard } from "./components/ClientDashboard"
 import { DeviceCopy } from "./components/DeviceCopy"
 import { createCopyStore } from "./lib/device-copy/copy-store"
 import { idbKv } from "./lib/device-copy/kv"
@@ -304,6 +307,11 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
   // dpdp_create_my_org itself, so the referral code still ends there. A partner code outranks a referral code, the first link wins for 30 days,
   // and nothing is paid now.
   async function openMyOrg(name: string, product: "firm" | "institution", extra: OpenAccountExtra) {
+    // The organisation-direct switch (src/lib/org-direct.mjs): a hidden edition is refused here too, not only hidden on the screen.
+    if (!editionAllowed(product)) {
+      setPhase({ name: "no-membership", busy: false, error: "An organisation joins through a Firm or an Accountant Partner. Ask the Firm for an e-mail invitation." })
+      return
+    }
     setPhase({ name: "no-membership", busy: true, error: null })
     try {
       await openAccount(client, {
@@ -392,6 +400,8 @@ function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpC
     <>
       <BrandLine share={phase.name === "app" && shareRole ? { client, orgId: phase.page.org.id, role: shareRole, onOpenPartner: () => setPartnerOpen(true) } : null} />
       {screen}
+      {/* A separate Moneypenny Chat module is mounted here later. Renders nothing yet; one mount for every Partner and client screen. */}
+      <MoneypennyChatMount productId={MONEYPENNY_PRODUCT_ID} />
     </>
   )
 }
@@ -457,6 +467,7 @@ function Page({
     // without an RPC; everything else on the page is wired.
     body = (
       <>
+        {viewer.kind !== "staff" && viewer.kind !== "parent" && <ClientDashboard rows={rows} />}
         {viewer.kind !== "staff" && viewer.kind !== "parent" && <WeeklyRoutine key={org.id} client={client} orgId={org.id} rows={rows} offline={copyInfo.offline} />}
         <AiFirstSteps client={client} orgId={org.id} offline={copyInfo.offline} onMade={refetch} />
         <div id="jobs" />

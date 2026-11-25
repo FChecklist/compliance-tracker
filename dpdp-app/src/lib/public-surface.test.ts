@@ -19,6 +19,7 @@ import {
   REF_SCRIPT,
   PRIVATE_PAGES,
   PUBLIC_ORIGIN,
+  LISTED_PAGES,
   PUBLIC_PAGES,
   SITEMAP_PAGES,
   PWA_SCRIPT,
@@ -37,6 +38,7 @@ import {
 // The Next.js side's own public/private split for veridian-aios.com. The two
 // hosts are different, but the edition landings are public on both -- WO-012
 // §2 landed there first and this app must not quietly disagree with it.
+import { ORG_DIRECT_ENABLED } from "./org-direct.mjs"
 import { DPDP_PUBLIC_ALLOW } from "../../../src/lib/dpdp-public-surface"
 
 const root = join(import.meta.dir, "..", "..")
@@ -256,7 +258,7 @@ describe("public/llms.txt and llms-full.txt (WO-012 §3: honest, existing pages 
   for (const file of ["public/llms.txt", "public/llms-full.txt"]) {
     test(`${file} lists every public page, links no private page, and carries no crawl-policy essay`, () => {
       const text = read(file)
-      for (const pub of PUBLIC_PAGES) expect(text).toContain(pageUrl(pub.path))
+      for (const pub of LISTED_PAGES) expect(text).toContain(pageUrl(pub.path))
       for (const priv of PRIVATE_PAGES) expect(text).not.toContain(pageUrl(priv.prefix))
       // Owner, 2026-10-01: nothing about what search engines have or have not confirmed.
       expect(text).not.toMatch(/no major search engine has confirmed/i)
@@ -293,23 +295,23 @@ describe("withdrawn surfaces: /for-ai/, /for-ai.md, /facts.json", () => {
   })
 })
 
-describe("the home page offers exactly two ways in (owner, 2026-10-01)", () => {
+// Owner order, 24 Nov 2026 (firm-first redesign): the home page has ONE way in, "Become a Partner" (/partner/). The organisation door is hidden
+// behind ORG_DIRECT_ENABLED (src/lib/org-direct.mjs); src/lib/home-copy.test.ts pins the rest of the page.
+describe("the home page offers one way in: Become a Partner", () => {
   const html = read("index.html")
   const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
-  const choices = [...main.matchAll(/<a class="choice" href="([^"]*)">([\s\S]*?)<\/a>/g)].map((m) => ({ href: m[1], text: m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() }))
 
-  test("two big choice cards, with exactly these labels and targets", () => {
-    expect(choices).toEqual([
-      { href: "/dpdp-firm/", text: "For professionals CA · CS · Legal · Audit firm Doing it for my clients →" },
-      { href: "/dpdp-institution/", text: "For organisations Company · School · NGO Doing it for ourselves →" },
-    ])
+  test("a Become a Partner button to /partner/, and no organisation door while the switch is off", () => {
+    expect(main).toMatch(/<a class="btn hm-cta-btn" href="\/partner\/">Become a Partner<\/a>/)
+    expect(ORG_DIRECT_ENABLED).toBe(false)
+    expect(main).not.toContain("/dpdp-institution/")
+    expect(main).not.toContain("edition=institution")
+    expect(main).not.toContain('class="choice"')
   })
 
-  test("no third option or secondary chooser link: the only other links in the page body are the free AI assistant highlight (its button and its page), the sign-in and About", () => {
+  test("the only links in the page body are the known ones", () => {
     const hrefs = [...main.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1])
-    // "/app/" twice: the AI assistant highlight's button and "Already have an account? Sign in".
-    expect(hrefs.sort()).toEqual(["/about/", "/ai-assistant/", "/app/", "/app/", "/dpdp-firm/", "/dpdp-institution/"].sort())
-    expect(main).not.toMatch(/school instead/i)
+    for (const h of new Set(hrefs)) expect(["/partner/", "/terms/", "/app/", "/ai-assistant/", "/about/"], h).toContain(h)
     expect(main).not.toContain("?for=")
   })
 })
@@ -320,8 +322,7 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
   const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
 
   test("the h1 and an ordered list of exactly three, 1 to 3, in the owner's words", () => {
-    expect(main).toContain('<h1 class="chooser-title">DPDP compliance that <em>outlasts</em> the person who set it up.</h1>')
-    // The old h1 is kept as the h2 over the three points, so the phrase stays on the page.
+    expect(main).toContain('<h1 class="chooser-title">DPDP is coming. Penalties are high.</h1>')
     expect(main).toContain("<h2>Three things to know about DPDP compliance</h2>")
     const list = /<ol class="lead-list hm-three">([\s\S]*?)<\/ol>/.exec(main)![1]
     const items = [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])
@@ -337,37 +338,6 @@ describe("the home page's three points (owner, 2026-10-01)", () => {
       expect(body, `${rel} still has the old four things`).not.toContain("Tell people about it.")
     }
     expect(read("public/llms-full.txt")).toContain("1. People change, but your liability does not. When people leave, what they knew about your data leaves with them.\n2. Know what data you hold, where it is, and who else holds it for you.\n3. Prove it — with an uneditable record, held by a third party for 10 years, that outlasts the person who set it up.")
-  })
-})
-
-// Owner, 2026-11-02: a tagline band that says what the product is not (data-cleaning software) and what it keeps,
-// and an "All your questions" section that answers What, Why, Where, Whom, When, Which and How in short sentences.
-describe("the home page's tagline band and 'All your questions' section (owner, 2026-11-02)", () => {
-  const html = read("index.html")
-  const main = /<main class="chooser">([\s\S]*?)<\/main>/.exec(html)![1]
-  const text = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
-
-  test("the tagline names the three first questions and says it is not data-cleaning software", () => {
-    const band = /<section class="hm-sec hm-tl"[^>]*>([\s\S]*?)<\/section>/.exec(main)![1]
-    const steps = [...(/<ol class="hm-tl-steps">([\s\S]*?)<\/ol>/.exec(band)![1]).matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1])
-    expect(steps).toEqual(["What is the data?", "Where is it?", "With whom is it?"])
-    expect(text(band)).toContain("But people leave, even the people you asked to track it.")
-    expect(text(band)).toContain("VERIDIAN is an independent, third-party system. It is built to work for 10 years and to keep every record in a form that cannot be edited.")
-    expect(text(band)).toContain("You never know when you will need it.")
-    expect(text(band)).toContain("Not data-cleaning software. Your data stays where it is.")
-  })
-
-  test("seven questions, in the owner's order, each answered in a few short sentences", () => {
-    const sec = /<section class="hm-sec" id="questions">([\s\S]*?)<\/section>/.exec(main)![1]
-    expect(sec).toContain("<h2>All your questions</h2>")
-    const cards = [...sec.matchAll(/<span class="hm-qa-w">([\s\S]*?)<\/span><h3>([\s\S]*?)<\/h3><p>([\s\S]*?)<\/p>/g)]
-    expect(cards.map((m) => m[1])).toEqual(["What", "Why", "Where", "Whom", "When", "Which", "How"])
-    for (const [, , question, answer] of cards) {
-      expect(question, "a question").toMatch(/\?$/)
-      const sentences = text(answer).split(/(?<=[.!?:])\s+/)
-      expect(sentences.length, `"${question}" has ${sentences.length} sentences`).toBeLessThanOrEqual(6)
-      for (const s of sentences) expect(s.split(/\s+/).length, `a long sentence under "${question}": ${s}`).toBeLessThanOrEqual(22)
-    }
   })
 })
 
@@ -545,7 +515,8 @@ describe("page sources", () => {
       expect(html).toContain(`<meta property="og:url" content="${PUBLIC_ORIGIN}${pub.path}" />`)
       expect(html).toMatch(/<html[^>]*\slang="en-IN"/)
       expect(html).toContain(`<link rel="canonical" href="${pageUrl(pub.path)}" />`)
-      expect(html).not.toMatch(/<meta\s+name="robots"[^>]*no(index|follow)/i)
+      // The organisation page is noindex exactly while the organisation-direct switch is off.
+      if (!(pub.path === "/dpdp-institution/" && !ORG_DIRECT_ENABLED)) expect(html).not.toMatch(/<meta\s+name="robots"[^>]*no(index|follow)/i)
       const scripts = html.match(/<script\b[^>]*>/g) ?? []
       for (const s of scripts) expect(s === REF_SCRIPT.open || s === RUM_SCRIPT.open || s === VISIT_SCRIPT.open || s === PWA_SCRIPT.open || s === THEME_SCRIPT.open || s.includes('type="application/ld+json"'), `${pub.path}: unexpected ${s}`).toBe(true)
       expect(html).not.toMatch(/https?:\/\/fonts\.(googleapis|gstatic)\.com/)

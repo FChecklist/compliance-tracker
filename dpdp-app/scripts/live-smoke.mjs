@@ -10,6 +10,7 @@
 // a byte-identical /robots.txt and the same private-prefix headers.
 // It makes GET requests only, plus one POST that must be refused for want of a
 // bearer. It changes nothing.
+import { ORG_DIRECT_ENABLED } from "../src/lib/org-direct.mjs"
 const ORIGIN = (process.argv[2] || process.env.DPDP_ORIGIN || "https://dpdp.veridian-aios.com").replace(/\/+$/, "")
 const FUNCTIONS = process.env.DPDP_FUNCTIONS || "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1"
 const failures = []
@@ -79,7 +80,7 @@ for (const [path, edition] of [["/dpdp-firm/", "firm"], ["/dpdp-institution/", "
 const root = await get("/")
 check(!/\/dpdp\/login/.test(root.body), "/: no link to the old /dpdp/login")
 const sitemap = await get("/sitemap.xml")
-check(sitemap.body.includes("/dpdp-firm/") && sitemap.body.includes("/dpdp-institution/"), "the sitemap lists both edition pages")
+check(sitemap.body.includes("/dpdp-firm/") && sitemap.body.includes("/dpdp-institution/") === ORG_DIRECT_ENABLED, "the sitemap lists the firm edition page, and the organisation page only while the switch is on")
 check(sitemap.body.includes("/partner/"), "the sitemap lists the Sales Partner page")
 const refJs = await get("/ref.js")
 check(refJs.status === 200 && /javascript/i.test(refJs.type) && refJs.body.includes("dpdp-referral"), "/ref.js is served as JavaScript and keeps the referral code", `${refJs.status} ${refJs.type}`)

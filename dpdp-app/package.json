@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.json && node scripts/generate-public-facts.mjs --check && vite build && node scripts/pwa/build-pwa.mjs && node scripts/build-sitemap.mjs && node scripts/check-public-surface.mjs && node scripts/check-claims.mjs && node scripts/check-two-doors.mjs",
+    "build": "tsc --noEmit -p tsconfig.json && node scripts/generate-public-facts.mjs --check && node scripts/generate-home.mjs --check && vite build && node scripts/pwa/build-pwa.mjs && node scripts/build-sitemap.mjs && node scripts/check-public-surface.mjs && node scripts/check-claims.mjs && node scripts/check-two-doors.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun test",
@@ -15,6 +15,8 @@
     "build:sitemap": "node scripts/build-sitemap.mjs",
     "check:public-surface": "node scripts/check-public-surface.mjs",
     "generate:facts": "node scripts/generate-public-facts.mjs",
+    "generate:home": "node scripts/generate-home.mjs",
+    "check:home": "node scripts/generate-home.mjs --check",
     "check:facts": "node scripts/generate-public-facts.mjs --check",
     "check:claims": "node scripts/check-claims.mjs",
     "check:two-doors": "node scripts/check-two-doors.mjs"

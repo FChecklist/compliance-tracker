@@ -15,9 +15,16 @@
 # robots.txt instead; src/lib/redirects.test.ts pins that no rule here can
 # touch a private prefix or move a visitor between hosts.
 
+# ORG-DIRECT SWITCH (owner order, 24 Nov 2026, src/lib/org-direct.mjs): the organisation-direct landing page is hidden while ORG_DIRECT_ENABLED is
+# false. The page is still built; these two lines send a visitor to the Partner door. To unhide, delete them (src/lib/org-direct.test.ts keeps this
+# file and the switch in step). The two plural lines below this block also go straight to the Partner door while the page is hidden; point them back at the page when you unhide.
+/dpdp-institution   /partner/   302
+/dpdp-institution/  /partner/   302
+
+# While the switch is off these go straight to the Partner door (one hop). Switch on: point them back at /dpdp-institution/ (src/lib/redirects.test.ts checks).
 # The institution edition is singular -- owner decision, 18 Sep 2026.
-/dpdp-institutions   /dpdp-institution/   301
-/dpdp-institutions/  /dpdp-institution/   301
+/dpdp-institutions   /partner/   301
+/dpdp-institutions/  /partner/   301
 
 # Withdrawn on 2026-10-01 (owner decision): the AI-only fact sheet, its
 # plain-text copy and the facts file are no longer published. A visitor or a
