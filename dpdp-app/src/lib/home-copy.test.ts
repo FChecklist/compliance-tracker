@@ -35,7 +35,7 @@ describe("the standard sentences", () => {
   test("the owner's central message, word for word", () => {
     expect(HOME_COPY.h1).toBe("DPDP is not an IT problem. It is a data hygiene issue, and it has to be done every week.")
     expect(HOME_COPY.lead).toBe("DPDP is not a one-time job. It has to be done regularly. A firm and its clients need a simple system to Discover, Decide and Do. Data hygiene is not an IT or computer issue. It is regular audit and confirmation. The first step is to set up a process that stands apart from the IT team. VERIDIAN DPDP is that separate, third-party process.")
-    expect(HOME_COPY.lead2).toBe("For a CA, CS, auditor or law firm, this is a real service line. The work comes back every week, so it is regular, billable work. The client keeps coming back. VERIDIAN does the heavy part: Discover, Decide, Do, with a dated record.")
+    expect(HOME_COPY.lead2).toBe("For a CA, CS, auditor or law firm, this is a regular service for clients. The work comes back every week. VERIDIAN is the tool designed for it: Discover, Decide, Do, with a dated record.")
     for (const s of [HOME_COPY.h1, HOME_COPY.lead, HOME_COPY.lead2]) expect(ownText(main)).toContain(s)
   })
 

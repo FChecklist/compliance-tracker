@@ -11,7 +11,7 @@ export const HOME_COPY = {
   eyebrow: "DPDP Act 2023 · DPDP Rules 2025",
   h1: "DPDP is not an IT problem. It is a data hygiene issue, and it has to be done every week.",
   lead: "DPDP is not a one-time job. It has to be done regularly. A firm and its clients need a simple system to Discover, Decide and Do. Data hygiene is not an IT or computer issue. It is regular audit and confirmation. The first step is to set up a process that stands apart from the IT team. VERIDIAN DPDP is that separate, third-party process.",
-  lead2: "For a CA, CS, auditor or law firm, this is a real service line. The work comes back every week, so it is regular, billable work. The client keeps coming back. VERIDIAN does the heavy part: Discover, Decide, Do, with a dated record.",
+  lead2: "For a CA, CS, auditor or law firm, this is a regular service for clients. The work comes back every week. VERIDIAN is the tool designed for it: Discover, Decide, Do, with a dated record.",
   cta: { label: "Become a Partner", href: "/partner/" },
   ctaNote: "For a Firm (CA, CS, auditor or lawyer) and for an Accountant Partner.",
   signIn: { label: "Already a Partner or a client? Sign in", href: "/app/" },
